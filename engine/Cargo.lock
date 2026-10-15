@@ -2106,6 +2106,7 @@ dependencies = [
  "base64",
  "blake3",
  "getrandom 0.4.3",
+ "image",
  "mime_guess",
  "ps5-dump-forge-pfs",
  "ps5-dump-forge-ufs2",

@@ -4294,6 +4294,9 @@ async fn ps5_hw_set_fan_threshold(
 struct GameMetaQuery {
     addr: Option<String>,
     path: String,
+    /// game-icon only: 128, 256 or 384 for a scaled copy (see `icon_thumb_px`).
+    #[serde(default)]
+    size: Option<u32>,
 }
 
 #[derive(Debug, serde::Serialize)]
@@ -4450,7 +4453,12 @@ async fn serve_cached_icon(
     // Tried in order; the first that has bytes wins.
     remote_paths: Vec<String>,
     if_none_match: Option<String>,
+    // A grid's size: the cover scaled down once and cached beside the full one (#450).
+    thumb: Option<u32>,
 ) -> axum::response::Response {
+    if let Some(px) = thumb {
+        return serve_icon_thumbnail(addr, kind, identity, remote_paths, if_none_match, px).await;
+    }
     // A revalidation we can answer from cache costs no console round-trip
     // and no body — this is the cheap path once max-age lapses.
     // Disk reads and writes of the cache run on the blocking pool, not the async workers.
@@ -4484,7 +4492,32 @@ async fn serve_cached_icon(
     // error must NOT be: a console that was briefly unreachable would
     // otherwise be recorded as having no artwork at all, and every
     // cover would vanish for the length of the negative TTL.
-    let result: Result<Option<Vec<u8>>, anyhow::Error> = tokio::task::spawn_blocking(move || {
+    let result = fetch_icon(addr, kind, identity, remote_paths).await;
+
+    match result {
+        Ok(Some(bytes)) => {
+            let etag = icon_cache::etag_for(&bytes);
+            icon_response(bytes, &etag)
+        }
+        Ok(None) => (StatusCode::NOT_FOUND, "no icon").into_response(),
+        Err(_) => (StatusCode::NOT_FOUND, "no icon").into_response(),
+    }
+}
+
+/// The full cover from the console, written to the cache. Ok(Some) = found; Ok(None) = every
+/// path cleanly absent; Err = at least one path failed for another reason (the console may just
+/// be busy). The cache is written in the same blocking task.
+///
+/// Only a clean "there is nothing there" is remembered. A transport error must NOT be: a console
+/// that was briefly unreachable would otherwise be recorded as having no artwork at all, and every
+/// cover would vanish for the length of the negative TTL.
+async fn fetch_icon(
+    addr: String,
+    kind: &'static str,
+    identity: String,
+    remote_paths: Vec<String>,
+) -> Result<Option<Vec<u8>>, anyhow::Error> {
+    tokio::task::spawn_blocking(move || {
         let mut transport_err = None;
         for p in &remote_paths {
             match fs_read(&addr, p, 0, 2 * 1024 * 1024) {
@@ -4507,23 +4540,112 @@ async fn serve_cached_icon(
     })
     .await
     .map_err(anyhow::Error::from)
-    .and_then(|inner| inner);
+    .and_then(|inner| inner)
+}
 
-    match result {
-        Ok(Some(bytes)) => {
-            let etag = icon_cache::etag_for(&bytes);
-            icon_response(bytes, &etag)
+/// The sizes a grid may ask an icon route for; any other `size` serves the full cover.
+fn icon_thumb_px(size: Option<u32>) -> Option<u32> {
+    size.filter(|s| [128, 256, 384].contains(s))
+}
+
+/// `bytes` (a cover, usually a 512 px icon0.png of 300-700 KiB) scaled to fit `px`: JPEG when
+/// it is opaque, which every PS4/PS5 cover measured was (about 20 KiB at 256 px), PNG when it
+/// has transparency. None when it is already that small or does not decode.
+fn icon_thumbnail(bytes: &[u8], px: u32) -> Option<Vec<u8>> {
+    let img = image::load_from_memory(bytes).ok()?;
+    if img.width() <= px && img.height() <= px {
+        return None;
+    }
+    let small = img.resize(px, px, image::imageops::FilterType::Triangle);
+    let opaque = !small.color().has_alpha() || small.to_rgba8().pixels().all(|p| p.0[3] == 255);
+    let mut out = Vec::new();
+    if opaque {
+        image::codecs::jpeg::JpegEncoder::new_with_quality(&mut out, 85)
+            .encode_image(&small.to_rgb8())
+            .ok()?;
+    } else {
+        small
+            .write_to(&mut std::io::Cursor::new(&mut out), image::ImageFormat::Png)
+            .ok()?;
+    }
+    Some(out)
+}
+
+/// [`serve_cached_icon`] for a grid: the cover scaled to `px`, cached under its own key so a
+/// shelf of covers costs a few KiB each to send and decode instead of the full PNGs (#450:
+/// a macOS Games tab with hundreds of 400 KiB covers stuttered, worse through the data-URL
+/// fallback). The full cover is fetched (or read from the cache) once to make it.
+async fn serve_icon_thumbnail(
+    addr: String,
+    kind: &'static str,
+    identity: String,
+    remote_paths: Vec<String>,
+    if_none_match: Option<String>,
+    px: u32,
+) -> axum::response::Response {
+    let tkind = format!("{kind}@{px}");
+    let cached = {
+        let (addr, identity, tkind) = (addr.clone(), identity.clone(), tkind.clone());
+        tokio::task::spawn_blocking(move || icon_cache::get(&addr, &tkind, &identity))
+            .await
+            .unwrap_or(icon_cache::Cached::Unknown)
+    };
+    match cached {
+        icon_cache::Cached::Hit { bytes, etag } => {
+            if icon_cache::etag_matches(if_none_match.as_deref(), &etag) {
+                return (StatusCode::NOT_MODIFIED, [(header::ETAG, etag.as_str())]).into_response();
+            }
+            return icon_response(bytes, &etag);
         }
-        Ok(None) => (StatusCode::NOT_FOUND, "no icon").into_response(),
-        Err(_) => (StatusCode::NOT_FOUND, "no icon").into_response(),
+        icon_cache::Cached::KnownMissing => {
+            return (StatusCode::NOT_FOUND, "no icon").into_response();
+        }
+        icon_cache::Cached::Unknown => {}
+    }
+    let full = {
+        let (a, i) = (addr.clone(), identity.clone());
+        let hit = tokio::task::spawn_blocking(move || icon_cache::get(&a, kind, &i))
+            .await
+            .unwrap_or(icon_cache::Cached::Unknown);
+        match hit {
+            icon_cache::Cached::Hit { bytes, .. } => Ok(Some(bytes)),
+            icon_cache::Cached::KnownMissing => Ok(None),
+            icon_cache::Cached::Unknown => {
+                fetch_icon(addr.clone(), kind, identity.clone(), remote_paths).await
+            }
+        }
+    };
+    match full {
+        Ok(Some(full)) => {
+            let small = tokio::task::spawn_blocking(move || {
+                let small = icon_thumbnail(&full, px).unwrap_or(full);
+                icon_cache::put(&addr, &tkind, &identity, &small);
+                small
+            })
+            .await;
+            match small {
+                Ok(small) => {
+                    let etag = icon_cache::etag_for(&small);
+                    icon_response(small, &etag)
+                }
+                Err(_) => (StatusCode::NOT_FOUND, "no icon").into_response(),
+            }
+        }
+        _ => (StatusCode::NOT_FOUND, "no icon").into_response(),
     }
 }
 
 fn icon_response(bytes: Vec<u8>, etag: &str) -> axum::response::Response {
+    // A thumbnail may be JPEG; a cover from the console is PNG.
+    let content_type = if bytes.starts_with(&[0xFF, 0xD8, 0xFF]) {
+        "image/jpeg"
+    } else {
+        "image/png"
+    };
     (
         StatusCode::OK,
         [
-            (header::CONTENT_TYPE, "image/png"),
+            (header::CONTENT_TYPE, content_type),
             // Icons rarely change once uploaded — a 5-minute cache keeps
             // scrolling smooth across refreshes without sticking forever
             // on a stale file. Past it the ETag makes revalidation cheap.
@@ -4556,7 +4678,15 @@ async fn ps5_game_icon(
         .get(header::IF_NONE_MATCH)
         .and_then(|v| v.to_str().ok())
         .map(str::to_string);
-    serve_cached_icon(addr, "game", path, vec![icon_path], inm).await
+    serve_cached_icon(
+        addr,
+        "game",
+        path,
+        vec![icon_path],
+        inm,
+        icon_thumb_px(q.size),
+    )
+    .await
 }
 
 // ─── Installed-apps inventory ─────────────────────────────────────────
@@ -4904,6 +5034,9 @@ async fn ps5_apps_installed(
 struct AppIconQuery {
     addr: Option<String>,
     title_id: String,
+    /// 128, 256 or 384: a scaled copy for a grid. Absent: the full cover.
+    #[serde(default)]
+    size: Option<u32>,
 }
 
 /// GET /api/ps5/app-icon?addr=IP:MGMT_PORT&title_id=PPSA01234
@@ -4942,7 +5075,15 @@ async fn ps5_app_icon(
         .get(header::IF_NONE_MATCH)
         .and_then(|v| v.to_str().ok())
         .map(str::to_string);
-    serve_cached_icon(addr, "app", q.title_id, icon_paths, inm).await
+    serve_cached_icon(
+        addr,
+        "app",
+        q.title_id,
+        icon_paths,
+        inm,
+        icon_thumb_px(q.size),
+    )
+    .await
 }
 
 /// One `.pkg` found on a connected external/USB drive.
@@ -6130,6 +6271,44 @@ fn is_game_icon_path(p: &std::path::Path) -> bool {
 
 #[cfg(test)]
 mod game_icon_path_tests {
+    #[test]
+    fn a_grid_cover_is_a_small_jpeg_and_transparency_stays_png() {
+        let png = |img: image::DynamicImage| {
+            let mut out = Vec::new();
+            img.write_to(&mut std::io::Cursor::new(&mut out), image::ImageFormat::Png)
+                .unwrap();
+            out
+        };
+        // A 512 px opaque cover with detail, like icon0.png.
+        let opaque = image::RgbImage::from_fn(512, 512, |x, y| {
+            image::Rgb([(x ^ y) as u8, x as u8, y as u8])
+        });
+        let full = png(image::DynamicImage::ImageRgb8(opaque));
+        let small = super::icon_thumbnail(&full, 256).unwrap();
+        assert!(
+            small.starts_with(&[0xFF, 0xD8, 0xFF]),
+            "opaque covers become JPEG"
+        );
+        let back = image::load_from_memory(&small).unwrap();
+        assert_eq!((back.width(), back.height()), (256, 256));
+        assert!(
+            small.len() * 4 < full.len(),
+            "{} vs {}",
+            small.len(),
+            full.len()
+        );
+        // Transparency survives as PNG.
+        let clear = image::RgbaImage::from_pixel(512, 512, image::Rgba([0, 0, 0, 0]));
+        let t = super::icon_thumbnail(&png(image::DynamicImage::ImageRgba8(clear)), 128).unwrap();
+        assert!(t.starts_with(b"\x89PNG"));
+        // Already small, or not an image: the caller keeps what it has.
+        let tiny = png(image::DynamicImage::ImageRgb8(image::RgbImage::new(64, 64)));
+        assert!(super::icon_thumbnail(&tiny, 128).is_none());
+        assert!(super::icon_thumbnail(b"not an image", 128).is_none());
+        assert_eq!(super::icon_thumb_px(Some(256)), Some(256));
+        assert_eq!(super::icon_thumb_px(Some(4096)), None);
+    }
+
     use super::is_game_icon_path;
     use std::path::Path;
 

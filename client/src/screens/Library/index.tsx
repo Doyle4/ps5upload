@@ -87,6 +87,7 @@ import {
   appIconUrl,
   appIconDataUrl,
   cachedAppIcon,
+  iconSizeFor,
   cachedGameIcon,
   gameIconDataUrl,
   appsInstalled,
@@ -3884,6 +3885,9 @@ function MountModal({
   );
 }
 
+/** Library rows draw covers at 56 px (h-14). */
+const ROW_ICON_SIZE = iconSizeFor(56);
+
 function LibraryThumb({
   entry,
   meta,
@@ -3907,9 +3911,9 @@ function LibraryThumb({
   const wanted = !host?.trim()
     ? null
     : meta?.has_icon
-      ? gameIconUrl(consoleAddr(host), entry.path)
+      ? gameIconUrl(consoleAddr(host), entry.path, ROW_ICON_SIZE)
       : registeredTitleId
-        ? appIconUrl(consoleAddr(host), registeredTitleId)
+        ? appIconUrl(consoleAddr(host), registeredTitleId, ROW_ICON_SIZE)
         : null;
   // A 404 here is not always permanent — the console serves one client at a
   // time and the engine reports every read miss as 404. Retry a couple of
@@ -3917,16 +3921,16 @@ function LibraryThumb({
   const { src, onError } = useImageRetry(wanted, {
     // Already-held bytes short-circuit the whole chain.
     cached: meta?.has_icon
-      ? cachedGameIcon(consoleAddr(host), entry.path)
+      ? cachedGameIcon(consoleAddr(host), entry.path, ROW_ICON_SIZE)
       : registeredTitleId
-        ? cachedAppIcon(consoleAddr(host), registeredTitleId)
+        ? cachedAppIcon(consoleAddr(host), registeredTitleId, ROW_ICON_SIZE)
         : undefined,
     // Same bytes over the IPC when the webview refuses the direct URL.
     fallbackLoader: () =>
       meta?.has_icon
-        ? gameIconDataUrl(consoleAddr(host), entry.path)
+        ? gameIconDataUrl(consoleAddr(host), entry.path, ROW_ICON_SIZE)
         : registeredTitleId
-          ? appIconDataUrl(consoleAddr(host), registeredTitleId)
+          ? appIconDataUrl(consoleAddr(host), registeredTitleId, ROW_ICON_SIZE)
           : Promise.resolve(null),
   });
   return (

@@ -589,10 +589,11 @@ export async function browserInvoke<T>(
         args["addr"],
       );
       const sep = base.includes("?") ? "&" : "?";
+      const size = args["size"] ? `&size=${encodeURIComponent(String(args["size"]))}` : "";
       const q =
-        cmd === "ps5_app_icon_data"
+        (cmd === "ps5_app_icon_data"
           ? `title_id=${encodeURIComponent(String(args["titleId"] ?? ""))}`
-          : `path=${encodeURIComponent(String(args["path"] ?? ""))}`;
+          : `path=${encodeURIComponent(String(args["path"] ?? ""))}`) + size;
       const res = await fetch(`${base}${sep}${q}`);
       if (!res.ok) throw new Error(`icon HTTP ${res.status}`);
       const blob = await res.blob();

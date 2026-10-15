@@ -3434,11 +3434,29 @@ export async function fetchGameMeta(
 /** Stable URL pointing at the engine's game-icon endpoint for this folder.
  *  Suitable for `<img src=...>` — the engine streams back `image/png`
  *  (or 404 if no icon). Browser caches the response for 5 minutes. */
-export function gameIconUrl(transferAddr: string, path: string): string {
+export function gameIconUrl(transferAddr: string, path: string, size?: IconSize): string {
   const mgmt = toMgmtAddr(transferAddr);
   return `${engineBase()}/api/ps5/game-icon?addr=${encodeURIComponent(
     mgmt,
-  )}&path=${encodeURIComponent(path)}`;
+  )}&path=${encodeURIComponent(path)}${sizeQuery(size)}`;
+}
+
+/** A scaled cover the engine makes once and caches (128, 256 or 384 px). A console's
+ *  icon0.png is 300-700 KiB at 512 px; a grid of hundreds of them stuttered on macOS (#450).
+ *  Absent: the full cover. */
+export type IconSize = 128 | 256 | 384;
+
+/** The size grids ask for: sharp at a card's width on a 2x display. */
+export const GRID_ICON_SIZE: IconSize = 384;
+
+/** The scaled cover for an icon drawn `cssPx` wide, sharp on a 2x display. */
+export function iconSizeFor(cssPx: number): IconSize {
+  const device = cssPx * 2;
+  return device <= 128 ? 128 : device <= 256 ? 256 : 384;
+}
+
+function sizeQuery(size: IconSize | undefined): string {
+  return size ? `&size=${size}` : "";
 }
 
 /** How an installed title got onto the PS5:
@@ -3749,11 +3767,11 @@ export async function pkgMetadataConsole(
  *  (/user/appmeta/<titleId>/icon0.png), streamed back as `image/png` by
  *  the engine. Works identically on desktop and Android (in-process engine
  *  on the same loopback port; CSP allows 127.0.0.1:19113 for img-src). */
-export function appIconUrl(transferAddr: string, titleId: string): string {
+export function appIconUrl(transferAddr: string, titleId: string, size?: IconSize): string {
   const mgmt = toMgmtAddr(transferAddr);
   return `${engineBase()}/api/ps5/app-icon?addr=${encodeURIComponent(
     mgmt,
-  )}&title_id=${encodeURIComponent(titleId)}`;
+  )}&title_id=${encodeURIComponent(titleId)}${sizeQuery(size)}`;
 }
 
 /**
@@ -3779,8 +3797,10 @@ export function appIconUrl(transferAddr: string, titleId: string): string {
  * Keyed on the console as well as the title: one console's artwork must
  * never be served under another's name.
  */
-const appIconKey = (addr: string, titleId: string) => `app|${addr}|${titleId}`;
-const gameIconKey = (addr: string, path: string) => `game|${addr}|${path}`;
+const appIconKey = (addr: string, titleId: string, size?: IconSize) =>
+  `app|${addr}|${titleId}${size ? `|${size}` : ""}`;
+const gameIconKey = (addr: string, path: string, size?: IconSize) =>
+  `game|${addr}|${path}${size ? `|${size}` : ""}`;
 
 /**
  * Artwork this session already holds for a title, or undefined.
@@ -3792,30 +3812,34 @@ const gameIconKey = (addr: string, path: string) => `game|${addr}|${path}`;
 export function cachedAppIcon(
   transferAddr: string,
   titleId: string,
+  size?: IconSize,
 ): string | undefined {
-  return getCachedIcon(appIconKey(toMgmtAddr(transferAddr), titleId));
+  return getCachedIcon(appIconKey(toMgmtAddr(transferAddr), titleId, size));
 }
 
 /** Folder cover art this session already holds. See {@link cachedAppIcon}. */
 export function cachedGameIcon(
   transferAddr: string,
   path: string,
+  size?: IconSize,
 ): string | undefined {
-  return getCachedIcon(gameIconKey(toMgmtAddr(transferAddr), path));
+  return getCachedIcon(gameIconKey(toMgmtAddr(transferAddr), path, size));
 }
 
 export async function appIconDataUrl(
   transferAddr: string,
   titleId: string,
+  size?: IconSize,
 ): Promise<string | null> {
   const addr = toMgmtAddr(transferAddr);
-  const key = appIconKey(addr, titleId);
+  const key = appIconKey(addr, titleId, size);
   const hit = getCachedIcon(key);
   if (hit) return hit;
   try {
     const url = await invoke<string>("ps5_app_icon_data", {
       addr,
       titleId,
+      size: size ?? null,
     });
     if (typeof url === "string" && url.startsWith("data:")) {
       setCachedIcon(key, url);
@@ -3831,13 +3855,14 @@ export async function appIconDataUrl(
 export async function gameIconDataUrl(
   transferAddr: string,
   path: string,
+  size?: IconSize,
 ): Promise<string | null> {
   const addr = toMgmtAddr(transferAddr);
-  const key = gameIconKey(addr, path);
+  const key = gameIconKey(addr, path, size);
   const hit = getCachedIcon(key);
   if (hit) return hit;
   try {
-    const url = await invoke<string>("ps5_game_icon_data", { addr, path });
+    const url = await invoke<string>("ps5_game_icon_data", { addr, path, size: size ?? null });
     if (typeof url === "string" && url.startsWith("data:")) {
       setCachedIcon(key, url);
       return url;

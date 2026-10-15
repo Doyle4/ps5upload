@@ -40,6 +40,7 @@ import {
   appLaunch,
   appIconUrl,
   appIconDataUrl,
+  GRID_ICON_SIZE,
   cachedAppIcon,
   smpStatus,
   sdkScan,
@@ -168,17 +169,17 @@ function KindBadge({ title }: { title: InstalledTitle }) {
 
 function Cover({ host, title }: { host: string; title: InstalledTitle }) {
   const { src, onError } = useImageRetry(
-    host.trim() ? appIconUrl(transferAddr(host), title.titleId) : null,
+    host.trim() ? appIconUrl(transferAddr(host), title.titleId, GRID_ICON_SIZE) : null,
     {
       // Bytes this session already fetched. Returning to Games then paints
       // covers on the first frame instead of re-deriving what we hold.
       cached: host.trim()
-        ? cachedAppIcon(transferAddr(host), title.titleId)
+        ? cachedAppIcon(transferAddr(host), title.titleId, GRID_ICON_SIZE)
         : undefined,
       // If the webview refuses the direct URL, pull the same bytes over the
       // IPC as a data: URL rather than showing a glyph. See useImageRetry.
       fallbackLoader: () =>
-        appIconDataUrl(transferAddr(host), title.titleId),
+        appIconDataUrl(transferAddr(host), title.titleId, GRID_ICON_SIZE),
     },
   );
   return (

@@ -1967,20 +1967,34 @@ async fn engine_icon_data_url(url: String) -> Result<String, String> {
 /// Cover art for an installed title, as a `data:` URL. See
 /// [`engine_icon_data_url`].
 #[tauri::command]
-pub async fn ps5_app_icon_data(addr: Option<String>, title_id: String) -> Result<String, String> {
+pub async fn ps5_app_icon_data(
+    addr: Option<String>,
+    title_id: String,
+    size: Option<u32>,
+) -> Result<String, String> {
     let mut url = addr_url("/api/ps5/app-icon", addr.as_deref());
     url.push_str(if url.contains('?') { "&" } else { "?" });
     url.push_str(&format!("title_id={}", urlencoding(&title_id)));
+    if let Some(px) = size {
+        url.push_str(&format!("&size={px}"));
+    }
     engine_icon_data_url(url).await
 }
 
 /// Cover art for an on-console game folder, as a `data:` URL. See
 /// [`engine_icon_data_url`].
 #[tauri::command]
-pub async fn ps5_game_icon_data(addr: Option<String>, path: String) -> Result<String, String> {
+pub async fn ps5_game_icon_data(
+    addr: Option<String>,
+    path: String,
+    size: Option<u32>,
+) -> Result<String, String> {
     let mut url = addr_url("/api/ps5/game-icon", addr.as_deref());
     url.push_str(if url.contains('?') { "&" } else { "?" });
     url.push_str(&format!("path={}", urlencoding(&path)));
+    if let Some(px) = size {
+        url.push_str(&format!("&size={px}"));
+    }
     engine_icon_data_url(url).await
 }
 
