@@ -2521,8 +2521,9 @@ export async function saveArchiveZip(
   // is a content:// URI with no usable name; pass this so the backend keeps
   // distinct backups from colliding on one fixed Downloads filename.
   fileName?: string,
-): Promise<void> {
-  await invoke("save_archive_zip", {
+): Promise<string> {
+  // Where the zip landed: `destZip` on desktop, a Downloads file when Android redirected it.
+  const written = await invoke<string | null>("save_archive_zip", {
     req: {
       src_dir: srcDir,
       inner_root: innerRoot,
@@ -2530,6 +2531,7 @@ export async function saveArchiveZip(
       dest_filename: fileName,
     },
   });
+  return typeof written === "string" && written ? written : destZip;
 }
 
 export interface SaveArchiveUnzipResult {

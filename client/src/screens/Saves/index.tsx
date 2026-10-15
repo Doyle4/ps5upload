@@ -1,4 +1,6 @@
 import { consoleAddr } from "../../lib/addr";
+import { isAndroid } from "../../lib/platform";
+import { backupStamp } from "./backupStamp";
 import { useCallback, useEffect, useMemo, useState } from "react";
 // useEffect is consumed inside SaveThumbnail below.
 import { useNavigate } from "react-router";
@@ -253,13 +255,21 @@ export default function SavesScreen() {
       // File-save dialog so the user picks a .zip target directly. The
       // default name `<title_id>.zip` matches the layout we enforce on
       // restore — keep the two in sync.
-      const destZipName = `${entry.title_id}.zip`;
-      const destZip = await saveDialog({
-        defaultPath: destZipName,
-        filters: [{ name: "ZIP archive", extensions: ["zip"] }],
-        title: tr("saves_download_picker", undefined, "Save backup as…"),
-      });
-      if (!destZip || typeof destZip !== "string") return;
+      // Android's save dialog hands back a content:// file that the zip cannot be written into:
+      // it stayed empty while the zip went to Downloads (#451, "0 byte zip"). There the backup
+      // goes straight to Downloads, dated so a second backup does not replace the first.
+      const android = isAndroid();
+      const destZipName = android
+        ? `${entry.title_id}-${backupStamp(new Date())}.zip`
+        : `${entry.title_id}.zip`;
+      const destZip = android
+        ? ""
+        : await saveDialog({
+            defaultPath: destZipName,
+            filters: [{ name: "ZIP archive", extensions: ["zip"] }],
+            title: tr("saves_download_picker", undefined, "Save backup as…"),
+          });
+      if (!android && (!destZip || typeof destZip !== "string")) return;
       // 1) Scratch dir under the OS temp root. The engine's download
       // walker will create `<scratch>/<title_id>/<files>` for us.
       task = beginTask({ kind: "save-backup", origin: "saves", label: `Save backup ${entry.title_id}`, consoleId: host.trim() });
@@ -278,12 +288,12 @@ export default function SavesScreen() {
       // savemgr's view of the save and the cross-tool resigner format.
       await saveArchiveBackupFinalize(tempDir, entry.title_id);
       // 4) Zip the cleaned `<scratch>/<title_id>/` → user-picked .zip.
-      await saveArchiveZip(tempDir, entry.title_id, destZip, destZipName);
+      const savedTo = await saveArchiveZip(tempDir, entry.title_id, destZip ?? "", destZipName);
       pushNotification(
         "success",
         withConsolePrefix(host, `Backed up ${entry.title_id}`),
         {
-          body: `Saved to ${destZip}`,
+          body: `Saved to ${savedTo}`,
         },
       );
     } catch (e) {
