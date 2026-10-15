@@ -1142,25 +1142,6 @@ export async function fsDelete(
   });
 }
 
-/** Decompress a `.ffpfsc` on the console into the image it holds, beside it (#453). Resolves
- *  when the image is written and checked; follow it with `fsOpStatus(addr, opId)` and stop it
- *  with `fsOpCancel`. Throws "cancelled" when stopped, else the helper's cause
- *  (`fs_unpack_no_space: ...`, `fs_unpack_destination_exists`, ...). */
-export async function fsUnpack(
-  transferAddr: string,
-  path: string,
-  opId: number,
-): Promise<{ path: string; size: number }> {
-  const res = await fetch(`${getEngineUrl()}/api/ps5/fs/unpack`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ addr: toMgmtAddr(transferAddr), path, op_id: opId }),
-  });
-  const body = (await res.json().catch(() => ({}))) as { path?: string; size?: number; error?: string };
-  if (!res.ok) throw new Error(body.error ?? `HTTP ${res.status}`);
-  return { path: body.path ?? "", size: body.size ?? 0 };
-}
-
 export interface FsDirEntry {
   name: string;
   kind: "file" | "dir" | "unknown";

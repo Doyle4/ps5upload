@@ -43,7 +43,6 @@ export type TaskKind =
   | "fs-copy"
   | "fs-move"
   | "fs-rename"
-  | "fs-unpack"
   // installs (engine + payload bgft_install_status)
   | "pkg-install"
   | "pkg-dpi-install"

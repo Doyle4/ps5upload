@@ -54,12 +54,6 @@ SQLITE_OBJ := sqlite3.o
 # code is not held to our -Werror policy.
 MONO_DIR := third_party/monocypher
 MONO_OBJ := monocypher.o
-# zlib's inflate side (third_party/zlib/README.md), for decompressing a .ffpfsc on the console
-# (#453). Third-party, so compiled like Monocypher: not held to -Werror.
-ZLIB_DIR := third_party/zlib
-ZLIB_SRCS := $(ZLIB_DIR)/adler32.c $(ZLIB_DIR)/crc32.c $(ZLIB_DIR)/inffast.c \
-             $(ZLIB_DIR)/inflate.c $(ZLIB_DIR)/inftrees.c $(ZLIB_DIR)/zutil.c
-ZLIB_OBJS := $(patsubst $(ZLIB_DIR)/%.c,build/zlib/%.o,$(ZLIB_SRCS))
 AVA1_SRCS := ava1/ava1_wire.c ava1/ava1_frame.c ava1/ava1_keys.c ava1/ava1_noise.c ava1/ava1_conn.c \
              ava1/ava1_store.c ava1/ava1_pairlimit.c ava1/ava1_server.c ava1/ava1_trust.c ava1/platform_ps5.c \
              ava1/ava1_aead.c ava1/ava1_chacha_avx2.c ava1/ava1_b3.c ava1/ava1_ranges.c \
@@ -104,7 +98,7 @@ SQLITE_CFLAGS := -Os -g0 \
                  -DSQLITE_DQS=0 \
                  -DSQLITE_UNTESTABLE=1
 
-INCLUDES := -Iinclude -I$(BLAKE3_DIR) -I$(SQLITE_DIR) -Ithird_party/tiny_aes -Iava1 -Iava1/gen -Ithird_party/monocypher -I$(ZLIB_DIR)
+INCLUDES := -Iinclude -I$(BLAKE3_DIR) -I$(SQLITE_DIR) -Ithird_party/tiny_aes -Iava1 -Iava1/gen -Ithird_party/monocypher
 CFLAGS := -Wall -Wextra -Werror -g $(INCLUDES)
 
 # Sony sprx linkage. The payload calls sceLncUtilLaunchApp +
@@ -169,7 +163,7 @@ SRCS := src/main.c src/runtime.c src/shell_builtin.c src/takeover.c src/takeover
         src/sony_api_lock.c src/kernel_rw_lock.c src/sys_time.c \
         src/sys_registry.c src/smp_meta.c src/profile.c \
         src/backup.c src/remoteplay.c src/rp_pair.c src/fan_curve.c src/fan_map.c src/indicator.c src/notif.c \
-        src/wake_watchdog.c src/icon_keeper.c src/ffpfsc_unpack.c src/cheats.c src/cheats_list.c src/xml_encoding.c src/activity.c src/sdk_changer.c src/fakelib_overlay.c \
+        src/wake_watchdog.c src/icon_keeper.c src/cheats.c src/cheats_list.c src/xml_encoding.c src/activity.c src/sdk_changer.c src/fakelib_overlay.c \
         src/tmdb.c src/fw_spoof.c src/focus_probe.c \
         src/content_db.c src/mgmt_rpc.c src/fs_jobs.c src/net_probe.c src/mgmt_fs.c src/path_policy.c \
         third_party/tiny_aes/aes.c \
@@ -193,10 +187,6 @@ $(SQLITE_OBJ): $(SQLITE_DIR)/sqlite3.c $(SQLITE_DIR)/sqlite3.h
 $(MONO_OBJ): $(MONO_DIR)/monocypher.c $(MONO_DIR)/monocypher.h
 	$(CC) -O2 -g0 -I$(MONO_DIR) -c -o $@ $<
 
-build/zlib/%.o: $(ZLIB_DIR)/%.c
-	@mkdir -p $(dir $@)
-	$(CC) -O2 -g0 -I$(ZLIB_DIR) -c -o $@ $<
-
 $(SQLITE_DIR)/sqlite3.c $(SQLITE_DIR)/sqlite3.h:
 	@echo "ERROR: SQLite sources are missing from $(SQLITE_DIR)." >&2
 	@echo "       Run scripts/install-ps5-sdk.sh to fetch them." >&2
@@ -206,8 +196,8 @@ $(SQLITE_DIR)/sqlite3.c $(SQLITE_DIR)/sqlite3.h:
 # without this a change to either printed "Built" while leaving the previous
 # link in place. Adding -lSceIpmi did exactly that — the stale ELF had no
 # libSceIpmi in DT_NEEDED until the sources were touched.
-$(ELF): $(SRCS) $(HEADERS) $(SQLITE_OBJ) $(MONO_OBJ) $(ZLIB_OBJS) $(BLAKE3_OBJS) $(AVA1_OBJS) $(SDK_CRT1) Makefile
-	$(CC) $(CFLAGS) -nostartfiles -o $@ $(SRCS) $(BLAKE3_OBJS) $(AVA1_OBJS) $(SQLITE_OBJ) $(MONO_OBJ) $(ZLIB_OBJS) $(SDK_CRT1) $(LIBS)
+$(ELF): $(SRCS) $(HEADERS) $(SQLITE_OBJ) $(MONO_OBJ) $(BLAKE3_OBJS) $(AVA1_OBJS) $(SDK_CRT1) Makefile
+	$(CC) $(CFLAGS) -nostartfiles -o $@ $(SRCS) $(BLAKE3_OBJS) $(AVA1_OBJS) $(SQLITE_OBJ) $(MONO_OBJ) $(SDK_CRT1) $(LIBS)
 
 build/$(BLAKE3_DIR)/%.o: $(BLAKE3_DIR)/%.c $(HEADERS) Makefile
 	@mkdir -p $(dir $@)

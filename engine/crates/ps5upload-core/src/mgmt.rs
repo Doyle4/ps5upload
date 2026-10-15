@@ -287,7 +287,6 @@ job_ops! {
     (BACKUP_RESTORE, 7, "BACKUP_RESTORE", "backup_restore"),
     (CLEANUP, 8, "CLEANUP", "cleanup"),
     (SDK_SCAN, 9, "SDK_SCAN", "sdk_scan"),
-    (FFPFSC_UNPACK, 10, "FFPFSC_UNPACK", "fs_unpack"),
 }
 
 /// How one long operation is run and followed.

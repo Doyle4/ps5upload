@@ -66,8 +66,4 @@ extern uint32_t fsj_test_file_delay_us;
  * (a mount point), so the walkers' device guard can be exercised without a mount. NULL = off. */
 extern const char *fsj_test_cross_name;
 
-/* JOB_OP_FFPFSC_UNPACK {"path"}: a .ffpfsc's image written beside it (#453, ffpfsc_unpack.c). */
-struct ava1_op_ctx;
-int fsj_op_ffpfsc_unpack(void *arg, struct ava1_op_ctx *c, const uint8_t *args, size_t n);
-
 #endif

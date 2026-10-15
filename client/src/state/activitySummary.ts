@@ -59,8 +59,6 @@ export function shortLabel(kind: TaskKind): string {
       return "Delete";
     case "fs-rename":
       return "Rename";
-    case "fs-unpack":
-      return "Decompress";
     case "pkg-install":
     case "pkg-dpi-install":
       return "Install";
