@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <signal.h>
+#include <ucontext.h>
 #include <time.h>
 #include <unistd.h>
 #include <sys/syscall.h>
@@ -180,6 +181,43 @@ static void write_fatal_breadcrumb(int sig, unsigned int frame) {
     }
     fatal_put_str(buf, sizeof(buf), &pos, "\n");
     (void)write(STDERR_FILENO, buf, pos);
+}
+
+/* Append `v` as 0x-prefixed hex. Async-signal-safe. */
+static void fatal_put_hex(char *buf, size_t cap, size_t *pos, uint64_t v) {
+    static const char digits[] = "0123456789abcdef";
+    char tmp[16];
+    size_t n = 0;
+    do {
+        tmp[n++] = digits[v & 0xf];
+        v >>= 4;
+    } while (v && n < sizeof(tmp));
+    fatal_put_str(buf, cap, pos, "0x");
+    while (n && *pos < cap) buf[(*pos)++] = tmp[--n];
+}
+
+static void handle_fatal(int sig);
+int main(void);
+
+/* Where it faulted: the bad address, the instruction, and where `main` sits (so the
+ * instruction can be found in the ELF despite the load address). */
+static void handle_fatal_info(int sig, siginfo_t *si, void *ucv) {
+    char buf[160];
+    size_t pos = 0;
+    fatal_put_str(buf, sizeof(buf), &pos, "[fatal] detail: addr=");
+    fatal_put_hex(buf, sizeof(buf), &pos, si ? (uint64_t)(uintptr_t)si->si_addr : 0);
+    fatal_put_str(buf, sizeof(buf), &pos, " code=");
+    fatal_put_uint(buf, sizeof(buf), &pos, si ? (unsigned int)si->si_code : 0);
+    fatal_put_str(buf, sizeof(buf), &pos, " rip=");
+    fatal_put_hex(buf, sizeof(buf), &pos,
+                  ucv ? (uint64_t)((ucontext_t *)ucv)->uc_mcontext.mc_rip : 0);
+    fatal_put_str(buf, sizeof(buf), &pos, " main=");
+    fatal_put_hex(buf, sizeof(buf), &pos, (uint64_t)(uintptr_t)&main);
+    fatal_put_str(buf, sizeof(buf), &pos, "\n");
+    /* A faulting Sony getter inside the hw guard is recovered (siglongjmp, no return). */
+    if (hw_guard_try_recover(sig)) return;
+    (void)write(STDERR_FILENO, buf, pos);
+    handle_fatal(sig);
 }
 
 static void handle_fatal(int sig) {
@@ -498,10 +536,18 @@ int main(void) {
     startup_trace("UCRED_JAILBREAK_DONE");
 
     /* Release port on crash or external kill. */
-    signal(SIGSEGV, handle_fatal);
+    {
+        /* Faults get the address and instruction logged (handle_fatal_info). */
+        struct sigaction sa;
+        memset(&sa, 0, sizeof sa);
+        sa.sa_sigaction = handle_fatal_info;
+        sa.sa_flags = SA_SIGINFO;
+        sigemptyset(&sa.sa_mask);
+        sigaction(SIGSEGV, &sa, NULL);
+        sigaction(SIGBUS, &sa, NULL);
+        sigaction(SIGILL, &sa, NULL); /* hw_guard recovers faulting Sony getters */
+    }
     signal(SIGABRT, handle_fatal);
-    signal(SIGBUS,  handle_fatal);
-    signal(SIGILL,  handle_fatal);  /* hw_guard recovers faulting Sony getters */
     signal(SIGTERM, handle_fatal);
     signal(SIGHUP,  handle_fatal);
     /* CRITICAL: ignore SIGPIPE. Without this, every client disconnect
