@@ -4,6 +4,36 @@ What's new in ps5upload, written for humans.
 
 ---
 
+## 7.0.23
+
+- **Payload Manager 0.6 works again (#458).** 0.6 refuses changes without its request marker
+  and wants POST for launch and delete, and keeps payloads in slots. The fallback launch,
+  storing, deleting and "Load at boot" now work with 0.6.1 as well as 0.5.2.
+- **Games is smooth with a big library (#450).** Covers come as small cached thumbnails
+  (about 20 KB instead of 300-700 KB), and screenshot thumbnails load two at a time and stop
+  when you leave the screen instead of filling every connection to the console.
+- **Hidden home-screen icons stay hidden (#450).** The console shows an app's icon again every
+  time it starts; the helper now hides it again a couple of seconds later. Icons hidden with
+  earlier versions are picked up.
+- **The game page shows where the game runs from (#452):** the image on your external drive,
+  not a leftover folder in /data/homebrew.
+- **Sending the helper no longer hangs for 15 s** when an old copy is stuck and serving nothing.
+- **Android save backups are no longer 0 bytes (#451).** They go to Downloads as
+  `<title>-<date>.zip`, and the message says where.
+- **Tasks shows speed and ETA (#444)** for transfers, like the Files queue.
+- **Convert:** "backported" only for real backports (an older SDK than declared is no longer
+  called one), the game's ampr_emu 0.3.x version is read (#449), and when LZ4 needs the newer
+  runtime it points at the checkbox that adds it.
+- **Fast verification by default (#459, thanks quer3q).** Convert checks structure, sizes and
+  small files in full and a seeded sample of the rest; "Full verification" re-reads every byte.
+- **"Last seen" is translated (#454, thanks EnriqueWood).**
+- **Payloads: export and import playlists**, with the auto-loader choice and your custom repos,
+  to share a working setup.
+- **Linux packages: the update command to copy (#456).** On Bazzite and other rpm-ostree
+  systems, Settings → Updates shows `rpm-ostree uninstall ps5-upload --install <rpm>`; dnf and
+  apt installs get theirs.
+- **Helper crash reports say where.** A fault now logs the address and instruction.
+
 ## 7.0.22
 
 - **HDR PNG carries the capture's ICC profile (#448).** 7.0.15 wrote the cICP tag only;
