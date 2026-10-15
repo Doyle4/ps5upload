@@ -359,6 +359,7 @@ update_autocheck_label: "Sprawdzaj aktualizacje automatycznie",
 update_autocheck_hint:
   "Sprawdza nowe wydania przy uruchomieniu (co najwyżej raz dziennie) i informuje cię, jeśli jest dostępne.",
 update_step_quit: "Wyjdź z PS5Upload.",
+update_step_run_command: "Uruchom to w terminalu:",
 update_step_launch: "Uruchom nową wersję.",
 update_dismiss: "Odrzuć",
 install_hint_dmg: "Kliknij dwa razy na .dmg, przeciągnij PS5Upload do Aplikacji, podmień jeśli zostaniesz zapytany/a.",

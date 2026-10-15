@@ -201,6 +201,7 @@ update_downloaded_status: "v{version} ダウンロード完了 — インスト�
 update_download_error: "ダウンロード失敗: {message}",
 update_downloaded_title: "ダウンロード完了。インストールを完了:",
 update_step_quit: "PS5Upload を終了。",
+update_step_run_command: "ターミナルでこれを実行してください:",
 update_step_launch: "新バージョンを起動。",
 update_dismiss: "閉じる",
 install_hint_dmg: ".dmg をダブルクリックし、PS5Upload を Applications にドラッグ、確認時に置き換え。",

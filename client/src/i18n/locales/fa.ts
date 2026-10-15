@@ -373,6 +373,7 @@ update_autocheck_hint:
 update_channel_prerelease_label: "دریافت نسخه‌های پیش‌انتشار",
 update_channel_prerelease_hint: "نسخه‌های جدید را به‌محض انتشار ارائه می‌دهد، پیش از آزمایش روی سخت‌افزار واقعی. خاموش بگذارید تا تنها نسخه‌های تأییدشده ارائه شوند.",
 update_step_quit: "PS5Upload را ببندید.",
+update_step_run_command: "این را در ترمینال اجرا کنید:",
 update_step_launch: "نسخه‌ی جدید را اجرا کنید.",
 update_dismiss: "نادیده گرفتن",
 install_hint_dmg: "روی .dmg دوبار کلیک کنید، PS5Upload را به Applications بکشید، در صورت درخواست جایگزین کنید.",

@@ -201,6 +201,7 @@ update_downloaded_status: "v{version} đã tải — trình cài đặt đã m�
 update_download_error: "Tải về thất bại: {message}",
 update_downloaded_title: "Đã tải xong. Hoàn tất cài đặt:",
 update_step_quit: "Thoát PS5Upload.",
+update_step_run_command: "Chạy lệnh này trong terminal:",
 update_step_launch: "Khởi chạy phiên bản mới.",
 update_dismiss: "Bỏ qua",
 install_hint_dmg: "Nhấp đúp .dmg, kéo PS5Upload vào Applications, thay thế khi được hỏi.",

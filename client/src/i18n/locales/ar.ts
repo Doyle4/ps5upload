@@ -195,6 +195,7 @@ update_downloaded_status: "تم تنزيل v{version} — تم فتح المثب
 update_download_error: "فشل التنزيل: {message}",
 update_downloaded_title: "تم التنزيل. أكمل التثبيت:",
 update_step_quit: "اخرج من PS5Upload.",
+update_step_run_command: "شغّل هذا في الطرفية:",
 update_step_launch: "ابدأ تشغيل الإصدار الجديد.",
 update_dismiss: "إغلاق",
 install_hint_dmg: "انقر نقرًا مزدوجًا فوق .dmg، واسحب PS5Upload إلى Applications، واستبدله عند المطالبة.",

@@ -401,6 +401,7 @@ update_autocheck_hint:
 update_channel_prerelease_label: "Get pre-release versions",
 update_channel_prerelease_hint: "Offers new releases as soon as they are published, before they have been checked on real hardware. Leave this off to be offered only releases that have been verified.",
 update_step_quit: "Quit PS5Upload.",
+update_step_run_command: "Run this in a terminal:",
 update_step_launch: "Launch the new version.",
 update_dismiss: "Dismiss",
 install_hint_dmg: "Double-click the .dmg, drag PS5Upload into Applications, replace when asked.",

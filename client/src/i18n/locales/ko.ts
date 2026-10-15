@@ -201,6 +201,7 @@ update_downloaded_status: "v{version} 다운로드 완료 — 설치 프로그�
 update_download_error: "다운로드 실패: {message}",
 update_downloaded_title: "다운로드 완료. 설치 마무리:",
 update_step_quit: "PS5Upload 종료.",
+update_step_run_command: "터미널에서 다음을 실행하세요:",
 update_step_launch: "새 버전 실행.",
 update_dismiss: "닫기",
 install_hint_dmg: ".dmg 더블클릭, PS5Upload를 Applications로 드래그, 묻는 메시지에서 교체.",

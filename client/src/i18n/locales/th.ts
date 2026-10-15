@@ -200,6 +200,7 @@ update_downloaded_status: "ดาวน์โหลด v{version} แล้ว �
 update_download_error: "ดาวน์โหลดล้มเหลว: {message}",
 update_downloaded_title: "ดาวน์โหลดแล้ว ดำเนินการติดตั้งให้เสร็จ:",
 update_step_quit: "ออกจาก PS5Upload",
+update_step_run_command: "รันคำสั่งนี้ในเทอร์มินัล:",
 update_step_launch: "เปิดเวอร์ชันใหม่",
 update_dismiss: "ปิด",
 install_hint_dmg: "ดับเบิลคลิก .dmg ลาก PS5Upload ไปยัง Applications แทนที่เมื่อถูกถาม",

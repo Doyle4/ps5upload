@@ -200,6 +200,7 @@ update_downloaded_status: "v{version} डाउनलोड किया गय�
 update_download_error: "डाउनलोड विफल: {message}",
 update_downloaded_title: "डाउनलोड किया गया। इंस्टॉलेशन पूरा करें:",
 update_step_quit: "PS5Upload से बाहर निकलें।",
+update_step_run_command: "इसे टर्मिनल में चलाएँ:",
 update_step_launch: "नया संस्करण लॉन्च करें।",
 update_dismiss: "बंद करें",
 install_hint_dmg: ".dmg पर डबल-क्लिक करें, PS5Upload को Applications पर खींचें, संकेत मिलने पर बदलें।",

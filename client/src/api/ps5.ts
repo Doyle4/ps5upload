@@ -4628,6 +4628,8 @@ export interface UpdateDownload {
   path: string;
   /** Total bytes written. Handy for "Downloaded N MB" status lines. */
   bytes: number;
+  /** A packaged Linux install: the command that installs the download (#456). */
+  install_command?: string;
 }
 
 /** Ask GitHub for the latest-release manifest and compare to our

@@ -200,6 +200,7 @@ update_downloaded_status: "v{version} загружена — установщи�
 update_download_error: "Сбой загрузки: {message}",
 update_downloaded_title: "Загружено. Завершите установку:",
 update_step_quit: "Закройте PS5Upload.",
+update_step_run_command: "Выполните это в терминале:",
 update_step_launch: "Запустите новую версию.",
 update_dismiss: "Закрыть",
 install_hint_dmg: "Дважды щёлкните .dmg, перетащите PS5Upload в Программы, замените при запросе.",

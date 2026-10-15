@@ -200,6 +200,7 @@ update_downloaded_status: "v{version} ডাউনলোড হয়েছে �
 update_download_error: "ডাউনলোড ব্যর্থ: {message}",
 update_downloaded_title: "ডাউনলোড হয়েছে। ইনস্টলেশন সম্পূর্ণ করুন:",
 update_step_quit: "PS5Upload থেকে প্রস্থান করুন।",
+update_step_run_command: "এটি একটি টার্মিনালে চালান:",
 update_step_launch: "নতুন সংস্করণ চালু করুন।",
 update_dismiss: "বন্ধ করুন",
 install_hint_dmg: ".dmg-তে ডাবল-ক্লিক করুন, PS5Upload-কে Applications-এ টানুন, জিজ্ঞাসা করা হলে প্রতিস্থাপন করুন।",

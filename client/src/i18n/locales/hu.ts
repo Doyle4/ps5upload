@@ -376,6 +376,7 @@ update_autocheck_hint:
 update_channel_prerelease_label: "Pre-release verziók kérése",
 update_channel_prerelease_hint: "Az új kiadásokat azonnal felajánlja, ahogy megjelennek, mielőtt valódi hardveren ellenőrizték volna. Hagyd kikapcsolva, hogy csak ellenőrzött kiadásokat kapj.",
 update_step_quit: "Zárd be a PS5Uploadot.",
+update_step_run_command: "Futtasd ezt egy terminálban:",
 update_step_launch: "Indítsd el az új verziót.",
 update_dismiss: "Elvetés",
 install_hint_dmg: "Dupla kattintás a .dmg-re, húzd a PS5Uploadot az Alkalmazásokba, cseréld le, ha kérdezi.",
