@@ -91,6 +91,15 @@ function Lz4Option({ lz4 }: { lz4: Lz4Choice }) {
             "This game does not read its files through AMPR, so nothing in it could serve asset packs. Compress it into a .ffpfsc instead: ShadowMount+ decompresses that for any game.",
           )}
         </div>
+      ) : refusal && kind === "runtime" ? (
+        // The checkbox above fixes this one: say so, rather than that packs are unavailable (#449).
+        <div className="text-xs text-[var(--color-warn)]">
+          {tr(
+            "fpkg.image.lz4_needs_runtime",
+            { reason: refusal },
+            "Tick “Put ampr_emu 0.4.2.1 into the image” above to use packs: {reason}",
+          )}
+        </div>
       ) : refusal ? (
         <div className="text-xs text-[var(--color-warn)]">
           {tr("fpkg.image.lz4_unavailable", { reason: refusal }, "Not available for this game: {reason}")}

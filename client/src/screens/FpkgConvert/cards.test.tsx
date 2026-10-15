@@ -173,6 +173,12 @@ describe("GameCard firmware line", () => {
     );
   });
 
+  it("does not call an older SDK than declared a backport", () => {
+    expect(firmwareLine({ ...base, required_firmware: "10.20", min_firmware: "9.00" }, tr)).toBe(
+      "Runs on FW 9.00 and later (its modules allow it; it declares 10.20)",
+    );
+  });
+
   it("falls back to the declared firmware, and says nothing when there is none", () => {
     expect(firmwareLine({ ...base, required_firmware: "05.10", min_firmware: null }, tr)).toBe(
       "Runs on FW 5.10 and later",

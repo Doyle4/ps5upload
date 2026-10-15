@@ -387,7 +387,9 @@ describe("RunCard", () => {
       });
       const out = idle("exfat", refused);
       expect(checkbox(out, "AMPR LZ4 asset packs")).toEqual({ checked: false, disabled: true });
-      expect(out).toContain("Not available for this game");
+      // The runtime checkbox fixes this refusal, so the line points at it (#449).
+      expect(out).toContain("above to use packs: the game&#x27;s ampr_emu does not serve asset packs");
+      expect(out).not.toContain("Not available for this game");
       expect(lz4Active("exfat", refused)).toBe(false);
     });
   });
