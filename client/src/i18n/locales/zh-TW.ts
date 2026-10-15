@@ -1817,15 +1817,12 @@ processes_threads: "{n} 個執行緒",
 "profile.title": "個人檔案",
 "profile.username.activated": "使用中",
 "profile.username.cancel": "取消",
-"profile.username.createBtn": "建立",
-"profile.username.createUser": "建立使用者",
 "profile.username.deleteConfirm": "要刪除此使用者個人檔案嗎？",
 "profile.username.deleteTitle": "刪除使用者",
 "profile.username.description": "重新命名主機使用者。PS5 限制名稱最多 16 個字元。",
 "profile.username.empty": "沒有主機使用者",
 "profile.username.emptyHint": "請先在 PS5 上登入一個個人檔案，然後重新整理。",
 "profile.username.loading": "正在讀取主機使用者…",
-"profile.username.newPlaceholder": "新使用者名稱",
 "profile.username.placeholder": "使用者名稱",
 "profile.username.save": "儲存",
 "profile.username.slot": "插槽 {n}",
@@ -3865,6 +3862,7 @@ payloads_description_ports: "PS5 上正在使用的連接埠，以及通常在�
 "ports.show_outgoing": "顯示對外連線（{n}）",
 "ports.how": "透過在 PS5 上逐一綁定連接埠並立即釋放來偵測，因此不會有 payload 看到連線。名稱是依連接埠號碼推測。「開啟」會在瀏覽器中嘗試 http://；並非每個服務都有網頁。",
 "ports.summary": "{n} 個連接埠使用中 · 耗時 {ms} 毫秒",
+"profile.username.addOnConsole": "要新增使用者，請在 PS5 上操作：切換使用者，然後選擇新增使用者。",
 };
 
 export default zh_TW;

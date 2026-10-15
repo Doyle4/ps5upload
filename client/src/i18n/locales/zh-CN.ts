@@ -1823,15 +1823,12 @@ processes_threads: "{n} 个线程",
 "profile.title": "个人资料",
 "profile.username.activated": "当前",
 "profile.username.cancel": "取消",
-"profile.username.createBtn": "创建",
-"profile.username.createUser": "创建用户",
 "profile.username.deleteConfirm": "要删除此用户账户吗？",
 "profile.username.deleteTitle": "删除用户",
 "profile.username.description": "重命名主机用户。PS5 限制名称最多 16 个字符。",
 "profile.username.empty": "没有主机用户",
 "profile.username.emptyHint": "请先在 PS5 上登录一个账户，然后刷新。",
 "profile.username.loading": "正在读取主机用户…",
-"profile.username.newPlaceholder": "新用户名",
 "profile.username.placeholder": "用户名",
 "profile.username.save": "保存",
 "profile.username.slot": "插槽 {n}",
@@ -3871,6 +3868,7 @@ payloads_description_ports: "PS5 上正在使用的端口以及通常在每个�
 "ports.show_outgoing": "显示出站连接（{n}）",
 "ports.how": "通过在 PS5 上逐个绑定端口并立即释放来检测，因此不会有 payload 看到连接。名称根据端口号推测。“打开”会在浏览器中尝试 http://；并非每个服务都有网页。",
 "ports.summary": "{n} 个端口在使用 · 用时 {ms} 毫秒",
+"profile.username.addOnConsole": "要添加用户，请在 PS5 上操作：切换用户，然后选择添加用户。",
 };
 
 export default zh_CN;

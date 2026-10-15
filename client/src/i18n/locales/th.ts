@@ -1876,15 +1876,12 @@ processes_threads: "{n} เธรด",
 "profile.title": "โปรไฟล์",
 "profile.username.activated": "ใช้งานอยู่",
 "profile.username.cancel": "ยกเลิก",
-"profile.username.createBtn": "สร้าง",
-"profile.username.createUser": "สร้างผู้ใช้",
 "profile.username.deleteConfirm": "ลบโปรไฟล์ผู้ใช้นี้หรือไม่",
 "profile.username.deleteTitle": "ลบผู้ใช้",
 "profile.username.description": "เปลี่ยนชื่อผู้ใช้ของเครื่อง PS5 จำกัดชื่อไว้ที่ 16 อักขระ",
 "profile.username.empty": "ไม่มีผู้ใช้ของเครื่อง",
 "profile.username.emptyHint": "ลงชื่อเข้าใช้โปรไฟล์บน PS5 แล้วรีเฟรช",
 "profile.username.loading": "กำลังอ่านผู้ใช้ของเครื่อง…",
-"profile.username.newPlaceholder": "ชื่อผู้ใช้ใหม่",
 "profile.username.placeholder": "ชื่อผู้ใช้",
 "profile.username.save": "บันทึก",
 "profile.username.slot": "ช่อง {n}",
@@ -3924,6 +3921,7 @@ payloads_description_ports: "พอร์ตที่ใช้งานอยู
 "ports.show_outgoing": "แสดงการเชื่อมต่อขาออก ({n})",
 "ports.how": "ตรวจพบโดยการ bind แต่ละพอร์ตบน PS5 แล้วปล่อยทันที จึงไม่มีเพย์โหลดใดเห็นการเชื่อมต่อ ชื่อเป็นการเดาจากหมายเลขพอร์ต ปุ่มเปิดจะลอง http:// ในเบราว์เซอร์ ไม่ใช่ทุกบริการที่มีหน้าเว็บ",
 "ports.summary": "ใช้งานอยู่ {n} พอร์ต · ตรวจใน {ms} ms",
+"profile.username.addOnConsole": "หากต้องการเพิ่มผู้ใช้ ให้ทำบน PS5: สลับผู้ใช้ แล้วเลือกเพิ่มผู้ใช้",
 };
 
 export default th;

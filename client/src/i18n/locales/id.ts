@@ -1876,15 +1876,12 @@ processes_threads: "{n} thread",
 "profile.title": "Profil",
 "profile.username.activated": "aktif",
 "profile.username.cancel": "Batal",
-"profile.username.createBtn": "Buat",
-"profile.username.createUser": "Buat pengguna",
 "profile.username.deleteConfirm": "Hapus profil pengguna ini?",
 "profile.username.deleteTitle": "Hapus pengguna",
 "profile.username.description": "Mengubah nama pengguna konsol. PS5 membatasi nama hingga 16 karakter.",
 "profile.username.empty": "Tidak ada pengguna konsol",
 "profile.username.emptyHint": "Masuk ke sebuah profil di PS5, lalu segarkan.",
 "profile.username.loading": "Membaca pengguna konsol…",
-"profile.username.newPlaceholder": "Nama pengguna baru",
 "profile.username.placeholder": "Nama pengguna",
 "profile.username.save": "Simpan",
 "profile.username.slot": "Slot {n}",
@@ -3924,6 +3921,7 @@ payloads_description_ports: "Port yang dipakai di PS5 dan apa yang biasanya mend
 "ports.show_outgoing": "Tampilkan koneksi keluar ({n})",
 "ports.how": "Ditemukan dengan mem-bind setiap port di PS5 lalu langsung melepasnya, jadi tidak ada payload yang melihat koneksi. Nama hanya tebakan dari nomor port. Buka mencoba http:// di browser; tidak semua layanan punya halaman web.",
 "ports.summary": "{n} port dipakai · diperiksa dalam {ms} ms",
+"profile.username.addOnConsole": "Untuk menambah pengguna, lakukan di PS5: Ganti Pengguna, lalu Tambah Pengguna.",
 };
 
 export default id;

@@ -1875,15 +1875,12 @@ processes_threads: "{n} Threads",
 "profile.title": "Profil",
 "profile.username.activated": "aktiv",
 "profile.username.cancel": "Abbrechen",
-"profile.username.createBtn": "Erstellen",
-"profile.username.createUser": "Benutzer erstellen",
 "profile.username.deleteConfirm": "Dieses Benutzerprofil löschen?",
 "profile.username.deleteTitle": "Benutzer löschen",
 "profile.username.description": "Benennt einen Konsolenbenutzer um. Die PS5 begrenzt Namen auf 16 Zeichen.",
 "profile.username.empty": "Keine Konsolenbenutzer",
 "profile.username.emptyHint": "Melde dich auf der PS5 bei einem Profil an und aktualisiere.",
 "profile.username.loading": "Konsolenbenutzer werden gelesen …",
-"profile.username.newPlaceholder": "Neuer Benutzername",
 "profile.username.placeholder": "Benutzername",
 "profile.username.save": "Speichern",
 "profile.username.slot": "Slot {n}",
@@ -3923,6 +3920,7 @@ payloads_description_ports: "Die belegten Ports auf der PS5 und was dort üblich
 "ports.show_outgoing": "Ausgehende Verbindungen anzeigen ({n})",
 "ports.how": "Ermittelt, indem jeder Port auf der PS5 kurz gebunden und sofort wieder freigegeben wird – keine Payload sieht eine Verbindung. Die Namen sind Vermutungen anhand der Portnummer. „Öffnen“ versucht http:// im Browser; nicht jeder Dienst hat eine Webseite.",
 "ports.summary": "{n} Ports belegt · geprüft in {ms} ms",
+"profile.username.addOnConsole": "Einen Benutzer fügst du auf der PS5 hinzu: Benutzer wechseln, dann Benutzer hinzufügen.",
 };
 
 export default de;

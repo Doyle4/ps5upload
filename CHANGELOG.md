@@ -4,6 +4,13 @@ What's new in ps5upload, written for humans.
 
 ---
 
+## 7.0.25
+
+- **Profile no longer offers "Create User" (#460).** The PS5 has no create-user call a payload
+  can use, and the old button only ever tried to rename the console's first user, which fails
+  on a jailbroken console with "sceUserServiceGetInitialUser failed". Profile now says to add
+  users on the PS5 (Switch User, then Add User). Renaming and deleting users are unchanged.
+
 ## 7.0.24
 
 - **Payloads → Ports: see what is listening on the PS5.** Every port in use, TCP and UDP, with

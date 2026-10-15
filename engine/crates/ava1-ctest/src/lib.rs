@@ -1713,6 +1713,25 @@ impl CApplyJob {
         unsafe { ffi::ava1_test_apply_fail_dir_sync(id) }
     }
 
+    /// try_chunk the way a sender does it: out of credit (-2), wait for the workers to give
+    /// some back, until `over()` says the job will take no more (then the refusal is
+    /// returned) or 10 s pass.
+    pub fn chunk_when_credit(&self, id: u32, off: u64, d: &[u8], over: &dyn Fn() -> bool) -> i32 {
+        let t = std::time::Instant::now();
+        loop {
+            let rc = self.try_chunk(id, off, d);
+            if rc != -2 || over() || t.elapsed().as_secs() >= 10 {
+                return rc;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(1));
+        }
+    }
+
+    /// The job stopped itself at an injected crash point.
+    pub fn job_stopped(&self) -> bool {
+        unsafe { ffi::ava1_test_job_stopped() != 0 }
+    }
+
     /// ava1_apply_chunk's answer (0, or a negative AVA1_E_*).
     pub fn try_chunk(&self, id: u32, off: u64, d: &[u8]) -> i32 {
         unsafe { ffi::ava1_test_apply_chunk(id, off, d.as_ptr(), d.len()) }
@@ -1847,6 +1866,11 @@ impl CApplyJob {
 
     pub fn root(&self, id: u32, root: [u8; 32]) {
         assert_eq!(unsafe { ffi::ava1_test_apply_root(id, root.as_ptr()) }, 0);
+    }
+
+    /// ava1_apply_root's answer (0, or negative once the job has stopped).
+    pub fn try_root(&self, id: u32, root: [u8; 32]) -> i32 {
+        unsafe { ffi::ava1_test_apply_root(id, root.as_ptr()) }
     }
 
     pub fn wait(&self, ms: u32) -> i32 {

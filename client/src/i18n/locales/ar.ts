@@ -1867,15 +1867,12 @@ processes_threads: "{n} خيطًا",
 "profile.title": "الملف الشخصي",
 "profile.username.activated": "نشط",
 "profile.username.cancel": "إلغاء",
-"profile.username.createBtn": "إنشاء",
-"profile.username.createUser": "إنشاء مستخدم",
 "profile.username.deleteConfirm": "هل تريد حذف ملف المستخدم هذا؟",
 "profile.username.deleteTitle": "حذف المستخدم",
 "profile.username.description": "يعيد تسمية مستخدم على الجهاز. تحدّ PS5 الأسماء بـ 16 حرفًا.",
 "profile.username.empty": "لا يوجد مستخدمون على الجهاز",
 "profile.username.emptyHint": "سجّل الدخول إلى ملف تعريف على PS5 ثم حدّث.",
 "profile.username.loading": "جارٍ قراءة مستخدمي الجهاز…",
-"profile.username.newPlaceholder": "اسم المستخدم الجديد",
 "profile.username.placeholder": "اسم المستخدم",
 "profile.username.save": "حفظ",
 "profile.username.slot": "الفتحة {n}",
@@ -3915,6 +3912,7 @@ payloads_description_ports: "المنافذ المستخدمة على PS5 وما
 "ports.show_outgoing": "إظهار الاتصالات الصادرة ({n})",
 "ports.how": "يُعثر عليها بحجز كل منفذ على PS5 وتحريره فورًا، فلا ترى أي حمولة اتصالًا. الأسماء تخمين من رقم المنفذ. «فتح» يجرّب http:// في متصفحك؛ ليست لكل خدمة صفحة ويب.",
 "ports.summary": "{n} منفذ مستخدم · فُحصت في {ms} مللي ثانية",
+"profile.username.addOnConsole": "لإضافة مستخدم، افعل ذلك على PS5: تبديل المستخدم ثم إضافة مستخدم.",
 };
 
 export default ar;

@@ -1869,15 +1869,12 @@ processes_threads: "{n} luồng",
 "profile.title": "Hồ sơ",
 "profile.username.activated": "đang dùng",
 "profile.username.cancel": "Hủy",
-"profile.username.createBtn": "Tạo",
-"profile.username.createUser": "Tạo người dùng",
 "profile.username.deleteConfirm": "Xóa hồ sơ người dùng này?",
 "profile.username.deleteTitle": "Xóa người dùng",
 "profile.username.description": "Đổi tên một người dùng trên máy. PS5 giới hạn tên tối đa 16 ký tự.",
 "profile.username.empty": "Không có người dùng nào",
 "profile.username.emptyHint": "Hãy đăng nhập một hồ sơ trên PS5 rồi làm mới.",
 "profile.username.loading": "Đang đọc danh sách người dùng…",
-"profile.username.newPlaceholder": "Tên người dùng mới",
 "profile.username.placeholder": "Tên người dùng",
 "profile.username.save": "Lưu",
 "profile.username.slot": "Khe {n}",
@@ -3917,6 +3914,7 @@ payloads_description_ports: "Các cổng đang dùng trên PS5 và thứ thườ
 "ports.show_outgoing": "Hiện các kết nối đi ({n})",
 "ports.how": "Tìm bằng cách bind từng cổng trên PS5 rồi nhả ngay, nên không payload nào thấy kết nối. Tên chỉ là đoán theo số cổng. Mở sẽ thử http:// trong trình duyệt; không phải dịch vụ nào cũng có trang web.",
 "ports.summary": "{n} cổng đang dùng · kiểm tra trong {ms} ms",
+"profile.username.addOnConsole": "Để thêm người dùng, hãy làm trên PS5: Chuyển người dùng, rồi Thêm người dùng.",
 };
 
 export default vi;

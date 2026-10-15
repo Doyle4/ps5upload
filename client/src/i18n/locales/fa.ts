@@ -2479,11 +2479,8 @@ roster_order_hint: "این ترتیب تب‌های کنسول و انتخابگ
   // ── Pre-existing tr() keys that were missing ─────────────────────
   notifications_unread: "{count} خوانده‌نشده",
   "profile.username.cancel": "لغو",
-  "profile.username.createBtn": "ایجاد",
-  "profile.username.createUser": "ایجاد کاربر",
   "profile.username.deleteConfirm": "این پروفایل کاربر حذف شود؟",
   "profile.username.deleteTitle": "حذف کاربر",
-  "profile.username.newPlaceholder": "نام کاربری جدید",
   // ── v5 Tab navigation ──────────────────────────────────────────
   v5_tab_primary_nav: "اصلی",
   v5_tab_home: "خانه",
@@ -4216,6 +4213,7 @@ payloads_description_ports: "پورت‌های در حال استفاده روی
 "ports.show_outgoing": "نمایش اتصال‌های خروجی ({n})",
 "ports.how": "با bind کردن هر پورت روی PS5 و رها کردن فوری آن پیدا می‌شوند، پس هیچ payloadی اتصالی نمی‌بیند. نام‌ها از روی شمارهٔ پورت حدس زده می‌شوند. «باز کردن» http:// را در مرورگر امتحان می‌کند؛ همهٔ سرویس‌ها صفحهٔ وب ندارند.",
 "ports.summary": "{n} پورت در حال استفاده · بررسی در {ms} میلی‌ثانیه",
+"profile.username.addOnConsole": "برای افزودن کاربر، این کار را روی PS5 انجام دهید: تغییر کاربر، سپس افزودن کاربر.",
 };
 
 export default fa;

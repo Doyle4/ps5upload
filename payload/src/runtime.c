@@ -4124,7 +4124,6 @@ extern int sceUserServiceGetLoginUserIdList(int *id_list);
 extern int sceUserServiceGetUserName(int user_id, char *name, size_t size);
 extern int sceUserServiceSetUserName(int user_id, const char *name);
 extern int sceUserServiceDestroyUser(int user_id);
-extern int sceUserServiceGetInitialUser(int *user_id);
 #define USER_SERVICE_MAX_USERS 16
 
 /* App lifecycle — libSceSysCore exports. ApplicationGetProcs returns
@@ -4670,46 +4669,28 @@ static int handle_user_list(runtime_state_t *state) {
 }
 
 /* ── User create / delete ──────────────────────────────────────────────
- * sceUserServiceCreateUser allocates a new local user account and
- * returns its user_id. The initial name is set via SetUserName after
- * creation. sceUserServiceDeleteUser removes the account; Sony cleans
- * up home dir content but we offer an optional pre-wipe of savedata. */
+ * There is no way to create a user from here. libSceUserService on 13.60
+ * exports no create call (probed by name: CreateUser and every variant
+ * resolve to NULL), and the old path -- GetInitialUser + SetUserName --
+ * never created anything: it renamed the initial user, and in a payload
+ * GetInitialUser fails with 0x80940004 anyway (#460). So create answers
+ * with a plain "add the user on the console" error and touches nothing.
+ * sceUserServiceDestroyUser does exist, so delete stays. */
 
 static int handle_user_create(runtime_state_t *state, const char *body) {
     if (!state) return -1;
     char name[64] = {0};
     extract_json_string_field(body, "name", name, sizeof(name));
-    int rc = -1;
-    int new_uid = -1;
-    const char *err_msg = "";
-    if (name[0]) {
-        pthread_mutex_lock(&sony_api_lock);
-        sceUserServiceInitialize(NULL); /* a Sony call: inside the lock (final review: console) */
-        int raw_uid = -1;
-        int init_rc = sceUserServiceGetInitialUser(&raw_uid);
-        if (init_rc == 0 && raw_uid >= 0) {
-            int name_rc = sceUserServiceSetUserName(raw_uid, name);
-            if (name_rc != 0) {
-                err_msg = "user found but SetUserName failed";
-            }
-            new_uid = raw_uid;
-            rc = 0;
-        } else {
-            err_msg = "sceUserServiceGetInitialUser failed";
-        }
-        usleep(SONY_API_POST_SLEEP_US);
-        pthread_mutex_unlock(&sony_api_lock);
-    } else {
-        err_msg = "empty name";
-    }
+    const char *err_msg = name[0]
+        ? "creating users is not supported: add the user on the PS5 (Switch User, then Add User)"
+        : "empty name";
     char nesc[128];
     json_escape_into(name, nesc, sizeof(nesc));
     char eesc[256];
     json_escape_into(err_msg, eesc, sizeof(eesc));
-    char resp[384];
+    char resp[512];
     int len = snprintf(resp, sizeof(resp),
-        "{\"ok\":%s,\"uid\":%d,\"name\":\"%s\",\"err\":\"%s\"}",
-        rc == 0 ? "true" : "false", new_uid, nesc, eesc);
+        "{\"ok\":false,\"uid\":-1,\"name\":\"%s\",\"err\":\"%s\"}", nesc, eesc);
     pthread_mutex_lock(&state->state_mtx);
     state->command_count += 1;
     pthread_mutex_unlock(&state->state_mtx);

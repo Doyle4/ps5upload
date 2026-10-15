@@ -1883,15 +1883,12 @@ processes_threads: "{n} थ्रेड",
 "profile.title": "प्रोफ़ाइल",
 "profile.username.activated": "सक्रिय",
 "profile.username.cancel": "रद्द करें",
-"profile.username.createBtn": "बनाएँ",
-"profile.username.createUser": "उपयोगकर्ता बनाएँ",
 "profile.username.deleteConfirm": "यह उपयोगकर्ता प्रोफ़ाइल हटाएँ?",
 "profile.username.deleteTitle": "उपयोगकर्ता हटाएँ",
 "profile.username.description": "कंसोल उपयोगकर्ता का नाम बदलता है। PS5 नामों को 16 वर्णों तक सीमित करता है।",
 "profile.username.empty": "कोई कंसोल उपयोगकर्ता नहीं",
 "profile.username.emptyHint": "PS5 पर किसी प्रोफ़ाइल में साइन इन करें, फिर ताज़ा करें।",
 "profile.username.loading": "कंसोल उपयोगकर्ता पढ़े जा रहे हैं…",
-"profile.username.newPlaceholder": "नया उपयोगकर्ता नाम",
 "profile.username.placeholder": "उपयोगकर्ता नाम",
 "profile.username.save": "सहेजें",
 "profile.username.slot": "स्लॉट {n}",
@@ -3931,6 +3928,7 @@ payloads_description_ports: "PS5 पर उपयोग में पोर्�
 "ports.show_outgoing": "आउटगोइंग कनेक्शन दिखाएँ ({n})",
 "ports.how": "PS5 पर हर पोर्ट को bind करके तुरंत छोड़कर पता लगाया जाता है, इसलिए किसी पेलोड को कनेक्शन नहीं दिखता। नाम पोर्ट नंबर से अनुमान हैं। खोलें ब्राउज़र में http:// आज़माता है; हर सेवा का वेब पेज नहीं होता।",
 "ports.summary": "{n} पोर्ट उपयोग में · {ms} ms में जाँचे गए",
+"profile.username.addOnConsole": "नया यूज़र जोड़ने के लिए PS5 पर ही करें: Switch User, फिर Add User।",
 };
 
 export default hi;

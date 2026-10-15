@@ -1867,15 +1867,12 @@ processes_threads: "{n}টি থ্রেড",
 "profile.title": "প্রোফাইল",
 "profile.username.activated": "সক্রিয়",
 "profile.username.cancel": "বাতিল",
-"profile.username.createBtn": "তৈরি করুন",
-"profile.username.createUser": "ব্যবহারকারী তৈরি করুন",
 "profile.username.deleteConfirm": "এই ব্যবহারকারী প্রোফাইল মুছে ফেলবেন?",
 "profile.username.deleteTitle": "ব্যবহারকারী মুছুন",
 "profile.username.description": "PS5 কনসোল ব্যবহারকারীদের নাম বদলান। নাম ১৬ অক্ষরের মধ্যে সীমাবদ্ধ।",
 "profile.username.empty": "কোনো কনসোল ব্যবহারকারী নেই",
 "profile.username.emptyHint": "PS5-এ একটি প্রোফাইলে সাইন ইন করে রিফ্রেশ করুন।",
 "profile.username.loading": "কনসোল ব্যবহারকারী পড়া হচ্ছে…",
-"profile.username.newPlaceholder": "নতুন ব্যবহারকারী নাম",
 "profile.username.placeholder": "ব্যবহারকারী নাম",
 "profile.username.save": "সংরক্ষণ করুন",
 "profile.username.slot": "স্লট {n}",
@@ -3915,6 +3912,7 @@ payloads_description_ports: "PS5-এ ব্যবহৃত পোর্ট এ�
 "ports.show_outgoing": "আউটগোয়িং সংযোগ দেখান ({n})",
 "ports.how": "PS5-এ প্রতিটি পোর্ট bind করে সঙ্গে সঙ্গে ছেড়ে দিয়ে খোঁজা হয়, তাই কোনো পেলোড সংযোগ দেখে না। নামগুলো পোর্ট নম্বর থেকে অনুমান। খুলুন ব্রাউজারে http:// চেষ্টা করে; সব সার্ভিসের ওয়েব পেজ থাকে না।",
 "ports.summary": "{n}টি পোর্ট ব্যবহৃত · {ms} ms-এ পরীক্ষা করা হয়েছে",
+"profile.username.addOnConsole": "নতুন ইউজার যোগ করতে PS5-এই করুন: Switch User, তারপর Add User।",
 };
 
 export default bn;

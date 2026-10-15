@@ -40,7 +40,6 @@ import {
   profileSetUsername,
   profileRenameUser,
   profileActivate,
-  userCreate,
   userDelete,
   type ProfileInfo,
   type SquareMode,
@@ -447,8 +446,6 @@ function UsernameSection({
   const users = info?.users ?? [];
   const slots = info?.slots ?? [];
 
-  const [showCreate, setShowCreate] = useState(false);
-
   return (
     <Card>
       <div className="mb-1 flex items-center gap-2">
@@ -495,29 +492,16 @@ function UsernameSection({
         </div>
       )}
 
-      {/* Create user */}
+      {/* The console has no create-user call a payload can reach (#460):
+          say where to do it instead of offering a button that can't work. */}
       {info !== null && (
-        <div className="mt-4">
-          {showCreate ? (
-            <CreateUserRow
-              addr={addr}
-              onDone={() => {
-                setShowCreate(false);
-                onChanged();
-              }}
-              onCancel={() => setShowCreate(false)}
-            />
-          ) : (
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => setShowCreate(true)}
-            >
-              <UserPlus size={14} className="mr-1" />
-              {tr("profile.username.createUser", "Create User")}
-            </Button>
+        <p className="mt-4 flex items-start gap-1.5 text-xs text-[var(--color-muted)]">
+          <UserPlus size={14} className="mt-px shrink-0" />
+          {tr(
+            "profile.username.addOnConsole",
+            "To add a user, do it on the PS5: Switch User, then Add User.",
           )}
-        </div>
+        </p>
       )}
 
       {/* These rows ARE the account on a normal console — a PSN-linked
@@ -672,74 +656,6 @@ function UserRow({
           )}
         </p>
       )}
-    </div>
-  );
-}
-
-function CreateUserRow({
-  addr,
-  onDone,
-  onCancel,
-}: {
-  addr: string;
-  onDone: () => void;
-  onCancel: () => void;
-}) {
-  const tr = useTr();
-  const [name, setName] = useState("");
-  const [creating, setCreating] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  async function create() {
-    const trimmed = name.trim();
-    if (!trimmed) return;
-    setCreating(true);
-    setError(null);
-    try {
-      await userCreate(trimmed, addr);
-      onDone();
-    } catch (e) {
-      setError(`${e}`);
-    } finally {
-      setCreating(false);
-    }
-  }
-
-  return (
-    <div className="rounded-[var(--radius-card)] border border-[var(--color-accent)]/40 bg-[var(--color-surface)] p-3">
-      <div className="flex items-center gap-2">
-        <UserPlus size={14} className="shrink-0 text-[var(--color-accent)]" />
-        <input
-          autoFocus
-          className="min-w-0 flex-1 rounded-full border border-[var(--glass-edge)] bg-[var(--color-surface-raised)] px-2 py-1 text-sm"
-          value={name}
-          maxLength={16}
-          placeholder={tr("profile.username.newPlaceholder", "New user name")}
-          onChange={(e) => setName(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") void create();
-            if (e.key === "Escape") onCancel();
-          }}
-        />
-        <Button
-          variant="primary"
-          size="sm"
-          disabled={!name.trim() || creating}
-          loading={creating}
-          onClick={create}
-        >
-          {tr("profile.username.createBtn", "Create")}
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          disabled={creating}
-          onClick={onCancel}
-        >
-          {tr("profile.username.cancel", "Cancel")}
-        </Button>
-      </div>
-      {error && <p className="mt-1 text-xs text-[var(--color-bad)]">{error}</p>}
     </div>
   );
 }

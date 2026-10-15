@@ -1817,15 +1817,12 @@ processes_threads: "{n} hilos",
 "profile.title": "Perfil",
 "profile.username.activated": "activo",
 "profile.username.cancel": "Cancelar",
-"profile.username.createBtn": "Crear",
-"profile.username.createUser": "Crear usuario",
 "profile.username.deleteConfirm": "¿Eliminar este perfil de usuario?",
 "profile.username.deleteTitle": "Eliminar usuario",
 "profile.username.description": "Renombra un usuario de la consola. La PS5 limita los nombres a 16 caracteres.",
 "profile.username.empty": "No hay usuarios de consola",
 "profile.username.emptyHint": "Inicia sesión en un perfil de la PS5 y actualiza.",
 "profile.username.loading": "Leyendo usuarios de la consola…",
-"profile.username.newPlaceholder": "Nuevo nombre de usuario",
 "profile.username.placeholder": "Nombre de usuario",
 "profile.username.save": "Guardar",
 "profile.username.slot": "Ranura {n}",
@@ -3865,6 +3862,7 @@ payloads_description_ports: "Los puertos en uso en la PS5 y lo que suele escucha
 "ports.show_outgoing": "Mostrar conexiones salientes ({n})",
 "ports.how": "Se detectan reservando cada puerto de la PS5 y liberándolo al instante, así que ningún payload ve una conexión. Los nombres se deducen del número de puerto. Abrir prueba http:// en el navegador; no todos los servicios tienen página web.",
 "ports.summary": "{n} puertos en uso · comprobado en {ms} ms",
+"profile.username.addOnConsole": "Para añadir un usuario, hazlo en la PS5: Cambiar de usuario y luego Añadir usuario.",
 };
 
 export default es;

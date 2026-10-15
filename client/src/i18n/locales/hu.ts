@@ -2418,11 +2418,8 @@ roster_order_hint: "Ez a sorrend állítja be a konzolfüleket és a választót
   // ── Már létező tr() kulcsok, amelyek hiányoztak ─────────────────────
   notifications_unread: "{count} olvasatlan",
   "profile.username.cancel": "Mégse",
-  "profile.username.createBtn": "Létrehozás",
-  "profile.username.createUser": "Felhasználó létrehozása",
   "profile.username.deleteConfirm": "Törlöd ezt a felhasználói profilt?",
   "profile.username.deleteTitle": "Felhasználó törlése",
-  "profile.username.newPlaceholder": "Új felhasználónév",
   // ── v5 fülnavigáció ──────────────────────────────────────────
   v5_tab_primary_nav: "Elsődleges",
   v5_tab_home: "Kezdőlap",
@@ -4230,6 +4227,7 @@ payloads_description_ports: "A PS5-ön használt portok és hogy mi szokott rajt
 "ports.show_outgoing": "Kimenő kapcsolatok mutatása ({n})",
 "ports.how": "Úgy derül ki, hogy minden portot lefoglalunk a PS5-ön, majd azonnal elengedjük, így egy payload sem lát kapcsolatot. A nevek a portszámból tippeltek. A Megnyitás http://-t próbál a böngészőben; nem minden szolgáltatásnak van weboldala.",
 "ports.summary": "{n} port foglalt · ellenőrizve {ms} ms alatt",
+"profile.username.addOnConsole": "Felhasználót a PS5-ön adhatsz hozzá: Felhasználóváltás, majd Felhasználó hozzáadása.",
 };
 
 export default hu;

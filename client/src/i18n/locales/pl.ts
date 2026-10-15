@@ -2189,11 +2189,8 @@ shortcuts_activate: "Otwórz / aktywuj",
   // ── Pre-existing tr() keys that were missing ─────────────────────
   notifications_unread: "Nieprzeczytane: {count}",
   "profile.username.cancel": "Anuluj",
-  "profile.username.createBtn": "Utwórz",
-  "profile.username.createUser": "Utwórz użytkownika",
   "profile.username.deleteConfirm": "Usunąć ten profil użytkownika?",
   "profile.username.deleteTitle": "Usuń użytkownika",
-  "profile.username.newPlaceholder": "Nazwa nowego użytkownika",
 
 // --- translated batch (v5.1.0) ---
 a11y_dyslexia: "Czcionka przyjazna dysleksji",
@@ -4170,6 +4167,7 @@ payloads_description_ports: "Porty używane na PS5 i to, co zwykle na nich nasł
 "ports.show_outgoing": "Pokaż połączenia wychodzące ({n})",
 "ports.how": "Wykrywane przez zajęcie każdego portu na PS5 i natychmiastowe zwolnienie, więc żaden payload nie widzi połączenia. Nazwy to domysły na podstawie numeru portu. Otwórz próbuje http:// w przeglądarce; nie każda usługa ma stronę WWW.",
 "ports.summary": "Zajęte porty: {n} · sprawdzono w {ms} ms",
+"profile.username.addOnConsole": "Użytkownika dodasz na PS5: Przełącz użytkownika, a potem Dodaj użytkownika.",
 };
 
 export default pl;

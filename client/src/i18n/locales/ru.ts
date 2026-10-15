@@ -1817,15 +1817,12 @@ processes_threads: "потоков: {n}",
 "profile.title": "Профиль",
 "profile.username.activated": "активен",
 "profile.username.cancel": "Отмена",
-"profile.username.createBtn": "Создать",
-"profile.username.createUser": "Создать пользователя",
 "profile.username.deleteConfirm": "Удалить этот профиль пользователя?",
 "profile.username.deleteTitle": "Удалить пользователя",
 "profile.username.description": "Переименовывает пользователя консоли. PS5 ограничивает имена 16 символами.",
 "profile.username.empty": "Нет пользователей консоли",
 "profile.username.emptyHint": "Войдите в профиль на PS5 и обновите.",
 "profile.username.loading": "Чтение пользователей консоли…",
-"profile.username.newPlaceholder": "Новое имя пользователя",
 "profile.username.placeholder": "Имя пользователя",
 "profile.username.save": "Сохранить",
 "profile.username.slot": "Слот {n}",
@@ -3865,6 +3862,7 @@ payloads_description_ports: "Занятые порты на PS5 и что обы
 "ports.show_outgoing": "Показать исходящие соединения ({n})",
 "ports.how": "Порты находятся так: каждый порт на PS5 занимается и сразу освобождается, поэтому ни один payload не видит соединения. Названия угаданы по номеру порта. «Открыть» пробует http:// в браузере; веб-страница есть не у каждой службы.",
 "ports.summary": "Занято портов: {n} · проверено за {ms} мс",
+"profile.username.addOnConsole": "Пользователя добавляют на самой PS5: «Сменить пользователя», затем «Добавить пользователя».",
 };
 
 export default ru;

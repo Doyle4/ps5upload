@@ -1874,15 +1874,12 @@ processes_threads: "{n} iş parçacığı",
 "profile.title": "Profil",
 "profile.username.activated": "etkin",
 "profile.username.cancel": "İptal",
-"profile.username.createBtn": "Oluştur",
-"profile.username.createUser": "Kullanıcı oluştur",
 "profile.username.deleteConfirm": "Bu kullanıcı profili silinsin mi?",
 "profile.username.deleteTitle": "Kullanıcıyı sil",
 "profile.username.description": "Bir konsol kullanıcısını yeniden adlandırır. PS5 adları 16 karakterle sınırlar.",
 "profile.username.empty": "Konsol kullanıcısı yok",
 "profile.username.emptyHint": "PS5'te bir profile giriş yapın, sonra yenileyin.",
 "profile.username.loading": "Konsol kullanıcıları okunuyor…",
-"profile.username.newPlaceholder": "Yeni kullanıcı adı",
 "profile.username.placeholder": "Kullanıcı adı",
 "profile.username.save": "Kaydet",
 "profile.username.slot": "Yuva {n}",
@@ -3922,6 +3919,7 @@ payloads_description_ports: "PS5'te kullanılan portlar ve her birinde genellikl
 "ports.show_outgoing": "Giden bağlantıları göster ({n})",
 "ports.how": "PS5'teki her port bağlanıp hemen bırakılarak bulunur, bu yüzden hiçbir payload bağlantı görmez. Adlar port numarasına göre tahmindir. Aç, tarayıcıda http:// dener; her hizmetin web sayfası yoktur.",
 "ports.summary": "{n} port kullanımda · {ms} ms'de kontrol edildi",
+"profile.username.addOnConsole": "Kullanıcı eklemek için bunu PS5'te yap: Kullanıcı Değiştir, ardından Kullanıcı Ekle.",
 };
 
 export default tr;

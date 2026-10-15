@@ -1886,15 +1886,12 @@ processes_threads: "스레드 {n}개",
 "profile.title": "프로필",
 "profile.username.activated": "사용 중",
 "profile.username.cancel": "취소",
-"profile.username.createBtn": "만들기",
-"profile.username.createUser": "사용자 만들기",
 "profile.username.deleteConfirm": "이 사용자 프로필을 삭제할까요?",
 "profile.username.deleteTitle": "사용자 삭제",
 "profile.username.description": "콘솔 사용자의 이름을 바꿉니다. PS5는 이름을 16자로 제한합니다.",
 "profile.username.empty": "콘솔 사용자가 없습니다",
 "profile.username.emptyHint": "PS5에서 프로필에 로그인한 뒤 새로 고치세요.",
 "profile.username.loading": "콘솔 사용자를 읽는 중…",
-"profile.username.newPlaceholder": "새 사용자 이름",
 "profile.username.placeholder": "사용자 이름",
 "profile.username.save": "저장",
 "profile.username.slot": "슬롯 {n}",
@@ -3934,6 +3931,7 @@ payloads_description_ports: "PS5에서 사용 중인 포트와 각 포트에서 
 "ports.show_outgoing": "나가는 연결 표시 ({n})",
 "ports.how": "PS5에서 각 포트를 bind했다가 바로 놓는 방식으로 찾으므로 어떤 페이로드에도 연결이 보이지 않습니다. 이름은 포트 번호로 추정한 것입니다. 열기는 브라우저에서 http://를 시도하며, 모든 서비스에 웹 페이지가 있지는 않습니다.",
 "ports.summary": "사용 중인 포트 {n}개 · {ms} ms 만에 확인",
+"profile.username.addOnConsole": "사용자 추가는 PS5에서 하세요: 사용자 전환 → 사용자 추가.",
 };
 
 export default ko;

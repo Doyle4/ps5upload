@@ -1888,15 +1888,12 @@ processes_threads: "{n}スレッド",
 "profile.title": "プロフィール",
 "profile.username.activated": "使用中",
 "profile.username.cancel": "キャンセル",
-"profile.username.createBtn": "作成",
-"profile.username.createUser": "ユーザーを作成",
 "profile.username.deleteConfirm": "このユーザープロフィールを削除しますか？",
 "profile.username.deleteTitle": "ユーザーを削除",
 "profile.username.description": "本体ユーザーの名前を変更します。PS5では名前は16文字までです。",
 "profile.username.empty": "本体ユーザーがいません",
 "profile.username.emptyHint": "PS5でプロフィールにサインインしてから更新してください。",
 "profile.username.loading": "本体ユーザーを読み込み中…",
-"profile.username.newPlaceholder": "新しいユーザー名",
 "profile.username.placeholder": "ユーザー名",
 "profile.username.save": "保存",
 "profile.username.slot": "スロット {n}",
@@ -3936,6 +3933,7 @@ payloads_description_ports: "PS5 で使用中のポートと、それぞれで�
 "ports.show_outgoing": "外向きの接続を表示（{n}）",
 "ports.how": "PS5 上で各ポートを bind してすぐ解放する方法で調べるため、ペイロードには接続が見えません。名前はポート番号からの推測です。「開く」はブラウザで http:// を試します。すべてのサービスに Web ページがあるわけではありません。",
 "ports.summary": "使用中のポート {n} 個 · {ms} ms で確認",
+"profile.username.addOnConsole": "ユーザーの追加は PS5 本体で行ってください：「ユーザーを切り替える」→「ユーザーを追加」。",
 };
 
 export default ja;

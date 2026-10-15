@@ -2680,11 +2680,8 @@ roster_order_hint: "This order sets the console tabs and the picker.",
   // ── Pre-existing tr() keys that were missing ─────────────────────
   notifications_unread: "{count} unread",
   "profile.username.cancel": "Cancel",
-  "profile.username.createBtn": "Create",
-  "profile.username.createUser": "Create User",
   "profile.username.deleteConfirm": "Delete this user profile?",
   "profile.username.deleteTitle": "Delete User",
-  "profile.username.newPlaceholder": "New username",
   // ── v5 Tab navigation ──────────────────────────────────────────
   v5_tab_primary_nav: "Primary",
   v5_tab_home: "Home",
@@ -4238,6 +4235,7 @@ payloads_description_ports: "The ports in use on the PS5 and what usually listen
 "ports.show_outgoing": "Show outgoing connections ({n})",
 "ports.how": "Found by binding each port on the PS5 and letting go at once, so no payload sees a connection. Names are guesses from the port number. Open tries http:// in your browser; not every service has a web page.",
 "ports.summary": "{n} ports in use · checked in {ms} ms",
+"profile.username.addOnConsole": "To add a user, do it on the PS5: Switch User, then Add User.",
 };
 
 export default en;
