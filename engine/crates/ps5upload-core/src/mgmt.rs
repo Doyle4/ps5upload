@@ -163,6 +163,7 @@ methods! {
     (USB_EJECT, 144, "USB_EJECT"),
     (SAVE_MOUNT, 145, "SAVE_MOUNT"),
     (SAVE_UNMOUNT, 146, "SAVE_UNMOUNT"),
+    (NET_PORTS, 147, "NET_PORTS"),
 }
 
 /// A management call the payload refused.

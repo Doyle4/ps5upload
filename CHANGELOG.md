@@ -4,6 +4,16 @@ What's new in ps5upload, written for humans.
 
 ---
 
+## 7.0.24
+
+- **Payloads → Ports: see what is listening on the PS5.** Every port in use, TCP and UDP, with
+  what usually listens there (elfldr, ftpsrv, Payload Manager, nanodns, the ps5upload helper,
+  Remote Play) and whether a PC can reach it or only the console itself. Ports with a web page
+  open in your browser from there. The helper finds them by binding each port and letting go
+  at once, so no payload ever sees a connection; a full pass takes about a second. Needs the
+  7.0.24 helper.
+- **Folder games on a USB drive are no longer described as /data/homebrew folders (#452).**
+
 ## 7.0.23
 
 - **Payload Manager 0.6 works again (#458).** 0.6 refuses changes without its request marker

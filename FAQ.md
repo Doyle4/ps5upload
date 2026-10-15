@@ -139,6 +139,9 @@ straight to the console is a Public network.
 | 19113 TCP | this computer | The engine: the PS5 fetches packages from it during Stream & install |
 | 9295, 9302 | PS5 | Remote Play pairing and wake |
 
+To see every port in use on your PS5, and which payload usually sits on it, open **Payloads →
+Ports** (7.0.24 and later).
+
 Every connection is encrypted and each computer pairs with the console once. A helper
 the app launched pairs by itself; one loaded another way shows a 6-digit code on the console,
 which you enter in the app. If the console shows a different PS5 at an address you reuse, forget

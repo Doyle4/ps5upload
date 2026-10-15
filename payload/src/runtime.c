@@ -57,6 +57,7 @@
 #include "profile.h"
 #include "sony_api_lock.h"
 #include "net_probe.h"
+#include "net_ports.h"
 #include "focus_probe.h"
 #include "proc_list.h"
 #include "proc_identity.h"
@@ -266,6 +267,8 @@
 #define MGMT_FRAME_SAVE_MOUNT_ACK 262u
 #define MGMT_FRAME_SAVE_UNMOUNT 263u
 #define MGMT_FRAME_SAVE_UNMOUNT_ACK 264u
+#define MGMT_FRAME_NET_PORTS 265u
+#define MGMT_FRAME_NET_PORTS_ACK 266u
 #define MGMT_FRAME_SDK_SCAN 214u
 #define MGMT_FRAME_SDK_SCAN_ACK 215u
 #define MGMT_FRAME_SDK_PATCH 216u
@@ -7638,6 +7641,26 @@ static int handle_net_reach(runtime_state_t *state, const char *body,
     /* The probe itself lives in net_probe.c so the host tests run the real code. */
     size_t n = net_probe_reach(body, (size_t)body_len, resp, sizeof(resp));
     return mgmt_reply(MGMT_FRAME_NET_REACH_ACK, resp, (uint64_t)n);
+}
+
+/* NET_PORTS: the ports in use on the console (Discord ask). Body: {"lan":"a.b.c.d"}, the address
+ * the engine reached the console at. The scan binds and closes each port, never connects; see
+ * net_ports.h. About a second for all 65535 ports on FW 13.60. */
+static int handle_net_ports(runtime_state_t *state, const char *body, uint64_t body_len) {
+    if (!state) return -1;
+    const size_t cap = 32 * 1024;
+    char *resp = malloc(cap);
+    if (!resp) {
+        const char *err = "{\"ok\":false,\"err\":\"oom\"}";
+        return mgmt_reply(MGMT_FRAME_NET_PORTS_ACK, err, strlen(err));
+    }
+    pthread_mutex_lock(&state->state_mtx);
+    state->command_count += 1;
+    pthread_mutex_unlock(&state->state_mtx);
+    size_t n = net_ports_scan(body, (size_t)body_len, 1, 65535, resp, cap);
+    int rc = mgmt_reply(MGMT_FRAME_NET_PORTS_ACK, resp, (uint64_t)n);
+    free(resp);
+    return rc;
 }
 
 /* ── Network round-trip ack ──────────────────────────────────────────── */

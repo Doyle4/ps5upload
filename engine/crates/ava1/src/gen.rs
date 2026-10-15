@@ -165,6 +165,7 @@ pub const METHOD_APP_HIDDEN_LIST: u16 = 143;
 pub const METHOD_USB_EJECT: u16 = 144;
 pub const METHOD_SAVE_MOUNT: u16 = 145;
 pub const METHOD_SAVE_UNMOUNT: u16 = 146;
+pub const METHOD_NET_PORTS: u16 = 147;
 pub const JOB_OP_DELETE: u8 = 1;
 pub const JOB_OP_CHMOD_R: u8 = 2;
 pub const JOB_OP_HASH: u8 = 3;

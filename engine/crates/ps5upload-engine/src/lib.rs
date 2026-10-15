@@ -3432,6 +3432,23 @@ async fn ps5_hidden_icons(
     }
 }
 
+/// GET /api/ps5/net/ports — the ports held on the console (Discord ask). The helper binds
+/// each port and closes it, so nothing on the console sees a connection. About a second.
+async fn ps5_net_ports(
+    State(state): State<AppState>,
+    Query(q): Query<HiddenIconsParams>,
+) -> impl IntoResponse {
+    let addr = console_addr_or_default(q.addr, &state.default_ps5_addr);
+    let r = tokio::task::spawn_blocking(move || ps5upload_core::diagnostics::console_ports(&addr))
+        .await
+        .map_err(anyhow::Error::from)
+        .and_then(|r| r);
+    match r {
+        Ok(v) => (StatusCode::OK, Json(v)).into_response(),
+        Err(e) => json_err(StatusCode::BAD_GATEWAY, format!("{e:#}")).into_response(),
+    }
+}
+
 #[derive(Deserialize)]
 struct UsbEjectReq {
     addr: Option<String>,
@@ -10205,6 +10222,7 @@ async fn run(cfg: EngineConfig) -> anyhow::Result<()> {
             get(ps5_hidden_icons).post(ps5_set_icon_hidden),
         )
         .route("/api/ps5/focus", get(ps5_focus))
+        .route("/api/ps5/net/ports", get(ps5_net_ports))
         .route("/api/ps5/fs/read-preview", post(ps5_fs_read_preview))
         .route("/api/ps5/process/list", get(ps5_process_list))
         .route("/api/ps5/elfldr/health", get(ps5_elfldr_health))

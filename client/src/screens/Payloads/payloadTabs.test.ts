@@ -11,11 +11,18 @@ const shim = read("../../lib/browserInvoke.ts");
 
 describe("Payloads in the browser build", () => {
   it("keeps every tab on the desktop", () => {
-    expect(payloadTabsFor(true)).toEqual(["catalog", "send", "manager", "shadowmount", "nanodns"]);
+    expect(payloadTabsFor(true)).toEqual([
+      "catalog",
+      "send",
+      "manager",
+      "shadowmount",
+      "nanodns",
+      "ports",
+    ]);
   });
 
   it("offers only the tabs that work through the engine", () => {
-    expect(payloadTabsFor(false)).toEqual(["manager", "shadowmount", "nanodns"]);
+    expect(payloadTabsFor(false)).toEqual(["manager", "shadowmount", "nanodns", "ports"]);
   });
 
   it("is reachable: in the nav and not behind NativeOnlyRoute", () => {

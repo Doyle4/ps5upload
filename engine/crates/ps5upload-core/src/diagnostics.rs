@@ -697,3 +697,104 @@ mod hidden_icons_tests {
         assert!(done.ok && done.error.is_none());
     }
 }
+
+/// One port held on the console (`net.ports`).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ConsolePort {
+    pub port: u16,
+    /// `tcp` or `udp`.
+    pub proto: String,
+    /// `all` (reachable from the network), `console` (127.0.0.1 only), `lan` (the LAN address
+    /// only: most often an outgoing connection) or `busy` (held; where was not checked).
+    pub scope: String,
+    /// What usually listens there, when the port is a well-known one; a guess by number only.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    /// For a well-known port, whether it serves a web page. `false` keeps the app from pointing
+    /// a browser at a loader or the helper (a stray HTTP request is not what they expect).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub web: Option<bool>,
+}
+
+/// The helper's answer to `net.ports`.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct ConsolePorts {
+    #[serde(default)]
+    pub ports: Vec<ConsolePort>,
+    #[serde(default)]
+    pub elapsed_ms: u64,
+    #[serde(default)]
+    pub truncated: bool,
+}
+
+/// Who usually listens on a port, by number alone (payload defaults and Sony's own services).
+pub fn known_port_name(port: u16, proto: &str) -> Option<&'static str> {
+    use crate::payload_lifecycle::{INSTALLER_PORT, PS5_LOADER_PORT};
+    let tcp = proto == "tcp";
+    Some(match port {
+        p if p == PS5_LOADER_PORT && tcp => "elfldr (payload loader)",
+        // The helper's AVA1 port (ava1::gen::DEFAULT_PORT; this crate does not link ava1).
+        9120 if tcp => "ps5upload helper",
+        p if p == INSTALLER_PORT && tcp => "ps5upload installer",
+        p if p == crate::payload_manager::PAYLOAD_MANAGER_PORT && tcp => "Payload Manager",
+        p if p == crate::rp_regist::REGIST_PORT => "Remote Play",
+        p if p == crate::ddp::DDP_PORT && !tcp => "PS5 discovery",
+        53 if !tcp => "nanodns (DNS)",
+        2121 if tcp => "ftpsrv (FTP)",
+        2159 if tcp => "gdbsrv (debugger)",
+        5353 if !tcp => "mDNS",
+        8080 if tcp => "websrv",
+        12800 if tcp => "DPI installer bridge",
+        _ => return None,
+    })
+}
+
+/// Whether a well-known port serves a web page (Payload Manager's UI, websrv).
+pub fn known_port_is_web(port: u16) -> bool {
+    port == crate::payload_manager::PAYLOAD_MANAGER_PORT || port == 8080
+}
+
+/// The ports held on the console. The helper finds them by binding each port and closing it
+/// at once, never by connecting, so no payload sees a client. `addr` is `host:port` of the
+/// helper; its IPv4 address is what the LAN check binds.
+pub fn console_ports(addr: &str) -> Result<ConsolePorts> {
+    // A bare host (no port) resolves with a placeholder one.
+    let lan = crate::net::resolve_connect_targets(addr)
+        .or_else(|_| crate::net::resolve_connect_targets(&format!("{addr}:0")))
+        .ok()
+        .and_then(|v| v.into_iter().find(|sa| sa.is_ipv4()))
+        .map(|sa| sa.ip().to_string())
+        .unwrap_or_default();
+    let body = serde_json::json!({ "lan": lan }).to_string();
+    let resp = mgmt::call(addr, m::NET_PORTS, body.as_bytes())?;
+    let mut out: ConsolePorts = serde_json::from_slice(&resp)?;
+    for p in &mut out.ports {
+        p.name = known_port_name(p.port, &p.proto).map(str::to_string);
+        p.web = p.name.as_ref().map(|_| known_port_is_web(p.port));
+    }
+    Ok(out)
+}
+
+#[cfg(test)]
+mod console_ports_tests {
+    use super::*;
+
+    #[test]
+    fn helper_answer_parses_and_known_ports_are_named() {
+        let raw = br#"{"ok":true,"ports":[{"port":9021,"proto":"tcp","scope":"all"},{"port":53,"proto":"udp","scope":"all"},{"port":41800,"proto":"tcp","scope":"console"}],"elapsed_ms":885}"#;
+        let r: ConsolePorts = serde_json::from_slice(raw).unwrap();
+        assert_eq!(r.ports.len(), 3);
+        assert_eq!(r.elapsed_ms, 885);
+        assert!(!r.truncated);
+        assert_eq!(
+            known_port_name(9021, "tcp"),
+            Some("elfldr (payload loader)")
+        );
+        assert_eq!(known_port_name(53, "udp"), Some("nanodns (DNS)"));
+        // By number and protocol: DNS over TCP on 53 is not nanodns.
+        assert_eq!(known_port_name(53, "tcp"), None);
+        assert_eq!(known_port_name(41800, "tcp"), None);
+        assert!(known_port_is_web(8084));
+        assert!(!known_port_is_web(9021));
+    }
+}

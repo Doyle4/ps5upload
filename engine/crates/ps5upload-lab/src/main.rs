@@ -1008,6 +1008,11 @@ fn main() -> Result<()> {
             println!("{}", serde_json::to_string_pretty(&r)?);
             Ok(())
         }
+        "net-ports" => {
+            let r = ps5upload_core::diagnostics::console_ports(addr)?;
+            println!("{}", serde_json::to_string_pretty(&r)?);
+            Ok(())
+        }
         "save-close" => {
             let r = ps5upload_core::saves::save_close(addr)?;
             println!("{}", serde_json::to_string_pretty(&r)?);

@@ -46,6 +46,7 @@ MGMT_H1(AVA1_METHOD_LOG_KLOG, MGMT_FRAME_KLOG_READ, MGMT_FRAME_KLOG_READ_ACK, 0,
 MGMT_H0(AVA1_METHOD_LOG_SYSLOG, MGMT_FRAME_SYSLOG_TAIL, MGMT_FRAME_SYSLOG_TAIL_ACK, 0, handle_syslog_tail, mgmt_call_tail)
 MGMT_H0(AVA1_METHOD_NET_INTERFACES, MGMT_FRAME_NET_INTERFACES, MGMT_FRAME_NET_INTERFACES_ACK, 0, handle_net_interfaces, mgmt_call_text)
 MGMT_H1(AVA1_METHOD_NET_REACH, MGMT_FRAME_NET_REACH, MGMT_FRAME_NET_REACH_ACK, 0, handle_net_reach, mgmt_call_probe)
+MGMT_H1(AVA1_METHOD_NET_PORTS, MGMT_FRAME_NET_PORTS, MGMT_FRAME_NET_PORTS_ACK, 0, handle_net_ports, mgmt_call_text)
 MGMT_H1(AVA1_METHOD_NET_SPEEDTEST, MGMT_FRAME_NET_SPEED_TEST, MGMT_FRAME_NET_SPEED_TEST_ACK, 0, handle_net_speed_test, mgmt_call_text)
 /* proc.modules is routed in the Task 6 block below (both tasks ported it). */
 /* ---- end Task 9 ---- */

@@ -874,6 +874,11 @@ test-payload: payload
 	@cc -O2 -Wall -Wextra -Werror -o /tmp/ps5upload-tmdb-id-selftest \
 		$(PAYLOAD_DIR)/tests/tmdb_id_selftest.c
 	@/tmp/ps5upload-tmdb-id-selftest
+	@echo "Running console port scan self-test (host build)..."
+	@cc -O2 -Wall -Wextra -Werror -I$(PAYLOAD_DIR)/include \
+		-o /tmp/ps5upload-net-ports-selftest \
+		$(PAYLOAD_DIR)/tests/net_ports_selftest.c
+	@/tmp/ps5upload-net-ports-selftest
 	@echo "Running cheat XML UTF-16 normalizer self-test (host build)..."
 	@cc -O2 -Wall -Wextra -Werror -I$(PAYLOAD_DIR)/include \
 		-o /tmp/ps5upload-xml-encoding-selftest \

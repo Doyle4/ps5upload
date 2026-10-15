@@ -70,6 +70,11 @@ fn c_payload_binds_only_9120() {
     binders.retain(|p| {
         !p.ends_with(".py") && !p.starts_with("tests/") && !p.starts_with("installer/")
     });
+    // The port list (net.ports) binds each port and closes it at once to see whether it is
+    // taken; it never listens, so it opens no listener.
+    let ports = std::fs::read_to_string(payload().join("src/net_ports.c")).unwrap();
+    assert!(!ports.contains("listen("), "net_ports.c must never listen");
+    binders.retain(|p| p != "src/net_ports.c");
     binders.sort();
     assert_eq!(
         binders,

@@ -1,10 +1,11 @@
-import { Boxes, Globe, HardDrive, Package, Rocket } from "lucide-react";
+import { Boxes, Globe, HardDrive, Network, Package, Rocket } from "lucide-react";
 
 import TabbedShell, { type TabbedShellTab } from "../../layout/TabbedShell";
 import { useTr } from "../../state/lang";
 import CatalogPanel from "./CatalogPanel";
 import SendPanel from "./SendPanel";
 import PayloadManagerPanel from "./PayloadManagerPanel";
+import PortsPanel from "./PortsPanel";
 import NanoDnsScreen from "../NanoDns";
 import SmpPanel from "../Library/SmpPanel";
 import { ConnectionGate } from "../../components";
@@ -93,6 +94,17 @@ export default function PayloadsScreen() {
         "Configure the nanoDNS payload, verify its running version, and apply safe config migrations.",
       ),
     },
+    {
+      id: "ports",
+      icon: Network,
+      key: "payloads_tab_ports",
+      fallback: "Ports",
+      description: tr(
+        "payloads_description_ports",
+        undefined,
+        "The ports in use on the PS5 and what usually listens on each, so you can tell which payload is where. Open the ones with a web page in your browser.",
+      ),
+    },
   ];
   const tabs = allTabs.filter((t) => available.includes(t.id));
 
@@ -106,6 +118,13 @@ export default function PayloadsScreen() {
       );
     }
     if (id === "nanodns") return <NanoDnsScreen />;
+    if (id === "ports") {
+      return (
+        <ConnectionGate require="payload">
+          <PortsPanel />
+        </ConnectionGate>
+      );
+    }
     if (id === "shadowmount") {
       return (
         <ConnectionGate require="payload">

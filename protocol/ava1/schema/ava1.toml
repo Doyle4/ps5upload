@@ -1068,6 +1068,10 @@ name = "METHOD_SAVE_UNMOUNT"
 ty = "u16"
 value = 146
 [[const]]
+name = "METHOD_NET_PORTS"
+ty = "u16"
+value = 147
+[[const]]
 name = "JOB_OP_DELETE"
 ty = "u8"
 value = 1
