@@ -37,6 +37,7 @@
  *   src/takeover_flag.c   1  dir    takeover flag: tmp -> final
  *   src/runtime.c         3  dir    mount tracker, ownership record, online.json (all tmp -> final)
  *   src/fs_jobs.c         1  dir    chmod/copy tmp inside the destination folder
+ *   src/icon_keeper.c     1  dir    hidden_icons.txt: tmp -> final
  *   src/register.c        1  dir    param.json: tmp -> final
  *   src/shell_builtin.c   1  guard  `mv` (mv_same_dev, lstat of the source)
  *   ava1/ava1_events.c    1  dir    events.log -> events.log.old
