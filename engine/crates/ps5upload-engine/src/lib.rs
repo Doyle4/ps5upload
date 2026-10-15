@@ -2325,6 +2325,50 @@ async fn ps5_fs_delete(
     }
 }
 
+/// POST /api/ps5/fs/unpack `{addr, path, op_id}` — decompress a `.ffpfsc` on the console into
+/// the image it holds, beside it (#453). Progress and cancel go through `op-status`/`op-cancel`
+/// with the same `op_id`. 200 `{ok, path, size}`; 409 when cancelled; 502 with the helper's
+/// cause otherwise (`fs_unpack_no_space: ...`, `fs_unpack_destination_exists`, ...).
+async fn ps5_fs_unpack(
+    State(_state): State<AppState>,
+    Json(req): Json<FsPathReq>,
+) -> impl IntoResponse {
+    let Some(addr) = required_console_addr(req.addr) else {
+        return missing_console_addr();
+    };
+    let (path, op_id) = (req.path, req.op_id);
+    let started = std::time::Instant::now();
+    crate::log_info!("fs_unpack: addr={addr} path={path} op_id={op_id}");
+    let path_for_log = path.clone();
+    // A 136 GB image inflates for many minutes; the job is followed, not timed out.
+    let deadline = std::time::Duration::from_secs(12 * 60 * 60);
+    match tokio::task::spawn_blocking(move || {
+        ps5upload_core::fs_ops::ffpfsc_unpack(&addr, &path, op_id, deadline)
+    })
+    .await
+    .map_err(anyhow::Error::from)
+    .and_then(|r| r)
+    {
+        Ok(done) => {
+            crate::log_info!(
+                "fs_unpack ok: {path_for_log} -> {} ({} bytes) in {} ms",
+                done.path,
+                done.size,
+                started.elapsed().as_millis()
+            );
+            Json(serde_json::json!({ "ok": true, "path": done.path, "size": done.size }))
+                .into_response()
+        }
+        Err(e) if e.to_string() == "cancelled" => {
+            json_err(StatusCode::CONFLICT, "cancelled").into_response()
+        }
+        Err(e) => {
+            crate::log_warn!("fs_unpack failed: {path_for_log}: {e:#}");
+            json_err(StatusCode::BAD_GATEWAY, format!("{e:#}")).into_response()
+        }
+    }
+}
+
 async fn ps5_fs_move(
     State(_state): State<AppState>,
     Json(req): Json<FsMoveReq>,
@@ -10151,6 +10195,7 @@ async fn run(cfg: EngineConfig) -> anyhow::Result<()> {
         .route("/api/local/storage-roots", get(local_storage_roots_handler))
         .route("/api/ps5/fs/delete", post(ps5_fs_delete))
         .route("/api/ps5/fs/move", post(ps5_fs_move))
+        .route("/api/ps5/fs/unpack", post(ps5_fs_unpack))
         .route("/api/ps5/fs/copy", post(ps5_fs_copy))
         .route("/api/ps5/fs/op-status", get(ps5_fs_op_status))
         .route("/api/ps5/fs/op-cancel", post(ps5_fs_op_cancel))
