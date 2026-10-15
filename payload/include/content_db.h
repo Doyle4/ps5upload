@@ -151,4 +151,11 @@ int content_db_icon_set_visible(const char *title_id, int visible, char *err,
  */
 int content_db_hidden_json(char *buf, size_t cap, size_t *written);
 
+/*
+ * Hide again whichever of `ids` (`n` title ids) the system made visible: one transaction, and
+ * only rows with visible != 0 are written, so a pass with nothing to undo leaves app.db as it
+ * was. Returns how many icons it hid again, or -1 with a short reason in `err` (#450).
+ */
+int content_db_icons_rehide(const char *const *ids, int n, char *err, size_t errcap);
+
 #endif /* PS5UPLOAD_CONTENT_DB_H */

@@ -20,6 +20,7 @@
 #include "proc_list.h"
 #include "hw_info.h"
 #include "wake_watchdog.h"
+#include "icon_keeper.h"
 #include "fakelib_overlay.h"
 #include "ava1_glue.h"
 #include "takeover_flag.h"
@@ -689,6 +690,8 @@ int main(void) {
      * lifetime with negligible overhead (one sleep(5) per cycle). */
     start_wake_watchdog();
     startup_trace("WAKE_WATCHDOG_STARTED");
+    /* Icons hidden through ps5upload stay hidden when the system shows them on launch (#450). */
+    icon_keeper_start();
     /* A newer instance that finds this one serving AVA1 asks it to exit through a flag file
      * (takeover.c); poll it once a second. Failure only costs the graceful takeover: the new
      * instance escalates to the reap. */

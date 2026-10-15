@@ -36,6 +36,7 @@
 #include "instance_verdict.h"
 
 #include "content_db.h"
+#include "icon_keeper.h"
 #include "register.h"
 #include "indicator.h"
 #include "hw_info.h"
@@ -6982,6 +6983,7 @@ static int handle_app_icon_set(runtime_state_t *state, const char *body,
         int hide = hidden[0] == '1';
         char err[256] = {0};
         if (content_db_icon_set_visible(title_id, !hide, err, sizeof(err)) == 0) {
+            icon_keeper_note(title_id, hide);
             n = snprintf(resp, sizeof(resp), "{\"ok\":true,\"err\":null}");
             /* The home screen redraws its tiles when an app opens or closes, not on its own. */
             char toast[256];

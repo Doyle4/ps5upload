@@ -746,6 +746,70 @@ fail:
     return -1;
 }
 
+int content_db_icons_rehide(const char *const *ids, int n, char *err, size_t errcap) {
+    sqlite3 *db = NULL;
+    sqlite3_stmt *st = NULL;
+    int in_txn = 0, hid = 0;
+    char tables[CDB_MAX_ICON_TABLES][96];
+
+    if (!err || errcap == 0 || !ids || n <= 0) return 0;
+    if (sqlite3_open_v2(CONTENT_DB_APP, &db, SQLITE_OPEN_READWRITE, NULL) != SQLITE_OK || !db) {
+        snprintf(err, errcap, "cannot open app.db for writing");
+        if (db) sqlite3_close(db);
+        return -1;
+    }
+    sqlite3_busy_timeout(db, 5000);
+    int nt = cdb_icon_tables(db, tables, CDB_MAX_ICON_TABLES);
+    if (nt == 0) {
+        snprintf(err, errcap, "app.db has no icon table with a visible column");
+        goto fail;
+    }
+    if (sqlite3_exec(db, "BEGIN IMMEDIATE", NULL, NULL, NULL) != SQLITE_OK) {
+        snprintf(err, errcap, "app.db is locked by the system");
+        goto fail;
+    }
+    in_txn = 1;
+    for (int i = 0; i < nt; i++) {
+        char sql[192];
+        snprintf(sql, sizeof sql,
+                 "UPDATE \"%s\" SET visible = 0 WHERE titleId = ? AND visible <> 0", tables[i]);
+        if (sqlite3_prepare_v2(db, sql, -1, &st, NULL) != SQLITE_OK) {
+            snprintf(err, errcap, "app.db has an unexpected schema");
+            goto fail;
+        }
+        for (int k = 0; k < n; k++) {
+            if (!cdb_valid_title_id(ids[k]) || strncasecmp(ids[k], "NPXS", 4) == 0) continue;
+            sqlite3_reset(st);
+            sqlite3_bind_text(st, 1, ids[k], -1, SQLITE_STATIC);
+            if (sqlite3_step(st) != SQLITE_DONE) {
+                snprintf(err, errcap, "%s", sqlite3_errmsg(db));
+                goto fail;
+            }
+            int c = sqlite3_changes(db);
+            if (c > 1) {
+                snprintf(err, errcap, "refusing to change %d rows for %s in %s", c, ids[k],
+                         tables[i]);
+                goto fail;
+            }
+            hid += c;
+        }
+        sqlite3_finalize(st);
+        st = NULL;
+    }
+    if (sqlite3_exec(db, hid ? "COMMIT" : "ROLLBACK", NULL, NULL, NULL) != SQLITE_OK) {
+        snprintf(err, errcap, "could not commit the app.db change");
+        goto fail;
+    }
+    sqlite3_close(db);
+    return hid;
+
+fail:
+    if (st) sqlite3_finalize(st);
+    if (in_txn) sqlite3_exec(db, "ROLLBACK", NULL, NULL, NULL);
+    sqlite3_close(db);
+    return -1;
+}
+
 int content_db_hidden_json(char *buf, size_t cap, size_t *written) {
     if (!buf || cap < 64) return -1;
     sqlite3 *db = NULL;
