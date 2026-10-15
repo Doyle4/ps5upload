@@ -1088,8 +1088,15 @@ void runtime_classify_prior_instance(runtime_state_t *state) {
  * Must be called AFTER runtime_try_takeover and BEFORE runtime_write_ownership
  * (which overwrites the prior record with our own pid).
  */
-/* How long the prior instance gets to exit by itself before it is killed. */
+/* How long the prior instance gets to exit by itself before it is killed: a helper that was
+ * serving AVA1 and got the takeover request is finishing its Sony calls and closing journals. */
 #define REAP_GRACE_MS 15000
+/* A prior that served nothing when this instance started was never asked to exit and will not
+ * go by itself: one wedged before it bound its port, or still starting. Waiting the full grace
+ * for it only made every send of the helper look stuck for 15 s (seen on a FW 13.60 Phat: a
+ * ps5upload.elf alive for hours with no startup trace and no port). A starting helper is in its
+ * own setup, not in a Sony call, until it serves. */
+#define REAP_GRACE_UNASKED_MS 3000
 
 void runtime_reap_prior_instance(runtime_state_t *state) {
     if (!state) return;
@@ -1152,6 +1159,7 @@ void runtime_reap_prior_instance(runtime_state_t *state) {
     {
         struct timespec t0, now;
         int gone = 0;
+        const int grace_ms = state->prior_asked ? REAP_GRACE_MS : REAP_GRACE_UNASKED_MS;
         clock_gettime(CLOCK_MONOTONIC, &t0);
         for (;;) {
             if (kill((pid_t)prior, 0) != 0) {
@@ -1159,14 +1167,15 @@ void runtime_reap_prior_instance(runtime_state_t *state) {
                 break;
             }
             clock_gettime(CLOCK_MONOTONIC, &now);
-            if ((now.tv_sec - t0.tv_sec) * 1000 + (now.tv_nsec - t0.tv_nsec) / 1000000 >= REAP_GRACE_MS) break;
+            if ((now.tv_sec - t0.tv_sec) * 1000 + (now.tv_nsec - t0.tv_nsec) / 1000000 >= grace_ms) break;
             usleep(100000);
         }
         if (gone) {
             fprintf(stderr, "[payload2] prior instance pid=%d exited by itself\n", prior);
             return;
         }
-        fprintf(stderr, "[payload2] prior instance pid=%d is still alive after %d ms of grace\n", prior, REAP_GRACE_MS);
+        fprintf(stderr, "[payload2] prior instance pid=%d is still alive after %d ms of grace%s\n", prior,
+                grace_ms, state->prior_asked ? "" : " (it was serving nothing, so nothing asked it to exit)");
     }
 
     fprintf(stderr, "[payload2] reaping crashed prior instance pid=%d (name=%s)\n",

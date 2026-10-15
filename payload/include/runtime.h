@@ -22,6 +22,9 @@ typedef struct {
      * otherwise completely invisible. */
     int prior_verdict;
     int takeover_requested;
+    /* Set by runtime_try_takeover: a prior instance was serving AVA1 and was asked to hand over.
+     * Clear: nothing answered, so no prior was asked to exit and none will go by itself. */
+    int prior_asked;
     uint64_t started_at_unix;
     /* The prior instance's ownership record as read at startup, before the takeover made it
      * unlink the file. The reap backs a fresh (possibly lost) read with it (review 010). */
