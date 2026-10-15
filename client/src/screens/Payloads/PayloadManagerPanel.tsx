@@ -4,6 +4,7 @@ import { ArrowDown, ArrowUp, Play, RefreshCw, Trash2 } from "lucide-react";
 import { Badge, Button, Callout, ErrorCard, Spinner, Toggle } from "../../components";
 import { useConfirm } from "../../components/ConfirmDialog";
 import {
+  autoloadKey,
   pmDelete,
   pmLaunch,
   pmOverview,
@@ -149,14 +150,15 @@ export default function PayloadManagerPanel() {
   }
 
   const autoload = view.autoload;
-  const inList = (p: PmStoredPayload) => !!autoload?.list.includes(p.filename);
+  const inList = (p: PmStoredPayload) => !!autoload?.list.includes(autoloadKey(p));
   const stored = view.payloads.filter((p) => p.path.startsWith("/data/pldmgr/"));
   const onUsb = view.payloads.filter((p) => !p.path.startsWith("/data/pldmgr/"));
 
   const row = (p: PmStoredPayload) => {
     const listed = inList(p);
+    const key = autoloadKey(p);
     const order = autoload ? autoload.list.filter((e) => !e.startsWith("!")) : [];
-    const pos = order.indexOf(p.filename);
+    const pos = order.indexOf(key);
     return (
       <li
         key={p.path}
@@ -195,7 +197,7 @@ export default function PayloadManagerPanel() {
                 onClick={() =>
                   void setAutoload(
                     autoload.enabled,
-                    listed ? autoload.list.filter((e) => e !== p.filename) : [...autoload.list, p.filename],
+                    listed ? autoload.list.filter((e) => e !== key) : [...autoload.list, key],
                   )
                 }
                 title={tr(
@@ -214,7 +216,7 @@ export default function PayloadManagerPanel() {
                     variant="ghost"
                     size="sm"
                     disabled={busy !== null || pos <= 0}
-                    onClick={() => void setAutoload(autoload.enabled, moveEntry(autoload.list, p.filename, -1))}
+                    onClick={() => void setAutoload(autoload.enabled, moveEntry(autoload.list, key, -1))}
                     title={tr("pm_autoload_earlier", undefined, "Load earlier")}
                   >
                     <ArrowUp size={12} />
@@ -223,7 +225,7 @@ export default function PayloadManagerPanel() {
                     variant="ghost"
                     size="sm"
                     disabled={busy !== null || pos >= order.length - 1}
-                    onClick={() => void setAutoload(autoload.enabled, moveEntry(autoload.list, p.filename, 1))}
+                    onClick={() => void setAutoload(autoload.enabled, moveEntry(autoload.list, key, 1))}
                     title={tr("pm_autoload_later", undefined, "Load later")}
                   >
                     <ArrowDown size={12} />
