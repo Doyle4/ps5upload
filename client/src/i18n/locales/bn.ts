@@ -1267,7 +1267,7 @@ installed_smp_send_failed: "ShadowMount+ পাঠানো যায়নি�
 installed_section_installed: "গেম ও অ্যাপ",
 installed_section_installed_hint: "Sony-র ইনস্টলারের মাধ্যমে একটি .pkg থেকে ইনস্টল করা (বা কনসোলের সাথে এসেছে)। কোনো উৎস পথ নেই।",
 installed_section_folder: "ফোল্ডার হোমব্রু",
-installed_section_folder_hint: "কনসোলে একটি /data/homebrew/<id>-app ফোল্ডার থেকে রেজিস্টার করা।",
+installed_section_folder_hint_v2: "একটি গেম ফোল্ডার থেকে রেজিস্টার করা, কনসোলের /data/homebrew-এ বা USB বা এক্সটার্নাল ড্রাইভে। ফোল্ডার দেখতে গেমের আইডির উপর পয়েন্টার রাখুন।",
 installed_section_system: "সিস্টেম",
 installed_section_system_hint: "Sony-র সিস্টেম অ্যাপ। ঠিক কী তা না জানলে এগুলো সরাবেন না।",
 installed_uninstall: "আনইনস্টল করুন",

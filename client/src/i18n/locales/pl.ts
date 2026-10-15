@@ -1663,8 +1663,7 @@ installed_playtime_tooltip:
 installed_section_installed_hint:
   "Zainstalowane za pomocą instalatora Sony z pliku .pkg (lub dostarczone z konsolą). Brak ścieżki źródłowej.",
 installed_section_folder: "Homebrew z folderu",
-installed_section_folder_hint:
-  "Zarejestrowane z folderu /data/homebrew/<id>-app na konsoli.",
+installed_section_folder_hint_v2: "Zarejestrowano z folderu gry, w /data/homebrew na konsoli albo na dysku USB lub zewnętrznym. Najedź na ID gry, aby zobaczyć jej folder.",
 installed_section_system: "Systemowe",
 installed_section_system_hint:
   "Aplikacje systemowe Sony. Nie usuwaj ich, jeśli nie wiesz dokładnie, czym są.",

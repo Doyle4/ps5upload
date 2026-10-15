@@ -1758,9 +1758,9 @@ export default function InstalledAppsScreen() {
                   "Folder homebrew",
                 )}
                 hint={tr(
-                  "installed_section_folder_hint",
+                  "installed_section_folder_hint_v2",
                   undefined,
-                  "Registered from a /data/homebrew/<id>-app folder on the console.",
+                  "Registered from a game folder, in /data/homebrew on the console or on a USB or external drive. Hover a game's ID to see its folder.",
                 )}
                 count={folders.length}
               >

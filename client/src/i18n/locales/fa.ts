@@ -1924,8 +1924,7 @@ installed_playtime_tooltip:
 installed_section_installed_hint:
   "از طریق نصب‌کننده‌ی سونی از یک .pkg نصب شده (یا همراه کنسول ارائه شده). مسیر منبعی نیست.",
 installed_section_folder: "homebrew پوشه‌ای",
-installed_section_folder_hint:
-  "از یک پوشه‌ی /data/homebrew/<id>-app روی کنسول ثبت شده.",
+installed_section_folder_hint_v2: "از یک پوشهٔ بازی ثبت شده است، در /data/homebrew روی کنسول یا روی یک درایو USB یا خارجی. برای دیدن پوشه، نشانگر را روی شناسهٔ بازی نگه دارید.",
 installed_section_system: "سیستم",
 installed_section_system_hint:
   "برنامه‌های سیستمی سونی. این‌ها را حذف نکنید مگر دقیقاً بدانید چه هستند.",

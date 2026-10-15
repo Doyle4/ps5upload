@@ -1860,8 +1860,7 @@ installed_playtime_tooltip:
 installed_section_installed_hint:
   "Sony telepítőjén keresztül telepítve egy .pkg-ből (vagy a konzollal szállítva). Nincs forrásútvonal.",
 installed_section_folder: "Mappa-alapú homebrew",
-installed_section_folder_hint:
-  "Egy /data/homebrew/<id>-app mappából regisztrálva a konzolon.",
+installed_section_folder_hint_v2: "Játékmappából regisztrálva, a konzol /data/homebrew mappájából vagy USB- vagy külső meghajtóról. A mappa megtekintéséhez vidd az egeret a játék azonosítója fölé.",
 installed_section_system: "Rendszer",
 installed_section_system_hint:
   "Sony rendszeralkalmazások. Ne távolítsd el ezeket, hacsak nem tudod pontosan, mik ezek.",

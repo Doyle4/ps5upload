@@ -2078,8 +2078,8 @@ installed_section_disc_v2: "Games from disk images",
 installed_section_disc_hint_v2:
   "Registered games that run from a disk image. They mount and launch only while ShadowMount+ is running. The image files themselves are under Game files.",
 installed_section_folder: "Folder homebrew",
-installed_section_folder_hint:
-  "Registered from a /data/homebrew/<id>-app folder on the console.",
+installed_section_folder_hint_v2:
+  "Registered from a game folder, in /data/homebrew on the console or on a USB or external drive. Hover a game's ID to see its folder.",
 installed_section_system: "System",
 installed_section_system_hint:
   "Sony system apps. Don't remove these unless you know exactly what they are.",

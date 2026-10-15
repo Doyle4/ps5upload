@@ -1269,7 +1269,7 @@ installed_smp_send_failed: "Не удалось отправить ShadowMount+.
 installed_section_installed: "Игры и приложения",
 installed_section_installed_hint: "Установлено через установщик Sony из .pkg (или поставляется с консолью). Без исходного пути.",
 installed_section_folder: "Папочный homebrew",
-installed_section_folder_hint: "Зарегистрировано из папки /data/homebrew/<id>-app на консоли.",
+installed_section_folder_hint_v2: "Зарегистрировано из папки игры: в /data/homebrew на консоли или на USB- либо внешнем диске. Наведите курсор на ID игры, чтобы увидеть её папку.",
 installed_section_system: "Система",
 installed_section_system_hint: "Системные приложения Sony. Не удаляйте их, если точно не знаете, что это.",
 installed_uninstall: "Удалить",
