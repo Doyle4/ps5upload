@@ -2316,6 +2316,171 @@ static int fs_mount_detach_lvd(int unit_id) {
     return 0;
 }
 
+/* ── Read-only PFSC mount for decompressing a .ffpfsc (#453) ───────────────
+ *
+ * The kernel decodes PFSC itself (it is how ShadowMount+ plays every .ffpfsc), so the helper
+ * mounts the container and reads the file inside: no decoder of our own. Linking zlib into the
+ * helper made it die with SIGBUS within minutes, and once froze the console.
+ *
+ * The profile is ShadowMount+'s for the outer .ffpfsc (sm_image.c, "nested outer"): LVD
+ * image_type 9 (selector 0x02 through its {1,2,3,4,8,9,10,11} table), single-save read-only
+ * flags 0x1C, 4096-byte sectors and secondary unit, then pfs with mkeymode=AC. Our own .ffpfs
+ * mounts use type 5 and SD, which the kernel does not take for a compressed container. */
+#define FS_UNPACK_BASE FS_MOUNT_BASE "/.unpack"
+#define FS_MOUNT_LVD_IMAGE_PFSC_OUTER 9u
+
+/* Where a live mount is recorded: on the /mnt tmpfs, so a reboot (which drops every LVD unit)
+ * also drops the record, and a unit number from an earlier boot is never detached. */
+static void fs_pfsc_record_path(const char *tag, char *out, size_t cap) {
+    snprintf(out, cap, "%s/%s.rec", FS_UNPACK_BASE, tag);
+}
+
+int fs_pfsc_mount_ro(const char *image, const char *tag, const char *note, char *mp, size_t mp_cap, int *unit_out,
+                     char *err, size_t err_cap) {
+    struct stat st;
+    *unit_out = -1;
+    mp[0] = 0;
+    if (stat(image, &st) != 0 || !S_ISREG(st.st_mode)) {
+        snprintf(err, err_cap, "fs_unpack_open_failed: %s", strerror(errno));
+        return -1;
+    }
+    (void)mkdir(FS_MOUNT_BASE, 0777);
+    (void)mkdir(FS_UNPACK_BASE, 0777);
+    snprintf(mp, mp_cap, "%s/%s", FS_UNPACK_BASE, tag);
+    if (mkdir(mp, 0777) != 0 && errno != EEXIST) {
+        snprintf(err, err_cap, "fs_unpack_mount_failed: mkdir %s", strerror(errno));
+        mp[0] = 0;
+        return -1;
+    }
+
+    int fd = open(FS_MOUNT_LVD_CTL, O_RDWR);
+    if (fd < 0) {
+        snprintf(err, err_cap, "fs_unpack_mount_failed: lvdctl %s", strerror(errno));
+        rmdir(mp);
+        mp[0] = 0;
+        return -1;
+    }
+    fs_mount_lvd_layer_t layer;
+    memset(&layer, 0, sizeof(layer));
+    layer.source_type = 1; /* file */
+    layer.flags = 0x1;     /* no bitmap */
+    layer.path = image;
+    layer.size = (uint64_t)st.st_size;
+    fs_mount_lvd_attach_t req;
+    memset(&req, 0, sizeof(req));
+    req.device_id = -1;
+    req.sector_size = 4096u;
+    req.secondary_unit = 4096u;
+    req.flags = FS_MOUNT_LVD_FLAGS_PFS_RO;
+    req.image_type = FS_MOUNT_LVD_IMAGE_PFSC_OUTER;
+    req.layer_count = 1;
+    req.device_size = (uint64_t)st.st_size;
+    req.layers_ptr = &layer;
+    int rc = ioctl(fd, FS_MOUNT_LVD_IOC_ATTACH_V0, &req);
+    int saved = errno;
+    close(fd);
+    if (rc != 0 || req.device_id < 0) {
+        snprintf(err, err_cap, "fs_unpack_mount_failed: lvd attach %s", rc != 0 ? strerror(saved) : "no unit");
+        rmdir(mp);
+        mp[0] = 0;
+        return -1;
+    }
+    char devname[32];
+    snprintf(devname, sizeof(devname), "/dev/lvd%d", req.device_id);
+    if (fs_mount_wait_node(devname, 1) != 0) {
+        snprintf(err, err_cap, "fs_unpack_mount_failed: %s did not appear", devname);
+        (void)fs_mount_detach_lvd(req.device_id);
+        rmdir(mp);
+        mp[0] = 0;
+        return -1;
+    }
+
+    char errmsg[256] = {0};
+    struct iovec iov[32];
+    int n = 0;
+#define PFSC_PUSH(k, v)                  \
+    do {                                 \
+        fs_mount_iov(&iov[n++], (k));    \
+        fs_mount_iov(&iov[n++], (v));    \
+    } while (0)
+    PFSC_PUSH("from", devname);
+    PFSC_PUSH("fspath", mp);
+    PFSC_PUSH("fstype", "pfs");
+    PFSC_PUSH("sigverify", "0");
+    PFSC_PUSH("mkeymode", "AC");
+    PFSC_PUSH("budgetid", "game");
+    PFSC_PUSH("playgo", "0");
+    PFSC_PUSH("disc", "0");
+    PFSC_PUSH("ekpfs", FS_MOUNT_PFS_EKPFS_HEX);
+    PFSC_PUSH("async", NULL);
+    PFSC_PUSH("noatime", NULL);
+    PFSC_PUSH("automounted", NULL);
+#undef PFSC_PUSH
+    fs_mount_iov(&iov[n++], "errmsg");
+    iov[n].iov_base = errmsg;
+    iov[n].iov_len = sizeof(errmsg);
+    n++;
+    if (nmount(iov, (unsigned)n, MNT_RDONLY) != 0) {
+        snprintf(err, err_cap, "fs_unpack_mount_failed: %s", errmsg[0] ? errmsg : strerror(errno));
+        (void)fs_mount_detach_lvd(req.device_id);
+        rmdir(mp);
+        mp[0] = 0;
+        return -1;
+    }
+    *unit_out = req.device_id;
+    char rec[300];
+    fs_pfsc_record_path(tag, rec, sizeof(rec));
+    FILE *f = fopen(rec, "w");
+    if (f) {
+        fprintf(f, "%d %d\n%s\n%s\n", (int)getpid(), req.device_id, mp, note ? note : "");
+        fclose(f);
+    }
+    return 0;
+}
+
+void fs_pfsc_release(const char *mp, int unit) {
+    if (mp && mp[0]) (void)fs_mount_try_unmount(mp);
+    if (unit >= 0) (void)fs_mount_detach_lvd(unit);
+    if (mp && mp[0]) {
+        (void)rmdir(mp);
+        const char *leaf = strrchr(mp, '/');
+        char rec[300];
+        fs_pfsc_record_path(leaf ? leaf + 1 : mp, rec, sizeof(rec));
+        (void)unlink(rec);
+    }
+}
+
+/* A helper that died mid-unpack leaves its mount, LVD unit and .part behind; the next start clears
+ * them from the record it wrote. The mount itself is not in the mount table this process sees, so
+ * the record is the only trace. An instance that is still running (a takeover lets the old one
+ * finish its job) is left alone: it releases its own. */
+void fs_pfsc_sweep(void) {
+    char rec[300], mp[256], note[1024];
+    fs_pfsc_record_path("job", rec, sizeof(rec));
+    FILE *f = fopen(rec, "r");
+    if (!f) return;
+    int pid = -1, unit = -1;
+    mp[0] = note[0] = 0;
+    int ok = fscanf(f, "%d %d\n", &pid, &unit) == 2 && fgets(mp, sizeof(mp), f) != NULL;
+    if (ok && fgets(note, sizeof(note), f) == NULL) note[0] = 0;
+    fclose(f);
+    mp[strcspn(mp, "\n")] = 0;
+    note[strcspn(note, "\n")] = 0;
+    if (!ok || pid <= 0) {
+        (void)unlink(rec);
+        return;
+    }
+    if (pid != (int)getpid() && (kill(pid, 0) == 0 || errno == EPERM)) return; /* still running */
+    /* Only our own mount point; the unit came from the same boot (the record is on tmpfs). */
+    if (strncmp(mp, FS_UNPACK_BASE "/", strlen(FS_UNPACK_BASE) + 1) != 0) {
+        (void)unlink(rec);
+        return;
+    }
+    fs_pfsc_release(mp, unit);
+    size_t n = strlen(note);
+    if (n > 5 && strcmp(note + n - 5, ".part") == 0 && is_path_allowed(note)) (void)unlink(note);
+}
+
 /* fs_mount_kind_t — local enum capturing which (fstype, secondary_unit,
  * image_type) triple we want for an attach. Cheap to pass around and
  * makes the call sites readable without hauling around bare strings. */

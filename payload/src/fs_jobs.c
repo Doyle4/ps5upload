@@ -848,4 +848,5 @@ void fsj_register_ops(void) {
     (void)ava1_op_register(AVA1_JOB_OP_CHMOD_R, op_chmod_r, NULL);
     (void)ava1_op_register(AVA1_JOB_OP_HASH, op_hash, NULL);
     (void)ava1_op_register(AVA1_JOB_OP_CRC32, op_crc32, NULL);
+    (void)ava1_op_register(AVA1_JOB_OP_FFPFSC_UNPACK, fsj_op_ffpfsc_unpack, NULL);
 }

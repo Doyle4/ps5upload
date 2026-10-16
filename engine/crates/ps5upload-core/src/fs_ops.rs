@@ -220,6 +220,42 @@ pub fn fs_hash_with_timeout(
     Ok(parsed)
 }
 
+/// What [`ffpfsc_unpack`] wrote: the image beside the `.ffpfsc`, and its size.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct UnpackResult {
+    pub path: String,
+    pub size: u64,
+}
+
+/// Decompress a `.ffpfsc` on the console (#453): the helper writes the image it holds beside it
+/// under the image's own name (a `.part` first, renamed once its size and exFAT boot sector
+/// check out) and keeps the source. `op_id` keys `/api/ps5/fs/op-status` and `op-cancel`.
+/// Refused: a destination that exists, a drive without room for the image plus 1 GiB.
+pub fn ffpfsc_unpack(
+    addr: &str,
+    path: &str,
+    op_id: u64,
+    io_timeout: std::time::Duration,
+) -> Result<UnpackResult> {
+    let body = serde_json::to_vec(&serde_json::json!({ "path": path }))
+        .context("serialize ffpfsc_unpack")?;
+    match mgmt::run_op(
+        addr,
+        mgmt::ops::FFPFSC_UNPACK,
+        &format!("FFPFSC_UNPACK({path})"),
+        &body,
+        &mgmt::JobCall {
+            op_id,
+            subject: path,
+            deadline: io_timeout,
+        },
+    ) {
+        Ok(resp) => serde_json::from_slice(&resp).context("decode FFPFSC_UNPACK result"),
+        Err(e) if is_cancel(&e, "fs_unpack_cancelled") => bail!("cancelled"),
+        Err(e) => Err(e),
+    }
+}
+
 // ─── FS_READ ────────────────────────────────────────────────────────────────
 
 /// Ask the payload for up to `limit` bytes of a file on the PS5 starting at

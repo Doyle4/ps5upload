@@ -586,6 +586,7 @@ int main(void) {
     /* Sweep orphan Tier-1 staging files. Crash-recovery only;
      * the desktop-side post-install delete handles steady-state. */
     runtime_sweep_stale_pkg_temp();
+    fs_pfsc_sweep();
     startup_trace("SWEEP_DONE");
 
     if (runtime_init(&state) != 0) {

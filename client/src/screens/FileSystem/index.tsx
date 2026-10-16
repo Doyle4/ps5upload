@@ -90,6 +90,7 @@ import { useTr } from "../../state/lang";
 import { useConnectionStore } from "../../state/connection";
 import {
   fsDelete,
+  fsUnpack,
   fsMove,
   fsChmod,
   fsMkdir,
@@ -110,7 +111,7 @@ import {
 } from "../../lib/fsLastPath";
 import { useFsNavStore } from "../../state/fsNavigation";
 import { dragOut, dragOutAvailable } from "../../lib/dragOut";
-import { trackTask } from "../../state/trackTask";
+import { beginTask, trackTask } from "../../state/trackTask";
 import { useActivityHistoryStore } from "../../state/activityHistory";
 import { audit } from "../../state/auditLog";
 import { pushNotification } from "../../state/notifications";
@@ -1576,6 +1577,92 @@ export default function FileSystemScreen() {
   // Set permissions to 777 (folders recursively): what games and payload folders need to be
   // readable and runnable, and what users reached for FileZilla to do (#411).
   const [chmodBusy, setChmodBusy] = useState(false);
+
+  // Decompressing a .ffpfsc on the console (#453): one at a time, followed by its op id.
+  const [unpackOp, setUnpackOp] = useState<{
+    name: string;
+    opId: number;
+    done: number;
+    total: number;
+    stopping: boolean;
+  } | null>(null);
+  const runUnpack = async (entry: DirEntry) => {
+    if (!host?.trim() || unpackOp) return;
+    const src = joinPath(path, entry.name);
+    const ok = await confirmDialog({
+      title: tr("fs_unpack_confirm_title", { name: entry.name }, `Decompress "${entry.name}"?`),
+      message: tr(
+        "fs_unpack_confirm_body",
+        undefined,
+        "The console writes the game image inside it next to it, under the image's own name, and keeps this file. The drive needs room for the whole image, and it takes about as long as reading the image once. Close the game first if it is this one.",
+      ),
+      confirmLabel: tr("fs_unpack_confirm_label", undefined, "Decompress"),
+    });
+    if (!ok) return;
+    const addr = consoleAddr(host);
+    const opId = Math.floor(Math.random() * Number.MAX_SAFE_INTEGER);
+    setUnpackOp({ name: entry.name, opId, done: 0, total: 0, stopping: false });
+    const task = beginTask({
+      kind: "fs-unpack",
+      origin: "files",
+      label: `Decompress ${entry.name}`,
+      consoleId: host.trim(),
+    });
+    let stopped = false;
+    const poller = (async () => {
+      while (!stopped) {
+        try {
+          const snap = await fsOpStatus(addr, opId);
+          if (snap.total_bytes > 0) {
+            setUnpackOp((o) =>
+              o && o.opId === opId ? { ...o, done: snap.bytes_copied, total: snap.total_bytes } : o,
+            );
+            task.report({
+              progress: { current: snap.bytes_copied, total: snap.total_bytes, unit: "bytes" },
+            });
+          }
+        } catch {
+          // Not registered yet, or already finished: the unpack call below decides.
+        }
+        await new Promise((r) => setTimeout(r, 1000));
+      }
+    })();
+    try {
+      const out = await fsUnpack(addr, src, opId);
+      task.done();
+      pushNotification(
+        "success",
+        withConsolePrefix(host, tr("fs_unpack_done", { name: entry.name }, `Decompressed ${entry.name}`)),
+        { body: out.path },
+      );
+      void refresh();
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      if (msg.includes("cancelled")) {
+        task.done();
+      } else {
+        task.fail(e);
+        pushNotification(
+          "error",
+          withConsolePrefix(host, tr("fs_unpack_failed", { name: entry.name }, `Couldn't decompress ${entry.name}`)),
+          { body: humanizePs5Error(msg) || msg },
+        );
+      }
+    } finally {
+      stopped = true;
+      await poller;
+      setUnpackOp(null);
+    }
+  };
+  const stopUnpack = async () => {
+    if (!unpackOp || !host?.trim()) return;
+    setUnpackOp((o) => (o ? { ...o, stopping: true } : o));
+    try {
+      await fsOpCancel(consoleAddr(host), unpackOp.opId);
+    } catch {
+      // The helper also stops between blocks once the call above ends.
+    }
+  };
   const runChmod777 = async (list: DirEntry[] = selectedEntries) => {
     if (list.length === 0 || chmodBusy) return;
     setChmodBusy(true);
@@ -2375,6 +2462,16 @@ export default function FileSystemScreen() {
               label: tr("fs_rename", "Rename"),
               run: () => startRename(menuEntry.name),
             },
+            ...(menuEntry.kind === "file" && /\.ffpfsc$/i.test(menuEntry.name)
+              ? [
+                  {
+                    icon: FileArchive,
+                    label: tr("fs_unpack_action", undefined, "Decompress to .exfat…"),
+                    run: () => void runUnpack(menuEntry),
+                    disabled: unpackOp !== null,
+                  },
+                ]
+              : []),
             {
               icon: Link2,
               label: tr("fs_menu_copy_path", undefined, "Copy path"),
@@ -2882,6 +2979,20 @@ export default function FileSystemScreen() {
             {busyEntry.op === "upload" && (
               <FsUploadProgress host={host} onCancel={cancelUpload} />
             )}
+          </div>
+        )}
+
+        {unpackOp && (
+          <div className="mb-3 flex flex-wrap items-center gap-3 rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-surface-2)] px-3 py-2 text-sm" data-testid="fs-unpack">
+            <Spinner size={14} />
+            <span className="min-w-0 flex-1 truncate">
+              {tr("fs_unpack_running", { name: unpackOp.name }, `Decompressing ${unpackOp.name}`)}
+              {unpackOp.total > 0 &&
+                ` · ${formatBytes(unpackOp.done)} / ${formatBytes(unpackOp.total)} (${Math.floor((unpackOp.done / unpackOp.total) * 100)}%)`}
+            </span>
+            <Button variant="secondary" size="sm" disabled={unpackOp.stopping} onClick={() => void stopUnpack()}>
+              {tr("fs_unpack_stop", undefined, "Stop")}
+            </Button>
           </div>
         )}
 

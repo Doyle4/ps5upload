@@ -175,6 +175,7 @@ pub const JOB_OP_BACKUP_SNAPSHOT: u8 = 6;
 pub const JOB_OP_BACKUP_RESTORE: u8 = 7;
 pub const JOB_OP_CLEANUP: u8 = 8;
 pub const JOB_OP_SDK_SCAN: u8 = 9;
+pub const JOB_OP_FFPFSC_UNPACK: u8 = 10;
 pub const ENTRY_LINK: u8 = 2;
 pub const ENTRY_OTHER: u8 = 3;
 pub const ENTRY_UNKNOWN: u8 = 4;
