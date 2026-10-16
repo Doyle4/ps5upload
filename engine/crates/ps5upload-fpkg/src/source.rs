@@ -112,8 +112,12 @@ pub fn open(path: &Path) -> Result<Box<dyn SourceTree>> {
             Box::new(std::fs::File::open(path)?),
             format!("ffpfs {}", path.display()),
         ),
+        "pkg" => Ok(Box::new(crate::pkg_source::open(
+            path,
+            crate::crypto::DEFAULT_PASSCODE,
+        )?)),
         _ => format_err(format!(
-            "{} is neither a folder nor a supported image (.exfat, .ffpkg, .ffpfs, .ffpfsc)",
+            "{} is neither a folder nor a supported image (.exfat, .ffpkg, .ffpfs, .ffpfsc) or debug package (.pkg)",
             path.display()
         )),
     }
