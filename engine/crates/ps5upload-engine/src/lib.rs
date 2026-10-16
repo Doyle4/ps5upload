@@ -31,6 +31,7 @@
 //!   GET  /api/ps5/volumes             → list storage volumes detected by the payload
 //!   GET  /api/ps5/list-dir?path=...   → list immediate children of a directory on PS5
 
+mod activity;
 mod ampr_trace;
 mod ava1_api;
 mod bundled_payload;
@@ -1528,6 +1529,7 @@ pub(crate) fn set_job(
         }
     }
     if terminal {
+        activity::transfer_ended(&job_id.to_string(), &json);
         telemetry::on_state(job_id, &json);
         if let Some(e) = job_event(&job_id.to_string(), &json) {
             ps5upload_core::events::emit_event(e);
@@ -9616,6 +9618,36 @@ async fn engine_version() -> impl IntoResponse {
     )
 }
 
+/// GET /api/activity?since=<seq> — running jobs and the endings after `since`, for the app's
+/// background watcher (see `activity`).
+async fn activity_handler(
+    State(state): State<AppState>,
+    installs: pkg_install::PkgInstallStateHandle,
+    q: activity::SinceQuery,
+) -> impl IntoResponse {
+    let mut active: Vec<activity::Active> = {
+        let jobs = state.jobs.lock().unwrap_or_else(|e| e.into_inner());
+        jobs.iter()
+            .filter_map(|(id, s)| match s {
+                JobState::Running {
+                    started_at_ms,
+                    bytes_sent,
+                    total_bytes,
+                    ..
+                } => Some(activity::transfer_active(
+                    &id.to_string(),
+                    *bytes_sent,
+                    *total_bytes,
+                    *started_at_ms,
+                )),
+                _ => None,
+            })
+            .collect()
+    };
+    active.extend(installs.jobs.running().iter().map(activity::install_active));
+    Json(activity::snapshot(q.since, active))
+}
+
 /// GET /api/jobs
 async fn list_jobs(State(state): State<AppState>) -> impl IntoResponse {
     let jobs = state.jobs.lock().unwrap_or_else(|e| e.into_inner());
@@ -10026,8 +10058,18 @@ async fn run(cfg: EngineConfig) -> anyhow::Result<()> {
         }));
     }
 
+    let activity_installs = pkg_state.clone();
     let app = Router::new()
         .route("/", get(ui_handler))
+        .route(
+            "/api/activity",
+            get(
+                move |st: State<AppState>, Query(q): Query<activity::SinceQuery>| {
+                    activity_handler(st, activity_installs.clone(), q)
+                },
+            ),
+        )
+        .route("/api/activity/label", post(activity::label_handler))
         .route("/api/ps5/status", get(ps5_status))
         .route("/api/ps5/port-check", get(ps5_port_check))
         .route("/api/ps5/readiness", get(ps5_readiness))
