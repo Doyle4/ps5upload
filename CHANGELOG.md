@@ -4,6 +4,18 @@ What's new in ps5upload, written for humans.
 
 ---
 
+## 7.0.29
+
+- **Turn a game image or package back into a folder (#469).** Convert → What to make has a third
+  choice, "A game folder". It takes any image Convert reads (`.exfat`, `.ffpkg`, `.ffpfs`,
+  `.ffpfsc`) or a `.pkg` made with the default debug passcode (Convert's own packages, and fake
+  packages from other tools when they used that passcode), wherever it is: this computer, a saved server or the PS5. It writes the game's
+  files as a plain folder on this computer, empty folders and the package's icons included,
+  checks them against the source, and only then gives the folder its name, so a stopped or failed
+  run never leaves a folder that looks finished. A 125 GB exFAT image unpacked in 81 s, and a
+  Minecraft package came back file-for-file equal however it was compressed. A retail package, or
+  a fake one made with another passcode, can't be opened and is refused with that reason.
+
 ## 7.0.28
 
 - **Android: transfers keep going when you leave the app, and you get told when they finish
