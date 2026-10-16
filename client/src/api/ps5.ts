@@ -4319,6 +4319,11 @@ export function humanizeJobErrorReason(
         "joberr.ava1_unreachable",
         "The PS5 could not be reached. Check that it is on and on the same network, and that the helper is running, then click Retry.",
       );
+    case "console_rest_mode":
+      return trStatic(
+        "joberr.console_rest_mode",
+        "The PS5 is in rest mode. Wake it, and the transfer carries on from where it stopped.",
+      );
     case "ava1_no_space":
       return trStatic(
         "joberr.fs_write_failed_no_space",

@@ -154,8 +154,8 @@ export interface FsUploadDeps {
   /** Told the raw error when a run fails (not when it is cancelled). */
   onFailed?: (raw: string) => void;
   /** Whether a failed item is worth trying again unasked (a dropped connection is; a full
-   *  drive is not). Absent: never. */
-  shouldRetry?: (reason: string | undefined, error: string) => boolean;
+   *  drive is not). `host` is the console the run goes to. Absent: never. */
+  shouldRetry?: (reason: string | undefined, error: string, host: string) => boolean;
 }
 
 /** How many times one item is tried again unasked, and the wait before each. */
@@ -355,7 +355,7 @@ export async function runFsUpload(
           if (
             cancelled() ||
             attempt >= RETRY_WAITS_MS.length ||
-            !deps.shouldRetry?.(reason, raw)
+            !deps.shouldRetry?.(reason, raw, host)
           )
             throw e;
           base.retry = { attempt: attempt + 1, of: RETRY_WAITS_MS.length };

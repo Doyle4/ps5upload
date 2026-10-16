@@ -95,6 +95,7 @@ export function sendHelperTo(
           ps5Kernel: status.ps5Kernel,
           ucredElevated: status.ucredElevated,
           priorInstance: status.priorInstance,
+          power: "awake",
           payloadProbing: false,
         });
       },

@@ -4010,6 +4010,22 @@ c2c_test_deep_bad: "لم يصل الإرسال التجريبي بحجم 4 KiB: 
 "helper_stopped_status": "متوقف. أوقفتَ المساعد؛ وسيبقى متوقفًا حتى ترسله مجددًا.",
 "gate_helper_stopped_title": "لقد أوقفت المساعد",
 "gate_helper_stopped_body": "تحتاج هذه الشاشة إلى المساعد. أرسله مجددًا من شاشة الاتصال عندما تحتاج إليه.",
+"joberr.console_rest_mode": "جهاز PS5 في وضع الراحة. أيقظه وسيكمل النقل من حيث توقف.",
+"queue_waiting_for_wake": "بانتظار استيقاظ PS5",
+"queue_waiting_for_wake_body": "جهاز PS5 في وضع الراحة. سيكمل هذا الرفع وحده بمجرد عودة المساعد.",
+"status_ps5_rest_mode": "في وضع الراحة",
+"status_ps5_not_answering": "لا يستجيب",
+"gate_not_answering_title": "جهاز PS5 لا يستجيب",
+"gate_not_answering_body": "الجهاز مطفأ، أو على شبكة أخرى، أو في وضع الراحة مع إيقاف ميزات الشبكة. لتصل إليه أثناء الراحة، فعّلها من {path}.",
+"gate_rest_title": "جهاز PS5 في وضع الراحة",
+"gate_rest_body_auto": "أيقظه بوحدة التحكم أو بزر «تشغيل» أدناه. يعود المساعد وحده بمجرد أن يستيقظ.",
+"gate_rest_body_manual": "أيقظه بوحدة التحكم أو بزر «تشغيل» أدناه، ثم أرسل المساعد.",
+"gate_rest_body_auto_nowake": "أيقظه بوحدة التحكم. يعود المساعد وحده بمجرد أن يستيقظ.",
+"gate_rest_body_manual_nowake": "أيقظه بوحدة التحكم، ثم أرسل المساعد.",
+"v5_home_rest_mode": "في وضع الراحة",
+"connection_rest_mode": "جهاز PS5 في وضع الراحة. أيقظه ثم تحقق مرة أخرى.",
+"connection_payload_rest_mode": "دخل جهاز PS5 وضع الراحة. يعود المساعد بعد إيقاظه.",
+"upload_rest_detail": "تنتظر عمليات الرفع استيقاظه وتكمل وحدها بمجرد عودة المساعد.",
 };
 
 export default ar;
