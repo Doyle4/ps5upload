@@ -3922,6 +3922,8 @@ payloads_description_ports: "Port yang dipakai di PS5 dan apa yang biasanya mend
 "ports.how": "Ditemukan dengan mem-bind setiap port di PS5 lalu langsung melepasnya, jadi tidak ada payload yang melihat koneksi. Nama hanya tebakan dari nomor port. Buka mencoba http:// di browser; tidak semua layanan punya halaman web.",
 "ports.summary": "{n} port dipakai · diperiksa dalam {ms} ms",
 "profile.username.addOnConsole": "Untuk menambah pengguna, lakukan di PS5: Ganti Pengguna, lalu Tambah Pengguna.",
+"collection.folder_missing": "Tidak ditemukan, dilewati",
+"collection.missing_roots": "Pemindaian terakhir melewati yang tidak ditemukannya: {paths}. Jika folder sudah dihapus, hapus dari Folder; jika ada di drive atau server, sambungkan lagi lalu pindai ulang.",
 };
 
 export default id;

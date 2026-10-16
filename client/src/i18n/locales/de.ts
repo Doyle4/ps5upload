@@ -3921,6 +3921,8 @@ payloads_description_ports: "Die belegten Ports auf der PS5 und was dort üblich
 "ports.how": "Ermittelt, indem jeder Port auf der PS5 kurz gebunden und sofort wieder freigegeben wird – keine Payload sieht eine Verbindung. Die Namen sind Vermutungen anhand der Portnummer. „Öffnen“ versucht http:// im Browser; nicht jeder Dienst hat eine Webseite.",
 "ports.summary": "{n} Ports belegt · geprüft in {ms} ms",
 "profile.username.addOnConsole": "Einen Benutzer fügst du auf der PS5 hinzu: Benutzer wechseln, dann Benutzer hinzufügen.",
+"collection.folder_missing": "Nicht gefunden, übersprungen",
+"collection.missing_roots": "Der letzte Scan hat übersprungen, was er nicht finden konnte: {paths}. Wurde ein Ordner gelöscht, entferne ihn unter Ordner; liegt er auf einem Laufwerk oder Server, verbinde ihn wieder und scanne erneut.",
 };
 
 export default de;

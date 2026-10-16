@@ -3863,6 +3863,8 @@ payloads_description_ports: "Le porte in uso sulla PS5 e cosa di solito vi ascol
 "ports.how": "Trovate occupando ogni porta della PS5 e liberandola subito, quindi nessun payload vede una connessione. I nomi sono ipotesi dal numero di porta. Apri prova http:// nel browser; non tutti i servizi hanno una pagina web.",
 "ports.summary": "{n} porte in uso · controllate in {ms} ms",
 "profile.username.addOnConsole": "Per aggiungere un utente, fallo sulla PS5: Cambia utente, poi Aggiungi utente.",
+"collection.folder_missing": "Non trovata, saltata",
+"collection.missing_roots": "L'ultima scansione ha saltato ciò che non ha trovato: {paths}. Se una cartella è stata eliminata, rimuovila in Cartelle; se è su un'unità o un server, ricollegala e scansiona di nuovo.",
 };
 
 export default it;

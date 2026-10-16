@@ -4168,6 +4168,8 @@ payloads_description_ports: "Porty używane na PS5 i to, co zwykle na nich nasł
 "ports.how": "Wykrywane przez zajęcie każdego portu na PS5 i natychmiastowe zwolnienie, więc żaden payload nie widzi połączenia. Nazwy to domysły na podstawie numeru portu. Otwórz próbuje http:// w przeglądarce; nie każda usługa ma stronę WWW.",
 "ports.summary": "Zajęte porty: {n} · sprawdzono w {ms} ms",
 "profile.username.addOnConsole": "Użytkownika dodasz na PS5: Przełącz użytkownika, a potem Dodaj użytkownika.",
+"collection.folder_missing": "Nie znaleziono, pominięto",
+"collection.missing_roots": "Ostatnie skanowanie pominęło to, czego nie znalazło: {paths}. Jeśli folder został usunięty, usuń go w Foldery; jeśli jest na dysku lub serwerze, podłącz go ponownie i skanuj jeszcze raz.",
 };
 
 export default pl;

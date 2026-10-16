@@ -3915,6 +3915,8 @@ payloads_description_ports: "Các cổng đang dùng trên PS5 và thứ thườ
 "ports.how": "Tìm bằng cách bind từng cổng trên PS5 rồi nhả ngay, nên không payload nào thấy kết nối. Tên chỉ là đoán theo số cổng. Mở sẽ thử http:// trong trình duyệt; không phải dịch vụ nào cũng có trang web.",
 "ports.summary": "{n} cổng đang dùng · kiểm tra trong {ms} ms",
 "profile.username.addOnConsole": "Để thêm người dùng, hãy làm trên PS5: Chuyển người dùng, rồi Thêm người dùng.",
+"collection.folder_missing": "Không tìm thấy, đã bỏ qua",
+"collection.missing_roots": "Lần quét gần nhất đã bỏ qua những gì không tìm thấy: {paths}. Nếu thư mục đã bị xóa, hãy gỡ nó trong Thư mục; nếu nằm trên ổ đĩa hoặc máy chủ, hãy kết nối lại rồi quét lại.",
 };
 
 export default vi;

@@ -3863,6 +3863,8 @@ payloads_description_ports: "Los puertos en uso en la PS5 y lo que suele escucha
 "ports.how": "Se detectan reservando cada puerto de la PS5 y liberándolo al instante, así que ningún payload ve una conexión. Los nombres se deducen del número de puerto. Abrir prueba http:// en el navegador; no todos los servicios tienen página web.",
 "ports.summary": "{n} puertos en uso · comprobado en {ms} ms",
 "profile.username.addOnConsole": "Para añadir un usuario, hazlo en la PS5: Cambiar de usuario y luego Añadir usuario.",
+"collection.folder_missing": "No encontrada, omitida",
+"collection.missing_roots": "El último análisis omitió lo que no encontró: {paths}. Si una carpeta se borró, quítala en Carpetas; si está en una unidad o servidor, vuelve a conectarla y analiza de nuevo.",
 };
 
 export default es;

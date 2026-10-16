@@ -3863,6 +3863,8 @@ payloads_description_ports: "PS5 上正在使用的連接埠，以及通常在�
 "ports.how": "透過在 PS5 上逐一綁定連接埠並立即釋放來偵測，因此不會有 payload 看到連線。名稱是依連接埠號碼推測。「開啟」會在瀏覽器中嘗試 http://；並非每個服務都有網頁。",
 "ports.summary": "{n} 個連接埠使用中 · 耗時 {ms} 毫秒",
 "profile.username.addOnConsole": "要新增使用者，請在 PS5 上操作：切換使用者，然後選擇新增使用者。",
+"collection.folder_missing": "找不到，已略過",
+"collection.missing_roots": "上次掃描略過了找不到的內容：{paths}。如果資料夾已刪除，請在「資料夾」中移除；如果它在硬碟或伺服器上，請重新連線後再掃描。",
 };
 
 export default zh_TW;

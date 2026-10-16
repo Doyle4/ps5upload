@@ -95,6 +95,8 @@ export interface CollectionSummary {
 
 export interface CollectionLibrary {
   roots?: string[];
+  /** Roots the last scan could not open (deleted, unplugged, server down); skipped. */
+  missing_roots?: string[];
   generated_at?: string;
   summary: CollectionSummary;
   games: Record<string, CollectionGame>;

@@ -3920,6 +3920,8 @@ payloads_description_ports: "PS5'te kullanılan portlar ve her birinde genellikl
 "ports.how": "PS5'teki her port bağlanıp hemen bırakılarak bulunur, bu yüzden hiçbir payload bağlantı görmez. Adlar port numarasına göre tahmindir. Aç, tarayıcıda http:// dener; her hizmetin web sayfası yoktur.",
 "ports.summary": "{n} port kullanımda · {ms} ms'de kontrol edildi",
 "profile.username.addOnConsole": "Kullanıcı eklemek için bunu PS5'te yap: Kullanıcı Değiştir, ardından Kullanıcı Ekle.",
+"collection.folder_missing": "Bulunamadı, atlandı",
+"collection.missing_roots": "Son tarama bulamadıklarını atladı: {paths}. Bir klasör silindiyse Klasörler'den kaldır; bir sürücüde veya sunucudaysa yeniden bağla ve tekrar tara.",
 };
 
 export default tr;

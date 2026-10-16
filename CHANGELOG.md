@@ -4,6 +4,14 @@ What's new in ps5upload, written for humans.
 
 ---
 
+## 7.0.26
+
+- **A deleted Collection folder no longer breaks the Collection (#461).** Saving the folder
+  list checked that every folder still existed, so once one was gone nothing could be saved,
+  removing that folder included. Only a folder being added is checked now. A scan skips a
+  folder it can't open instead of failing, and Collection names it, marked "Not found" in
+  Folders, so you can remove it or plug the drive back in.
+
 ## 7.0.25
 
 - **Profile no longer offers "Create User" (#460).** The PS5 has no create-user call a payload

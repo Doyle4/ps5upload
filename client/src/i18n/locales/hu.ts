@@ -4228,6 +4228,8 @@ payloads_description_ports: "A PS5-ön használt portok és hogy mi szokott rajt
 "ports.how": "Úgy derül ki, hogy minden portot lefoglalunk a PS5-ön, majd azonnal elengedjük, így egy payload sem lát kapcsolatot. A nevek a portszámból tippeltek. A Megnyitás http://-t próbál a böngészőben; nem minden szolgáltatásnak van weboldala.",
 "ports.summary": "{n} port foglalt · ellenőrizve {ms} ms alatt",
 "profile.username.addOnConsole": "Felhasználót a PS5-ön adhatsz hozzá: Felhasználóváltás, majd Felhasználó hozzáadása.",
+"collection.folder_missing": "Nem található, kihagyva",
+"collection.missing_roots": "A legutóbbi keresés kihagyta, amit nem talált: {paths}. Ha egy mappát töröltél, távolítsd el a Mappák között; ha meghajtón vagy szerveren van, csatlakoztasd újra, és keress újra.",
 };
 
 export default hu;

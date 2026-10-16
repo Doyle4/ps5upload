@@ -268,12 +268,13 @@ pub async fn put_settings(Json(s): Json<store::Settings>) -> Response {
     };
     let before = settings().roots;
     for r in &s.roots {
+        // Only a folder being added is checked. One already in the list may have been deleted or
+        // be on an unplugged drive; checking it again made every save fail, removing that very
+        // folder included (#461). The scan skips it and says so instead.
+        if before.contains(r) {
+            continue;
+        }
         if crate::remote::path::is_remote(r) {
-            // A folder on a saved server: checked when it is added (signing in and listing it),
-            // not on every save of the other settings.
-            if before.contains(r) {
-                continue;
-            }
             let (root, rt) = (r.clone(), tokio::runtime::Handle::current());
             let checked = tokio::task::spawn_blocking(move || {
                 scan::Fsys::for_root(&root, Some(&rt)).map(|_| ())

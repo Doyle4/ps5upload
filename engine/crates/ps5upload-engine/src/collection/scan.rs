@@ -377,7 +377,27 @@ pub fn scan(
     for root in roots {
         progress.phase.store(PHASE_FINDING, Ordering::Relaxed);
         progress.set_current(root);
-        let fs = Fsys::for_root(root, rt)?;
+        let fs = match Fsys::for_root(root, rt) {
+            Ok(fs) => fs,
+            Err(e) => {
+                crate::log_warn!("collection: skipping {root}: {e}");
+                let mine = format!("{root}|");
+                for (k, v) in prev.folder_cache.range(mine.clone()..) {
+                    if !k.starts_with(&mine) {
+                        break;
+                    }
+                    lib.folder_cache.insert(k.clone(), v.clone());
+                }
+                for (k, v) in prev.pkg_cache.range(mine.clone()..) {
+                    if !k.starts_with(&mine) {
+                        break;
+                    }
+                    lib.pkg_cache.insert(k.clone(), v.clone());
+                }
+                lib.missing_roots.push(root.clone());
+                continue;
+            }
+        };
         let items = discover(&fs, root, cancel);
         progress
             .found
@@ -600,6 +620,41 @@ mod tests {
             3,
             "dot-files and other files are not items: {kinds:?}"
         );
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn a_root_that_is_gone_is_skipped_and_its_caches_kept() {
+        // #461: a deleted folder failed every scan, so the others were never read either.
+        let root = tmp("gone-live");
+        app(
+            &root.join("PPSA01234-app"),
+            "PPSA01234",
+            "Game",
+            "01.000.000",
+        );
+        let gone = s(&std::env::temp_dir().join("ps5upload-coll-never-there-461"));
+        let mut prev = Library::default();
+        let kept = PkgCacheEntry::default();
+        prev.pkg_cache.insert(format!("{gone}|a.pkg"), kept.clone());
+        let (cancel, p) = (AtomicBool::new(false), Progress::default());
+        let lib = scan(
+            &[gone.clone(), s(&root)],
+            Some(&prev),
+            false,
+            None,
+            false,
+            &cancel,
+            &p,
+            None,
+        )
+        .unwrap();
+        assert!(
+            lib.games.contains_key("PPSA01234"),
+            "the other root is read"
+        );
+        assert_eq!(lib.missing_roots, vec![gone.clone()]);
+        assert_eq!(lib.pkg_cache.get(&format!("{gone}|a.pkg")), Some(&kept));
         let _ = std::fs::remove_dir_all(&root);
     }
 

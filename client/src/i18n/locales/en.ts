@@ -4236,6 +4236,8 @@ payloads_description_ports: "The ports in use on the PS5 and what usually listen
 "ports.how": "Found by binding each port on the PS5 and letting go at once, so no payload sees a connection. Names are guesses from the port number. Open tries http:// in your browser; not every service has a web page.",
 "ports.summary": "{n} ports in use · checked in {ms} ms",
 "profile.username.addOnConsole": "To add a user, do it on the PS5: Switch User, then Add User.",
+"collection.folder_missing": "Not found, skipped",
+"collection.missing_roots": "The last scan skipped what it could not find: {paths}. If a folder was deleted, remove it in Folders; if it is on a drive or server, reconnect it and scan again.",
 };
 
 export default en;

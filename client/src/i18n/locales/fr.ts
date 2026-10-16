@@ -3931,6 +3931,8 @@ payloads_description_ports: "Les ports utilisés sur la PS5 et ce qui y écoute 
 "ports.how": "Trouvés en réservant chaque port de la PS5 puis en le libérant aussitôt : aucun payload ne voit de connexion. Les noms sont devinés d'après le numéro de port. Ouvrir essaie http:// dans le navigateur ; tous les services n'ont pas de page web.",
 "ports.summary": "{n} ports utilisés · vérifié en {ms} ms",
 "profile.username.addOnConsole": "Pour ajouter un utilisateur, faites-le sur la PS5 : Changer d'utilisateur, puis Ajouter un utilisateur.",
+"collection.folder_missing": "Introuvable, ignoré",
+"collection.missing_roots": "La dernière analyse a ignoré ce qu'elle n'a pas trouvé : {paths}. Si un dossier a été supprimé, retirez-le dans Dossiers ; s'il est sur un disque ou un serveur, reconnectez-le et relancez l'analyse.",
 };
 
 export default fr;

@@ -3869,6 +3869,8 @@ payloads_description_ports: "PS5 上正在使用的端口以及通常在每个�
 "ports.how": "通过在 PS5 上逐个绑定端口并立即释放来检测，因此不会有 payload 看到连接。名称根据端口号推测。“打开”会在浏览器中尝试 http://；并非每个服务都有网页。",
 "ports.summary": "{n} 个端口在使用 · 用时 {ms} 毫秒",
 "profile.username.addOnConsole": "要添加用户，请在 PS5 上操作：切换用户，然后选择添加用户。",
+"collection.folder_missing": "未找到，已跳过",
+"collection.missing_roots": "上次扫描跳过了找不到的内容：{paths}。如果文件夹已删除，请在“文件夹”中移除；如果它在硬盘或服务器上，请重新连接后再扫描。",
 };
 
 export default zh_CN;

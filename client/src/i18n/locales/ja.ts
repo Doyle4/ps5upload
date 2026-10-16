@@ -3934,6 +3934,8 @@ payloads_description_ports: "PS5 で使用中のポートと、それぞれで�
 "ports.how": "PS5 上で各ポートを bind してすぐ解放する方法で調べるため、ペイロードには接続が見えません。名前はポート番号からの推測です。「開く」はブラウザで http:// を試します。すべてのサービスに Web ページがあるわけではありません。",
 "ports.summary": "使用中のポート {n} 個 · {ms} ms で確認",
 "profile.username.addOnConsole": "ユーザーの追加は PS5 本体で行ってください：「ユーザーを切り替える」→「ユーザーを追加」。",
+"collection.folder_missing": "見つからないためスキップ",
+"collection.missing_roots": "前回のスキャンで見つからなかったものはスキップされました：{paths}。フォルダーを削除した場合は「フォルダー」から外してください。ドライブやサーバー上にある場合は接続し直して、もう一度スキャンしてください。",
 };
 
 export default ja;
