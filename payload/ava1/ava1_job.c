@@ -444,6 +444,23 @@ int ava1_job_retire(ava1_job_t *j) {
     return 0;
 }
 
+int ava1_job_retire_parked(ava1_job_t *j) {
+    int rc;
+    pthread_mutex_lock(&T.mu);
+    /* `attached` is written under this lock too, so no session can attach between the check
+     * and the unlist; a durable-by-log job still settling owns its sweep and is not cut short. */
+    if (j->attached && listed_locked(j)) rc = -1; /* a session drives it: it stays its owner's */
+    else if (!listed_locked(j) || j->refs != 2 || __atomic_load_n(&j->unswept_n, __ATOMIC_RELAXED)) rc = -2;
+    else {
+        unlist(j);
+        j->refs = 1;
+        rc = 0;
+    }
+    pthread_mutex_unlock(&T.mu);
+    ava1_job_put(j); /* retired: the last reference, so its threads are joined now */
+    return rc;
+}
+
 void ava1_job_emit(ava1_job_t *j, uint8_t type, uint8_t flags, const uint8_t *body, size_t len) {
     ava1_emit_fn fn;
     pthread_mutex_lock(&j->cmu);

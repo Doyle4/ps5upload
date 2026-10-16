@@ -216,7 +216,7 @@ int ava1_payload_start(void) {
                 fprintf(stderr, "ava1: data layer did not start (%d); transfers are unavailable\n", rc);
             else {
                 cfg.data = ava1_data_hooks();
-                cfg.caps = AVA1_CAP_DATA_PLANE;
+                cfg.caps = AVA1_CAP_DATA_PLANE | AVA1_CAP_SHARED_JOBS; /* the data layer's own rules (SPEC.md §18.5) */
                 g_data_on = 1;
                 fsj_register_ops(); /* job.run: delete, chmod -R, hash, crc32 (the table adds the rest) */
             }

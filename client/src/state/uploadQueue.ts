@@ -197,6 +197,10 @@ export interface QueueItem {
   route?: "auto" | "direct" | "relay";
   /** `ps5` items only (#444): what the sending console dials, when not the receiver's address. */
   directAddr?: string | null;
+  /** `ps5` items only (#444): a send another device started, adopted under its id on the next
+   *  start: `take` ends it there and sends from here, `watch` follows it while it runs direct.
+   *  Cleared once the engine has it, so a later retry is an ordinary resume. */
+  adopt?: "take" | "watch" | null;
   strategy: UploadStrategy;
   reconcileMode: ReconcileMode;
   excludes: string[];
@@ -382,7 +386,11 @@ export type AddQueueItem = Pick<
   | "deletePkgAfterInstall"
   | "install"
   | "deleteSourceAfterUpload"
->;
+  | "adopt"
+> & {
+  /** Keep this job id instead of minting one: a send another device started (#444). */
+  txIdHex?: string;
+};
 
 interface QueueState {
   items: QueueItem[];
@@ -1063,6 +1071,7 @@ export const useUploadQueueStore = create<QueueState>((set, get) => {
     } else if (item.sourceKind === "ps5") {
       // From another console: the engine copies console to console (directly, or through this
       // computer when they cannot reach each other). The persisted tx id resumes it.
+      const adopt = get().items.find((it) => it.id === item.id)?.adopt ?? null;
       jobId = await startPs5ToPs5(
         item.fromConsole ?? "",
         item.sourcePath,
@@ -1070,7 +1079,9 @@ export const useUploadQueueStore = create<QueueState>((set, get) => {
         item.resolvedDest,
         item.txIdHex,
         { mode: item.route, directAddr: item.directAddr },
+        adopt,
       );
+      if (adopt) set((s) => ({ items: patchItem(s.items, item.id, { adopt: null }) }));
     } else if (isArchive) {
       // A .zip/.7z is decompressed host-side and streamed in (lands
       // extracted). Carry the persisted tx_id for cross-session shard resume,
@@ -2135,7 +2146,7 @@ export const useUploadQueueStore = create<QueueState>((set, get) => {
         // ran partway, app crashed, app reopens → next start of the
         // queue passes this same tx_id with TX_FLAG_RESUME and the
         // payload picks up from last_acked_shard.
-        txIdHex: generateTxIdHex(),
+        txIdHex: input.txIdHex || generateTxIdHex(),
         status: "pending",
         bytesSent: 0,
         totalBytes: 0,

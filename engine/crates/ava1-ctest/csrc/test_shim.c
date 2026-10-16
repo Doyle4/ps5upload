@@ -2369,7 +2369,7 @@ int ava1_test_server_start_data(const uint8_t secret[32], const char *peers_path
     cfg.handshake_ms = handshake_ms;
     cfg.rpc = data_rpc; /* the data plane's methods, then node.info */
     cfg.data = ava1_data_hooks();
-    cfg.caps = AVA1_CAP_DATA_PLANE;
+    cfg.caps = AVA1_CAP_DATA_PLANE | AVA1_CAP_SHARED_JOBS; /* what ava1_glue.c does */
     rc = ava1_server_start(&cfg);
     if (rc != 0) {
         ava1_data_stop();

@@ -252,6 +252,10 @@ name = "CAP_MGMT"        # the node serves the management methods 4 and up (SPEC
 ty = "u64"
 value = 2
 [[const]]
+name = "CAP_SHARED_JOBS" # any paired device reads and cancels a transfer and takes over a parked one (SPEC.md §18.5)
+ty = "u64"
+value = 4
+[[const]]
 name = "METHOD_JOB_COPY"
 ty = "u16"
 value = 16

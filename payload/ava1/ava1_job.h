@@ -285,6 +285,10 @@ void ava1_job_free_one(const uint8_t id[16]);      /* unlists it and drops the t
  * it and frees it now (its threads joined, its files closed) and returns 0; otherwise drops
  * the caller's reference and returns -1 (someone else may still be running it). */
 int ava1_job_retire(ava1_job_t *j);
+/* ava1_job_retire for a job no session drives (#444: another device takes it over). Takes the
+ * caller's reference. 0 = retired; -1 = a session is attached to it; -2 = someone else holds
+ * it for the moment or its files are still settling (try again). */
+int ava1_job_retire_parked(ava1_job_t *j);
 void ava1_job_emit(ava1_job_t *j, uint8_t type, uint8_t flags, const uint8_t *body, size_t len);
 
 /* Control-frame bytes queued across all jobs (their inboxes and the frames behind a
