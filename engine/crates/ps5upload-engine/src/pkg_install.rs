@@ -697,6 +697,8 @@ async fn payload_restore_handler(Json(req): Json<PayloadRestoreRequest>) -> Resp
     }
     let res = tokio::task::spawn_blocking(move || {
         use ps5upload_core::payload_lifecycle as pl;
+        let lock = crate::elfldr_guard::loader_lock(&ps5_ip);
+        let _loader = lock.lock().unwrap_or_else(|e| e.into_inner());
         let bytes = payload_restore_bytes(
             || crate::bundled_payload::image_bytes(crate::bundled_payload::Image::Payload),
             crate::ava1_api::stamped_helper,
@@ -2251,11 +2253,6 @@ fn pkg_session_max_age_sec() -> u64 {
 // advancing install never false-fails; only a genuine flatline trips it, and
 // only when both signals are flat (we track `max(free-drop, dir-size)`).
 
-/// How many granules a package is divided into for transfer progress. Fixed, so
-/// the bitmap stays 8 KiB per session whatever the package size — accuracy far
-/// beyond what a progress bar needs (1/65536 of the package).
-const COVERAGE_GRANULES: u64 = 1 << 16;
-
 /// How much of a package the console has actually received.
 ///
 /// Neither obvious metric works, and both were measured on hardware:
@@ -2268,54 +2265,51 @@ const COVERAGE_GRANULES: u64 = 1 << 16;
 ///     Sony reads the tail (and the header) before the bulk. That made progress
 ///     read 100% at 7% transferred, which is how this was caught.
 ///
-/// A bitmap of granules answers the question that is actually being asked —
-/// "how much of this file has arrived" — and is immune to both out-of-order
-/// ranges and duplicate fetches.
+/// Exact received byte ranges answer the question that is actually being
+/// asked — "how much of this file has arrived" — and are immune to both
+/// out-of-order ranges and duplicate fetches. They must be exact, not a
+/// granule bitmap: completion releases the session, and a lossy bitmap counted
+/// a partly fetched granule as whole, hiding a gap the console still needed.
+/// Sony fetches mostly contiguously, so the span list stays a handful long.
 #[derive(Debug, Clone)]
 pub struct TransferCoverage {
-    /// Bytes per granule: `total / COVERAGE_GRANULES`, rounded up (min 1).
-    granule: u64,
-    words: Vec<u64>,
+    /// Sorted, disjoint, non-adjacent half-open `[start, end)` byte spans.
+    spans: Vec<(u64, u64)>,
     covered: u64,
     total: u64,
 }
 
 impl TransferCoverage {
     pub fn new(total: u64) -> Self {
-        let granule = total.div_ceil(COVERAGE_GRANULES).max(1);
-        let granules = total.div_ceil(granule);
         Self {
-            granule,
-            words: vec![0u64; granules.div_ceil(64) as usize],
+            spans: Vec::new(),
             covered: 0,
             total,
         }
     }
 
     /// Record that `[start, end]` (inclusive) has been received. Re-marking
-    /// already-covered granules is free, which is what makes a re-fetch
-    /// harmless.
+    /// already-covered bytes is free, which is what makes a re-fetch harmless.
     pub fn mark(&mut self, start: u64, end: u64) {
-        if self.total == 0 {
+        if self.total == 0 || start >= self.total {
             return;
         }
-        let last = end.min(self.total - 1);
-        if start > last {
+        let (mut lo, mut hi) = (start, end.min(self.total - 1) + 1);
+        if lo >= hi {
             return;
         }
-        // At most COVERAGE_GRANULES iterations: a response body is capped at
-        // 16 MiB, and the granule size is chosen so the whole package spans
-        // exactly that many granules.
-        for idx in (start / self.granule)..=(last / self.granule) {
-            let Some(word) = self.words.get_mut((idx / 64) as usize) else {
-                break;
-            };
-            let bit = 1u64 << (idx % 64);
-            if *word & bit == 0 {
-                *word |= bit;
-                self.covered = self.covered.saturating_add(self.granule);
-            }
+        // Spans that overlap or touch [lo, hi) are absorbed into it.
+        let first = self.spans.partition_point(|&(_, e)| e < lo);
+        let mut last = first;
+        while last < self.spans.len() && self.spans[last].0 <= hi {
+            let (s, e) = self.spans[last];
+            lo = lo.min(s);
+            hi = hi.max(e);
+            self.covered -= e - s;
+            last += 1;
         }
+        self.spans.splice(first..last, [(lo, hi)]);
+        self.covered += hi - lo;
     }
 
     /// Bytes covered, never more than the package size.
@@ -5098,19 +5092,64 @@ Marvel's%20Spider-Man%202%20-%20PPSA03016%20-%20v1.4.3%20-%20US%20-%20BASE.pkg";
         assert_eq!(empty.bytes(), 0);
     }
 
+    /// The exact request log of a 37.6 MB PS5 package (InternetBrowser-PS5,
+    /// FW 13.60). Ten repeated 64 KiB header reads made the raw sum equal the
+    /// package size while bytes 65536..720895 had never been asked for; the
+    /// session was released, the console's request for them got 410, and the
+    /// PS5 download failed after the install was reported done.
     #[test]
-    fn coverage_is_bounded_whatever_the_package_size() {
-        // The bitmap is what keeps this per-session state small: 8 KiB whether
-        // the package is 100 MB or 200 GB.
-        for total in [1u64 << 20, 1 << 30, 200 << 30] {
-            let c = TransferCoverage::new(total);
-            assert!(
-                c.words.len() <= 1024,
-                "{} bytes → {} words",
-                total,
-                c.words.len()
-            );
+    fn coverage_is_short_while_a_range_is_missing_despite_refetches() {
+        let total = 37_633_692u64;
+        let mut c = TransferCoverage::new(total);
+        let mut summed = 0u64;
+        let mut serve = |c: &mut TransferCoverage, s: u64, e: u64| {
+            c.mark(s, e);
+            summed += e - s + 1;
+        };
+        for _ in 0..5 {
+            serve(&mut c, 0, 65_535);
         }
+        for _ in 0..7 {
+            serve(&mut c, 720_896, 786_431);
+        }
+        serve(&mut c, 37_617_664, 37_633_691);
+        serve(&mut c, 19_660_800, 33_816_575);
+        serve(&mut c, 786_432, 19_660_799);
+        serve(&mut c, 33_816_576, 37_617_663);
+        assert_eq!(summed, total, "the raw sum reads as complete");
+        assert_eq!(c.bytes(), total - 655_360);
+        assert!(c.bytes() < c.total);
+        c.mark(65_536, 720_895);
+        assert_eq!(c.bytes(), c.total);
+    }
+
+    #[test]
+    fn coverage_sees_a_small_hole_in_a_huge_package() {
+        // One missing 64 KiB range in 200 GiB must still read as incomplete.
+        let total = 200u64 << 30;
+        let hole = 100u64 << 30;
+        let mut c = TransferCoverage::new(total);
+        c.mark(hole + 65_536, total - 1);
+        c.mark(0, hole - 1);
+        assert_eq!(c.bytes(), total - 65_536);
+        assert!(c.bytes() < c.total);
+        c.mark(hole, hole + 65_535);
+        assert_eq!(c.bytes(), c.total);
+    }
+
+    #[test]
+    fn coverage_merges_overlapping_and_adjacent_ranges() {
+        let mut c = TransferCoverage::new(1000);
+        c.mark(100, 199);
+        c.mark(300, 399);
+        c.mark(150, 349);
+        c.mark(400, 499);
+        assert_eq!(c.bytes(), 400);
+        assert_eq!(c.spans.len(), 1);
+        c.mark(0, 99);
+        c.mark(500, 999);
+        assert_eq!(c.bytes(), c.total);
+        assert_eq!(c.spans.len(), 1);
     }
 }
 

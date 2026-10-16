@@ -4,6 +4,22 @@ What's new in ps5upload, written for humans.
 
 ---
 
+## 7.0.27
+
+- **A stream install no longer fails on the PS5 after ps5upload says it's done.** The PS5
+  downloads a package in pieces and re-reads some of them; ps5upload added up every byte it
+  sent, repeats included, and took that total as "the console has it all". On a small package
+  the repeats made up the size of a part never sent, so ps5upload closed the download link
+  first: the app's tile appeared and could even open, but the PS5's Downloads showed it failed,
+  Retry failed too and Cancel removed it. ps5upload now keeps the link open until every byte has
+  been sent at least once. Seen with a 37 MB package on FW 13.60; any size could hit it.
+- **"Nothing answered on the ELF loader port :9021" when starting a stream install, then fine
+  on a retry, is fixed.** When an install starts, the app also replaces the console's stock
+  elfldr with its own fixed build, and the loader port is closed for about a second during that
+  swap. An install that started in that second failed. It now waits for the swap to finish, and
+  a loader port that is closed for a moment is tried again for a few seconds before the install
+  gives up.
+
 ## 7.0.26
 
 - **Uploaded game and homebrew folders show up with ShadowMount+ again.** ShadowMount+
