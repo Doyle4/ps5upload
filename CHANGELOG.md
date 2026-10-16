@@ -4,6 +4,23 @@ What's new in ps5upload, written for humans.
 
 ---
 
+## 7.0.31
+
+- **Rest mode is shown as rest mode, not as a problem.** A PS5 in rest mode used to look the
+  same as one that was off or broken: a red "Not connected", "Helper isn't running" on every
+  console screen, and Connection's Check blaming the jailbreak or a VPN. The app now asks the
+  console the way Remote Play does (it answers "standby" while it sleeps), and shows a calm,
+  blue "In rest mode" in the status bar, the console tabs, Home and the game page. Console screens
+  say "Your PS5 is in rest mode" with a Wake button when wake is set up. A console that answers
+  nothing at all reads "Not answering", with the setting it needs to stay reachable in rest mode
+  (Settings › System › Power Saving › Features Available in Rest Mode).
+- **Nothing fights a sleeping console.** The automatic reconnect no longer pokes a console in rest
+  mode every 30 seconds all night; it waits, and sends the helper again once the console is
+  awake. Uploads that meet rest mode wait ("Waiting for the PS5 to wake") and carry on after the
+  wake, without using up their retries; in the browser version they used to fail. Keep-awake skips
+  a sleeping console. Measured on both consoles on FW 13.60, including a full rest → wake →
+  helper back → rest cycle on the Pro.
+
 ## 7.0.30
 
 - **Files fits on a phone (#470).** On a narrow screen every file and folder row carried up to

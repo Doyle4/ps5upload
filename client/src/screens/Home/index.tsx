@@ -36,6 +36,7 @@ import { RecentGames } from "./RecentGames";
 import { greetingPart } from "./greeting";
 import {
   evaluateOperationReadiness,
+  HELPER_NOT_CONNECTED,
   type Operation,
 } from "../../lib/operationReadiness";
 
@@ -99,8 +100,13 @@ export default function HomeScreen() {
     helperUp: payloadStatus === "up",
     kernelRw: ucredElevated,
   };
-  const readinessFor = (operation: Operation) =>
-    evaluateOperationReadiness(operation, readinessContext);
+  // An asleep console's helper is gone because of the rest, not a fault: say so on the tiles.
+  const readinessFor = (operation: Operation) => {
+    const r = evaluateOperationReadiness(operation, readinessContext);
+    if (!resting) return r;
+    const rest = tr("status_ps5_rest_mode", "In rest mode");
+    return { ...r, blockers: r.blockers.map((b) => (b === HELPER_NOT_CONNECTED ? rest : b)) };
+  };
 
   const part = greetingPart(new Date().getHours());
   const greeting =
