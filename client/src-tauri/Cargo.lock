@@ -4231,7 +4231,7 @@ dependencies = [
  "libc",
  "mdns-sd",
  "open",
- "png 0.17.16",
+ "png 0.18.1",
  "ps5upload-core",
  "ps5upload-engine",
  "reqwest 0.12.28",
