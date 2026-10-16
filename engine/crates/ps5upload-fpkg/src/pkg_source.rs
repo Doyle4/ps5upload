@@ -39,7 +39,7 @@ use crate::xts::{Xts, SIGNED_SECTOR_FLAG};
 use crate::{fih, le16, le32, le64, plan, Error, PkgFile, ReadSeek, Result, BLOCK};
 
 /// Why a package with blocks the debug passcode does not open is refused.
-pub const RETAIL_MESSAGE: &str = "this package is encrypted for retail consoles; only packages made with the debug key can be unpacked";
+pub const RETAIL_MESSAGE: &str = "this package's files are encrypted with a key this app does not have: it is a retail package, or a fake package made with a passcode other than the default. Only packages made with the default debug passcode can be unpacked";
 
 /// Decrypted outer blocks kept (64 KiB each).
 const OUTER_CACHE: usize = 16;
@@ -1063,7 +1063,7 @@ mod tests {
         let mut b = vec![0u8; BLOCK as usize];
         b[..4].copy_from_slice(b"\x7FFIH");
         b[5] = 0x80;
-        assert!(message(open_bytes(b)).contains("encrypted for retail consoles"));
+        assert!(message(open_bytes(b)).contains("encrypted with a key this app does not have"));
     }
 
     #[test]
