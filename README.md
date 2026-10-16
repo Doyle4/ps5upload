@@ -42,7 +42,8 @@
 - **Power.** Rest mode, reboot, shut down, and wake over the network (optionally straight
   into your signed-in user).
 - **Runs everywhere:** macOS, Windows, Linux, Android, or any browser through the self-hosted
-  Docker web UI. 21 languages.
+  Docker web UI ([compose file](engine/compose.yaml), see
+  [Self-hosted engine and web UI](#self-hosted-engine-and-web-ui)). 21 languages.
 
 ## What it doesn't do
 

@@ -495,6 +495,10 @@ impl SeqSource for SevenzSource {
     fn restart_for(&self, file_id: u32) -> Restart {
         Restart(self.restarts.get(file_id as usize).copied().unwrap_or(0))
     }
+
+    fn bytes_skipped(&self) -> u64 {
+        SevenzSource::bytes_skipped(self)
+    }
 }
 
 /// A folder whose decode ended before its last wanted entry.

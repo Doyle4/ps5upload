@@ -759,6 +759,7 @@ peers for the job (§11.3), not who opened it.
 | 0x2D | `Status` | receiver → sender (IGNORABLE) | control |
 | 0x2E | `JobDone{status, files, bytes}` | receiver → sender | control |
 | 0x2F | `JobCancel` | either | control |
+| 0x30 | `SkipProgress{bytes_skipped}` | sender → receiver | control |
 
 `FileRetry.reason` is `RETRY_VERIFY` (1, the root did not match), `RETRY_IO` (2, the receiver lost
 the part file or outboard) or `RETRY_CHANGED` (3, the record's length disagrees with the manifest).
@@ -868,6 +869,14 @@ running sync batch, holds the clock. The engine's receiver sends `JobCancel{reas
 and fails the job (the engine's session retry resumes it); the console ends it with `JobDone`
 status `ERR_STALLED` and keeps the journal, as for every console-side failure. The sender
 observes the code like any receiver-ended job and may resume.
+
+`SkipProgress{job_id, bytes_skipped}` (0x30) is job-scoped liveness. A sender that reads past
+data the receiver already holds (a solid archive decoded from its start on resume, §17.2, or the
+durable stretches of a partly held large file) sends no data frame while it does; it sends a
+`SkipProgress` at least every 10 s instead (the engine: every 5 s while its skip counter moves).
+`bytes_skipped` is the running total the sender has read past for this job (informational). A
+receiver counts it as progress for that job, only from the session the job is attached to, and
+answers nothing. Receivers that predate it ignore it as an unknown data-plane type.
 
 ## 13. Verification
 

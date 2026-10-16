@@ -1577,6 +1577,43 @@ impl FrameMessage for JobCancel {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct SkipProgress {
+    pub job_id: [u8; 16],
+    pub bytes_skipped: u64,
+}
+
+impl Message for SkipProgress {
+    const NAME: &'static str = "SkipProgress";
+
+    fn encode_into(&self, w: &mut Writer) -> Result<(), EncodeError> {
+        w.fixed(&self.job_id);
+        w.u64(self.bytes_skipped);
+        w.u16(0);
+        Ok(())
+    }
+
+    fn decode(b: &[u8]) -> Result<Self, DecodeError> {
+        let mut r = Reader::new(b);
+        let mut m = Self::default();
+        m.job_id = r.fixed::<16>()?;
+        m.bytes_skipped = r.u64()?;
+        let ext_n = r.u16()?;
+        for _ in 0..ext_n {
+            let tag = r.u16()?;
+            let len = r.u32()? as usize;
+            let v = r.take(len)?;
+            let _ = (tag, v);
+        }
+        r.finish()?;
+        Ok(m)
+    }
+}
+
+impl FrameMessage for SkipProgress {
+    const TYPE: u8 = 0x30;
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct NodeInfo {
     pub version: String,
     pub platform: String,
@@ -3359,7 +3396,7 @@ impl Message for JnlDone {
 }
 
 /// Every message and struct, by name (conformance tests).
-pub const ALL: &[&str] = &["Hs1", "Hs2", "Hs3", "Welcome", "PairPakeClient", "PairPakeServer", "PairConfirm", "PairResult", "Join", "JoinAck", "Ping", "Pong", "Error", "Bye", "RpcRequest", "RpcResponse", "JobOpen", "JobOpenAck", "ManifestPage", "ManifestEnd", "JobMap", "Resume", "Chunk", "Bundle", "Received", "Credit", "Durable", "FileRoot", "FileRetry", "Status", "JobDone", "JobCancel", "NodeInfo", "HelloInfo", "ServerInfo", "ClientInfo", "PairingOpen", "CryptoBench", "CryptoBenchResult", "ManifestEntry", "FileRun", "FileRange", "BundleRecord", "RootItem", "JobCopy", "JobRef", "DiskCalibrate", "CalPoint", "DiskCalibrateResult", "C2cAllow", "C2cTicket", "C2cSend", "MgmtText", "NodeStatus", "FsList", "FsEntry", "FsListResult", "FsPath", "FsStat", "FsFreeSpace", "FsMkdir", "FsRename", "FsChmod", "FsRead", "FsReadResult", "FsWrite", "JobRun", "JobEntry", "JobListResult", "JnlOpen", "JnlBatch", "PackRef", "JnlSweep", "JnlReset", "JnlSnapshot", "JnlDone", ];
+pub const ALL: &[&str] = &["Hs1", "Hs2", "Hs3", "Welcome", "PairPakeClient", "PairPakeServer", "PairConfirm", "PairResult", "Join", "JoinAck", "Ping", "Pong", "Error", "Bye", "RpcRequest", "RpcResponse", "JobOpen", "JobOpenAck", "ManifestPage", "ManifestEnd", "JobMap", "Resume", "Chunk", "Bundle", "Received", "Credit", "Durable", "FileRoot", "FileRetry", "Status", "JobDone", "JobCancel", "SkipProgress", "NodeInfo", "HelloInfo", "ServerInfo", "ClientInfo", "PairingOpen", "CryptoBench", "CryptoBenchResult", "ManifestEntry", "FileRun", "FileRange", "BundleRecord", "RootItem", "JobCopy", "JobRef", "DiskCalibrate", "CalPoint", "DiskCalibrateResult", "C2cAllow", "C2cTicket", "C2cSend", "MgmtText", "NodeStatus", "FsList", "FsEntry", "FsListResult", "FsPath", "FsStat", "FsFreeSpace", "FsMkdir", "FsRename", "FsChmod", "FsRead", "FsReadResult", "FsWrite", "JobRun", "JobEntry", "JobListResult", "JnlOpen", "JnlBatch", "PackRef", "JnlSweep", "JnlReset", "JnlSnapshot", "JnlDone", ];
 
 #[doc(hidden)]
 pub fn sample(name: &str, rng: &mut SplitMix) -> Option<Vec<u8>> {
@@ -3396,6 +3433,7 @@ pub fn sample(name: &str, rng: &mut SplitMix) -> Option<Vec<u8>> {
         "Status" => Status { job_id: { let mut a = [0u8; 16]; rng.fill(&mut a); a }, files_done: rng.next_u64() as u32, files_total: rng.next_u64() as u32, bytes_received: rng.next_u64(), bytes_durable: rng.next_u64(), bytes_total: rng.next_u64(), bottleneck: rng.next_u64() as u8, workers: rng.next_u64() as u8, lanes: rng.next_u64() as u8, sequential: rng.next_u64() as u8, current: if rng.below(2) == 1 { Some(rng.ascii(20)) } else { None }, state: if rng.below(2) == 1 { Some(rng.next_u64() as u8) } else { None }, result: if rng.below(2) == 1 { Some({ let n = rng.below(41) as usize; let mut v = vec![0u8; n]; rng.fill(&mut v); v }) } else { None }, code: if rng.below(2) == 1 { Some(rng.next_u64() as u16) } else { None }, unswept: if rng.below(2) == 1 { Some(rng.next_u64() as u32) } else { None }, }.to_bytes().ok(),
         "JobDone" => JobDone { job_id: { let mut a = [0u8; 16]; rng.fill(&mut a); a }, status: rng.next_u64() as u16, files: rng.next_u64() as u32, bytes: rng.next_u64(), message: if rng.below(2) == 1 { Some(rng.ascii(20)) } else { None }, settling: if rng.below(2) == 1 { Some(rng.next_u64() as u8) } else { None }, }.to_bytes().ok(),
         "JobCancel" => JobCancel { job_id: { let mut a = [0u8; 16]; rng.fill(&mut a); a }, reason: rng.next_u64() as u16, }.to_bytes().ok(),
+        "SkipProgress" => SkipProgress { job_id: { let mut a = [0u8; 16]; rng.fill(&mut a); a }, bytes_skipped: rng.next_u64(), }.to_bytes().ok(),
         "NodeInfo" => NodeInfo { version: rng.ascii(20), platform: rng.ascii(20), name: rng.ascii(20), firmware: if rng.below(2) == 1 { Some(rng.ascii(20)) } else { None }, }.to_bytes().ok(),
         "HelloInfo" => HelloInfo { version_min: rng.next_u64() as u16, version_max: rng.next_u64() as u16, caps: rng.next_u64(), }.to_bytes().ok(),
         "ServerInfo" => ServerInfo { version: rng.next_u64() as u16, caps: rng.next_u64(), session_id: { let mut a = [0u8; 16]; rng.fill(&mut a); a }, pair_commit: { let mut a = [0u8; 32]; rng.fill(&mut a); a }, name: if rng.below(2) == 1 { Some(rng.ascii(20)) } else { None }, }.to_bytes().ok(),
@@ -3482,6 +3520,7 @@ pub fn roundtrip(name: &str, bytes: &[u8]) -> Option<Result<Vec<u8>, String>> {
         "Status" => rt::<Status>(bytes),
         "JobDone" => rt::<JobDone>(bytes),
         "JobCancel" => rt::<JobCancel>(bytes),
+        "SkipProgress" => rt::<SkipProgress>(bytes),
         "NodeInfo" => rt::<NodeInfo>(bytes),
         "HelloInfo" => rt::<HelloInfo>(bytes),
         "ServerInfo" => rt::<ServerInfo>(bytes),

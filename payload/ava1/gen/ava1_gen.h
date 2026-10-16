@@ -224,6 +224,7 @@
 #define AVA1_TYPE_STATUS 0x2du
 #define AVA1_TYPE_JOB_DONE 0x2eu
 #define AVA1_TYPE_JOB_CANCEL 0x2fu
+#define AVA1_TYPE_SKIP_PROGRESS 0x30u
 
 typedef struct {
     const uint8_t *version;
@@ -1220,6 +1221,14 @@ typedef struct {
 
 int ava1_job_cancel_encode(const ava1_job_cancel_t *m, ava1_w_t *w);
 int ava1_job_cancel_decode(const uint8_t *buf, size_t len, ava1_job_cancel_t *m);
+
+typedef struct {
+    uint8_t job_id[16];
+    uint64_t bytes_skipped;
+} ava1_skip_progress_t;
+
+int ava1_skip_progress_encode(const ava1_skip_progress_t *m, ava1_w_t *w);
+int ava1_skip_progress_decode(const uint8_t *buf, size_t len, ava1_skip_progress_t *m);
 
 extern const char *const ava1_message_names[];
 extern const size_t ava1_message_count;

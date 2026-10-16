@@ -1569,6 +1569,16 @@ static int route(const uint8_t sid[16], const uint8_t peer[32], uint8_t type, co
         if (mine) inbox_add(j, type, body, len);
         break;
     }
+    case AVA1_TYPE_SKIP_PROGRESS: {
+        /* SPEC.md §12.8: the sender is reading past data this job already holds (a solid
+         * archive decoded from its start on resume). It is progress for the watchdog, and
+         * nothing else: no inbox entry, no reply. Only from the session the job is
+         * attached to. */
+        pthread_mutex_lock(&j->cmu);
+        if (j->attached && memcmp(j->sid, sid, 16) == 0) j->frames_in++;
+        pthread_mutex_unlock(&j->cmu);
+        break;
+    }
     default:
         break; /* nothing else is for a receiver */
     }
@@ -1585,6 +1595,7 @@ static int well_formed(uint8_t type, const uint8_t *body, size_t len) {
         ava1_resume_t r;
         ava1_file_root_t f;
         ava1_job_cancel_t c;
+        ava1_skip_progress_t s;
     } u;
     switch (type) {
     case AVA1_TYPE_JOB_OPEN: return ava1_job_open_decode(body, len, &u.o) == 0;
@@ -1593,6 +1604,7 @@ static int well_formed(uint8_t type, const uint8_t *body, size_t len) {
     case AVA1_TYPE_RESUME: return ava1_resume_decode(body, len, &u.r) == 0;
     case AVA1_TYPE_FILE_ROOT: return ava1_file_root_decode(body, len, &u.f) == 0;
     case AVA1_TYPE_JOB_CANCEL: return ava1_job_cancel_decode(body, len, &u.c) == 0;
+    case AVA1_TYPE_SKIP_PROGRESS: return ava1_skip_progress_decode(body, len, &u.s) == 0;
     default: return 1;
     }
 }

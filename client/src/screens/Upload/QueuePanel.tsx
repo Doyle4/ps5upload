@@ -287,7 +287,7 @@ export const QueuePanel = memo(function QueuePanel({ host }: { host?: string } =
               leftIcon={<RotateCcw size={12} />}
               onClick={retryFailed}
             >
-              {tr("queue_retry_failed", undefined, "Retry failed")}
+              {tr("queue_retry_failed_v2", undefined, "Retry failed uploads")}
             </Button>
           )}
 
@@ -1011,6 +1011,48 @@ export function QueueRow({
               }/${MAX_AUTO_RECOVER_ATTEMPTS})…`,
             )}
           </span>
+        </div>
+      )}
+
+      {isActive && !isRecovering && !isInstall && item.stalledForMs != null && (
+        <div className="mt-2 flex flex-wrap items-center gap-2 rounded-[var(--radius-field)] bg-[var(--color-warn)]/10 px-2 py-1.5 text-xs text-[var(--color-warn)]">
+          <span className="min-w-0 flex-1">
+            {tr(
+              "queue_stalled",
+              { time: formatDuration(item.stalledForMs / 1000) },
+              "Nothing has moved for {time}. Restarting the transfer picks up from what the PS5 already has.",
+            )}
+          </span>
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => useUploadQueueStore.getState().restartItem(item.id)}
+          >
+            {tr("queue_restart_transfer", undefined, "Restart transfer")}
+          </Button>
+        </div>
+      )}
+
+      {isPending && item.interrupted && (
+        <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-[var(--color-muted)]">
+          <span className="min-w-0 flex-1">
+            {tr(
+              "queue_interrupted",
+              undefined,
+              "Stopped part-way. Resuming continues from what the PS5 already has.",
+            )}
+          </span>
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() =>
+              void useUploadQueueStore
+                .getState()
+                .startHost(hostOf(item.addr), { onlyIds: [item.id] })
+            }
+          >
+            {tr("queue_resume", undefined, "Resume")}
+          </Button>
         </div>
       )}
 

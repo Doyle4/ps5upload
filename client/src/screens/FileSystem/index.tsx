@@ -68,6 +68,7 @@ import {
 } from "./fsBrowse";
 import { save as saveDialog } from "@tauri-apps/plugin-dialog";
 import { isTauriEnv } from "../../lib/tauriEnv";
+import { isWindows } from "../../lib/platform";
 import { isInstallPackagePath } from "../../lib/pkgDropDedupe";
 import {
   PageHeader,
@@ -321,6 +322,9 @@ export function isSinglePathName(name: string): boolean {
     name !== ".."
   );
 }
+
+/** The in-app drag of rows to move them (the row names, as JSON). */
+const FS_DRAG_MIME = "application/x-ps5upload-fs-move";
 
 function crumbs(p: string): { label: string; path: string }[] {
   const parts = p.split("/").filter(Boolean);
@@ -1524,6 +1528,51 @@ export default function FileSystemScreen() {
       sourceLabel: path,
     });
   };
+  // Drag rows onto a folder (or a breadcrumb) to move them there, like the console's own web
+  // file manager (Reddit ask). The move is the same cut-and-paste as Move to…, so a drop on
+  // another drive copies and then removes. On the desktop a dragged FILE still goes out to this
+  // computer (that drag is native), so files move this way where there is no drag-out.
+  const [dropTarget, setDropTarget] = useState<string | null>(null);
+  // The Windows app's window takes every drag for its own file drop (uploads), so no in-page
+  // drag reaches a row there: offer none rather than one that does nothing.
+  const dragMoveWorks = !(isTauriEnv() && isWindows());
+  const movesByDrag = (e: DirEntry) => dragMoveWorks && (e.kind === "dir" || !canDragOut);
+  const dropProps = (dest: string) => ({
+    onDragOver: (ev: React.DragEvent) => {
+      if (!ev.dataTransfer.types.includes(FS_DRAG_MIME)) return;
+      ev.preventDefault();
+      ev.dataTransfer.dropEffect = "move";
+      if (dropTarget !== dest) setDropTarget(dest);
+    },
+    onDragLeave: () => setDropTarget((cur) => (cur === dest ? null : cur)),
+    onDrop: (ev: React.DragEvent) => {
+      const raw = ev.dataTransfer.getData(FS_DRAG_MIME);
+      setDropTarget(null);
+      if (!raw) return;
+      ev.preventDefault();
+      let names: string[];
+      try {
+        names = JSON.parse(raw) as string[];
+      } catch {
+        return;
+      }
+      const byName = new Map((entries ?? []).map((x) => [x.name, x]));
+      const items = names
+        .map((n) => byName.get(n))
+        .filter((x): x is DirEntry => !!x)
+        .map((x) => ({
+          path: joinPath(path, x.name),
+          name: x.name,
+          size: x.size,
+          kind: x.kind === "dir" ? ("dir" as const) : ("file" as const),
+        }))
+        // Never into itself or below itself, and never where it already is.
+        .filter((i) => dest !== i.path && !dest.startsWith(`${i.path}/`) && dest !== path);
+      if (items.length === 0) return;
+      setSelected(new Set());
+      void runPaste(dest, { op: "cut", items, sourceLabel: path });
+    },
+  });
   // Set permissions to 777 (folders recursively): what games and payload folders need to be
   // readable and runnable, and what users reached for FileZilla to do (#411).
   const [chmodBusy, setChmodBusy] = useState(false);
@@ -2568,7 +2617,9 @@ export default function FileSystemScreen() {
                     <button
                       type="button"
                       onClick={() => setPath(c.path)}
+                      {...(i < arr.length - 1 ? dropProps(c.path) : {})}
                       className={
+                        (dropTarget === c.path ? "ring-2 ring-[var(--color-accent)] " : "") +
                         "rounded px-1.5 py-0.5 font-mono " +
                         (i === arr.length - 1
                           ? "font-medium text-[var(--color-text)]"
@@ -3024,10 +3075,18 @@ export default function FileSystemScreen() {
               return (
                 <li
                   key={e.name}
-                  // Drag a file out of the window onto this computer (desktop app only).
-                  draggable={!isDir && canDragOut}
+                  // Drag a file out of the window onto this computer (desktop app only); a
+                  // folder (or, without drag-out, a file) drags onto another folder to move.
+                  draggable={movesByDrag(e) || canDragOut}
+                  {...(isDir ? dropProps(joinPath(path, e.name)) : {})}
                   onDragStart={
-                    !isDir && canDragOut
+                    movesByDrag(e)
+                      ? (ev) => {
+                          const names = isSelected ? [...selected] : [e.name];
+                          ev.dataTransfer.setData(FS_DRAG_MIME, JSON.stringify(names));
+                          ev.dataTransfer.effectAllowed = "move";
+                        }
+                      : !isDir && canDragOut
                       ? (ev) => {
                           ev.preventDefault();
                           dragOut(
@@ -3054,6 +3113,9 @@ export default function FileSystemScreen() {
                   }}
                   className={
                     "list-row-contain-sm flex items-center gap-3 rounded-[var(--radius-card)] border px-3.5 py-2.5 text-sm transition-colors " +
+                    (isDir && dropTarget === joinPath(path, e.name)
+                      ? "ring-2 ring-[var(--color-accent)] "
+                      : "") +
                     (isSelected
                       ? "border-[color-mix(in_srgb,var(--color-accent)_40%,transparent)] bg-[var(--color-accent-soft)]"
                       : "border-[var(--glass-edge)] bg-[var(--color-surface-raised)] hover:bg-[var(--color-float)]")

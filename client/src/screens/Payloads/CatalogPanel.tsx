@@ -37,6 +37,8 @@ import {
 import { Button, ErrorCard, Spinner, Badge, Input } from "../../components";
 import { useConfirm } from "../../components/ConfirmDialog";
 import { pmOverview, pmStore } from "../../api/payloadManager";
+import { recordPmStore } from "../../lib/pmUpdates";
+import { hostOf } from "../../lib/addr";
 import { useTr } from "../../state/lang";
 import UsbAutoloaderModal from "./UsbAutoloaderModal";
 
@@ -330,6 +332,8 @@ export default function CatalogPanel() {
         r = await pmStore(h, filename, local.path, true);
         if (!r.stored) return;
       }
+      // So the Payload Manager tab can offer this one's updates later.
+      recordPmStore(hostOf(h), filename, id, local.version);
       pushNotification(
         "success",
         withConsolePrefix(h, tr("payloads_pm_stored_title", { name: filename }, `Stored ${filename} in Payload Manager`)),

@@ -274,6 +274,12 @@ export interface QueueItem {
    *  this id, so Stop and Start continue from the console's journal. */
   txIdHex: string;
   status: QueueItemStatus;
+  /** It was running when it was stopped or the app closed: it is waiting with its console-side
+   *  progress kept, and starting it continues from there. Cleared when it runs again. */
+  interrupted?: boolean;
+  /** While running: how long nothing has moved, once that is STALL_AFTER_MS or more (the row then
+   *  offers to restart the transfer, which resumes). Null otherwise. */
+  stalledForMs?: number | null;
   /** Live progress while running, final count when done, 0 otherwise. */
   bytesSent: number;
   /** Total bytes the engine pre-stat'd for this source. 0 until first
@@ -427,6 +433,9 @@ interface QueueState {
   moveDown: (id: string) => void;
   clear: () => void;
   retryFailed: () => void;
+  /** Stops a running (stalled) upload and starts it again; it continues from what the console
+   *  already holds. Not for installs, which cannot be stopped. */
+  restartItem: (id: string) => void;
   /** Retry one failed row. Returns false when the row is missing/not failed. */
   retryItem: (id: string) => boolean;
   /** Retry one archive row that failed for a missing or wrong password, with the password
@@ -470,6 +479,8 @@ interface QueueDocument {
 }
 
 const POLL_INTERVAL_MS = 500;
+/** No new bytes for this long while sending (not while the console finalizes): say so on the row. */
+const STALL_AFTER_MS = 90_000;
 const SAVE_DEBOUNCE_MS = 300;
 
 function newId(): string {
@@ -1174,6 +1185,9 @@ export const useUploadQueueStore = create<QueueState>((set, get) => {
     // next runOne builds a fresh array.
     const startedAtMs = Date.now();
     const samples: RateSample[] = [{ ts: startedAtMs, bytes: 0 }];
+    // When bytes last moved, for the "nothing is moving" note on the row.
+    let lastBytes = -1;
+    let lastMoveAt = startedAtMs;
 
     while (isLive()) {
       const snap = await jobStatus(jobId, item.addr);
@@ -1564,11 +1578,20 @@ export const useUploadQueueStore = create<QueueState>((set, get) => {
       const bytesSent = snap.bytes_sent ?? 0;
       pushRateSample(samples, now, bytesSent);
       const bytesPerSec = computeRate(samples, now);
+      if (bytesSent !== lastBytes) {
+        lastBytes = bytesSent;
+        lastMoveAt = now;
+      }
+      const totalNow = snap.total_bytes ?? 0;
+      // Everything sent and the console making it durable is not a stall.
+      const sending = !(totalNow > 0 && bytesSent >= totalNow);
+      const stalledForMs = sending && now - lastMoveAt >= STALL_AFTER_MS ? now - lastMoveAt : null;
       set((s) => ({
         items: patchItem(s.items, item.id, {
           bytesSent,
-          totalBytes: snap.total_bytes ?? 0,
+          totalBytes: totalNow,
           bytesPerSec,
+          stalledForMs,
           // P3 / v2.18.0 — forward apply-phase counters so the
           // QueueRow's finalize pill can show "Finalized N of M files"
           // (analogous to transfer.ts's single-shot path). Defaults to
@@ -1644,6 +1667,8 @@ export const useUploadQueueStore = create<QueueState>((set, get) => {
       set((s) => ({
         items: patchItem(s.items, next.id, {
           status: "running",
+          interrupted: false,
+          stalledForMs: null,
           startedAt,
           // Reset live counters so a previously-failed-then-retried
           // item starts the bar + speed readout from zero instead
@@ -1924,6 +1949,8 @@ export const useUploadQueueStore = create<QueueState>((set, get) => {
               if (!isTauriEnv()) reattaching.add(next.id);
             }
             next.status = "pending";
+            next.interrupted = true;
+            next.stalledForMs = null;
           }
           if (!next.txIdHex) next.txIdHex = generateTxIdHex();
           // Back-fill the bytes/sec field added in 2.2.22 — older
@@ -2264,6 +2291,17 @@ export const useUploadQueueStore = create<QueueState>((set, get) => {
         ),
       }));
       scheduleSave();
+      // The button says Retry: run them, don't just put them back in the list.
+      void get().start();
+    },
+
+    restartItem(id) {
+      const item = get().items.find((candidate) => candidate.id === id);
+      if (!item || item.status !== "running" || item.sourceKind === "install") return;
+      const host = hostOf(item.addr);
+      get().stopHost(host);
+      // Let the engine let go of the job; the next run resumes it from the console's journal.
+      setTimeout(() => void get().startHost(host, { onlyIds: [id] }), 1500);
     },
 
     retryItem(id) {
@@ -2524,6 +2562,7 @@ export const useUploadQueueStore = create<QueueState>((set, get) => {
     moveDown: () => undefined,
     clear: () => undefined,
     retryFailed: () => undefined,
+    restartItem: () => undefined,
     retryItem: () => false,
     retryWithPassword: () => false,
     discardPartial: () => Promise.resolve(),

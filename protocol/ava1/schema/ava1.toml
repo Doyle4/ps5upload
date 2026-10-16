@@ -595,6 +595,14 @@ name = "JobCancel"
 type = 0x2F
 fields = [{ name = "job_id", ty = "b16" }, { name = "reason", ty = "u16" }]
 
+# Job-scoped liveness (SPEC.md §12.8): a sender reading past data the receiver already
+# holds (a solid archive decoded from its start on resume) sends this at least every
+# 10 s; the receiver counts it as progress for that job. Older receivers ignore it.
+[[message]]
+name = "SkipProgress"
+type = 0x30
+fields = [{ name = "job_id", ty = "b16" }, { name = "bytes_skipped", ty = "u64" }]
+
 # RPC bodies (SPEC.md §16)
 [[struct]]
 name = "JobCopy"

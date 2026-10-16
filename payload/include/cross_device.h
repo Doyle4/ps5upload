@@ -41,7 +41,8 @@
  *   src/register.c        1  dir    param.json: tmp -> final
  *   src/shell_builtin.c   1  guard  `mv` (mv_same_dev, lstat of the source)
  *   ava1/ava1_events.c    1  dir    events.log -> events.log.old
- *   ava1/ava1_apply.c     2  guard  file and folder commit (same_device hook, only a definite 1 renames)
+ *   ava1/ava1_apply.c     3  guard  file and folder commit (same_device hook, only a definite 1 renames);
+ *                                   held param.json/param.sfo: name.ava-hold -> name, same dir
  *   ava1/ava1_journal.c   1  dir    journal: tmp -> final
  *   ava1/ava1_store.c     1  dir    key and trust stores: tmp -> final
  *   ava1/ava1_recv.c      2  dir    outboard renames inside the job folder

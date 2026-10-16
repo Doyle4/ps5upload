@@ -6,6 +6,32 @@ What's new in ps5upload, written for humans.
 
 ## 7.0.26
 
+- **Uploaded game and homebrew folders show up with ShadowMount+ again.** ShadowMount+
+  registers a folder as soon as its `sce_sys` has been still for 10 seconds; an upload sends
+  those small files first, so it tried while `eboot.bin` was still on its way, failed twice and
+  gave up on the title for good (measured on a 13.60 console). A game's `param.json` (and a PS4
+  game's `param.sfo`) is now put in place only when everything else has arrived, so the folder
+  becomes a game exactly when it is complete. Needs the 7.0.26 helper.
+- **A stalled or stopped upload can be continued.** A row that has moved no data for 90 seconds
+  says so and offers **Restart transfer**; a row that was stopped, or interrupted by closing the
+  app, says so and offers **Resume**. Both pick up from what the PS5 already has. **Retry
+  failed uploads** now runs them (it only put them back in the list), and its label no longer
+  reads "the retry failed" in most languages.
+- **Large solid .rar uploads no longer fail over and over on a retry.** Resuming one reads
+  through everything the PS5 already has before sending anything new; the console took that
+  silence for a stalled sender and ended the job after 15 minutes, every time. The app now
+  tells the console it is still working. Needs the 7.0.26 helper.
+- **A .rar's unpacked size is right** when it holds entries of unknown size (RAR5), which made
+  the free-space check before an upload add up to nonsense.
+- **Payload Manager: update what you stored.** Payloads stored from the Catalog are remembered,
+  and the Payload Manager tab offers **Update** when the catalogue has a newer release: it
+  stores the new one in its place and keeps its spot in the boot list. Payloads Payload Manager
+  installed from its own repository are left to it. (Desktop and Android, where the catalogue
+  is.)
+- **Files: drag to move.** Drag a folder onto another folder, or onto the path above the list,
+  to move it there (across drives it copies, then removes). Files move the same way in the web
+  UI and on Android; on the desktop a dragged file still goes out to your computer. Not in the
+  Windows app, where the window takes every drag for its own file drop; use Move to… there.
 - **A deleted Collection folder no longer breaks the Collection (#461).** Saving the folder
   list checked that every folder still existed, so once one was gone nothing could be saved,
   removing that folder included. Only a folder being added is checked now. A scan skips a
