@@ -4006,6 +4006,19 @@ c2c_test_deep_bad: "4 KiB 테스트 전송이 도착하지 않았습니다: {det
 "joberr.ava1_taken_over": "다른 기기가 이 전송을 넘겨받았습니다. 그곳에서 계속됩니다.",
 "joberr.ava1_shared_jobs_unsupported": "다른 기기가 아직 이 전송을 실행 중입니다. 실행 중에 넘겨받거나 지켜보려면 두 콘솔 모두에 새 도우미가 필요합니다: 업데이트하거나 먼저 그 기기에서 전송을 일시 정지하세요.",
 "joberr.ava1_cannot_watch": "이 전송은 다른 기기를 거쳐 가므로 넘겨받을 수는 있지만 지켜볼 수는 없습니다.",
+"fpkg.make.folder_title": "게임 폴더",
+"fpkg.make.folder_body": "게임 이미지나 디버그 키로 만든 패키지에서 게임 파일을 이 컴퓨터의 일반 폴더로 꺼냅니다. 다른 폴더처럼 편집하거나 보관하거나 업로드할 수 있습니다.",
+"fpkg.folder.what": "폴더는 이미지나 패키지 이름으로 출력 폴더에 만들어집니다. 압축하지 않으며 PS5로는 아무것도 보내지 않습니다.",
+"cq_ext_folder": "폴더",
+"fpkg.stage.write_folder": "폴더 쓰기",
+"fpkg.stage.verify_folder": "폴더 다시 읽기",
+"fpkg.folder.make": "게임 폴더 만들기",
+"fpkg.folder.already": "이미 폴더입니다",
+"fpkg.folder.sourceOnly": "게임 이미지나 디버그 키로 만든 패키지만 폴더로 만들 수 있습니다. 압축 파일은 먼저 풀어 주세요.",
+"fpkg.folder.done": "게임 폴더를 쓰고 다시 읽어 확인했습니다.",
+"cq_then_keep_folder": "폴더 보관",
+"cq_folder_sources_only": "게임 이미지나 디버그 키로 만든 패키지만 폴더로 만들 수 있습니다: {count}개 건너뜀.",
+"fpkg.run.what_folder": "게임 폴더",
 };
 
 export default ko;

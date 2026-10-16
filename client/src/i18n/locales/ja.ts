@@ -4008,6 +4008,19 @@ c2c_test_deep_bad: "4 KiB のテスト送信が届きませんでした: {detail
 "joberr.ava1_taken_over": "別のデバイスがこの送信を引き継ぎました。そちらで続行します。",
 "joberr.ava1_shared_jobs_unsupported": "別のデバイスがまだこの送信を実行しています。実行中に引き継ぐ(または見守る)には両方のコンソールに新しいヘルパーが必要です: 更新するか、先にそのデバイスで送信を一時停止してください。",
 "joberr.ava1_cannot_watch": "この送信は別のデバイスを経由しているため、引き継ぐことはできますが見守ることはできません。",
+"fpkg.make.folder_title": "ゲームフォルダー",
+"fpkg.make.folder_body": "ゲームのファイルを、このコンピューター上の普通のフォルダーとして取り出します。元はゲームイメージか、デバッグキーで作ったパッケージです。編集・保管したり、普通のフォルダーとしてアップロードしたりできます。",
+"fpkg.folder.what": "フォルダーはイメージまたはパッケージの名前で出力フォルダーに作られます。圧縮はせず、PS5 には何も送りません。",
+"cq_ext_folder": "フォルダー",
+"fpkg.stage.write_folder": "フォルダーを書き込み",
+"fpkg.stage.verify_folder": "フォルダーを読み戻し",
+"fpkg.folder.make": "ゲームフォルダーを作成",
+"fpkg.folder.already": "これはすでにフォルダーです",
+"fpkg.folder.sourceOnly": "フォルダーにできるのは、ゲームイメージかデバッグキーで作ったパッケージだけです。アーカイブは先に展開してください。",
+"fpkg.folder.done": "ゲームフォルダーを書き込み、読み戻して確認しました。",
+"cq_then_keep_folder": "フォルダーを残す",
+"cq_folder_sources_only": "フォルダーにできるのは、ゲームイメージかデバッグキーで作ったパッケージだけです：{count} 件をスキップしました。",
+"fpkg.run.what_folder": "ゲームフォルダー",
 };
 
 export default ja;

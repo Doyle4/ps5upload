@@ -361,6 +361,30 @@ describe("fpkg pipeline", () => {
     });
   });
 
+  it("unpacks an image or package into a folder: write, then verify, ending at the folder", async () => {
+    const buildFolder = vi.fn().mockResolvedValue({ job_id: "f1" });
+    const { fpkg } = await import("../api/fpkg");
+    (fpkg as unknown as { buildFolder: unknown }).buildFolder = buildFolder;
+    jobStatus.mockResolvedValueOnce({
+      status: "running",
+      bytes_sent: 4,
+      total_bytes: 9,
+      stage: { id: "verify", index: 1, count: 2, done: 2, total: 5 },
+    });
+    await useFpkgConversion.getState().buildFolder("/games/Game.ffpfsc", "/out");
+    expect(useFpkgConversion.getState().pipeline).toMatchObject({ phase: "running", mode: "folder", stage: "write" });
+    await tick();
+    expect(buildFolder).toHaveBeenCalledWith("/games/Game.ffpfsc", "/out", undefined, false);
+    expect(useFpkgConversion.getState().pipeline).toMatchObject({ stage: "verify", stageDone: 2, stageTotal: 5 });
+    jobStatus.mockResolvedValueOnce({ status: "done", dest: "/out/Game", bytes_sent: 9 });
+    await tick();
+    const p = useFpkgConversion.getState().pipeline;
+    expect(p).toMatchObject({ phase: "done", mode: "folder", packagePath: "/out/Game" });
+    // A folder is never installed.
+    await useFpkgConversion.getState().retryInstall("10.0.0.2");
+    expect(useFpkgConversion.getState().pipeline).toBe(p);
+  });
+
   it("puts the finished image in the Upload queue when the run was asked to", async () => {
     const buildImage = vi.fn().mockResolvedValue({ job_id: "i9" });
     const { fpkg } = await import("../api/fpkg");

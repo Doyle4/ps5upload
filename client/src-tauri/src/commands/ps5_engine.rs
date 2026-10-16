@@ -2409,6 +2409,28 @@ pub async fn exfat_build(
     .await
 }
 
+/// Unpack a game image or a debug-key package into a plain folder; runs as an engine job.
+#[tauri::command]
+pub async fn folder_build(
+    source: String,
+    output_dir: Option<String>,
+    name: Option<String>,
+    full_verify: Option<bool>,
+) -> Result<JsonValue, String> {
+    let base = engine::url();
+    let url = format!("{base}/api/folder/build");
+    post_json(
+        &url,
+        &serde_json::json!({
+            "source": source,
+            "output_dir": output_dir,
+            "name": name,
+            "full_verify": full_verify.unwrap_or(false),
+        }),
+    )
+    .await
+}
+
 #[tauri::command]
 pub async fn job_status(job_id: String) -> Result<JsonValue, String> {
     let base = engine::url();

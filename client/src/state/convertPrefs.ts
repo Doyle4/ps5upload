@@ -24,6 +24,10 @@ export const VERIFY_CHUNK_KIB: readonly number[] = [1024, 4096, 8192, 16384, 327
  *  default. */
 export const DEFAULT_VERIFY_CHUNK_KIB = 8192;
 
+/** What Convert makes: a package, a game image, or a plain game folder (from an image or a
+ *  debug-key package). */
+export type MakeKind = "pkg" | "image" | "folder";
+
 interface ConvertPrefs {
   outputDir: string;
   compression: FpkgCompression;
@@ -34,10 +38,10 @@ interface ConvertPrefs {
   fullVerify: boolean;
   /** What Convert makes, and which image: remembered so leaving the screen mid-build and
    *  coming back shows the build that is running, not the default. */
-  make: "pkg" | "image";
+  make: MakeKind;
   imageFormat: ImageFormat;
   imageCompress: boolean;
-  setMake: (m: "pkg" | "image") => void;
+  setMake: (m: MakeKind) => void;
   setImageChoice: (format: ImageFormat, compress: boolean) => void;
   setOutputDir: (dir: string) => void;
   setCompression: (c: FpkgCompression) => void;
@@ -59,8 +63,8 @@ export function parseFullVerify(v: string | null): boolean {
   return v === "1";
 }
 
-export function parseMake(v: string | null): "pkg" | "image" {
-  return v === "image" ? "image" : "pkg";
+export function parseMake(v: string | null): MakeKind {
+  return v === "image" || v === "folder" ? v : "pkg";
 }
 
 export function parseImageFormat(v: string | null): ImageFormat {

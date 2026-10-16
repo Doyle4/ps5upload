@@ -152,4 +152,10 @@ export const fpkg = {
       verifyChunkKib,
       fullVerify,
     }),
+  /** Unpack a game image (.exfat, .ffpkg, .ffpfs, .ffpfsc) or a package made with the debug
+   *  key into a plain folder in the output folder, named after the source (or `name`). One
+   *  job: written, read back (sizes, and SHA-256 of a sample or of every file), then given its
+   *  name; the job's `dest` is the folder. */
+  buildFolder: (source: string, outputDir?: string, name?: string, fullVerify = false) =>
+    invoke<{ job_id: string }>("folder_build", { source, outputDir, name, fullVerify }),
 };
