@@ -4010,6 +4010,15 @@ c2c_test_deep_bad: "Kiriman uji 4 KiB tidak tiba: {detail}",
 "cq_folder_sources_only": "Hanya image game atau paket yang dibuat dengan kunci debug yang bisa dijadikan folder: {count} dilewati.",
 "fpkg.run.what_folder": "folder game",
 "fs_row_actions": "Tindakan untuk {name}",
+"helper_stop_button": "Hentikan helper",
+"helper_stopping": "Menghentikan…",
+"helper_stop_confirm_title": "Hentikan helper?",
+"helper_stop_confirm_body": "Unggahan, instalasi, dan halaman konsol memerlukan helper; kirim lagi dari sini saat Anda membutuhkannya.",
+"helper_stop_busy": "Helper sedang dipakai. Tunggu transfer dan instalasi di konsol ini selesai, lalu hentikan.",
+"helper_stop_failed": "Tidak dapat menghentikan helper: {error}",
+"helper_stopped_status": "Dihentikan. Anda mematikan helper; helper tetap mati sampai Anda mengirimnya lagi.",
+"gate_helper_stopped_title": "Anda menghentikan helper",
+"gate_helper_stopped_body": "Layar ini memerlukan helper. Kirim lagi dari layar Koneksi saat Anda membutuhkannya.",
 };
 
 export default id;

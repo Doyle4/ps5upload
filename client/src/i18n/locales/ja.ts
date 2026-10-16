@@ -4022,6 +4022,15 @@ c2c_test_deep_bad: "4 KiB のテスト送信が届きませんでした: {detail
 "cq_folder_sources_only": "フォルダーにできるのは、ゲームイメージかデバッグキーで作ったパッケージだけです：{count} 件をスキップしました。",
 "fpkg.run.what_folder": "ゲームフォルダー",
 "fs_row_actions": "{name} の操作",
+"helper_stop_button": "ヘルパーを停止",
+"helper_stopping": "停止中…",
+"helper_stop_confirm_title": "ヘルパーを停止しますか？",
+"helper_stop_confirm_body": "アップロード、インストール、本体のページにはヘルパーが必要です。必要なときにここから再送してください。",
+"helper_stop_busy": "ヘルパーは使用中です。この本体での転送とインストールが終わってから停止してください。",
+"helper_stop_failed": "ヘルパーを停止できませんでした: {error}",
+"helper_stopped_status": "停止中。ヘルパーをオフにしました。再送するまでオフのままです。",
+"gate_helper_stopped_title": "ヘルパーを停止しました",
+"gate_helper_stopped_body": "この画面にはヘルパーが必要です。必要なときに接続画面から再送してください。",
 };
 
 export default ja;

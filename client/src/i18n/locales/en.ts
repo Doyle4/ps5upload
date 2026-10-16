@@ -4324,6 +4324,15 @@ c2c_test_deep_bad: "The 4 KiB test send did not arrive: {detail}",
 "cq_folder_sources_only": "Only a game image or a package made with the debug key can become a folder: {count} skipped.",
 "fpkg.run.what_folder": "a game folder",
 "fs_row_actions": "Actions for {name}",
+"helper_stop_button": "Stop helper",
+"helper_stopping": "Stopping…",
+"helper_stop_confirm_title": "Stop the helper?",
+"helper_stop_confirm_body": "Uploads, installs and the console pages need the helper; send it again from here when you need it.",
+"helper_stop_busy": "The helper is in use. Wait for the transfers and installs on this console to finish, then stop it.",
+"helper_stop_failed": "Couldn't stop the helper: {error}",
+"helper_stopped_status": "Stopped. You turned the helper off; it stays off until you send it again.",
+"gate_helper_stopped_title": "You stopped the helper",
+"gate_helper_stopped_body": "This screen needs the helper. Send it again from the Connection screen when you need it.",
 };
 
 export default en;

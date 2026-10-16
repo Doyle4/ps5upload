@@ -97,6 +97,7 @@ import {
 import { useTransferStore } from "../state/transfer";
 import { useUploadSettingsStore } from "../state/uploadSettings";
 import { ensurePayloadCurrent } from "../lib/ensurePayloadCurrent";
+import { isHelperStopped, noteHelperAnswering } from "../state/helperStopped";
 import { guardElfldr } from "../lib/elfldrGuard";
 import { installPlayTimeAccumulator } from "../state/playTime";
 import { installRunningWatch } from "../state/runningWatch";
@@ -435,6 +436,10 @@ function useStatusPolling() {
         if (s.reachable || sessionNeedsAttention(s.session)) {
           missCountRef.current[key] = 0;
           newStatus = "up";
+          // A helper answering well after the user stopped it was started another way: the
+          // console is not "stopped by you" any more (state/helperStopped).
+          if (noteHelperAnswering(probedHost))
+            log.info("connection", `${probedHost}'s helper is running again — no longer marked stopped`);
         } else {
           const misses = (missCountRef.current[key] ?? 0) + 1;
           missCountRef.current[key] = misses;
@@ -864,6 +869,8 @@ function useAutoRedeployDownHelpers() {
           status: runtimeByHost[key]?.payloadStatus,
           busy: transferScreenBusy(h),
           delivered: deliveredRef.current[key] ?? 0,
+          // The user stopped this helper (Connection → Stop helper): it stays off (#471).
+          stopped: isHelperStopped(h),
         });
         if (decision === "rearm") {
           liveHoldsRef.current[key] = 0;

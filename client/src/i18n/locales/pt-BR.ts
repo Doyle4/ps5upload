@@ -4018,6 +4018,15 @@ c2c_test_deep_bad: "O envio de teste de 4 KiB não chegou: {detail}",
 "cq_folder_sources_only": "Só uma imagem de jogo ou um pacote feito com a chave de depuração pode virar pasta: {count} ignorados.",
 "fpkg.run.what_folder": "uma pasta de jogo",
 "fs_row_actions": "Ações para {name}",
+"helper_stop_button": "Parar auxiliar",
+"helper_stopping": "Parando…",
+"helper_stop_confirm_title": "Parar o auxiliar?",
+"helper_stop_confirm_body": "Envios, instalações e as páginas do console precisam do auxiliar; envie-o de novo por aqui quando precisar.",
+"helper_stop_busy": "O auxiliar está em uso. Espere as transferências e instalações neste console terminarem e então pare-o.",
+"helper_stop_failed": "Não foi possível parar o auxiliar: {error}",
+"helper_stopped_status": "Parado. Você desligou o auxiliar; ele fica desligado até você enviá-lo de novo.",
+"gate_helper_stopped_title": "Você parou o auxiliar",
+"gate_helper_stopped_body": "Esta tela precisa do auxiliar. Envie-o de novo pela tela Conexão quando precisar.",
 };
 
 export default pt_BR;

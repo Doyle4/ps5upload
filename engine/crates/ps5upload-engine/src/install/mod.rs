@@ -128,6 +128,11 @@ impl JobStore {
         self.finish(job);
     }
 
+    /// Whether `ps5_addr` has an install running.
+    pub fn active_for(&self, ps5_addr: &str) -> bool {
+        lock(&self.active).contains_key(&slot_key(ps5_addr))
+    }
+
     /// Whether any console has an install running.
     pub fn any_active(&self) -> bool {
         !lock(&self.active).is_empty()

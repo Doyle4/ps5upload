@@ -4316,6 +4316,15 @@ c2c_test_deep_bad: "A 4 KiB-os tesztküldés nem érkezett meg: {detail}",
 "cq_folder_sources_only": "Csak játékképfájlból vagy a debug kulccsal készült csomagból lehet mappa: {count} kihagyva.",
 "fpkg.run.what_folder": "egy játékmappát",
 "fs_row_actions": "Műveletek: {name}",
+"helper_stop_button": "Segédprogram leállítása",
+"helper_stopping": "Leállítás…",
+"helper_stop_confirm_title": "Leállítod a segédprogramot?",
+"helper_stop_confirm_body": "A feltöltésekhez, telepítésekhez és a konzol oldalaihoz kell a segédprogram; innen küldheted újra, amikor szükség van rá.",
+"helper_stop_busy": "A segédprogram használatban van. Várd meg, amíg a konzol átvitelei és telepítései befejeződnek, majd állítsd le.",
+"helper_stop_failed": "Nem sikerült leállítani a segédprogramot: {error}",
+"helper_stopped_status": "Leállítva. Kikapcsoltad a segédprogramot; kikapcsolva marad, amíg újra el nem küldöd.",
+"gate_helper_stopped_title": "Leállítottad a segédprogramot",
+"gate_helper_stopped_body": "Ehhez a képernyőhöz kell a segédprogram. Küldd el újra a Kapcsolat képernyőről, amikor szükség van rá.",
 };
 
 export default hu;

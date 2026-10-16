@@ -1260,7 +1260,8 @@ describe("resumeFailedRecoverable", () => {
     expect(byId(fatalA).status).toBe("failed"); // fatal → left alone
     expect(byId(recoverB).status).toBe("failed"); // other host → untouched
     expect(startHost).toHaveBeenCalledTimes(1);
-    expect(startHost).toHaveBeenCalledWith("192.168.1.10:9113");
+    // Nobody clicked for this run: it must not send a helper the user stopped (#471).
+    expect(startHost).toHaveBeenCalledWith("192.168.1.10:9113", { unattended: true });
   });
 
   it("no-ops and never starts the queue when autoResume is off", async () => {

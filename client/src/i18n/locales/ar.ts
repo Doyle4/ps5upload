@@ -4001,6 +4001,15 @@ c2c_test_deep_bad: "لم يصل الإرسال التجريبي بحجم 4 KiB: 
 "cq_folder_sources_only": "لا يمكن تحويل سوى صورة لعبة أو حزمة أُنشئت بمفتاح التصحيح إلى مجلد: تم تخطي {count}.",
 "fpkg.run.what_folder": "مجلد لعبة",
 "fs_row_actions": "إجراءات {name}",
+"helper_stop_button": "إيقاف المساعد",
+"helper_stopping": "جارٍ الإيقاف…",
+"helper_stop_confirm_title": "إيقاف المساعد؟",
+"helper_stop_confirm_body": "تحتاج عمليات الرفع والتثبيت وصفحات الجهاز إلى المساعد؛ أرسله مجددًا من هنا عندما تحتاج إليه.",
+"helper_stop_busy": "المساعد قيد الاستخدام. انتظر حتى تنتهي عمليات النقل والتثبيت على هذا الجهاز، ثم أوقفه.",
+"helper_stop_failed": "تعذّر إيقاف المساعد: {error}",
+"helper_stopped_status": "متوقف. أوقفتَ المساعد؛ وسيبقى متوقفًا حتى ترسله مجددًا.",
+"gate_helper_stopped_title": "لقد أوقفت المساعد",
+"gate_helper_stopped_body": "تحتاج هذه الشاشة إلى المساعد. أرسله مجددًا من شاشة الاتصال عندما تحتاج إليه.",
 };
 
 export default ar;

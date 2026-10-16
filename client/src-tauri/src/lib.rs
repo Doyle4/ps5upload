@@ -229,6 +229,7 @@ pub fn run() {
             commands::engine_diagnose,
             commands::engine_restart,
             commands::ps5_volumes,
+            commands::ps5_helper_stop,
             commands::pkg_scan_external,
             commands::pkg_metadata_console,
             commands::ps5_list_dir,

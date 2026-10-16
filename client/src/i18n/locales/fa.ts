@@ -4302,6 +4302,15 @@ c2c_test_deep_bad: "ارسال آزمایشی ۴ KiB نرسید: {detail}",
 "cq_folder_sources_only": "فقط ایمیج بازی یا بسته‌ای که با کلید دیباگ ساخته شده می‌تواند پوشه شود: {count} مورد رد شد.",
 "fpkg.run.what_folder": "یک پوشهٔ بازی",
 "fs_row_actions": "کارهای {name}",
+"helper_stop_button": "توقف دستیار",
+"helper_stopping": "در حال توقف…",
+"helper_stop_confirm_title": "دستیار متوقف شود؟",
+"helper_stop_confirm_body": "آپلودها، نصب‌ها و صفحه‌های کنسول به دستیار نیاز دارند؛ هر وقت لازم شد از همین‌جا دوباره بفرستیدش.",
+"helper_stop_busy": "دستیار در حال استفاده است. صبر کنید انتقال‌ها و نصب‌های این کنسول تمام شوند، سپس آن را متوقف کنید.",
+"helper_stop_failed": "توقف دستیار ممکن نشد: {error}",
+"helper_stopped_status": "متوقف شد. شما دستیار را خاموش کردید؛ تا وقتی دوباره نفرستید خاموش می‌ماند.",
+"gate_helper_stopped_title": "شما دستیار را متوقف کردید",
+"gate_helper_stopped_body": "این صفحه به دستیار نیاز دارد. هر وقت لازم شد از صفحهٔ اتصال دوباره بفرستیدش.",
 };
 
 export default fa;

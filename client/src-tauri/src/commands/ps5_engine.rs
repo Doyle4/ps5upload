@@ -187,6 +187,70 @@ pub async fn engine_restart(app: tauri::AppHandle) -> Result<String, String> {
     }
 }
 
+/// Turn the console's helper off (`POST /api/ps5/helper/stop`, #471). The engine's decided
+/// refusals (409 busy, 502 refused / still running) come back as `{ state: "refused", reason,
+/// error }` rather than an error string, so the renderer can say which; anything else that is not
+/// a success is an error as usual.
+#[tauri::command]
+pub async fn ps5_helper_stop(addr: String) -> Result<JsonValue, String> {
+    let url = format!("{}/api/ps5/helper/stop", engine::url());
+    let resp = http_client()
+        .post(&url)
+        .json(&serde_json::json!({ "addr": addr }))
+        .send()
+        .await
+        .map_err(|e| {
+            format!(
+                "engine request failed: {}",
+                crate::engine_http::error_chain(&e)
+            )
+        })?;
+    let status = resp.status();
+    let text = resp
+        .text()
+        .await
+        .map_err(|e| format!("engine response body read failed: {e}"))?;
+    helper_stop_answer(status.as_u16(), &text)
+}
+
+/// The renderer's view of a helper-stop answer (see `ps5_helper_stop`).
+fn helper_stop_answer(status: u16, body: &str) -> Result<JsonValue, String> {
+    let v = serde_json::from_str::<JsonValue>(body).unwrap_or(JsonValue::Null);
+    if (200..300).contains(&status) {
+        return Ok(v);
+    }
+    let error = v
+        .get("error")
+        .and_then(|e| e.as_str())
+        .map(String::from)
+        .unwrap_or_else(|| body.to_string());
+    match v.get("reason").and_then(|r| r.as_str()) {
+        Some(reason) => Ok(serde_json::json!({
+            "state": "refused",
+            "reason": reason,
+            "error": error,
+        })),
+        None => Err(format!("engine HTTP {status}: {error}")),
+    }
+}
+
+#[cfg(test)]
+mod helper_stop_tests {
+    use super::helper_stop_answer;
+
+    #[test]
+    fn a_decided_refusal_is_an_answer_and_anything_else_an_error() {
+        let ok = helper_stop_answer(200, r#"{"state":"stopped"}"#).unwrap();
+        assert_eq!(ok["state"], "stopped");
+        let busy = helper_stop_answer(409, r#"{"error":"in use","reason":"busy"}"#).unwrap();
+        assert_eq!(busy["state"], "refused");
+        assert_eq!(busy["reason"], "busy");
+        assert_eq!(busy["error"], "in use");
+        assert!(helper_stop_answer(400, r#"{"error":"addr is required"}"#).is_err());
+        assert!(helper_stop_answer(500, "boom").is_err());
+    }
+}
+
 #[tauri::command]
 pub async fn ps5_volumes(addr: Option<String>) -> Result<JsonValue, String> {
     let base = engine::url();

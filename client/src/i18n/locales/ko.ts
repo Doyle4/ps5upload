@@ -4020,6 +4020,15 @@ c2c_test_deep_bad: "4 KiB 테스트 전송이 도착하지 않았습니다: {det
 "cq_folder_sources_only": "게임 이미지나 디버그 키로 만든 패키지만 폴더로 만들 수 있습니다: {count}개 건너뜀.",
 "fpkg.run.what_folder": "게임 폴더",
 "fs_row_actions": "{name} 작업",
+"helper_stop_button": "헬퍼 중지",
+"helper_stopping": "중지하는 중…",
+"helper_stop_confirm_title": "헬퍼를 중지할까요?",
+"helper_stop_confirm_body": "업로드, 설치, 콘솔 페이지에는 헬퍼가 필요합니다. 필요할 때 여기서 다시 보내세요.",
+"helper_stop_busy": "헬퍼가 사용 중입니다. 이 콘솔의 전송과 설치가 끝난 뒤 중지하세요.",
+"helper_stop_failed": "헬퍼를 중지하지 못했습니다: {error}",
+"helper_stopped_status": "중지됨. 헬퍼를 껐습니다. 다시 보낼 때까지 꺼진 상태로 유지됩니다.",
+"gate_helper_stopped_title": "헬퍼를 중지했습니다",
+"gate_helper_stopped_body": "이 화면에는 헬퍼가 필요합니다. 필요할 때 연결 화면에서 다시 보내세요.",
 };
 
 export default ko;
