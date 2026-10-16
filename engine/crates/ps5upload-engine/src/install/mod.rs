@@ -83,20 +83,31 @@ impl JobStore {
         // Taken before the jobs lock: `begin` locks the slots first, then the jobs.
         let holding: std::collections::HashSet<String> =
             lock(&self.active).values().cloned().collect();
-        let cid = {
+        // Read before the prune, which may drop this very status.
+        let ended = {
             let mut jobs = lock(&self.jobs);
-            let cid = jobs.get(job).map(|st| slot_key(&st.ps5_addr));
+            let ended = jobs.get(job).cloned();
             prune_finished(&mut jobs, KEEP_FINISHED, &holding);
-            cid
+            ended
         };
         lock(&self.cancelled).remove(job);
-        if let Some(cid) = cid {
+        if let Some(st) = ended {
+            let cid = slot_key(&st.ps5_addr);
             let mut active = lock(&self.active);
             // only clear if this job still owns the slot
             if active.get(&cid).map(|j| j.as_str()) == Some(job) {
                 active.remove(&cid);
+                // Once per job: a second finish finds the slot already released.
+                crate::activity::install_ended(&st);
             }
         }
+    }
+
+    /// Statuses of the installs still holding a console's slot.
+    pub fn running(&self) -> Vec<InstallStatus> {
+        let ids: Vec<String> = lock(&self.active).values().cloned().collect();
+        let jobs = lock(&self.jobs);
+        ids.iter().filter_map(|j| jobs.get(j).cloned()).collect()
     }
 
     /// The install task ended without finishing the job (it panicked): a job still
@@ -1936,6 +1947,17 @@ mod tests {
     }
 
     /// Finishing forgets the stop request and keeps only the newest finished statuses.
+    #[test]
+    fn running_lists_only_installs_holding_a_slot() {
+        let jobs = JobStore::new();
+        let a = jobs.begin("10.1.0.1").unwrap();
+        let b = jobs.begin("10.1.0.2").unwrap();
+        jobs.update(&b, |s| s.phase = Phase::Done);
+        jobs.finish(&b);
+        let running: Vec<String> = jobs.running().into_iter().map(|s| s.job).collect();
+        assert_eq!(running, vec![a]);
+    }
+
     #[test]
     fn finish_prunes_old_statuses_and_stop_requests() {
         let jobs = JobStore::new();

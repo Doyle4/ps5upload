@@ -43,6 +43,13 @@ mod mgmt_forward;
 // One-time 6.0 upgrade clean-up of the app's data folder (see the module doc).
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 mod migrate_6;
+// Background watcher: job notifications and, on Android, the transfer service (#457).
+#[cfg(target_os = "android")]
+mod android_bg;
+mod bg_activity;
+// The JavaVM / Application context every Android JNI caller shares.
+#[cfg(target_os = "android")]
+mod android_jni;
 
 /// Build and run the Tauri application. The desktop `main.rs` calls this
 /// directly; on mobile the `tauri::mobile_entry_point` macro generates
@@ -196,6 +203,9 @@ pub fn run() {
                         // something was squatting it.
                         use tauri::Emitter;
                         let _ = handle.emit("ps5upload-engine-ready", &url);
+                        // Watches the engine for running and finished jobs from here on,
+                        // whatever the WebView is doing.
+                        bg_activity::spawn(&handle);
                     }
                     Err(e) => {
                         let message = format!("engine failed to start: {e:#}");
@@ -554,6 +564,12 @@ pub fn run() {
             commands::local_storage_roots,
             commands::storage_access_granted,
             commands::request_storage_access,
+            // ── Background work (#457) ──────────────────────────────
+            // The renderer's queued-work hold, its visibility / language,
+            // and whether the host posts job notifications itself.
+            bg_activity::bg_work_hold,
+            bg_activity::bg_configure,
+            bg_activity::bg_capabilities,
         ])
         .build(tauri::generate_context!())
         .expect("tauri runtime failed to build");

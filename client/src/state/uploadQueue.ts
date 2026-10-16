@@ -60,6 +60,8 @@ import type { UploadStrategy } from "./transfer";
 import { useUploadSettingsStore } from "./uploadSettings";
 import { useRecentHostMetricsStore } from "./recentHostMetrics";
 import { pushNotification } from "./notifications";
+import { sleep } from "../lib/wakeableSleep";
+import { labelEngineJob } from "../lib/bgWork";
 import { withConsolePrefix } from "./roster";
 import { hostOf, mgmtAddr } from "../lib/addr";
 import { log } from "./logs";
@@ -1179,6 +1181,7 @@ export const useUploadQueueStore = create<QueueState>((set, get) => {
     // staleness is harmless — cancelling a finished job is a server no-op).
     runningJobByHost.set(hostOf(item.addr), jobId);
     set((s) => ({ items: patchItem(s.items, item.id, { jobId }) }));
+    labelEngineJob(jobId, "upload", item.displayName);
 
     // Trailing-window samples for the live bytes/sec readout. Closure-
     // scoped so a Stop + restart of the same item resets cleanly: the
@@ -1602,7 +1605,7 @@ export const useUploadQueueStore = create<QueueState>((set, get) => {
           live: jobLiveFromSnapshot(snap),
         }),
       }));
-      await sleep(POLL_INTERVAL_MS);
+      await sleep(POLL_INTERVAL_MS, { poll: true });
     }
     throw new Error("queue stopped");
   };
@@ -2631,6 +2634,3 @@ async function fw12InstallSettle(host: string): Promise<void> {
   if (!ready) await sleep(3000);
 }
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
