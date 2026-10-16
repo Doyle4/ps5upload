@@ -4,6 +4,20 @@ What's new in ps5upload, written for humans.
 
 ---
 
+## 7.0.30
+
+- **Files fits on a phone (#470).** On a narrow screen every file and folder row carried up to
+  nine action buttons, which pushed the name out entirely, even at the smallest text size. Each
+  row now shows its name and size with one ⋮ button that opens the same actions as a menu. The
+  selection bar stays on one line, with its actions in a strip you can scroll sideways. The
+  Recent paths list is solid instead of see-through (on every screen size). The toolbar, drive
+  chips and path bar are tighter, so the list starts higher up. The desktop layout is unchanged.
+- **Stop helper (#471).** Connection has a "Stop helper" button next to Send helper. It turns
+  the helper off on that console and keeps it off: the automatic reconnect leaves the console
+  alone until you send the helper again or start something that needs it. The loader stays up,
+  so sending payloads still works. It is refused while an upload, download or install is
+  running on that console. Measured on a PS5 Pro: the helper exits in under a second.
+
 ## 7.0.29
 
 - **Turn a game image or package back into a folder (#469).** Convert → What to make has a third

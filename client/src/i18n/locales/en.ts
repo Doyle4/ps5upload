@@ -239,7 +239,7 @@ keep_awake_unsupported: "Not supported on this OS yet.",
 
 // Connection screen
 connection_title: "Connect to your PS5",
-connection_description: "Three quick steps before your first upload. You only need to do this once per PS5 boot — the helper stays loaded until the console reboots. After rest mode or a network drop the app reconnects on its own (Settings → Upload → “Reconnect automatically after rest mode / network drops”, on by default).",
+connection_description: "Three quick steps before your first upload. You only need to do this once per PS5 boot — the helper stays loaded until the console reboots. After rest mode or a network drop the app reconnects on its own (Settings → Rest mode → “Reconnect automatically after rest mode / network drops”, on by default).",
 connection_step1_title: "Tell the app where your PS5 is",
 connection_step2_title: "Send the PS5Upload helper to your PS5",
 connection_step3_title: "You're ready to upload",
