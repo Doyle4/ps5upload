@@ -199,10 +199,16 @@ pub const NOT_PAIRED_MESSAGE: &str =
 /// The refusal for a console that has no AVA1 listener (or a helper too old to serve this):
 /// `payload rejected <label>: helper_not_ava1: <message>`. The client keys on the token.
 pub fn helper_not_ava1(label: &str) -> anyhow::Error {
+    helper_not_ava1_because(label, HELPER_NOT_AVA1_MESSAGE)
+}
+
+/// [`helper_not_ava1`] with the message that says what was found (the helper's port closed and
+/// the loader up or not, or a helper too old), so status checks give the same next step as a job.
+pub fn helper_not_ava1_because(label: &str, detail: &str) -> anyhow::Error {
     MgmtError {
         label: label.to_string(),
         status: 0,
-        cause: format!("{HELPER_NOT_AVA1}: {HELPER_NOT_AVA1_MESSAGE}"),
+        cause: format!("{HELPER_NOT_AVA1}: {detail}"),
     }
     .into()
 }

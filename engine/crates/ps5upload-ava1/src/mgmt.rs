@@ -278,7 +278,7 @@ impl AvaTransport {
     pub(crate) fn ensure(&self, console: &str, label: &str) -> Result<()> {
         use crate::console::{require_in, HELPER_NOT_AVA1, NOT_PAIRED};
         require_in(self.pool(), console, gen::CAP_MGMT).map_err(|f| match f.reason.as_str() {
-            HELPER_NOT_AVA1 => mgmt::helper_not_ava1(label),
+            HELPER_NOT_AVA1 => mgmt::helper_not_ava1_because(label, &f.detail),
             NOT_PAIRED => MgmtError {
                 label: label.to_string(),
                 status: gen::ERR_NOT_PAIRED,
