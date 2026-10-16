@@ -5524,9 +5524,83 @@ async fn ps5_status(
                 Some(&console),
                 format!("{e:#}"),
             );
-            json_err(StatusCode::BAD_GATEWAY, format!("{e:#}")).into_response()
+            let power = ps5upload_ava1::console::recent_power(&console);
+            (
+                StatusCode::BAD_GATEWAY,
+                Json(status_failure_body(&e, power)),
+            )
+                .into_response()
         }
         Err(e) => json_err(StatusCode::INTERNAL_SERVER_ERROR, format!("{e:#}")).into_response(),
+    }
+}
+
+/// The 502 body of a failed status probe: `{ error, reason?, power? }`. `reason` is the token
+/// the error leads with (`console_rest_mode`, `ava1_unreachable`, `helper_not_ava1`,
+/// `not_paired`, ...); `power` is what DDP said (`awake` / `rest` / `unreachable`) when the
+/// engine asked it, and absent otherwise.
+fn status_failure_body(
+    e: &anyhow::Error,
+    power: Option<ps5upload_core::ddp::Power>,
+) -> serde_json::Value {
+    let reason = ps5upload_core::mgmt::error_token(e);
+    let power = power.or_else(|| {
+        (reason.as_deref() == Some(ps5upload_core::mgmt::CONSOLE_REST_MODE))
+            .then_some(ps5upload_core::ddp::Power::Rest)
+    });
+    let mut body = serde_json::json!({ "error": format!("{e:#}") });
+    if let Some(r) = reason {
+        body["reason"] = r.into();
+    }
+    if let Some(p) = power {
+        body["power"] = p.as_str().into();
+    }
+    body
+}
+
+#[cfg(test)]
+mod status_failure_body_tests {
+    use super::status_failure_body;
+    use ps5upload_core::ddp::Power;
+    use ps5upload_core::mgmt;
+
+    #[test]
+    fn a_console_in_rest_mode_carries_its_reason_and_power() {
+        let e = mgmt::console_unusable(
+            "NODE_STATUS",
+            mgmt::CONSOLE_REST_MODE,
+            mgmt::CONSOLE_REST_MODE_MESSAGE,
+        );
+        let b = status_failure_body(&e, Some(Power::Rest));
+        assert_eq!(b["reason"], "console_rest_mode");
+        assert_eq!(b["power"], "rest");
+        assert!(b["error"]
+            .as_str()
+            .unwrap()
+            .contains("The PS5 is in rest mode"));
+        // Named by its reason even when the verdict is no longer cached.
+        assert_eq!(status_failure_body(&e, None)["power"], "rest");
+    }
+
+    #[test]
+    fn unreachable_and_helper_down_keep_their_tokens() {
+        let e = mgmt::console_unusable(
+            "NODE_STATUS",
+            mgmt::AVA1_UNREACHABLE,
+            mgmt::CONSOLE_NOT_ANSWERING_MESSAGE,
+        );
+        let b = status_failure_body(&e, Some(Power::Unreachable));
+        assert_eq!(b["reason"], "ava1_unreachable");
+        assert_eq!(b["power"], "unreachable");
+        let b = status_failure_body(&mgmt::helper_not_ava1("NODE_STATUS"), Some(Power::Awake));
+        assert_eq!(b["reason"], "helper_not_ava1");
+        assert_eq!(b["power"], "awake");
+        // Not probed: no power at all, never a guess.
+        let b = status_failure_body(&mgmt::helper_not_ava1("NODE_STATUS"), None);
+        assert!(b.get("power").is_none(), "{b}");
+        let b = status_failure_body(&anyhow::anyhow!("timed out"), None);
+        assert!(b.get("reason").is_none(), "{b}");
+        assert_eq!(b["error"], "timed out");
     }
 }
 

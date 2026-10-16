@@ -195,6 +195,47 @@ pub const NOT_PAIRED: &str = "not_paired";
 /// The text that goes with [`NOT_PAIRED`].
 pub const NOT_PAIRED_MESSAGE: &str =
     "This PS5 has not accepted this app yet. Pair it from the Connection screen.";
+/// `error_reason` / error token for a console in rest mode: its ports refuse, and DDP answers
+/// `620 Server Standby`. Not a fault: waking it brings the loader back.
+pub const CONSOLE_REST_MODE: &str = "console_rest_mode";
+/// The text that goes with [`CONSOLE_REST_MODE`].
+pub const CONSOLE_REST_MODE_MESSAGE: &str =
+    "The PS5 is in rest mode. Wake it, and the helper can be sent again.";
+/// `error_reason` / error token for a console that did not answer at all (or another network
+/// failure on the way to it).
+pub const AVA1_UNREACHABLE: &str = "ava1_unreachable";
+/// The text that goes with [`AVA1_UNREACHABLE`] when nothing answered, DDP included.
+pub const CONSOLE_NOT_ANSWERING_MESSAGE: &str = "The PS5 isn't answering: it's off, on another network, or in rest mode with its network features off.";
+
+/// A management call refused before it was sent, because the console cannot be used:
+/// `payload rejected <label>: <token>: <message>`, status 0. The client keys on the token.
+pub fn console_unusable(label: &str, token: &str, detail: &str) -> anyhow::Error {
+    MgmtError {
+        label: label.to_string(),
+        status: 0,
+        cause: format!("{token}: {detail}"),
+    }
+    .into()
+}
+
+/// The token an error carries, for a route's `reason`: a [`MgmtError`]'s leading
+/// `<token>: ` (or a cause that is a bare token), or `<token>: ` at the start of a plain
+/// error's text. `None` when there is no token to name.
+pub fn error_token(e: &anyhow::Error) -> Option<String> {
+    fn token_of(text: &str) -> Option<String> {
+        let head = text.split_once(": ").map_or(text, |(h, _)| h).trim();
+        let ok = !head.is_empty()
+            && head.contains('_')
+            && head
+                .bytes()
+                .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'_');
+        ok.then(|| head.to_string())
+    }
+    match e.downcast_ref::<MgmtError>() {
+        Some(m) => token_of(&m.cause),
+        None => token_of(&e.to_string()),
+    }
+}
 
 /// The refusal for a console that has no AVA1 listener (or a helper too old to serve this):
 /// `payload rejected <label>: helper_not_ava1: <message>`. The client keys on the token.
@@ -205,12 +246,7 @@ pub fn helper_not_ava1(label: &str) -> anyhow::Error {
 /// [`helper_not_ava1`] with the message that says what was found (the helper's port closed and
 /// the loader up or not, or a helper too old), so status checks give the same next step as a job.
 pub fn helper_not_ava1_because(label: &str, detail: &str) -> anyhow::Error {
-    MgmtError {
-        label: label.to_string(),
-        status: 0,
-        cause: format!("{HELPER_NOT_AVA1}: {detail}"),
-    }
-    .into()
+    console_unusable(label, HELPER_NOT_AVA1, detail)
 }
 
 /// The default per-call deadline.
@@ -569,6 +605,37 @@ mod tests {
             );
         }
         assert!(m::ALL.len() >= 95);
+    }
+
+    #[test]
+    fn a_routes_reason_is_the_token_the_error_leads_with() {
+        let rest = console_unusable("NODE_STATUS", CONSOLE_REST_MODE, CONSOLE_REST_MODE_MESSAGE);
+        assert_eq!(error_token(&rest).as_deref(), Some("console_rest_mode"));
+        assert_eq!(
+            rest.to_string(),
+            "payload rejected NODE_STATUS: console_rest_mode: The PS5 is in rest mode. Wake it, and the helper can be sent again."
+        );
+        assert_eq!(
+            error_token(&helper_not_ava1("X")).as_deref(),
+            Some("helper_not_ava1")
+        );
+        let not_paired: anyhow::Error = MgmtError {
+            label: "X".into(),
+            status: 3,
+            cause: NOT_PAIRED.into(),
+        }
+        .into();
+        assert_eq!(error_token(&not_paired).as_deref(), Some("not_paired"));
+        assert_eq!(
+            error_token(&anyhow::anyhow!("ava1_unreachable: gone")).as_deref(),
+            Some("ava1_unreachable")
+        );
+        // Prose is not a token.
+        assert_eq!(
+            error_token(&anyhow::anyhow!("management call X failed: boom")),
+            None
+        );
+        assert_eq!(error_token(&anyhow::anyhow!("timeout")), None);
     }
 
     /// A process that registered no transport (a tool that forgot `install()`) gets the same

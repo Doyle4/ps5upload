@@ -119,6 +119,75 @@ pub fn probe(host: &str, timeout: Duration) -> Result<DdpStatus> {
     parse_reply(&String::from_utf8_lossy(&buf[..n]))
 }
 
+/// The DDP code of a console in rest mode (`HTTP/1.1 620 Server Standby`).
+pub const CODE_STANDBY: u16 = 620;
+/// The DDP code of an awake console (`HTTP/1.1 200 Ok`).
+pub const CODE_AWAKE: u16 = 200;
+
+/// Where a console stands, power-wise, as the engine reports it (`power` in a status failure).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Power {
+    /// DDP answered 200.
+    Awake,
+    /// DDP answered 620: rest mode with its network features on.
+    Rest,
+    /// Nothing answered, neither DDP nor TCP: off, on another network, or in rest mode with
+    /// its network features off (the three look the same from here).
+    Unreachable,
+}
+
+impl Power {
+    /// The wire spelling: `"awake"`, `"rest"`, `"unreachable"`.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Power::Awake => "awake",
+            Power::Rest => "rest",
+            Power::Unreachable => "unreachable",
+        }
+    }
+}
+
+/// The budget of [`standby_probe`] on a failure path: short, because it only runs after a
+/// connection already failed, and a sleeping console must not slow the answer much.
+pub const STANDBY_PROBE_BUDGET: Duration = Duration::from_millis(800);
+/// How many SRCH datagrams [`standby_probe`] sends within its budget (UDP can drop one).
+pub const STANDBY_PROBE_SENDS: u32 = 2;
+
+/// Asks a console for its DDP status with `sends` SRCH datagrams spread over `budget`.
+/// `Some(code)` is the first reply's code (200 awake, 620 rest mode); `None` is no reply at
+/// all, or a host that does not resolve. Never an error: callers use it only to explain a
+/// failure they already have. Blocking.
+pub fn standby_probe(host: &str, budget: Duration, sends: u32) -> Option<u16> {
+    let addr = resolve(host, DDP_PORT).ok()?;
+    let socket = UdpSocket::bind("0.0.0.0:0").ok()?;
+    let pkt = format!("SRCH * HTTP/1.1\ndevice-discovery-protocol-version:{DDP_VERSION}\n\0");
+    let sends = sends.max(1);
+    let slice = (budget / sends).max(Duration::from_millis(1));
+    let mut buf = [0u8; 4096];
+    for _ in 0..sends {
+        socket.send_to(pkt.as_bytes(), addr).ok()?;
+        let until = std::time::Instant::now() + slice;
+        loop {
+            let left = until.saturating_duration_since(std::time::Instant::now());
+            if left.is_zero() || socket.set_read_timeout(Some(left)).is_err() {
+                break;
+            }
+            match socket.recv_from(&mut buf) {
+                // Only the console's own reply counts, not a stray datagram on the port.
+                Ok((n, from)) if from.ip() == addr.ip() => {
+                    if let Ok(s) = parse_reply(&String::from_utf8_lossy(&buf[..n])) {
+                        return Some(s.code);
+                    }
+                }
+                Ok(_) => {}
+                Err(_) => break,
+            }
+        }
+    }
+    None
+}
+
 /// Wake a console in standby.
 ///
 /// `credential` is the `user-credential` from the PS Remote Play app's own

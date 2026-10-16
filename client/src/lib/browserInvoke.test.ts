@@ -1,6 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { browserInvoke, BrowserUnsupportedError, parseSseBlock, timeSyncBody } from "./browserInvoke";
+import {
+  browserInvoke,
+  BrowserUnsupportedError,
+  parseSseBlock,
+  statusFailureFields,
+  timeSyncBody,
+} from "./browserInvoke";
 
 vi.mock("../state/engine", () => ({
   getEngineUrl: () => "http://engine.test:19113",
@@ -386,5 +392,68 @@ describe("streaming archive inspect over SSE", () => {
       { event: "progress", data: "a\nb" },
     );
     expect(parseSseBlock(": just a comment")).toBeNull();
+  });
+});
+
+/**
+ * `payload_check` is the status probe the poller reads rest mode from: the engine's 502 body
+ * `{ error, reason, power }` must reach the caller the same way probes.rs passes it through.
+ */
+describe("payload_check passes the status failure's reason and power through", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  function stubStatus(status: number, body: string) {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        ok: status >= 200 && status < 300,
+        status,
+        text: async () => body,
+        json: async () => JSON.parse(body) as unknown,
+      })) as unknown as typeof fetch,
+    );
+  }
+
+  it("parses reason and power from a rest-mode reply", async () => {
+    const body = JSON.stringify({
+      error: "payload rejected NODE_STATUS: console_rest_mode: The PS5 is in rest mode.",
+      reason: "console_rest_mode",
+      power: "rest",
+    });
+    stubStatus(502, body);
+    const res = await browserInvoke<Record<string, unknown>>("payload_check", {
+      ip: "10.0.0.2",
+    });
+    expect(res).toEqual({
+      ok: false,
+      reachable: false,
+      engine: true,
+      error: body,
+      reason: "console_rest_mode",
+      power: "rest",
+    });
+  });
+
+  it("leaves both out for an older engine's body or a non-JSON one", async () => {
+    stubStatus(502, JSON.stringify({ error: "helper_not_ava1: gone" }));
+    const a = await browserInvoke<Record<string, unknown>>("payload_check", {
+      ip: "10.0.0.2",
+    });
+    expect("reason" in a || "power" in a).toBe(false);
+    stubStatus(502, "Bad Gateway");
+    const b = await browserInvoke<Record<string, unknown>>("payload_check", {
+      ip: "10.0.0.2",
+    });
+    expect(b["error"]).toBe("Bad Gateway");
+    expect("reason" in b || "power" in b).toBe(false);
+  });
+
+  it("statusFailureFields keeps only string fields", () => {
+    expect(
+      statusFailureFields('{"reason":"ava1_unreachable","power":"unreachable"}'),
+    ).toEqual({ reason: "ava1_unreachable", power: "unreachable" });
+    expect(statusFailureFields('{"reason":5,"power":null}')).toEqual({});
+    expect(statusFailureFields("null")).toEqual({});
+    expect(statusFailureFields("")).toEqual({});
   });
 });

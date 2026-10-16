@@ -75,6 +75,29 @@ export function timeSyncBody(
   return body;
 }
 
+/**
+ * `reason` and `power` from a failed status probe's body (`{ error, reason, power }`), the
+ * fields probes.rs passes through for `payload_check`. Only string values; nothing for an
+ * older engine or a body that is not JSON.
+ */
+export function statusFailureFields(body: string): {
+  reason?: string;
+  power?: string;
+} {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(body);
+  } catch {
+    return {};
+  }
+  if (typeof parsed !== "object" || parsed === null) return {};
+  const o = parsed as Record<string, unknown>;
+  const out: { reason?: string; power?: string } = {};
+  if (typeof o["reason"] === "string") out.reason = o["reason"];
+  if (typeof o["power"] === "string") out.power = o["power"];
+  return out;
+}
+
 /** Build a path + optional `?addr=` query, matching the Rust `addr_url()`. */
 function addrUrl(path: string, addr?: string | null): string {
   return addr && addr.length > 0 ? `${path}?addr=${uenc(addr)}` : path;
@@ -972,6 +995,8 @@ export async function browserInvoke<T>(
           reachable: false,
           engine: true,
           error: body.trim() || `engine HTTP ${r.status}`,
+          // The engine's `{ error, reason, power }`: passed through like probes.rs does.
+          ...statusFailureFields(body),
         } as unknown as T;
       } catch (e) {
         return {
