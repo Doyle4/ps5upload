@@ -39,6 +39,7 @@ import { engineApi } from "../api/engine";
 import { fetchHwPower, payloadCheck, portCheck, procListGet } from "../api/ps5";
 import { sessionNeedsAttention } from "../lib/consoleSession";
 import { installActivityWiring } from "../state/activityWiring";
+import { installBgWork } from "../lib/bgWork";
 import { installTaskWiring } from "../state/taskWiring";
 import {
   ensureRosterMigrated,
@@ -1369,6 +1370,9 @@ export default function AppShell() {
   // call on every render because installActivityWiring is idempotent.
   useEffect(() => {
     installActivityWiring();
+    // The host's background watcher: job names, page visibility, notification
+    // texts, and its wake-ups for the queue (#457). Idempotent; no-op in a browser.
+    installBgWork();
     // Subscribe-once: wires the same per-feature stores into the
     // unified Task store (v5 §10). Idempotent — safe to call repeatedly.
     installTaskWiring();

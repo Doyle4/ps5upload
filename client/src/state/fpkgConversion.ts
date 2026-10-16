@@ -252,6 +252,8 @@ function fail(stage: PipelineStage, message: string, packagePath: string | null)
   // An install-stage failure links to the install-route matrix entry for its
   // error; a build failure has no such page, so it goes back to Convert.
   pushNotification("error", `${what} failed`, {
+    // The install stage's failure is an engine job's ending, which the host announces.
+    jobOutcome: stage === "install",
     body: message,
     link: stage === "install" ? installErrorLink(message) : "/convert",
   });
@@ -374,7 +376,11 @@ async function runInstall(packagePath: string, host: string | null, method: Inst
     const cur = running()!;
     const convertMs = cur.mode === "install" ? 0 : startedMs - cur.startedMs;
     installDone(packagePath, convertMs, Date.now() - startedMs);
-    pushNotification("success", "Installed on the PS5", { body: packagePath, link: "/convert" });
+    pushNotification("success", "Installed on the PS5", {
+      body: packagePath,
+      link: "/convert",
+      jobOutcome: true,
+    });
   } else {
     fail("install", r.message ?? "The install did not finish.", packagePath);
   }

@@ -200,6 +200,7 @@ import {
   withConsolePrefix,
 } from "../../state/roster";
 import { useStaleHostGuard } from "../../lib/staleHostGuard";
+import { labelEngineJob } from "../../lib/bgWork";
 
 function parent(p: string): string {
   if (p === "/" || p === "") return "/";
@@ -802,14 +803,15 @@ export default function FileSystemScreen() {
                   undefined,
                   "The install registered, but the title may not launch. Check it on the Games screen.",
                 ),
+                jobOutcome: true,
               }
-            : undefined,
+            : { jobOutcome: true },
         );
       } else {
         pushNotification(
           "error",
           tr("fs_install_failed", { name: entry.name }, `Install failed`),
-          { body: r.message },
+          { body: r.message, jobOutcome: true },
         );
       }
     } finally {
@@ -2129,6 +2131,7 @@ export default function FileSystemScreen() {
       fsDownload.end(friendly);
       return;
     }
+    labelEngineJob(jobId, "download", rootName);
     const myRunId = fsDownload.begin({
       jobId,
       rootName,
@@ -2153,7 +2156,7 @@ export default function FileSystemScreen() {
           host,
           tr("notif_fs_download_failed", undefined, "Download failed"),
         ),
-        { body: friendly },
+        { body: friendly, jobOutcome: true },
       );
       fsDownload.end(friendly);
     };
