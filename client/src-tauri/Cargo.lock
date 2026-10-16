@@ -4191,6 +4191,7 @@ dependencies = [
  "crc32fast",
  "flate2",
  "ps5upload-core",
+ "serde",
  "serde_json",
  "sevenz-rust2",
  "thiserror 2.0.21",

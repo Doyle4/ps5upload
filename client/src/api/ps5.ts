@@ -4285,6 +4285,22 @@ export function humanizeJobErrorReason(
         "joberr.ava1_busy",
         "The PS5 helper is busy and did not accept this transfer in time. Wait for its other work to finish, then click Retry.",
       );
+    // Console to console (#444).
+    case "ava1_taken_over":
+      return trStatic(
+        "joberr.ava1_taken_over",
+        "Another device took over this send; it continues there.",
+      );
+    case "ava1_shared_jobs_unsupported":
+      return trStatic(
+        "joberr.ava1_shared_jobs_unsupported",
+        "Another device is still running this send. Taking it over (or watching it) while it runs needs the newer helper on both consoles: update them, or pause the send on that device first.",
+      );
+    case "ava1_cannot_watch":
+      return trStatic(
+        "joberr.ava1_cannot_watch",
+        "This send goes through the other device, so it can be taken over but not watched.",
+      );
     case "ava1_unreachable":
       return trStatic(
         "joberr.ava1_unreachable",

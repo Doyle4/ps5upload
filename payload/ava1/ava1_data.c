@@ -1392,7 +1392,11 @@ int ava1_data_rpc(uint16_t method, const uint8_t *body, uint32_t len, uint8_t *o
         int st = AVA1_STATUS_OK;
         if (ava1_job_ref_decode(body, len, &r) != 0) return AVA1_ERR_PROTOCOL;
         if (!(j = ava1_job_find(r.job_id))) return AVA1_ERR_UNKNOWN_JOB;
-        if (memcmp(j->owner, peer, 32) != 0 && !(j->c2c && memcmp(j->c2c_by, peer, 32) == 0)) {
+        /* A transfer (an upload, a download, a send to another console) answers any paired device,
+         * so another one can watch or take it over (#444, CAP_SHARED_JOBS); an operation or a local
+         * copy only its owner. Only a fully paired session reaches an RPC. */
+        if (memcmp(j->owner, peer, 32) != 0 && !(j->c2c && memcmp(j->c2c_by, peer, 32) == 0) &&
+            j->kind != AVA1_JOB_UPLOAD && j->kind != AVA1_JOB_DOWNLOAD) {
             ava1_job_put(j);
             return AVA1_ERR_UNKNOWN_JOB;
         }

@@ -21,6 +21,7 @@ pub const ERR_INTERNAL: u16 = 7;
 pub const ERR_BUSY: u16 = 8;
 pub const CAP_DATA_PLANE: u64 = 1;
 pub const CAP_MGMT: u64 = 2;
+pub const CAP_SHARED_JOBS: u64 = 4;
 pub const METHOD_JOB_COPY: u16 = 16;
 pub const METHOD_JOB_STATUS: u16 = 17;
 pub const METHOD_JOB_CANCEL: u16 = 18;

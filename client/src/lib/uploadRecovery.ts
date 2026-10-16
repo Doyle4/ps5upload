@@ -89,6 +89,11 @@ const AVA1_FATAL_REASON_PREFIXES = [
   "ava1_zip_",
   "rar_password_required",
   "rar_password_wrong",
+  // Console to console (#444): another device drives the send now (retrying here would take
+  // it back), or adopting it needs newer helpers / a send that runs direct.
+  "ava1_taken_over",
+  "ava1_shared_jobs_unsupported",
+  "ava1_cannot_watch",
 ] as const;
 
 /** Local (no payload `reason`) error-message substrings that are FATAL. These

@@ -463,6 +463,11 @@ impl Pool {
         }
     }
 
+    /// This engine's public key (the owner of the jobs it starts), when it has an identity.
+    pub fn identity_key(&self) -> Option<[u8; 32]> {
+        self.me.as_ref().ok().map(|me| me.public())
+    }
+
     /// How many consoles have accepted this engine (its paired peers).
     pub fn paired_count(&self) -> usize {
         self.peers

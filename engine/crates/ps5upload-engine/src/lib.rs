@@ -35,6 +35,7 @@ mod activity;
 mod ampr_trace;
 mod ava1_api;
 mod bundled_payload;
+mod c2c_api;
 mod collection;
 mod collection_api;
 mod collection_tidy_api;
@@ -1698,12 +1699,21 @@ struct Ps5ToPs5Req {
     /// (ps5-tailscale), or a NAT the consoles see differently from this computer.
     #[serde(default)]
     direct_addr: Option<String>,
+    /// #444, a send another device started (its `tx_id`): `take` ends both consoles' halves and
+    /// sends again here, resuming from the receiving console's journal; `watch` follows a direct
+    /// send still running between the consoles and drives it from here on.
+    #[serde(default)]
+    adopt: Option<String>,
 }
 
 async fn ps5_to_ps5_handler(
     State(state): State<AppState>,
     Json(req): Json<Ps5ToPs5Req>,
 ) -> impl IntoResponse {
+    let adopt = match c2c_api::parse_adopt(req.adopt.as_deref(), req.tx_id.is_some()) {
+        Ok(a) => a,
+        Err(e) => return json_err(StatusCode::BAD_REQUEST, e).into_response(),
+    };
     let tx_id = match parse_or_random_tx_id(req.tx_id.as_deref()) {
         Ok(id) => id,
         Err(e) => return json_err(StatusCode::BAD_REQUEST, e.to_string()).into_response(),
@@ -1728,7 +1738,12 @@ async fn ps5_to_ps5_handler(
                 .into_response();
             }
         }
-        ps5upload_ava1::c2c::RouteOptions { mode, dial }
+        ps5upload_ava1::c2c::RouteOptions {
+            mode,
+            dial,
+            attach: adopt.as_deref() == Some("watch"),
+            lease: None,
+        }
     };
     let relay_cap = {
         let mut cfg = make_transfer_config(&req.to);
@@ -1810,6 +1825,19 @@ async fn ps5_to_ps5_handler(
             tokio::time::sleep(std::time::Duration::from_millis(200)).await;
         }
     });
+    // What the shared record says about the send while it runs (#444).
+    let record_snapshot: ps5upload_ava1::c2c_record::Snapshot = {
+        let (notes, progress) = (route_notes.clone(), progress.clone());
+        Arc::new(move |r: &mut ps5upload_ava1::c2c_record::SendRecord| {
+            r.live_route = match notes.route.load(Ordering::Relaxed) {
+                ps5upload_core::transfer::LIVE_ROUTE_DIRECT => Some("direct".into()),
+                ps5upload_core::transfer::LIVE_ROUTE_RELAY => Some("relay".into()),
+                _ => None,
+            };
+            r.bytes_done = progress.bytes_sent.load(Ordering::Relaxed);
+            r.bytes_total = progress.bytes_total.load(Ordering::Relaxed);
+        })
+    };
     tokio::task::spawn_blocking(move || {
         let _stop_guard = TickerStopGuard::new(stop_ticker.clone());
         let mut fail_guard =
@@ -1822,33 +1850,41 @@ async fn ps5_to_ps5_handler(
             Err(f) => Err(anyhow::Error::from(f)),
             // #433: straight between the consoles when they reach each other, else through
             // this computer; the route (and why) shows on the job while it runs and after.
-            Ok(()) => ps5upload_ava1::c2c::ps5_to_ps5_routed(
-                &req.from,
-                &req.src,
-                &req.to,
-                &req.dest,
-                tx_id,
-                progress.clone(),
-                cancel,
-                relay_cap,
-                &route_options,
-                |route| match route {
-                    ps5upload_ava1::c2c::Route::Direct => route_notes.route.store(
-                        ps5upload_core::transfer::LIVE_ROUTE_DIRECT,
-                        Ordering::Relaxed,
-                    ),
-                    ps5upload_ava1::c2c::Route::Relay { reason } => {
-                        *route_notes
-                            .route_reason
-                            .lock()
-                            .unwrap_or_else(|e| e.into_inner()) = Some(reason.clone());
-                        route_notes.route.store(
-                            ps5upload_core::transfer::LIVE_ROUTE_RELAY,
-                            Ordering::Relaxed,
-                        );
-                    }
-                },
-            ),
+            // #444: inside the shared record another device finds, watches or takes over.
+            Ok(()) => {
+                c2c_api::with_record(&req, tx_id, adopt.as_deref(), record_snapshot, |lease| {
+                    ps5upload_ava1::c2c::ps5_to_ps5_routed(
+                        &req.from,
+                        &req.src,
+                        &req.to,
+                        &req.dest,
+                        tx_id,
+                        progress.clone(),
+                        cancel,
+                        relay_cap,
+                        &ps5upload_ava1::c2c::RouteOptions {
+                            lease,
+                            ..route_options.clone()
+                        },
+                        |route| match route {
+                            ps5upload_ava1::c2c::Route::Direct => route_notes.route.store(
+                                ps5upload_core::transfer::LIVE_ROUTE_DIRECT,
+                                Ordering::Relaxed,
+                            ),
+                            ps5upload_ava1::c2c::Route::Relay { reason } => {
+                                *route_notes
+                                    .route_reason
+                                    .lock()
+                                    .unwrap_or_else(|e| e.into_inner()) = Some(reason.clone());
+                                route_notes.route.store(
+                                    ps5upload_core::transfer::LIVE_ROUTE_RELAY,
+                                    Ordering::Relaxed,
+                                );
+                            }
+                        },
+                    )
+                })
+            }
         };
         let completed_at_ms = now_ms();
         let state = match result {
@@ -10450,6 +10486,11 @@ async fn run(cfg: EngineConfig) -> anyhow::Result<()> {
         .route("/api/transfer/dir", post(transfer_dir_handler))
         .route("/api/transfer/zip", post(transfer_zip_handler))
         .route("/api/transfer/ps5-to-ps5", post(ps5_to_ps5_handler))
+        .route(
+            "/api/transfer/ps5-to-ps5/remote",
+            get(c2c_api::remote_handler),
+        )
+        .route("/api/transfer/ps5-to-ps5/test", post(c2c_api::test_handler))
         .route("/api/local/path-kind", get(local_path_kind_handler))
         .route(
             "/api/local/inspect-folder",
