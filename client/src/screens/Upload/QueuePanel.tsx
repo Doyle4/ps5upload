@@ -16,6 +16,7 @@ import {
   Ban,
   Info,
   UploadCloud,
+  Moon,
 } from "lucide-react";
 
 import {
@@ -1033,7 +1034,27 @@ export function QueueRow({
         </div>
       )}
 
-      {isPending && item.interrupted && (
+      {isPending && item.waitingForWake && (
+        <div
+          data-testid="queue-waiting-for-wake"
+          className="mt-2 flex items-center gap-2 rounded-[var(--radius-field)] bg-[var(--color-accent-soft)] px-2 py-1.5 text-xs text-[var(--color-text)]"
+        >
+          <Moon size={12} className="shrink-0 text-[var(--color-accent-bright)]" aria-hidden />
+          <span className="min-w-0 flex-1">
+            <span className="font-medium">
+              {tr("queue_waiting_for_wake", undefined, "Waiting for the PS5 to wake")}
+            </span>
+            {" · "}
+            {tr(
+              "queue_waiting_for_wake_body",
+              undefined,
+              "The PS5 is in rest mode. This upload carries on by itself once the helper is back.",
+            )}
+          </span>
+        </div>
+      )}
+
+      {isPending && item.interrupted && !item.waitingForWake && (
         <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-[var(--color-muted)]">
           <span className="min-w-0 flex-1">
             {tr(

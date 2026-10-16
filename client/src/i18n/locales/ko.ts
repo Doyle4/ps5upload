@@ -4029,6 +4029,22 @@ c2c_test_deep_bad: "4 KiB 테스트 전송이 도착하지 않았습니다: {det
 "helper_stopped_status": "중지됨. 헬퍼를 껐습니다. 다시 보낼 때까지 꺼진 상태로 유지됩니다.",
 "gate_helper_stopped_title": "헬퍼를 중지했습니다",
 "gate_helper_stopped_body": "이 화면에는 헬퍼가 필요합니다. 필요할 때 연결 화면에서 다시 보내세요.",
+"joberr.console_rest_mode": "PS5가 휴식 모드입니다. 깨우면 전송이 멈춘 곳부터 이어집니다.",
+"queue_waiting_for_wake": "PS5가 깨어나기를 기다리는 중",
+"queue_waiting_for_wake_body": "PS5가 휴식 모드입니다. 헬퍼가 돌아오면 이 업로드는 저절로 이어집니다.",
+"status_ps5_rest_mode": "휴식 모드",
+"status_ps5_not_answering": "응답 없음",
+"gate_not_answering_title": "PS5가 응답하지 않습니다",
+"gate_not_answering_body": "꺼져 있거나, 다른 네트워크에 있거나, 네트워크 기능이 꺼진 채 휴식 모드입니다. 휴식 중에도 연결하려면 {path}에서 켜세요.",
+"gate_rest_title": "PS5가 휴식 모드입니다",
+"gate_rest_body_auto": "컨트롤러나 아래의 '켜기'로 깨우세요. 깨어나면 헬퍼가 저절로 돌아옵니다.",
+"gate_rest_body_manual": "컨트롤러나 아래의 '켜기'로 깨운 다음 헬퍼를 보내세요.",
+"gate_rest_body_auto_nowake": "컨트롤러로 깨우세요. 깨어나면 헬퍼가 저절로 돌아옵니다.",
+"gate_rest_body_manual_nowake": "컨트롤러로 깨운 다음 헬퍼를 보내세요.",
+"v5_home_rest_mode": "휴식 모드",
+"connection_rest_mode": "PS5가 휴식 모드입니다. 깨운 다음 다시 확인하세요.",
+"connection_payload_rest_mode": "PS5가 휴식 모드로 들어갔습니다. 깨우면 헬퍼가 돌아옵니다.",
+"upload_rest_detail": "업로드는 깨어나기를 기다렸다가 헬퍼가 돌아오면 저절로 이어집니다.",
 };
 
 export default ko;

@@ -13,6 +13,13 @@ import {
   type FsUploadDeps,
 } from "./fsUpload";
 import { useUploadSettingsStore } from "./uploadSettings";
+import { useConnectionStore } from "./connection";
+import { hostOf } from "../lib/addr";
+import { isRestModeReason } from "../lib/consolePower";
+
+/** Whether the poller last saw this console in rest mode. */
+const consoleAsleep = (host: string) =>
+  useConnectionStore.getState().runtimeByHost[hostOf(host) || "_"]?.power === "rest";
 
 /** Whether a failure is one the app may try again unasked: the user's auto-resume setting,
  *  and the same policy the upload queue uses (a dropped connection yes, a full drive no). */
@@ -32,7 +39,10 @@ export const fsUploadDeps: FsUploadDeps = {
   jobStatus: (id) => jobStatus(id),
   jobCancel,
   sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
-  shouldRetry: mayRetry,
+  // In rest mode a retry cannot land: stop now, and the wake resumes it
+  // (resumeStoppedFsUploadOnWake) without the retries spent on a sleeping console.
+  shouldRetry: (reason, error, host) =>
+    !isRestModeReason(reason) && !consoleAsleep(host) && mayRetry(reason, error),
 };
 
 /** The console answers again after an outage: carry on with a Files upload that the outage

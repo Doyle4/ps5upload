@@ -4031,6 +4031,22 @@ c2c_test_deep_bad: "4 KiB のテスト送信が届きませんでした: {detail
 "helper_stopped_status": "停止中。ヘルパーをオフにしました。再送するまでオフのままです。",
 "gate_helper_stopped_title": "ヘルパーを停止しました",
 "gate_helper_stopped_body": "この画面にはヘルパーが必要です。必要なときに接続画面から再送してください。",
+"joberr.console_rest_mode": "PS5はレストモード中です。起動すると、転送は止まったところから続きます。",
+"queue_waiting_for_wake": "PS5の起動を待っています",
+"queue_waiting_for_wake_body": "PS5はレストモード中です。ヘルパーが戻ると、このアップロードは自動で続きます。",
+"status_ps5_rest_mode": "レストモード中",
+"status_ps5_not_answering": "応答なし",
+"gate_not_answering_title": "PS5が応答しません",
+"gate_not_answering_body": "電源が切れているか、別のネットワークにあるか、ネットワーク機能をオフにしたままレストモードに入っています。レストモード中も接続できるようにするには、{path} でオンにしてください。",
+"gate_rest_title": "PS5はレストモード中です",
+"gate_rest_body_auto": "コントローラーか下の「起動」で起動してください。起動すればヘルパーは自動で戻ります。",
+"gate_rest_body_manual": "コントローラーか下の「起動」で起動してから、ヘルパーを送信してください。",
+"gate_rest_body_auto_nowake": "コントローラーで起動してください。起動すればヘルパーは自動で戻ります。",
+"gate_rest_body_manual_nowake": "コントローラーで起動してから、ヘルパーを送信してください。",
+"v5_home_rest_mode": "レストモード中",
+"connection_rest_mode": "PS5はレストモード中です。起動してから、もう一度確認してください。",
+"connection_payload_rest_mode": "PS5がレストモードに入りました。起動するとヘルパーが戻ります。",
+"upload_rest_detail": "アップロードは起動を待ち、ヘルパーが戻ると自動で続きます。",
 };
 
 export default ja;

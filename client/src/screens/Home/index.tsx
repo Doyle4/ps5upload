@@ -55,6 +55,7 @@ export default function HomeScreen() {
   const tr = useTr();
   const host = useConnectionStore((s) => s.host);
   const payloadStatus = useConnectionStore((s) => s.payloadStatus);
+  const consolePower = useConnectionStore((s) => s.power);
   const engineStatus = useConnectionStore((s) => s.engineStatus);
   const payloadVersion = useConnectionStore((s) => s.payloadVersion);
   const ps5Kernel = useConnectionStore((s) => s.ps5Kernel);
@@ -89,6 +90,9 @@ export default function HomeScreen() {
   );
 
   const connected = engineStatus === "up" && payloadStatus === "up";
+  // Asleep is not "setup required": nothing needs setting up, the console only needs a wake.
+  const resting =
+    !connected && engineStatus === "up" && payloadStatus === "down" && consolePower === "rest";
   const readinessContext = {
     host,
     engineUp: engineStatus === "up",
@@ -133,10 +137,12 @@ export default function HomeScreen() {
             window, under the title on a phone. */}
         <div className="flex flex-col items-start gap-2 sm:items-end">
           <span data-testid="home-connection-badge">
-            <Badge tone={connected ? "good" : "warn"} size="md" dot>
+            <Badge tone={connected ? "good" : resting ? "accent" : "warn"} size="md" dot>
               {connected
                 ? tr("v5_home_connected", "Connected")
-                : tr("v5_home_setup_required", "Setup required")}
+                : resting
+                  ? tr("v5_home_rest_mode", "In rest mode")
+                  : tr("v5_home_setup_required", "Setup required")}
             </Badge>
           </span>
           <button
@@ -378,8 +384,14 @@ export default function HomeScreen() {
               />
               <MetricRow
                 label={tr("v5_home_helper", "PS5 helper")}
-                value={payloadVersion ? `v${payloadVersion}` : payloadStatus}
-                tone={payloadStatus === "up" ? "good" : "warn"}
+                value={
+                  resting
+                    ? tr("v5_home_rest_mode", "In rest mode")
+                    : payloadVersion
+                      ? `v${payloadVersion}`
+                      : payloadStatus
+                }
+                tone={payloadStatus === "up" ? "good" : resting ? undefined : "warn"}
               />
               <MetricRow
                 label={tr("v5_home_krw", "Kernel access")}
