@@ -3950,6 +3950,15 @@ c2c_test_deep_bad: "L’invio di prova di 4 KiB non è arrivato: {detail}",
 "cq_then_keep_folder": "Conserva la cartella",
 "cq_folder_sources_only": "Solo un'immagine di gioco o un pacchetto creato con la chiave di debug può diventare una cartella: {count} saltati.",
 "fpkg.run.what_folder": "una cartella di gioco",
+"helper_stop_button": "Arresta helper",
+"helper_stopping": "Arresto…",
+"helper_stop_confirm_title": "Arrestare l'helper?",
+"helper_stop_confirm_body": "Caricamenti, installazioni e pagine della console hanno bisogno dell'helper; rinvialo da qui quando ti serve.",
+"helper_stop_busy": "L'helper è in uso. Attendi che i trasferimenti e le installazioni su questa console finiscano, poi arrestalo.",
+"helper_stop_failed": "Impossibile arrestare l'helper: {error}",
+"helper_stopped_status": "Arrestato. Hai spento l'helper; resta spento finché non lo rinvii.",
+"gate_helper_stopped_title": "Hai arrestato l'helper",
+"gate_helper_stopped_body": "Questa schermata ha bisogno dell'helper. Rinvialo dalla schermata Connessione quando ti serve.",
 };
 
 export default it;

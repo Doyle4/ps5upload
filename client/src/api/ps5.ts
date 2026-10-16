@@ -2166,6 +2166,19 @@ export async function powerShutdown(addr: string): Promise<PowerControlAck> {
   return invoke<PowerControlAck>("power_shutdown", { addr });
 }
 
+/** What a helper stop ended with (#471): `stopped` (its port went quiet), `not_running`
+ *  (nothing answered), or `refused` with the engine's reason — `busy` while a transfer, install
+ *  or console file operation runs against that console, `refused` / `still_running` otherwise. */
+export type HelperStopResult =
+  | { state: "stopped" | "not_running" }
+  | { state: "refused"; reason: string; error: string };
+
+/** Turn the console's helper off (`POST /api/ps5/helper/stop`). The engine refuses while it has
+ *  a job on that console. Throws only when the engine could not be asked at all. */
+export async function helperStop(addr: string): Promise<HelperStopResult> {
+  return invoke<HelperStopResult>("ps5_helper_stop", { addr });
+}
+
 /** Wake a console in standby, over Sony's Device Discovery Protocol.
  *
  *  Not Wake-on-LAN — a PS5 does not wake from a magic packet. This speaks the

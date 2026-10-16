@@ -4008,6 +4008,15 @@ c2c_test_deep_bad: "Die 4-KiB-Testsendung ist nicht angekommen: {detail}",
 "cq_then_keep_folder": "Ordner behalten",
 "cq_folder_sources_only": "Nur ein Spiel-Image oder ein mit dem Debug-Schlüssel erstelltes Paket kann zu einem Ordner werden: {count} übersprungen.",
 "fpkg.run.what_folder": "einen Spielordner",
+"helper_stop_button": "Helfer beenden",
+"helper_stopping": "Wird beendet…",
+"helper_stop_confirm_title": "Helfer beenden?",
+"helper_stop_confirm_body": "Uploads, Installationen und die Konsolenseiten brauchen den Helfer; sende ihn von hier aus erneut, wenn du ihn brauchst.",
+"helper_stop_busy": "Der Helfer wird gerade verwendet. Warte, bis die Übertragungen und Installationen auf dieser Konsole fertig sind, und beende ihn dann.",
+"helper_stop_failed": "Der Helfer konnte nicht beendet werden: {error}",
+"helper_stopped_status": "Beendet. Du hast den Helfer ausgeschaltet; er bleibt aus, bis du ihn erneut sendest.",
+"gate_helper_stopped_title": "Du hast den Helfer beendet",
+"gate_helper_stopped_body": "Diese Ansicht braucht den Helfer. Sende ihn auf der Verbindungsseite erneut, wenn du ihn brauchst.",
 };
 
 export default de;

@@ -24,6 +24,8 @@ import {
   useHelperSendStore,
 } from "../../state/helperSend";
 import { sendHelperTo } from "../../state/helperSendRuntime";
+import { clearHelperStopped, useHelperStopped } from "../../state/helperStopped";
+import { StopHelperButton } from "./StopHelper";
 import { looksLikeMacLocalNetworkBlock } from "../../lib/localNetworkHint";
 import { localNetworkBlocked } from "../../lib/androidLocalNetwork";
 import { pairingAllow } from "../../api/ava1";
@@ -243,6 +245,9 @@ export default function ConnectionScreen() {
   const host = useConnectionStore((s) => s.host);
   const payloadStatus = useConnectionStore((s) => s.payloadStatus);
   const payloadStatusHost = useConnectionStore((s) => s.payloadStatusHost);
+  // The user turned this console's helper off (Stop helper, #471): shown as "Stopped", not as a
+  // missing helper, until they send it again.
+  const helperStopped = useHelperStopped(host);
   const setStatus = useConnectionStore((s) => s.setStatus);
   const storedStep1 = useConnectionStore((s) => s.step1);
   const storedStep1Msg = useConnectionStore((s) => s.step1Msg);
@@ -297,7 +302,16 @@ export default function ConnectionScreen() {
   const step1Msg = transientStep1Msg ?? storedStep1Msg;
   const step2: StepState =
     helperSend?.state ?? transientStep2 ?? storedStep2;
-  const step2Msg = helperSend?.msg ?? transientStep2Msg ?? storedStep2Msg;
+  const step2Msg =
+    helperSend?.msg ??
+    transientStep2Msg ??
+    (helperStopped && payloadStatus !== "up"
+      ? tr(
+          "helper_stopped_status",
+          undefined,
+          "Stopped. You turned the helper off; it stays off until you send it again.",
+        )
+      : storedStep2Msg);
   // Not "ready" while this app is not paired: the helper answers, but every upload would fail
   // with "not paired" (#415). The pairing banner above says what to do.
   const session = useConnectionStore((s) => s.session);
@@ -454,6 +468,8 @@ export default function ConnectionScreen() {
       );
       return;
     }
+    // Connecting again is the explicit "I want the helper": a "stopped by you" mark goes.
+    clearHelperStopped(target);
     flashStep1(
       "busy",
       tr(
@@ -691,16 +707,22 @@ export default function ConnectionScreen() {
             <ElfldrFirstCallout />
             {/* The web UI sends it too: the engine sends its own bundled helper (#415). */}
             {isTauriEnv() && <BundledPayloadBanner />}
-            <Button
-              variant="primary"
-              size="md"
-              leftIcon={<Send size={14} />}
-              onClick={() => void handleSend()}
-              disabled={step2 === "busy"}
-              loading={step2 === "busy"}
-            >
-              {sendButtonLabel(step2, sendPhase, elapsedMs, tr)}
-            </Button>
+            <div className="flex flex-wrap items-start gap-2">
+              <Button
+                variant="primary"
+                size="md"
+                leftIcon={<Send size={14} />}
+                onClick={() => void handleSend()}
+                disabled={step2 === "busy"}
+                loading={step2 === "busy"}
+              >
+                {sendButtonLabel(step2, sendPhase, elapsedMs, tr)}
+              </Button>
+              {/* Turn it off when done (#471); sending it again is the button beside it. */}
+              {step2 === "ok" && payloadStatus === "up" && (
+                <StopHelperButton host={host.trim()} />
+              )}
+            </div>
             {step2 === "busy" && (
               <p className="mt-3 text-xs text-[var(--color-muted)]">
                 {tr(

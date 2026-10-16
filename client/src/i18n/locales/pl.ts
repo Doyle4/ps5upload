@@ -4255,6 +4255,15 @@ c2c_test_deep_bad: "Testowa wysyłka 4 KiB nie dotarła: {detail}",
 "cq_then_keep_folder": "Zachowaj folder",
 "cq_folder_sources_only": "Folderem może stać się tylko obraz gry lub pakiet zbudowany kluczem debugowym: pominięto {count}.",
 "fpkg.run.what_folder": "folder gry",
+"helper_stop_button": "Zatrzymaj pomocnika",
+"helper_stopping": "Zatrzymywanie…",
+"helper_stop_confirm_title": "Zatrzymać pomocnika?",
+"helper_stop_confirm_body": "Wysyłanie, instalacje i strony konsoli wymagają pomocnika; wyślij go stąd ponownie, gdy będzie potrzebny.",
+"helper_stop_busy": "Pomocnik jest w użyciu. Poczekaj, aż transfery i instalacje na tej konsoli się zakończą, a potem go zatrzymaj.",
+"helper_stop_failed": "Nie udało się zatrzymać pomocnika: {error}",
+"helper_stopped_status": "Zatrzymany. Wyłączyłeś pomocnika; pozostanie wyłączony, dopóki nie wyślesz go ponownie.",
+"gate_helper_stopped_title": "Zatrzymałeś pomocnika",
+"gate_helper_stopped_body": "Ten ekran wymaga pomocnika. Wyślij go ponownie z ekranu Połączenie, gdy będzie potrzebny.",
 };
 
 export default pl;

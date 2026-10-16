@@ -2,6 +2,7 @@ import { useNavigate } from "react-router";
 import { Gamepad2, PlugZap, ServerCrash } from "lucide-react";
 
 import { useConnectionStore } from "../state/connection";
+import { useHelperStopped } from "../state/helperStopped";
 import { useTr } from "../state/lang";
 import { Button } from "./Button";
 import { EmptyState } from "./EmptyState";
@@ -44,6 +45,7 @@ export function ConnectionGate({
   const host = useConnectionStore((s) => s.host);
   const payloadStatus = useConnectionStore((s) => s.payloadStatus);
   const engineStatus = useConnectionStore((s) => s.engineStatus);
+  const helperStopped = useHelperStopped(host ?? "");
 
   if (engineStatus === "down") {
     // The cause and the Restart button are in the notice every screen shows at the top
@@ -91,6 +93,25 @@ export function ConnectionGate({
             label={tr("gate_checking", "Checking your PS5…")}
           />
         </div>
+      );
+    }
+    if (helperStopped) {
+      // Turned off on purpose (Connection → Stop helper, #471): not a fault.
+      return (
+        <EmptyState
+          fill
+          icon={PlugZap}
+          title={tr("gate_helper_stopped_title", "You stopped the helper")}
+          message={tr(
+            "gate_helper_stopped_body",
+            "This screen needs the helper. Send it again from the Connection screen when you need it.",
+          )}
+          action={
+            <Button variant="primary" onClick={() => navigate("/connection")}>
+              {tr("gate_send_helper_cta", "Open Connection")}
+            </Button>
+          }
+        />
       );
     }
     return (

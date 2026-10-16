@@ -4018,6 +4018,15 @@ c2c_test_deep_bad: "L’envoi test de 4 Kio n’est pas arrivé : {detail}",
 "cq_then_keep_folder": "Garder le dossier",
 "cq_folder_sources_only": "Seule une image de jeu ou un paquet créé avec la clé de débogage peut devenir un dossier : {count} ignoré(s).",
 "fpkg.run.what_folder": "un dossier de jeu",
+"helper_stop_button": "Arrêter l'assistant",
+"helper_stopping": "Arrêt…",
+"helper_stop_confirm_title": "Arrêter l'assistant ?",
+"helper_stop_confirm_body": "Les envois, les installations et les pages de la console ont besoin de l'assistant ; renvoyez-le d'ici quand vous en avez besoin.",
+"helper_stop_busy": "L'assistant est en cours d'utilisation. Attendez la fin des transferts et des installations sur cette console, puis arrêtez-le.",
+"helper_stop_failed": "Impossible d'arrêter l'assistant : {error}",
+"helper_stopped_status": "Arrêté. Vous avez arrêté l'assistant ; il reste arrêté jusqu'à ce que vous le renvoyiez.",
+"gate_helper_stopped_title": "Vous avez arrêté l'assistant",
+"gate_helper_stopped_body": "Cet écran a besoin de l'assistant. Renvoyez-le depuis l'écran Connexion quand vous en avez besoin.",
 };
 
 export default fr;

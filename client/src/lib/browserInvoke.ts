@@ -1019,6 +1019,30 @@ export async function browserInvoke<T>(
         action: "tick",
       });
 
+    case "ps5_helper_stop": {
+      // The engine's decided refusals (409 busy, 502 refused / still running) carry a
+      // `reason`: they are an answer, like the desktop command returns them.
+      const r = await fetch(`${getEngineUrl()}/api/ps5/helper/stop`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ addr: args["addr"] }),
+        signal: AbortSignal.timeout(TIMEOUT_STANDARD),
+      });
+      const body = (await r.json().catch(() => ({}))) as {
+        state?: string;
+        error?: string;
+        reason?: string;
+      };
+      if (r.ok) return body as T;
+      if (body.reason)
+        return {
+          state: "refused",
+          reason: body.reason,
+          error: body.error ?? "",
+        } as T;
+      throw new Error(body.error || `engine HTTP ${r.status}`);
+    }
+
     case "power_telemetry_get":
       return getJson<T>(addrUrl("/api/ps5/power/telemetry", args["addr"]));
 

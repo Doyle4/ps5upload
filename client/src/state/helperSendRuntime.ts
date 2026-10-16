@@ -3,6 +3,7 @@ import { PS5_LOADER_PORT } from "../lib/addr";
 import { isNotPairedError, reportIfNotPaired } from "../lib/consoleSession";
 import { STUCK_LOADER_MESSAGE, waitForLoader } from "../lib/elfldrGuard";
 import { useConnectionStore } from "./connection";
+import { clearHelperStopped } from "./helperStopped";
 import {
   helperSendFor,
   runHelperSend,
@@ -57,6 +58,9 @@ export function sendHelperTo(
 ): Promise<HelperSendResult> {
   const target = host.trim();
   const conn = () => useConnectionStore.getState();
+  // Sending is the explicit "I want the helper": a "stopped by you" mark goes, and the
+  // reconnect loop looks after this console again (#471).
+  clearHelperStopped(target);
   return runHelperSend(
     target,
     {

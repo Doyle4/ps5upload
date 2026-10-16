@@ -51,6 +51,7 @@ mod fpkg_api;
 mod fpkg_firmware;
 mod games_api;
 mod helper_mirror;
+mod helper_stop;
 mod icon_cache;
 mod image_build;
 mod inspect;
@@ -1840,6 +1841,8 @@ async fn ps5_to_ps5_handler(
         })
     };
     tokio::task::spawn_blocking(move || {
+        // Marks the console busy for the job: a helper stop is refused meanwhile.
+        let _busy = (helper_stop::enter(&req.from), helper_stop::enter(&req.to));
         let _stop_guard = TickerStopGuard::new(stop_ticker.clone());
         let mut fail_guard =
             JobFailOnDropGuard::new(Arc::clone(&jobs), events_tx.clone(), job_id, started_at_ms);
@@ -2329,6 +2332,8 @@ async fn ps5_fs_delete(
     // fs_copy / fs_move so behavior across the destructive trio matches.
     let io_timeout = std::time::Duration::from_secs(60 * 60);
     match tokio::task::spawn_blocking(move || {
+        // Marks the console busy for the job: a helper stop is refused meanwhile.
+        let _busy = helper_stop::enter(&addr);
         fs_delete_with_op_id(&addr, &path, op_id, Some(io_timeout))
     })
     .await
@@ -2382,6 +2387,8 @@ async fn ps5_fs_unpack(
     // A 136 GB image inflates for many minutes; the job is followed, not timed out.
     let deadline = std::time::Duration::from_secs(12 * 60 * 60);
     match tokio::task::spawn_blocking(move || {
+        // Marks the console busy for the job: a helper stop is refused meanwhile.
+        let _busy = helper_stop::enter(&addr);
         ps5upload_core::fs_ops::ffpfsc_unpack(&addr, &path, op_id, deadline)
     })
     .await
@@ -2440,6 +2447,8 @@ async fn ps5_fs_move(
     // move (copy, then delete the source after a verified finish). `overwrite` travels with
     // it, so a move that was not allowed to clobber still refuses.
     match tokio::task::spawn_blocking(move || {
+        // Marks the console busy for the job: a helper stop is refused meanwhile.
+        let _busy = helper_stop::enter(&addr);
         match fs_move_with_timeout(&addr, &from, &to, Some(io_timeout)) {
             Err(e)
                 if {
@@ -2513,6 +2522,8 @@ async fn ps5_fs_copy(
     };
     let overwrite = req.overwrite;
     match tokio::task::spawn_blocking(move || {
+        // Marks the console busy for the job: a helper stop is refused meanwhile.
+        let _busy = helper_stop::enter(&addr);
         require_console_ready(&addr)?;
         ps5upload_ava1::copy::console_copy(&addr, &from, &to, op_id, false, overwrite)
     })
@@ -3795,6 +3806,52 @@ async fn ps5_process_kill(
     match r {
         Ok(v) => (StatusCode::OK, Json(v)).into_response(),
         Err(e) => json_err(StatusCode::BAD_GATEWAY, format!("{e:#}")).into_response(),
+    }
+}
+
+// ── Helper stop (#471) ──────────────────────────────────────────────────
+
+#[derive(Debug, serde::Deserialize)]
+struct HelperStopReq {
+    addr: Option<String>,
+}
+
+/// POST /api/ps5/helper/stop — Body: `{ addr }`. Asks the console's helper to exit
+/// (`node.shutdown`), refused while this engine runs a job against that console.
+///
+/// 200 `{ "state": "stopped" }` once the helper's port went quiet, or `{ "state": "not_running" }`
+/// when nothing answered. 409 `{ "error", "reason": "busy" }` while a job runs; 502
+/// `{ "error", "reason": "refused" | "still_running" }` otherwise.
+async fn ps5_helper_stop(
+    installs: pkg_install::PkgInstallStateHandle,
+    req: HelperStopReq,
+) -> axum::response::Response {
+    // Disruptive: acts only on the console the request names, never the default one.
+    let Some(addr) = required_console_addr(req.addr) else {
+        return missing_console_addr();
+    };
+    let busy = helper_stop::is_busy(&addr) || installs.jobs.active_for(&addr);
+    let r = tokio::task::spawn_blocking(move || helper_stop::stop(&addr, busy)).await;
+    match r {
+        Ok(Ok(helper_stop::Stopped::Stopped)) => {
+            Json(serde_json::json!({ "state": "stopped" })).into_response()
+        }
+        Ok(Ok(helper_stop::Stopped::NotRunning)) => {
+            Json(serde_json::json!({ "state": "not_running" })).into_response()
+        }
+        Ok(Err(e)) => {
+            let code = if e == helper_stop::StopError::Busy {
+                StatusCode::CONFLICT
+            } else {
+                StatusCode::BAD_GATEWAY
+            };
+            (
+                code,
+                Json(serde_json::json!({ "error": e.message(), "reason": e.reason() })),
+            )
+                .into_response()
+        }
+        Err(e) => json_err(StatusCode::INTERNAL_SERVER_ERROR, format!("{e}")).into_response(),
     }
 }
 
@@ -5857,6 +5914,8 @@ async fn transfer_file_handler(
 
     let bandwidth_cap = req.bandwidth_cap_mbps;
     tokio::task::spawn_blocking(move || {
+        // Marks the console busy for the job: a helper stop is refused meanwhile.
+        let _busy = helper_stop::enter(&addr);
         // Drops at closure end (success OR panic), stopping the
         // progress ticker. Without this, a panic in
         // upload_file would leak the ticker task
@@ -6037,6 +6096,8 @@ async fn transfer_dir_handler(
     let events_tx = state.events_tx.clone();
 
     tokio::task::spawn_blocking(move || {
+        // Marks the console busy for the job: a helper stop is refused meanwhile.
+        let _busy = helper_stop::enter(&addr);
         // Guard installed first so a panic in the walk can't orphan the job
         // in Running forever (same rationale as the reconcile route).
         let mut fail_guard =
@@ -6709,6 +6770,8 @@ async fn transfer_zip_handler(
     );
 
     tokio::task::spawn_blocking(move || {
+        // Marks the console busy for the job: a helper stop is refused meanwhile.
+        let _busy = helper_stop::enter(&addr);
         let _stop_guard = TickerStopGuard::new(stop_ticker);
         let mut fail_guard =
             JobFailOnDropGuard::new(Arc::clone(&jobs), events_tx.clone(), job_id, started_at_ms);
@@ -8101,6 +8164,8 @@ async fn transfer_7z_handler(
     );
 
     tokio::task::spawn_blocking(move || {
+        // Marks the console busy for the job: a helper stop is refused meanwhile.
+        let _busy = helper_stop::enter(&addr);
         let _stop_guard = TickerStopGuard::new(stop_ticker);
         let mut fail_guard =
             JobFailOnDropGuard::new(Arc::clone(&jobs), events_tx.clone(), job_id, started_at_ms);
@@ -8320,6 +8385,8 @@ async fn transfer_rar_handler(
     );
 
     tokio::task::spawn_blocking(move || {
+        // Marks the console busy for the job: a helper stop is refused meanwhile.
+        let _busy = helper_stop::enter(&addr);
         let _stop_guard = TickerStopGuard::new(stop_ticker);
         let mut fail_guard =
             JobFailOnDropGuard::new(Arc::clone(&jobs), events_tx.clone(), job_id, started_at_ms);
@@ -8668,6 +8735,8 @@ async fn link_download_handler(
     );
 
     tokio::task::spawn_blocking(move || {
+        // Marks the console busy for the job: a helper stop is refused meanwhile.
+        let _busy = helper_stop::enter(&addr);
         let _stop_guard = TickerStopGuard::new(stop_ticker);
         let mut fail_guard =
             JobFailOnDropGuard::new(Arc::clone(&jobs), events_tx.clone(), job_id, started_at_ms);
@@ -8917,6 +8986,8 @@ async fn transfer_file_list_handler(
     );
 
     tokio::task::spawn_blocking(move || {
+        // Marks the console busy for the job: a helper stop is refused meanwhile.
+        let _busy = helper_stop::enter(&addr);
         let _stop_guard = TickerStopGuard::new(stop_ticker);
         let mut fail_guard =
             JobFailOnDropGuard::new(Arc::clone(&jobs), events_tx.clone(), job_id, started_at_ms);
@@ -9101,6 +9172,8 @@ fn start_ava1_download(
     // the job ends failed with `transfer_cancelled`, like a cancelled upload.
     let cancel = register_transfer_cancel(job_id);
     tokio::task::spawn_blocking(move || {
+        // Marks the console busy for the job: a helper stop is refused meanwhile.
+        let _busy = helper_stop::enter(&addr);
         let _stop_guard = TickerStopGuard::new(stop_ticker);
         let id = *job_id.as_bytes();
         let ready =
@@ -10140,6 +10213,7 @@ async fn run(cfg: EngineConfig) -> anyhow::Result<()> {
     }
 
     let activity_installs = pkg_state.clone();
+    let helper_stop_installs = pkg_state.clone();
     let app = Router::new()
         .route("/", get(ui_handler))
         .route(
@@ -10368,6 +10442,12 @@ async fn run(cfg: EngineConfig) -> anyhow::Result<()> {
         .route("/api/ps5/elfldr/ensure", post(ps5_elfldr_ensure))
         .route("/api/ps5/process/kill", post(ps5_process_kill))
         .route("/api/ps5/power/control", post(ps5_power_control))
+        .route(
+            "/api/ps5/helper/stop",
+            post(move |Json(req): Json<HelperStopReq>| {
+                ps5_helper_stop(helper_stop_installs.clone(), req)
+            }),
+        )
         .route("/api/ps5/power/telemetry", get(ps5_power_telemetry))
         .route("/api/ps5/power/wake", post(ps5_power_wake))
         .route("/api/ps5/power/wake-login", post(ps5_power_wake_login))

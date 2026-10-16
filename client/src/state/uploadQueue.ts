@@ -474,10 +474,12 @@ interface QueueState {
   stop: () => void;
   /** Start (or no-op if already running) just one console's drain loop. */
   /** `installsOnly` / `onlyIds` limit the run to what a click just added (installs, or
-   *  these items); uploads waiting for Start stay waiting. Start with neither runs everything. */
+   *  these items); uploads waiting for Start stay waiting. Start with neither runs everything.
+   *  `unattended`: nobody clicked for this run (wake resume, re-attaching after a restart), so it
+   *  never sends a helper the user stopped (#471). */
   startHost: (
     host: string,
-    opts?: { installsOnly?: boolean; onlyIds?: string[] },
+    opts?: { installsOnly?: boolean; onlyIds?: string[]; unattended?: boolean },
   ) => Promise<void>;
   /** Stop just one console; siblings keep running. */
   stopHost: (host: string) => void;
@@ -735,7 +737,7 @@ export const useUploadQueueStore = create<QueueState>((set, get) => {
         reattaching.delete(id);
       }
     }
-    for (const h of hosts) void get().startHost(h);
+    for (const h of hosts) void get().startHost(h, { unattended: true });
   };
 
   /** The next pending item on `h` that the runner may take: not one whose engine job is still
@@ -1631,6 +1633,9 @@ export const useUploadQueueStore = create<QueueState>((set, get) => {
   const runDrainLoop = async (
     pickNext: () => QueueItem | null,
     isLive: () => boolean,
+    // A run the user started may send the helper (and clears a "stopped by you" mark); one
+    // nobody clicked (wake resume) may not (#471).
+    sendMode: "auto" | "explicit" = "explicit",
   ) => {
     // Make sure the console is on the payload that matches this build
     // BEFORE running any jobs. Older payloads lack the mgmt-port
@@ -1641,7 +1646,7 @@ export const useUploadQueueStore = create<QueueState>((set, get) => {
     // An item that adopts a running job needs no payload check: the console is mid-transfer.
     if (head && !head.attachJobId) {
       try {
-        await ensurePayloadCurrent(hostOf(head.addr));
+        await ensurePayloadCurrent(hostOf(head.addr), undefined, false, sendMode);
       } catch (e) {
         console.warn("ensurePayloadCurrent threw:", e);
       }
@@ -1864,10 +1869,12 @@ export const useUploadQueueStore = create<QueueState>((set, get) => {
           // `() => !isLive()` lets a Stop bail out of the ~30 s boot-wait
           // promptly instead of leaving a ghost push running.
           try {
+            // Unattended: a console whose helper the user stopped is left alone (#471).
             await ensurePayloadCurrent(
               hostOf(next.addr),
               () => !isLive(),
               true,
+              "auto",
             );
           } catch (healErr) {
             console.warn("auto-resume: ensurePayloadCurrent threw:", healErr);
@@ -2388,7 +2395,7 @@ export const useUploadQueueStore = create<QueueState>((set, get) => {
       // Only spin up the drain loop when we actually reset a row — never
       // start uploads a user merely queued but hasn't launched. startHost is
       // guarded by its own generation counter, so a redundant call is a no-op.
-      if (resumed > 0) await get().startHost(host);
+      if (resumed > 0) await get().startHost(host, { unattended: true });
       return resumed;
     },
 
@@ -2429,7 +2436,11 @@ export const useUploadQueueStore = create<QueueState>((set, get) => {
         return { runningHosts: rh, running: true };
       });
       try {
-        await runDrainLoop(() => pickPending(h), isLive);
+        await runDrainLoop(
+          () => pickPending(h),
+          isLive,
+          opts?.unattended ? "auto" : "explicit",
+        );
       } finally {
         // Only clear our own flag if we're still the live generation — a
         // stopHost() or a superseding startHost() already owns it otherwise.

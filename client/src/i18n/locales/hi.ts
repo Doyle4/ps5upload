@@ -4016,6 +4016,15 @@ c2c_test_deep_bad: "4 KiB का परीक्षण नहीं पहुँ
 "cq_then_keep_folder": "फ़ोल्डर रखें",
 "cq_folder_sources_only": "केवल गेम इमेज या डिबग कुंजी से बना पैकेज ही फ़ोल्डर बन सकता है: {count} छोड़े गए।",
 "fpkg.run.what_folder": "एक गेम फ़ोल्डर",
+"helper_stop_button": "हेल्पर रोकें",
+"helper_stopping": "रोका जा रहा है…",
+"helper_stop_confirm_title": "हेल्पर रोकें?",
+"helper_stop_confirm_body": "अपलोड, इंस्टॉल और कंसोल पेजों को हेल्पर चाहिए; ज़रूरत होने पर इसे यहीं से फिर भेजें।",
+"helper_stop_busy": "हेल्पर उपयोग में है। इस कंसोल पर ट्रांसफ़र और इंस्टॉल पूरे होने दें, फिर इसे रोकें।",
+"helper_stop_failed": "हेल्पर नहीं रुका: {error}",
+"helper_stopped_status": "रुका हुआ। आपने हेल्पर बंद किया है; जब तक आप इसे फिर नहीं भेजते, यह बंद रहेगा।",
+"gate_helper_stopped_title": "आपने हेल्पर रोक दिया है",
+"gate_helper_stopped_body": "इस स्क्रीन को हेल्पर चाहिए। ज़रूरत होने पर इसे कनेक्शन स्क्रीन से फिर भेजें।",
 };
 
 export default hi;

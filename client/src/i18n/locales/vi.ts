@@ -4002,6 +4002,15 @@ c2c_test_deep_bad: "Lượt gửi thử 4 KiB không tới: {detail}",
 "cq_then_keep_folder": "Giữ thư mục",
 "cq_folder_sources_only": "Chỉ ảnh game hoặc gói được tạo bằng khóa debug mới có thể thành thư mục: đã bỏ qua {count}.",
 "fpkg.run.what_folder": "một thư mục game",
+"helper_stop_button": "Dừng trình trợ giúp",
+"helper_stopping": "Đang dừng…",
+"helper_stop_confirm_title": "Dừng trình trợ giúp?",
+"helper_stop_confirm_body": "Tải lên, cài đặt và các trang của máy cần trình trợ giúp; hãy gửi lại từ đây khi bạn cần.",
+"helper_stop_busy": "Trình trợ giúp đang được dùng. Hãy đợi các lượt truyền và cài đặt trên máy này xong rồi dừng nó.",
+"helper_stop_failed": "Không dừng được trình trợ giúp: {error}",
+"helper_stopped_status": "Đã dừng. Bạn đã tắt trình trợ giúp; nó sẽ tắt cho đến khi bạn gửi lại.",
+"gate_helper_stopped_title": "Bạn đã dừng trình trợ giúp",
+"gate_helper_stopped_body": "Màn hình này cần trình trợ giúp. Hãy gửi lại từ màn hình Kết nối khi bạn cần.",
 };
 
 export default vi;

@@ -3950,6 +3950,15 @@ c2c_test_deep_bad: "El envío de prueba de 4 KiB no llegó: {detail}",
 "cq_then_keep_folder": "Conservar la carpeta",
 "cq_folder_sources_only": "Solo una imagen de juego o un paquete creado con la clave de depuración puede convertirse en carpeta: {count} omitidos.",
 "fpkg.run.what_folder": "una carpeta de juego",
+"helper_stop_button": "Detener ayudante",
+"helper_stopping": "Deteniendo…",
+"helper_stop_confirm_title": "¿Detener el ayudante?",
+"helper_stop_confirm_body": "Las subidas, las instalaciones y las páginas de la consola necesitan el ayudante; vuelve a enviarlo desde aquí cuando lo necesites.",
+"helper_stop_busy": "El ayudante está en uso. Espera a que terminen las transferencias e instalaciones de esta consola y luego detenlo.",
+"helper_stop_failed": "No se pudo detener el ayudante: {error}",
+"helper_stopped_status": "Detenido. Apagaste el ayudante; seguirá apagado hasta que lo vuelvas a enviar.",
+"gate_helper_stopped_title": "Detuviste el ayudante",
+"gate_helper_stopped_body": "Esta pantalla necesita el ayudante. Vuelve a enviarlo desde la pantalla Conexión cuando lo necesites.",
 };
 
 export default es;

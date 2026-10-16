@@ -4007,6 +4007,15 @@ c2c_test_deep_bad: "4 KiB'lik test gönderimi ulaşmadı: {detail}",
 "cq_then_keep_folder": "Klasörü sakla",
 "cq_folder_sources_only": "Yalnızca bir oyun kalıbı ya da hata ayıklama anahtarıyla yapılmış bir paket klasöre dönüştürülebilir: {count} atlandı.",
 "fpkg.run.what_folder": "bir oyun klasörü",
+"helper_stop_button": "Yardımcıyı durdur",
+"helper_stopping": "Durduruluyor…",
+"helper_stop_confirm_title": "Yardımcı durdurulsun mu?",
+"helper_stop_confirm_body": "Yüklemeler, kurulumlar ve konsol sayfaları yardımcıya ihtiyaç duyar; gerektiğinde buradan yeniden gönderin.",
+"helper_stop_busy": "Yardımcı kullanımda. Bu konsoldaki aktarımların ve kurulumların bitmesini bekleyin, sonra durdurun.",
+"helper_stop_failed": "Yardımcı durdurulamadı: {error}",
+"helper_stopped_status": "Durduruldu. Yardımcıyı kapattınız; yeniden gönderene kadar kapalı kalır.",
+"gate_helper_stopped_title": "Yardımcıyı durdurdunuz",
+"gate_helper_stopped_body": "Bu ekranın yardımcıya ihtiyacı var. Gerektiğinde Bağlantı ekranından yeniden gönderin.",
 };
 
 export default tr;

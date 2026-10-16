@@ -3950,6 +3950,15 @@ c2c_test_deep_bad: "4 KiB 測試傳送未抵達：{detail}",
 "cq_then_keep_folder": "保留資料夾",
 "cq_folder_sources_only": "只有遊戲映像或以除錯金鑰製作的套件才能還原成資料夾：已略過 {count} 個。",
 "fpkg.run.what_folder": "遊戲資料夾",
+"helper_stop_button": "停止助手",
+"helper_stopping": "正在停止…",
+"helper_stop_confirm_title": "要停止助手嗎？",
+"helper_stop_confirm_body": "上傳、安裝和主機頁面都需要助手；需要時請在這裡重新傳送。",
+"helper_stop_busy": "助手正在使用中。請等這台主機上的傳輸和安裝完成後再停止。",
+"helper_stop_failed": "無法停止助手：{error}",
+"helper_stopped_status": "已停止。你關閉了助手；在你重新傳送之前它會保持關閉。",
+"gate_helper_stopped_title": "你已停止助手",
+"gate_helper_stopped_body": "此頁面需要助手。需要時請在「連線」頁面重新傳送。",
 };
 
 export default zh_TW;

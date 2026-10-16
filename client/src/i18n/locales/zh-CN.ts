@@ -3956,6 +3956,15 @@ c2c_test_deep_bad: "4 KiB 测试发送未到达：{detail}",
 "cq_then_keep_folder": "保留文件夹",
 "cq_folder_sources_only": "只有游戏镜像或用调试密钥制作的包才能还原成文件夹：已跳过 {count} 个。",
 "fpkg.run.what_folder": "游戏文件夹",
+"helper_stop_button": "停止助手",
+"helper_stopping": "正在停止…",
+"helper_stop_confirm_title": "停止助手？",
+"helper_stop_confirm_body": "上传、安装和主机页面都需要助手；需要时请在这里重新发送。",
+"helper_stop_busy": "助手正在使用中。请等这台主机上的传输和安装完成后再停止。",
+"helper_stop_failed": "无法停止助手：{error}",
+"helper_stopped_status": "已停止。你关闭了助手；在你重新发送之前它会保持关闭。",
+"gate_helper_stopped_title": "你已停止助手",
+"gate_helper_stopped_body": "此页面需要助手。需要时请在“连接”页面重新发送。",
 };
 
 export default zh_CN;
