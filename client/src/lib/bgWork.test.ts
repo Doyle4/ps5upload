@@ -1,5 +1,3 @@
-import fs from "node:fs";
-import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("./tauriEnv", () => ({ isTauriEnv: () => false }));
@@ -10,10 +8,14 @@ describe("bgWork", () => {
   it("sends exactly the texts the host's BgStrings reads", () => {
     // bg_activity.rs ignores unknown keys and falls back to English for missing
     // ones, so a renamed field would silently stop translating.
-    const rs = fs.readFileSync(
-      path.resolve(__dirname, "../../src-tauri/src/bg_activity.rs"),
-      "utf8",
-    );
+    // Read through Vite: the client tsconfig ships no node types.
+    const rs = (
+      import.meta.glob("../../src-tauri/src/bg_activity.rs", {
+        query: "?raw",
+        import: "default",
+        eager: true,
+      }) as Record<string, string>
+    )["../../src-tauri/src/bg_activity.rs"];
     const body = rs.slice(rs.indexOf("pub struct BgStrings {"));
     const fields = [...body.slice(0, body.indexOf("}")).matchAll(/pub (\w+): String/g)].map(
       (m) => m[1],

@@ -431,13 +431,16 @@ pub struct BgCapabilities {
 #[tauri::command]
 pub fn bg_capabilities() -> BgCapabilities {
     BgCapabilities {
-        native_job_notify: STARTED.get().is_some(),
+        native_job_notify: WATCHING.load(Ordering::Relaxed),
     }
 }
 
 // ── The task ─────────────────────────────────────────────────────────────────
 
 static STARTED: OnceLock<()> = OnceLock::new();
+/// The engine has answered `/api/activity`: endings will be seen and announced here. An
+/// engine without the route (a remote one on an older version) leaves the page announcing them.
+static WATCHING: AtomicBool = AtomicBool::new(false);
 
 /// Start the watcher once per process. Android can run setup again when its Activity is
 /// recreated; the second call is a no-op.
@@ -474,6 +477,7 @@ pub fn spawn<R: Runtime>(app: &AppHandle<R>) {
                 _ => None,
             };
             let Some(snap) = snap else { continue };
+            WATCHING.store(true, Ordering::Relaxed);
             state.strings = strings();
             let now = now_ms();
             let actions = step(&mut state, &snap, hold_active(now), now);
@@ -743,7 +747,7 @@ mod tests {
         let j0 = job("j", "upload", "Astro Bot", 1_180_000_000, 2_900_000_000);
         update_rates(&mut rates, &[j0], 0);
         let j1 = job("j", "upload", "Astro Bot", 1_218_000_000, 2_900_000_000);
-        update_rates(&mut rates, &[j1.clone()], 1000);
+        update_rates(&mut rates, std::slice::from_ref(&j1), 1000);
         let p = format_progress(&[j1], &rates, &BgStrings::default());
         assert_eq!(p.title, "Uploading Astro Bot");
         assert_eq!(p.percent, Some(42));
