@@ -78,6 +78,44 @@ describe("MakeCard", () => {
     expect(none).not.toContain("Recommended");
     expect(none).toContain("Check a game under");
   });
+
+  it("offers a game folder as a third choice, never marked as recommended", () => {
+    const out = renderToStaticMarkup(
+      <MakeCard make="folder" onMake={() => {}} kernel="r229358/releases/9.60" contentId="UP9000-PPSA03671_00-X" checked />,
+    );
+    expect((out.match(/role="radio"/g) ?? []).length).toBe(3);
+    expect(out).toContain("A game folder");
+    expect(out).toContain("from a game image or a package made with the debug key");
+    expect(out).toMatch(/aria-checked="true"[^>]*>[\s\S]*?A game folder/);
+    // The one badge is on the package, not the folder.
+    expect(out.match(/Recommended/g)).toHaveLength(1);
+    expect(out).not.toMatch(/A game folder<\/span><span[^>]*>Recommended/);
+  });
+});
+
+describe("OptionsCard for a folder", () => {
+  it("has no compression, image or language choice, only the folder line and verification", () => {
+    const out = renderToStaticMarkup(
+      <OptionsCard
+        outputDir="/out"
+        onChangeOutput={() => {}}
+        onOutputTyped={() => {}}
+        canBrowse
+        compression="balanced"
+        onCompression={() => {}}
+        estimates={undefined}
+        locked={false}
+        make="folder"
+        language=""
+        onLanguage={() => {}}
+      />,
+    );
+    expect(out).toContain("options-folder");
+    expect(out).not.toContain("fpkg-language");
+    expect(out).not.toContain("Balanced");
+    expect(out).not.toContain("options-image");
+    expect(out).toContain("Full verification");
+  });
 });
 
 describe("OptionsCard for an image", () => {
@@ -308,9 +346,11 @@ describe("QueueCard adding", () => {
       item("old"),
       item("small", { kind: "image", format: "ffpfs", compress: true }),
       item("plain", { kind: "image", format: "exfat", compress: false }),
+      item("back", { kind: "folder" }),
     ]);
     expect(html).toContain(".pkg");
     expect(html).toContain(".ffpfsc");
     expect(html).toContain(".exfat");
+    expect(html).toMatch(/data-testid="cq-ext"[^>]*>folder</);
   });
 });

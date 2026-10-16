@@ -59,18 +59,23 @@ impl ImageFormat {
 pub(crate) const PFS_NAME_MAX: usize = 63;
 
 /// A safe file stem from a game folder's name.
-/// Image files a build may read as its source (an .exfat into a .ffpkg, say).
+/// Image files a build may read as its source (an .exfat into a .ffpkg, say), and a package
+/// made with the debug key, which `source::open` reads like an image.
 pub(crate) fn is_image_file(path: &Path) -> bool {
-    path.is_file()
-        && path.extension().and_then(|e| e.to_str()).is_some_and(|e| {
-            matches!(
-                e.to_ascii_lowercase().as_str(),
-                "exfat" | "ffpkg" | "ufs2" | "ffpfs" | "ffpfsc"
-            )
-        })
+    path.is_file() && has_image_extension(path)
 }
 
-fn stem_of(source: &Path) -> String {
+/// [`is_image_file`]'s name check alone, for a path on a server or console.
+pub(crate) fn has_image_extension(path: &Path) -> bool {
+    path.extension().and_then(|e| e.to_str()).is_some_and(|e| {
+        matches!(
+            e.to_ascii_lowercase().as_str(),
+            "exfat" | "ffpkg" | "ufs2" | "ffpfs" | "ffpfsc" | "pkg"
+        )
+    })
+}
+
+pub(crate) fn stem_of(source: &Path) -> String {
     let name = source
         .file_name()
         .map(|s| s.to_string_lossy().into_owned())
@@ -81,7 +86,7 @@ fn stem_of(source: &Path) -> String {
             if !base.is_empty()
                 && matches!(
                     ext.to_ascii_lowercase().as_str(),
-                    "exfat" | "ffpkg" | "ufs2" | "ffpfs" | "ffpfsc"
+                    "exfat" | "ffpkg" | "ufs2" | "ffpfs" | "ffpfsc" | "pkg"
                 ) =>
         {
             base.to_string()

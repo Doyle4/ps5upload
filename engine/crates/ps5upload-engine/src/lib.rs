@@ -46,6 +46,7 @@ mod elfldr_guard;
 mod engine_log;
 mod event_journal;
 mod fakelibs_api;
+mod folder_build;
 mod fpkg_api;
 mod fpkg_firmware;
 mod games_api;
@@ -10216,6 +10217,7 @@ async fn run(cfg: EngineConfig) -> anyhow::Result<()> {
             post(fpkg_api::ffpfsc_compress_handler),
         )
         .route("/api/exfat/build", post(fpkg_api::exfat_build_handler))
+        .route("/api/folder/build", post(fpkg_api::folder_build_handler))
         .route(
             "/api/collection/settings",
             get(collection_api::get_settings).put(collection_api::put_settings),

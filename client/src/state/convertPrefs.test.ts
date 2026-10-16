@@ -62,4 +62,14 @@ describe("convertPrefs", () => {
     expect(parseFullVerify("1")).toBe(true);
     for (const v of [null, "", "0", "true", "yes"]) expect(parseFullVerify(v)).toBe(false);
   });
+
+  it("remembers a folder as what to make, and reads anything else as a package", async () => {
+    const first = await import("./convertPrefs");
+    first.useConvertPrefs.getState().setMake("folder");
+    vi.resetModules();
+    const second = await import("./convertPrefs");
+    expect(second.useConvertPrefs.getState().make).toBe("folder");
+    expect(second.parseMake("image")).toBe("image");
+    for (const v of [null, "", "dir", "pkg"]) expect(second.parseMake(v)).toBe("pkg");
+  });
 });

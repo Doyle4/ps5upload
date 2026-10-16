@@ -795,6 +795,14 @@ export async function browserInvoke<T>(
         full_verify: args["fullVerify"] ?? false,
       });
     }
+    case "folder_build": {
+      return postJson<T>("/api/folder/build", {
+        source: args["source"],
+        output_dir: args["outputDir"],
+        name: args["name"],
+        full_verify: args["fullVerify"] ?? false,
+      });
+    }
     case "job_status": {
       // TS caller: { jobId } (Tauri 2 camelCases job_id → jobId)
       const jobId = args["jobId"] as string;
