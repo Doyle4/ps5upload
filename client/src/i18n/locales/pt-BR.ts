@@ -4017,6 +4017,7 @@ c2c_test_deep_bad: "O envio de teste de 4 KiB não chegou: {detail}",
 "cq_then_keep_folder": "Manter a pasta",
 "cq_folder_sources_only": "Só uma imagem de jogo ou um pacote feito com a chave de depuração pode virar pasta: {count} ignorados.",
 "fpkg.run.what_folder": "uma pasta de jogo",
+"fs_row_actions": "Ações para {name}",
 };
 
 export default pt_BR;

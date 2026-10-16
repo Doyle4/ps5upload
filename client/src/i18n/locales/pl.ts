@@ -4255,6 +4255,7 @@ c2c_test_deep_bad: "Testowa wysyłka 4 KiB nie dotarła: {detail}",
 "cq_then_keep_folder": "Zachowaj folder",
 "cq_folder_sources_only": "Folderem może stać się tylko obraz gry lub pakiet zbudowany kluczem debugowym: pominięto {count}.",
 "fpkg.run.what_folder": "folder gry",
+"fs_row_actions": "Akcje dla {name}",
 };
 
 export default pl;

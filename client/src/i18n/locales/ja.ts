@@ -4021,6 +4021,7 @@ c2c_test_deep_bad: "4 KiB のテスト送信が届きませんでした: {detail
 "cq_then_keep_folder": "フォルダーを残す",
 "cq_folder_sources_only": "フォルダーにできるのは、ゲームイメージかデバッグキーで作ったパッケージだけです：{count} 件をスキップしました。",
 "fpkg.run.what_folder": "ゲームフォルダー",
+"fs_row_actions": "{name} の操作",
 };
 
 export default ja;

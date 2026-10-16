@@ -4323,6 +4323,7 @@ c2c_test_deep_bad: "The 4 KiB test send did not arrive: {detail}",
 "cq_then_keep_folder": "Keep the folder",
 "cq_folder_sources_only": "Only a game image or a package made with the debug key can become a folder: {count} skipped.",
 "fpkg.run.what_folder": "a game folder",
+"fs_row_actions": "Actions for {name}",
 };
 
 export default en;

@@ -4301,6 +4301,7 @@ c2c_test_deep_bad: "ارسال آزمایشی ۴ KiB نرسید: {detail}",
 "cq_then_keep_folder": "نگه‌داشتن پوشه",
 "cq_folder_sources_only": "فقط ایمیج بازی یا بسته‌ای که با کلید دیباگ ساخته شده می‌تواند پوشه شود: {count} مورد رد شد.",
 "fpkg.run.what_folder": "یک پوشهٔ بازی",
+"fs_row_actions": "کارهای {name}",
 };
 
 export default fa;

@@ -4018,6 +4018,7 @@ c2c_test_deep_bad: "L’envoi test de 4 Kio n’est pas arrivé : {detail}",
 "cq_then_keep_folder": "Garder le dossier",
 "cq_folder_sources_only": "Seule une image de jeu ou un paquet créé avec la clé de débogage peut devenir un dossier : {count} ignoré(s).",
 "fpkg.run.what_folder": "un dossier de jeu",
+"fs_row_actions": "Actions pour {name}",
 };
 
 export default fr;

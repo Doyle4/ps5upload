@@ -4008,6 +4008,7 @@ c2c_test_deep_bad: "Die 4-KiB-Testsendung ist nicht angekommen: {detail}",
 "cq_then_keep_folder": "Ordner behalten",
 "cq_folder_sources_only": "Nur ein Spiel-Image oder ein mit dem Debug-Schlüssel erstelltes Paket kann zu einem Ordner werden: {count} übersprungen.",
 "fpkg.run.what_folder": "einen Spielordner",
+"fs_row_actions": "Aktionen für {name}",
 };
 
 export default de;

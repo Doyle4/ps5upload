@@ -3950,6 +3950,7 @@ c2c_test_deep_bad: "L’invio di prova di 4 KiB non è arrivato: {detail}",
 "cq_then_keep_folder": "Conserva la cartella",
 "cq_folder_sources_only": "Solo un'immagine di gioco o un pacchetto creato con la chiave di debug può diventare una cartella: {count} saltati.",
 "fpkg.run.what_folder": "una cartella di gioco",
+"fs_row_actions": "Azioni per {name}",
 };
 
 export default it;

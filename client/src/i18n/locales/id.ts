@@ -4009,6 +4009,7 @@ c2c_test_deep_bad: "Kiriman uji 4 KiB tidak tiba: {detail}",
 "cq_then_keep_folder": "Simpan foldernya",
 "cq_folder_sources_only": "Hanya image game atau paket yang dibuat dengan kunci debug yang bisa dijadikan folder: {count} dilewati.",
 "fpkg.run.what_folder": "folder game",
+"fs_row_actions": "Tindakan untuk {name}",
 };
 
 export default id;

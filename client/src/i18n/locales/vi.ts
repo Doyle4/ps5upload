@@ -4002,6 +4002,7 @@ c2c_test_deep_bad: "Lượt gửi thử 4 KiB không tới: {detail}",
 "cq_then_keep_folder": "Giữ thư mục",
 "cq_folder_sources_only": "Chỉ ảnh game hoặc gói được tạo bằng khóa debug mới có thể thành thư mục: đã bỏ qua {count}.",
 "fpkg.run.what_folder": "một thư mục game",
+"fs_row_actions": "Thao tác cho {name}",
 };
 
 export default vi;

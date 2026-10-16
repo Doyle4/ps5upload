@@ -3,22 +3,25 @@ import { trStatic } from "../../lib/trStatic";
 import { rememberDestination } from "../../lib/moveTo";
 import { MoveToDialog, type MoveItem } from "./MoveToDialog";
 import { SendToConsoleDialog } from "./SendToConsoleDialog";
+import {
+  RowActionButtons,
+  RowActionsMenu,
+  RowActionsTrigger,
+  RowMenu,
+  type RowActionsContext,
+} from "./RowActions";
+import { SELECTION_ACTION, SelectionBar } from "./SelectionBar";
 import { useC2cRoutes } from "../../state/c2cRoutes";
 import { useUploadQueueStore } from "../../state/uploadQueue";
 import type { SendItem } from "../../lib/consoleSend";
 import { queueLinkFor } from "../../lib/gamePage";
-import { menuKeyAction } from "../../lib/menuKeys";
 import {
   useCallback,
   useEffect,
-  useLayoutEffect,
   useMemo,
   useRef,
   useState,
-  type ComponentType,
-  type KeyboardEvent as ReactKeyboardEvent,
 } from "react";
-import { createPortal } from "react-dom";
 import { useNavigate, useSearchParams } from "react-router";
 import { usePackageViewer } from "../../state/packageViewer";
 import { useShallow } from "zustand/react/shallow";
@@ -43,11 +46,7 @@ import {
   X,
   HardDrive,
   Usb,
-  PackagePlus,
   Eye,
-  ScanSearch,
-  Hash,
-  BadgeCheck,
   FolderOpen,
   Link2,
   FolderInput,
@@ -69,7 +68,6 @@ import {
 import { save as saveDialog } from "@tauri-apps/plugin-dialog";
 import { isTauriEnv } from "../../lib/tauriEnv";
 import { isWindows } from "../../lib/platform";
-import { isInstallPackagePath } from "../../lib/pkgDropDedupe";
 import {
   PageHeader,
   Button,
@@ -118,6 +116,7 @@ import { pushNotification } from "../../state/notifications";
 import { usePkgLibrary } from "../../state/pkgLibrary";
 import { isRemovableMount } from "../../lib/mountPaths";
 import { useRecentPathsStore } from "../../state/recentPaths";
+import { RecentPathsDropdown } from "./RecentPathsDropdown";
 import { useUploadSettingsStore } from "../../state/uploadSettings";
 import {
   useFsClipboardStore,
@@ -1704,6 +1703,13 @@ export default function FileSystemScreen() {
     y: number;
     entry: DirEntry | null;
   } | null>(null);
+  // The phone layout's ⋮ menu of one row: which row (by folder + name, so a
+  // listing that changes under it simply drops it) and the ⋮ button's box.
+  const [actionsMenu, setActionsMenu] = useState<{
+    path: string;
+    name: string;
+    anchor: { left: number; right: number; top: number; bottom: number };
+  } | null>(null);
   const [pathDraft, setPathDraft] = useState<string | null>(null);
 
   const openEntry = (e: DirEntry) => {
@@ -2361,6 +2367,35 @@ export default function FileSystemScreen() {
     return best;
   }, [volumes, path]);
 
+  // What the row actions (desktop buttons and the phone ⋮ menu) need.
+  const rowActionsCtx: RowActionsContext = {
+    tr,
+    desktopApp: isTauriEnv(),
+    hasHost: !!host,
+    downloadActive: downloadOp.active,
+    downloadingName: downloadHere ? downloadOp.rootName : null,
+    entryBusy: busyEntry !== null,
+    pkgInstalling,
+    installingPkgName,
+    viewable: viewableEntry,
+    download: (e, asZip) => void runDownload(e, asZip),
+    rename: (e) => {
+      setRenaming(e.name);
+      setRenameDraft(e.name);
+    },
+    replace: (e) => void replaceEntry(e),
+    view: (e) => viewEntry(e),
+    preview: (e) => void runPreview(e),
+    crc32: (e) => void runCrc32(e),
+    verify: (e) => void runVerify(e),
+    install: (e) => void runInstallPkg(e),
+    remove: (e) => void runDelete(e.name),
+  };
+  const actionsMenuEntry =
+    actionsMenu && actionsMenu.path === path
+      ? (entries?.find((x) => x.name === actionsMenu.name) ?? null)
+      : null;
+
   // A const, so the menu items' closures keep the non-null narrowing.
   const menuEntry = rowMenu?.entry ?? null;
 
@@ -2496,6 +2531,14 @@ export default function FileSystemScreen() {
           ]}
         />
       )}
+      {actionsMenu && actionsMenuEntry && (
+        <RowActionsMenu
+          entry={actionsMenuEntry}
+          ctx={rowActionsCtx}
+          anchor={actionsMenu.anchor}
+          onClose={() => setActionsMenu(null)}
+        />
+      )}
       {rowMenu && !menuEntry && (
         <RowMenu
           x={rowMenu.x}
@@ -2535,7 +2578,9 @@ export default function FileSystemScreen() {
         title={tr("file_system", undefined, "File System")}
         loading={loading}
         right={
-          <div className="flex items-center gap-1.5">
+          // On a phone, Add folder / New folder / Refresh show their icon alone
+          // so the four fit one line under the title.
+          <div className="flex items-center gap-1 sm:gap-1.5">
             <BrowseButton
               mode="file"
               remote
@@ -2555,6 +2600,7 @@ export default function FileSystemScreen() {
               size="sm"
               leftIcon={<FolderUp size={12} />}
               onClick={() => void addFolderHere()}
+              className="max-sm:min-w-10! max-sm:px-0 max-sm:[&>span]:sr-only"
               disabled={loading || !host?.trim() || busyEntry !== null}
               title={tr(
                 "fs_add_folder_dialog_title",
@@ -2570,6 +2616,9 @@ export default function FileSystemScreen() {
               leftIcon={<FolderPlus size={12} />}
               onClick={() => setMkdirDraft("")}
               disabled={loading || !host?.trim()}
+              // A phone shows the icon alone; the label stays for screen readers.
+              className="max-sm:min-w-10! max-sm:px-0 max-sm:[&>span]:sr-only"
+              title={tr("fs_new_folder", "New folder")}
             >
               {tr("fs_new_folder", "New folder")}
             </Button>
@@ -2580,6 +2629,8 @@ export default function FileSystemScreen() {
               onClick={refresh}
               disabled={loading || !host?.trim()}
               loading={loading}
+              className="max-sm:min-w-10! max-sm:px-0 max-sm:[&>span]:sr-only"
+              title={tr("fs_refresh", "Refresh")}
             >
               {tr("fs_refresh", "Refresh")}
             </Button>
@@ -2609,8 +2660,8 @@ export default function FileSystemScreen() {
             chip jumps to that drive's root; external/USB drives get a USB icon
             + accent border so they stand out. The active drive is highlighted. */}
         {volumes && volumes.length > 0 && (
-          <div className="mb-2 flex flex-wrap items-center gap-1.5 text-xs">
-            <span className="mr-0.5 inline-flex items-center gap-1 text-[var(--color-muted)]">
+          <div className="mb-2 flex items-center gap-1 text-xs max-sm:overflow-x-auto sm:flex-wrap sm:gap-1.5">
+            <span className="mr-0.5 inline-flex items-center gap-1 text-[var(--color-muted)] max-sm:sr-only">
               <HardDrive size={12} />
               {tr("fs_drives_label", undefined, "Drives")}
             </span>
@@ -2636,7 +2687,7 @@ export default function FileSystemScreen() {
                   // Drive TYPE is now carried solely by the icon, leaving
                   // border and background to mean "you are here".
                   aria-pressed={active}
-                  className="chip gap-1.5 px-3 py-1.5 font-mono"
+                  className="chip shrink-0 gap-1 px-2 py-1 font-mono sm:gap-1.5 sm:px-3 sm:py-1.5"
                 >
                   {/* Type lives in the icon: USB glyph for removable
                       drives, platter for internal. It stays tinted so the
@@ -2660,7 +2711,7 @@ export default function FileSystemScreen() {
                 picker's "(custom path)" affordance so the lack of an active
                 chip isn't mysterious. */}
             {currentVolumePath === null && (
-              <span className="rounded-[var(--radius-card)] border border-dashed border-[var(--glass-edge)] px-2 py-1 font-mono text-[var(--color-muted)]">
+              <span className="rounded-[var(--radius-card)] border border-dashed border-[var(--glass-edge)] shrink-0 whitespace-nowrap px-2 py-1 font-mono text-[var(--color-muted)]">
                 {tr("fs_volume_picker_custom", undefined, "(custom path)")}
               </span>
             )}
@@ -2676,7 +2727,7 @@ export default function FileSystemScreen() {
             dropdown's absolutely-positioned panel to the thin breadcrumb bar
             — the cramped/scrollbar'd overlay users saw. Keeping the dropdown
             out of the scrolling row lets its panel open freely. */}
-        <div className="mb-4 flex items-center gap-1 rounded-full border border-[var(--glass-edge)] bg-[var(--color-surface-raised)] px-2.5 py-1.5 text-xs shadow-[var(--edge-highlight),var(--shadow-1)]">
+        <div className="mb-2 flex items-center gap-1 rounded-full border border-[var(--glass-edge)] bg-[var(--color-surface-raised)] px-1.5 py-0.5 text-xs sm:mb-4 sm:px-2.5 sm:py-1.5 shadow-[var(--edge-highlight),var(--shadow-1)]">
           <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
             <button
               type="button"
@@ -2801,19 +2852,20 @@ export default function FileSystemScreen() {
 
         {/* Selection toolbar: only visible with ≥1 selected. */}
         {selectionActive && (
-          <div className="mb-3 flex items-center gap-2 rounded-[var(--radius-card)] border border-[color-mix(in_srgb,var(--color-accent)_35%,transparent)] bg-[var(--color-accent-soft)] p-2 text-xs">
-            <span className="font-medium">
-              {tr(
-                "fs_selected_count",
-                { count: selected.size },
-                `${selected.size} selected`,
-              )}
-            </span>
+          <SelectionBar
+            countLabel={tr(
+              "fs_selected_count",
+              { count: selected.size },
+              `${selected.size} selected`,
+            )}
+            clearLabel={tr("fs_clear_selection", undefined, "Clear selection")}
+            onClear={() => setSelected(new Set())}
+          >
             <button
               type="button"
               onClick={() => startMove()}
               disabled={bulkOp.op !== null || !volumes?.length}
-              className="rounded-full border shadow-[var(--edge-highlight),var(--shadow-1)] hover:bg-[var(--color-float)] flex items-center gap-1 border-[color-mix(in_srgb,var(--color-accent)_40%,transparent)] bg-[var(--color-surface)] px-3 py-1 font-medium disabled:opacity-50"
+              className={`${SELECTION_ACTION} border-[color-mix(in_srgb,var(--color-accent)_40%,transparent)] font-medium`}
             >
               <FolderInput size={12} />
               {tr("fs_move_to", undefined, "Move to…")}
@@ -2823,7 +2875,7 @@ export default function FileSystemScreen() {
                 type="button"
                 onClick={() => startSend()}
                 data-testid="fs-send-console"
-                className="rounded-full border shadow-[var(--edge-highlight),var(--shadow-1)] hover:bg-[var(--color-float)] flex items-center gap-1 border-[var(--glass-edge)] bg-[var(--color-surface)] px-3 py-1"
+                className={`${SELECTION_ACTION} border-[var(--glass-edge)]`}
               >
                 <Send size={12} />
                 {tr("fs_send_action", undefined, "Send to another console…")}
@@ -2833,7 +2885,7 @@ export default function FileSystemScreen() {
               type="button"
               onClick={() => stageClipboard("cut")}
               disabled={bulkOp.op !== null}
-              className="rounded-full border shadow-[var(--edge-highlight),var(--shadow-1)] hover:bg-[var(--color-float)] flex items-center gap-1 border-[var(--glass-edge)] bg-[var(--color-surface)] px-3 py-1 disabled:opacity-50"
+              className={`${SELECTION_ACTION} border-[var(--glass-edge)]`}
             >
               <Scissors size={12} />
               {tr("fs_cut", undefined, "Cut")}
@@ -2842,7 +2894,7 @@ export default function FileSystemScreen() {
               type="button"
               onClick={() => stageClipboard("copy")}
               disabled={bulkOp.op !== null}
-              className="rounded-full border shadow-[var(--edge-highlight),var(--shadow-1)] hover:bg-[var(--color-float)] flex items-center gap-1 border-[var(--glass-edge)] bg-[var(--color-surface)] px-3 py-1 disabled:opacity-50"
+              className={`${SELECTION_ACTION} border-[var(--glass-edge)]`}
             >
               <Copy size={12} />
               {tr("copy", undefined, "Copy")}
@@ -2851,7 +2903,7 @@ export default function FileSystemScreen() {
               type="button"
               onClick={() => void runChmod777()}
               disabled={bulkOp.op !== null || chmodBusy}
-              className="rounded-full border shadow-[var(--edge-highlight),var(--shadow-1)] hover:bg-[var(--color-float)] flex items-center gap-1 border-[var(--glass-edge)] bg-[var(--color-surface)] px-3 py-1 disabled:opacity-50"
+              className={`${SELECTION_ACTION} border-[var(--glass-edge)]`}
             >
               <KeyRound size={12} />
               {tr("fs_chmod_777", undefined, "Set permissions (777)")}
@@ -2865,7 +2917,7 @@ export default function FileSystemScreen() {
                 undefined,
                 "Bulk rename via pattern (s/old/new/, ^prefix_, _suffix$, lower, upper)",
               )}
-              className="rounded-full border shadow-[var(--edge-highlight),var(--shadow-1)] hover:bg-[var(--color-float)] flex items-center gap-1 border-[var(--glass-edge)] bg-[var(--color-surface)] px-3 py-1 disabled:opacity-50"
+              className={`${SELECTION_ACTION} border-[var(--glass-edge)]`}
             >
               <Pencil size={12} />
               {tr("fs_bulk_rename", undefined, "Bulk rename")}
@@ -2874,20 +2926,12 @@ export default function FileSystemScreen() {
               type="button"
               onClick={runBulkDelete}
               disabled={bulkOp.op !== null}
-              className="rounded-full border shadow-[var(--edge-highlight),var(--shadow-1)] hover:bg-[var(--color-float)] flex items-center gap-1 border-[color-mix(in_srgb,var(--color-bad)_40%,transparent)] bg-[var(--color-surface)] px-3 py-1 text-[var(--color-bad)] disabled:opacity-50"
+              className={`${SELECTION_ACTION} border-[color-mix(in_srgb,var(--color-bad)_40%,transparent)] text-[var(--color-bad)]`}
             >
               <Trash2 size={12} />
               {tr("library_delete", undefined, "Delete")}
             </button>
-            <button
-              type="button"
-              onClick={() => setSelected(new Set())}
-              className="rounded-full border shadow-[var(--edge-highlight),var(--shadow-1)] hover:bg-[var(--color-float)] border-[var(--glass-edge)] bg-[var(--color-surface-raised)] ml-auto p-1"
-              title={tr("fs_clear_selection", undefined, "Clear selection")}
-            >
-              <X size={12} />
-            </button>
-          </div>
+          </SelectionBar>
         )}
 
         {mkdirDraft !== null && (
@@ -3169,7 +3213,7 @@ export default function FileSystemScreen() {
                     key={k}
                     type="button"
                     onClick={() => setSort((cur) => nextSort(cur, k))}
-                    className="chip border-transparent px-2.5 py-1"
+                    className="chip border-transparent px-2 py-0.5 sm:px-2.5 sm:py-1"
                     aria-pressed={sort.key === k}
                   >
                     {label}
@@ -3226,7 +3270,7 @@ export default function FileSystemScreen() {
                     setRowMenu({ x: ev.clientX, y: ev.clientY, entry: e });
                   }}
                   className={
-                    "list-row-contain-sm flex items-center gap-3 rounded-[var(--radius-card)] border px-3.5 py-2.5 text-sm transition-colors " +
+                    "list-row-contain-sm flex items-center gap-2 rounded-[var(--radius-card)] border px-2.5 py-1 text-sm transition-colors sm:gap-3 sm:px-3.5 sm:py-2.5 " +
                     (isDir && dropTarget === joinPath(path, e.name)
                       ? "ring-2 ring-[var(--color-accent)] "
                       : "") +
@@ -3239,7 +3283,7 @@ export default function FileSystemScreen() {
                     type="checkbox"
                     checked={isSelected}
                     onChange={() => toggleSelected(e.name)}
-                    className="input h-3.5 w-3.5! shrink-0"
+                    className="h-3.5 w-3.5! shrink-0"
                   />
                   <Icon
                     size={16}
@@ -3267,8 +3311,9 @@ export default function FileSystemScreen() {
                       onClick={() => {
                         if (isDir) setPath(joinPath(path, e.name));
                       }}
+                      title={e.name}
                       className={
-                        "flex-1 truncate text-left text-sm " +
+                        "min-w-0 flex-1 truncate text-left text-sm " +
                         (isDir ? "font-medium hover:text-[var(--color-accent)]" : "")
                       }
                       disabled={!isDir}
@@ -3279,152 +3324,31 @@ export default function FileSystemScreen() {
                   <span className="shrink-0 text-xs text-[var(--color-muted)] tabular-nums">
                     {isDir ? "—" : formatBytes(e.size)}
                   </span>
-                  <div className="ml-2 flex shrink-0 items-center gap-1">
-                    {isTauriEnv() && (
-                      <>
-                        <button
-                          type="button"
-                          onClick={() => runDownload(e)}
-                          disabled={downloadOp.active}
-                          title={tr(
-                            "fs_download_tooltip",
-                            undefined,
-                            "Save a copy of this entry to a folder on this computer",
-                          )}
-                          className="rounded-full border shadow-[var(--edge-highlight),var(--shadow-1)] hover:bg-[var(--color-float)] border-[var(--glass-edge)] bg-[var(--color-surface-raised)] p-1 disabled:opacity-30"
-                        >
-                          {downloadHere && downloadOp.rootName === e.name ? (
-                            <Spinner size={12} tone="accent" />
-                          ) : (
-                            <Download size={12} />
-                          )}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => runDownload(e, true)}
-                          disabled={downloadOp.active}
-                          title={tr(
-                            "fs_download_zip_tooltip",
-                            undefined,
-                            "Download to this computer as a .zip (streamed — no temp copy)",
-                          )}
-                          className="rounded-full border shadow-[var(--edge-highlight),var(--shadow-1)] hover:bg-[var(--color-float)] border-[var(--glass-edge)] bg-[var(--color-surface-raised)] p-1 disabled:opacity-30"
-                        >
-                          <FileArchive size={12} />
-                        </button>
-                      </>
+                  <RowActionButtons entry={e} ctx={rowActionsCtx} />
+                  <RowActionsTrigger
+                    label={tr(
+                      "fs_row_actions",
+                      { name: e.name },
+                      `Actions for ${e.name}`,
                     )}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setRenaming(e.name);
-                        setRenameDraft(e.name);
-                      }}
-                      title={tr("fs_rename", undefined, "Rename")}
-                      className="rounded-full border shadow-[var(--edge-highlight),var(--shadow-1)] hover:bg-[var(--color-float)] border-[var(--glass-edge)] bg-[var(--color-surface-raised)] p-1"
-                    >
-                      <Pencil size={12} />
-                    </button>
-                    {!isDir && (
-                      <button
-                        type="button"
-                        onClick={() => replaceEntry(e)}
-                        disabled={busyEntry !== null}
-                        aria-label={tr("fs_replace", undefined, "Replace file")}
-                        title={tr(
-                          "fs_replace_tooltip",
-                          undefined,
-                          "Overwrite this file with one from your computer — how you patch a file inside a mounted game image",
-                        )}
-                        className="rounded-full border shadow-[var(--edge-highlight),var(--shadow-1)] hover:bg-[var(--color-float)] border-[var(--glass-edge)] bg-[var(--color-surface-raised)] p-1 disabled:opacity-40"
-                      >
-                        <Upload size={12} />
-                      </button>
-                    )}
-                    {viewableEntry(e.name, isDir) && host && (
-                      <button
-                        type="button"
-                        onClick={() => viewEntry(e)}
-                        aria-label={tr("viewer_open", undefined, "View details")}
-                        title={tr("viewer_open", undefined, "View details")}
-                        className="rounded-full border shadow-[var(--edge-highlight),var(--shadow-1)] hover:bg-[var(--color-float)] border-[var(--glass-edge)] bg-[var(--color-surface-raised)] p-1"
-                      >
-                        <ScanSearch size={12} />
-                      </button>
-                    )}
-                    {!isDir && e.size <= 256 * 1024 && (
-                      <button
-                        type="button"
-                        onClick={() => runPreview(e)}
-                        aria-label={tr("fs_preview", undefined, "Preview")}
-                        title={tr(
-                          "fs_preview_tooltip",
-                          undefined,
-                          "Preview small file inline (text or image)",
-                        )}
-                        className="rounded-full border shadow-[var(--edge-highlight),var(--shadow-1)] hover:bg-[var(--color-float)] border-[var(--glass-edge)] bg-[var(--color-surface-raised)] p-1"
-                      >
-                        <Eye size={12} />
-                      </button>
-                    )}
-                    {!isDir && (
-                      <button
-                        type="button"
-                        onClick={() => runCrc32(e)}
-                        aria-label={tr("fs_crc32", undefined, "CRC32 checksum")}
-                        title={tr(
-                          "fs_crc32_tooltip",
-                          undefined,
-                          "Compute CRC32 of this file (cheap integrity check)",
-                        )}
-                        className="rounded-full border shadow-[var(--edge-highlight),var(--shadow-1)] hover:bg-[var(--color-float)] border-[var(--glass-edge)] bg-[var(--color-surface-raised)] p-1"
-                      >
-                        <Hash size={12} />
-                      </button>
-                    )}
-                    {!isDir && (
-                      <button
-                        type="button"
-                        onClick={() => runVerify(e)}
-                        aria-label={tr("fs_verify", undefined, "Verify (BLAKE3)")}
-                        title={tr(
-                          "fs_verify_tooltip",
-                          undefined,
-                          "BLAKE3 + CRC32 verification (slower, crypto-strength)",
-                        )}
-                        className="rounded-full border shadow-[var(--edge-highlight),var(--shadow-1)] hover:bg-[var(--color-float)] border-[var(--glass-edge)] bg-[var(--color-surface-raised)] p-1"
-                      >
-                        <BadgeCheck size={12} />
-                      </button>
-                    )}
-                    {!isDir && isInstallPackagePath(e.name) && (
-                      <button
-                        type="button"
-                        onClick={() => void runInstallPkg(e)}
-                        disabled={pkgInstalling}
-                        title={tr(
-                          "fs_install_pkg_tooltip",
-                          undefined,
-                          "Install this package on your PS5",
-                        )}
-                        className="rounded-full border shadow-[var(--edge-highlight),var(--shadow-1)] hover:bg-[var(--color-float)] border-[var(--glass-edge)] bg-[var(--color-surface-raised)] border-[color-mix(in_srgb,var(--color-accent)_40%,transparent)] p-1 text-[var(--color-accent)] disabled:opacity-30"
-                      >
-                        {installingPkgName === e.name ? (
-                          <Spinner size={12} tone="inherit" />
-                        ) : (
-                          <PackagePlus size={12} />
-                        )}
-                      </button>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => runDelete(e.name)}
-                      title={tr("library_delete", undefined, "Delete")}
-                      className="rounded-full border shadow-[var(--edge-highlight),var(--shadow-1)] hover:bg-[var(--color-float)] border-[var(--glass-edge)] bg-[var(--color-surface-raised)] border-[color-mix(in_srgb,var(--color-bad)_40%,transparent)] p-1 text-[var(--color-bad)]"
-                    >
-                      <Trash2 size={12} />
-                    </button>
-                  </div>
+                    open={actionsMenuEntry?.name === e.name}
+                    onToggle={(r) =>
+                      setActionsMenu((cur) =>
+                        cur && cur.path === path && cur.name === e.name
+                          ? null
+                          : {
+                              path,
+                              name: e.name,
+                              anchor: {
+                                left: r.left,
+                                right: r.right,
+                                top: r.top,
+                                bottom: r.bottom,
+                              },
+                            },
+                      )
+                    }
+                  />
                 </li>
               );
             })}
@@ -3487,89 +3411,6 @@ export default function FileSystemScreen() {
  * file copies. Real byte-level progress would need payload-side
  * incremental fs_copy events; future work.
  */
-/** Compact "recent paths" dropdown that lives next to the breadcrumb
- *  trail. Hidden when the recents list is empty (no point showing an
- *  empty button). Positioned to the right of the breadcrumbs so it
- *  doesn't push the active path off-screen on small windows. */
-function RecentPathsDropdown({
-  onPick,
-  currentPath,
-}: {
-  onPick: (p: string) => void;
-  currentPath: string;
-}) {
-  const tr = useTr();
-  const paths = useRecentPathsStore((s) => s.paths);
-  const remove = useRecentPathsStore((s) => s.remove);
-  const clear = useRecentPathsStore((s) => s.clear);
-  const [open, setOpen] = useState(false);
-
-  // Filter out the current path — no value in offering "go where you
-  // already are." Keeps the list focused on actual destinations.
-  const filtered = useMemo(
-    () => paths.filter((p) => p !== currentPath),
-    [paths, currentPath],
-  );
-
-  if (filtered.length === 0) return null;
-
-  return (
-    <div className="relative ml-auto">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        title={tr("fs_recent_tooltip", undefined, "Recent destinations")}
-        className="flex items-center gap-1 rounded-full px-1.5 py-0.5 text-xs uppercase tracking-wider text-[var(--color-muted)] hover:bg-[var(--color-surface-3)] hover:text-[var(--color-text)]"
-      >
-        {tr("fs_recent", "Recent")}
-        <ChevronRight
-          size={10}
-          className={`transition-transform ${open ? "rotate-90" : "rtl:rotate-180"}`}
-        />
-      </button>
-      {open && (
-        <div className="rounded-[var(--radius-card)] border border-[var(--glass-edge)] bg-[var(--color-surface)] absolute right-0 top-full z-30 mt-1 w-72 overflow-hidden shadow-lg">
-          <ul className="max-h-60 overflow-y-auto py-1">
-            {filtered.map((p) => (
-              <li key={p} className="flex items-center">
-                <button
-                  type="button"
-                  onClick={() => {
-                    onPick(p);
-                    setOpen(false);
-                  }}
-                  className="min-w-0 flex-1 truncate px-2 py-1 text-left font-mono text-xs hover:bg-[var(--color-surface-3)]"
-                  title={p}
-                >
-                  {p}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => remove(p)}
-                  className="px-1 py-1 text-xs text-[var(--color-muted)] hover:text-[var(--color-bad)]"
-                  title={tr("fs_recent_remove", undefined, "Forget this entry")}
-                >
-                  ×
-                </button>
-              </li>
-            ))}
-          </ul>
-          <button
-            type="button"
-            onClick={() => {
-              clear();
-              setOpen(false);
-            }}
-            className="block w-full border-t border-[var(--color-border)] px-2 py-1 text-left text-xs text-[var(--color-muted)] hover:bg-[var(--color-surface-3)] hover:text-[var(--color-text)]"
-          >
-            {tr("fs_recent_clear", undefined, "Clear all")}
-          </button>
-        </div>
-      )}
-    </div>
-  );
-}
-
 /** Byte progress of an "Add files" upload (see `runUpload`). */
 type UploadProgress = Pick<
   FsUploadActive,
@@ -4026,134 +3867,5 @@ function DownloadOpBanner({
         />
       </div>
     </div>
-  );
-}
-
-interface RowMenuItem {
-  icon: ComponentType<{ size?: number; className?: string }>;
-  label: string;
-  run: () => void;
-  disabled?: boolean;
-  destructive?: boolean;
-}
-
-/** The Files row's right-click menu: at the pointer, kept on screen, closed by a click
- *  elsewhere, Escape, scroll or a resize. It takes focus on its first item when it opens;
- *  the arrow keys, Home and End move between items, and Escape or Tab close it and hand
- *  focus back to whatever had it (the row). */
-function RowMenu({
-  x,
-  y,
-  items,
-  onClose,
-}: {
-  x: number;
-  y: number;
-  items: RowMenuItem[];
-  onClose: () => void;
-}) {
-  const ref = useRef<HTMLDivElement>(null);
-  const [pos, setPos] = useState({ left: x, top: y });
-  useLayoutEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const r = el.getBoundingClientRect();
-    setPos({
-      left: Math.max(4, Math.min(x, window.innerWidth - r.width - 4)),
-      top: Math.max(4, Math.min(y, window.innerHeight - r.height - 4)),
-    });
-  }, [x, y]);
-  // Whatever had focus when the menu opened, for a keyboard close to return to.
-  const openerRef = useRef<HTMLElement | null>(null);
-  const menuItems = () =>
-    Array.from(
-      ref.current?.querySelectorAll<HTMLElement>(
-        '[role="menuitem"]:not([disabled])',
-      ) ?? [],
-    );
-  useEffect(() => {
-    const active = document.activeElement;
-    openerRef.current = active instanceof HTMLElement ? active : null;
-    menuItems()[0]?.focus({ preventScroll: true });
-  }, []);
-  /** Close, then put focus back where it was (keyboard close or picking an item). */
-  const closeAndRestore = () => {
-    onClose();
-    const opener = openerRef.current;
-    if (opener?.isConnected) opener.focus({ preventScroll: true });
-  };
-  const onMenuKeyDown = (e: ReactKeyboardEvent) => {
-    const items = menuItems();
-    const action = menuKeyAction(
-      e.key,
-      items.indexOf(document.activeElement as HTMLElement),
-      items.length,
-    );
-    if (action === null) return;
-    e.preventDefault();
-    e.stopPropagation();
-    if (action === "close") closeAndRestore();
-    else items[action]?.focus();
-  };
-  useEffect(() => {
-    const close = (e: Event) => {
-      if (e instanceof MouseEvent && ref.current?.contains(e.target as Node))
-        return;
-      onClose();
-    };
-    // Escape with focus somewhere else (the menu's own handler stops it otherwise).
-    const onKey = (e: KeyboardEvent) =>
-      e.key === "Escape" && !e.defaultPrevented && onClose();
-    window.addEventListener("mousedown", close);
-    window.addEventListener("scroll", close, true);
-    window.addEventListener("resize", close);
-    window.addEventListener("keydown", onKey);
-    return () => {
-      window.removeEventListener("mousedown", close);
-      window.removeEventListener("scroll", close, true);
-      window.removeEventListener("resize", close);
-      window.removeEventListener("keydown", onKey);
-    };
-  }, [onClose]);
-  // On <body>, not in the screen: the shell canvas clips its content and (having
-  // a backdrop filter) is what `position: fixed` measures from inside it, so a
-  // menu opened low on the page was cut off at the canvas edge and sat offset
-  // from the pointer.
-  return createPortal(
-    <div
-      ref={ref}
-      role="menu"
-      data-testid="fs-row-menu"
-      onKeyDown={onMenuKeyDown}
-      style={{ left: pos.left, top: pos.top }}
-      // The same floating glass as the app's other menus (components/Menu).
-      // `--color-surface` is the translucent page tint: with it the rows under
-      // the menu read straight through the items.
-      className="glass-float elev-2 fixed z-50 min-w-[12rem] rounded-[var(--radius-card)] p-1.5 text-sm"
-    >
-      {items.map((it) => (
-        <button
-          key={it.label}
-          type="button"
-          role="menuitem"
-          tabIndex={-1}
-          disabled={it.disabled}
-          onClick={() => {
-            // Focus back on the row first, so a dialog the item opens returns
-            // focus there when it closes.
-            closeAndRestore();
-            it.run();
-          }}
-          className={
-            "flex w-full items-center gap-2 rounded-full px-3 py-1.5 text-start hover:bg-[var(--color-surface-3)] focus:bg-[var(--color-surface-3)] disabled:opacity-40 " +
-            (it.destructive ? "text-[var(--color-bad)]" : "")
-          }
-        >
-          <it.icon size={14} className="shrink-0" />
-          {it.label}
-        </button>
-      ))}
-    </div>,
-    document.body
   );
 }

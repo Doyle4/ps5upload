@@ -4019,6 +4019,7 @@ c2c_test_deep_bad: "4 KiB 테스트 전송이 도착하지 않았습니다: {det
 "cq_then_keep_folder": "폴더 보관",
 "cq_folder_sources_only": "게임 이미지나 디버그 키로 만든 패키지만 폴더로 만들 수 있습니다: {count}개 건너뜀.",
 "fpkg.run.what_folder": "게임 폴더",
+"fs_row_actions": "{name} 작업",
 };
 
 export default ko;

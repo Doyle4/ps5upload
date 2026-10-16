@@ -4007,6 +4007,7 @@ c2c_test_deep_bad: "4 KiB'lik test gönderimi ulaşmadı: {detail}",
 "cq_then_keep_folder": "Klasörü sakla",
 "cq_folder_sources_only": "Yalnızca bir oyun kalıbı ya da hata ayıklama anahtarıyla yapılmış bir paket klasöre dönüştürülebilir: {count} atlandı.",
 "fpkg.run.what_folder": "bir oyun klasörü",
+"fs_row_actions": "{name} için işlemler",
 };
 
 export default tr;

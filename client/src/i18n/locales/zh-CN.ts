@@ -3956,6 +3956,7 @@ c2c_test_deep_bad: "4 KiB 测试发送未到达：{detail}",
 "cq_then_keep_folder": "保留文件夹",
 "cq_folder_sources_only": "只有游戏镜像或用调试密钥制作的包才能还原成文件夹：已跳过 {count} 个。",
 "fpkg.run.what_folder": "游戏文件夹",
+"fs_row_actions": "{name} 的操作",
 };
 
 export default zh_CN;

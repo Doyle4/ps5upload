@@ -4016,6 +4016,7 @@ c2c_test_deep_bad: "4 KiB का परीक्षण नहीं पहुँ
 "cq_then_keep_folder": "फ़ोल्डर रखें",
 "cq_folder_sources_only": "केवल गेम इमेज या डिबग कुंजी से बना पैकेज ही फ़ोल्डर बन सकता है: {count} छोड़े गए।",
 "fpkg.run.what_folder": "एक गेम फ़ोल्डर",
+"fs_row_actions": "{name} के लिए क्रियाएँ",
 };
 
 export default hi;

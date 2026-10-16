@@ -4315,6 +4315,7 @@ c2c_test_deep_bad: "A 4 KiB-os tesztküldés nem érkezett meg: {detail}",
 "cq_then_keep_folder": "Mappa megtartása",
 "cq_folder_sources_only": "Csak játékképfájlból vagy a debug kulccsal készült csomagból lehet mappa: {count} kihagyva.",
 "fpkg.run.what_folder": "egy játékmappát",
+"fs_row_actions": "Műveletek: {name}",
 };
 
 export default hu;

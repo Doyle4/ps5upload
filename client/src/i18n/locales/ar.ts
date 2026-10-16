@@ -4000,6 +4000,7 @@ c2c_test_deep_bad: "لم يصل الإرسال التجريبي بحجم 4 KiB: 
 "cq_then_keep_folder": "الاحتفاظ بالمجلد",
 "cq_folder_sources_only": "لا يمكن تحويل سوى صورة لعبة أو حزمة أُنشئت بمفتاح التصحيح إلى مجلد: تم تخطي {count}.",
 "fpkg.run.what_folder": "مجلد لعبة",
+"fs_row_actions": "إجراءات {name}",
 };
 
 export default ar;

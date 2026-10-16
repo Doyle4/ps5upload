@@ -3950,6 +3950,7 @@ c2c_test_deep_bad: "4 KiB 測試傳送未抵達：{detail}",
 "cq_then_keep_folder": "保留資料夾",
 "cq_folder_sources_only": "只有遊戲映像或以除錯金鑰製作的套件才能還原成資料夾：已略過 {count} 個。",
 "fpkg.run.what_folder": "遊戲資料夾",
+"fs_row_actions": "{name} 的動作",
 };
 
 export default zh_TW;

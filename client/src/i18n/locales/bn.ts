@@ -4000,6 +4000,7 @@ c2c_test_deep_bad: "4 KiB-এর পরীক্ষামূলক পাঠা�
 "cq_then_keep_folder": "ফোল্ডার রাখুন",
 "cq_folder_sources_only": "শুধু গেম ইমেজ বা ডিবাগ কী দিয়ে তৈরি প্যাকেজই ফোল্ডার হতে পারে: {count}টি বাদ দেওয়া হয়েছে।",
 "fpkg.run.what_folder": "একটি গেম ফোল্ডার",
+"fs_row_actions": "{name}-এর কাজ",
 };
 
 export default bn;

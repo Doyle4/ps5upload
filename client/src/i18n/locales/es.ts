@@ -3950,6 +3950,7 @@ c2c_test_deep_bad: "El envío de prueba de 4 KiB no llegó: {detail}",
 "cq_then_keep_folder": "Conservar la carpeta",
 "cq_folder_sources_only": "Solo una imagen de juego o un paquete creado con la clave de depuración puede convertirse en carpeta: {count} omitidos.",
 "fpkg.run.what_folder": "una carpeta de juego",
+"fs_row_actions": "Acciones de {name}",
 };
 
 export default es;

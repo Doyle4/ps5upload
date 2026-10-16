@@ -3950,6 +3950,7 @@ c2c_test_deep_bad: "Тестовая отправка 4 КиБ не дошла: 
 "cq_then_keep_folder": "Оставить папку",
 "cq_folder_sources_only": "Папкой может стать только образ игры или пакет, собранный с отладочным ключом: пропущено {count}.",
 "fpkg.run.what_folder": "папку игры",
+"fs_row_actions": "Действия для {name}",
 };
 
 export default ru;

@@ -4009,6 +4009,7 @@ c2c_test_deep_bad: "การส่งทดสอบ 4 KiB ไปไม่ถ�
 "cq_then_keep_folder": "เก็บโฟลเดอร์ไว้",
 "cq_folder_sources_only": "เฉพาะอิมเมจเกมหรือแพ็กเกจที่สร้างด้วยคีย์ดีบักเท่านั้นที่ทำเป็นโฟลเดอร์ได้: ข้าม {count} รายการ",
 "fpkg.run.what_folder": "โฟลเดอร์เกม",
+"fs_row_actions": "การทำงานสำหรับ {name}",
 };
 
 export default th;
