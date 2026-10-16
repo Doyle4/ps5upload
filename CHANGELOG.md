@@ -4,6 +4,42 @@ What's new in ps5upload, written for humans.
 
 ---
 
+## 7.0.28
+
+- **Android: transfers keep going when you leave the app, and you get told when they finish
+  (#457).** Android pauses an app soon after it leaves the screen, and the notices that a job
+  finished lived in the app's page, which pauses with it. Now, while anything is uploading,
+  downloading or installing, ps5upload runs as a foreground service with a progress
+  notification ("Uploading … 42% · 1.2 of 2.9 GB · 38 MB/s"), and posts "Upload complete" or
+  "Upload failed" when it ends. A queue moves on to the next item in the background too.
+  Measured on Android 16: a 1.8 GB upload with the screen off for 12 minutes finished, with one
+  "complete" notification. On a computer, a finished job is announced right away while the
+  window is minimised or hidden, and the queue no longer waits for the window to come back.
+- **Decompress a .ffpfsc on the console (#453).** Files → right-click a `.ffpfsc` →
+  "Decompress to .exfat…" writes the game image it holds next to it, on the console, with
+  progress and Stop: no download and re-upload through a computer. The console's own kernel
+  does the decoding (the way ShadowMount+ reads these files), so nothing extra runs in the
+  helper; a first version that decoded in the helper made it crash and was pulled from 7.0.23.
+  Measured on both consoles: a 4.5 GB image in 40-65 s, byte-identical to the source. Needs the
+  7.0.28 helper.
+- **Console to console: pick up a send from another device, and test the connection first
+  (#444).** Tasks lists sends between your consoles that another phone or computer started,
+  with Watch (follow a direct send), Take over, and Resume here for one that was paused or
+  whose device went away. Pausing now stops both consoles' halves, so any device can resume it
+  straight away. "Test connection" in Send to another console checks that the sending console
+  can reach the other one on the route and address you chose (handy for a ps5-tailscale
+  forward), optionally with a small real send. Watching or taking over a send that is still
+  running needs the 7.0.28 helper on both consoles.
+- **A large .7z upload is no longer called "damaged" when the phone just failed to read it
+  (#446).** The 7z decoder turns any failed read of the archive file into "dist overflow", the
+  same error a broken archive gives, and since 7.0.22 a broken archive is never retried. So one
+  read that failed on a busy phone ended a 70 GB upload as corrupt. A failed read is now reported
+  as itself, and the upload retries it. An 84 GiB single-block archive made with 7-Zip's
+  defaults decoded cleanly well past 40 GB in testing.
+- **"Helper not running" says what to do next everywhere.** Status checks used the old "not
+  running or an old version" text; they now say, like a job does, whether the app can send the
+  helper (the loader is up) or the jailbreak's loader needs starting first.
+
 ## 7.0.27
 
 - **A stream install no longer fails on the PS5 after ps5upload says it's done.** The PS5
