@@ -14,6 +14,9 @@
  *   keys only); payload/Makefile gzips each into the ELF (build/webui_strings.c) and the helper
  *   serves them at GET /strings/<code>.json. The page fetches them with ?v=<hash of these files>
  *   (__CW_STRINGS_V__), so the helper's immutable caching never mixes builds.
+ * - Offline copy: sw.js and cache.appcache next to the page (offlineCopy.ts), with the page's
+ *   hash in them; payload/Makefile embeds both (build/webui_offline.c), served at /sw.js and
+ *   /cache.appcache.
  */
 import { createHash } from "node:crypto";
 import { readdirSync, readFileSync } from "node:fs";
@@ -21,6 +24,7 @@ import { fileURLToPath } from "node:url";
 import { gzipSync } from "node:zlib";
 import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
+import { appcacheManifest, serviceWorkerSource } from "./src/console/offline/offlineCopy";
 
 const RAW_BUDGET = 640 * 1024;
 const GZIP_BUDGET = 220 * 1024; // ruling R19 (was 150 KiB)
@@ -184,6 +188,12 @@ function singleFile(): Plugin {
       if (raw > RAW_BUDGET || gz > GZIP_BUDGET) {
         this.error(`console page over budget: ${kib(raw)} raw (max ${kib(RAW_BUDGET)}), ${kib(gz)} gzip (max ${kib(GZIP_BUDGET)})`);
       }
+
+      // The offline copy (src/console/offline/offlineCopy.ts): a service worker and an appcache
+      // manifest named after this page's hash, so a new build replaces the copy.
+      const version = createHash("sha256").update(page).digest("hex").slice(0, 12);
+      this.emitFile({ type: "asset", fileName: "sw.js", source: serviceWorkerSource(version) });
+      this.emitFile({ type: "asset", fileName: "cache.appcache", source: appcacheManifest(version) });
     },
   };
 }
@@ -192,7 +202,11 @@ function escapeRe(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+/** The app version the page was built with (package.json; the helper's /api/settings version is the same). */
+const APP_VERSION = (JSON.parse(readFileSync(fileURLToPath(new URL("./package.json", import.meta.url)), "utf8")) as { version: string }).version;
+
 export default defineConfig({
+  define: { __CW_APP_V__: JSON.stringify(APP_VERSION) },
   root: fileURLToPath(new URL("./src/console", import.meta.url)),
   base: "./",
   publicDir: false,

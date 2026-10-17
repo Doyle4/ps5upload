@@ -30,6 +30,7 @@
 #include "ps5_firmware.h"
 #include "webui_codec.h"
 #include "webui_inputlog.h"
+#include "webui_offline.h"
 #include "webui_page.h"
 #include "webui_server.h"
 #include "webui_settings.h"
@@ -380,9 +381,10 @@ static void r_fs_stat(const char *b, size_t n, uint8_t *out, int fd) {
     }
     /* The entry's identity (device + inode, as strings: an inode can pass 2^53) so the page can tell
      * "the item itself" from a different entry by more than its spelling: exFAT USB is
-     * case-insensitive, so /mnt/usb0/Games and /mnt/usb0/games are one folder. lstat (the
-     * entry itself, not a link's target) of the path the FS_STAT above already accepted. */
-    if (lstat(path, &ls) == 0)
+     * case-insensitive, so /mnt/usb0/Games and /mnt/usb0/games are one folder. stat(), like
+     * FS_STAT above (which follows links): a symlink to the destination is the destination, so a
+     * paste of that link into it is seen as "into itself". The path is the one FS_STAT accepted. */
+    if (stat(path, &ls) == 0)
         k = snprintf(json, sizeof json,
                      "{\"kind\":\"%s\",\"size\":%llu,\"mtime\":%llu,\"mode\":%lu,\"dev\":\"%llu\",\"ino\":\"%llu\"}",
                      kind_name(s.kind), (unsigned long long)s.size, (unsigned long long)s.mtime, (unsigned long)s.mode,
@@ -976,14 +978,21 @@ void webui_api_settings_init(const webui_settings_t *s) {
 /* tile_busy / tile_failed: the tile switch is applied on the tile thread after this reply (Sony calls
  * take seconds), so the page re-reads /api/settings until tile_busy is false and then says so when
  * the last ensure/remove failed (webui_tile_state). */
+/* `addr`: with LAN access on, the console's address a phone opens ("Continue on your phone"; the
+ * page builds http://<addr>:<port>/ from it); "" when off or there is none. Dotted IPv4 only. */
 static void send_settings(int fd, const webui_settings_t *s) {
-    char json[200];
+    char json[256], addr[INET_ADDRSTRLEN];
     int busy, failed, k;
     webui_tile_state(&busy, &failed);
+    if (!s->lan || !webui_lan_addr(addr)) addr[0] = '\0';
     k = snprintf(json, sizeof json,
-                 "{\"lan\":%s,\"tile\":%s,\"tile_busy\":%s,\"tile_failed\":%s,\"version\":\"%s\"}",
+                 "{\"lan\":%s,\"tile\":%s,\"tile_busy\":%s,\"tile_failed\":%s,\"version\":\"%s\",\"addr\":\"%s\"}",
                  s->lan ? "true" : "false", s->tile ? "true" : "false", busy ? "true" : "false",
-                 failed ? "true" : "false", PS5UPLOAD2_VERSION);
+                 failed ? "true" : "false", PS5UPLOAD2_VERSION, addr);
+    if (k < 0 || (size_t)k >= sizeof json) {
+        send_error(fd, 500, "bad_settings_reply", 18);
+        return;
+    }
     send_json(fd, 200, json, (size_t)k);
 }
 
@@ -1141,7 +1150,9 @@ static void r_cheats_list(const char *b, size_t n, uint8_t *out, int fd) {
 }
 
 static int cheats_error_http(const char *token) {
-    if (strcmp(token, "game_not_running") == 0 || strcmp(token, "module_missing") == 0) return 409;
+    if (strcmp(token, "game_not_running") == 0 || strcmp(token, "module_missing") == 0 ||
+        strcmp(token, "game_busy") == 0)
+        return 409;
     if (strcmp(token, "no_cheats") == 0) return 404;
     if (strcmp(token, "bad_index") == 0) return 400;
     return 500;
@@ -1475,11 +1486,14 @@ static const struct {
 };
 
 /* The page's own headers: only same-origin fetches, inline script/style (the page is one file),
+ * no-cache rather than no-store (revalidated on every visit, but storable: the appcache keeps it as
+ * the offline copy; webui_offline.h),
  * data:/blob: images; nosniff is on every response already. Never framed (frame-ancestors plus
  * X-Frame-Options for older engines): with LAN access on, another site could otherwise frame the
  * page, whose token works inside the frame, and click its buttons for the user. */
 #define PAGE_HEADERS                                                                       \
     "Content-Encoding: gzip\r\n"                                                          \
+    "Cache-Control: no-cache\r\n"                                                         \
     "Content-Security-Policy: default-src 'self' 'unsafe-inline' data: blob:; connect-src 'self'; " \
     "frame-ancestors 'none'\r\n"                                                          \
     "X-Frame-Options: DENY\r\n"
@@ -1497,20 +1511,27 @@ _Static_assert(sizeof(STRINGS_HEADERS) <= 300, "STRINGS_HEADERS must fit webui_s
 
 #define STRINGS_PREFIX "/strings/"
 
-/* GET /, GET /api/token and GET /strings/<lang>.json: the server checked Host/Origin but no token
- * (is_api is 0 for all three). None reaches a helper method, so they stay outside the in-flight RPC
+/* The offline copy's files (webui_offline.h): checked on every visit. */
+#define OFFLINE_HEADERS "Cache-Control: no-cache\r\n"
+
+/* GET /, GET /api/token, GET /strings/<lang>.json, GET /sw.js and GET /cache.appcache: the server
+ * checked Host/Origin but no token (is_api is 0 for all of them). None reaches a helper method, so they stay outside the in-flight RPC
  * gate. The token goes out as JSON with no CORS headers: another site's page cannot read the reply,
  * and loaded through a <script> tag it executes nothing. Never serve it as JavaScript. A strings
  * path names one of the embedded languages exactly (webui_strings_find) or answers 404. */
 static int serve_static(const webui_req_t *r, int fd) {
     int page = strcmp(r->path, "/") == 0;
     int strings = strncmp(r->path, STRINGS_PREFIX, sizeof STRINGS_PREFIX - 1) == 0;
-    if (!page && !strings && strcmp(r->path, "/api/token") != 0) return 0;
+    webui_offline_file_t off;
+    int offline = webui_offline_find(r->path, &off);
+    if (!page && !strings && !offline && strcmp(r->path, "/api/token") != 0) return 0;
     if (strcmp(r->method, "GET") != 0) {
         webui_send_json(fd, 405, "{\"error\":\"method_not_allowed\"}");
         return 1;
     }
-    if (strings) {
+    if (offline) {
+        webui_send_ex(fd, 200, off.ctype, off.data, off.len, OFFLINE_HEADERS);
+    } else if (strings) {
         const webui_strings_entry_t *e = webui_strings_find(webui_strings_table, webui_strings_count, r->path);
         if (!e) webui_send_json(fd, 404, "{\"error\":\"not_found\"}");
         else webui_send_ex(fd, 200, "application/json", e->data, e->len, STRINGS_HEADERS);

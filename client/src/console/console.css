@@ -1337,6 +1337,9 @@ button {
 /* ---- bulk rename, verify, decompress, folder size ---- */
 .cw-dialog.cw-bulk-rename {
   width: 64rem;
+  max-height: calc(100vh - 2rem);
+  overflow-y: auto;
+  box-sizing: border-box;
 }
 .cw-br-modes {
   display: flex;
@@ -1430,4 +1433,103 @@ button {
 }
 .cw-dialog .cw-field-error {
   color: var(--color-bad);
+}
+
+/* ---- offline screen and error screen (OfflinePage, ErrorBoundary) ---- */
+.cw-offline {
+  min-height: 100vh;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  text-align: center;
+  background: var(--color-canvas);
+}
+.cw-offline h1 {
+  margin: 0 0 0.8rem;
+  font-size: 1.8rem;
+}
+.cw-offline p {
+  max-width: 40rem;
+  margin: 0 0 1.4rem;
+  color: var(--color-muted);
+  line-height: 1.5;
+}
+.cw-offline .cw-dialog-buttons {
+  justify-content: center;
+}
+.cw-error-detail {
+  max-width: 40rem;
+  max-height: 6rem;
+  overflow: hidden;
+  margin: 0 0 1.4rem;
+  padding: 0.5rem 0.8rem;
+  border-radius: var(--radius-control);
+  background: var(--color-surface-3);
+  color: var(--color-muted);
+  font-size: 0.8rem;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* ---- long names scroll while focused (ui/marquee.ts) ---- */
+@keyframes cw-marquee {
+  0%,
+  15% {
+    text-indent: 0;
+  }
+  85%,
+  100% {
+    text-indent: calc(-1 * var(--cw-marquee, 0px));
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .cw-file-name.cw-marquee {
+    text-overflow: clip;
+    animation: cw-marquee var(--cw-marquee-s, 6s) ease-in-out infinite alternate;
+  }
+}
+
+/* ---- continue on your phone (ui/PhoneHandoff.tsx) ---- */
+.cw-phone {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  margin: 0.9rem 0 1rem;
+  padding: 0.6rem;
+  border-radius: 12px;
+  background: var(--color-surface-3);
+  text-align: start;
+}
+.cw-phone svg {
+  flex: none;
+  width: 6.5rem;
+  height: 6.5rem;
+  border-radius: 4px;
+}
+.cw-phone strong {
+  display: block;
+  margin-bottom: 0.2rem;
+}
+.cw-phone p {
+  margin: 0 0 0.3rem;
+  color: var(--color-muted);
+  font-size: 0.85rem;
+}
+.cw-phone code {
+  font-size: 0.95rem;
+  overflow-wrap: anywhere;
+}
+
+/* ---- first moment while the helper is asked (main.tsx) ---- */
+.cw-splash {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-canvas);
+  color: var(--color-muted);
+  font-size: 1.4rem;
 }

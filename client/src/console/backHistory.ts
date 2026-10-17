@@ -18,6 +18,19 @@
  * Escape, Backspace and a gamepad ○ call requestBack(): history.back() when
  * the guard is up (so they take exactly the path ○ takes), else the back
  * action directly.
+ *
+ * On the PS5 (opts.onRoot) the guard stays up on the first screen too, and ○
+ * there calls onRoot (window.close(): the browser goes back to the PS5's home
+ * screen, as Payload Manager does). Escape, Backspace and a gamepad ○ take
+ * the same path (requestBack → history.back()), so on the PS5 they too close
+ * the browser from Home with nothing open. If the page is still open after that, the
+ * guard is left down so the next ○ does what the browser does by itself.
+ *
+ * WebKit can fire a popstate as the page loads that pops nothing. Such a pop
+ * leaves history on the guard entry (atGuard) and is ignored; and for
+ * opts.graceMs after start, before any key or click, every pop only puts the
+ * guard back (Payload Manager's userNavigated flag + 1.5 s grace), so neither
+ * a tour opened at load nor the page itself is closed by it.
  */
 import { useEffect } from "react";
 
@@ -36,6 +49,15 @@ export interface HistoryEnv {
   defer(fn: () => void): void;
   /** The page loaded with the guard on top (a reload while it was up). */
   startsOnGuard(): boolean;
+  /** History's current entry is the guard (a popstate that popped nothing). Optional. */
+  atGuard?(): boolean;
+}
+
+export interface BackHistoryOptions {
+  /** ○ on the first screen (no level open): the guard stays up there and this runs instead. */
+  onRoot?: () => void;
+  /** For this long after start, until noteInput(), a pop only puts the guard back. */
+  graceMs?: number;
 }
 
 export interface BackHistory {
@@ -45,22 +67,30 @@ export interface BackHistory {
   requestBack(): void;
   /** The guard entry is on top (tests). */
   hasGuard(): boolean;
+  /** The user pressed a key or clicked: pops are real from now on (ends the grace). */
+  noteInput(): void;
   dispose(): void;
 }
 
-export function createBackHistory(env: HistoryEnv, runBack: () => void): BackHistory {
+export function createBackHistory(env: HistoryEnv, runBack: () => void, opts: BackHistoryOptions = {}): BackHistory {
   let levels = 0;
   let guard = env.startsOnGuard();
   let ignorePops = 0;
   let lastBackAt = -Infinity;
   let scheduled = false;
+  const startedAt = env.now();
+  const graceMs = opts.graceMs ?? 0;
+  let userInput = false;
+  /** onRoot ran and the page is still here: no guard on the first screen until a level opens. */
+  let rootTried = false;
 
+  const wantGuard = () => levels > 0 || (!!opts.onRoot && !rootTried);
   const sync = () => {
     scheduled = false;
-    if (levels > 0 && !guard) {
+    if (wantGuard() && !guard) {
       env.push();
       guard = true;
-    } else if (levels === 0 && guard) {
+    } else if (!wantGuard() && guard) {
       guard = false;
       ignorePops++;
       env.back();
@@ -73,6 +103,10 @@ export function createBackHistory(env: HistoryEnv, runBack: () => void): BackHis
   };
 
   const off = env.onPop(() => {
+    if (env.atGuard?.()) {
+      guard = true; // nothing was popped (WebKit's load-time popstate)
+      return;
+    }
     guard = false; // the guard entry was just consumed
     if (ignorePops > 0) {
       ignorePops--;
@@ -80,19 +114,29 @@ export function createBackHistory(env: HistoryEnv, runBack: () => void): BackHis
       return;
     }
     const now = env.now();
+    if (!userInput && now - startedAt < graceMs) {
+      schedule();
+      return;
+    }
     if (now - lastBackAt < BACK_ECHO_MS) {
       schedule();
       return;
     }
     lastBackAt = now;
+    if (levels === 0 && opts.onRoot) {
+      rootTried = true;
+      opts.onRoot();
+      return;
+    }
     runBack();
     schedule();
   });
-  if (guard) schedule();
+  if (guard || wantGuard()) schedule();
 
   return {
     addLevel() {
       levels++;
+      rootTried = false;
       schedule();
       let closed = false;
       return () => {
@@ -112,6 +156,9 @@ export function createBackHistory(env: HistoryEnv, runBack: () => void): BackHis
       schedule();
     },
     hasGuard: () => guard,
+    noteInput() {
+      userInput = true;
+    },
     dispose: off,
   };
 }
@@ -121,9 +168,34 @@ export function createBackHistory(env: HistoryEnv, runBack: () => void): BackHis
 const GUARD = "cwBack";
 let instance: BackHistory | null = null;
 
+function isGuardState(): boolean {
+  const st: unknown = window.history.state;
+  return !!st && typeof st === "object" && (st as Record<string, unknown>)[GUARD] === 1;
+}
+
+/** WebKit's load-time popstate is ignored for this long (until a key or click). */
+export const LOAD_GRACE_MS = 1500;
+
+/** The PS5's own browser (its ○ leaves the page; window.close() returns to the home screen). */
+export function isPs5Browser(ua: string = typeof navigator !== "undefined" ? navigator.userAgent : ""): boolean {
+  return /PlayStation/i.test(ua);
+}
+
+/** Close the browser (PS5: back to the home screen). Never throws. */
+function closeWindow(): void {
+  try {
+    window.close();
+  } catch {
+    /* not closable: the page stays */
+  }
+}
+
+let offInput: (() => void) | null = null;
+
 /** Install on the real window (main.tsx). `runBack` is the page's back action. */
 export function installBackHistory(runBack: () => void): BackHistory {
   instance?.dispose();
+  offInput?.();
   instance = createBackHistory(
     {
       push: () => window.history.pushState({ [GUARD]: 1 }, ""),
@@ -136,13 +208,22 @@ export function installBackHistory(runBack: () => void): BackHistory {
       defer: (fn) => {
         setTimeout(fn, 0);
       },
-      startsOnGuard: () => {
-        const st: unknown = window.history.state;
-        return !!st && typeof st === "object" && (st as Record<string, unknown>)[GUARD] === 1;
-      },
+      startsOnGuard: isGuardState,
+      atGuard: isGuardState,
     },
     runBack,
+    { onRoot: isPs5Browser() ? closeWindow : undefined, graceMs: LOAD_GRACE_MS },
   );
+  const h = instance;
+  const note = () => h.noteInput();
+  window.addEventListener("keydown", note, true);
+  window.addEventListener("mousedown", note, true);
+  window.addEventListener("touchstart", note, true);
+  offInput = () => {
+    window.removeEventListener("keydown", note, true);
+    window.removeEventListener("mousedown", note, true);
+    window.removeEventListener("touchstart", note, true);
+  };
   return instance;
 }
 

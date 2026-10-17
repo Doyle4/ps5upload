@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { ArrowRight, Square, SquareCheck } from "lucide-react";
 import { t } from "../strings";
 import { Modal } from "../ui/Modal";
+import { PhoneHandoff } from "../ui/PhoneHandoff";
 import { planRenames, type RenameItem, type RenameMode, type RenamePlan, type RenameRow } from "./bulkRename";
 
 type Kind = RenameMode["kind"];
@@ -232,6 +233,7 @@ export function BulkRenameDialog({
                 ) : null}
               </ul>
             )}
+            <PhoneHandoff />
           </div>
         </div>
         {!wait && plan.first ? (

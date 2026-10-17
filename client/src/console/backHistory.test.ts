@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { BACK_ECHO_MS, createBackHistory, type HistoryEnv } from "./backHistory";
+import { BACK_ECHO_MS, createBackHistory, isPs5Browser, type HistoryEnv } from "./backHistory";
 
 /** A browser history in memory: entries, popstate, a clock and a deferred queue. */
 function fakeEnv(startsOnGuard = false) {
@@ -46,6 +46,10 @@ function fakeEnv(startsOnGuard = false) {
     },
     tick(ms: number) {
       clock += ms;
+    },
+    /** A popstate that moves nothing in history (WebKit fires one as a page loads). */
+    spuriousPop() {
+      pop?.();
     },
   };
 }
@@ -160,5 +164,94 @@ describe("back history", () => {
     f.flush();
     expect(f.entries).toEqual(["page"]);
     expect(p.runBack).not.toHaveBeenCalled();
+  });
+
+  it("isPs5Browser matches the PS5's user agent only", () => {
+    expect(isPs5Browser("Mozilla/5.0 (PlayStation; PlayStation 5/13.60) AppleWebKit/605.1.15 (KHTML, like Gecko)")).toBe(true);
+    expect(isPs5Browser("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Safari/605.1.15")).toBe(false);
+  });
+});
+
+describe("back history on the PS5 (close at the first screen)", () => {
+  function ps5(graceMs = 0) {
+    const f = fakeEnv();
+    f.env.atGuard = () => f.entries[f.entries.length - 1] === "guard";
+    const onRoot = vi.fn();
+    const runBack = vi.fn();
+    const h = createBackHistory(f.env, runBack, { onRoot, graceMs });
+    f.flush();
+    return { f, h, onRoot, runBack };
+  }
+
+  it("○ on the first screen closes the browser instead of leaving the page", () => {
+    const { f, onRoot, runBack } = ps5();
+    expect(f.entries).toEqual(["page", "guard"]); // a guard even with nothing open
+    f.tick(1000);
+    expect(f.browserBack()).toBe("stayed");
+    f.flush();
+    expect(onRoot).toHaveBeenCalledTimes(1);
+    expect(runBack).not.toHaveBeenCalled();
+    // Still open (close refused): the guard stays down, the next ○ is the browser's own.
+    expect(f.entries).toEqual(["page"]);
+    expect(f.browserBack()).toBe("left");
+  });
+
+  it("a level opened after a refused close puts the first-screen guard back", () => {
+    const { f, h, onRoot } = ps5();
+    f.tick(1000);
+    f.browserBack();
+    f.flush();
+    expect(onRoot).toHaveBeenCalledTimes(1);
+    const close = h.addLevel();
+    f.flush();
+    expect(f.entries).toEqual(["page", "guard"]);
+    close();
+    f.flush();
+    expect(f.entries).toEqual(["page", "guard"]); // kept for the first screen
+  });
+
+  it("closing a level by ○ steps back, and never closes the browser", () => {
+    const { f, h, onRoot, runBack } = ps5();
+    const close = h.addLevel();
+    runBack.mockImplementation(() => close());
+    f.flush();
+    f.tick(1000);
+    f.browserBack();
+    f.flush();
+    expect(runBack).toHaveBeenCalledTimes(1);
+    expect(onRoot).not.toHaveBeenCalled();
+    expect(f.entries).toEqual(["page", "guard"]);
+  });
+
+  it("a popstate that pops nothing (WebKit at load) is ignored", () => {
+    const { f, onRoot, runBack } = ps5();
+    f.tick(1000);
+    f.spuriousPop();
+    f.flush();
+    expect(f.entries).toEqual(["page", "guard"]);
+    expect(onRoot).not.toHaveBeenCalled();
+    expect(runBack).not.toHaveBeenCalled();
+  });
+
+  it("before any key or click, a pop inside the load grace only puts the guard back", () => {
+    const { f, h, onRoot } = ps5(1500);
+    f.tick(500);
+    f.browserBack();
+    f.flush();
+    expect(onRoot).not.toHaveBeenCalled();
+    expect(f.entries).toEqual(["page", "guard"]);
+    // After a key the same pop is real.
+    h.noteInput();
+    f.browserBack();
+    f.flush();
+    expect(onRoot).toHaveBeenCalledTimes(1);
+  });
+
+  it("after the grace a pop is real even with no key pressed (○ is not a key on the PS5)", () => {
+    const { f, onRoot } = ps5(1500);
+    f.tick(1600);
+    f.browserBack();
+    f.flush();
+    expect(onRoot).toHaveBeenCalledTimes(1);
   });
 });

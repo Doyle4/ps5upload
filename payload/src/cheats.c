@@ -29,6 +29,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <pthread.h>
+#include <signal.h>
 #include <stdatomic.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -1592,10 +1593,24 @@ int cheats_toggle(const char *title_id, int mod_index, int turn_on,
         }
     }
 
-    /* Attach and apply */
+    /* Attach and apply. A failed attach is told apart, because the console page (webui_codec.c
+     * webui_cheats_toggle_error matches these texts; keep them in step) says each differently:
+     *   - the game exited a moment ago (the 2 s running-game cache still had its pid): the same
+     *     text as no game at all, and the cache is dropped so the next status read sees it gone;
+     *   - the game is alive but another debugger is attached (EBUSY: the PC app toggling at the
+     *     same moment, or another cheat tool): "is attached to the game";
+     *   - anything else: the plain "pt_attach failed (errno=N)". */
     if (pt_attach(pid) != 0) {
+        int e = errno;
         free(target_cf);
-        if (err) snprintf(err, err_cap, "pt_attach failed (errno=%d)", errno);
+        invalidate_rg_cache();
+        if (kill(pid, 0) != 0 && errno == ESRCH) {
+            if (err) snprintf(err, err_cap, "no game is currently running");
+        } else if (e == EBUSY) {
+            if (err) snprintf(err, err_cap, "pt_attach failed: another debugger or cheat tool is attached to the game (errno=%d)", e);
+        } else if (err) {
+            snprintf(err, err_cap, "pt_attach failed (errno=%d)", e);
+        }
         return -1;
     }
 

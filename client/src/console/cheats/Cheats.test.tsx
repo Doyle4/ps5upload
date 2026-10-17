@@ -171,6 +171,36 @@ describe("cheats section", () => {
     expect(cheatsPhase(c.get()).kind).toBe("exited");
   });
 
+  it("toggle_right_after_the_game_exited_says_closed_at_once", async () => {
+    const h = helper({ game: GAME, mods: [mod()] });
+    const states: CheatsState[] = [];
+    const c = createCheatsController((st) => states.push(st));
+    await c.loadStatus();
+    h.game = null;
+    h.toggleError = new ApiError(409, "game_not_running");
+    let statusAsked = -1;
+    const real = mockCall.getMockImplementation()!;
+    mockCall.mockImplementation(async (route: string, body?: object) => {
+      if (route === "/api/cheats/status" && statusAsked < 0) statusAsked = states.length;
+      return real(route, body);
+    });
+    await c.toggle(c.get().list!.mods[0]);
+    // "Closed" was on screen before the status was read again (no wait for the next poll).
+    expect(statusAsked).toBeGreaterThan(0);
+    expect(states.slice(0, statusAsked).some((st) => cheatsPhase(st).kind === "exited")).toBe(true);
+    expect(cheatsPhase(c.get()).kind).toBe("exited");
+  });
+
+  it("a_toggle_racing_the_pc_app_says_try_again", async () => {
+    const h = helper({ game: GAME, mods: [mod()] });
+    const c = createCheatsController(() => {});
+    await c.loadStatus();
+    h.toggleError = new ApiError(409, "game_busy");
+    await c.toggle(c.get().list!.mods[0]);
+    expect(c.get().message).toBe(t("cw_cheats_err_busy"));
+    expect(cheatsPhase(c.get()).kind).toBe("list");
+  });
+
   it("another_game_never_shows_the_old_games_cheats", async () => {
     const h = helper({ game: GAME, mods: [mod({ name: "Old" })] });
     const c = createCheatsController(() => {});

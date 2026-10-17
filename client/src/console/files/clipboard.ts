@@ -3,11 +3,15 @@
  *
  * Both live outside any component (like batch.ts): the clipboard stays while
  * folders change and while another section is open, for the whole page
- * session; a paste that meets a conflict while Files is closed waits until
- * Files is open again to ask. Nothing here is saved: a reload empties it.
+ * session. A conflict is asked only while Files is open: Stop, or Files
+ * closing, answers the waiting one (and every later one) with Skip
+ * (skipPendingConflict), so a paste never waits behind a dialog nobody sees.
+ * Nothing here is saved: a reload empties it.
  *
- * Ruling R22: ○ (browser Back) never clears the clipboard, at any level; only
- * the bar's Clear does, or a cut whose items all moved.
+ * Ruling R22: ○ (browser Back) never clears the clipboard, at any level. Only
+ * the bar's Clear empties it; a new Copy / Cut replaces it; a cut item leaves
+ * it once it has moved (or was skipped on purpose), and a copy stays to be
+ * pasted again.
  */
 import { useEffect, useState } from "react";
 import type { Conflict, Decision, PasteMode } from "./paste";

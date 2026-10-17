@@ -150,7 +150,8 @@ int webui_cheats_mods_to_json(const char *json, size_t n, char *out, size_t cap,
 
 /* A failed CHEATS_TOGGLE's cause ({"ok":false,"err":"<text>"}) as a token the page acts on:
  * "game_not_running" (no game, or a different game than the one asked for), "no_cheats",
- * "bad_index", "module_missing", else "toggle_failed". */
+ * "bad_index", "module_missing", "game_busy" (another debugger, e.g. the PC app's toggle at the same
+ * moment, is attached), else "toggle_failed". The texts matched are cheats.c's (cheats_toggle). */
 const char *webui_cheats_toggle_error(const char *cause, size_t n);
 
 /* Why /api/volumes/unmount refuses `p` before asking the helper, or NULL: "system_volume" for the console's
