@@ -531,6 +531,7 @@ mod appdb_list_has_title_tests {
             offset: None,
             next: None,
             more: None,
+            total: None,
             truncated,
         }
     }

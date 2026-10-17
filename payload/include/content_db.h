@@ -83,13 +83,17 @@ int content_db_select_text(const char *db_path, const char *sql, int max_rows,
  *
  * Emits {"apps":[{"title_id":"..","app_id":N,"name":".."}, ...],
  *        "source":"sqlite"|"sqlite-immutable"|"scan",
- *        "offset":O,"next":N,"more":bool,"truncated":bool}
+ *        "offset":O,"next":N,"more":bool,"truncated":bool,"total":T}
  *
+ * `total` is the table's row count, sent only from SQL (the scanner's is a
+ * lower bound); a caller that sees it change between pages knows rows
+ * moved under it.
  * `next` is the row the following page starts at; `more` is true while
  * rows remain after it. A page that fills `buf` before `limit` rows stops
  * early with `more` set, so a small buffer pages rather than silently
  * dropping the rest. `truncated` is true only when rows exist that no
- * page can deliver: one row larger than `buf`, or the byte scanner (the
+ * page can deliver: one row larger than `buf`, a SQL walk that stopped
+ * before the end (SQLITE_BUSY and the like), or the byte scanner (the
  * fallback for a database that will not open) hitting its own bounds.
  *
  * `limit` 0 (or above CONTENT_DB_APPS_PAGE_MAX) means

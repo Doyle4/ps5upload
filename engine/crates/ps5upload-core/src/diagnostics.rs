@@ -256,6 +256,10 @@ pub struct AppDbList {
     pub next: Option<u64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub more: Option<bool>,
+    /// The table's row count when the page was read (SQL reader only). A change between pages
+    /// means rows moved under the walk, so one may have been skipped: the list is truncated.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub total: Option<u64>,
     /// True when app.db holds rows this list does not: the helper could not deliver them, a
     /// page failed (`err` says why), the page bound was reached, or an older helper answered
     /// a full 256 rows (its old cap, which it could not report). A truncated list is never
@@ -299,7 +303,12 @@ pub fn appdb_query(addr: &str) -> Result<AppDbList> {
         let more = page.more.unwrap_or(false);
         let next = page.next.unwrap_or(offset + page.apps.len() as u64);
         let got = page.apps.len();
+        let total_moved = match (list.as_ref().and_then(|l| l.total), page.total) {
+            (Some(a), Some(b)) => a != b,
+            _ => false,
+        };
         let page_truncated = page.truncated
+            || total_moved
             || (!paged && got >= APPDB_LEGACY_CAP)
             // A page that claims more but does not move forward would loop.
             || (more && next <= offset);
@@ -322,6 +331,7 @@ pub fn appdb_query(addr: &str) -> Result<AppDbList> {
             l.offset = None;
             l.next = None;
             l.more = None;
+            l.total = None;
             return Ok(list.expect("set above"));
         }
         offset = next;
@@ -332,6 +342,7 @@ pub fn appdb_query(addr: &str) -> Result<AppDbList> {
     l.offset = None;
     l.next = None;
     l.more = None;
+    l.total = None;
     Ok(l)
 }
 

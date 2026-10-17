@@ -73,6 +73,7 @@ fn paged_helper(rows: usize, page: usize) -> impl Fn(&Value) -> Result<Option<Ve
                 "next": end,
                 "more": end < all.len(),
                 "truncated": false,
+                "total": all.len(),
             }))
             .unwrap(),
         ))
@@ -207,4 +208,25 @@ fn errors_keep_their_meaning() {
     assert_eq!(d.apps.len(), 1);
     assert!(d.truncated);
     assert!(d.err.as_deref().unwrap_or("").contains("connection reset"));
+}
+
+#[test]
+fn a_row_count_that_changes_between_pages_marks_the_list_truncated() {
+    // A row deleted between pages shifts the window: the first row of page two was skipped.
+    let (_t, _g) = fake(|req| {
+        let off = req["offset"].as_u64().unwrap_or(0);
+        Ok(Some(
+            serde_json::to_vec(&if off == 0 {
+                json!({"apps":[{"title_id":"CUSA00001","app_id":1,"name":"a"}],
+                       "offset":0,"next":1,"more":true,"truncated":false,"total":3})
+            } else {
+                json!({"apps":[{"title_id":"CUSA00003","app_id":1,"name":"c"}],
+                       "offset":1,"next":2,"more":false,"truncated":false,"total":2})
+            })
+            .unwrap(),
+        ))
+    });
+    let d = appdb_query(A).unwrap();
+    assert_eq!(d.apps.len(), 2);
+    assert!(d.truncated);
 }

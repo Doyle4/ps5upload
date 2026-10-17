@@ -164,8 +164,8 @@ zero means no cap. The pre-6.0 name of this variable still works for one release
 
 **Q: Can I run the engine on a different machine (self-hosted)?**
 Yes. Run it on a server or NAS and point the app at it in **Settings → Engine URL**. For a
-step-by-step guide that ends with the app open on a phone, see "Use PS5Upload from your phone or
-another computer" below. Images:
+step-by-step guide that ends with the app open on a phone, see "How do I use PS5Upload from my phone
+or another computer?" below. Images:
 `ghcr.io/phantomptr/ps5upload-engine` (engine only) and `ghcr.io/phantomptr/ps5upload-engine-webui`
 (full web UI), tagged `:latest` or `:<version>`.
 
@@ -199,8 +199,8 @@ in the compose file to the folder's owner (`ls -ln` shows the numbers), or run
 
 **Q: Can I use ps5upload from a web browser (no desktop app)?**
 Yes. The `webui` image (above) serves the full app over HTTP; open `http://<host>:19113` from an
-allowed IP. Same security rules: no password, trusted LAN only. The next question walks through
-it from start to finish.
+allowed IP. Same security rules: no password, trusted LAN only. "How do I use PS5Upload from my
+phone or another computer?" below walks through it from start to finish.
 
 - **Upload works**, but the file picker browses the **engine's** disk, not your browser machine's.
   Mount your games into the container (`-v /host/games:/pkgs:ro`) and set
@@ -212,7 +212,7 @@ it from start to finish.
   report. Everything that works on the PS5 itself is the same as on desktop.
 - The docker image can be built using `PS5UPLOAD_BASE_URL` to change the root path of the app.
 
-**Q: Use PS5Upload from your phone or another computer**
+**Q: How do I use PS5Upload from my phone or another computer?**
 Run PS5Upload on one machine, for example a Mac tucked away next to the router, and use the whole
 app from a browser anywhere on your home network, including Safari on an iPhone or iPad. This
 uses the web UI Docker image, not the desktop app.

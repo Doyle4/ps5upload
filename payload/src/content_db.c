@@ -325,7 +325,8 @@ static int cdb_apps_window(content_db_app_t *out, unsigned offset, int max,
                 continue;
             /* Every row is counted (so the caller knows whether more
              * follow); only the window is copied. */
-            while (sqlite3_step(st) == SQLITE_ROW) {
+            int step;
+            while ((step = sqlite3_step(st)) == SQLITE_ROW) {
                 const unsigned char *tid = sqlite3_column_text(st, 0);
                 if (!tid) continue;
                 unsigned idx = rows_seen++;
@@ -335,6 +336,9 @@ static int cdb_apps_window(content_db_app_t *out, unsigned offset, int max,
                              (const char *)nm, sqlite3_column_int(st, 1));
                 count++;
             }
+            /* A walk that ended on anything but DONE (BUSY under the
+             * shell's write, a damaged page) did not see every row. */
+            if (rows_seen > 0 && step != SQLITE_DONE && capped) *capped = 1;
             sqlite3_finalize(st);
         }
         sqlite3_close(db);
@@ -499,11 +503,17 @@ int content_db_apps_page_json(unsigned offset, unsigned limit, char *buf,
     int truncated = capped || stuck;
     if (stuck) more_rows = 0;
 
+    /* `total` is exact only from SQL: the scanner's is a lower bound that
+     * grows with the window, so it is left out rather than mislead a
+     * caller comparing pages. */
+    char total_field[32] = "";
+    if (strcmp(source, "scan") != 0)
+        snprintf(total_field, sizeof(total_field), ",\"total\":%u", total);
     int end2 = snprintf(buf + n, cap - (size_t)n,
                         "],\"source\":\"%s\",\"offset\":%u,\"next\":%u,"
-                        "\"more\":%s,\"truncated\":%s}",
+                        "\"more\":%s,\"truncated\":%s%s}",
                         source, offset, next, more_rows ? "true" : "false",
-                        truncated ? "true" : "false");
+                        truncated ? "true" : "false", total_field);
     if (end2 < 0 || (size_t)(n + end2) >= cap) return -1;
     n += end2;
     if (written) *written = (size_t)n;

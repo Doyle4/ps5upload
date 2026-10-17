@@ -5048,24 +5048,46 @@ fn appdb_installed_additions(
     out
 }
 
-/// Titles we registered whose app folder exists but that neither the /user/appmeta scan
-/// nor app.db produced (#473): a homebrew-installed title has no appmeta folder, and app.db
-/// may not have answered for it (a failed or partial read). The registration and the folder
-/// on disk are evidence enough. Sorted, so the list does not reshuffle between refreshes.
+/// Candidates for titles whose app folder exists but that neither the /user/appmeta scan
+/// nor app.db produced (#473), taken from the helper's registered list.
+///
+/// Only when app.db could not be read in full (`appdb_whole` false): with a complete app.db, a
+/// folder it does not list is not an installed title (a failed install, a partial uninstall),
+/// and the helper's list holds every /user/app folder, not only titles we registered. System
+/// ids (NPXS) are left out, as in [`appdb_installed_additions`]. The caller still checks each
+/// candidate for evidence it is a title (a mount.lnk source or a param file). Sorted, so the
+/// list does not reshuffle between refreshes.
 fn registered_only_additions<'a>(
     registered: impl IntoIterator<Item = &'a str>,
     app_dirs: &std::collections::HashSet<String>,
     seen: &std::collections::HashSet<String>,
+    appdb_whole: bool,
 ) -> Vec<String> {
+    if appdb_whole {
+        return Vec::new();
+    }
     let mut out: Vec<String> = registered
         .into_iter()
         .map(str::trim)
-        .filter(|tid| looks_like_title_id(tid) && app_dirs.contains(*tid) && !seen.contains(*tid))
+        .filter(|tid| {
+            looks_like_title_id(tid)
+                && !tid.starts_with("NPXS")
+                && app_dirs.contains(*tid)
+                && !seen.contains(*tid)
+        })
         .map(str::to_string)
         .collect();
     out.sort();
     out.dedup();
     out
+}
+
+/// True when `/user/app/<id>/sce_sys` holds a param.json or param.sfo: the folder is a title,
+/// not the leftovers of a failed install.
+fn app_folder_has_param(addr: &str, title_id: &str) -> bool {
+    ["param.json", "param.sfo"]
+        .iter()
+        .any(|f| fs_read(addr, &format!("/user/app/{title_id}/sce_sys/{f}"), 0, 16).is_ok())
 }
 
 /// GET /api/ps5/apps/installed?addr=IP:MGMT_PORT
@@ -5184,6 +5206,9 @@ async fn ps5_apps_installed(
             complete = complete
                 && crate::console_snapshot::app_folders_whole(internal_listing, app_dirs.len());
             if !app_dirs.is_empty() {
+                // Whether app.db answered in full: only then is a folder it does not list
+                // known not to be an installed title.
+                let mut appdb_whole = true;
                 let rows: Option<Vec<(String, String)>> = match appdb.get() {
                     Ok(list) => {
                         // `err` with no rows: the helper could not read app.db at all.
@@ -5198,6 +5223,7 @@ async fn ps5_apps_installed(
                                     .unwrap_or_default()
                             );
                             complete = false;
+                            appdb_whole = false;
                         }
                         Some(
                             list.apps
@@ -5209,6 +5235,7 @@ async fn ps5_apps_installed(
                     Err(e) => {
                         crate::log_warn!("apps/installed: app.db query failed: {e}");
                         complete = false;
+                        appdb_whole = false;
                         None
                     }
                 };
@@ -5235,24 +5262,30 @@ async fn ps5_apps_installed(
                         });
                     }
                 }
-                // Registered titles whose folder is there but that neither listing above
-                // produced (#473): never let a registration vanish because app.db did not
-                // answer for it.
+                // When app.db could not be read in full, a title it did not get to still
+                // has its folder and its registration (#473): list it if the folder holds a
+                // title (our mount.lnk source, or a param file), never a bare leftover folder.
                 let seen: std::collections::HashSet<String> =
                     titles.iter().map(|t| t.title_id.clone()).collect();
-                for tid in
-                    registered_only_additions(reg_map.keys().map(String::as_str), &app_dirs, &seen)
-                {
+                for tid in registered_only_additions(
+                    reg_map.keys().map(String::as_str),
+                    &app_dirs,
+                    &seen,
+                    appdb_whole,
+                ) {
                     let Some(reg) = reg_map.get(&tid) else {
                         continue;
                     };
+                    if reg.src.trim().is_empty() && !app_folder_has_param(&addr, &tid) {
+                        continue;
+                    }
                     let name = if reg.title_name.trim().is_empty() || reg.title_name == tid {
                         appmeta_title_name(&addr, &tid, &mut appdb).unwrap_or_else(|| tid.clone())
                     } else {
                         reg.title_name.clone()
                     };
                     titles.push(InstalledApp {
-                        system: tid.starts_with("NPXS"),
+                        system: false,
                         title_id: tid,
                         title_name: name,
                         origin: "registered".to_string(),
@@ -12672,24 +12705,41 @@ mod appdb_installed_additions_tests {
         );
     }
 
-    /// #473: a registered title with its app folder but no appmeta and no
-    /// app.db row (a failed or partial app.db read) is still listed.
+    /// #473: when app.db could not be read in full, a registered title with its
+    /// app folder but no appmeta and no app.db row is a candidate.
     #[test]
-    fn registered_titles_with_a_folder_are_reconciled() {
+    fn an_incomplete_appdb_read_reconciles_registered_titles_with_a_folder() {
         let got = registered_only_additions(
             [
                 "PPSA00002",
                 "ZZZZ99999",
                 "CUSA00001",
                 "PPSA00003",
+                "NPXS40056",
                 "not-an-id",
             ],
-            &set(&["ZZZZ99999", "CUSA00001", "PPSA00002", "not-an-id"]),
+            &set(&[
+                "ZZZZ99999",
+                "CUSA00001",
+                "PPSA00002",
+                "NPXS40056",
+                "not-an-id",
+            ]),
             // already listed by the appmeta scan or app.db
             &set(&["CUSA00001"]),
+            false,
         );
-        // PPSA00003 has no folder: a stale registration is not an installed title.
+        // PPSA00003 has no folder; NPXS is a system id, never added this way.
         assert_eq!(got, vec!["PPSA00002".to_string(), "ZZZZ99999".to_string()]);
+    }
+
+    /// A complete app.db read that does not list a folder means the folder is not an
+    /// installed title (a failed install, a partial uninstall): it is not added.
+    #[test]
+    fn a_complete_appdb_read_adds_no_folder_it_does_not_list() {
+        let got =
+            registered_only_additions(["PPSA00002"], &set(&["PPSA00002"]), &HashSet::new(), true);
+        assert!(got.is_empty());
     }
 
     #[test]

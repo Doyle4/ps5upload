@@ -411,6 +411,7 @@ int main(void) {
         assert(json_true(pbuf, "more"));
         assert(!json_true(pbuf, "truncated"));
         assert(json_num(pbuf, "next") > 256);
+        assert(json_num(pbuf, "total") == 1001);
         printf("✓ the unpaged call says more rows follow (next=%ld)\n",
                json_num(pbuf, "next"));
 
