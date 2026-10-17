@@ -2507,6 +2507,42 @@ extern "C" {
     fn ava1_jobs_list_all(me: *const u8, out: *mut u8, cap: usize, out_len: *mut usize) -> c_int;
     fn ava1_jobs_owner_is(id: *const u8, me: *const u8) -> c_int;
     fn ava1_job_cancel_any(id: *const u8) -> c_int;
+    fn ava1_jobs_release_seen(me: *const u8);
+    fn ava1_server_set_rpc_peer(peer: *const u8);
+    fn ava1_data_rpc(
+        method: u16,
+        body: *const u8,
+        len: u32,
+        out: *mut u8,
+        cap: usize,
+        out_len: *mut usize,
+    ) -> c_int;
+}
+
+/// `ava1_jobs_release_seen` (the console page read /api/jobs): `me`'s finished operations and
+/// copies keep only the grace.
+pub fn c_jobs_release_seen(me: &[u8; 32]) {
+    unsafe { ava1_jobs_release_seen(me.as_ptr()) }
+}
+
+/// A data-layer RPC (`job.copy`, `job.run`, ...) as `me`, the way the console page's routes call
+/// it (`ava1_server_set_rpc_peer` on the calling thread, then the data plane): (status, reply).
+pub fn c_data_rpc_as(me: &[u8; 32], method: u16, body: &[u8]) -> (i32, Vec<u8>) {
+    let mut out = vec![0u8; 64 * 1024];
+    let mut n = 0usize;
+    let rc = unsafe {
+        ava1_server_set_rpc_peer(me.as_ptr());
+        ava1_data_rpc(
+            method,
+            body.as_ptr(),
+            body.len() as u32,
+            out.as_mut_ptr(),
+            out.len(),
+            &mut n,
+        )
+    };
+    out.truncate(n);
+    (rc, out)
 }
 
 /// `ava1_jobs_list_all` (the console page's job list): every job the data layer holds, of

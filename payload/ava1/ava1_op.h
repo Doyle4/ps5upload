@@ -57,6 +57,15 @@ int ava1_op_list_rpc(const uint8_t owner[32], uint8_t *out, size_t cap, size_t *
 int ava1_jobs_list_all(const uint8_t me[32], uint8_t *out, size_t cap, size_t *out_len);
 /* 1 when job `id` is listed and `me` owns it, else 0 (an absent job included). */
 int ava1_jobs_owner_is(const uint8_t id[16], const uint8_t me[32]);
+/* The console page has read the job list: every FINISHED operation or copy that `me` owns is
+ * treated as delivered, exactly as a JOB_STATUS reply delivers an operation's end
+ * (ava1_op_status_delivered): it stays listed for the grace (AVA1_OP_GRACE_MS, capped by the park
+ * age) after the first such read, so other readers still see how it ended, and is then released
+ * (an operation also by the next read after the grace, and at once when the table is full). Without
+ * this a page-started copy stayed listed the full park age (10 min) and 32 of them filled the table
+ * every owner shares. A move still deleting its source is not finished. Jobs of any other owner (a
+ * paired PC's) are never touched. Never call it with the table lock held. */
+void ava1_jobs_release_seen(const uint8_t me[32]);
 /* Encodes the Status of an operation job (job.status / job.run reply). */
 int ava1_op_encode_status(ava1_job_t *j, uint8_t *out, size_t cap, size_t *out_len);
 /* job.cancel on an operation job: raises the flag and returns (never waits); the worker stops at

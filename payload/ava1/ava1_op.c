@@ -460,6 +460,45 @@ int ava1_jobs_list_all(const uint8_t me[32], uint8_t *out, size_t cap, size_t *o
     return list_jobs(NULL, out, cap, out_len);
 }
 
+typedef struct {
+    const uint8_t *me;
+    uint8_t id[AVA1_MAX_JOBS][16];
+    unsigned n;
+} seen_t;
+
+static void seen_one(ava1_job_t *j, void *ctx) {
+    seen_t *s = ctx;
+    if (s->n >= AVA1_MAX_JOBS || memcmp(j->owner, s->me, 32) != 0) return;
+    if (j->kind != AVA1_JOB_OPKIND && j->kind != AVA1_JOB_COPY) return;
+    if (!__atomic_load_n(&j->finished, __ATOMIC_ACQUIRE)) return;
+    /* the listing's rule (list_one): a move is running until its source is gone */
+    if (j->kind == AVA1_JOB_COPY && __atomic_load_n(&j->copy_move, __ATOMIC_ACQUIRE) &&
+        !__atomic_load_n(&j->copy_delete_done, __ATOMIC_ACQUIRE))
+        return;
+    memcpy(s->id[s->n++], j->id, 16);
+}
+
+void ava1_jobs_release_seen(const uint8_t me[32]) {
+    seen_t *s = calloc(1, sizeof *s);
+    unsigned i;
+    if (!s) return;
+    s->me = me;
+    ava1_job_foreach(seen_one, s); /* under the table lock: only collects ids */
+    for (i = 0; i < s->n; i++) {
+        ava1_job_t *j = ava1_job_find(s->id[i]);
+        if (!j) continue;
+        if (j->kind == AVA1_JOB_OPKIND) {
+            ava1_op_status_delivered(j, 1);
+        } else if (!__atomic_load_n(&j->op_delivered, __ATOMIC_ACQUIRE)) {
+            /* a copy: the reaper releases it once the grace from now has passed */
+            __atomic_store_n(&j->parked_at_ms, ava1_mono_ms(), __ATOMIC_RELEASE);
+            __atomic_store_n(&j->op_delivered, 1, __ATOMIC_RELEASE);
+        }
+        ava1_job_put(j);
+    }
+    free(s);
+}
+
 int ava1_jobs_owner_is(const uint8_t id[16], const uint8_t me[32]) {
     ava1_job_t *j = ava1_job_find(id);
     int mine;

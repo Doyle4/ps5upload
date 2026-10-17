@@ -377,7 +377,9 @@ void ava1_job_reap(uint64_t now_ms) {
         if (j->kind == AVA1_JOB_OPKIND
                 ? (fin && now_ms - j->parked_at_ms > ava1_op_keep_ms(__atomic_load_n(&j->op_delivered, __ATOMIC_ACQUIRE)))
                 : j->kind == AVA1_JOB_COPY || j->c2c
-                ? (fin && now_ms - j->parked_at_ms > age)
+                /* a copy the console page has seen finished (ava1_jobs_release_seen) keeps only the grace */
+                ? (fin && now_ms - j->parked_at_ms >
+                              (__atomic_load_n(&j->op_delivered, __ATOMIC_ACQUIRE) ? ava1_op_keep_ms(1) : age))
                 : (now_ms - j->parked_at_ms > age || (fin && now_ms - j->parked_at_ms > done_age))) {
             gone[n++] = j;
             unlist(j);
