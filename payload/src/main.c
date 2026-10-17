@@ -31,6 +31,7 @@
 #include "sony_api_lock.h"
 
 #include "proc_identity.h"
+#include "webui_api.h"
 #include "webui_server.h"
 /* Sony "debugger" / system-process authid. Setting our process's
  * ucred authid to this value grants the credentials Sony's kernel
@@ -491,12 +492,6 @@ static void redirect_stdio_to_file(void) {
 
 /* Starts the AVA1 side; only ever reached through takeover_gate_start (no other helper holds the port). */
 static int g_ava1_start_rc = 0;
-/* Console web UI router: 404 for everything until the API lands (Task 4 replaces it). */
-static int webui_route_none(const webui_req_t *r, const uint8_t *body, size_t body_len, int fd) {
-    (void)r; (void)body; (void)body_len;
-    webui_send_json(fd, 404, "{\"error\":\"not_found\"}");
-    return 0;
-}
 
 static void start_ava1_cb(void *ctx) {
     (void)ctx;
@@ -805,7 +800,7 @@ int main(void) {
         webui_cfg_t wc;
         wc.port = WEBUI_PORT;
         wc.lan = 0;
-        wc.route = webui_route_none;
+        wc.route = webui_api_route;
         if (webui_start(&wc) != 0) fprintf(stderr, "webui: server did not start\n");
         startup_trace("WEBUI_STARTED");
     }

@@ -43,6 +43,9 @@ int webui_restart(int lan);
 
 /* The token for this start ("" when the server is not running). */
 const char *webui_token(void);
+/* The token copied under the server's lock (webui_token() reads it unsynchronized): use this one
+ * from any thread that may race a start, stop or restart. */
+void webui_token_copy(char out[65]);
 
 /* Write a complete response (head + body) within the connection deadline. */
 void webui_send(int fd, int status, const char *ctype, const void *body, size_t len);

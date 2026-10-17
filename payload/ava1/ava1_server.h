@@ -93,6 +93,9 @@ int ava1_server_rpc_inflight(void);
 void ava1_server_stop(void);
 /* Identity of the paired caller while an RPC callback runs on its worker thread. */
 const uint8_t *ava1_server_rpc_peer(void);
+/* Sets the calling thread's RPC identity, for a caller that runs RPC callbacks on its own thread
+ * (the console web UI's workers act as their own fixed identity, not as a paired device). */
+void ava1_server_set_rpc_peer(const uint8_t peer[32]);
 
 /* The waiting send, for job threads, workers and lane writers: returns when the frame
  * is written. AVA1_E_CLOSED when the session (or lane) is not live. */

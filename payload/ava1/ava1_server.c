@@ -154,6 +154,7 @@ static struct {
 } tickets[TICKETS];
 
 const uint8_t *ava1_server_rpc_peer(void) { return rpc_peer; }
+void ava1_server_set_rpc_peer(const uint8_t peer[32]) { memcpy(rpc_peer, peer, sizeof rpc_peer); }
 /* Serialises peers-file writes. Taken before mu, and held across the write so two
  * pairings land in order; mu itself is never held during file I/O. */
 static pthread_mutex_t store_mu = PTHREAD_MUTEX_INITIALIZER;

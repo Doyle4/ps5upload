@@ -1,0 +1,511 @@
+/* Host-side tests for the console web UI's JSON <-> AVA1 adapters (webui_codec.c):
+ * Unicode / quote / backslash paths round-trip, surrogate pairs, absent vs empty keys,
+ * fs.list results to JSON (exact text, and paging when the reply window is full), the job
+ * list, and the small parsers the routes use. Build: see the root Makefile test-payload. */
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include "ava1_gen.h"
+#include "ava1_wire.h"
+#include "webui_codec.h"
+
+static int failures = 0;
+
+#define CHECK(expr)                                                 \
+    do {                                                            \
+        if (!(expr)) {                                              \
+            fprintf(stderr, "FAIL line %d: %s\n", __LINE__, #expr); \
+            failures++;                                             \
+        }                                                           \
+    } while (0)
+
+/* ---- a strict JSON validator (strings must be valid UTF-8, no raw control chars) ---- */
+
+static const char *jp;
+static int jv_value(void);
+
+static void jv_ws(void) {
+    while (*jp == ' ' || *jp == '\n' || *jp == '\t' || *jp == '\r') jp++;
+}
+
+static int utf8_len(const unsigned char *s) {
+    unsigned c = s[0], cp;
+    int n, i;
+    if (c < 0x80) return 1;
+    if (c >= 0xc2 && c <= 0xdf) n = 2, cp = c & 0x1f;
+    else if (c >= 0xe0 && c <= 0xef) n = 3, cp = c & 0x0f;
+    else if (c >= 0xf0 && c <= 0xf4) n = 4, cp = c & 0x07;
+    else return 0;
+    for (i = 1; i < n; i++) {
+        if ((s[i] & 0xc0) != 0x80) return 0;
+        cp = (cp << 6) | (s[i] & 0x3f);
+    }
+    if ((n == 3 && cp < 0x800) || (n == 4 && (cp < 0x10000 || cp > 0x10ffff)) || (cp >= 0xd800 && cp < 0xe000))
+        return 0;
+    return n;
+}
+
+static int jv_string(void) {
+    if (*jp != '"') return 0;
+    jp++;
+    while (*jp && *jp != '"') {
+        unsigned char c = (unsigned char)*jp;
+        if (c < 0x20) return 0;
+        if (c == '\\') {
+            jp++;
+            if (!*jp || !strchr("\"\\/bfnrtu", *jp)) return 0;
+            if (*jp == 'u') {
+                int k;
+                for (k = 1; k <= 4; k++)
+                    if (!strchr("0123456789abcdefABCDEF", jp[k]) || !jp[k]) return 0;
+                jp += 4;
+            }
+            jp++;
+        } else {
+            int n = utf8_len((const unsigned char *)jp);
+            if (!n) return 0;
+            jp += n;
+        }
+    }
+    if (*jp != '"') return 0;
+    jp++;
+    return 1;
+}
+
+static int jv_value(void) {
+    jv_ws();
+    if (*jp == '{') {
+        jp++;
+        jv_ws();
+        if (*jp == '}') {
+            jp++;
+            return 1;
+        }
+        for (;;) {
+            jv_ws();
+            if (!jv_string()) return 0;
+            jv_ws();
+            if (*jp++ != ':') return 0;
+            if (!jv_value()) return 0;
+            jv_ws();
+            if (*jp == ',') {
+                jp++;
+                continue;
+            }
+            if (*jp == '}') {
+                jp++;
+                return 1;
+            }
+            return 0;
+        }
+    }
+    if (*jp == '[') {
+        jp++;
+        jv_ws();
+        if (*jp == ']') {
+            jp++;
+            return 1;
+        }
+        for (;;) {
+            if (!jv_value()) return 0;
+            jv_ws();
+            if (*jp == ',') {
+                jp++;
+                continue;
+            }
+            if (*jp == ']') {
+                jp++;
+                return 1;
+            }
+            return 0;
+        }
+    }
+    if (*jp == '"') return jv_string();
+    if (!strncmp(jp, "true", 4)) return jp += 4, 1;
+    if (!strncmp(jp, "false", 5)) return jp += 5, 1;
+    if (!strncmp(jp, "null", 4)) return jp += 4, 1;
+    if (*jp == '-' || (*jp >= '0' && *jp <= '9')) {
+        if (*jp == '-') jp++;
+        if (!(*jp >= '0' && *jp <= '9')) return 0;
+        while (*jp >= '0' && *jp <= '9') jp++;
+        return 1;
+    }
+    return 0;
+}
+
+static int json_valid(const char *s) {
+    jp = s;
+    if (!jv_value()) return 0;
+    jv_ws();
+    return *jp == '\0';
+}
+
+/* ---- helpers ---- */
+
+/* {"<key>":"<escaped s>"} in a heap buffer. */
+static char *obj_with(const char *key, const char *s, size_t n) {
+    size_t need = webui_json_escape(NULL, 0, s, n);
+    size_t cap = need + strlen(key) + 16;
+    char *buf = malloc(cap);
+    int at;
+    if (!buf) return NULL;
+    at = snprintf(buf, cap, "{\"%s\":\"", key);
+    webui_json_escape(buf + at, cap - (size_t)at, s, n);
+    strcat(buf, "\"}");
+    return buf;
+}
+
+/* An encoded FsListResult of `count` entries named by `name_of`. */
+static size_t encode_list(uint8_t *out, size_t cap, const ava1_fs_entry_t *e, size_t count, uint32_t scanned,
+                          int more) {
+    uint8_t *blob = malloc(1 << 20);
+    ava1_w_t bw, w;
+    ava1_fs_list_result_t r;
+    size_t i;
+    ava1_w_init(&bw, blob, 1 << 20);
+    for (i = 0; i < count; i++) ava1_fs_entry_append(&bw, &e[i]);
+    memset(&r, 0, sizeof r);
+    r.entries = blob;
+    r.entries_len = (uint32_t)bw.len;
+    r.total_scanned = scanned;
+    r.more = (uint8_t)more;
+    ava1_w_init(&w, out, cap);
+    ava1_fs_list_result_encode(&r, &w);
+    free(blob);
+    return w.err ? 0 : w.len;
+}
+
+/* ---- the brief's tests ---- */
+
+static void unicode_path_round_trips(void) {
+    static const char path[] = "/data/homebrew/\xe5\xae\x8c\xe8\x9b\x8b\xef\xbc\x81\xe6\x88\x91\xe8\xa2\xab\xe7\xbe\x8e"
+                               "\xe5\xa5\xb3\xe5\x8c\x85\xe5\x9b\xb4\xe4\xba\x86\xef\xbc\x81/a \"b\"\\c.txt";
+    char out[1024];
+    char *obj = obj_with("path", path, sizeof path - 1);
+    CHECK(obj != NULL);
+    if (!obj) return;
+    CHECK(json_valid(obj));
+    CHECK(webui_json_str(obj, strlen(obj), "path", out, sizeof out) == 1);
+    CHECK(strlen(out) == sizeof path - 1 && memcmp(out, path, sizeof path - 1) == 0);
+    /* the escaped form is what the PC engine's serde would send too */
+    CHECK(strstr(obj, "a \\\"b\\\"\\\\c.txt") != NULL);
+    free(obj);
+    /* also with spaces and every control character (each one escapes and comes back) */
+    {
+        char raw[40], back[64];
+        int i;
+        for (i = 0; i < 31; i++) raw[i] = (char)(i + 1);
+        memcpy(raw + 31, " x/", 3);
+        obj = obj_with("p", raw, 34);
+        CHECK(obj && json_valid(obj));
+        CHECK(obj && webui_json_str(obj, strlen(obj), "p", back, sizeof back) == 1);
+        CHECK(obj && memcmp(back, raw, 34) == 0 && back[34] == '\0');
+        free(obj);
+    }
+}
+
+static void surrogate_pair_decodes(void) {
+    const char *j = "{\"p\":\"\\ud83d\\ude00\"}";
+    char out[16];
+    CHECK(webui_json_str(j, strlen(j), "p", out, sizeof out) == 1);
+    CHECK(strcmp(out, "\xf0\x9f\x98\x80") == 0);
+    /* BMP escapes, upper-case hex, and \/ */
+    j = "{\"p\":\"\\u5B8C\\u00e9\\/x\"}";
+    CHECK(webui_json_str(j, strlen(j), "p", out, sizeof out) == 1);
+    CHECK(strcmp(out, "\xe5\xae\x8c\xc3\xa9/x") == 0);
+    /* a lone high or low surrogate, a reversed pair and \u0000 are refused */
+    j = "{\"p\":\"\\ud83d\"}";
+    CHECK(webui_json_str(j, strlen(j), "p", out, sizeof out) == -1);
+    j = "{\"p\":\"\\ude00x\"}";
+    CHECK(webui_json_str(j, strlen(j), "p", out, sizeof out) == -1);
+    j = "{\"p\":\"\\ude00\\ud83d\"}";
+    CHECK(webui_json_str(j, strlen(j), "p", out, sizeof out) == -1);
+    j = "{\"p\":\"a\\u0000b\"}";
+    CHECK(webui_json_str(j, strlen(j), "p", out, sizeof out) == -1);
+    j = "{\"p\":\"\\x\"}";
+    CHECK(webui_json_str(j, strlen(j), "p", out, sizeof out) == -1);
+}
+
+static void missing_key_is_absent_not_empty(void) {
+    const char *j = "{\"a\":\"\",\"n\":{\"path\":\"in\"},\"s\":\"\\\"path\\\":\\\"x\\\"\",\"num\":12,\"t\":true}";
+    char out[16];
+    uint64_t v = 7;
+    int b = 7;
+    out[0] = 'x';
+    CHECK(webui_json_str(j, strlen(j), "a", out, sizeof out) == 1 && out[0] == '\0');
+    CHECK(webui_json_str(j, strlen(j), "path", out, sizeof out) == 0); /* only nested / inside a string */
+    CHECK(webui_json_str(j, strlen(j), "b", out, sizeof out) == 0);
+    CHECK(webui_json_str(j, strlen(j), "num", out, sizeof out) == -1); /* present, not a string */
+    CHECK(webui_json_u64(j, strlen(j), "num", &v) == 1 && v == 12);
+    CHECK(webui_json_u64(j, strlen(j), "nope", &v) == 0);
+    CHECK(webui_json_u64(j, strlen(j), "a", &v) == -1);
+    CHECK(webui_json_bool(j, strlen(j), "t", &b) == 1 && b == 1);
+    CHECK(webui_json_bool(j, strlen(j), "num", &b) == -1);
+    CHECK(webui_json_bool(j, strlen(j), "f", &b) == 0);
+    /* an empty body, a non-object and a truncated object find nothing */
+    CHECK(webui_json_str("", 0, "a", out, sizeof out) == 0);
+    CHECK(webui_json_str("[\"a\"]", 5, "a", out, sizeof out) == 0);
+    CHECK(webui_json_str("{\"a\":\"xy", 8, "a", out, sizeof out) == -1);
+    /* the body is not NUL-terminated: n bounds the scan */
+    CHECK(webui_json_u64("{\"o\":12}{\"o\":99}", 8, "o", &v) == 1 && v == 12);
+    /* integers: negative, fractional, exponent, overflow */
+    CHECK(webui_json_u64("{\"o\":-1}", 8, "o", &v) == -1);
+    CHECK(webui_json_u64("{\"o\":1.5}", 9, "o", &v) == -1);
+    CHECK(webui_json_u64("{\"o\":1e3}", 9, "o", &v) == -1);
+    CHECK(webui_json_u64("{\"o\":18446744073709551616}", 26, "o", &v) == -1);
+    CHECK(webui_json_u64("{\"o\":18446744073709551615}", 26, "o", &v) == 1 && v == UINT64_MAX);
+    /* a value too long for the buffer is refused, not cut */
+    CHECK(webui_json_str("{\"a\":\"0123456789abcdef\"}", 24, "a", out, sizeof out) == -1);
+}
+
+static void list_result_to_json(void) {
+    ava1_fs_entry_t e[3];
+    uint8_t enc[4096];
+    char out[4096];
+    size_t n;
+    memset(e, 0, sizeof e);
+    e[0].name = (const uint8_t *)"a.txt";
+    e[0].name_len = 5;
+    e[0].kind = AVA1_ENTRY_FILE;
+    e[0].size = 5;
+    e[0].has_mtime = 1;
+    e[0].mtime = 100;
+    e[1].name = (const uint8_t *)"\xe5\xad\x90\xe7\x9b\xae\xe5\xbd\x95"; /* 子目录 */
+    e[1].name_len = 9;
+    e[1].kind = AVA1_ENTRY_DIR;
+    e[1].has_mtime = 1;
+    e[1].mtime = 200;
+    e[2].name = (const uint8_t *)"l\"q\\";
+    e[2].name_len = 4;
+    e[2].kind = AVA1_ENTRY_LINK;
+    n = encode_list(enc, sizeof enc, e, 3, 13, 1); /* offset 10: scanned to 13 */
+    CHECK(n > 0);
+    CHECK(webui_list_to_json(enc, n, out, sizeof out) == 3);
+    CHECK(strcmp(out,
+                 "{\"entries\":[{\"name\":\"a.txt\",\"kind\":\"file\",\"size\":5,\"mtime\":100},"
+                 "{\"name\":\"\xe5\xad\x90\xe7\x9b\xae\xe5\xbd\x95\",\"kind\":\"dir\",\"size\":0,\"mtime\":200},"
+                 "{\"name\":\"l\\\"q\\\\\",\"kind\":\"link\",\"size\":0,\"mtime\":null}],"
+                 "\"more\":true,\"total\":13}") == 0);
+    CHECK(json_valid(out));
+    /* an empty directory */
+    n = encode_list(enc, sizeof enc, e, 0, 0, 0);
+    CHECK(webui_list_to_json(enc, n, out, sizeof out) == 0);
+    CHECK(strcmp(out, "{\"entries\":[],\"more\":false,\"total\":0}") == 0);
+    /* garbage does not decode */
+    CHECK(webui_list_to_json((const uint8_t *)"\x01\x02", 2, out, sizeof out) == -1);
+    /* other / unknown kinds read "other" */
+    e[0].kind = AVA1_ENTRY_OTHER;
+    e[1].kind = AVA1_ENTRY_UNKNOWN;
+    n = encode_list(enc, sizeof enc, e, 2, 2, 0);
+    CHECK(webui_list_to_json(enc, n, out, sizeof out) == 2);
+    CHECK(strstr(out, "\"kind\":\"other\",\"size\":5") != NULL);
+    CHECK(strstr(out, "\"kind\":\"other\",\"size\":0,\"mtime\":200") != NULL);
+}
+
+static void list_json_truncates_at_cap_with_more(void) {
+    enum { N = 256 };
+    ava1_fs_entry_t *e = calloc(N, sizeof *e);
+    char (*names)[201] = calloc(N, sizeof *names);
+    uint8_t *enc = malloc(1 << 20);
+    char *out = malloc(16384);
+    char tail[64];
+    size_t n, i, len;
+    int got;
+    for (i = 0; i < N; i++) {
+        memset(names[i], 'n', 200);
+        names[i][0] = (char)('a' + i % 26);
+        names[i][1] = '"'; /* escaping makes it longer */
+        e[i].name = (const uint8_t *)names[i];
+        e[i].name_len = 200;
+        e[i].kind = AVA1_ENTRY_FILE;
+        e[i].size = i;
+        e[i].has_mtime = 1;
+        e[i].mtime = 1700000000u + i;
+    }
+    n = encode_list(enc, 1 << 20, e, N, 512 + N, 0); /* offset 512; the helper says no more */
+    CHECK(n > 0);
+    got = webui_list_to_json(enc, n, out, 16384);
+    CHECK(got > 0 && got < N);
+    len = strlen(out);
+    CHECK(len < 16384);
+    CHECK(json_valid(out));
+    snprintf(tail, sizeof tail, "],\"more\":true,\"total\":%d}", 512 + got);
+    CHECK(len > strlen(tail) && strcmp(out + len - strlen(tail), tail) == 0);
+    /* a window too small for even the empty list */
+    CHECK(webui_list_to_json(enc, n, out, 16) == -1);
+    free(e);
+    free(names);
+    free(enc);
+    free(out);
+}
+
+/* ---- the routes' other helpers ---- */
+
+static void escape_makes_valid_json(void) {
+    char out[256], buf[300];
+    size_t n;
+    /* invalid UTF-8: a lone continuation, a truncated sequence, an overlong, a surrogate, > U+10FFFF */
+    static const char bad[] = "a\x80" "b\xe5\xae" "c\xc0\xaf" "d\xed\xa0\x80" "e\xf4\x90\x80\x80" "f\xff";
+    n = webui_json_escape(out, sizeof out, bad, sizeof bad - 1);
+    CHECK(n < sizeof out && n == strlen(out));
+    snprintf(buf, sizeof buf, "\"%s\"", out);
+    CHECK(json_valid(buf));
+    CHECK(strncmp(out, "a\\ufffdb\\ufffd", 14) == 0);
+    /* control characters and DEL */
+    n = webui_json_escape(out, sizeof out, "\n\t\x01\x1f\x7f", 5);
+    CHECK(strcmp(out, "\\n\\t\\u0001\\u001f\x7f") == 0);
+    /* snprintf semantics: the full length comes back, the output is cut and terminated */
+    n = webui_json_escape(out, 4, "\"\"\"", 3);
+    CHECK(n == 6 && strcmp(out, "\\\"") == 0); /* whole escapes only */
+    CHECK(webui_json_escape(NULL, 0, "abc", 3) == 3);
+    /* a cut never splits an escape or a UTF-8 sequence */
+    n = webui_json_escape(out, 3, "a\"", 2);
+    CHECK(n == 3 && strcmp(out, "a") == 0);
+    n = webui_json_escape(out, 3, "a\xe5\xae\x8c", 4);
+    CHECK(n == 4 && strcmp(out, "a") == 0);
+}
+
+static int mine_if_first_byte_1(const uint8_t id[16], void *ctx) {
+    (void)ctx;
+    return id[0] == 1;
+}
+
+static void jobs_to_json(void) {
+    ava1_job_entry_t e[2];
+    uint8_t blob[512], enc[1024];
+    ava1_w_t bw, w;
+    ava1_job_list_result_t r;
+    char out[1024];
+    memset(e, 0, sizeof e);
+    memset(e[0].job_id, 0xab, 16);
+    e[0].job_id[0] = 1;
+    e[0].kind = AVA1_JOB_COPY;
+    e[0].state = 0;
+    e[0].files_done = 1;
+    e[0].files_total = 2;
+    e[0].bytes_done = 3;
+    e[0].bytes_total = 4;
+    e[1].kind = 4; /* an operation (AVA1_JOB_OPKIND) */
+    e[1].state = 2;
+    ava1_w_init(&bw, blob, sizeof blob);
+    ava1_job_entry_append(&bw, &e[0]);
+    ava1_job_entry_append(&bw, &e[1]);
+    memset(&r, 0, sizeof r);
+    r.jobs = blob;
+    r.jobs_len = (uint32_t)bw.len;
+    r.jobs_count = 2;
+    ava1_w_init(&w, enc, sizeof enc);
+    CHECK(ava1_job_list_result_encode(&r, &w) == 0);
+    CHECK(webui_jobs_to_json(enc, w.len, mine_if_first_byte_1, NULL, out, sizeof out) == 2);
+    CHECK(strcmp(out,
+                 "{\"jobs\":[{\"job\":\"01ababababababababababababababab\",\"kind\":\"copy\",\"state\":\"running\","
+                 "\"files_done\":1,\"files_total\":2,\"bytes_done\":3,\"bytes_total\":4,\"mine\":true},"
+                 "{\"job\":\"00000000000000000000000000000000\",\"kind\":\"op\",\"state\":\"failed\","
+                 "\"files_done\":0,\"files_total\":0,\"bytes_done\":0,\"bytes_total\":0,\"mine\":false}]}") == 0);
+    CHECK(json_valid(out));
+    CHECK(webui_jobs_to_json(enc, w.len, NULL, NULL, out, 40) == -1);
+}
+
+static void hex_ids(void) {
+    uint8_t id[16], back[16];
+    char hex[33];
+    int i;
+    for (i = 0; i < 16; i++) id[i] = (uint8_t)(i * 17);
+    webui_hex16(id, hex);
+    CHECK(strcmp(hex, "00112233445566778899aabbccddeeff") == 0);
+    CHECK(webui_parse_hex16(hex, back) == 0 && memcmp(id, back, 16) == 0);
+    CHECK(webui_parse_hex16("00112233445566778899AABBCCDDEEFF", back) == 0 && memcmp(id, back, 16) == 0);
+    CHECK(webui_parse_hex16("00112233445566778899aabbccddeef", back) == -1);
+    CHECK(webui_parse_hex16("00112233445566778899aabbccddeeff0", back) == -1);
+    CHECK(webui_parse_hex16("0011223344556677889zaabbccddeeff", back) == -1);
+}
+
+static void status_mapping(void) {
+    CHECK(webui_http_status_for(AVA1_ERR_PROTOCOL, "bad") == 400);
+    CHECK(webui_http_status_for(AVA1_ERR_PATH, "fs_mkdir_path_not_allowed") == 403);
+    CHECK(webui_http_status_for(AVA1_ERR_UNKNOWN_JOB, "") == 404);
+    CHECK(webui_http_status_for(AVA1_ERR_IO, "fs_list_dir_opendir_errno_2") == 404);
+    CHECK(webui_http_status_for(AVA1_ERR_IO, "fs_stat_failed_errno_2") == 404);
+    CHECK(webui_http_status_for(AVA1_ERR_IO, "fs_read_stat_failed") == 404);
+    CHECK(webui_http_status_for(AVA1_ERR_IO, "fs_list_dir_opendir_errno_20") == 500);
+    CHECK(webui_http_status_for(AVA1_ERR_IO, "fs_move_failed") == 500);
+    CHECK(webui_http_status_for(AVA1_ERR_EXISTS, "fs_move_exists") == 409);
+    CHECK(webui_http_status_for(AVA1_ERR_BUSY, "") == 409);
+    CHECK(webui_http_status_for(AVA1_ERR_CROSS_DEVICE, "fs_move_cross_mount") == 409);
+    CHECK(webui_http_status_for(AVA1_ERR_INTERNAL, "x") == 500);
+}
+
+static void mime_types(void) {
+    CHECK(strcmp(webui_mime_for("/a/icon0.png"), "image/png") == 0);
+    CHECK(strcmp(webui_mime_for("/a/B.JPG"), "image/jpeg") == 0);
+    CHECK(strcmp(webui_mime_for("/a/b.jpeg"), "image/jpeg") == 0);
+    CHECK(strcmp(webui_mime_for("/a/b.txt"), "text/plain; charset=utf-8") == 0);
+    CHECK(strcmp(webui_mime_for("/a/b.log"), "text/plain; charset=utf-8") == 0);
+    CHECK(strcmp(webui_mime_for("/a/config.ini"), "text/plain; charset=utf-8") == 0);
+    CHECK(strcmp(webui_mime_for("/a/param.json"), "application/json") == 0);
+    CHECK(strcmp(webui_mime_for("/a/x.xml"), "application/xml") == 0);
+    CHECK(strcmp(webui_mime_for("/a/x.html"), "application/octet-stream") == 0);
+    CHECK(strcmp(webui_mime_for("/a/x.svg"), "application/octet-stream") == 0);
+    CHECK(strcmp(webui_mime_for("/a.png/noext"), "application/octet-stream") == 0);
+    CHECK(strcmp(webui_mime_for("png"), "application/octet-stream") == 0);
+}
+
+static void kv_lines(void) {
+    const char *t = "cpu_temp=51\nsoc_temp=0\nmodel=CFI-1015A\nneg=-3\nbad=1x\n";
+    char s[32];
+    long v = 0;
+    CHECK(webui_kv_int(t, strlen(t), "cpu_temp", &v) == 1 && v == 51);
+    CHECK(webui_kv_int(t, strlen(t), "soc_temp", &v) == 1 && v == 0);
+    CHECK(webui_kv_int(t, strlen(t), "temp", &v) == 0); /* not a suffix match */
+    CHECK(webui_kv_int(t, strlen(t), "neg", &v) == 1 && v == -3);
+    CHECK(webui_kv_int(t, strlen(t), "bad", &v) == -1);
+    CHECK(webui_kv_str(t, strlen(t), "model", s, sizeof s) == 1 && strcmp(s, "CFI-1015A") == 0);
+    CHECK(webui_kv_str(t, strlen(t), "serial", s, sizeof s) == 0);
+}
+
+static void focus_running(void) {
+    char tid[16];
+    uint32_t app = 0;
+    const char *j = "{\"ok\":true,\"apis\":{\"x\":true},\"apps\":[{\"pid\":5,\"title_id\":\"NPXS40087\",\"app_id\":7},"
+                    "{\"pid\":9,\"title_id\":\"CUSA07842\",\"app_id\":24600},{\"pid\":10,\"title_id\":\"PPSA01234\","
+                    "\"app_id\":24601}],\"focus_app_id\":24601,\"focus_rc\":0,\"focus_available\":true,"
+                    "\"big_app\":true,\"mini_app\":true,\"big_app_id\":0,\"mini_app_id\":0,\"monotonic_ms\":1}";
+    CHECK(webui_focus_running(j, strlen(j), tid, sizeof tid, &app) == 1);
+    CHECK(strcmp(tid, "PPSA01234") == 0 && app == 24601);
+    /* the dashboard owns the screen: the first game still runs */
+    j = "{\"apps\":[{\"title_id\":\"\",\"app_id\":3},{\"title_id\":\"CUSA07842\",\"app_id\":24600}],\"focus_app_id\":7}";
+    CHECK(webui_focus_running(j, strlen(j), tid, sizeof tid, &app) == 1);
+    CHECK(strcmp(tid, "CUSA07842") == 0 && app == 24600);
+    /* no focus flag: big_app_id decides */
+    j = "{\"apps\":[{\"title_id\":\"CUSA00001\",\"app_id\":1},{\"title_id\":\"CUSA00002\",\"app_id\":2}],"
+        "\"focus_app_id\":-1,\"big_app_id\":2}";
+    CHECK(webui_focus_running(j, strlen(j), tid, sizeof tid, &app) == 1);
+    CHECK(strcmp(tid, "CUSA00002") == 0 && app == 2);
+    j = "{\"apps\":[{\"title_id\":\"NPXS40087\",\"app_id\":7}],\"focus_app_id\":7}";
+    CHECK(webui_focus_running(j, strlen(j), tid, sizeof tid, &app) == 0);
+    j = "{\"apps\":[],\"focus_app_id\":0}";
+    CHECK(webui_focus_running(j, strlen(j), tid, sizeof tid, &app) == 0);
+    CHECK(webui_focus_running("nope", 4, tid, sizeof tid, &app) == -1);
+}
+
+int main(void) {
+    unicode_path_round_trips();
+    surrogate_pair_decodes();
+    missing_key_is_absent_not_empty();
+    list_result_to_json();
+    list_json_truncates_at_cap_with_more();
+    escape_makes_valid_json();
+    jobs_to_json();
+    hex_ids();
+    status_mapping();
+    mime_types();
+    kv_lines();
+    focus_running();
+    if (failures) {
+        fprintf(stderr, "webui_codec_selftest: %d failure(s)\n", failures);
+        return 1;
+    }
+    printf("webui_codec_selftest: all passed\n");
+    return 0;
+}

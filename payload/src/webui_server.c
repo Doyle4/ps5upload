@@ -680,3 +680,10 @@ int webui_restart(int lan) {
 }
 
 const char *webui_token(void) { return g_token; }
+
+void webui_token_copy(char out[65]) {
+    pthread_mutex_lock(&g_mu);
+    memcpy(out, g_token, 65);
+    pthread_mutex_unlock(&g_mu);
+    out[64] = '\0';
+}

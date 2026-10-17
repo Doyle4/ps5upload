@@ -902,6 +902,13 @@ test-payload: payload
 		$(PAYLOAD_DIR)/src/webui_http.c $(PAYLOAD_DIR)/src/webui_auth.c
 	@/tmp/ps5upload-webui-server-selftest
 	@echo "✓ silent, half-sent and flooding web clients never stall the helper"
+	@echo "Running webui codec self-test (host build)..."
+	@cc -O2 -Wall -Wextra -Werror -I$(PAYLOAD_DIR)/include -I$(PAYLOAD_DIR)/ava1 -I$(PAYLOAD_DIR)/ava1/gen \
+		-o /tmp/ps5upload-webui-codec-selftest \
+		$(PAYLOAD_DIR)/tests/webui_codec_selftest.c $(PAYLOAD_DIR)/src/webui_codec.c \
+		$(PAYLOAD_DIR)/ava1/gen/ava1_gen.c $(PAYLOAD_DIR)/ava1/ava1_wire.c
+	@/tmp/ps5upload-webui-codec-selftest
+	@echo "✓ Unicode, quoted and very large folders survive the web UI's JSON both ways"
 	@echo "Running cheat title list self-test (host build)..."
 	@cc -O2 -Wall -Wextra -Werror -I$(PAYLOAD_DIR)/include \
 		-o /tmp/ps5upload-cheats-list-selftest \
