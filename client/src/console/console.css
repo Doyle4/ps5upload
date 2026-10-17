@@ -694,3 +694,19 @@ button {
   word-break: break-all;
   cursor: default;
 }
+
+/* ---- Settings ---- */
+.cw-setting {
+  margin-bottom: 0.8rem;
+}
+.cw-setting-note {
+  margin: 0.3rem 0 0;
+}
+.cw-tag.is-on {
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+}
+.cw-settings .cw-quick .cw-button[aria-pressed="true"] {
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+}

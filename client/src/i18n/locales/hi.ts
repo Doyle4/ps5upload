@@ -4162,6 +4162,22 @@ c2c_test_deep_bad: "4 KiB का परीक्षण नहीं पहुँ
 "cw_files_info_mode": "अनुमतियाँ",
 "cw_files_truncated": "पहला 1 MiB दिखाया जा रहा है।",
 "cw_files_err_into_itself": "फ़ोल्डर को उसी के अंदर या उसके किसी सब-फ़ोल्डर में नहीं रखा जा सकता।",
+"cw_settings_network": "नेटवर्क",
+"cw_settings_lan": "नेटवर्क के अन्य डिवाइस को अनुमति दें",
+"cw_settings_lan_warning": "तब आपके नेटवर्क पर कोई भी इस पेज का उपयोग कर सकेगा और आपकी फ़ाइलें प्रबंधित कर सकेगा।",
+"cw_settings_lan_off_note": "बंद करने पर अन्य डिवाइस की पहुँच चली जाती है; इस कंसोल की पहुँच बनी रहती है।",
+"cw_settings_lan_confirm_title": "अन्य डिवाइस को अनुमति दें?",
+"cw_settings_lan_allow": "अनुमति दें",
+"cw_settings_tile": "होम स्क्रीन पर ps5upload दिखाएँ",
+"cw_settings_on": "चालू",
+"cw_settings_off": "बंद",
+"cw_settings_language": "भाषा",
+"cw_settings_language_system": "सिस्टम डिफ़ॉल्ट",
+"cw_settings_about": "परिचय",
+"cw_settings_app_name": "ps5upload",
+"cw_settings_version": "संस्करण {version}",
+"cw_settings_err_save": "सेटिंग सहेजी नहीं जा सकी। फिर कोशिश करें।",
+"cw_settings_err_load": "सेटिंग लोड नहीं हो सकीं।",
 };
 
 export default hi;

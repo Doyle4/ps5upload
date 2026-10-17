@@ -4,6 +4,23 @@ What's new in ps5upload, written for humans.
 
 ---
 
+## 7.1.0
+
+- **ps5upload now has a tile on the PS5 home screen that opens a page in the PS5 browser.** Pick
+  the tile and manage your files with the controller alone, no PC needed. The page looks like the
+  desktop app and has Home, Files and Settings.
+- **Move, copy, rename and delete files from the couch.** Browse the internal drive, M.2 and USB
+  drives, start a copy to another drive and watch it on Home, and close or rest the console from
+  the same page.
+- **Uploads and copies from your PC show up on the console's Home** as "from a PC", so you can
+  see what is running without going back to the desk.
+- **It works while the helper is running, and only the console can open it by default.** In
+  Settings you can allow other devices on your network (it asks first, because anyone on the
+  network could then manage your files), hide the home screen tile, and pick the page's
+  language.
+
+---
+
 ## 7.0.34
 
 - **Unity games no longer crash when they run as a folder.** Some game dumps name a file

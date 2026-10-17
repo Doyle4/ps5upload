@@ -4096,6 +4096,22 @@ c2c_test_deep_bad: "Тестовая отправка 4 КиБ не дошла: 
 "cw_files_info_mode": "Права доступа",
 "cw_files_truncated": "Показан первый 1 МиБ.",
 "cw_files_err_into_itself": "Папку нельзя поместить в саму себя или в её подпапку.",
+"cw_settings_network": "Сеть",
+"cw_settings_lan": "Разрешить другим устройствам в сети",
+"cw_settings_lan_warning": "Тогда любой в вашей сети сможет открыть эту страницу и управлять вашими файлами.",
+"cw_settings_lan_off_note": "При выключении другие устройства потеряют доступ; эта консоль сохранит его.",
+"cw_settings_lan_confirm_title": "Разрешить другим устройствам?",
+"cw_settings_lan_allow": "Разрешить",
+"cw_settings_tile": "Показывать ps5upload на главном экране",
+"cw_settings_on": "Вкл.",
+"cw_settings_off": "Выкл.",
+"cw_settings_language": "Язык",
+"cw_settings_language_system": "Как в системе",
+"cw_settings_about": "О программе",
+"cw_settings_app_name": "ps5upload",
+"cw_settings_version": "Версия {version}",
+"cw_settings_err_save": "Не удалось сохранить настройку. Повторите попытку.",
+"cw_settings_err_load": "Не удалось загрузить настройки.",
 };
 
 export default ru;

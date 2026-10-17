@@ -50,8 +50,33 @@ export function pickLanguage(tag: string | undefined | null, have: string[]): st
 
 export const LANGUAGES: string[] = Object.keys(MAPS);
 
-let current = pickLanguage(typeof navigator !== "undefined" ? navigator.language : "en", LANGUAGES);
+const STORAGE_KEY = "ps5upload.console.lang";
+
+/** The language Settings stored, or "" for the system default (also when storage fails). */
+export function storedLanguage(): string {
+  try {
+    const v = localStorage.getItem(STORAGE_KEY);
+    return v && LANGUAGES.includes(v) ? v : "";
+  } catch {
+    return "";
+  }
+}
+
+function systemLanguage(): string {
+  return pickLanguage(typeof navigator !== "undefined" ? navigator.language : "en", LANGUAGES);
+}
+
+let current = storedLanguage() || systemLanguage();
 let translate = makeT(MAPS, current);
+const listeners = new Set<() => void>();
+
+/** Called after the language changes (the page re-renders). Returns the unsubscribe function. */
+export function onLanguageChange(fn: () => void): () => void {
+  listeners.add(fn);
+  return () => {
+    listeners.delete(fn);
+  };
+}
 
 export function getLanguage(): string {
   return current;
@@ -65,6 +90,21 @@ export function setLanguage(code: string): void {
     document.documentElement.lang = current;
     document.documentElement.dir = current === "ar" || current === "fa" ? "rtl" : "ltr";
   }
+}
+
+/**
+ * Settings' choice: a shipped code, or "" for the system default. Applies at
+ * once and remembers it; a storage failure only loses the memory.
+ */
+export function chooseLanguage(code: string): void {
+  try {
+    if (code) localStorage.setItem(STORAGE_KEY, code);
+    else localStorage.removeItem(STORAGE_KEY);
+  } catch {
+    /* private mode or blocked storage: the choice holds until the page closes */
+  }
+  setLanguage(code || systemLanguage());
+  listeners.forEach((fn) => fn());
 }
 
 /** The translation of `key` in the page's language. */

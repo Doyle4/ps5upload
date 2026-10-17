@@ -2,8 +2,8 @@ import type { ReactNode } from "react";
 import { Folder, House, Settings, type LucideIcon } from "lucide-react";
 import { Files } from "./files/Files";
 import { Home } from "./home/Home";
+import { Settings as SettingsSection } from "./settings/Settings";
 import type { ConsoleStatus } from "./shell/TopBar";
-import { t } from "./strings";
 
 /** What a section is opened with, e.g. Files at {path: "/mnt/usb0"}. */
 export type SectionParams = Record<string, string>;
@@ -32,12 +32,7 @@ export interface Section {
   acceptsParams?: boolean;
 }
 
-/** A section whose screen is not built yet: its heading only. */
-function Placeholder({ labelKey }: { labelKey: string }) {
-  return <h1 className="cw-h1">{t(labelKey)}</h1>;
-}
-
-// Task 10 replaces Settings' render. Files opens at ctx.params.path
+// Files opens at ctx.params.path
 // (acceptsParams), so Home shows Browse USB.
 export const SECTIONS: Section[] = [
   {
@@ -57,6 +52,6 @@ export const SECTIONS: Section[] = [
     id: "settings",
     icon: Settings,
     labelKey: "cw_nav_settings",
-    render: () => <Placeholder labelKey="cw_nav_settings" />,
+    render: () => <SettingsSection />,
   },
 ];

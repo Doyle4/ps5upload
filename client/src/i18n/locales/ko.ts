@@ -4165,6 +4165,22 @@ c2c_test_deep_bad: "4 KiB 테스트 전송이 도착하지 않았습니다: {det
 "cw_files_info_mode": "권한",
 "cw_files_truncated": "처음 1 MiB를 표시합니다.",
 "cw_files_err_into_itself": "폴더를 자기 자신이나 그 하위 폴더 안에 넣을 수 없습니다.",
+"cw_settings_network": "네트워크",
+"cw_settings_lan": "네트워크의 다른 기기 허용",
+"cw_settings_lan_warning": "네트워크의 누구나 이 페이지를 사용해 파일을 관리할 수 있게 됩니다.",
+"cw_settings_lan_off_note": "끄면 다른 기기는 접근할 수 없습니다. 이 콘솔은 계속 접근할 수 있습니다.",
+"cw_settings_lan_confirm_title": "다른 기기를 허용할까요?",
+"cw_settings_lan_allow": "허용",
+"cw_settings_tile": "홈 화면에 ps5upload 표시",
+"cw_settings_on": "켜짐",
+"cw_settings_off": "꺼짐",
+"cw_settings_language": "언어",
+"cw_settings_language_system": "시스템 기본값",
+"cw_settings_about": "정보",
+"cw_settings_app_name": "ps5upload",
+"cw_settings_version": "버전 {version}",
+"cw_settings_err_save": "설정을 저장하지 못했습니다. 다시 시도하세요.",
+"cw_settings_err_load": "설정을 불러오지 못했습니다.",
 };
 
 export default ko;

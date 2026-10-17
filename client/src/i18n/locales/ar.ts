@@ -4146,6 +4146,22 @@ c2c_test_deep_bad: "لم يصل الإرسال التجريبي بحجم 4 KiB: 
 "cw_files_info_mode": "الأذونات",
 "cw_files_truncated": "يُعرض أول 1 MiB فقط.",
 "cw_files_err_into_itself": "لا يمكن وضع مجلد داخل نفسه أو داخل أحد مجلداته الفرعية.",
+"cw_settings_network": "الشبكة",
+"cw_settings_lan": "السماح للأجهزة الأخرى في الشبكة",
+"cw_settings_lan_warning": "سيتمكن أي شخص في شبكتك من استخدام هذه الصفحة وإدارة ملفاتك.",
+"cw_settings_lan_off_note": "عند الإيقاف تفقد الأجهزة الأخرى الوصول؛ وتحتفظ هذه الوحدة به.",
+"cw_settings_lan_confirm_title": "السماح للأجهزة الأخرى؟",
+"cw_settings_lan_allow": "سماح",
+"cw_settings_tile": "إظهار ps5upload على الشاشة الرئيسية",
+"cw_settings_on": "مفعّل",
+"cw_settings_off": "معطّل",
+"cw_settings_language": "اللغة",
+"cw_settings_language_system": "افتراضي النظام",
+"cw_settings_about": "حول",
+"cw_settings_app_name": "ps5upload",
+"cw_settings_version": "الإصدار {version}",
+"cw_settings_err_save": "تعذر حفظ الإعداد. حاول مرة أخرى.",
+"cw_settings_err_load": "تعذر تحميل الإعدادات.",
 };
 
 export default ar;

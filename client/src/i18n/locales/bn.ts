@@ -4146,6 +4146,22 @@ c2c_test_deep_bad: "4 KiB-এর পরীক্ষামূলক পাঠা�
 "cw_files_info_mode": "অনুমতি",
 "cw_files_truncated": "প্রথম 1 MiB দেখানো হচ্ছে।",
 "cw_files_err_into_itself": "কোনো ফোল্ডারকে তার নিজের ভেতরে বা তার কোনো সাবফোল্ডারে রাখা যায় না।",
+"cw_settings_network": "নেটওয়ার্ক",
+"cw_settings_lan": "নেটওয়ার্কের অন্য ডিভাইসকে অনুমতি দিন",
+"cw_settings_lan_warning": "তখন আপনার নেটওয়ার্কের যে কেউ এই পেজ ব্যবহার করে আপনার ফাইল পরিচালনা করতে পারবে।",
+"cw_settings_lan_off_note": "বন্ধ করলে অন্য ডিভাইস অ্যাক্সেস হারায়; এই কনসোলের অ্যাক্সেস থাকে।",
+"cw_settings_lan_confirm_title": "অন্য ডিভাইসকে অনুমতি দেবেন?",
+"cw_settings_lan_allow": "অনুমতি দিন",
+"cw_settings_tile": "হোম স্ক্রিনে ps5upload দেখান",
+"cw_settings_on": "চালু",
+"cw_settings_off": "বন্ধ",
+"cw_settings_language": "ভাষা",
+"cw_settings_language_system": "সিস্টেম ডিফল্ট",
+"cw_settings_about": "সম্পর্কে",
+"cw_settings_app_name": "ps5upload",
+"cw_settings_version": "সংস্করণ {version}",
+"cw_settings_err_save": "সেটিং সংরক্ষণ করা যায়নি। আবার চেষ্টা করুন।",
+"cw_settings_err_load": "সেটিংস লোড করা যায়নি।",
 };
 
 export default bn;

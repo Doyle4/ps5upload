@@ -4167,6 +4167,22 @@ c2c_test_deep_bad: "4 KiB のテスト送信が届きませんでした: {detail
 "cw_files_info_mode": "アクセス権",
 "cw_files_truncated": "先頭 1 MiB を表示しています。",
 "cw_files_err_into_itself": "フォルダーを自分自身やそのサブフォルダーの中には入れられません。",
+"cw_settings_network": "ネットワーク",
+"cw_settings_lan": "ネットワーク上の他の機器を許可",
+"cw_settings_lan_warning": "ネットワーク内の誰でもこのページを使ってファイルを管理できるようになります。",
+"cw_settings_lan_off_note": "オフにすると他の機器はアクセスできなくなります。このコンソールは引き続き使えます。",
+"cw_settings_lan_confirm_title": "他の機器を許可しますか？",
+"cw_settings_lan_allow": "許可する",
+"cw_settings_tile": "ホーム画面に ps5upload を表示",
+"cw_settings_on": "オン",
+"cw_settings_off": "オフ",
+"cw_settings_language": "言語",
+"cw_settings_language_system": "システムの設定に従う",
+"cw_settings_about": "情報",
+"cw_settings_app_name": "ps5upload",
+"cw_settings_version": "バージョン {version}",
+"cw_settings_err_save": "設定を保存できませんでした。もう一度お試しください。",
+"cw_settings_err_load": "設定を読み込めませんでした。",
 };
 
 export default ja;

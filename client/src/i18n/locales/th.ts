@@ -4155,6 +4155,22 @@ c2c_test_deep_bad: "การส่งทดสอบ 4 KiB ไปไม่ถ�
 "cw_files_info_mode": "สิทธิ์",
 "cw_files_truncated": "แสดง 1 MiB แรก",
 "cw_files_err_into_itself": "ไม่สามารถใส่โฟลเดอร์ไว้ในตัวเองหรือโฟลเดอร์ย่อยของมันได้",
+"cw_settings_network": "เครือข่าย",
+"cw_settings_lan": "อนุญาตอุปกรณ์อื่นในเครือข่าย",
+"cw_settings_lan_warning": "ทุกคนในเครือข่ายของคุณจะใช้หน้านี้และจัดการไฟล์ของคุณได้",
+"cw_settings_lan_off_note": "เมื่อปิด อุปกรณ์อื่นจะเข้าถึงไม่ได้ ส่วนเครื่องนี้ยังเข้าถึงได้",
+"cw_settings_lan_confirm_title": "อนุญาตอุปกรณ์อื่นหรือไม่",
+"cw_settings_lan_allow": "อนุญาต",
+"cw_settings_tile": "แสดง ps5upload บนหน้าจอหลัก",
+"cw_settings_on": "เปิด",
+"cw_settings_off": "ปิด",
+"cw_settings_language": "ภาษา",
+"cw_settings_language_system": "ค่าเริ่มต้นของระบบ",
+"cw_settings_about": "เกี่ยวกับ",
+"cw_settings_app_name": "ps5upload",
+"cw_settings_version": "เวอร์ชัน {version}",
+"cw_settings_err_save": "บันทึกการตั้งค่าไม่ได้ ลองอีกครั้ง",
+"cw_settings_err_load": "โหลดการตั้งค่าไม่ได้",
 };
 
 export default th;
