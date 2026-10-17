@@ -34,4 +34,19 @@ long webui_inputlog_lines(const char *arr, size_t n, char *out, size_t cap);
  * the previous file whole and no temp file behind. 0, or -1. */
 int webui_inputlog_append(const char *path, const char *add, size_t add_len, size_t cap, char *work, size_t work_cap);
 
+/* The route's rate gate. A request is admitted when at least `gap_ms` passed since the last
+ * admitted one. A request the page marks final ({"final":true}: the last batch as the Controls
+ * screen closes or the page is hidden) may come sooner, but only one final per `gap_ms` window,
+ * so the mark cannot be used to flood: at most two appends per window, each body still capped at
+ * WEBUI_INPUTLOG_BODY_MAX. Pure (the caller holds its lock and passes a monotonic clock).
+ * 1 = admitted (the gate is updated), 0 = refused (429; the gate is unchanged). */
+typedef struct {
+    long long last_ms;       /* last admitted request */
+    long long last_final_ms; /* last admitted request that used the final exemption */
+} webui_inputlog_gate;
+
+#define WEBUI_INPUTLOG_GATE_INIT { -1000000, -1000000 }
+
+int webui_inputlog_gate_admit(webui_inputlog_gate *g, long long now_ms, int final, long long gap_ms);
+
 #endif

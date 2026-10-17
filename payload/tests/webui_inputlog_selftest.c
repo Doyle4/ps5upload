@@ -162,6 +162,32 @@ static void ring_keeps_newest_whole_lines_under_cap(void) {
     free(buf);
 }
 
+static void gate_admits_one_final_per_window(void) {
+    webui_inputlog_gate g = WEBUI_INPUTLOG_GATE_INIT;
+    const long long gap = 500;
+    CHECK(webui_inputlog_gate_admit(&g, 1000, 0, gap) == 1);
+    /* A regular batch too soon: refused, gate unchanged. */
+    CHECK(webui_inputlog_gate_admit(&g, 1200, 0, gap) == 0);
+    CHECK(g.last_ms == 1000);
+    /* The final batch 300 ms after a regular one (Controls closed): admitted. */
+    CHECK(webui_inputlog_gate_admit(&g, 1300, 1, gap) == 1);
+    /* A second final, or a regular one, inside the window: refused (no flooding with the mark). */
+    CHECK(webui_inputlog_gate_admit(&g, 1400, 1, gap) == 0);
+    CHECK(webui_inputlog_gate_admit(&g, 1700, 0, gap) == 0);
+    CHECK(webui_inputlog_gate_admit(&g, 1790, 1, gap) == 0);
+    /* A full gap after the final: regular traffic again. */
+    CHECK(webui_inputlog_gate_admit(&g, 1800, 0, gap) == 1);
+    /* Final right after that: the last final was 500+ ms ago, so admitted once more. */
+    CHECK(webui_inputlog_gate_admit(&g, 1850, 1, gap) == 1);
+    CHECK(webui_inputlog_gate_admit(&g, 1900, 1, gap) == 0);
+    /* A final that is on time anyway does not use the exemption. */
+    webui_inputlog_gate h = WEBUI_INPUTLOG_GATE_INIT;
+    CHECK(webui_inputlog_gate_admit(&h, 5000, 1, gap) == 1);
+    CHECK(h.last_final_ms == -1000000);
+    CHECK(webui_inputlog_gate_admit(&h, 5100, 1, gap) == 1);
+    CHECK(webui_inputlog_gate_admit(&h, 5200, 1, gap) == 0);
+}
+
 int main(void) {
     snprintf(g_dir, sizeof g_dir, "/tmp/ps5upload-inputlog-XXXXXX");
     if (!mkdtemp(g_dir)) {
@@ -171,6 +197,7 @@ int main(void) {
     lines_from_events();
     lines_refuse_anything_but_plain_strings();
     ring_keeps_newest_whole_lines_under_cap();
+    gate_admits_one_final_per_window();
     rmdir(g_dir);
     if (failures) {
         fprintf(stderr, "webui_inputlog_selftest: %d failure(s)\n", failures);

@@ -137,3 +137,16 @@ int webui_inputlog_append(const char *path, const char *add, size_t add_len, siz
     }
     return 0;
 }
+
+int webui_inputlog_gate_admit(webui_inputlog_gate *g, long long now_ms, int final, long long gap_ms) {
+    if (now_ms - g->last_ms >= gap_ms) {
+        g->last_ms = now_ms;
+        return 1;
+    }
+    if (final && now_ms - g->last_final_ms >= gap_ms) {
+        g->last_ms = now_ms;
+        g->last_final_ms = now_ms;
+        return 1;
+    }
+    return 0;
+}

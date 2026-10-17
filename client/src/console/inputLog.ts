@@ -30,6 +30,8 @@ export const INPUT_LOG_MAX_LINE = 160;
 const MOVE_SAMPLE_MS = 250;
 /** `{"events":[]}` */
 const BODY_OVERHEAD = 13;
+/** `,"final":true` on the last batch. */
+const FINAL_OVERHEAD = 13;
 
 /** The event fields read (a real Event has them; tests pass plain objects). */
 export interface LoggedEvent {
@@ -142,6 +144,8 @@ export function createInputLog(deps: InputLogDeps): InputLog {
   let lastMove = -Infinity;
   let timer: ReturnType<typeof setTimeout> | null = null;
   let inFlight = false;
+  /** The regular send on the wire, if any: a final batch goes after it, never alongside. */
+  let inFlightDone: Promise<unknown> | null = null;
 
   const schedule = () => {
     if (!on || timer !== null || inFlight || (!queue.length && !dropped)) return;
@@ -150,12 +154,13 @@ export function createInputLog(deps: InputLogDeps): InputLog {
   };
 
   /** The next batch, with the "dropped" note when it fits. */
-  function nextBatch(): string[] {
-    const batch = takeBatch(queue);
+  function nextBatch(final = false): string[] {
+    const max = INPUT_LOG_MAX_BODY - (final ? FINAL_OVERHEAD : 0);
+    const batch = takeBatch(queue, max);
     if (!queue.length && dropped) {
       const note = `${Math.round(deps.now() - t0)} dropped n=${dropped}`;
       const size = JSON.stringify({ events: batch.concat(note) }).length;
-      if (size <= INPUT_LOG_MAX_BODY) {
+      if (size <= max) {
         batch.push(note);
         dropped = 0;
       }
@@ -163,14 +168,22 @@ export function createInputLog(deps: InputLogDeps): InputLog {
     return batch;
   }
 
-  /** One batch now, outside the once-a-second pacing (at most once per stop or page hide). */
+  /**
+   * One batch now, outside the once-a-second pacing (at most once per stop or page hide). Marked
+   * final: the helper admits it even right after a regular batch (once per its 500 ms window,
+   * webui_inputlog_gate_admit). Sent after a regular send still on the wire, so the two never
+   * reach the helper out of order (the later one would be refused).
+   */
   function sendFinal() {
-    const batch = nextBatch();
+    const batch = nextBatch(true);
     if (!batch.length) return;
     lastSend = deps.now();
-    deps.send(batch, true).catch(() => {
-      // measurement only
-    });
+    const go = () =>
+      deps.send(batch, true).catch(() => {
+        // measurement only
+      });
+    if (inFlightDone) void inFlightDone.then(go, go);
+    else void go();
   }
 
   function flush() {
@@ -180,15 +193,15 @@ export function createInputLog(deps: InputLogDeps): InputLog {
     if (!batch.length) return;
     inFlight = true;
     lastSend = deps.now();
-    deps
-      .send(batch)
-      .catch(() => {
-        // measurement only: a lost batch is not retried
-      })
-      .then(() => {
-        inFlight = false;
-        schedule();
-      });
+    const done = deps.send(batch).catch(() => {
+      // measurement only: a lost batch is not retried
+    });
+    inFlightDone = done;
+    void done.then(() => {
+      inFlight = false;
+      if (inFlightDone === done) inFlightDone = null;
+      schedule();
+    });
   }
 
   return {
@@ -251,7 +264,9 @@ const DOCUMENT_EVENTS = ["visibilitychange", "fullscreenchange", "webkitfullscre
 
 const pageLog = createInputLog({
   send: (lines, final) =>
-    final ? callKeepalive(INPUT_LOG_ROUTE, { events: lines }) : call(INPUT_LOG_ROUTE, { events: lines }),
+    final
+      ? callKeepalive(INPUT_LOG_ROUTE, { events: lines, final: true })
+      : call(INPUT_LOG_ROUTE, { events: lines }),
   now: () => (typeof performance !== "undefined" ? performance.now() : Date.now()),
 });
 

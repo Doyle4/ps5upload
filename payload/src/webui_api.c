@@ -863,10 +863,12 @@ static void r_cheats_toggle(const char *b, size_t n, uint8_t *out, int fd) {
 
 /* ---- input log ---- */
 
-/* One append at a time (the file is a ring rewritten in place), and the time of the last one: a
- * page that ignores its one-a-second rule is told 429 instead of making the helper write. */
+/* One append at a time (the file is a ring rewritten in place), and a rate gate: a page that
+ * ignores its one-a-second rule is told 429 instead of making the helper write. Its last batch
+ * ({"final":true}, as Controls closes or the page is hidden) may follow a regular one sooner, once
+ * per window (webui_inputlog_gate_admit). */
 static pthread_mutex_t g_inlog_mu = PTHREAD_MUTEX_INITIALIZER;
-static long long g_inlog_last_ms = -1000000;
+static webui_inputlog_gate g_inlog_gate = WEBUI_INPUTLOG_GATE_INIT;
 #define INLOG_MIN_GAP_MS 500 /* half the page's period: its timer jitter never trips it */
 #define INLOG_LINES_CAP (8u * 1024u)
 
@@ -882,8 +884,7 @@ static void r_input_log(const char *b, size_t n, uint8_t *out, int fd) {
     const char *arr;
     size_t alen;
     long lines;
-    long long now;
-    int rc;
+    int rc, final = 0;
     _Static_assert(INLOG_LINES_CAP + WEBUI_INPUTLOG_CAP <= API_OUT_MAX, "input log scratch must fit the route buffer");
     if (n > WEBUI_INPUTLOG_BODY_MAX) {
         send_error(fd, 413, "too_large", 9);
@@ -898,14 +899,13 @@ static void r_input_log(const char *b, size_t n, uint8_t *out, int fd) {
         send_bad(fd, "bad_events");
         return;
     }
+    if (webui_json_bool(b, n, "final", &final) != 1) final = 0;
     pthread_mutex_lock(&g_inlog_mu);
-    now = mono_ms();
-    if (now - g_inlog_last_ms < INLOG_MIN_GAP_MS) {
+    if (!webui_inputlog_gate_admit(&g_inlog_gate, mono_ms(), final != 0, INLOG_MIN_GAP_MS)) {
         pthread_mutex_unlock(&g_inlog_mu);
         send_error(fd, 429, "too_many", 8);
         return;
     }
-    g_inlog_last_ms = now;
     rc = webui_inputlog_append(WEBUI_INPUTLOG_PATH, (const char *)out, (size_t)lines, WEBUI_INPUTLOG_CAP,
                                (char *)out + INLOG_LINES_CAP, API_OUT_MAX - INLOG_LINES_CAP);
     pthread_mutex_unlock(&g_inlog_mu);

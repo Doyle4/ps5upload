@@ -182,4 +182,66 @@ describe("createInputLog", () => {
     expect(log.enabled()).toBe(true);
     vi.useRealTimers();
   });
+
+  it("the final batch passes the helper's 500 ms gate and never overtakes a regular send", async () => {
+    vi.useFakeTimers();
+    let now = 0;
+    // The helper's rule (webui_inputlog_gate_admit): 500 ms between admitted requests, except one
+    // request marked final per 500 ms window.
+    const gate = { last: -1e6, lastFinal: -1e6 };
+    const admit = (final: boolean) => {
+      if (now - gate.last >= 500) {
+        gate.last = now;
+        return true;
+      }
+      if (final && now - gate.lastFinal >= 500) {
+        gate.last = gate.lastFinal = now;
+        return true;
+      }
+      return false;
+    };
+    const stored: string[] = [];
+    const order: string[] = [];
+    let releaseRegular: (() => void) | null = null;
+    const log = createInputLog({
+      send: (lines, final) => {
+        order.push(final ? "final" : "regular");
+        const arrive = () => {
+          if (admit(!!final)) stored.push(...lines);
+        };
+        if (final) {
+          arrive();
+          return Promise.resolve();
+        }
+        // A regular send that is still on the wire when Controls closes.
+        return new Promise<void>((res) => {
+          releaseRegular = () => {
+            arrive();
+            res();
+          };
+        });
+      },
+      now: () => now,
+    });
+    log.setEnabled(true);
+    log.record({ type: "keydown", key: "Enter", code: "Enter", keyCode: 13, target: null });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(order).toEqual(["regular"]);
+    now += 120;
+    log.record({ type: "popstate", target: null });
+    log.setEnabled(false);
+    // Not sent alongside: it waits for the regular one.
+    expect(order).toEqual(["regular"]);
+    now += 30;
+    releaseRegular!();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(order).toEqual(["regular", "final"]);
+    // Both admitted although the final came 0 ms after the regular one; ○'s popstate is kept.
+    expect(stored.map((l) => l.split(" ")[1])).toEqual(["keydown", "popstate"]);
+
+    // Without the final mark the helper would have refused it (the bug this guards against).
+    gate.last = now;
+    expect(admit(false)).toBe(false);
+    vi.useRealTimers();
+  });
 });
