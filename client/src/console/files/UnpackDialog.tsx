@@ -2,7 +2,9 @@ import { useEffect, useState } from "react";
 import { formatBytes } from "../../lib/format";
 import { ApiError } from "../api";
 import { t } from "../strings";
+import { topModal } from "../nav";
 import { Modal } from "../ui/Modal";
+import { refocusIfLost } from "../ui/restoreFocus";
 import { filesErrorText } from "./Files";
 import { freeName, statOrNull } from "./paste";
 import { unpackBlocker, unpackInfo, type UnpackInfo } from "./opJob";
@@ -89,6 +91,11 @@ export function UnpackDialog({
   const info = state && "info" in state ? state.info : null;
   const blocker = info ? unpackBlocker(info, outName) : null;
   const canStart = !busy && !naming && (info ? blocker == null : !!state && "generic" in state && state.generic);
+  // Keep both removes itself once a free name is found: focus moves on to Decompress (else Cancel).
+  const keepShown = blocker === "exists";
+  useEffect(() => {
+    if (!keepShown) refocusIfLost(topModal(), ['[data-action="unpack-go"]', "[data-nav-default]"]);
+  }, [keepShown]);
   const keepBoth = () => {
     if (!info) return;
     setNaming(true);

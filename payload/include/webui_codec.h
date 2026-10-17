@@ -74,6 +74,20 @@ int webui_job_status_to_json(const uint8_t *res, size_t n, char *out, size_t cap
 /* 1 when `s` can be one file name: 1-255 bytes, no '/', no control character, not "." or "..". */
 int webui_name_ok(const char *s);
 
+/* A decompress's output name: as webui_name_ok, but at most WEBUI_UNPACK_NAME_MAX bytes so
+ * "<name>.part" (written first, renamed at the end) still fits the 255-byte NAME_MAX. Used by
+ * both the page route and the FFPFSC_UNPACK op itself. */
+#define WEBUI_UNPACK_NAME_MAX 250
+int webui_unpack_name_ok(const char *s);
+
+/* A rename whose target already names the source itself (same device + inode: "a.txt" ->
+ * "A.txt" on case-insensitive exFAT) goes through a temporary name in the same folder:
+ * `from` -> `tmp` -> `to`. Fills `tmp` ("<dir>/.ps5upload-rename-<salt hex>") and returns 0
+ * when `from` and `to` are two spellings in ONE folder (same directory part, byte for byte, so
+ * the detour never leaves the mount); -1 otherwise (different folders, the same spelling, an
+ * empty name, or `tmp` does not fit `cap`). */
+int webui_rename_detour(const char *from, const char *to, unsigned salt, char *tmp, size_t cap);
+
 /* A one-path job operation's args as the engine sends them: {"path":"<escaped>"}, then
  * ,"name":"<escaped>" when `name` is not NULL, then `tail` (raw JSON members such as
  * ,"mode":"0777"; may be NULL) and the closing brace. Returns the length, or -1 (no path, or

@@ -256,7 +256,14 @@ export function busyText(b: Busy | null): string | null {
   if (b.op === "move") return t("cw_files_batch_move", { at, total: b.total });
   if (b.op === "chmod") return t("cw_files_fixperm_batch", { at, total: b.total });
   if (b.op === "rename") return t("cw_files_br_batch", { at, total: b.total });
-  if (b.op === "unpack") return t("cw_files_unpack_batch", { name: baseName(b.paths?.[0] ?? "") });
+  if (b.op === "unpack") {
+    const line = t("cw_files_unpack_batch", { name: baseName(b.paths?.[0] ?? "") });
+    const total = b.bytesTotal ?? 0;
+    if (total <= 0) return line;
+    const done = Math.min(b.bytesDone ?? 0, total);
+    const pct = Math.min(100, Math.floor((done / total) * 100));
+    return `${line} · ${t("cw_home_percent", { n: pct })} · ${formatBytes(done)} / ${formatBytes(total)}`;
+  }
   return t("cw_files_batch_delete", { at, total: b.total });
 }
 
@@ -285,6 +292,32 @@ export function renameItems(names: string[], shown: Entry[], entries: Entry[]): 
   const seen = new Set(ordered);
   for (const n of names) if (!seen.has(n)) ordered.push(n);
   return ordered.map((name) => ({ name, dir: kinds.get(name) === "dir" }));
+}
+
+/*
+ * askView is a plain call (no hooks), so the bulk rename dialog's inputs are
+ * kept by their last arguments: the same names/shown/entries arrays give the
+ * same items and names arrays, and the dialog's plan useMemo is not redone on
+ * every Files render (a job poll, the batch line).
+ */
+let lastItems: { names: string[]; shown: Entry[]; entries: Entry[]; out: RenameItem[] } | null = null;
+let lastNames: { entries: Entry[]; out: string[] } | null = null;
+
+/** renameItems, the same array again for the same arguments. */
+export function renameItemsKept(names: string[], shown: Entry[], entries: Entry[]): RenameItem[] {
+  const c = lastItems;
+  if (c && c.names === names && c.shown === shown && c.entries === entries) return c.out;
+  const out = renameItems(names, shown, entries);
+  lastItems = { names, shown, entries, out };
+  return out;
+}
+
+/** The folder's names, the same array again for the same entries. */
+export function entryNamesKept(entries: Entry[]): string[] {
+  if (lastNames && lastNames.entries === entries) return lastNames.out;
+  const out = entries.map((e) => e.name);
+  lastNames = { entries, out };
+  return out;
 }
 
 /** The line a finished bulk rename leaves. */
@@ -529,8 +562,8 @@ function askView(p: FilesViewProps) {
     case "bulkrename":
       return (
         <BulkRenameDialog
-          items={renameItems(a.names, p.shown ?? p.dir.entries, p.dir.entries)}
-          existing={p.dir.entries.map((e) => e.name)}
+          items={renameItemsKept(a.names, p.shown ?? p.dir.entries, p.dir.entries)}
+          existing={entryNamesKept(p.dir.entries)}
           onRename={(plan) => p.onBulkRename?.(plan.rows)}
           onCancel={p.onDismiss}
         />
@@ -1251,7 +1284,7 @@ export function Files({ ctx }: { ctx: SectionContext }) {
           try {
             const job = await startOp("/api/fs/unpack", outName ? { path: src, name: outName } : { path: src });
             r.started.push(job);
-            end = await watchOp(job, { stopped: ctl.stopped });
+            end = await watchOp(job, { stopped: ctl.stopped, onStatus: (s) => ctl.onBytes(s.bytes_done, s.bytes_total) });
           } catch (error) {
             end = { end: "error", error };
           }

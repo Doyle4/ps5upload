@@ -3,7 +3,9 @@ import { Calculator, Square } from "lucide-react";
 import { formatBytes } from "../../lib/format";
 import { call } from "../api";
 import { getLanguage, t } from "../strings";
+import { topModal } from "../nav";
 import { Modal } from "../ui/Modal";
+import { refocusIfLost } from "../ui/restoreFocus";
 import { startFolderSize, SIZE_MAX_ENTRIES, SIZE_MAX_MS, type SizeCount, type SizeResult } from "./folderSize";
 import { LIST_PAGE } from "./useDir";
 
@@ -56,6 +58,11 @@ function FolderSize({ path }: { path: string }) {
     },
     [],
   );
+  // Calculate turns into Cancel and back: focus follows instead of falling out of the dialog.
+  const phase = walk?.state ?? null;
+  useEffect(() => {
+    refocusIfLost(topModal(), phase === "running" ? ['[data-action="size-cancel"]'] : ['[data-action="size-start"]']);
+  }, [phase]);
   const start = () => {
     const zero: SizeCount = { files: 0, folders: 0, bytes: 0, entries: 0, unreadable: 0 };
     const w = startFolderSize(path, (count) => setWalk({ state: "running", count }));
@@ -103,7 +110,7 @@ function FolderSize({ path }: { path: string }) {
         </dl>
       ) : null}
       {note ? <p className={walk?.state === "ended" && walk.result.end === "error" ? "cw-field-error" : "cw-dim"}>{note}</p> : null}
-      {walk?.state === "held" ? <p className="cw-field-error">{t("cw_files_size_busy")}</p> : null}
+      {walk?.state === "held" ? <p className="cw-dim">{t("cw_files_size_busy")}</p> : null}
       <button type="button" className="cw-focusable cw-button cw-size-go" data-action="size-start" onClick={start}>
         <Calculator aria-hidden />
         <span>{t(walk?.state === "ended" ? "cw_files_size_again" : "cw_files_size_start")}</span>

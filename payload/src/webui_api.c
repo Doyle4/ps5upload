@@ -416,17 +416,11 @@ static void r_fs_mkdir(const char *b, size_t n, uint8_t *out, int fd) {
     else send_json(fd, 200, "{}", 2);
 }
 
-/* A rename never crosses a mount (it would panic the kernel): the helper refuses with
- * ERR_CROSS_DEVICE, answered 409 cross_mount, and the page copies with move set instead. An
- * existing target is refused (409 exists): the page does not overwrite by renaming. */
-static void r_fs_rename(const char *b, size_t n, uint8_t *out, int fd) {
-    char from[API_PATH], to[API_PATH], req[2 * API_PATH + 32];
+/* One FS_RENAME (never overwriting): the AVA1 status, the cause in out/ol. -1: does not encode. */
+static int rename_once(const char *from, const char *to, uint8_t *out, size_t *ol) {
+    char req[2 * API_PATH + 32];
     ava1_fs_rename_t q;
     ava1_w_t w;
-    size_t ol;
-    int st;
-    if (need_path(fd, b, n, "from", from, sizeof from) != 0) return;
-    if (need_path(fd, b, n, "to", to, sizeof to) != 0) return;
     memset(&q, 0, sizeof q);
     q.from = (const uint8_t *)from;
     q.from_len = (uint16_t)strlen(from);
@@ -434,12 +428,67 @@ static void r_fs_rename(const char *b, size_t n, uint8_t *out, int fd) {
     q.to_len = (uint16_t)strlen(to);
     q.overwrite = 0;
     ava1_w_init(&w, (uint8_t *)req, sizeof req);
-    if (ava1_fs_rename_encode(&q, &w) != 0) {
-        send_bad(fd, "bad_path");
-        return;
+    if (ava1_fs_rename_encode(&q, &w) != 0) return -1;
+    return call(AVA1_METHOD_FS_RENAME, (const uint8_t *)req, w.len, out, ol);
+}
+
+/* A rename never crosses a mount (it would panic the kernel): the helper refuses with
+ * ERR_CROSS_DEVICE, answered 409 cross_mount, and the page copies with move set instead. An
+ * existing target is refused (409 exists): the page does not overwrite by renaming.
+ * A change of letter case only ("a.txt" -> "A.txt") on a case-insensitive drive (exFAT USB/
+ * images) finds its target "existing" as the source itself (same device + inode): it goes
+ * through a temporary name in the same folder (webui_rename_detour), so it never leaves the
+ * mount; a failed second step puts the source name back. */
+static void r_fs_rename(const char *b, size_t n, uint8_t *out, int fd) {
+    char from[API_PATH], to[API_PATH], tmp[API_PATH];
+    struct stat fs_, ts_;
+    size_t ol = 0;
+    int st;
+    if (need_path(fd, b, n, "from", from, sizeof from) != 0) return;
+    if (need_path(fd, b, n, "to", to, sizeof to) != 0) return;
+    if (lstat(from, &fs_) == 0 && lstat(to, &ts_) == 0 && fs_.st_dev == ts_.st_dev && fs_.st_ino == ts_.st_ino) {
+        static unsigned seq;
+        unsigned salt = ((unsigned)time(NULL) << 8) ^ (unsigned)__atomic_add_fetch(&seq, 1, __ATOMIC_RELAXED);
+        struct stat xs;
+        int tries;
+        for (tries = 0; tries < 8; tries++, salt += 0x9e37u) {
+            if (webui_rename_detour(from, to, salt, tmp, sizeof tmp) != 0) break;
+            if (lstat(tmp, &xs) != 0) break; /* free */
+            tmp[0] = '\0';
+        }
+        if (tmp[0] && tries < 8) {
+            st = rename_once(from, tmp, out, &ol);
+            if (st < 0) {
+                send_bad(fd, "bad_path");
+                return;
+            }
+            if (st != AVA1_STATUS_OK) {
+                send_status_error(fd, st, out, ol);
+                return;
+            }
+            st = rename_once(tmp, to, out, &ol);
+            if (st == AVA1_STATUS_OK) {
+                send_json(fd, 200, "{}", 2);
+                return;
+            }
+            {
+                /* Put it back under its old name; the second step's cause is the answer (kept
+                 * aside: the put-back call writes `out`). */
+                uint8_t cause[256];
+                size_t cl = ol < sizeof cause ? ol : sizeof cause;
+                size_t bl = 0;
+                if (cl) memcpy(cause, out, cl);
+                (void)rename_once(tmp, from, out, &bl);
+                if (st < 0) send_bad(fd, "bad_path");
+                else send_status_error(fd, st, cause, cl);
+            }
+            return;
+        }
+        /* Not one folder (a hard link elsewhere): the plain rename below refuses it (exists). */
     }
-    st = call(AVA1_METHOD_FS_RENAME, (const uint8_t *)req, w.len, out, &ol);
-    if (st != AVA1_STATUS_OK) send_status_error(fd, st, out, ol);
+    st = rename_once(from, to, out, &ol);
+    if (st < 0) send_bad(fd, "bad_path");
+    else if (st != AVA1_STATUS_OK) send_status_error(fd, st, out, ol);
     else send_json(fd, 200, "{}", 2);
 }
 
@@ -613,7 +662,7 @@ static void r_fs_unpack(const char *b, size_t n, uint8_t *out, int fd) {
     int rc;
     if (need_path(fd, b, n, "path", path, sizeof path) != 0) return;
     rc = webui_json_str(b, n, "name", name, sizeof name);
-    if (rc < 0 || (rc == 1 && !webui_name_ok(name))) {
+    if (rc < 0 || (rc == 1 && !webui_unpack_name_ok(name))) {
         send_bad(fd, "bad_name");
         return;
     }

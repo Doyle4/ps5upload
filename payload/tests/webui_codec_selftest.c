@@ -513,6 +513,37 @@ static void name_checks(void) {
     long_name[255] = 'a';
     long_name[256] = '\0';
     CHECK(!webui_name_ok(long_name));
+    /* A decompress's output name leaves room for ".part": 250 bytes at most. */
+    memset(long_name, 'a', sizeof long_name);
+    long_name[WEBUI_UNPACK_NAME_MAX] = '\0';
+    CHECK(webui_unpack_name_ok(long_name) && strlen(long_name) + strlen(".part") <= 255);
+    long_name[WEBUI_UNPACK_NAME_MAX] = 'a';
+    long_name[WEBUI_UNPACK_NAME_MAX + 1] = '\0';
+    CHECK(!webui_unpack_name_ok(long_name) && webui_name_ok(long_name));
+    CHECK(webui_unpack_name_ok("img (2).exfat") && !webui_unpack_name_ok("..") && !webui_unpack_name_ok("a/b"));
+    CHECK(!webui_unpack_name_ok("") && !webui_unpack_name_ok(NULL) && !webui_unpack_name_ok("a\tb"));
+}
+
+static void rename_detours(void) {
+    char tmp[64];
+    /* A case-only rename in one folder: a temporary name beside it. */
+    CHECK(webui_rename_detour("/mnt/usb0/Game/a.txt", "/mnt/usb0/Game/A.txt", 0x1234abcdu, tmp, sizeof tmp) == 0);
+    CHECK(strcmp(tmp, "/mnt/usb0/Game/.ps5upload-rename-1234abcd") == 0);
+    CHECK(webui_rename_detour("/data/Unity.dll", "/data/unity.DLL", 1, tmp, sizeof tmp) == 0 &&
+          strcmp(tmp, "/data/.ps5upload-rename-00000001") == 0);
+    /* Never across folders (a hard link elsewhere, another mount): refused, tmp empty. */
+    CHECK(webui_rename_detour("/mnt/usb0/a/x", "/mnt/usb0/b/X", 1, tmp, sizeof tmp) == -1 && tmp[0] == '\0');
+    CHECK(webui_rename_detour("/data/x", "/mnt/usb0/X", 1, tmp, sizeof tmp) == -1);
+    CHECK(webui_rename_detour("/data/ab/x", "/data/a/x", 1, tmp, sizeof tmp) == -1);
+    /* The same spelling, no name, dot names, no folder. */
+    CHECK(webui_rename_detour("/data/x", "/data/x", 1, tmp, sizeof tmp) == -1);
+    CHECK(webui_rename_detour("/data/x/", "/data/X/", 1, tmp, sizeof tmp) == -1);
+    CHECK(webui_rename_detour("/data/.", "/data/..", 1, tmp, sizeof tmp) == -1);
+    CHECK(webui_rename_detour("x", "X", 1, tmp, sizeof tmp) == -1);
+    CHECK(webui_rename_detour(NULL, "/data/X", 1, tmp, sizeof tmp) == -1);
+    /* Does not fit: refused, never cut short. */
+    CHECK(webui_rename_detour("/data/a", "/data/A", 1, tmp, 20) == -1 && tmp[0] == '\0');
+    CHECK(webui_rename_detour("/data/a", "/data/A", 1, tmp, 0) == -1);
 }
 
 static void hex_ids(void) {
@@ -783,6 +814,7 @@ int main(void) {
     job_status_to_json();
     path_job_args();
     name_checks();
+    rename_detours();
     hex_ids();
     status_mapping();
     mime_types();

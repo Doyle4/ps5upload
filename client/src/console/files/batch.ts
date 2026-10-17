@@ -27,6 +27,9 @@ export interface BatchProgress {
   stopping: boolean;
   /** What it reads and writes: its items and (copy/move) the destination folder. */
   paths?: string[];
+  /** Bytes written so far of `bytesTotal` (a one-job batch such as unpack reports them). */
+  bytesDone?: number;
+  bytesTotal?: number;
 }
 
 /** How often a running job is checked. */
@@ -110,6 +113,8 @@ export function stopBatch(): void {
 
 export interface BatchControl {
   onProgress: (at: number, total: number) => void;
+  /** Bytes done of total for the running item (shown with a percentage). */
+  onBytes: (done: number, total: number) => void;
   stopped: () => boolean;
 }
 
@@ -131,6 +136,12 @@ export function startBatch<R extends BatchResult = BatchResult>(
     onProgress: (at, n) => {
       if (!progress) return;
       progress = { ...progress, at, total: n };
+      emit();
+    },
+    onBytes: (done, total) => {
+      if (!progress) return;
+      if (progress.bytesDone === done && progress.bytesTotal === total) return;
+      progress = { ...progress, bytesDone: done, bytesTotal: total };
       emit();
     },
     stopped: () => stopAsked,

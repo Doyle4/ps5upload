@@ -559,12 +559,38 @@ fail:
     return -1;
 }
 
-int webui_name_ok(const char *s) {
+static int name_ok_max(const char *s, size_t max) {
     size_t i, n = s ? strlen(s) : 0;
-    if (n == 0 || n > 255 || strcmp(s, ".") == 0 || strcmp(s, "..") == 0) return 0;
+    if (n == 0 || n > max || strcmp(s, ".") == 0 || strcmp(s, "..") == 0) return 0;
     for (i = 0; i < n; i++)
         if (s[i] == '/' || (unsigned char)s[i] < 0x20) return 0;
     return 1;
+}
+
+int webui_name_ok(const char *s) { return name_ok_max(s, 255); }
+
+int webui_unpack_name_ok(const char *s) { return name_ok_max(s, WEBUI_UNPACK_NAME_MAX); }
+
+int webui_rename_detour(const char *from, const char *to, unsigned salt, char *tmp, size_t cap) {
+    const char *fs, *ts;
+    size_t dl;
+    int k;
+    if (!tmp || !cap) return -1;
+    tmp[0] = '\0';
+    if (!from || !to || strcmp(from, to) == 0) return -1;
+    fs = strrchr(from, '/');
+    ts = strrchr(to, '/');
+    if (!fs || !ts || !fs[1] || !ts[1]) return -1;
+    dl = (size_t)(fs - from);
+    if ((size_t)(ts - to) != dl || memcmp(from, to, dl) != 0) return -1;
+    if (strcmp(fs + 1, ".") == 0 || strcmp(fs + 1, "..") == 0 || strcmp(ts + 1, ".") == 0 || strcmp(ts + 1, "..") == 0)
+        return -1;
+    k = snprintf(tmp, cap, "%.*s/.ps5upload-rename-%08x", (int)dl, from, salt);
+    if (k < 0 || (size_t)k >= cap) {
+        tmp[0] = '\0';
+        return -1;
+    }
+    return 0;
 }
 
 int webui_path_job_args(char *out, size_t cap, const char *path, const char *name, const char *tail) {

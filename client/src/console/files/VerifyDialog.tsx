@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { formatBytes } from "../../lib/format";
 import { ApiError } from "../api";
 import { t } from "../strings";
@@ -102,18 +102,18 @@ export function VerifyDialog({
   initial?: VerifyState;
 }) {
   const [state, setState] = useState<VerifyState>(initial ?? { step: "hash", done: 0, total: 0 });
-  const stop = useRef(false);
   const preset = initial != null;
   useEffect(() => {
     if (preset) return;
     let live = true;
-    stop.current = false;
+    // This run's own stop flag: a re-run (StrictMode, a new path) never un-stops an earlier one.
+    let stopped = false;
     runVerify(
       path,
       (s) => {
         if (live) setState(s);
       },
-      () => stop.current,
+      () => stopped,
     ).then(
       (s) => {
         if (live) setState(s);
@@ -125,7 +125,7 @@ export function VerifyDialog({
     return () => {
       live = false;
       // Closed while a job runs: stop it (the helper drops it within a block).
-      stop.current = true;
+      stopped = true;
     };
   }, [path, preset]);
 

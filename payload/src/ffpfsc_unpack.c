@@ -42,6 +42,7 @@
 #include "ava1_op.h"
 #include "path_policy.h"
 #include "runtime.h"
+#include "webui_codec.h"
 
 #define UNP_BLOCK 0x10000ull
 #define UNP_HEAD_BLOCKS 6ull /* blocks 0-5: header, inodes, directories */
@@ -183,14 +184,9 @@ static int ends_with_ci(const char *s, const char *suffix) {
     return a >= b && strcasecmp(s + a - b, suffix) == 0;
 }
 
-/* One file name: 1-255 bytes, no '/', no control character, not "." or "..". */
-static int unp_name_ok(const char *s) {
-    size_t i, n = strlen(s);
-    if (n == 0 || n > 255 || strcmp(s, ".") == 0 || strcmp(s, "..") == 0) return 0;
-    for (i = 0; i < n; i++)
-        if (s[i] == '/' || (unsigned char)s[i] < 0x20) return 0;
-    return 1;
-}
+/* The output's file name: one plain name with room for ".part" (the check the page route
+ * makes too, webui_codec.c). */
+static int unp_name_ok(const char *s) { return webui_unpack_name_ok(s); }
 
 /* The checks the unpack makes before it writes anything, for a caller that asks first (the
  * console page): the source policy, the layout, the destination and the free space. */
@@ -292,7 +288,16 @@ int fsj_op_ffpfsc_unpack(void *arg, ava1_op_ctx_t *c, const uint8_t *args, size_
     {
         char want[256];
         int rc = fsj_json_str((const char *)args, "name", want, sizeof want);
-        if (rc && !unp_name_ok(want)) {
+        /* Present but unusable (too long, not a string, a bad escape): refused, never the
+         * image's own name instead. */
+        int present = rc || fsj_json_present((const char *)args, "name");
+        if (present && (!rc || !unp_name_ok(want))) {
+            ava1_op_message(c, "fs_unpack_bad_name");
+            status = AVA1_ERR_PROTOCOL;
+            goto done;
+        }
+        /* The image's own name has to leave room for ".part" too. */
+        if (!present && !unp_name_ok(L.name)) {
             ava1_op_message(c, "fs_unpack_bad_name");
             status = AVA1_ERR_PROTOCOL;
             goto done;

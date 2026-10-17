@@ -52,6 +52,26 @@ export function focusLost(): boolean {
 }
 
 /**
+ * The focused control removed itself (Calculate became Cancel, Keep both went
+ * away once a free name was found): focus the first of `prefer` found inside
+ * `within` (each a selector, in order), else its first control. Nothing happens
+ * while focus is still on a live element.
+ */
+export function refocusIfLost(within: ParentNode | null, prefer: string[]): HTMLElement | null {
+  if (!within || !focusLost()) return null;
+  for (const sel of prefer) {
+    const el = within.querySelector<HTMLElement>(sel);
+    if (el && el.matches(FOCUSABLE)) {
+      focusElement(el);
+      return el;
+    }
+  }
+  const any = within.querySelector<HTMLElement>(FOCUSABLE);
+  if (any) focusElement(any);
+  return any;
+}
+
+/**
  * A modal's focus: on open, remember where focus was and move it to `first`
  * (a control, or a container: its [data-nav-default], else its first control);
  * on close, restoreFocus to the opener.

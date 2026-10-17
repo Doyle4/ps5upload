@@ -12,7 +12,7 @@ import type { Volume } from "../home/Home";
 import { t } from "../strings";
 import { ActionsSheet } from "./ActionsSheet";
 import { BulkRenameDialog, EMPTY_FIELDS } from "./BulkRenameDialog";
-import { busyText, FilesView, renameItems, renameMessage, sheetActions, unpackMessage, type FilesViewProps } from "./Files";
+import { busyText, entryNamesKept, FilesView, renameItems, renameItemsKept, renameMessage, sheetActions, unpackMessage, type FilesViewProps } from "./Files";
 import { InfoDialog, countText, walkNote } from "./InfoDialog";
 import { UnpackDialog } from "./UnpackDialog";
 import { VerifyDialog } from "./VerifyDialog";
@@ -261,12 +261,30 @@ describe("decompress", () => {
     expect(onUnpack).toHaveBeenCalledWith("game.FFPFSC", "game (2).exfat");
   });
 
+  it("bulk rename inputs keep their identity across renders (the plan memo hits)", () => {
+    const entries = [{ name: "a.png", kind: "file" }, { name: "b.png", kind: "file" }] as unknown as Parameters<typeof entryNamesKept>[0];
+    const names = ["a.png"];
+    expect(renameItemsKept(names, entries, entries)).toBe(renameItemsKept(names, entries, entries));
+    expect(entryNamesKept(entries)).toBe(entryNamesKept(entries));
+    expect(entryNamesKept([...entries])).not.toBe(entryNamesKept(entries));
+    const p = props({ ask: { kind: "bulkrename", names } });
+    const one = find(FilesView(p), BulkRenameDialog);
+    const two = find(FilesView(p), BulkRenameDialog);
+    expect(two.props.items).toBe(one.props.items);
+    expect(two.props.existing).toBe(one.props.existing);
+  });
+
   it("its batch line has Stop; done and failed lines", () => {
     const html = renderToStaticMarkup(
       <FilesView {...props({ busy: { op: "unpack", at: 1, total: 1, stopping: false, paths: ["/data/x/game.FFPFSC", "/data/x"] }, onStopBatch: vi.fn() })} />,
     );
     expect(html).toContain(t("cw_files_unpack_batch", { name: "game.FFPFSC" }));
     expect(html).toContain('data-action="stop-batch"');
+    // Bytes reported by the job: percent + bytes, like Verify.
+    const mid = busyText({ op: "unpack", at: 1, total: 1, stopping: false, paths: ["/data/x/game.FFPFSC"], bytesDone: 512, bytesTotal: 2048 });
+    expect(mid).toContain(t("cw_home_percent", { n: 25 }));
+    expect(mid).toContain(" / ");
+    expect(busyText({ op: "unpack", at: 1, total: 1, stopping: false, paths: ["/data/x/game.FFPFSC"] })).toBe(t("cw_files_unpack_batch", { name: "game.FFPFSC" }));
     const status = { job: "j", state: "done" as const, files_done: 1, files_total: 1, bytes_done: 1, bytes_total: 1, message: null, result: null, code: null };
     expect(unpackMessage({ end: "done", status: { ...status, result: '{"path":"/data/x/game.exfat","size":1}' } }, "game.FFPFSC")?.text).toBe(
       t("cw_files_unpack_done", { name: "game.exfat", source: "game.FFPFSC" }),

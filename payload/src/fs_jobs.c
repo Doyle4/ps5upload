@@ -80,6 +80,9 @@ static const char *find_value(const char *j, const char *key) {
     return NULL;
 }
 
+/* 1 when `key` is in the object at all (any value, null included). */
+int fsj_json_present(const char *json, const char *key) { return json && find_value(json, key) != NULL; }
+
 int fsj_json_str(const char *json, const char *key, char *out, size_t cap) {
     const char *p = json ? find_value(json, key) : NULL;
     size_t n = 0;

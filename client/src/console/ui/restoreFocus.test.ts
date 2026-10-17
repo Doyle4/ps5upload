@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { anchorOf, restoreFocus } from "./restoreFocus";
+import { anchorOf, refocusIfLost, restoreFocus } from "./restoreFocus";
 
 /*
  * No DOM in vitest here: a fake with what restoreFocus touches (closest,
@@ -33,6 +33,8 @@ class El {
     if (sel === "[data-nav-item]") return "data-nav-item" in this.attrs;
     if (sel === ".cw-content") return this.attrs.class === "cw-content";
     if (sel === "[data-nav-modal]") return "data-nav-modal" in this.attrs;
+    const act = /^\[data-action="([^"]+)"\]$/.exec(sel);
+    if (act) return this.attrs["data-action"] === act[1];
     return this.tagName === "BUTTON"; // the focusable selector
   }
   closest(sel: string): El | null {
@@ -112,5 +114,47 @@ describe("ConfirmDialog focus restore", () => {
 
   it("nothing to remember: nothing happens", () => {
     expect(restoreFocus(anchorOf(null))).toBeNull();
+  });
+});
+
+describe("refocusIfLost (a dialog button that removed itself)", () => {
+  let modal: El;
+  let close: El;
+  beforeEach(() => {
+    close = new El("close", {}, "BUTTON");
+    modal = new El("modal", { "data-nav-modal": "" });
+    root.add(modal);
+  });
+
+  it("Calculate became Cancel: focus goes to Cancel, not the dialog's first control", () => {
+    const calc = new El("calc", { "data-action": "size-start" }, "BUTTON");
+    modal.add(close, calc);
+    calc.focus();
+    calc.remove();
+    const cancel = new El("cancel", { "data-action": "size-cancel" }, "BUTTON");
+    modal.add(cancel);
+    expect(refocusIfLost(modal as unknown as ParentNode, ['[data-action="size-cancel"]', '[data-action="size-start"]'])).toBe(cancel);
+    expect(doc.activeElement).toBe(cancel);
+  });
+
+  it("Keep both gone: the next preferred control, else the first one", () => {
+    const keep = new El("keep", { "data-action": "unpack-keep" }, "BUTTON");
+    const go = new El("go", { "data-action": "unpack-go" }, "BUTTON");
+    modal.add(close, keep, go);
+    keep.focus();
+    keep.remove();
+    refocusIfLost(modal as unknown as ParentNode, ['[data-action="unpack-go"]']);
+    expect(doc.activeElement).toBe(go);
+    go.remove();
+    refocusIfLost(modal as unknown as ParentNode, ['[data-action="unpack-go"]']);
+    expect(doc.activeElement).toBe(close);
+  });
+
+  it("focus still on a live control: left alone", () => {
+    const go = new El("go", { "data-action": "unpack-go" }, "BUTTON");
+    modal.add(close, go);
+    close.focus();
+    expect(refocusIfLost(modal as unknown as ParentNode, ['[data-action="unpack-go"]'])).toBeNull();
+    expect(doc.activeElement).toBe(close);
   });
 });

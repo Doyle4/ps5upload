@@ -57,6 +57,7 @@ void fsj_register_ops(void);
  * the string at top-level key `key`, unescaped (1 found, 0 absent or too long), and the
  * unsigned integer or boolean at `key` (1 found; `true` is 1). */
 int fsj_json_str(const char *json, const char *key, char *out, size_t cap);
+int fsj_json_present(const char *json, const char *key);
 int fsj_json_u64(const char *json, const char *key, uint64_t *out);
 
 /* Tests only: every visited file waits this long (a slow disk), so a test can watch

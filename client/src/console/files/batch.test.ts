@@ -88,6 +88,20 @@ describe("the page's one batch", () => {
     expect(currentBatch()).toBeNull();
   });
 
+  it("carries the running item's bytes (unpack's percent)", async () => {
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((res) => (release = res));
+    const run = startBatch("unpack", 1, async (ctl) => {
+      ctl.onBytes(300, 1200);
+      await gate;
+      return empty();
+    });
+    expect(currentBatch()).toMatchObject({ bytesDone: 300, bytesTotal: 1200 });
+    release();
+    await run;
+    expect(currentBatch()).toBeNull();
+  });
+
   it("keeps what it touches while it runs (eject reads it)", async () => {
     let release: () => void = () => undefined;
     const gate = new Promise<void>((res) => (release = res));
