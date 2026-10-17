@@ -4330,6 +4330,23 @@ c2c_test_deep_bad: "ارسال آزمایشی ۴ KiB نرسید: {detail}",
 "connection_rest_mode": "PS5 شما در حالت استراحت است. بیدارش کنید و دوباره بررسی کنید.",
 "connection_payload_rest_mode": "PS5 به حالت استراحت رفت. راهنما پس از بیدار شدن برمی‌گردد.",
 "upload_rest_detail": "بارگذاری‌ها منتظر بیدار شدن آن می‌مانند و به‌محض بازگشت راهنما خودشان ادامه می‌یابند.",
+// Console web page (shell)
+"cw_nav_sections": "بخش‌ها",
+"cw_nav_home": "خانه",
+"cw_nav_files": "فایل‌ها",
+"cw_nav_settings": "تنظیمات",
+"cw_hint_open": "باز کردن",
+"cw_hint_back": "بازگشت",
+"cw_hint_switch_section": "تغییر بخش",
+"cw_hint_filter": "فیلتر",
+"cw_actions": "کارها",
+"cw_select": "انتخاب",
+"cw_reload_title": "راهنمای ps5upload دوباره راه‌اندازی شد",
+"cw_reload_body": "برای ادامه، این صفحه را دوباره بارگذاری کنید.",
+"cw_reload_button": "بارگذاری دوباره",
+"cw_status_connecting": "در حال اتصال…",
+"cw_status_offline": "متصل نیست",
+"cw_hints_label": "دکمه‌های دسته",
 };
 
 export default fa;

@@ -23,6 +23,7 @@
 #include "proc_identity.h"
 #include "ps5_firmware.h"
 #include "webui_codec.h"
+#include "webui_page.h"
 #include "webui_server.h"
 #include "webui_settings.h"
 #include "webui_tile.h"
@@ -738,9 +739,43 @@ static const struct {
     { "/api/settings/set", r_settings_set },
 };
 
+/* The page's own headers: only same-origin fetches, inline script/style (the page is one file),
+ * data:/blob: images; nosniff is on every response already. */
+#define PAGE_HEADERS                                                                       \
+    "Content-Encoding: gzip\r\n"                                                          \
+    "Content-Security-Policy: default-src 'self' 'unsafe-inline' data: blob:; connect-src 'self'\r\n"
+
+/* GET / and GET /api/token: the server checked Host/Origin but no token (is_api is 0 for both).
+ * Neither reaches a helper method, so they stay outside the in-flight RPC gate. The token goes
+ * out as JSON with no CORS headers: another site's page cannot read the reply, and loaded through
+ * a <script> tag it executes nothing. Never serve it as JavaScript. */
+static int serve_static(const webui_req_t *r, int fd) {
+    int page = strcmp(r->path, "/") == 0;
+    if (!page && strcmp(r->path, "/api/token") != 0) return 0;
+    if (strcmp(r->method, "GET") != 0) {
+        webui_send_json(fd, 405, "{\"error\":\"method_not_allowed\"}");
+        return 1;
+    }
+    if (page) {
+        webui_send_ex(fd, 200, "text/html; charset=utf-8", webui_page_gz, webui_page_gz_len, PAGE_HEADERS);
+    } else {
+        char tok[65], json[96];
+        int n;
+        webui_token_copy(tok);
+        if (!tok[0]) {
+            webui_send_json(fd, 503, "{\"error\":\"stopping\"}");
+            return 1;
+        }
+        n = snprintf(json, sizeof json, "{\"token\":\"%s\"}", tok);
+        send_json(fd, 200, json, (size_t)n);
+    }
+    return 1;
+}
+
 int webui_api_route(const webui_req_t *r, const uint8_t *body, size_t body_len, int fd) {
     size_t i;
     uint8_t *out;
+    if (serve_static(r, fd)) return 0;
     for (i = 0; i < sizeof k_routes / sizeof k_routes[0]; i++)
         if (strcmp(r->path, k_routes[i].path) == 0) break;
     if (i == sizeof k_routes / sizeof k_routes[0]) {

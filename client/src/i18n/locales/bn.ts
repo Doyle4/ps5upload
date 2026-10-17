@@ -4029,6 +4029,23 @@ c2c_test_deep_bad: "4 KiB-এর পরীক্ষামূলক পাঠা�
 "connection_rest_mode": "আপনার PS5 রেস্ট মোডে আছে। এটি জাগিয়ে আবার পরীক্ষা করুন।",
 "connection_payload_rest_mode": "PS5 রেস্ট মোডে চলে গেছে। জাগানোর পরে সাহায্যকারী ফিরে আসবে।",
 "upload_rest_detail": "আপলোডগুলো এটি জাগার অপেক্ষা করে এবং সাহায্যকারী ফিরলেই নিজে থেকে চলে।",
+// Console web page (shell)
+"cw_nav_sections": "বিভাগ",
+"cw_nav_home": "হোম",
+"cw_nav_files": "ফাইল",
+"cw_nav_settings": "সেটিংস",
+"cw_hint_open": "খুলুন",
+"cw_hint_back": "পিছনে",
+"cw_hint_switch_section": "বিভাগ বদলান",
+"cw_hint_filter": "ফিল্টার",
+"cw_actions": "কাজ",
+"cw_select": "বাছাই করুন",
+"cw_reload_title": "ps5upload সাহায্যকারী আবার চালু হয়েছে",
+"cw_reload_body": "চালিয়ে যেতে এই পেজটি আবার লোড করুন।",
+"cw_reload_button": "আবার লোড করুন",
+"cw_status_connecting": "সংযোগ হচ্ছে…",
+"cw_status_offline": "সংযুক্ত নয়",
+"cw_hints_label": "কন্ট্রোলারের বোতাম",
 };
 
 export default bn;

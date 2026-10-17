@@ -4046,6 +4046,23 @@ c2c_test_deep_bad: "O envio de teste de 4 KiB não chegou: {detail}",
 "connection_rest_mode": "Seu PS5 está no modo de descanso. Acorde-o e verifique novamente.",
 "connection_payload_rest_mode": "O PS5 entrou no modo de descanso. O auxiliar volta depois que ele acordar.",
 "upload_rest_detail": "Os envios aguardam ele acordar e continuam sozinhos quando o auxiliar voltar.",
+// Console web page (shell)
+"cw_nav_sections": "Seções",
+"cw_nav_home": "Início",
+"cw_nav_files": "Arquivos",
+"cw_nav_settings": "Configurações",
+"cw_hint_open": "Abrir",
+"cw_hint_back": "Voltar",
+"cw_hint_switch_section": "Trocar de seção",
+"cw_hint_filter": "Filtrar",
+"cw_actions": "Ações",
+"cw_select": "Selecionar",
+"cw_reload_title": "O auxiliar do ps5upload reiniciou",
+"cw_reload_body": "Recarregue esta página para continuar.",
+"cw_reload_button": "Recarregar",
+"cw_status_connecting": "Conectando…",
+"cw_status_offline": "Não conectado",
+"cw_hints_label": "Botões do controle",
 };
 
 export default pt_BR;

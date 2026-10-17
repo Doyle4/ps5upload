@@ -4029,6 +4029,23 @@ c2c_test_deep_bad: "لم يصل الإرسال التجريبي بحجم 4 KiB: 
 "connection_rest_mode": "جهاز PS5 في وضع الراحة. أيقظه ثم تحقق مرة أخرى.",
 "connection_payload_rest_mode": "دخل جهاز PS5 وضع الراحة. يعود المساعد بعد إيقاظه.",
 "upload_rest_detail": "تنتظر عمليات الرفع استيقاظه وتكمل وحدها بمجرد عودة المساعد.",
+// Console web page (shell)
+"cw_nav_sections": "الأقسام",
+"cw_nav_home": "الرئيسية",
+"cw_nav_files": "الملفات",
+"cw_nav_settings": "الإعدادات",
+"cw_hint_open": "فتح",
+"cw_hint_back": "رجوع",
+"cw_hint_switch_section": "تبديل القسم",
+"cw_hint_filter": "تصفية",
+"cw_actions": "إجراءات",
+"cw_select": "تحديد",
+"cw_reload_title": "أُعيد تشغيل مساعد ps5upload",
+"cw_reload_body": "أعد تحميل هذه الصفحة للمتابعة.",
+"cw_reload_button": "إعادة تحميل",
+"cw_status_connecting": "جارٍ الاتصال…",
+"cw_status_offline": "غير متصل",
+"cw_hints_label": "أزرار وحدة التحكم",
 };
 
 export default ar;

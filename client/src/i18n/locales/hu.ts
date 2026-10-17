@@ -4344,6 +4344,23 @@ c2c_test_deep_bad: "A 4 KiB-os tesztküldés nem érkezett meg: {detail}",
 "connection_rest_mode": "A PS5 nyugalmi módban van. Ébreszd fel, majd ellenőrizd újra.",
 "connection_payload_rest_mode": "A PS5 nyugalmi módba lépett. A segédprogram felébresztés után visszatér.",
 "upload_rest_detail": "A feltöltések megvárják, hogy felébredjen, és maguktól folytatódnak, amint a segédprogram visszatér.",
+// Console web page (shell)
+"cw_nav_sections": "Részek",
+"cw_nav_home": "Kezdőlap",
+"cw_nav_files": "Fájlok",
+"cw_nav_settings": "Beállítások",
+"cw_hint_open": "Megnyitás",
+"cw_hint_back": "Vissza",
+"cw_hint_switch_section": "Rész váltása",
+"cw_hint_filter": "Szűrés",
+"cw_actions": "Műveletek",
+"cw_select": "Kijelölés",
+"cw_reload_title": "A ps5upload segédprogram újraindult",
+"cw_reload_body": "A folytatáshoz töltsd újra ezt az oldalt.",
+"cw_reload_button": "Újratöltés",
+"cw_status_connecting": "Kapcsolódás…",
+"cw_status_offline": "Nincs kapcsolat",
+"cw_hints_label": "Kontroller gombjai",
 };
 
 export default hu;

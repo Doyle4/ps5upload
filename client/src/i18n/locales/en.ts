@@ -4352,6 +4352,23 @@ c2c_test_deep_bad: "The 4 KiB test send did not arrive: {detail}",
 "connection_rest_mode": "Your PS5 is in rest mode. Wake it, then check again.",
 "connection_payload_rest_mode": "The PS5 went into rest mode. The helper comes back after a wake.",
 "upload_rest_detail": "Uploads wait for it to wake and carry on by themselves once the helper is back.",
+// Console web page (shell)
+"cw_nav_sections": "Sections",
+"cw_nav_home": "Home",
+"cw_nav_files": "Files",
+"cw_nav_settings": "Settings",
+"cw_hint_open": "Open",
+"cw_hint_back": "Back",
+"cw_hint_switch_section": "Switch section",
+"cw_hint_filter": "Filter",
+"cw_actions": "Actions",
+"cw_select": "Select",
+"cw_reload_title": "The ps5upload helper restarted",
+"cw_reload_body": "Reload this page to carry on.",
+"cw_reload_button": "Reload",
+"cw_status_connecting": "Connecting…",
+"cw_status_offline": "Not connected",
+"cw_hints_label": "Controller buttons",
 };
 
 export default en;

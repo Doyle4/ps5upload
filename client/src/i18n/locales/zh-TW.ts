@@ -3979,6 +3979,23 @@ c2c_test_deep_bad: "4 KiB 測試傳送未抵達：{detail}",
 "connection_rest_mode": "你的 PS5 處於待機模式。喚醒後再檢查一次。",
 "connection_payload_rest_mode": "PS5 已進入待機模式。喚醒後助手會恢復。",
 "upload_rest_detail": "上傳會等待它喚醒，助手恢復後自動繼續。",
+// Console web page (shell)
+"cw_nav_sections": "分區",
+"cw_nav_home": "首頁",
+"cw_nav_files": "檔案",
+"cw_nav_settings": "設定",
+"cw_hint_open": "開啟",
+"cw_hint_back": "返回",
+"cw_hint_switch_section": "切換分區",
+"cw_hint_filter": "篩選",
+"cw_actions": "操作",
+"cw_select": "選取",
+"cw_reload_title": "ps5upload 助手已重新啟動",
+"cw_reload_body": "重新載入此頁面以繼續。",
+"cw_reload_button": "重新載入",
+"cw_status_connecting": "正在連線…",
+"cw_status_offline": "未連線",
+"cw_hints_label": "控制器按鍵",
 };
 
 export default zh_TW;

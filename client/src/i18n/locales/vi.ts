@@ -4031,6 +4031,23 @@ c2c_test_deep_bad: "Lượt gửi thử 4 KiB không tới: {detail}",
 "connection_rest_mode": "PS5 của bạn đang ở chế độ nghỉ. Hãy đánh thức nó rồi kiểm tra lại.",
 "connection_payload_rest_mode": "PS5 đã vào chế độ nghỉ. Trình trợ giúp sẽ quay lại sau khi đánh thức.",
 "upload_rest_detail": "Các lượt tải lên sẽ chờ máy thức dậy và tự tiếp tục khi trình trợ giúp quay lại.",
+// Console web page (shell)
+"cw_nav_sections": "Mục",
+"cw_nav_home": "Trang chủ",
+"cw_nav_files": "Tệp",
+"cw_nav_settings": "Cài đặt",
+"cw_hint_open": "Mở",
+"cw_hint_back": "Quay lại",
+"cw_hint_switch_section": "Chuyển mục",
+"cw_hint_filter": "Lọc",
+"cw_actions": "Thao tác",
+"cw_select": "Chọn",
+"cw_reload_title": "Trình trợ giúp ps5upload đã khởi động lại",
+"cw_reload_body": "Tải lại trang này để tiếp tục.",
+"cw_reload_button": "Tải lại",
+"cw_status_connecting": "Đang kết nối…",
+"cw_status_offline": "Chưa kết nối",
+"cw_hints_label": "Nút tay cầm",
 };
 
 export default vi;

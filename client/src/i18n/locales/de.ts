@@ -4037,6 +4037,23 @@ c2c_test_deep_bad: "Die 4-KiB-Testsendung ist nicht angekommen: {detail}",
 "connection_rest_mode": "Deine PS5 ist im Ruhemodus. Wecke sie auf und prüfe dann erneut.",
 "connection_payload_rest_mode": "Die PS5 ist in den Ruhemodus gegangen. Der Helfer kommt nach dem Aufwecken zurück.",
 "upload_rest_detail": "Uploads warten, bis sie aufwacht, und laufen von selbst weiter, sobald der Helfer wieder da ist.",
+// Console web page (shell)
+"cw_nav_sections": "Bereiche",
+"cw_nav_home": "Start",
+"cw_nav_files": "Dateien",
+"cw_nav_settings": "Einstellungen",
+"cw_hint_open": "Öffnen",
+"cw_hint_back": "Zurück",
+"cw_hint_switch_section": "Bereich wechseln",
+"cw_hint_filter": "Filter",
+"cw_actions": "Aktionen",
+"cw_select": "Auswählen",
+"cw_reload_title": "Der ps5upload-Helfer wurde neu gestartet",
+"cw_reload_body": "Lade diese Seite neu, um weiterzumachen.",
+"cw_reload_button": "Neu laden",
+"cw_status_connecting": "Verbinde…",
+"cw_status_offline": "Nicht verbunden",
+"cw_hints_label": "Controller-Tasten",
 };
 
 export default de;

@@ -4047,6 +4047,23 @@ c2c_test_deep_bad: "L’envoi test de 4 Kio n’est pas arrivé : {detail}",
 "connection_rest_mode": "Votre PS5 est en mode repos. Réveillez-la, puis vérifiez à nouveau.",
 "connection_payload_rest_mode": "La PS5 est passée en mode repos. L'assistant reviendra après son réveil.",
 "upload_rest_detail": "Les envois attendent son réveil et reprennent tout seuls dès que l'assistant est de retour.",
+// Console web page (shell)
+"cw_nav_sections": "Sections",
+"cw_nav_home": "Accueil",
+"cw_nav_files": "Fichiers",
+"cw_nav_settings": "Paramètres",
+"cw_hint_open": "Ouvrir",
+"cw_hint_back": "Retour",
+"cw_hint_switch_section": "Changer de section",
+"cw_hint_filter": "Filtrer",
+"cw_actions": "Actions",
+"cw_select": "Sélectionner",
+"cw_reload_title": "L'assistant ps5upload a redémarré",
+"cw_reload_body": "Rechargez cette page pour continuer.",
+"cw_reload_button": "Recharger",
+"cw_status_connecting": "Connexion…",
+"cw_status_offline": "Non connecté",
+"cw_hints_label": "Boutons de la manette",
 };
 
 export default fr;

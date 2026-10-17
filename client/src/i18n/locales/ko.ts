@@ -4048,6 +4048,23 @@ c2c_test_deep_bad: "4 KiB 테스트 전송이 도착하지 않았습니다: {det
 "connection_rest_mode": "PS5가 휴식 모드입니다. 깨운 다음 다시 확인하세요.",
 "connection_payload_rest_mode": "PS5가 휴식 모드로 들어갔습니다. 깨우면 헬퍼가 돌아옵니다.",
 "upload_rest_detail": "업로드는 깨어나기를 기다렸다가 헬퍼가 돌아오면 저절로 이어집니다.",
+// Console web page (shell)
+"cw_nav_sections": "섹션",
+"cw_nav_home": "홈",
+"cw_nav_files": "파일",
+"cw_nav_settings": "설정",
+"cw_hint_open": "열기",
+"cw_hint_back": "뒤로",
+"cw_hint_switch_section": "섹션 전환",
+"cw_hint_filter": "필터",
+"cw_actions": "작업",
+"cw_select": "선택",
+"cw_reload_title": "ps5upload 헬퍼가 다시 시작되었습니다",
+"cw_reload_body": "계속하려면 이 페이지를 새로 고치세요.",
+"cw_reload_button": "새로 고침",
+"cw_status_connecting": "연결 중…",
+"cw_status_offline": "연결되지 않음",
+"cw_hints_label": "컨트롤러 버튼",
 };
 
 export default ko;

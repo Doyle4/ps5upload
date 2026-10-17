@@ -4050,6 +4050,23 @@ c2c_test_deep_bad: "4 KiB のテスト送信が届きませんでした: {detail
 "connection_rest_mode": "PS5はレストモード中です。起動してから、もう一度確認してください。",
 "connection_payload_rest_mode": "PS5がレストモードに入りました。起動するとヘルパーが戻ります。",
 "upload_rest_detail": "アップロードは起動を待ち、ヘルパーが戻ると自動で続きます。",
+// Console web page (shell)
+"cw_nav_sections": "セクション",
+"cw_nav_home": "ホーム",
+"cw_nav_files": "ファイル",
+"cw_nav_settings": "設定",
+"cw_hint_open": "開く",
+"cw_hint_back": "戻る",
+"cw_hint_switch_section": "セクションを切り替え",
+"cw_hint_filter": "絞り込み",
+"cw_actions": "操作",
+"cw_select": "選択",
+"cw_reload_title": "ps5upload のヘルパーが再起動しました",
+"cw_reload_body": "続けるにはこのページを再読み込みしてください。",
+"cw_reload_button": "再読み込み",
+"cw_status_connecting": "接続中…",
+"cw_status_offline": "未接続",
+"cw_hints_label": "コントローラーのボタン",
 };
 
 export default ja;

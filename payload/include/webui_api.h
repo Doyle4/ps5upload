@@ -4,7 +4,10 @@
  * (management through mgmt_rpc_dispatch, the data layer through ava1_data_rpc, both reached the
  * way the AVA1 server reaches them), under one fixed identity: the console page owns the jobs it
  * starts as "ps5upload-console-webui". The route table in webui_api.c is the allowlist: any other
- * path answers 404, a known path with another method 405. */
+ * path answers 404, a known path with another method 405.
+ *
+ * Two GET routes sit outside the table: GET / serves the embedded page (webui_page.h) and
+ * GET /api/token answers {"token":"<hex>"}, both after the server's Host/Origin check only. */
 #ifndef PS5UPLOAD_WEBUI_API_H
 #define PS5UPLOAD_WEBUI_API_H
 

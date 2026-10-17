@@ -1,0 +1,245 @@
+/*
+ * The console page's styles. Colours, radii and shadows are the PC app's
+ * dark-theme tokens (the :root block of src/index.css, pulled in by the
+ * virtual:pc-tokens.css module in vite.console.config.ts), so the two look
+ * alike without a copy of any value. Plain CSS, no Tailwind: the page is
+ * small and its own.
+ *
+ * Old-WebKit notes (safari13 floor): no flex `gap` (Safari 14.1), so flex
+ * rows space with margins; grid `gap` is fine. Focus uses :focus, not
+ * :focus-visible (Safari 15.4), since a controller is the only pointer here.
+ */
+
+html {
+  /* TV type: 22px at 1920×1080, the PS5 browser's viewport. */
+  font-size: 22px;
+  background: var(--atmosphere-base);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  -webkit-text-size-adjust: 100%;
+}
+@media (max-width: 1280px) {
+  html {
+    font-size: 18px;
+  }
+}
+@media (min-width: 2400px) {
+  html {
+    font-size: 30px;
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--atmosphere-base);
+  overflow: hidden;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+}
+
+#root {
+  height: 100vh;
+}
+
+/* Every focusable control: the mockups' 2px accent ring plus a soft accent fill. */
+.cw-focusable {
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  outline: none;
+  border-radius: var(--radius-field);
+}
+.cw-focusable:focus {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 0;
+  background: var(--color-accent-soft);
+}
+
+.cw-app {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  height: 100vh;
+}
+
+/* ---- top bar ---- */
+.cw-top {
+  display: flex;
+  align-items: center;
+  padding: 0.6rem 1.2rem;
+  border-bottom: 1px solid var(--color-border);
+}
+.cw-top img {
+  width: 1.8rem;
+  height: 1.8rem;
+  border-radius: 28%;
+  margin-right: 0.6rem;
+}
+.cw-brand {
+  font-weight: 600;
+  font-size: 1.1rem;
+}
+.cw-chip {
+  margin-left: auto;
+  padding: 0.2rem 0.8rem;
+  border-radius: var(--radius-control);
+  background: var(--color-good-soft);
+  color: var(--color-good);
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+.cw-chip.is-off {
+  background: var(--color-surface-3);
+  color: var(--color-muted);
+}
+
+/* ---- body: rail + content ---- */
+.cw-body {
+  display: flex;
+  min-height: 0;
+}
+.cw-rail {
+  width: 6.5rem;
+  flex: none;
+  padding: 0.6rem 0.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: var(--color-canvas);
+  border-right: 1px solid var(--color-border);
+  overflow-y: auto;
+}
+.cw-rail-item {
+  width: 100%;
+  padding: 0.5rem 0.2rem;
+  margin-bottom: 0.4rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-size: 0.8rem;
+  color: var(--color-muted);
+}
+.cw-rail-item svg {
+  width: 1.5rem;
+  height: 1.5rem;
+  margin-bottom: 0.25rem;
+}
+.cw-rail-item[aria-current="page"] {
+  color: var(--color-text);
+  background: var(--color-pill);
+}
+.cw-rail-item[aria-current="page"]:focus {
+  background: var(--color-accent-soft);
+}
+
+.cw-content {
+  flex: 1;
+  min-width: 0;
+  padding: 1rem 1.4rem;
+  overflow-y: auto;
+}
+.cw-h1 {
+  margin: 0 0 0.8rem;
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+/* ---- hint bar ---- */
+.cw-hints {
+  display: flex;
+  align-items: center;
+  padding: 0.4rem 1.2rem;
+  color: var(--color-muted);
+  font-size: 0.8rem;
+  border-top: 1px solid var(--color-border);
+}
+.cw-hint {
+  display: inline-flex;
+  align-items: center;
+  margin-right: 1.4rem;
+}
+.cw-glyph {
+  display: inline-block;
+  min-width: 1.3rem;
+  height: 1.3rem;
+  padding: 0 0.3rem;
+  margin-right: 0.35rem;
+  border-radius: var(--radius-control);
+  background: var(--color-surface-3);
+  color: var(--color-text);
+  text-align: center;
+  line-height: 1.3rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+/* ---- reload banner ---- */
+.cw-banner {
+  position: fixed;
+  left: 50%;
+  top: 1.2rem;
+  transform: translateX(-50%);
+  width: min(36rem, calc(100vw - 2rem));
+  padding: 1rem 1.2rem;
+  border-radius: var(--radius-panel);
+  background: var(--color-float);
+  box-shadow: var(--shadow-3);
+  border: 1px solid var(--color-warn);
+  z-index: 10;
+}
+.cw-banner h2 {
+  margin: 0 0 0.3rem;
+  font-size: 1.1rem;
+}
+.cw-banner p {
+  margin: 0 0 0.8rem;
+  color: var(--color-muted);
+}
+
+/* ---- shared buttons ---- */
+.cw-button {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.45rem 1.1rem;
+  border-radius: var(--radius-control);
+  background: var(--color-surface-3);
+}
+.cw-button.is-primary {
+  background: var(--accent-fill);
+  color: var(--color-accent-contrast);
+}
+.cw-button.is-primary:focus {
+  background: var(--accent-fill);
+  box-shadow: 0 0 0 4px var(--color-accent-soft);
+}
+.cw-button svg {
+  width: 1.1rem;
+  height: 1.1rem;
+}
+.cw-button svg + span {
+  margin-left: 0.4rem;
+}
+.cw-button[aria-pressed="true"] {
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+}
+.cw-icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.2rem;
+  height: 2.2rem;
+  border-radius: var(--radius-control);
+}
+.cw-icon-button svg {
+  width: 1.2rem;
+  height: 1.2rem;
+}

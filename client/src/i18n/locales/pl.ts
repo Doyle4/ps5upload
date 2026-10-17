@@ -4284,6 +4284,23 @@ c2c_test_deep_bad: "Testowa wysyłka 4 KiB nie dotarła: {detail}",
 "connection_rest_mode": "Twoja PS5 jest w trybie spoczynku. Wybudź ją, a potem sprawdź ponownie.",
 "connection_payload_rest_mode": "PS5 przeszła w tryb spoczynku. Helper wróci po wybudzeniu.",
 "upload_rest_detail": "Przesyłania czekają na wybudzenie i wznowią się same, gdy helper wróci.",
+// Console web page (shell)
+"cw_nav_sections": "Sekcje",
+"cw_nav_home": "Start",
+"cw_nav_files": "Pliki",
+"cw_nav_settings": "Ustawienia",
+"cw_hint_open": "Otwórz",
+"cw_hint_back": "Wstecz",
+"cw_hint_switch_section": "Zmień sekcję",
+"cw_hint_filter": "Filtruj",
+"cw_actions": "Działania",
+"cw_select": "Zaznacz",
+"cw_reload_title": "Helper ps5upload uruchomił się ponownie",
+"cw_reload_body": "Odśwież tę stronę, aby kontynuować.",
+"cw_reload_button": "Odśwież",
+"cw_status_connecting": "Łączenie…",
+"cw_status_offline": "Brak połączenia",
+"cw_hints_label": "Przyciski kontrolera",
 };
 
 export default pl;

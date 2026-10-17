@@ -4045,6 +4045,23 @@ c2c_test_deep_bad: "4 KiB का परीक्षण नहीं पहुँ
 "connection_rest_mode": "आपका PS5 रेस्ट मोड में है। इसे जगाएँ, फिर दोबारा जाँचें।",
 "connection_payload_rest_mode": "PS5 रेस्ट मोड में चला गया। जगाने के बाद हेल्पर लौट आएगा।",
 "upload_rest_detail": "अपलोड इसके जागने का इंतज़ार करते हैं और हेल्पर के लौटते ही अपने आप आगे चलते हैं।",
+// Console web page (shell)
+"cw_nav_sections": "अनुभाग",
+"cw_nav_home": "होम",
+"cw_nav_files": "फ़ाइलें",
+"cw_nav_settings": "सेटिंग्स",
+"cw_hint_open": "खोलें",
+"cw_hint_back": "वापस",
+"cw_hint_switch_section": "अनुभाग बदलें",
+"cw_hint_filter": "फ़िल्टर",
+"cw_actions": "कार्य",
+"cw_select": "चुनें",
+"cw_reload_title": "ps5upload हेल्पर फिर से शुरू हुआ",
+"cw_reload_body": "जारी रखने के लिए यह पेज फिर से लोड करें।",
+"cw_reload_button": "फिर से लोड करें",
+"cw_status_connecting": "कनेक्ट हो रहा है…",
+"cw_status_offline": "कनेक्ट नहीं है",
+"cw_hints_label": "कंट्रोलर के बटन",
 };
 
 export default hi;

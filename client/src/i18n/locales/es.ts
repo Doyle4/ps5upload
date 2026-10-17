@@ -3979,6 +3979,23 @@ c2c_test_deep_bad: "El envío de prueba de 4 KiB no llegó: {detail}",
 "connection_rest_mode": "Tu PS5 está en modo de reposo. Despiértala y vuelve a comprobar.",
 "connection_payload_rest_mode": "La PS5 entró en modo de reposo. El asistente vuelve tras despertarla.",
 "upload_rest_detail": "Las subidas esperan a que despierte y continúan solas cuando el asistente vuelva.",
+// Console web page (shell)
+"cw_nav_sections": "Secciones",
+"cw_nav_home": "Inicio",
+"cw_nav_files": "Archivos",
+"cw_nav_settings": "Configuración",
+"cw_hint_open": "Abrir",
+"cw_hint_back": "Atrás",
+"cw_hint_switch_section": "Cambiar de sección",
+"cw_hint_filter": "Filtrar",
+"cw_actions": "Acciones",
+"cw_select": "Seleccionar",
+"cw_reload_title": "El asistente de ps5upload se reinició",
+"cw_reload_body": "Recarga esta página para continuar.",
+"cw_reload_button": "Recargar",
+"cw_status_connecting": "Conectando…",
+"cw_status_offline": "Sin conexión",
+"cw_hints_label": "Botones del mando",
 };
 
 export default es;

@@ -4038,6 +4038,23 @@ c2c_test_deep_bad: "Kiriman uji 4 KiB tidak tiba: {detail}",
 "connection_rest_mode": "PS5 Anda dalam mode istirahat. Bangunkan, lalu periksa lagi.",
 "connection_payload_rest_mode": "PS5 masuk ke mode istirahat. Pembantu kembali setelah PS5 dibangunkan.",
 "upload_rest_detail": "Unggahan menunggu PS5 bangun dan berlanjut sendiri begitu pembantu kembali.",
+// Console web page (shell)
+"cw_nav_sections": "Bagian",
+"cw_nav_home": "Beranda",
+"cw_nav_files": "File",
+"cw_nav_settings": "Pengaturan",
+"cw_hint_open": "Buka",
+"cw_hint_back": "Kembali",
+"cw_hint_switch_section": "Ganti bagian",
+"cw_hint_filter": "Filter",
+"cw_actions": "Tindakan",
+"cw_select": "Pilih",
+"cw_reload_title": "Pembantu ps5upload dimulai ulang",
+"cw_reload_body": "Muat ulang halaman ini untuk melanjutkan.",
+"cw_reload_button": "Muat ulang",
+"cw_status_connecting": "Menghubungkan…",
+"cw_status_offline": "Tidak terhubung",
+"cw_hints_label": "Tombol kontroler",
 };
 
 export default id;

@@ -164,6 +164,18 @@ LIBS := -lSceSystemService -lSceUserService -lSceIpmi -lSceAppInstUtil \
 WEBUI_TILE_ICON_PNG := assets/webui_tile_icon0.png
 WEBUI_TILE_ICON_C := build/webui_tile_icon.c
 
+# The console web page, built from the client (`npm run build:console`: one self-contained
+# client/dist-console/index.html), gzip'd and embedded by xxd as webui_page_gz[] +
+# webui_page_gz_len (include/webui_page.h), which the helper serves at GET /. Needs the client's
+# node_modules (`npm ci` in client/). Rebuilt when the page's sources, the locale files (its
+# strings), the PC app's tokens (src/index.css) or the build config change.
+WEBUI_PAGE_C := build/webui_page.c
+CLIENT_DIR := ../client
+WEBUI_PAGE_DEPS := $(shell find $(CLIENT_DIR)/src/console -type f ! -name '*.test.ts' 2>/dev/null) \
+        $(wildcard $(CLIENT_DIR)/src/i18n/locales/*.ts) $(CLIENT_DIR)/src/index.css \
+        $(CLIENT_DIR)/public/logo-square.png $(CLIENT_DIR)/vite.console.config.ts \
+        $(CLIENT_DIR)/package.json $(CLIENT_DIR)/package-lock.json ../scripts/build-console-strings.mjs
+
 SRCS := src/main.c src/runtime.c src/shell_builtin.c src/takeover.c src/takeover_flag.c src/ownership_record.c src/ava1_stop.c src/register.c src/hw_info.c \
         src/drive_sensors.c \
         src/proc_list.c src/ptrace_remote.c src/shellui_rpc.c \
@@ -174,7 +186,7 @@ SRCS := src/main.c src/runtime.c src/shell_builtin.c src/takeover.c src/takeover
         src/tmdb.c src/fw_spoof.c src/focus_probe.c \
         src/content_db.c src/mgmt_rpc.c src/fs_jobs.c src/net_probe.c src/net_ports.c src/mgmt_fs.c src/path_policy.c \
         src/webui_http.c src/webui_auth.c src/webui_server.c src/webui_codec.c src/webui_api.c \
-        src/webui_settings.c src/webui_tile.c $(WEBUI_TILE_ICON_C) \
+        src/webui_settings.c src/webui_tile.c $(WEBUI_TILE_ICON_C) $(WEBUI_PAGE_C) \
         third_party/tiny_aes/aes.c \
         $(BLAKE3_SRCS)
 
@@ -224,6 +236,14 @@ $(WEBUI_TILE_ICON_C): $(WEBUI_TILE_ICON_PNG) Makefile
 	@mkdir -p $(dir $@)
 	(cd assets && xxd -i webui_tile_icon0.png) > $@.tmp && mv $@.tmp $@
 
+# `cd build` keeps xxd's symbol names webui_page_gz / webui_page_gz_len.
+$(WEBUI_PAGE_C): $(WEBUI_PAGE_DEPS) Makefile
+	@mkdir -p $(dir $@)
+	npm --prefix $(CLIENT_DIR) run build:console
+	gzip -9n -c $(CLIENT_DIR)/dist-console/index.html > build/webui_page.gz.tmp
+	mv build/webui_page.gz.tmp build/webui_page.gz
+	(cd build && xxd -i webui_page.gz) > $@.tmp && mv $@.tmp $@
+
 # Gzipped copy for the Tauri bundle resource. linuxdeploy (Linux
 # AppImage bundler) walks every ELF in the AppDir and tries to
 # resolve its .so deps via `patchelf --print-needed`. The PS5
@@ -238,7 +258,7 @@ $(ELF).gz: $(ELF)
 clean:
 	rm -f $(ELF) $(ELF).gz $(SQLITE_OBJ) $(MONO_OBJ)
 	rm -rf build/ava1 $(SDK_CRT_BUILD)
-	rm -f $(WEBUI_TILE_ICON_C)
+	rm -f $(WEBUI_TILE_ICON_C) $(WEBUI_PAGE_C) build/webui_page.gz
 
 send: $(ELF)
 	@echo "Sending $(ELF) to $(PS5_HOST):$(PS5_PORT) ..."

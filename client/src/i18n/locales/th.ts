@@ -4038,6 +4038,23 @@ c2c_test_deep_bad: "การส่งทดสอบ 4 KiB ไปไม่ถ�
 "connection_rest_mode": "PS5 ของคุณอยู่ในโหมดพัก ปลุกเครื่อง แล้วตรวจสอบอีกครั้ง",
 "connection_payload_rest_mode": "PS5 เข้าสู่โหมดพักแล้ว ตัวช่วยจะกลับมาหลังปลุกเครื่อง",
 "upload_rest_detail": "การอัปโหลดจะรอให้เครื่องตื่น แล้วทำต่อเองเมื่อตัวช่วยกลับมา",
+// Console web page (shell)
+"cw_nav_sections": "ส่วน",
+"cw_nav_home": "หน้าหลัก",
+"cw_nav_files": "ไฟล์",
+"cw_nav_settings": "การตั้งค่า",
+"cw_hint_open": "เปิด",
+"cw_hint_back": "กลับ",
+"cw_hint_switch_section": "สลับส่วน",
+"cw_hint_filter": "ตัวกรอง",
+"cw_actions": "การทำงาน",
+"cw_select": "เลือก",
+"cw_reload_title": "ตัวช่วย ps5upload เริ่มใหม่แล้ว",
+"cw_reload_body": "โหลดหน้านี้ใหม่เพื่อใช้งานต่อ",
+"cw_reload_button": "โหลดใหม่",
+"cw_status_connecting": "กำลังเชื่อมต่อ…",
+"cw_status_offline": "ไม่ได้เชื่อมต่อ",
+"cw_hints_label": "ปุ่มคอนโทรลเลอร์",
 };
 
 export default th;

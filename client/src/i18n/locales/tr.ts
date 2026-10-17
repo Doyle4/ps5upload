@@ -4036,6 +4036,23 @@ c2c_test_deep_bad: "4 KiB'lik test gönderimi ulaşmadı: {detail}",
 "connection_rest_mode": "PS5'iniz dinlenme modunda. Uyandırın, sonra yeniden kontrol edin.",
 "connection_payload_rest_mode": "PS5 dinlenme moduna geçti. Yardımcı uyandırıldıktan sonra geri gelir.",
 "upload_rest_detail": "Yüklemeler uyanmasını bekler ve yardımcı geri geldiğinde kendiliğinden devam eder.",
+// Console web page (shell)
+"cw_nav_sections": "Bölümler",
+"cw_nav_home": "Ana sayfa",
+"cw_nav_files": "Dosyalar",
+"cw_nav_settings": "Ayarlar",
+"cw_hint_open": "Aç",
+"cw_hint_back": "Geri",
+"cw_hint_switch_section": "Bölüm değiştir",
+"cw_hint_filter": "Filtrele",
+"cw_actions": "İşlemler",
+"cw_select": "Seç",
+"cw_reload_title": "ps5upload yardımcısı yeniden başladı",
+"cw_reload_body": "Devam etmek için bu sayfayı yeniden yükleyin.",
+"cw_reload_button": "Yeniden yükle",
+"cw_status_connecting": "Bağlanıyor…",
+"cw_status_offline": "Bağlı değil",
+"cw_hints_label": "Kumanda düğmeleri",
 };
 
 export default tr;

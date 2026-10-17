@@ -3979,6 +3979,23 @@ c2c_test_deep_bad: "L’invio di prova di 4 KiB non è arrivato: {detail}",
 "connection_rest_mode": "La tua PS5 è in modalità riposo. Riattivala, poi controlla di nuovo.",
 "connection_payload_rest_mode": "La PS5 è entrata in modalità riposo. L'helper torna dopo la riattivazione.",
 "upload_rest_detail": "I caricamenti aspettano che si riattivi e riprendono da soli appena l'helper torna attivo.",
+// Console web page (shell)
+"cw_nav_sections": "Sezioni",
+"cw_nav_home": "Home",
+"cw_nav_files": "File",
+"cw_nav_settings": "Impostazioni",
+"cw_hint_open": "Apri",
+"cw_hint_back": "Indietro",
+"cw_hint_switch_section": "Cambia sezione",
+"cw_hint_filter": "Filtra",
+"cw_actions": "Azioni",
+"cw_select": "Seleziona",
+"cw_reload_title": "L'helper di ps5upload si è riavviato",
+"cw_reload_body": "Ricarica questa pagina per continuare.",
+"cw_reload_button": "Ricarica",
+"cw_status_connecting": "Connessione…",
+"cw_status_offline": "Non connesso",
+"cw_hints_label": "Tasti del controller",
 };
 
 export default it;

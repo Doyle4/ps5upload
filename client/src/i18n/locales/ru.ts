@@ -3979,6 +3979,23 @@ c2c_test_deep_bad: "Тестовая отправка 4 КиБ не дошла: 
 "connection_rest_mode": "Ваша PS5 в режиме покоя. Разбудите её и проверьте снова.",
 "connection_payload_rest_mode": "PS5 перешла в режим покоя. Помощник вернётся после пробуждения.",
 "upload_rest_detail": "Загрузки ждут её пробуждения и продолжатся сами, как только помощник вернётся.",
+// Console web page (shell)
+"cw_nav_sections": "Разделы",
+"cw_nav_home": "Главная",
+"cw_nav_files": "Файлы",
+"cw_nav_settings": "Настройки",
+"cw_hint_open": "Открыть",
+"cw_hint_back": "Назад",
+"cw_hint_switch_section": "Сменить раздел",
+"cw_hint_filter": "Фильтр",
+"cw_actions": "Действия",
+"cw_select": "Выбрать",
+"cw_reload_title": "Помощник ps5upload перезапустился",
+"cw_reload_body": "Перезагрузите эту страницу, чтобы продолжить.",
+"cw_reload_button": "Перезагрузить",
+"cw_status_connecting": "Подключение…",
+"cw_status_offline": "Нет подключения",
+"cw_hints_label": "Кнопки геймпада",
 };
 
 export default ru;
