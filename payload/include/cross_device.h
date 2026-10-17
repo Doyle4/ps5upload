@@ -41,6 +41,8 @@
  *   src/register.c        1  dir    param.json: tmp -> final
  *   src/ffpfsc_unpack.c   1  dir    decompressed image: <name>.part -> <name>, beside the .ffpfsc
  *   src/shell_builtin.c   1  guard  `mv` (mv_same_dev, lstat of the source)
+ *   src/webui_settings.c  1  dir    webui.json: tmp -> final
+ *   src/webui_tile.c      1  dir    tile folder files: tmp -> final
  *   ava1/ava1_events.c    1  dir    events.log -> events.log.old
  *   ava1/ava1_apply.c     3  guard  file and folder commit (same_device hook, only a definite 1 renames);
  *                                   held param.json/param.sfo: name.ava-hold -> name, same dir

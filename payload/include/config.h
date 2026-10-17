@@ -35,5 +35,7 @@
 
 /* Console web UI (webui_server.c): loopback-only unless LAN access is on. */
 #define WEBUI_PORT 9180
+/* The home-screen tile that opens the browser on the web UI (webui_tile.c). */
+#define WEBUI_TILE_TITLE_ID "PSUP00001"
 
 #endif

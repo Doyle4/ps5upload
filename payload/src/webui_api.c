@@ -7,6 +7,7 @@
  * buffer is on the heap. */
 #include "webui_api.h"
 
+#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -17,10 +18,14 @@
 #include "ava1_op.h"
 #include "ava1_server.h"
 #include "ava1_wire.h"
+#include "config.h"
 #include "path_policy.h"
+#include "proc_identity.h"
 #include "ps5_firmware.h"
 #include "webui_codec.h"
 #include "webui_server.h"
+#include "webui_settings.h"
+#include "webui_tile.h"
 
 #define API_OUT_MAX (256u * 1024u)   /* an AVA1 reply's ceiling (the server's RPC_OUT_MAX) */
 #define API_LIST_JSON (64u * 1024u)  /* one fs.list page as JSON: entries past it page on */
@@ -611,7 +616,107 @@ static void r_power(const char *b, size_t n, uint8_t *out, int fd) {
     else send_json(fd, 200, (const char *)t, tl);
 }
 
-/* The allowlist: nothing else is reachable. (/api/settings and /api/settings/set: Task 6.) */
+/* ---- settings ---- */
+
+/* The live settings. g_set_mu is held across a save, so two /api/settings/set calls never write
+ * the file at once and memory always matches what is on disk. */
+static pthread_mutex_t g_set_mu = PTHREAD_MUTEX_INITIALIZER;
+static webui_settings_t g_set = { 0, 1 };
+/* Serializes the LAN rebinds: each one reads the newest `lan` under it, so the last rebind to run
+ * applies the last value saved, whatever order the threads ran in. */
+static pthread_mutex_t g_rebind_mu = PTHREAD_MUTEX_INITIALIZER;
+
+void webui_api_settings_init(const webui_settings_t *s) {
+    pthread_mutex_lock(&g_set_mu);
+    g_set = *s;
+    pthread_mutex_unlock(&g_set_mu);
+}
+
+static void send_settings(int fd, const webui_settings_t *s) {
+    char json[160];
+    int k = snprintf(json, sizeof json, "{\"lan\":%s,\"tile\":%s,\"version\":\"%s\"}", s->lan ? "true" : "false",
+                     s->tile ? "true" : "false", PS5UPLOAD2_VERSION);
+    send_json(fd, 200, json, (size_t)k);
+}
+
+static void r_settings(const char *b, size_t n, uint8_t *out, int fd) {
+    webui_settings_t s;
+    (void)b;
+    (void)n;
+    (void)out;
+    pthread_mutex_lock(&g_set_mu);
+    s = g_set;
+    pthread_mutex_unlock(&g_set_mu);
+    send_settings(fd, &s);
+}
+
+/* Rebinds the listener for the saved `lan`. Runs on its own thread, started after the reply was
+ * written: webui_restart waits up to 1.5 s for the bind, which must not hold a web worker, and the
+ * page that asked keeps working (the token survives webui_restart; open connections are not
+ * touched, only the listener). */
+static void *rebind_main(void *arg) {
+    int lan;
+    (void)arg;
+    proc_name_set_self("ps5upload-web");
+    pthread_mutex_lock(&g_rebind_mu);
+    pthread_mutex_lock(&g_set_mu);
+    lan = g_set.lan;
+    pthread_mutex_unlock(&g_set_mu);
+    if (webui_restart(lan) != 0) fprintf(stderr, "webui: rebind for lan=%d not bound yet (the server keeps retrying)\n", lan);
+    pthread_mutex_unlock(&g_rebind_mu);
+    return NULL;
+}
+
+static void spawn_lan_apply(void) {
+    pthread_attr_t attr;
+    pthread_t t;
+    int rc = -1;
+    if (pthread_attr_init(&attr) == 0) {
+        if (pthread_attr_setstacksize(&attr, 256u * 1024u) == 0 &&
+            pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED) == 0)
+            rc = pthread_create(&t, &attr, rebind_main, NULL);
+        pthread_attr_destroy(&attr);
+    }
+    if (rc != 0) fprintf(stderr, "webui: cannot start the rebind thread (%d); LAN applies at the next start\n", rc);
+}
+
+/* {lan?, tile?}: saved first (the file is the truth at the next start), then answered with the
+ * new settings, then applied: a `lan` change rebinds the listener on a thread of its own, a `tile`
+ * change (or tile:true again) registers or removes the tile on the tile thread. A failed save
+ * changes nothing. */
+static void r_settings_set(const char *b, size_t n, uint8_t *out, int fd) {
+    webui_settings_t old, s;
+    int lan, tile, has_lan, has_tile;
+    (void)out;
+    has_lan = webui_json_bool(b, n, "lan", &lan);
+    if (has_lan < 0) {
+        send_bad(fd, "bad_lan");
+        return;
+    }
+    has_tile = webui_json_bool(b, n, "tile", &tile);
+    if (has_tile < 0) {
+        send_bad(fd, "bad_tile");
+        return;
+    }
+    pthread_mutex_lock(&g_set_mu);
+    old = s = g_set;
+    if (has_lan) s.lan = lan;
+    if (has_tile) s.tile = tile;
+    if ((s.lan != old.lan || s.tile != old.tile) && webui_settings_save(WEBUI_SETTINGS_PATH, &s) != 0) {
+        pthread_mutex_unlock(&g_set_mu);
+        send_error(fd, 500, "save_failed", 11);
+        return;
+    }
+    g_set = s;
+    pthread_mutex_unlock(&g_set_mu);
+    send_settings(fd, &s); /* written in full (or the deadline passed) before anything below runs */
+    if (s.lan != old.lan) spawn_lan_apply();
+    /* tile:true is applied even when unchanged: it retries an ensure that failed (and costs one statfs
+     * plus three file compares when the tile is already in place). A remove only on a change. */
+    if (has_tile && (s.tile || s.tile != old.tile)) webui_tile_request(s.tile, WEBUI_PORT);
+}
+
+/* The allowlist: nothing else is reachable. */
 static const struct {
     const char *path;
     api_fn fn;
@@ -629,6 +734,8 @@ static const struct {
     { "/api/jobs/cancel", r_jobs_cancel },
     { "/api/app/close", r_app_close },
     { "/api/power", r_power },
+    { "/api/settings", r_settings },
+    { "/api/settings/set", r_settings_set },
 };
 
 int webui_api_route(const webui_req_t *r, const uint8_t *body, size_t body_len, int fd) {

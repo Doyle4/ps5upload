@@ -12,6 +12,11 @@
 #include <stdint.h>
 
 #include "webui_http.h"
+#include "webui_settings.h"
+
+/* The settings the helper started with (main.c loads WEBUI_SETTINGS_PATH before webui_start):
+ * /api/settings answers them and /api/settings/set changes them. Call once, before webui_start. */
+void webui_api_settings_init(const webui_settings_t *s);
 
 int webui_api_route(const webui_req_t *r, const uint8_t *body, size_t body_len, int fd);
 

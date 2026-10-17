@@ -33,6 +33,8 @@
 #include "proc_identity.h"
 #include "webui_api.h"
 #include "webui_server.h"
+#include "webui_settings.h"
+#include "webui_tile.h"
 /* Sony "debugger" / system-process authid. Setting our process's
  * ucred authid to this value grants the credentials Sony's kernel
  * stubs check before allowing sensor reads / launches / installs
@@ -795,14 +797,22 @@ int main(void) {
     startup_trace("TOAST_DONE");
 
     /* Console web UI, after AVA1 is up. A bind failure is not fatal: the server's accept thread
-     * retries every 5 s (a takeover's old instance may still hold the port for a moment). */
+     * retries every 5 s (a takeover's old instance may still hold the port for a moment). The
+     * settings file decides LAN access (a missing or garbled file: loopback only, tile on). The
+     * home-screen tile is registered on its own short-lived thread (Sony calls take seconds); a
+     * failure there is logged, never fatal. */
     {
         webui_cfg_t wc;
+        webui_settings_t ws;
+        if (webui_settings_load(WEBUI_SETTINGS_PATH, &ws) != 0)
+            fprintf(stderr, "webui: %s missing or unreadable; using defaults\n", WEBUI_SETTINGS_PATH);
+        webui_api_settings_init(&ws);
         wc.port = WEBUI_PORT;
-        wc.lan = 0;
+        wc.lan = ws.lan;
         wc.route = webui_api_route;
         if (webui_start(&wc) != 0) fprintf(stderr, "webui: server did not start\n");
         startup_trace("WEBUI_STARTED");
+        if (ws.tile) webui_tile_request(1, WEBUI_PORT);
     }
 
     /* The AVA1 server runs on its own threads; this thread has nothing left to serve. It waits for

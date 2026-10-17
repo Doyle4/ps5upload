@@ -909,6 +909,14 @@ test-payload: payload
 		$(PAYLOAD_DIR)/ava1/gen/ava1_gen.c $(PAYLOAD_DIR)/ava1/ava1_wire.c
 	@/tmp/ps5upload-webui-codec-selftest
 	@echo "✓ Unicode, quoted and very large folders survive the web UI's JSON both ways"
+	@echo "Running webui settings + tile self-test (host build)..."
+	@cc -O2 -Wall -Wextra -Werror -DWEBUI_TILE_HOST_TEST -I$(PAYLOAD_DIR)/include -I$(PAYLOAD_DIR)/ava1 -I$(PAYLOAD_DIR)/ava1/gen \
+		-o /tmp/ps5upload-webui-settings-selftest \
+		$(PAYLOAD_DIR)/tests/webui_settings_selftest.c $(PAYLOAD_DIR)/src/webui_settings.c \
+		$(PAYLOAD_DIR)/src/webui_tile.c $(PAYLOAD_DIR)/src/webui_codec.c \
+		$(PAYLOAD_DIR)/ava1/gen/ava1_gen.c $(PAYLOAD_DIR)/ava1/ava1_wire.c
+	@/tmp/ps5upload-webui-settings-selftest
+	@echo "✓ a missing or garbled settings file falls back to defaults; the tile is written only when it differs"
 	@echo "Running AVA1 in-flight RPC gate self-test (host build)..."
 	@cc -O2 -Wall -Wextra -Werror -pthread -I$(PAYLOAD_DIR)/ava1 \
 		-o /tmp/ps5upload-ava1-rpc-gate-selftest \

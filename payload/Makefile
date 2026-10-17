@@ -157,6 +157,13 @@ CFLAGS := -Wall -Wextra -Werror -g $(INCLUDES)
 LIBS := -lSceSystemService -lSceUserService -lSceIpmi -lSceAppInstUtil \
         -lSceNotification -lSceRegMgr -lSceFsInternalForVsh -lkernel_sys
 
+# The home-screen tile's icon0.png (512x512, the app icon client/src-tauri/icons/icon.png),
+# embedded as a C array by xxd: webui_tile_icon0_png[] + webui_tile_icon0_png_len, which
+# webui_tile.c writes into /data/ps5upload/tile/PSUP00001/sce_sys/. Generated under build/
+# (git-ignored); `cd assets` keeps xxd's symbol names independent of the path.
+WEBUI_TILE_ICON_PNG := assets/webui_tile_icon0.png
+WEBUI_TILE_ICON_C := build/webui_tile_icon.c
+
 SRCS := src/main.c src/runtime.c src/shell_builtin.c src/takeover.c src/takeover_flag.c src/ownership_record.c src/ava1_stop.c src/register.c src/hw_info.c \
         src/drive_sensors.c \
         src/proc_list.c src/ptrace_remote.c src/shellui_rpc.c \
@@ -167,6 +174,7 @@ SRCS := src/main.c src/runtime.c src/shell_builtin.c src/takeover.c src/takeover
         src/tmdb.c src/fw_spoof.c src/focus_probe.c \
         src/content_db.c src/mgmt_rpc.c src/fs_jobs.c src/net_probe.c src/net_ports.c src/mgmt_fs.c src/path_policy.c \
         src/webui_http.c src/webui_auth.c src/webui_server.c src/webui_codec.c src/webui_api.c \
+        src/webui_settings.c src/webui_tile.c $(WEBUI_TILE_ICON_C) \
         third_party/tiny_aes/aes.c \
         $(BLAKE3_SRCS)
 
@@ -212,6 +220,10 @@ build/ava1/ava1/ava1_chacha_avx2.o: ava1/ava1_chacha_avx2.c $(HEADERS) Makefile
 	@mkdir -p $(dir $@)
 	$(CC) $(AVA1_CFLAGS) -mavx2 -c -o $@ $<
 
+$(WEBUI_TILE_ICON_C): $(WEBUI_TILE_ICON_PNG) Makefile
+	@mkdir -p $(dir $@)
+	(cd assets && xxd -i webui_tile_icon0.png) > $@.tmp && mv $@.tmp $@
+
 # Gzipped copy for the Tauri bundle resource. linuxdeploy (Linux
 # AppImage bundler) walks every ELF in the AppDir and tries to
 # resolve its .so deps via `patchelf --print-needed`. The PS5
@@ -226,6 +238,7 @@ $(ELF).gz: $(ELF)
 clean:
 	rm -f $(ELF) $(ELF).gz $(SQLITE_OBJ) $(MONO_OBJ)
 	rm -rf build/ava1 $(SDK_CRT_BUILD)
+	rm -f $(WEBUI_TILE_ICON_C)
 
 send: $(ELF)
 	@echo "Sending $(ELF) to $(PS5_HOST):$(PS5_PORT) ..."
