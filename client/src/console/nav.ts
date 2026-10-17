@@ -194,20 +194,69 @@ export function createPadReader(map: InputMap): (pressed: boolean[], now: number
   };
 }
 
+/**
+ * R12: the PS5 browser may report one D-pad press twice, as a Gamepad button
+ * and as an Arrow keydown. An Arrow keydown within ECHO_MS after the gamepad
+ * moved the same way is that echo and is dropped.
+ */
+export const ECHO_MS = 100;
+
+export function createEchoGuard(windowMs: number = ECHO_MS) {
+  const padAt: Partial<Record<Direction, number>> = {};
+  return {
+    /** The gamepad fired `dir` at `now`. */
+    padFired(dir: Direction, now: number): void {
+      padAt[dir] = now;
+    },
+    /** Whether an Arrow keydown for `dir` at `now` is a real press (not the echo). */
+    keyAllowed(dir: Direction, now: number): boolean {
+      const at = padAt[dir];
+      return at === undefined || now - at >= windowMs;
+    },
+  };
+}
+
+function isDirection(a: NavAction): a is Direction {
+  return a === "up" || a === "down" || a === "left" || a === "right";
+}
+
 /* ---- action handlers -------------------------------------------------- */
 
 /** Return true when the action was handled (stops older handlers). */
 export type NavHandler = (action: NavAction) => boolean | void;
 
-const handlers: NavHandler[] = [];
+/** Where a handler belongs: an element getter (a ref), read at dispatch time. */
+export type NavScope = () => Element | null;
 
-/** Register a handler for the non-movement actions; the newest runs first. */
-export function onNavAction(fn: NavHandler): () => void {
-  handlers.unshift(fn);
+interface Registered {
+  fn: NavHandler;
+  scope?: NavScope;
+}
+
+const handlers: Registered[] = [];
+
+/**
+ * Register a handler for the non-movement actions; the newest runs first.
+ *
+ * Modals: while an element with [data-nav-modal] is open, only handlers whose
+ * `scope` element is that (topmost) modal or inside it run; every other one is
+ * skipped, so the page behind a dialog never reacts to ○, L1/R1 or △. A modal
+ * (confirm dialog, actions sheet, path picker) registers its own handlers with
+ * `scope` = a ref to its root. With no modal open every handler runs.
+ */
+export function onNavAction(fn: NavHandler, scope?: NavScope): () => void {
+  const entry: Registered = { fn, scope };
+  handlers.unshift(entry);
   return () => {
-    const i = handlers.indexOf(fn);
+    const i = handlers.indexOf(entry);
     if (i >= 0) handlers.splice(i, 1);
   };
+}
+
+/** The topmost open [data-nav-modal] (the last in document order), or null. */
+export function topModal(): HTMLElement | null {
+  const modals = document.querySelectorAll<HTMLElement>("[data-nav-modal]");
+  return modals.length ? modals[modals.length - 1] : null;
 }
 
 const FOCUSABLE =
@@ -215,8 +264,7 @@ const FOCUSABLE =
 
 /** Focusable, visible elements, inside the topmost [data-nav-modal] when one is open. */
 function focusables(): FocusCandidate[] {
-  const modals = document.querySelectorAll<HTMLElement>("[data-nav-modal]");
-  const root: ParentNode = modals.length ? modals[modals.length - 1] : document;
+  const root: ParentNode = topModal() ?? document;
   const out: FocusCandidate[] = [];
   root.querySelectorAll<HTMLElement>(FOCUSABLE).forEach((el) => {
     if (el.closest("[inert], [aria-hidden='true']")) return;
@@ -253,16 +301,30 @@ function move(dir: Direction): void {
 
 /** Run one action: movement and confirm here, the rest through the handlers. */
 export function dispatchNav(action: NavAction): void {
-  if (action === "up" || action === "down" || action === "left" || action === "right") {
+  if (isDirection(action)) {
     move(action);
     return;
   }
+  const modal = topModal();
+  const active = document.activeElement as HTMLElement | null;
   if (action === "confirm") {
-    const active = document.activeElement as HTMLElement | null;
+    // Focus left behind a modal (it opened over the page) never gets clicked:
+    // the first press brings focus into the modal instead.
+    if (modal && !(active && modal.contains(active))) {
+      const first = focusables()[0];
+      if (first) focusElement(first.el);
+      return;
+    }
     if (active && active !== document.body && typeof active.click === "function") active.click();
     return;
   }
-  for (const h of handlers.slice()) if (h(action)) return;
+  for (const h of handlers.slice()) {
+    if (modal) {
+      const scope = h.scope ? h.scope() : null;
+      if (!scope || !modal.contains(scope)) continue;
+    }
+    if (h.fn(action)) return;
+  }
 }
 
 /** Text fields keep the keys that edit text. */
@@ -280,6 +342,7 @@ function isTextField(el: Element | null): boolean {
  * is called. Keyboard: keydown. Gamepad: polled once per animation frame.
  */
 export function installNavigation(map: InputMap): () => void {
+  const echo = createEchoGuard();
   const onKey = (e: KeyboardEvent) => {
     if (e.altKey || e.ctrlKey || e.metaKey) return;
     const binding = map.keys[e.key];
@@ -289,6 +352,7 @@ export function installNavigation(map: InputMap): () => void {
       return;
     }
     e.preventDefault();
+    if (isDirection(binding.action) && !echo.keyAllowed(binding.action, performance.now())) return;
     dispatchNav(binding.action);
   };
   window.addEventListener("keydown", onKey);
@@ -310,7 +374,10 @@ export function installNavigation(map: InputMap): () => void {
         readers.set(pad.index, read);
       }
       const pressed = pad.buttons.map((btn) => btn.pressed);
-      for (const action of read(pressed, now)) dispatchNav(action);
+      for (const action of read(pressed, now)) {
+        if (isDirection(action)) echo.padFired(action, now);
+        dispatchNav(action);
+      }
     }
     frame = requestAnimationFrame(poll);
   };

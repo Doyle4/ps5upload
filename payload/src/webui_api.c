@@ -740,10 +740,18 @@ static const struct {
 };
 
 /* The page's own headers: only same-origin fetches, inline script/style (the page is one file),
- * data:/blob: images; nosniff is on every response already. */
+ * data:/blob: images; nosniff is on every response already. Never framed (frame-ancestors plus
+ * X-Frame-Options for older engines): with LAN access on, another site could otherwise frame the
+ * page, whose token works inside the frame, and click its buttons for the user. */
 #define PAGE_HEADERS                                                                       \
     "Content-Encoding: gzip\r\n"                                                          \
-    "Content-Security-Policy: default-src 'self' 'unsafe-inline' data: blob:; connect-src 'self'\r\n"
+    "Content-Security-Policy: default-src 'self' 'unsafe-inline' data: blob:; connect-src 'self'; " \
+    "frame-ancestors 'none'\r\n"                                                          \
+    "X-Frame-Options: DENY\r\n"
+/* webui_send_ex builds the head in 512 bytes and sends nothing when it does not fit: the fixed
+ * part (status line, Content-Type text/html, a 10-digit length, Connection, Cache-Control,
+ * nosniff, final CRLF) is under 200 bytes, so the extra lines get at most 300. */
+_Static_assert(sizeof(PAGE_HEADERS) <= 300, "PAGE_HEADERS must fit webui_send_ex's 512-byte head");
 
 /* GET / and GET /api/token: the server checked Host/Origin but no token (is_api is 0 for both).
  * Neither reaches a helper method, so they stay outside the in-flight RPC gate. The token goes
