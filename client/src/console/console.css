@@ -248,7 +248,8 @@ button {
 }
 .cw-button.is-danger:focus {
   background: var(--color-bad-soft);
-  box-shadow: inset 0 0 0 2px var(--color-bad), 0 0 0 4px var(--color-bad-soft);
+  /* An opaque red ring: the soft glow vanished next to the orange accent in Light and Peach. */
+  box-shadow: inset 0 0 0 2px var(--color-bad), 0 0 0 3px var(--color-bad);
 }
 
 /* ---- shared text ---- */

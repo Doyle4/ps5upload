@@ -66,6 +66,9 @@ function apply(theme: Theme, high: boolean): void {
   else el.setAttribute("data-theme", theme);
   if (high) el.setAttribute("data-contrast", "high");
   else el.removeAttribute("data-contrast");
+  // The browser's own controls and scrollbars follow the theme (index.html's head script does the same pre-paint).
+  const meta = typeof document.querySelector === "function" ? document.querySelector('meta[name="color-scheme"]') : null;
+  if (meta) meta.setAttribute("content", theme === "light" || theme === "peach" ? "light" : "dark");
 }
 
 /** Applies the stored (or session) choice: call before the first paint. */

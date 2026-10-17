@@ -85,8 +85,19 @@ function pcTokens(): Plugin {
       const theme = css.indexOf("@theme {");
       if (theme < 0) this.error("pcTokens: @theme block not found in src/index.css");
       const rules = themeRules(css);
-      for (const need of ['[data-theme="light"]', '[data-theme="peach"]', '[data-theme="oled"]', '[data-contrast="high"]']) {
-        if (!rules.some((r) => r.includes(need))) this.error(`pcTokens: no ${need} block in src/index.css`);
+      // Every theme block and every high-contrast combination must be found, so a rename in
+      // index.css fails the build instead of silently shipping a half-themed page. The
+      // transparency/backdrop blocks are left out on purpose: console.css uses no backdrop-filter.
+      const need = [
+        /^:root\[data-theme="light"\]|^:root:is\(\[data-theme="light"\], \[data-theme="peach"\]\)\s*\{/,
+        /^:root\[data-theme="peach"\]\s*\{/,
+        /^:root\[data-theme="oled"\]\s*\{/,
+        /^:root\[data-contrast="high"\]\s*\{/,
+        /^:root:is\(\[data-theme="light"\], \[data-theme="peach"\]\)\[data-contrast="high"\]\s*\{/,
+        /^:root\[data-theme="oled"\]\[data-contrast="high"\]\s*\{/,
+      ];
+      for (const re of need) {
+        if (!rules.some((r) => re.test(r))) this.error(`pcTokens: no block matching ${re} in src/index.css`);
       }
       const themeBody = blockBody(css, css.indexOf("{", theme));
       return `:root {${themeBody}}\n${rules.join("\n")}\n`;
