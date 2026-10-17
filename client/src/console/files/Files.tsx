@@ -1,5 +1,17 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { FolderPlus, RotateCw, Square, Star, TextCursorInput } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  ArrowDownUp,
+  CheckCheck,
+  Filter,
+  FilterX,
+  FolderPlus,
+  ListChecks,
+  ListX,
+  RotateCw,
+  Square,
+  Star,
+  TextCursorInput,
+} from "lucide-react";
 import { formatBytes } from "../../lib/format";
 import { ApiError, call } from "../api";
 import { errorText, type Message, type Volume } from "../home/Home";
@@ -14,7 +26,7 @@ import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { anchorOf, focusLost, restoreFocus, type FocusAnchor } from "../ui/restoreFocus";
 import { SelectToggle } from "../ui/SelectToggle";
 import { ActionsSheet, type SheetAction } from "./ActionsSheet";
-import { DirList, viewKind } from "./DirList";
+import { DirList, ROW_WINDOW, viewKind } from "./DirList";
 import { canEject, DriveList, isImage, isSystemVolume, placeLabel } from "./DriveList";
 import { InfoDialog } from "./InfoDialog";
 import {
@@ -34,10 +46,12 @@ import {
 } from "./move";
 import { currentBatch, startBatch, stopBatch, useBatch, waitJob, type BatchProgress } from "./batch";
 import { PathBar } from "./PathBar";
+import { DEFAULT_VIEW, invertShown, loadView, saveView, selectAllShown, statusOf, visibleEntries, LOAD_ALL_CAP, type Status, type ViewPrefs } from "./listing";
 import { checkFolder, typedPath } from "./pathParts";
 import { PathPicker } from "./PathPicker";
 import { isPinned, usePrefs, type FilesPrefs } from "./prefs";
 import { TextPrompt } from "./TextPrompt";
+import { ViewMenu } from "./ViewMenu";
 import { useDir, type DirState, type Entry } from "./useDir";
 import { Viewer } from "./Viewer";
 
@@ -61,7 +75,11 @@ export type FilesAsk =
   /** Eject a USB drive; `force` after the helper said it is still in use. */
   | { kind: "eject"; path: string; force: boolean }
   | { kind: "unmount"; path: string }
-  | { kind: "goto" };
+  | { kind: "goto" }
+  /** Sort and view menu. */
+  | { kind: "viewmenu" }
+  /** The name filter's text box. */
+  | { kind: "filter" };
 
 /** The copy/move/delete batch running now (one item at a time, see batch.ts). */
 export type Busy = BatchProgress;
@@ -124,6 +142,18 @@ export interface FilesViewProps {
   /** Read the drives again (the drive list's Try again). */
   onRetryVolumes?: () => void;
   dir: DirState;
+  /** The rows to show (hidden files, filter and sort applied); default: dir.entries. */
+  shown?: Entry[];
+  view?: ViewPrefs;
+  status?: Status;
+  /** Rows drawn so far (the rest wait behind "Show more rows"). */
+  rowLimit?: number;
+  onMoreRows?: () => void;
+  onView?: (patch: Partial<ViewPrefs>) => void;
+  onLoadAll?: () => void;
+  onSelectAll?: () => void;
+  onSelectNone?: () => void;
+  onSelectInvert?: () => void;
   selecting: boolean;
   selected: string[];
   ask: FilesAsk | null;
@@ -251,6 +281,24 @@ function placeAskView(p: FilesViewProps) {
           busy={p.askBusy || p.gameRunning}
           error={p.gameRunning ? t("cw_files_unmount_game") : p.askError}
           onConfirm={() => p.onUnmount?.(a.path)}
+          onCancel={p.onDismiss}
+        />
+      );
+    case "viewmenu":
+      return p.onView ? (
+        <ViewMenu view={p.view ?? DEFAULT_VIEW} onChange={p.onView} onClose={p.onDismiss} />
+      ) : null;
+    case "filter":
+      return (
+        <TextPrompt
+          title={t("cw_files_filter_title")}
+          fieldLabel={t("cw_files_filter_label")}
+          initial={p.view?.filter ?? ""}
+          check={() => null}
+          onSubmit={(v) => {
+            p.onView?.({ filter: v });
+            p.onDismiss();
+          }}
           onCancel={p.onDismiss}
         />
       );
@@ -433,10 +481,23 @@ function PinButton({
   );
 }
 
+/** "N items · M selected (size)"; folders count as selected but add no size. */
+export function statusText(st: Status): string {
+  const items =
+    st.items === st.total ? t("cw_files_status_items", { n: st.items }) : t("cw_files_status_filtered", { n: st.items, total: st.total });
+  if (!st.selected) return items;
+  const size = st.folders ? t("cw_files_status_size_dirs", { size: formatBytes(st.bytes) }) : formatBytes(st.bytes);
+  return `${items} · ${t("cw_files_status_selected", { n: st.selected, size })}`;
+}
+
 /** Files without state: everything comes in through props (tests call it directly). */
 export function FilesView(p: FilesViewProps) {
   const vol = p.path != null && p.volumes ? volumeOf(p.path, p.volumes) : null;
   const status = busyText(p.busy);
+  const shown = p.shown ?? p.dir.entries;
+  const view = p.view ?? DEFAULT_VIEW;
+  const capped = p.dir.more && p.dir.entries.length >= LOAD_ALL_CAP;
+  const st = p.status;
   return (
     <div className="cw-files-screen">
       <h1 className="cw-h1">{t("cw_nav_files")}</h1>
@@ -514,6 +575,89 @@ export function FilesView(p: FilesViewProps) {
               <span className="cw-dim cw-toolbar-free">{t("cw_files_free", { free: formatBytes(vol.free_bytes) })}</span>
             ) : null}
           </div>
+          {p.onView ? (
+            <div className="cw-toolbar cw-listbar">
+              <button
+                type="button"
+                className="cw-focusable cw-button"
+                data-action="sortview"
+                onClick={() => p.onAsk({ kind: "viewmenu" })}
+              >
+                <ArrowDownUp aria-hidden />
+                <span>{t("cw_files_sort_view")}</span>
+              </button>
+              <button
+                type="button"
+                className="cw-focusable cw-button"
+                data-action="filter"
+                aria-pressed={view.filter !== ""}
+                onClick={() => p.onAsk({ kind: "filter" })}
+              >
+                <Filter aria-hidden />
+                <span>{view.filter ? t("cw_files_filter_active", { q: view.filter }) : t("cw_files_filter")}</span>
+              </button>
+              {view.filter ? (
+                <button
+                  type="button"
+                  className="cw-focusable cw-icon-button"
+                  data-action="filter-clear"
+                  aria-label={t("cw_files_filter_clear")}
+                  title={t("cw_files_filter_clear")}
+                  onClick={() => p.onView?.({ filter: "" })}
+                >
+                  <FilterX aria-hidden />
+                </button>
+              ) : null}
+              {p.dir.more && p.onLoadAll ? (
+                <button
+                  type="button"
+                  className="cw-focusable cw-button"
+                  data-action="load-all"
+                  disabled={p.dir.loading || capped}
+                  onClick={p.onLoadAll}
+                >
+                  <span>{p.dir.loading ? t("cw_home_loading") : t("cw_files_load_all")}</span>
+                </button>
+              ) : null}
+              {p.selecting ? (
+                <>
+                  <button
+                    type="button"
+                    className="cw-focusable cw-button"
+                    data-action="select-all"
+                    onClick={p.onSelectAll}
+                  >
+                    <CheckCheck aria-hidden />
+                    <span>{t("cw_files_select_all")}</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="cw-focusable cw-button"
+                    data-action="select-none"
+                    onClick={p.onSelectNone}
+                  >
+                    <ListX aria-hidden />
+                    <span>{t("cw_files_select_none")}</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="cw-focusable cw-button"
+                    data-action="select-invert"
+                    onClick={p.onSelectInvert}
+                  >
+                    <ListChecks aria-hidden />
+                    <span>{t("cw_files_select_invert")}</span>
+                  </button>
+                </>
+              ) : null}
+            </div>
+          ) : null}
+          {st && p.dir.loaded ? (
+            <p className="cw-dim cw-status" role="status" data-status="">
+              {statusText(st)}
+              {capped ? ` · ${t("cw_files_capped", { n: p.dir.entries.length })}` : ""}
+            </p>
+          ) : null}
 
           {p.dir.error && !p.dir.loading ? (
             <div className="cw-msg is-error" role="alert">
@@ -527,13 +671,18 @@ export function FilesView(p: FilesViewProps) {
             </div>
           ) : null}
           {!p.dir.loaded && !p.dir.error ? <p className="cw-dim">{t("cw_home_loading")}</p> : null}
+          {p.dir.loaded && p.dir.entries.length > 0 && !shown.length && !p.dir.more ? (
+            <p className="cw-dim">{t("cw_files_none_match")}</p>
+          ) : null}
           {p.dir.loaded && !p.dir.entries.length && !p.dir.more ? (
             <p className="cw-dim">
               {t("cw_files_empty")} {t("cw_files_empty_next")}
             </p>
           ) : null}
           <DirList
-            entries={p.dir.entries}
+            entries={shown}
+            limit={p.rowLimit}
+            onMoreRows={p.onMoreRows}
             selecting={p.selecting}
             selected={p.selected}
             onEntry={p.onEntry}
@@ -605,6 +754,10 @@ export function Files({ ctx }: { ctx: SectionContext }) {
   const { jobs } = useJobs();
   const [selecting, setSelecting] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
+  const [view, setView] = useState<ViewPrefs>(loadView);
+  const [rowLimit, setRowLimit] = useState(ROW_WINDOW);
+  /** Select all was asked while pages remain: select once Load all has finished. */
+  const selectAfterLoad = useRef(false);
   const [ask, setAsk] = useState<FilesAsk | null>(null);
   const busy = useBatch();
   const [message, setMessage] = useState<Message | null>(null);
@@ -649,6 +802,9 @@ export function Files({ ctx }: { ctx: SectionContext }) {
     lastAnchor.current = null;
     setSelecting(false);
     setSelected([]);
+    setView((v) => (v.filter ? { ...v, filter: "" } : v));
+    setRowLimit(ROW_WINDOW);
+    selectAfterLoad.current = false;
     setPath(next);
   }, []);
 
@@ -852,6 +1008,40 @@ export function Files({ ctx }: { ctx: SectionContext }) {
     setSelected([]);
   }, []);
 
+  // What shows: hidden files, filter and sort applied (memoized: a 20,000-entry
+  // folder is not re-sorted by a focus move).
+  const shown = useMemo(() => visibleEntries(dir.entries, view), [dir.entries, view]);
+  const status = useMemo(
+    () => statusOf(shown, dir.entries.length, selected, dir.entries),
+    [shown, dir.entries, selected],
+  );
+  const onView = useCallback((patch: Partial<ViewPrefs>) => {
+    setView((v) => {
+      const next = { ...v, ...patch };
+      saveView(next);
+      return next;
+    });
+    setRowLimit(ROW_WINDOW);
+  }, []);
+  const onMoreRows = useCallback(() => setRowLimit((n) => n + ROW_WINDOW), []);
+  const { loadAll } = dir;
+  const onSelectAll = useCallback(() => {
+    if (dir.more && !dir.loading) {
+      // Pages remain: read them first so "all" means the whole folder.
+      selectAfterLoad.current = true;
+      loadAll();
+      return;
+    }
+    setSelected((s) => selectAllShown(s, shown));
+  }, [dir.more, dir.loading, loadAll, shown]);
+  useEffect(() => {
+    if (!selectAfterLoad.current || dir.loading) return;
+    selectAfterLoad.current = false;
+    setSelected((s) => selectAllShown(s, shown));
+  }, [dir.loading, shown]);
+  const onSelectNone = useCallback(() => setSelected([]), []);
+  const onSelectInvert = useCallback(() => setSelected((s) => invertShown(s, shown)), [shown]);
+
   // ○ up one level, △ actions for the focused row (or the selection), □ select.
   useEffect(
     () =>
@@ -1015,6 +1205,16 @@ export function Files({ ctx }: { ctx: SectionContext }) {
         volumes={volumes}
         volumesError={volumesError}
         dir={dir}
+        shown={shown}
+        view={view}
+        status={status}
+        rowLimit={rowLimit}
+        onMoreRows={onMoreRows}
+        onView={onView}
+        onLoadAll={loadAll}
+        onSelectAll={onSelectAll}
+        onSelectNone={onSelectNone}
+        onSelectInvert={onSelectInvert}
         selecting={selecting}
         selected={selected}
         ask={ask}

@@ -1198,3 +1198,18 @@ button {
   margin: 0.4rem 0 0;
   font-size: 0.6rem;
 }
+
+/* ---- Files: sort, filter, status ---- */
+.cw-listbar {
+  margin-bottom: 0.3rem;
+}
+.cw-status {
+  margin: 0 0 0.6rem;
+  font-size: 0.85rem;
+}
+.cw-sheet-gap {
+  flex: none;
+  width: 1.2rem;
+  height: 1.2rem;
+  margin-right: 0.7rem;
+}

@@ -257,3 +257,36 @@ describe("Files", () => {
     );
   });
 });
+
+describe("Files listing controls", () => {
+  const many = Array.from({ length: 700 }, (_, i) => entry(`f${i}.txt`));
+  it("shows the toolbar, status line and a row window with a Show more rows button", () => {
+    const html = renderToStaticMarkup(
+      <>
+        {FilesView(
+          props({
+            dir: dir(many),
+            shown: many,
+            status: { items: 700, total: 700, selected: 1, bytes: 10, folders: 0 },
+            rowLimit: 300,
+            onMoreRows: vi.fn(),
+            onView: vi.fn(),
+            selecting: true,
+            selected: ["f1.txt"],
+          }),
+        )}
+      </>,
+    );
+    expect(html).toContain('data-action="sortview"');
+    expect(html).toContain('data-action="select-all"');
+    expect(html).toContain("700 items · 1 selected (10 B)");
+    expect(html).toContain('data-action="more-rows"');
+    expect(html.match(/data-entry="/g)).toHaveLength(300);
+  });
+  it("offers Load all when more pages wait, and explains an empty filter", () => {
+    const more = renderToStaticMarkup(<>{FilesView(props({ dir: dir([entry("a")], { more: true }), onView: vi.fn(), onLoadAll: vi.fn() }))}</>);
+    expect(more).toContain('data-action="load-all"');
+    const none = renderToStaticMarkup(<>{FilesView(props({ dir: dir([entry("a")]), shown: [], onView: vi.fn() }))}</>);
+    expect(none).toContain(t("cw_files_none_match"));
+  });
+});

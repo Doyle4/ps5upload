@@ -8,6 +8,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { call } from "../api";
+import { LOAD_ALL_CAP, sortEntries as sortListing } from "./listing";
 
 export const LIST_PAGE = 256;
 
@@ -39,21 +40,16 @@ export interface DirState {
 
 export const EMPTY_DIR: DirState = { entries: [], more: false, loading: false, loaded: false, error: null };
 
-let collator: Intl.Collator | null = null;
-
+/** Folders first, then by name (numbers in names in numeric order). */
 export function sortEntries(entries: Entry[]): Entry[] {
-  collator = collator ?? new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
-  const c = collator;
-  return entries.slice().sort((a, b) => {
-    const da = a.kind === "dir" ? 0 : 1;
-    const db = b.kind === "dir" ? 0 : 1;
-    return da - db || c.compare(a.name, b.name) || (a.name < b.name ? -1 : a.name > b.name ? 1 : 0);
-  });
+  return sortListing(entries, "name", "asc");
 }
 
 export interface DirLoader {
   /** Read the next page (the first on the first call). No-op while one is read or when done. */
   loadMore(): Promise<void>;
+  /** Read every remaining page, up to `cap` entries in all (one emit at the end). */
+  loadAll(cap: number): Promise<void>;
   /** Read again from the start, as many pages as were shown. */
   refresh(): Promise<void>;
   /** Drop every answer from now on (the folder was left). */
@@ -109,6 +105,28 @@ export function createDirLoader(path: string, onState: (s: DirState) => void): D
         settle();
       }
     },
+    async loadAll(cap) {
+      if (busy || stopped || (loaded && !more)) return;
+      busy = true;
+      emit(true, null);
+      try {
+        while (!loaded || more) {
+          if (loaded && raw.length >= cap) break;
+          const r = await page(next);
+          if (stopped) return;
+          raw = raw.concat(Array.isArray(r?.entries) ? r.entries : []);
+          more = !!r?.more;
+          next = typeof r?.next === "number" ? r.next : next + LIST_PAGE;
+          pages++;
+          loaded = true;
+        }
+        emit(false, null);
+      } catch (e) {
+        emit(false, e);
+      } finally {
+        settle();
+      }
+    },
     async refresh() {
       if (stopped) return;
       if (busy) {
@@ -152,6 +170,8 @@ export function createDirLoader(path: string, onState: (s: DirState) => void): D
 
 export interface DirHandle extends DirState {
   loadMore(): void;
+  /** Read all the remaining pages (bounded by LOAD_ALL_CAP). */
+  loadAll(): void;
   refresh(): void;
 }
 
@@ -178,10 +198,13 @@ export function useDir(path: string | null): DirHandle {
   const loadMore = useCallback(() => {
     void loader.current?.loadMore();
   }, []);
+  const loadAll = useCallback(() => {
+    void loader.current?.loadAll(LOAD_ALL_CAP);
+  }, []);
   const refresh = useCallback(() => {
     void loader.current?.refresh();
   }, []);
 
   const state = held.path === path ? held.state : EMPTY_DIR;
-  return { ...state, loadMore, refresh };
+  return { ...state, loadMore, loadAll, refresh };
 }

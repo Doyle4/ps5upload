@@ -1,7 +1,20 @@
-import { File, FileImage, FileText, Folder, Link2, type LucideIcon } from "lucide-react";
+import {
+  Archive,
+  Disc3,
+  File,
+  FileCode2,
+  FileImage,
+  FileText,
+  FileVideo,
+  Folder,
+  Link2,
+  Package,
+  type LucideIcon,
+} from "lucide-react";
 import { formatBytes } from "../../lib/format";
 import { t } from "../strings";
 import { ActionsButton } from "../ui/ActionsButton";
+import { iconKind, type IconKind } from "./listing";
 import type { Entry } from "./useDir";
 
 /** What the viewer can show: images and text (others are not rendered). */
@@ -14,12 +27,21 @@ export function viewKind(name: string): "image" | "text" | null {
   return null;
 }
 
-function iconFor(e: Entry): LucideIcon {
-  if (e.kind === "dir") return Folder;
-  if (e.kind === "link") return Link2;
-  const v = viewKind(e.name);
-  return v === "image" ? FileImage : v === "text" ? FileText : File;
-}
+const ICONS: Record<IconKind, LucideIcon> = {
+  folder: Folder,
+  link: Link2,
+  image: FileImage,
+  text: FileText,
+  disk: Disc3,
+  package: Package,
+  exec: FileCode2,
+  archive: Archive,
+  video: FileVideo,
+  other: File,
+};
+
+/** Rows drawn at first, and added per "Show more rows" (a 20,000-row folder keeps a small DOM). */
+export const ROW_WINDOW = 300;
 
 /**
  * A folder's entries, one row each: ✕ opens (a folder, a viewable file) or,
@@ -34,6 +56,8 @@ export function DirList({
   onToggleItem,
   onActions,
   label,
+  limit = Infinity,
+  onMoreRows,
 }: {
   entries: Entry[];
   selecting: boolean;
@@ -42,12 +66,16 @@ export function DirList({
   onToggleItem: (name: string) => void;
   onActions: (name: string) => void;
   label?: string;
+  /** Draw only the first `limit` rows; the rest wait behind "Show more rows". */
+  limit?: number;
+  onMoreRows?: () => void;
 }) {
   const marked = new Set(selected);
+  const drawn = entries.length > limit ? entries.slice(0, limit) : entries;
   return (
     <ul className="cw-files" data-nav-list aria-label={label}>
-      {entries.map((e) => {
-        const Icon = iconFor(e);
+      {drawn.map((e) => {
+        const Icon = ICONS[iconKind(e)];
         const on = marked.has(e.name);
         return (
           <li key={e.name} className={`cw-file${on ? " is-selected" : ""}`} data-nav-item data-entry={e.name}>
@@ -70,6 +98,21 @@ export function DirList({
           </li>
         );
       })}
+      {drawn.length < entries.length && onMoreRows ? (
+        <li className="cw-file is-plain" data-nav-item>
+          <button
+            type="button"
+            className="cw-focusable cw-file-main"
+            data-action="more-rows"
+            onFocus={onMoreRows}
+            onClick={onMoreRows}
+          >
+            <span className="cw-file-text">
+              <span className="cw-file-name">{t("cw_files_rows_more", { n: entries.length - drawn.length })}</span>
+            </span>
+          </button>
+        </li>
+      ) : null}
     </ul>
   );
 }
