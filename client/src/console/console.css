@@ -520,6 +520,82 @@ button {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.cw-toolbar-free {
+  margin: 0 0 0.4rem auto;
+  font-size: 0.85rem;
+}
+.cw-pin.is-pinned svg {
+  color: var(--color-accent);
+  fill: currentColor;
+}
+/* Path bar: Up, then the folder as buttons (✕ jumps there). */
+.cw-pathbar {
+  display: flex;
+  align-items: center;
+  margin-bottom: 0.5rem;
+  min-width: 0;
+}
+.cw-pathbar > .cw-button {
+  flex: none;
+  margin-right: 0.6rem;
+}
+.cw-crumbs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.cw-crumb {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+.cw-crumb-sep {
+  flex: none;
+  width: 1rem;
+  height: 1rem;
+  margin: 0 0.15rem;
+  color: var(--color-muted);
+}
+.cw-crumb-button {
+  max-width: 16rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0.35rem 0.6rem;
+  border-radius: var(--radius-control);
+  color: var(--color-muted);
+  font: inherit;
+}
+.cw-crumb-button.is-current {
+  color: var(--color-text);
+  font-weight: 600;
+  background: var(--color-surface-3);
+}
+/* Drive list groups: Pinned, Drives, Mounted images, Recent. */
+.cw-places + .cw-places {
+  margin-top: 0.9rem;
+}
+.cw-places > .cw-h2 {
+  font-size: 0.95rem;
+  color: var(--color-muted);
+}
+.cw-file-icon.is-pinned {
+  color: var(--color-accent);
+  fill: currentColor;
+}
+.cw-file-sub {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cw-row-action {
+  flex: none;
+  margin: 0 0.4rem;
+}
 .cw-files,
 .cw-picker-list {
   list-style: none;

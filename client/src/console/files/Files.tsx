@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowUp, FolderPlus, RotateCw, Square } from "lucide-react";
+import { FolderPlus, RotateCw, Square, Star, TextCursorInput } from "lucide-react";
 import { formatBytes } from "../../lib/format";
 import { ApiError, call } from "../api";
 import { errorText, type Message, type Volume } from "../home/Home";
@@ -15,7 +15,7 @@ import { anchorOf, focusLost, restoreFocus, type FocusAnchor } from "../ui/resto
 import { SelectToggle } from "../ui/SelectToggle";
 import { ActionsSheet, type SheetAction } from "./ActionsSheet";
 import { DirList, viewKind } from "./DirList";
-import { DriveList } from "./DriveList";
+import { canEject, DriveList, isImage, isSystemVolume, placeLabel } from "./DriveList";
 import { InfoDialog } from "./InfoDialog";
 import {
   copyItems,
@@ -32,7 +32,10 @@ import {
   type BatchResult,
 } from "./move";
 import { currentBatch, startBatch, stopBatch, useBatch, waitJob, type BatchProgress } from "./batch";
+import { PathBar } from "./PathBar";
+import { checkFolder, typedPath } from "./pathParts";
 import { PathPicker } from "./PathPicker";
+import { isPinned, usePrefs, type FilesPrefs } from "./prefs";
 import { TextPrompt } from "./TextPrompt";
 import { useDir, type DirState, type Entry } from "./useDir";
 import { Viewer } from "./Viewer";
@@ -51,7 +54,13 @@ export type FilesAsk =
   | { kind: "mkdir" }
   | { kind: "pick"; op: "copy" | "move"; names: string[] }
   | { kind: "info"; name: string }
-  | { kind: "view"; name: string; type: "image" | "text" };
+  | { kind: "view"; name: string; type: "image" | "text" }
+  /** A pinned or recent folder's menu (the drive list). */
+  | { kind: "place"; path: string }
+  /** Eject a USB drive; `force` after the helper said it is still in use. */
+  | { kind: "eject"; path: string; force: boolean }
+  | { kind: "unmount"; path: string }
+  | { kind: "goto" };
 
 /** The copy/move/delete batch running now (one item at a time, see batch.ts). */
 export type Busy = BatchProgress;
@@ -80,6 +89,19 @@ export function filesErrorText(err: unknown): string | null {
   return errorText(err);
 }
 
+/** Why an eject, unmount or pin did not work, by the helper's error code. */
+export function volumeErrorText(err: unknown): string | null {
+  if (err instanceof ApiError) {
+    if (err.code === "usb_eject_busy") return t("cw_files_eject_busy");
+    if (err.code === "usb_eject_not_mounted") return t("cw_files_eject_gone");
+    if (err.code === "fs_unmount_busy") return t("cw_files_unmount_busy");
+    if (err.code === "fs_unmount_not_our_mount") return t("cw_files_unmount_not_ours");
+    if (err.code === "system_volume") return t("cw_files_unmount_system");
+    if (err.code === "prefs_full") return t("cw_files_pin_full");
+  }
+  return filesErrorText(err);
+}
+
 export interface FilesViewProps {
   /** The folder shown; null = the drive list. */
   path: string | null;
@@ -95,6 +117,17 @@ export interface FilesViewProps {
   message: Message | null;
   /** Running jobs this page started (copies, moves, deletes). */
   tasks: Job[];
+  /** Pinned / recent folders (null: not read, or a helper without them). */
+  prefs?: FilesPrefs | null;
+  /** The open eject/unmount dialog's request is running. */
+  askBusy?: boolean;
+  /** Why the open eject/unmount dialog's last try failed. */
+  askError?: string | null;
+  onPin?: (path: string) => void;
+  onUnpin?: (path: string) => void;
+  onEject?: (path: string, force: boolean) => void;
+  onUnmount?: (path: string) => void;
+  onGoTo?: (path: string) => void;
   /** Stop the running batch before its next item. */
   onStopBatch?: () => void;
   onOpen: (path: string | null) => void;
@@ -124,14 +157,80 @@ export function busyText(b: Busy | null): string | null {
   return t("cw_files_batch_delete", { at, total: b.total });
 }
 
-/** What the sheet offers for `names` (one entry, or the selection). */
-function sheetActions(names: string[], entries: Entry[]): SheetAction[] {
+/** What the sheet offers for `names` (one entry, or the selection); a folder can be pinned. */
+function sheetActions(names: string[], entries: Entry[], pinned: boolean | null): SheetAction[] {
   if (names.length !== 1) return ["copy", "move", "fixperm", "delete"];
   const e = entries.find((x) => x.name === names[0]);
   const out: SheetAction[] = [];
   if (e && e.kind !== "dir" && viewKind(e.name)) out.push("view");
-  out.push("copy", "move", "rename", "mkdir", "info", "fixperm", "delete");
+  out.push("copy", "move", "rename", "mkdir", "info");
+  if (e && e.kind === "dir" && pinned != null) out.push(pinned ? "unpin" : "pin");
+  out.push("fixperm", "delete");
   return out;
+}
+
+/** The modals of the drive list level (and Go to path, at any level). */
+function placeAskView(p: FilesViewProps) {
+  const a = p.ask;
+  if (!a) return null;
+  switch (a.kind) {
+    case "place": {
+      const pinned = isPinned(p.prefs ?? null, a.path);
+      return (
+        <ActionsSheet
+          title={placeLabel(a.path, p.volumes ?? [])}
+          actions={["open", pinned ? "unpin" : "pin"]}
+          busy={false}
+          note={a.path}
+          onClose={p.onDismiss}
+          onChoose={(act) => {
+            if (act === "open") p.onOpen(a.path);
+            else if (act === "pin") p.onPin?.(a.path);
+            else if (act === "unpin") p.onUnpin?.(a.path);
+          }}
+        />
+      );
+    }
+    case "eject":
+      return (
+        <ConfirmDialog
+          title={t(a.force ? "cw_files_eject_force_title" : "cw_files_eject_title", { path: a.path })}
+          body={t(a.force ? "cw_files_eject_force_body" : "cw_files_eject_body")}
+          confirmLabel={t(a.force ? "cw_files_eject_force" : "cw_files_eject")}
+          danger={a.force}
+          busy={p.askBusy}
+          error={p.askError}
+          onConfirm={() => p.onEject?.(a.path, a.force)}
+          onCancel={p.onDismiss}
+        />
+      );
+    case "unmount":
+      return (
+        <ConfirmDialog
+          title={t("cw_files_unmount_title", { path: a.path })}
+          body={t("cw_files_unmount_body")}
+          confirmLabel={t("cw_files_unmount")}
+          danger
+          busy={p.askBusy}
+          error={p.askError}
+          onConfirm={() => p.onUnmount?.(a.path)}
+          onCancel={p.onDismiss}
+        />
+      );
+    case "goto":
+      return (
+        <TextPrompt
+          title={t("cw_files_goto")}
+          fieldLabel={t("cw_files_goto_label")}
+          initial={p.path ?? "/"}
+          check={checkFolder}
+          onSubmit={(v) => p.onGoTo?.(typedPath(v) ?? v)}
+          onCancel={p.onDismiss}
+        />
+      );
+    default:
+      return null;
+  }
 }
 
 function namesTitle(names: string[]): string {
@@ -141,14 +240,17 @@ function namesTitle(names: string[]): string {
 /** The modal for `p.ask` (a plain call, not a component: tests read its props). */
 function askView(p: FilesViewProps) {
   const a = p.ask;
-  if (!a || p.path == null) return null;
+  if (!a) return null;
+  const level = placeAskView(p);
+  if (level || p.path == null) return level;
   const path = p.path;
+  const pinnedOf = (name: string) => (p.prefs ? isPinned(p.prefs, joinPath(path, name)) : null);
   switch (a.kind) {
     case "sheet":
       return (
         <ActionsSheet
           title={namesTitle(a.names)}
-          actions={sheetActions(a.names, p.dir.entries)}
+          actions={sheetActions(a.names, p.dir.entries, pinnedOf(a.names[0]))}
           busy={p.busy != null}
           note={busyText(p.busy)}
           onClose={p.onDismiss}
@@ -169,6 +271,12 @@ function askView(p: FilesViewProps) {
                 return p.onAsk({ kind: "mkdir" });
               case "info":
                 return p.onAsk({ kind: "info", name });
+              case "pin":
+                return p.onPin?.(joinPath(path, name));
+              case "unpin":
+                return p.onUnpin?.(joinPath(path, name));
+              case "open":
+                return;
               case "fixperm":
                 return p.onAsk({ kind: "fixperm", names: a.names });
               case "delete":
@@ -241,6 +349,8 @@ function askView(p: FilesViewProps) {
           onClose={p.onDismiss}
         />
       );
+    default:
+      return null;
   }
 }
 
@@ -256,6 +366,32 @@ function TasksLine({ tasks }: { tasks: Job[] }) {
         <div className={`cw-bar-fill${pct == null ? " is-unknown" : ""}`} style={{ width: `${pct ?? 100}%` }} />
       </div>
     </div>
+  );
+}
+
+/** ☆ / ★: pin the folder shown (it then shows under Pinned in the drive list), or unpin it. */
+function PinButton({
+  path,
+  pinned,
+  onPin,
+  onUnpin,
+}: {
+  path: string;
+  pinned: boolean;
+  onPin: (path: string) => void;
+  onUnpin: (path: string) => void;
+}) {
+  return (
+    <button
+      type="button"
+      className={`cw-focusable cw-button cw-pin${pinned ? " is-pinned" : ""}`}
+      data-action="pin"
+      aria-pressed={pinned}
+      onClick={() => (pinned ? onUnpin(path) : onPin(path))}
+    >
+      <Star aria-hidden />
+      <span>{t(pinned ? "cw_files_pinned_on" : "cw_files_pin")}</span>
+    </button>
   );
 }
 
@@ -290,18 +426,35 @@ export function FilesView(p: FilesViewProps) {
       <TasksLine tasks={p.tasks} />
 
       {p.path == null ? (
-        <DriveList volumes={p.volumes} error={p.volumesError} onOpen={p.onOpen} onRetry={p.onRetryVolumes} />
+        <DriveList
+          volumes={p.volumes}
+          error={p.volumesError}
+          prefs={p.prefs}
+          onOpen={p.onOpen}
+          onRetry={p.onRetryVolumes}
+          onEject={p.onEject ? (path) => p.onAsk({ kind: "eject", path, force: false }) : undefined}
+          onUnmount={p.onUnmount ? (path) => p.onAsk({ kind: "unmount", path }) : undefined}
+          onPlaceActions={(path) => p.onAsk({ kind: "place", path })}
+          onGoTo={p.onGoTo ? () => p.onAsk({ kind: "goto" }) : undefined}
+        />
       ) : (
         <>
+          <PathBar key={p.path} path={p.path} volumes={p.volumes ?? []} onOpen={p.onOpen} onUp={p.onUp} />
           <div className="cw-toolbar">
-            <button type="button" className="cw-focusable cw-button" data-action="up" onClick={p.onUp}>
-              <ArrowUp aria-hidden />
-              <span>{t("cw_files_up")}</span>
-            </button>
-            <div className="cw-toolbar-path">
-              <div className="cw-path cw-mono">{p.path}</div>
-              {vol ? <div className="cw-dim">{t("cw_files_free", { free: formatBytes(vol.free_bytes) })}</div> : null}
-            </div>
+            {p.prefs && p.onPin && p.onUnpin ? (
+              <PinButton path={p.path} pinned={isPinned(p.prefs, p.path)} onPin={p.onPin} onUnpin={p.onUnpin} />
+            ) : null}
+            {p.onGoTo ? (
+              <button
+                type="button"
+                className="cw-focusable cw-button"
+                data-action="goto"
+                onClick={() => p.onAsk({ kind: "goto" })}
+              >
+                <TextCursorInput aria-hidden />
+                <span>{t("cw_files_goto")}</span>
+              </button>
+            ) : null}
             <button
               type="button"
               className="cw-focusable cw-button"
@@ -317,6 +470,9 @@ export function FilesView(p: FilesViewProps) {
                 <span className="cw-tag">{t("cw_files_selected", { n: p.selected.length })}</span>
                 <ActionsButton onPress={() => p.onAsk({ kind: "sheet", names: p.selected })} />
               </>
+            ) : null}
+            {vol ? (
+              <span className="cw-dim cw-toolbar-free">{t("cw_files_free", { free: formatBytes(vol.free_bytes) })}</span>
             ) : null}
           </div>
 
@@ -413,6 +569,15 @@ export function Files({ ctx }: { ctx: SectionContext }) {
   const [ask, setAsk] = useState<FilesAsk | null>(null);
   const busy = useBatch();
   const [message, setMessage] = useState<Message | null>(null);
+  const [askBusy, setAskBusy] = useState(false);
+  const [askError, setAskError] = useState<string | null>(null);
+  const { prefs, settled: prefsSettled, pin, unpin, visit } = usePrefs();
+  /** Files was moved somewhere (or opened at a place): the last location is not restored any more. */
+  const moved = useRef(wanted != null);
+  /** The folder restored from the last visit (left for the drive list when it is gone). */
+  const restored = useRef<string | null>(null);
+  /** The last folder recorded as visited. */
+  const visited = useRef<string | null>(null);
   const root = useRef<HTMLDivElement>(null);
   /** False once Files unmounts: a batch that ends later reports to no one (it ran to the end anyway). */
   const mounted = useRef(true);
@@ -440,6 +605,7 @@ export function Files({ ctx }: { ctx: SectionContext }) {
   }, [message]);
 
   const go = useCallback((next: string | null, focus: string | null = "") => {
+    moved.current = true;
     focusName.current = focus;
     lastAnchor.current = null;
     setSelecting(false);
@@ -452,6 +618,31 @@ export function Files({ ctx }: { ctx: SectionContext }) {
   useEffect(() => {
     if (wanted != null) go(wanted);
   }, [wanted, go]);
+
+  // Opened without a place: back where Files was last (a folder that is gone falls back to the drives).
+  useEffect(() => {
+    if (!prefsSettled || moved.current) return;
+    moved.current = true;
+    if (prefs?.last) {
+      restored.current = prefs.last;
+      go(prefs.last);
+    }
+  }, [prefsSettled, prefs, go]);
+  useEffect(() => {
+    if (path == null || path !== restored.current || !(dir.error instanceof ApiError)) return;
+    if (dir.error.status !== 404 && dir.error.status !== 403 && dir.error.status !== 400) return;
+    restored.current = null;
+    setMessage({ tone: "info", text: t("cw_files_last_gone", { path }) });
+    go(null);
+  }, [path, dir.error, go]);
+
+  // A folder that opened is a visit: recent folders and the last location (on the console).
+  useEffect(() => {
+    if (path == null || !dir.loaded || dir.error || visited.current === path) return;
+    visited.current = path;
+    if (restored.current === path) restored.current = null;
+    visit(path);
+  }, [path, dir.loaded, dir.error, visit]);
 
   const goUp = useCallback(() => {
     if (path == null) return;
@@ -632,6 +823,18 @@ export function Files({ ctx }: { ctx: SectionContext }) {
           goUp();
           return true;
         }
+        if (a === "actions" && path == null) {
+          const place = active.closest("[data-place]")?.getAttribute("data-place");
+          if (place) {
+            setAsk({ kind: "place", path: place });
+            return true;
+          }
+          const vp = active.closest("[data-volume]")?.getAttribute("data-volume");
+          const v = vp ? (volumes ?? []).find((x) => x.path === vp) : undefined;
+          if (v && canEject(v)) setAsk({ kind: "eject", path: v.path, force: false });
+          else if (v && isImage(v)) setAsk({ kind: "unmount", path: v.path });
+          return true;
+        }
         if (a === "actions" && path != null) {
           if (selecting && selected.length) setAsk({ kind: "sheet", names: selected });
           else if (name != null) setAsk({ kind: "sheet", names: [name] });
@@ -647,12 +850,94 @@ export function Files({ ctx }: { ctx: SectionContext }) {
         }
         return false;
       }),
-    [path, selecting, selected, goUp, onToggleItem, onToggleSelecting, refresh],
+    [path, volumes, selecting, selected, goUp, onToggleItem, onToggleSelecting, refresh],
   );
 
   const onDismiss = useCallback(() => {
     setAsk(null);
+    setAskBusy(false);
+    setAskError(null);
   }, []);
+
+  const onPin = useCallback(
+    (p: string) => {
+      setAsk(null);
+      pin(p).then(
+        () => setMessage({ tone: "info", text: t("cw_files_pin_done", { name: placeLabel(p, volumes ?? []) }) }),
+        (e: unknown) => {
+          const text = volumeErrorText(e);
+          if (text) setMessage({ tone: "error", text });
+        },
+      );
+    },
+    [pin, volumes],
+  );
+
+  const onUnpin = useCallback(
+    (p: string) => {
+      setAsk(null);
+      unpin(p).then(
+        () => setMessage({ tone: "info", text: t("cw_files_unpin_done", { name: placeLabel(p, volumes ?? []) }) }),
+        (e: unknown) => {
+          const text = volumeErrorText(e);
+          if (text) setMessage({ tone: "error", text });
+        },
+      );
+    },
+    [unpin, volumes],
+  );
+
+  /** Eject / Unmount: the dialog stays open (busy) until the helper answers; a failure shows in it. */
+  const volumeCall = useCallback(
+    (route: string, body: object, done: string, onError?: (e: unknown) => boolean) => {
+      setAskBusy(true);
+      setAskError(null);
+      call(route, body).then(
+        () => {
+          setAskBusy(false);
+          setAsk(null);
+          setMessage({ tone: "info", text: done });
+          setVolumesTick((n) => n + 1);
+        },
+        (e: unknown) => {
+          setAskBusy(false);
+          if (onError?.(e)) return;
+          setAskError(volumeErrorText(e));
+        },
+      );
+    },
+    [],
+  );
+
+  const onEject = useCallback(
+    (p: string, force: boolean) =>
+      volumeCall("/api/volumes/eject", { path: p, force }, t("cw_files_eject_done", { path: p }), (e) => {
+        // The PS5's own services usually hold a USB drive open: ask once more, to eject anyway.
+        if (force || !(e instanceof ApiError) || e.code !== "usb_eject_busy") return false;
+        setAsk({ kind: "eject", path: p, force: true });
+        return true;
+      }),
+    [volumeCall],
+  );
+
+  const onUnmount = useCallback(
+    (p: string) => {
+      if (isSystemVolume(p)) {
+        setAskError(t("cw_files_unmount_system"));
+        return;
+      }
+      volumeCall("/api/volumes/unmount", { path: p }, t("cw_files_unmount_done", { path: p }));
+    },
+    [volumeCall],
+  );
+
+  const onGoTo = useCallback(
+    (p: string) => {
+      setAsk(null);
+      go(p);
+    },
+    [go],
+  );
 
   return (
     <div
@@ -673,6 +958,14 @@ export function Files({ ctx }: { ctx: SectionContext }) {
         busy={busy}
         message={message}
         tasks={tasks}
+        prefs={prefs}
+        askBusy={askBusy}
+        askError={askError}
+        onPin={onPin}
+        onUnpin={onUnpin}
+        onEject={onEject}
+        onUnmount={onUnmount}
+        onGoTo={onGoTo}
         onStopBatch={stopBatch}
         onOpen={(p) => go(p)}
         onUp={goUp}
@@ -684,6 +977,7 @@ export function Files({ ctx }: { ctx: SectionContext }) {
         onToggleItem={onToggleItem}
         onAsk={(a) => {
           setMessage(null);
+          setAskError(null);
           setAsk(a);
         }}
         onDismiss={onDismiss}

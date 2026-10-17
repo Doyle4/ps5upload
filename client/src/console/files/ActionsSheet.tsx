@@ -1,16 +1,43 @@
-import { Copy, Eye, FolderInput, FolderPlus, Info, PencilLine, ShieldCheck, Trash2, type LucideIcon } from "lucide-react";
+import {
+  Copy,
+  Eye,
+  FolderInput,
+  FolderOpen,
+  FolderPlus,
+  Info,
+  PencilLine,
+  ShieldCheck,
+  Star,
+  StarOff,
+  Trash2,
+  type LucideIcon,
+} from "lucide-react";
 import { t } from "../strings";
 import { Modal } from "../ui/Modal";
 
-export type SheetAction = "view" | "copy" | "move" | "rename" | "mkdir" | "info" | "fixperm" | "delete";
+export type SheetAction =
+  | "open"
+  | "view"
+  | "copy"
+  | "move"
+  | "rename"
+  | "mkdir"
+  | "info"
+  | "pin"
+  | "unpin"
+  | "fixperm"
+  | "delete";
 
 const ITEMS: Record<SheetAction, { icon: LucideIcon; key: string }> = {
+  open: { icon: FolderOpen, key: "cw_files_open" },
   view: { icon: Eye, key: "cw_files_view" },
   copy: { icon: Copy, key: "cw_files_copy_to" },
   move: { icon: FolderInput, key: "cw_files_move_to" },
   rename: { icon: PencilLine, key: "cw_files_rename" },
   mkdir: { icon: FolderPlus, key: "cw_files_new_folder" },
   info: { icon: Info, key: "cw_files_info" },
+  pin: { icon: Star, key: "cw_files_pin" },
+  unpin: { icon: StarOff, key: "cw_files_unpin" },
   fixperm: { icon: ShieldCheck, key: "cw_files_fixperm" },
   delete: { icon: Trash2, key: "cw_files_delete" },
 };

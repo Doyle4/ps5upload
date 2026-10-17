@@ -105,12 +105,12 @@ static long hex4(const char *p, const char *e) {
     return v;
 }
 
-int webui_json_str(const char *json, size_t n, const char *key, char *out, size_t cap) {
-    const char *e = json + n, *p = top_value(json, n, key);
+/* The JSON string at p ('"') unescaped into out (see webui_json_str): 1 with *after past its closing
+ * quote, or -1. */
+static int decode_str(const char *p, const char *e, char *out, size_t cap, const char **after) {
     size_t o = 0;
     if (cap) out[0] = '\0';
-    if (!p) return 0;
-    if (*p != '"' || cap == 0) return -1;
+    if (p >= e || *p != '"' || cap == 0) return -1;
     for (p++; p < e; p++) {
         unsigned char c = (unsigned char)*p;
         unsigned long cp;
@@ -118,6 +118,7 @@ int webui_json_str(const char *json, size_t n, const char *key, char *out, size_
         size_t k, ul;
         if (c == '"') {
             out[o] = '\0';
+            *after = p + 1;
             return 1;
         }
         if (c < 0x20) return -1; /* a raw control character is not JSON */
@@ -182,6 +183,48 @@ int webui_json_str(const char *json, size_t n, const char *key, char *out, size_
     return -1; /* no closing quote */
 }
 
+int webui_json_str(const char *json, size_t n, const char *key, char *out, size_t cap) {
+    const char *p = top_value(json, n, key), *after;
+    if (cap) out[0] = '\0';
+    if (!p) return 0;
+    if (decode_str(p, json + n, out, cap, &after) != 1) {
+        if (cap) out[0] = '\0';
+        return -1;
+    }
+    return 1;
+}
+
+int webui_json_array_str(const char *arr, size_t len, size_t *pos, char *out, size_t cap) {
+    const char *e, *p, *after;
+    if (cap) out[0] = '\0';
+    if (!arr || *pos > len) return -1;
+    e = arr + len;
+    if (*pos == len && len) return 0; /* ended before */
+    if (*pos == 0) {
+        p = ws(arr, e);
+        if (p >= e || *p != '[') return -1;
+        p = ws(p + 1, e);
+        if (p < e && *p == ']') {
+            *pos = len;
+            return 0;
+        }
+    } else {
+        p = ws(arr + *pos, e);
+        if (p < e && *p == ']') {
+            *pos = len;
+            return 0;
+        }
+        if (p >= e || *p != ',') return -1;
+        p = ws(p + 1, e);
+    }
+    if (decode_str(p, e, out, cap, &after) != 1) {
+        if (cap) out[0] = '\0';
+        return -1;
+    }
+    *pos = (size_t)(after - arr);
+    return 1;
+}
+
 int webui_json_u64(const char *json, size_t n, const char *key, uint64_t *out) {
     const char *e = json + n, *p = top_value(json, n, key);
     uint64_t v = 0;
@@ -211,6 +254,11 @@ int webui_json_bool(const char *json, size_t n, const char *key, int *out) {
         return 1;
     }
     return -1;
+}
+
+int webui_json_null(const char *json, size_t n, const char *key) {
+    const char *e = json + n, *p = top_value(json, n, key);
+    return p && e - p >= 4 && memcmp(p, "null", 4) == 0 && (e - p == 4 || is_delim(p[4]));
 }
 
 int webui_json_array(const char *json, size_t n, const char *key, const char **val, size_t *len) {

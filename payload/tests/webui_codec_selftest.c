@@ -536,6 +536,29 @@ static void array_span(void) {
     CHECK(webui_json_array("{\"events\":[\"a\"", 13, "events", &v, &len) == -1); /* cut short */
 }
 
+static void array_strings(void) {
+    const char *j = "{\"a\":[ \"/x\" , \"\\u5b8c \\\"q\\\"\" ],\"e\":[ ],\"m\":[\"ok\",3],\"z\":null,\"s\":\"null\"}";
+    const char *v = NULL;
+    size_t len = 0, pos = 0;
+    char out[64];
+    CHECK(webui_json_array(j, strlen(j), "a", &v, &len) == 1);
+    CHECK(webui_json_array_str(v, len, &pos, out, sizeof out) == 1 && strcmp(out, "/x") == 0);
+    CHECK(webui_json_array_str(v, len, &pos, out, sizeof out) == 1 && strcmp(out, "\xe5\xae\x8c \"q\"") == 0);
+    CHECK(webui_json_array_str(v, len, &pos, out, sizeof out) == 0);
+    CHECK(webui_json_array_str(v, len, &pos, out, sizeof out) == 0); /* stays ended */
+    pos = 0;
+    CHECK(webui_json_array(j, strlen(j), "e", &v, &len) == 1 && webui_json_array_str(v, len, &pos, out, sizeof out) == 0);
+    pos = 0;
+    CHECK(webui_json_array(j, strlen(j), "m", &v, &len) == 1);
+    CHECK(webui_json_array_str(v, len, &pos, out, sizeof out) == 1 && strcmp(out, "ok") == 0);
+    CHECK(webui_json_array_str(v, len, &pos, out, sizeof out) == -1 && out[0] == '\0'); /* not a string */
+    pos = 0;
+    CHECK(webui_json_array(j, strlen(j), "a", &v, &len) == 1);
+    CHECK(webui_json_array_str(v, len, &pos, out, 2) == -1); /* "/x" needs 3 bytes with the NUL */
+    CHECK(webui_json_null(j, strlen(j), "z") == 1 && webui_json_null(j, strlen(j), "s") == 0 &&
+          webui_json_null(j, strlen(j), "nope") == 0 && webui_json_null(j, strlen(j), "a") == 0);
+}
+
 /* ---- cheats ---- */
 
 static void cheats_status(void) {
@@ -627,6 +650,7 @@ static void cheats_toggle_errors(void) {
 int main(void) {
     unicode_path_round_trips();
     array_span();
+    array_strings();
     surrogate_pair_decodes();
     missing_key_is_absent_not_empty();
     list_result_to_json();

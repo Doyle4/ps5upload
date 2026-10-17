@@ -3,29 +3,52 @@ import { t } from "../strings";
 import { Modal } from "../ui/Modal";
 import { validName } from "./move";
 
+/** The default check: a file or folder name ("/", "." and ".." refused). */
+const checkName = (v: string): string | null => (validName(v) ? null : t("cw_files_bad_name"));
+
 /**
- * Rename / New folder: one text box (the PS5 shows its keyboard), OK and
- * Cancel. A name with "/" (or "." / "..") is refused here, before any call.
+ * Rename / New folder / Go to path: one text box (the PS5 shows its keyboard),
+ * OK and Cancel. `check` says why a value cannot be used (shown under the box,
+ * the prompt stays open); by default a name with "/" (or "." / "..") is
+ * refused here, before any call. An async check (Go to path asks the console)
+ * holds OK until it answers.
  */
 export function TextPrompt({
   title,
   initial,
+  fieldLabel,
+  check = checkName,
   onSubmit,
   onCancel,
 }: {
   title: string;
   initial: string;
+  /** The box's label; default "Name". */
+  fieldLabel?: string;
+  check?: (value: string) => string | null | Promise<string | null>;
   onSubmit: (value: string) => void;
   onCancel: () => void;
 }) {
   const [value, setValue] = useState(initial);
-  const [bad, setBad] = useState(false);
+  const [bad, setBad] = useState<string | null>(null);
+  const [checking, setChecking] = useState(false);
   const submit = () => {
-    if (!validName(value)) {
-      setBad(true);
+    if (checking) return;
+    const r = check(value);
+    if (r == null || typeof r === "string") {
+      if (r != null) setBad(r);
+      else onSubmit(value);
       return;
     }
-    onSubmit(value);
+    setChecking(true);
+    r.then(
+      (why) => {
+        setChecking(false);
+        if (why != null) setBad(why);
+        else onSubmit(value);
+      },
+      () => setChecking(false),
+    );
   };
   return (
     <Modal label={title} onBack={onCancel}>
@@ -37,7 +60,7 @@ export function TextPrompt({
       >
         <h2>{title}</h2>
         <label className="cw-field">
-          <span className="cw-dim">{t("cw_files_name")}</span>
+          <span className="cw-dim">{fieldLabel ?? t("cw_files_name")}</span>
           <input
             className="cw-focusable cw-input"
             type="text"
@@ -48,21 +71,21 @@ export function TextPrompt({
             spellCheck={false}
             onChange={(e) => {
               setValue(e.target.value);
-              setBad(false);
+              setBad(null);
             }}
           />
         </label>
         {bad ? (
           <p className="cw-field-error" role="alert">
-            {t("cw_files_bad_name")}
+            {bad}
           </p>
         ) : null}
         <div className="cw-dialog-buttons">
           <button type="button" className="cw-focusable cw-button" onClick={onCancel}>
             <span>{t("cw_dialog_cancel")}</span>
           </button>
-          <button type="submit" className="cw-focusable cw-button is-primary">
-            <span>{t("cw_files_ok")}</span>
+          <button type="submit" className="cw-focusable cw-button is-primary" aria-busy={checking || undefined}>
+            <span>{checking ? t("cw_home_loading") : t("cw_files_ok")}</span>
           </button>
         </div>
       </form>

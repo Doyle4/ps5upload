@@ -21,6 +21,7 @@
 #include "ava1_server.h"
 #include "ava1_wire.h"
 #include "config.h"
+#include "files_prefs.h"
 #include "path_policy.h"
 #include "proc_identity.h"
 #include "ps5_firmware.h"
@@ -635,6 +636,107 @@ static void r_app_close(const char *b, size_t n, uint8_t *out, int fd) {
     else send_json(fd, 200, (const char *)t, tl);
 }
 
+/* ---- volumes: eject a USB drive, unmount a mounted image ---- */
+
+/* USB_EJECT {"mount_point":"/mnt/usbN","force":"0"|"1"} as the engine sends it (fs_ops.rs usb_eject). The
+ * helper accepts /mnt/usb0-7 only and answers {"ok":false,"err":"usb_eject_busy"} while the drive is held
+ * open; that reaches the page as 409 usb_eject_busy, and it may ask again with force (sync, then a forced
+ * unmount). */
+static void r_volumes_eject(const char *b, size_t n, uint8_t *out, int fd) {
+    char path[64], req[128];
+    const uint8_t *t;
+    size_t ol, tl;
+    int force = 0, k, st;
+    if (webui_json_str(b, n, "path", path, sizeof path) != 1 || strncmp(path, "/mnt/usb", 8) != 0 || path[8] < '0' ||
+        path[8] > '7' || path[9] != '\0') {
+        send_bad(fd, "bad_path");
+        return;
+    }
+    if (webui_json_bool(b, n, "force", &force) < 0) {
+        send_bad(fd, "bad_force");
+        return;
+    }
+    k = snprintf(req, sizeof req, "{\"mount_point\":\"%s\",\"force\":\"%s\"}", path, force ? "1" : "0");
+    st = call_text(AVA1_METHOD_USB_EJECT, req, (size_t)k, out, &ol, &t, &tl);
+    if (st != AVA1_STATUS_OK) send_status_error(fd, st, out, ol);
+    else send_json(fd, 200, "{}", 2);
+}
+
+/* The console's own volumes are never unmounted from the page (the helper refuses anything it did not
+ * mount itself as well: fs_unmount_not_our_mount). */
+static int is_system_volume(const char *p) {
+    return strcmp(p, "/") == 0 || strcmp(p, "/data") == 0 || strncmp(p, "/data/", 6) == 0 || strcmp(p, "/user") == 0 ||
+           strncmp(p, "/user/", 6) == 0 || strncmp(p, "/system", 7) == 0 || strncmp(p, "/preinst", 8) == 0 ||
+           strncmp(p, "/mnt/usb", 8) == 0 || strncmp(p, "/mnt/ext", 8) == 0 || strncmp(p, "/dev", 4) == 0;
+}
+
+/* FS_UNMOUNT {"mount_point":..} (fs_ops.rs fs_unmount): an image the helper mounted. A game running from
+ * it holds it open: 409 fs_unmount_busy. */
+static void r_volumes_unmount(const char *b, size_t n, uint8_t *out, int fd) {
+    char path[API_PATH], req[API_PATH * 2 + 32];
+    const uint8_t *t;
+    size_t ol, tl, at = 0;
+    int st;
+    if (need_path(fd, b, n, "path", path, sizeof path) != 0) return;
+    if (is_system_volume(path)) {
+        send_error(fd, 403, "system_volume", 13);
+        return;
+    }
+    put_fmt(req, sizeof req, &at, "{");
+    put_str(req, sizeof req, &at, "mount_point", path);
+    put_fmt(req, sizeof req, &at, "}");
+    if (at + 1 >= sizeof req) {
+        send_bad(fd, "bad_path");
+        return;
+    }
+    st = call_text(AVA1_METHOD_FS_UNMOUNT, req, at, out, &ol, &t, &tl);
+    if (st != AVA1_STATUS_OK) send_status_error(fd, st, out, ol);
+    else send_json(fd, 200, "{}", 2);
+}
+
+/* ---- file manager prefs (files_prefs.c): pinned folders, recent folders, the last folder ---- */
+
+static void send_prefs_error(int fd, int rc) {
+    switch (rc) {
+    case FILES_PREFS_E_BAD_PATH: send_bad(fd, "bad_path"); break;
+    case FILES_PREFS_E_BAD_OP: send_bad(fd, "bad_op"); break;
+    case FILES_PREFS_E_FULL: send_error(fd, 409, "prefs_full", 10); break;
+    case FILES_PREFS_E_NOMEM: send_error(fd, 500, "out_of_memory", 13); break;
+    default: send_error(fd, 500, "save_failed", 11); break;
+    }
+}
+
+/* {} -> {"v":1,"favorites":[..],"recent":[..],"last":".."|null}. A garbled file answers empty lists. */
+static void r_files_prefs(const char *b, size_t n, uint8_t *out, int fd) {
+    int len;
+    (void)b;
+    if (n > FILES_PREFS_REQ_MAX) {
+        send_error(fd, 413, "too_large", 9);
+        return;
+    }
+    len = files_prefs_get(FILES_PREFS_PATH, (char *)out, API_OUT_MAX);
+    if (len < 0) send_prefs_error(fd, len);
+    else send_json(fd, 200, (const char *)out, (size_t)len);
+}
+
+/* {"op":"pin"|"unpin"|"visit","path":".."} -> the new prefs, as /api/files/prefs answers. */
+static void r_files_prefs_set(const char *b, size_t n, uint8_t *out, int fd) {
+    char op[16], path[API_PATH];
+    int o, len;
+    if (n > FILES_PREFS_REQ_MAX) {
+        send_error(fd, 413, "too_large", 9);
+        return;
+    }
+    if (webui_json_str(b, n, "op", op, sizeof op) != 1 || (o = files_prefs_op_from_name(op)) == 0) {
+        send_bad(fd, "bad_op");
+        return;
+    }
+    if (need_path(fd, b, n, "path", path, sizeof path) != 0) return;
+    len = files_prefs_update(FILES_PREFS_PATH, o, path, (char *)out, API_OUT_MAX);
+    if (len < 0) send_prefs_error(fd, len);
+    else send_json(fd, 200, (const char *)out, (size_t)len);
+}
+
 /* ---- settings ---- */
 
 /* The live settings. g_set_mu is held across a save, so two /api/settings/set calls never write
@@ -921,6 +1023,10 @@ static const struct {
 } k_routes[] = {
     { "/api/status", r_status },
     { "/api/volumes", r_volumes },
+    { "/api/volumes/eject", r_volumes_eject },
+    { "/api/volumes/unmount", r_volumes_unmount },
+    { "/api/files/prefs", r_files_prefs },
+    { "/api/files/prefs/set", r_files_prefs_set },
     { "/api/fs/list", r_fs_list },
     { "/api/fs/stat", r_fs_stat },
     { "/api/fs/mkdir", r_fs_mkdir },

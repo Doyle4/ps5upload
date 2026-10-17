@@ -22,9 +22,17 @@ int webui_json_u64(const char *json, size_t n, const char *key, uint64_t *out);
 /* true / false: 1 found (*out 1 or 0), 0 absent, -1 any other value. */
 int webui_json_bool(const char *json, size_t n, const char *key, int *out);
 
+/* 1 when top-level `key` is present with the value null, else 0. */
+int webui_json_null(const char *json, size_t n, const char *key);
+
 /* The top-level `key`'s array value as a span: *val at its '[', *len through its ']' (brackets
  * balanced outside strings). 1 found, 0 absent, -1 present but not a complete array. */
 int webui_json_array(const char *json, size_t n, const char *key, const char **val, size_t *len);
+
+/* The next string of the array span `arr` (from webui_json_array): *pos starts at 0 and is moved
+ * past each element. 1 a string (unescaped as webui_json_str does), 0 the array ended, -1 an element
+ * that is not a usable string or the array is malformed (stop there). */
+int webui_json_array_str(const char *arr, size_t len, size_t *pos, char *out, size_t cap);
 
 /* Escapes n bytes of `s` as the inside of a JSON string (no quotes added): `"` and `\` are
  * backslashed, control characters become \n \r \t \b \f or \u00XX, valid UTF-8 is copied as
