@@ -163,7 +163,9 @@ Set `PS5UPLOAD_BANDWIDTH_MBPS` (megabytes per second) before starting the app or
 zero means no cap. The pre-6.0 name of this variable still works for one release.
 
 **Q: Can I run the engine on a different machine (self-hosted)?**
-Yes. Run it on a server or NAS and point the app at it in **Settings → Engine URL**. Images:
+Yes. Run it on a server or NAS and point the app at it in **Settings → Engine URL**. For a
+step-by-step guide that ends with the app open on a phone, see "Use PS5Upload from your phone or
+another computer" below. Images:
 `ghcr.io/phantomptr/ps5upload-engine` (engine only) and `ghcr.io/phantomptr/ps5upload-engine-webui`
 (full web UI), tagged `:latest` or `:<version>`.
 
@@ -197,7 +199,8 @@ in the compose file to the folder's owner (`ls -ln` shows the numbers), or run
 
 **Q: Can I use ps5upload from a web browser (no desktop app)?**
 Yes. The `webui` image (above) serves the full app over HTTP; open `http://<host>:19113` from an
-allowed IP. Same security rules: no password, trusted LAN only.
+allowed IP. Same security rules: no password, trusted LAN only. The next question walks through
+it from start to finish.
 
 - **Upload works**, but the file picker browses the **engine's** disk, not your browser machine's.
   Mount your games into the container (`-v /host/games:/pkgs:ro`) and set
@@ -208,6 +211,87 @@ allowed IP. Same security rules: no password, trusted LAN only.
   disk), saving a save backup or downloading files to your computer, and attaching files to a bug
   report. Everything that works on the PS5 itself is the same as on desktop.
 - The docker image can be built using `PS5UPLOAD_BASE_URL` to change the root path of the app.
+
+**Q: Use PS5Upload from your phone or another computer**
+Run PS5Upload on one machine, for example a Mac tucked away next to the router, and use the whole
+app from a browser anywhere on your home network, including Safari on an iPhone or iPad. This
+uses the web UI Docker image, not the desktop app.
+
+**Why not the desktop app?** Its engine only takes orders from its own window: a request from any
+other device is refused, and it has no web version of the app to give a browser. The Docker image
+`ghcr.io/phantomptr/ps5upload-engine-webui` is the same engine with the full app built in.
+
+**1. Install Docker.** On a Mac, install [Docker Desktop](https://www.docker.com/products/docker-desktop/)
+and start it. On Linux, a NAS or a mini PC, any recent Docker with Compose works.
+
+**2. Write the compose file.** Make a folder (for example `~/ps5upload`), and in it a file
+named `compose.yaml`. On **Linux**, copy [`engine/compose.yaml`](engine/compose.yaml) as it is and
+edit the three values marked `EDIT`. On a **Mac or Windows PC**, Docker Desktop has no host
+networking, so publish the engine's port instead and tell the engine the computer's own address:
+
+```yaml
+services:
+  ps5upload:
+    image: ghcr.io/phantomptr/ps5upload-engine-webui:latest
+    container_name: ps5upload
+    restart: unless-stopped
+    ports:
+      - "19113:19113"
+    environment:
+      PS5_ADDR: "192.168.1.50"            # your PS5's IP
+      PS5UPLOAD_PKG_HOST_IP: "192.168.1.10" # this computer's IP (step 3)
+      PS5UPLOAD_ALLOW_IP: "192.168.1.0/24"  # who may use it (step 5)
+      PS5UPLOAD_BROWSE_ROOTS: "/pkgs"
+    volumes:
+      - ps5upload-data:/data
+      - /Users/you/PS5:/pkgs:ro             # your packages and game folders
+
+volumes:
+  ps5upload-data:
+```
+
+- Keep port **19113** the same on both sides (`"19113:19113"`). The PS5 downloads packages from
+  that port during Stream & install, and the engine tells it to use 19113.
+- `PS5UPLOAD_PKG_HOST_IP` is the address the PS5 is told to download from. Without it, a stream
+  install hands the PS5 an address inside Docker that it cannot reach.
+- `/pkgs` is what the web UI's file picker shows: change `/Users/you/PS5` to the folder that holds
+  your `.pkg` files and games. The picker browses this computer, not your phone. To send a package
+  that is on the phone itself, use **Install Package → From this device**.
+- `ps5upload-data` holds the engine's pairing key and saved settings. Don't delete it, or the PS5
+  sees a new device and you pair again.
+- Quit the PS5Upload desktop app on this computer first: it also uses port 19113.
+
+**3. Find the computer's IP address.** On a Mac: **System Settings → Wi-Fi** (or **Network →
+Ethernet**) → **Details** → **TCP/IP**, or run `ipconfig getifaddr en0` in Terminal. Put it in
+`PS5UPLOAD_PKG_HOST_IP`. Give the computer and the PS5 fixed addresses in your router if you can,
+so they don't change.
+
+**4. Start it.** In that folder run `docker compose up -d`. `docker compose pull` followed by
+`docker compose up -d` updates it later.
+
+**5. Open it on your phone.** On the same Wi-Fi, open `http://<computer's IP>:19113/` in Safari
+(or any browser), for example `http://192.168.1.10:19113/`. On an iPhone, tap **Share → Add to
+Home Screen** to get an app icon. If the page says **"loopback only: this engine refused"**
+followed by an address, the engine saw your phone as that address. Add it to `PS5UPLOAD_ALLOW_IP`
+(comma-separated, for example `"192.168.1.0/24,192.168.65.1"`) and run `docker compose up -d`
+again. Docker Desktop often shows every device as one internal address like that one, which is
+also the address the PS5's downloads come from, so stream installs need it allowed too.
+
+**6. Pair with the PS5.** On the **Connection** screen press **Send helper**, and the web UI
+pairs by itself. If your desktop app is already paired and the console shows no code, see "The
+web UI says it isn't paired, and no code shows on the console."
+
+**7. Keep the computer awake.** A sleeping computer takes the engine with it, and the page stops
+answering. On a Mac, turn on **System Settings → Battery → Options → Prevent automatic sleeping on
+power adapter when the display is off** (desktop Macs: **Energy**), or run `caffeinate -s` in a
+Terminal window and leave it open. A MacBook still sleeps when its lid is closed unless an
+external display is attached, so leave the lid open. In Docker Desktop's settings, turn on
+**Start Docker Desktop when you sign in to your computer** so it comes back after a restart;
+`restart: unless-stopped` brings the engine back with it.
+
+**Keep it on your home network.** The engine has **no password**: anyone who can open the page can
+install, delete and read files on your PS5. `PS5UPLOAD_ALLOW_IP` limits who that is; keep it to
+your own network, and never forward port 19113 on your router or open it to the internet.
 
 **Q: What is "Stream install"?**
 It installs a `.pkg` **straight from your computer**: the PS5 pulls the bytes over your network, so
