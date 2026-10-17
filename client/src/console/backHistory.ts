@@ -21,7 +21,9 @@
  *
  * On the PS5 (opts.onRoot) the guard stays up on the first screen too, and ○
  * there calls onRoot (window.close(): the browser goes back to the PS5's home
- * screen, as Payload Manager does). If the page is still open after that, the
+ * screen, as Payload Manager does). Escape, Backspace and a gamepad ○ take
+ * the same path (requestBack → history.back()), so on the PS5 they too close
+ * the browser from Home with nothing open. If the page is still open after that, the
  * guard is left down so the next ○ does what the browser does by itself.
  *
  * WebKit can fire a popstate as the page loads that pops nothing. Such a pop

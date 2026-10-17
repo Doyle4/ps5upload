@@ -11,14 +11,16 @@
  *   - the appcache (<html manifest="/cache.appcache">), the fallback the PS5
  *     browser honours for Payload Manager: the page is its only cached entry
  *     (NETWORK: * lets everything else through). An appcache serves its copy
- *     first and updates behind it, so a newer page reloads once on
- *     "updateready" (only right after the page opened, never mid-task).
+ *     first and updates behind it, so on "updateready" the page offers a
+ *     one-press reload (UpdateBanner, update.ts), never reloading by itself.
  *
  * vite.console.config.ts writes both files next to the page with the page's
  * hash in them (a new build = a new cache), and payload/Makefile embeds them in
  * the helper. With the copy shown and the helper away, GET /api/token fails:
  * main.tsx shows the offline screen (OfflinePage) and reloads once it answers.
  */
+
+import { markUpdateReady } from "./update";
 
 /** The service worker. `__CW_SW_V__` is replaced with the page's build hash. */
 export const SW_SOURCE = `/* PS5Upload Files: offline copy of the page (generated; see offlineCopy.ts) */
@@ -82,9 +84,6 @@ export function serviceWorkerSource(version: string): string {
   return SW_SOURCE.split("__CW_SW_V__").join(version);
 }
 
-/** An appcache update this soon after the page opened reloads into it; later it waits for the next open. */
-export const APPCACHE_RELOAD_WINDOW_MS = 20_000;
-
 interface AppCacheLike {
   addEventListener(type: "updateready", fn: () => void): void;
   swapCache?: () => void;
@@ -95,7 +94,7 @@ interface AppCacheLike {
  * console's own browser at 127.0.0.1, not a phone at the console's LAN address) and follow the
  * appcache's updates. Never throws; nothing here is needed for the page to work.
  */
-export function installOfflineCopy(win: Window = window, startedAt: number = Date.now()): void {
+export function installOfflineCopy(win: Window = window, onUpdate: () => void = markUpdateReady): void {
   try {
     const nav = win.navigator as Navigator & { serviceWorker?: ServiceWorkerContainer };
     if (win.isSecureContext && nav.serviceWorker && typeof nav.serviceWorker.register === "function") {
@@ -108,13 +107,12 @@ export function installOfflineCopy(win: Window = window, startedAt: number = Dat
     const ac = (win as unknown as { applicationCache?: AppCacheLike }).applicationCache;
     if (ac && typeof ac.addEventListener === "function") {
       ac.addEventListener("updateready", () => {
-        if (Date.now() - startedAt > APPCACHE_RELOAD_WINDOW_MS) return;
         try {
           ac.swapCache?.();
         } catch {
           /* already swapped */
         }
-        win.location.reload();
+        onUpdate(); // the banner: one press reloads into the new page
       });
     }
   } catch {

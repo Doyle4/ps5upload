@@ -4074,6 +4074,8 @@ c2c_test_deep_bad: "لم يصل الإرسال التجريبي بحجم 4 KiB: 
 "cw_phone_qr_label": "رمز QR لعنوان هذه الصفحة",
 "cw_files_fixperm_many": "إصلاح أذونات {n} عناصر",
 "cw_cheats_err_busy": "يغيّر تطبيق آخر غشّ هذه اللعبة الآن. حاول مرة أخرى بعد قليل.",
+"cw_update_ready": "تم تحديث PS5Upload Files. أعد التحميل لاستخدام الإصدار الجديد.",
+"cw_update_later": "لاحقًا",
 "cw_hints_label": "أزرار وحدة التحكم",
 "cw_task_from_console": "من هذا الجهاز",
 "cw_task_from_pc": "من حاسوب",

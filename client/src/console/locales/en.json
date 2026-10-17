@@ -414,5 +414,7 @@
   "cw_tour_label": "Tips",
   "cw_tour_next": "Next",
   "cw_tour_skip": "Skip",
-  "cw_tour_step": "{n} of {total}"
+  "cw_tour_step": "{n} of {total}",
+  "cw_update_later": "Later",
+  "cw_update_ready": "PS5Upload Files was updated. Reload to use the new version."
 }

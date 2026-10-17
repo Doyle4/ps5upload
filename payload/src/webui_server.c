@@ -138,11 +138,13 @@ static int thread_start(pthread_t *t, void *(*fn)(void *), void *arg) {
     return rc == 0 ? 0 : -1;
 }
 
-/* The console's IPv4 addresses, for the LAN Host check. */
-static size_t own_addrs(char out[WEBUI_MAX_ADDRS][INET_ADDRSTRLEN]) {
+/* The console's IPv4 addresses, for the LAN Host check; -1 when they could not be read
+ * (getifaddrs failed: the caller keeps the list it has, so a passing failure never looks like an
+ * address change). */
+static int own_addrs(char out[WEBUI_MAX_ADDRS][INET_ADDRSTRLEN]) {
     struct ifaddrs *ifa = NULL, *p;
-    size_t n = 0;
-    if (getifaddrs(&ifa) != 0) return 0;
+    int n = 0;
+    if (getifaddrs(&ifa) != 0) return -1;
     for (p = ifa; p && n < WEBUI_MAX_ADDRS; p = p->ifa_next) {
         if (!p->ifa_addr || p->ifa_addr->sa_family != AF_INET) continue;
         if (!inet_ntop(AF_INET, &((struct sockaddr_in *)(void *)p->ifa_addr)->sin_addr,
@@ -484,7 +486,7 @@ static void watch_listener(srv_t *s, uint64_t *mono_prev, int64_t *real_prev) {
     int64_t real = real_ms();
     int resumed, lan, changed = 0;
     char addrs[WEBUI_MAX_ADDRS][INET_ADDRSTRLEN];
-    size_t n = 0;
+    int n = -1;
     resumed = webui_watch_resumed(*mono_prev, mono, *real_prev, real);
     *mono_prev = mono;
     *real_prev = real;
@@ -493,16 +495,17 @@ static void watch_listener(srv_t *s, uint64_t *mono_prev, int64_t *real_prev) {
     pthread_mutex_unlock(&s->mu);
     if (lan) n = own_addrs(addrs);
     pthread_mutex_lock(&s->mu);
-    if (lan && s->lan && webui_addrs_differ((const char (*)[INET_ADDRSTRLEN])s->addrs, s->n_addrs,
-                                            (const char (*)[INET_ADDRSTRLEN])addrs, n)) {
+    if (lan && s->lan && n >= 0 &&
+        webui_addrs_differ((const char (*)[INET_ADDRSTRLEN])s->addrs, s->n_addrs,
+                           (const char (*)[INET_ADDRSTRLEN])addrs, (size_t)n)) {
         memcpy(s->addrs, addrs, sizeof addrs);
-        s->n_addrs = n;
+        s->n_addrs = (size_t)n;
         changed = 1;
     }
     if ((resumed || changed) && s->listen_fd >= 0) drop_listener_locked(s);
     pthread_mutex_unlock(&s->mu);
     if (resumed) fprintf(stderr, "webui: resumed (clock gap); rebinding port %u\n", (unsigned)s->port);
-    if (changed) fprintf(stderr, "webui: console addresses changed (%u now); rebinding port %u\n", (unsigned)n, (unsigned)s->port);
+    if (changed) fprintf(stderr, "webui: console addresses changed (%d now); rebinding port %u\n", n, (unsigned)s->port);
 }
 
 static void *accept_main(void *arg) {
@@ -592,11 +595,16 @@ static void *accept_main(void *arg) {
             /* Never leave the loop on an accept error (a stray errno once killed a helper's
              * server); back off briefly on the ones that would otherwise spin, and rebind when they
              * go on for WEBUI_BROKEN_MS. */
-            if (errno != EAGAIN && errno != EWOULDBLOCK && errno != EINTR && errno != ECONNABORTED) {
+            int e = errno;
+            if (e == EMFILE || e == ENFILE || e == ENOBUFS || e == ENOMEM) {
+                /* Out of descriptors or buffers: the listener is fine, the process or system is
+                 * busy. Back off; a rebind would not help and must not be counted toward one. */
+                nap_ms(50);
+            } else if (e != EAGAIN && e != EWOULDBLOCK && e != EINTR && e != ECONNABORTED) {
                 if (!err_since) err_since = mono_ms();
                 else if (webui_watch_broken(err_since, mono_ms())) {
                     fprintf(stderr, "webui: accept on port %u failing for %u ms (errno %d); rebinding\n",
-                            (unsigned)s->port, (unsigned)WEBUI_BROKEN_MS, errno);
+                            (unsigned)s->port, (unsigned)WEBUI_BROKEN_MS, e);
                     pthread_mutex_lock(&s->mu);
                     if (s->listen_fd == fd) drop_listener_locked(s);
                     pthread_mutex_unlock(&s->mu);
@@ -714,7 +722,10 @@ int webui_start(const webui_cfg_t *cfg) {
     s->route = cfg->route;
     s->lan = cfg->lan ? 1 : 0;
     webui_token_new(s->token);
-    if (s->lan) s->n_addrs = own_addrs(s->addrs);
+    if (s->lan) {
+        int got = own_addrs(s->addrs);
+        s->n_addrs = got > 0 ? (size_t)got : 0;
+    }
 
     /* First bind here so the server answers as soon as start returns; on failure the accept
      * thread retries (a takeover's old instance may still hold the port for a moment). */
@@ -788,9 +799,12 @@ int webui_restart(int lan) {
     size_t n = 0;
     unsigned gen;
     uint64_t end;
-    int bound = 0;
+    int bound = 0, got = -1;
 
-    if (lan) n = own_addrs(addrs);
+    if (lan) {
+        got = own_addrs(addrs);
+        n = got > 0 ? (size_t)got : 0;
+    }
     pthread_mutex_lock(&g_life);
     s = g_srv;
     if (!s) {
@@ -799,8 +813,10 @@ int webui_restart(int lan) {
     }
     pthread_mutex_lock(&s->mu);
     s->lan = lan ? 1 : 0;
-    s->n_addrs = n;
-    if (n) memcpy(s->addrs, addrs, sizeof addrs);
+    if (!lan || got >= 0) { /* a failed read keeps the list it had */
+        s->n_addrs = n;
+        if (n) memcpy(s->addrs, addrs, sizeof addrs);
+    }
     s->rebind_req = 1;
     gen = s->bind_gen;
     s->refs++;

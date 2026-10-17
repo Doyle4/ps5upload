@@ -4090,6 +4090,8 @@ c2c_test_deep_bad: "4 KiB का परीक्षण नहीं पहुँ
 "cw_phone_qr_label": "इस पेज के पते का QR कोड",
 "cw_files_fixperm_many": "{n} आइटम की अनुमतियाँ ठीक करें",
 "cw_cheats_err_busy": "कोई दूसरा ऐप अभी इस गेम के चीट बदल रहा है। थोड़ी देर में फिर से कोशिश करें।",
+"cw_update_ready": "PS5Upload Files अपडेट हो गया है। नया संस्करण इस्तेमाल करने के लिए फिर से लोड करें।",
+"cw_update_later": "बाद में",
 "cw_hints_label": "कंट्रोलर के बटन",
 "cw_task_from_console": "इस कंसोल से",
 "cw_task_from_pc": "PC से",

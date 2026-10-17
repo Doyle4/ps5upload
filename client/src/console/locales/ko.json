@@ -414,5 +414,7 @@
   "cw_tour_label": "팁",
   "cw_tour_next": "다음",
   "cw_tour_skip": "건너뛰기",
-  "cw_tour_step": "{n} / {total}"
+  "cw_tour_step": "{n} / {total}",
+  "cw_update_later": "나중에",
+  "cw_update_ready": "PS5Upload Files가 업데이트되었습니다. 새 버전을 사용하려면 다시 불러오세요."
 }

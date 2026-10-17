@@ -118,4 +118,20 @@ describe("probeHelper (is the helper there, or is this the offline copy?)", () =
     globalThis.fetch = (async () => jsonResponse(500, { error: "x" })) as typeof fetch;
     expect(await api.probeHelper()).toBe(true);
   });
+
+  it("a token read that never answers gives up after TOKEN_TIMEOUT_MS (offline screen, not a blank page)", async () => {
+    vi.useFakeTimers();
+    try {
+      globalThis.fetch = ((_u: unknown, init?: RequestInit) =>
+        new Promise<Response>((_res, rej) => {
+          init?.signal?.addEventListener("abort", () => rej(new Error("aborted")));
+        })) as typeof fetch;
+      const p = api.probeHelper();
+      await vi.advanceTimersByTimeAsync(api.TOKEN_TIMEOUT_MS);
+      expect(await p).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
+

@@ -414,5 +414,7 @@
   "cw_tour_label": "İpuçları",
   "cw_tour_next": "İleri",
   "cw_tour_skip": "Atla",
-  "cw_tour_step": "{n} / {total}"
+  "cw_tour_step": "{n} / {total}",
+  "cw_update_later": "Sonra",
+  "cw_update_ready": "PS5Upload Files güncellendi. Yeni sürümü kullanmak için yeniden yükleyin."
 }

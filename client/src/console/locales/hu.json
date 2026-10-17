@@ -414,5 +414,7 @@
   "cw_tour_label": "Tippek",
   "cw_tour_next": "Tovább",
   "cw_tour_skip": "Kihagyás",
-  "cw_tour_step": "{n} / {total}"
+  "cw_tour_step": "{n} / {total}",
+  "cw_update_later": "Később",
+  "cw_update_ready": "A PS5Upload Files frissült. Töltsd újra az új verzió használatához."
 }

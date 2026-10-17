@@ -414,5 +414,7 @@
   "cw_tour_label": "Dicas",
   "cw_tour_next": "Próxima",
   "cw_tour_skip": "Pular",
-  "cw_tour_step": "{n} de {total}"
+  "cw_tour_step": "{n} de {total}",
+  "cw_update_later": "Depois",
+  "cw_update_ready": "O PS5Upload Files foi atualizado. Recarregue para usar a nova versão."
 }

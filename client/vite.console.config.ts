@@ -202,7 +202,11 @@ function escapeRe(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+/** The app version the page was built with (package.json; the helper's /api/settings version is the same). */
+const APP_VERSION = (JSON.parse(readFileSync(fileURLToPath(new URL("./package.json", import.meta.url)), "utf8")) as { version: string }).version;
+
 export default defineConfig({
+  define: { __CW_APP_V__: JSON.stringify(APP_VERSION) },
   root: fileURLToPath(new URL("./src/console", import.meta.url)),
   base: "./",
   publicDir: false,

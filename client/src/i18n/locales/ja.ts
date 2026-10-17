@@ -4095,6 +4095,8 @@ c2c_test_deep_bad: "4 KiB のテスト送信が届きませんでした: {detail
 "cw_phone_qr_label": "このページのアドレスの QR コード",
 "cw_files_fixperm_many": "{n} 件の権限を修正",
 "cw_cheats_err_busy": "別のアプリが今このゲームのチートを変更しています。少し待ってからもう一度お試しください。",
+"cw_update_ready": "PS5Upload Files が更新されました。新しいバージョンを使うには再読み込みしてください。",
+"cw_update_later": "後で",
 "cw_hints_label": "コントローラーのボタン",
 "cw_task_from_console": "このコンソールから",
 "cw_task_from_pc": "PCから",

@@ -4083,6 +4083,8 @@ c2c_test_deep_bad: "การส่งทดสอบ 4 KiB ไปไม่ถ�
 "cw_phone_qr_label": "คิวอาร์โค้ดของที่อยู่หน้านี้",
 "cw_files_fixperm_many": "แก้ไขสิทธิ์ของ {n} รายการ",
 "cw_cheats_err_busy": "มีแอปอื่นกำลังเปลี่ยนสูตรโกงของเกมนี้อยู่ ลองอีกครั้งในอีกสักครู่",
+"cw_update_ready": "PS5Upload Files ได้รับการอัปเดตแล้ว โหลดใหม่เพื่อใช้เวอร์ชันใหม่",
+"cw_update_later": "ภายหลัง",
 "cw_hints_label": "ปุ่มคอนโทรลเลอร์",
 "cw_task_from_console": "จากคอนโซลนี้",
 "cw_task_from_pc": "จาก PC",

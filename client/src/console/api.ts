@@ -39,12 +39,19 @@ export function onTokenExpired(fn: () => void): () => void {
 
 let tokenPromise: Promise<string> | null = null;
 
+/** A token read that has not answered by then counts as "nothing answered" (the offline screen). */
+export const TOKEN_TIMEOUT_MS = 4000;
+
 async function fetchToken(): Promise<string> {
   let res: Response;
+  const stop = typeof AbortController === "function" ? new AbortController() : null;
+  const timer = setTimeout(() => stop?.abort(), TOKEN_TIMEOUT_MS);
   try {
-    res = await fetch("/api/token", { method: "GET", credentials: "same-origin", cache: "no-store" });
+    res = await fetch("/api/token", { method: "GET", credentials: "same-origin", cache: "no-store", signal: stop?.signal });
   } catch {
     throw new ApiError(0, "offline");
+  } finally {
+    clearTimeout(timer);
   }
   if (!res.ok) throw new ApiError(res.status, res.status === 503 ? "stopping" : "token_unavailable");
   // Anything but JSON (another server on the port, a captive page) is not the helper.

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { APPCACHE_RELOAD_WINDOW_MS, appcacheManifest, installOfflineCopy, serviceWorkerSource } from "./offlineCopy";
+import { appcacheManifest, installOfflineCopy, serviceWorkerSource } from "./offlineCopy";
 
 /** The service worker run against a fake worker scope: caches in a Map, a scripted network. */
 function worker(network: (url: string) => Promise<Response>) {
@@ -134,22 +134,20 @@ describe("offline copy: appcache and registration", () => {
 
   it("registers the worker at / in a secure context (the console's 127.0.0.1) only", () => {
     const a = fakeWindow(true);
-    installOfflineCopy(a.win as unknown as Window, Date.now());
+    installOfflineCopy(a.win as unknown as Window, vi.fn());
     expect(a.win.navigator.serviceWorker.register).toHaveBeenCalledWith("/sw.js", { scope: "/" });
     const b = fakeWindow(false); // a phone at the console's LAN address
-    installOfflineCopy(b.win as unknown as Window, Date.now());
+    installOfflineCopy(b.win as unknown as Window, vi.fn());
     expect(b.win.navigator.serviceWorker.register).not.toHaveBeenCalled();
   });
 
-  it("a newer appcache copy reloads right after opening, never later", () => {
+  it("a newer appcache copy offers the reload banner instead of reloading by itself", () => {
     const a = fakeWindow(true);
-    installOfflineCopy(a.win as unknown as Window, Date.now());
+    const onUpdate = vi.fn();
+    installOfflineCopy(a.win as unknown as Window, onUpdate);
     a.fns.updateready();
     expect(a.win.applicationCache.swapCache).toHaveBeenCalled();
-    expect(a.win.location.reload).toHaveBeenCalledTimes(1);
-    const b = fakeWindow(true);
-    installOfflineCopy(b.win as unknown as Window, Date.now() - APPCACHE_RELOAD_WINDOW_MS - 1);
-    b.fns.updateready();
-    expect(b.win.location.reload).not.toHaveBeenCalled();
+    expect(onUpdate).toHaveBeenCalledTimes(1);
+    expect(a.win.location.reload).not.toHaveBeenCalled();
   });
 });

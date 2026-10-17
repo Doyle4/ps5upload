@@ -3,16 +3,18 @@ import { createRoot } from "react-dom/client";
 import "virtual:pc-tokens.css";
 import "./console.css";
 import { App } from "./App";
-import { probeHelper } from "./api";
+import { call, probeHelper } from "./api";
 import { installBackHistory } from "./backHistory";
 import { installFullscreen } from "./fullscreen";
 import { installMarquee } from "./ui/marquee";
 import { DEFAULT_INPUT_MAP, dispatchNav, installNavigation } from "./nav";
 import { installOfflineCopy } from "./offline/offlineCopy";
 import { OfflinePage } from "./offline/OfflinePage";
+import { UpdateBanner } from "./offline/UpdateBanner";
+import { isNewerHelper, markUpdateReady } from "./offline/update";
 import { ErrorBoundary } from "./ui/ErrorBoundary";
 import { applyStoredTheme } from "./theme";
-import { getLanguage, onLanguageChange, setLanguage, stringsVersion } from "./strings";
+import { getLanguage, onLanguageChange, setLanguage, stringsVersion, t } from "./strings";
 
 applyStoredTheme(); // before the first paint: no flash of the wrong theme
 // English is in the page; the detected (or stored) language loads from the helper and the page
@@ -40,15 +42,35 @@ function Root() {
   useEffect(() => {
     let live = true;
     void probeHelper().then((ok) => {
-      if (live) setUp(ok);
+      if (!live) return;
+      setUp(ok);
+      // An older page than the helper (the browser's offline copy, or the helper updated
+      // underneath): offer the one-press reload. An older helper's reply is just not compared.
+      if (ok) {
+        call<{ version?: unknown }>("/api/settings").then(
+          (s) => {
+            if (isNewerHelper(s?.version)) markUpdateReady();
+          },
+          () => undefined,
+        );
+      }
     });
     return () => {
       live = false;
     };
   }, []);
-  if (up === null) return null;
+  // A moment at most (the token read gives up after 4 s): the name, not a blank screen.
+  if (up === null)
+    return (
+      <div className="cw-splash" aria-busy="true">
+        {t("cw_settings_app_name")}
+      </div>
+    );
   return (
-    <ErrorBoundary>{up ? <App inputMap={DEFAULT_INPUT_MAP} /> : <OfflinePage />}</ErrorBoundary>
+    <ErrorBoundary>
+      {up ? <App inputMap={DEFAULT_INPUT_MAP} /> : <OfflinePage />}
+      <UpdateBanner />
+    </ErrorBoundary>
   );
 }
 

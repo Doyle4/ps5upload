@@ -4093,6 +4093,8 @@ c2c_test_deep_bad: "4 KiB 테스트 전송이 도착하지 않았습니다: {det
 "cw_phone_qr_label": "이 페이지 주소의 QR 코드",
 "cw_files_fixperm_many": "항목 {n}개의 권한 수정",
 "cw_cheats_err_busy": "다른 앱이 지금 이 게임의 치트를 바꾸고 있습니다. 잠시 후 다시 시도하세요.",
+"cw_update_ready": "PS5Upload Files가 업데이트되었습니다. 새 버전을 사용하려면 다시 불러오세요.",
+"cw_update_later": "나중에",
 "cw_hints_label": "컨트롤러 버튼",
 "cw_task_from_console": "이 콘솔에서",
 "cw_task_from_pc": "PC에서",

@@ -414,5 +414,7 @@
   "cw_tour_label": "نصائح",
   "cw_tour_next": "التالي",
   "cw_tour_skip": "تخطٍّ",
-  "cw_tour_step": "{n} من {total}"
+  "cw_tour_step": "{n} من {total}",
+  "cw_update_later": "لاحقًا",
+  "cw_update_ready": "تم تحديث PS5Upload Files. أعد التحميل لاستخدام الإصدار الجديد."
 }

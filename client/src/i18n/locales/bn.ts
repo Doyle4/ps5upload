@@ -4074,6 +4074,8 @@ c2c_test_deep_bad: "4 KiB-এর পরীক্ষামূলক পাঠা�
 "cw_phone_qr_label": "এই পাতার ঠিকানার QR কোড",
 "cw_files_fixperm_many": "{n}টি আইটেমের অনুমতি ঠিক করুন",
 "cw_cheats_err_busy": "অন্য একটি অ্যাপ এখন এই গেমের চিট বদলাচ্ছে। একটু পরে আবার চেষ্টা করুন।",
+"cw_update_ready": "PS5Upload Files আপডেট হয়েছে। নতুন সংস্করণ ব্যবহার করতে আবার লোড করুন।",
+"cw_update_later": "পরে",
 "cw_hints_label": "কন্ট্রোলারের বোতাম",
 "cw_task_from_console": "এই কনসোল থেকে",
 "cw_task_from_pc": "PC থেকে",

@@ -17,6 +17,11 @@ export function phoneUrl(info: LanInfo | null, port: string): string | null {
   return `http://${info.addr}:${p}/`;
 }
 
+/** The console's own browser (the page at 127.0.0.1): a phone or PC already has a keyboard. */
+export function onConsoleBrowser(host: string = typeof location !== "undefined" ? location.hostname : ""): boolean {
+  return host === "127.0.0.1" || host === "localhost";
+}
+
 /** Read once per page and kept briefly: every text dialog asks, the answer rarely changes. */
 const KEEP_MS = 30_000;
 let cached: { at: number; url: string | null } | null = null;
@@ -53,11 +58,14 @@ export function forgetPhoneUrl(): void {
  * "Continue on your phone": in dialogs where the user types (rename, bulk
  * rename, go to path), when LAN access is on, a QR code and the address of this
  * page on the console's IP, so the typing can happen on a phone. Nothing shows
- * while LAN access is off (the address would not answer).
+ * while LAN access is off (the address would not answer), nor when the page is
+ * already open on a phone or PC (not at 127.0.0.1).
  */
-export function PhoneHandoff() {
-  const [url, setUrl] = useState<string | null>(cached?.url ?? null);
+export function PhoneHandoff({ host }: { host?: string } = {}) {
+  const here = onConsoleBrowser(host);
+  const [url, setUrl] = useState<string | null>(here ? (cached?.url ?? null) : null);
   useEffect(() => {
+    if (!here) return;
     let live = true;
     void loadPhoneUrl().then((u) => {
       if (live) setUrl(u);
@@ -65,7 +73,7 @@ export function PhoneHandoff() {
     return () => {
       live = false;
     };
-  }, []);
+  }, [here]);
   const path = useMemo(() => {
     if (!url) return null;
     try {
@@ -75,7 +83,7 @@ export function PhoneHandoff() {
       return null;
     }
   }, [url]);
-  if (!url || !path) return null;
+  if (!here || !url || !path) return null;
   return (
     <div className="cw-phone" data-phone="">
       <svg viewBox={`0 0 ${path.n} ${path.n}`} role="img" aria-label={t("cw_phone_qr_label")} shapeRendering="crispEdges">

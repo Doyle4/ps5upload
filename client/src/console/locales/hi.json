@@ -414,5 +414,7 @@
   "cw_tour_label": "सुझाव",
   "cw_tour_next": "आगे",
   "cw_tour_skip": "छोड़ें",
-  "cw_tour_step": "{total} में से {n}"
+  "cw_tour_step": "{total} में से {n}",
+  "cw_update_later": "बाद में",
+  "cw_update_ready": "PS5Upload Files अपडेट हो गया है। नया संस्करण इस्तेमाल करने के लिए फिर से लोड करें।"
 }
