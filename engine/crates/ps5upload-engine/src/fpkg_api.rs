@@ -900,7 +900,15 @@ pub(crate) async fn exfat_build_handler(
     let check_packs = packs.is_some();
     let install_runtime = req.ampr_lz4.as_ref().is_some_and(|r| r.install_runtime);
     let scanned = tokio::task::spawn_blocking(move || {
-        let mut tree = ps5upload_fpkg::source::open(&scan_source).map_err(|e| e.to_string())?;
+        // A UFS2 image (.ffpkg) is case-sensitive like /data: give modules the eboot's spelling.
+        let (mut tree, renamed) =
+            ps5upload_fpkg::module_case::open(&scan_source).map_err(|e| e.to_string())?;
+        if !renamed.is_empty() {
+            crate::log_info!(
+                "image build: renamed to the eboot's spelling: {}",
+                ps5upload_fpkg::module_case::describe(&renamed)
+            );
+        }
         if check_packs && install_runtime {
             // The game's own ampr_emu is missing or too old for packs: the image gets the
             // release one, its own kept beside it. Only for a game that reads through AMPR.
@@ -1238,7 +1246,18 @@ pub(crate) async fn folder_build_handler(
     }
     let scan_source = source.clone();
     let scanned = tokio::task::spawn_blocking(move || {
-        ps5upload_fpkg::source::open(&scan_source).map_err(|e| e.to_string())
+        // An image ignores letter case and /data does not: a Unity dump whose
+        // Il2cppUserAssemblies.prx the eboot loads as Il2CppUserAssemblies.prx plays from the
+        // image and crashes a second in from the folder. The folder takes the eboot's spelling.
+        let (tree, renamed) =
+            ps5upload_fpkg::module_case::open(&scan_source).map_err(|e| e.to_string())?;
+        if !renamed.is_empty() {
+            crate::log_info!(
+                "folder build: renamed to the eboot's spelling: {}",
+                ps5upload_fpkg::module_case::describe(&renamed)
+            );
+        }
+        Ok::<_, String>(tree)
     })
     .await;
     let tree = match scanned {
@@ -1343,8 +1362,12 @@ pub(crate) async fn folder_build_handler(
             });
         };
         let reopen_source = source.clone();
-        let reopen =
-            move || ps5upload_fpkg::source::open(&reopen_source).map_err(|e| e.to_string());
+        // Verification reads the source afresh by the folder's names, so with the same renames.
+        let reopen = move || {
+            ps5upload_fpkg::module_case::open(&reopen_source)
+                .map(|(t, _)| t)
+                .map_err(|e| e.to_string())
+        };
         let outcome = folder_build::build(&mut *tree, &reopen, &target, mode, &cancel, &mut report);
         drop(tree);
         drop(writing);

@@ -4,6 +4,17 @@ What's new in ps5upload, written for humans.
 
 ---
 
+## 7.0.34
+
+- **Unity games no longer crash when they run as a folder.** Some game dumps name a file
+  `Il2cppUserAssemblies.prx` while the game loads `Il2CppUserAssemblies.prx`. An exFAT image
+  ignores the difference, so the game played from its `.exfat`. The console's internal storage
+  does not: the same game uploaded as a folder, or converted to one, crashed a second after it
+  started. Uploading a game folder, and Convert's game-folder and `.ffpkg` outputs, now give each
+  such file the spelling the game loads. Your copy on the computer is left as it is, and
+  Convert's checks list what was renamed. Four affected games (PPSA22999, PPSA30883, PPSA31909,
+  PPSA33090) launched and stayed running on a PS5 Pro (FW 13.60) once renamed.
+
 ## 7.0.33
 
 - **A PS5 update package installs even when its base game isn't there.** The app refused any

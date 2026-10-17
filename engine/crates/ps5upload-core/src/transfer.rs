@@ -49,6 +49,10 @@ pub struct TransferConfig {
     /// its next checkpoint and returns a `transfer_cancelled` error instead of finishing.
     /// `None` = never cancel.
     pub cancel: Option<std::sync::Arc<std::sync::atomic::AtomicBool>>,
+    /// Folder uploads: files that land under another name, as (path in the source, path on
+    /// the console), both relative to the folder. Only the last component may differ. Used to
+    /// give a game's modules the letter case its eboot loads them by, which /data enforces.
+    pub renames: Vec<(String, String)>,
 }
 
 impl TransferConfig {
@@ -65,6 +69,7 @@ impl TransferConfig {
             bandwidth_cap_bps: None,
             cancel: None,
             source_fs: None,
+            renames: Vec::new(),
         }
     }
 

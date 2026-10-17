@@ -624,6 +624,15 @@ fn source_for(cfg: &TransferConfig, root: &Path) -> Arc<dyn Source> {
     }
 }
 
+/// [`source_for`] a folder upload, with the config's renames applied.
+fn dir_source_for(cfg: &TransferConfig, root: &Path) -> Arc<dyn Source> {
+    let source = source_for(cfg, root);
+    if cfg.renames.is_empty() {
+        return source;
+    }
+    Arc::new(crate::source::RenamedSource::new(source, &cfg.renames))
+}
+
 /// One upload, retried across connection loss with the same `job_id`: the console's
 /// journal resumes the job, and durable progress bounds the retries.
 pub fn upload_with_in(
@@ -918,7 +927,7 @@ pub fn upload_dir_in(
     dest_root: &str,
     src_dir: &Path,
 ) -> Result<TransferResult> {
-    let source = source_for(cfg, src_dir);
+    let source = dir_source_for(cfg, src_dir);
     let excludes = cfg.excludes.clone();
     // The same matcher the engine uses, so excludes behave identically.
     let manifest = manifest::walk(source.as_ref(), &|p: &str| {
@@ -945,7 +954,7 @@ pub fn upload_dir_skip_existing_in(
     src_dir: &Path,
     mode: SkipMode,
 ) -> Result<TransferResult> {
-    let source = source_for(cfg, src_dir);
+    let source = dir_source_for(cfg, src_dir);
     let excludes = cfg.excludes.clone();
     let mut manifest = manifest::walk(source.as_ref(), &|p: &str| {
         ps5upload_core::excludes::is_excluded_strings(Path::new(p), &excludes)

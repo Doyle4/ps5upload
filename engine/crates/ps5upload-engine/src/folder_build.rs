@@ -528,6 +528,64 @@ mod tests {
         r
     }
 
+    /// An image whose module the eboot loads in another letter case unpacks with the eboot's
+    /// spelling, and verifies: the verify stage reopens the source, and must see the same names
+    /// the write did (it failed with "not in this exFAT volume" when it did not).
+    #[test]
+    fn a_module_takes_the_eboot_spelling_and_the_folder_verifies() {
+        let root = scratch("case");
+        let src = root.join("PPSA77777");
+        std::fs::create_dir_all(src.join("Media/Modules")).unwrap();
+        std::fs::create_dir_all(src.join("sce_sys")).unwrap();
+        let mut eboot = vec![7u8; 5000];
+        eboot.extend_from_slice(b"\0%s/Modules/Il2CppUserAssemblies.prx\0");
+        std::fs::write(src.join("eboot.bin"), &eboot).unwrap();
+        std::fs::write(src.join("sce_sys/param.json"), b"{}").unwrap();
+        let module: Vec<u8> = (0..70_000u32).map(|i| (i % 13) as u8).collect();
+        std::fs::write(src.join("Media/Modules/Il2cppUserAssemblies.prx"), &module).unwrap();
+        let image = root.join("PPSA77777.exfat");
+        let mut tree = FolderSource::open(&src).unwrap();
+        image_build::build(
+            ImageFormat::Exfat,
+            None,
+            &mut tree,
+            &image,
+            VerifyMode::Full,
+            8 << 20,
+            &AtomicBool::new(false),
+            &mut |_, _, _| {},
+        )
+        .unwrap();
+        let target = root.join("out");
+        let (mut tree, renamed) = ps5upload_fpkg::module_case::open(&image).unwrap();
+        assert_eq!(renamed.len(), 1);
+        let path = image.clone();
+        let reopen = move || {
+            ps5upload_fpkg::module_case::open(&path)
+                .map(|(t, _)| t)
+                .map_err(|e| e.to_string())
+        };
+        build(
+            &mut *tree,
+            &reopen,
+            &target,
+            VerifyMode::Full,
+            &AtomicBool::new(false),
+            &mut |_, _, _| {},
+        )
+        .unwrap();
+        let names: Vec<String> = std::fs::read_dir(target.join("Media/Modules"))
+            .unwrap()
+            .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+            .collect();
+        assert_eq!(names, ["Il2CppUserAssemblies.prx"]);
+        assert_eq!(
+            std::fs::read(target.join("Media/Modules/Il2CppUserAssemblies.prx")).unwrap(),
+            module
+        );
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
     /// Each image Convert writes (exFAT, UFS2, PFS, and a compressed `.ffpfsc`) unpacks into a
     /// folder equal to the one it was built from, empty folders included.
     #[test]

@@ -126,6 +126,41 @@ use ps5upload_core::{
 };
 use tower_http::cors::{AllowOrigin, Any, CorsLayer};
 
+/// The renames a game folder upload needs so each module carries the letter case its
+/// `eboot.bin` loads it by. The console's /data is case-sensitive where the exFAT image a
+/// folder often came from is not: a Unity dump with `Il2cppUserAssemblies.prx`, loaded as
+/// `Il2CppUserAssemblies.prx`, played from the image and crashed a second in from the folder
+/// (PPSA22999, PPSA31909). Empty for anything that is not a game folder; never fails an upload.
+fn module_case_renames(
+    fs: Option<&dyn ps5upload_core::source_fs::SourceFs>,
+    root: &std::path::Path,
+    requested: &str,
+) -> Vec<(String, String)> {
+    let eboot = root.join("eboot.bin");
+    let is_game = match fs {
+        Some(fs) => fs.metadata(&eboot).is_ok_and(|m| !m.is_dir),
+        None => eboot.is_file(),
+    };
+    if !is_game {
+        return Vec::new();
+    }
+    let opened = match fs {
+        Some(_) => ps5upload_fpkg::source::open(std::path::Path::new(requested)),
+        None => ps5upload_fpkg::source::open(root),
+    };
+    let Ok(mut tree) = opened else {
+        return Vec::new();
+    };
+    let fixes = ps5upload_fpkg::module_case::tree_fixes(tree.as_mut());
+    if !fixes.is_empty() {
+        crate::log_info!(
+            "transfer_dir: uploading under the eboot's spelling: {}",
+            ps5upload_fpkg::module_case::describe(&fixes)
+        );
+    }
+    fixes.into_iter().map(|c| (c.from, c.to)).collect()
+}
+
 /// Build a `TransferConfig` for the given address. The transport's own knobs (in-flight
 /// window, pack sizes) belong to AVA1's governor, so the retired shard-tuning environment
 /// variables are not read. The outbound cap (`PS5UPLOAD_BANDWIDTH_MBPS`) is the one that stays.
@@ -6234,6 +6269,7 @@ async fn transfer_dir_handler(
             return;
         }
 
+        let renames = module_case_renames(source_fs.as_deref(), &src_path, &req.src_dir);
         let walk_started = std::time::Instant::now();
         let planned = match &source_fs {
             Some(fs) => walk_plan_with(fs.as_ref(), &src_path, &req.excludes),
@@ -6318,6 +6354,7 @@ async fn transfer_dir_handler(
         // every shard boundary, flipped by POST /api/jobs/{id}/cancel.
         cfg.cancel = Some(register_transfer_cancel(job_id));
         cfg.excludes = req.excludes;
+        cfg.renames = renames;
         cfg.progress_bytes = Some(Arc::clone(&progress));
         cfg.progress_files = Some(Arc::clone(&progress_files));
         cfg.progress_files_finalized = Some(Arc::clone(&progress_files_finalized));
@@ -12620,5 +12657,35 @@ mod speed_test_file_tests {
         assert_ne!(data[..1024 * 1024], data[1024 * 1024..]);
         assert!(data.iter().any(|b| *b != 0));
         let _ = std::fs::remove_dir_all(&dir);
+    }
+}
+
+#[cfg(test)]
+mod module_case_upload_tests {
+    use super::module_case_renames;
+
+    #[test]
+    fn a_game_folder_uploads_its_modules_under_the_eboot_spelling() {
+        let d = std::env::temp_dir().join(format!("ps5u-modcase-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&d);
+        std::fs::create_dir_all(d.join("Media/Modules")).unwrap();
+        let mut eboot = vec![0u8; 4096];
+        eboot.extend_from_slice(
+            b"\0%s/Modules/Il2CppUserAssemblies.prx\0Il2cppUserAssemblies.prx\0",
+        );
+        std::fs::write(d.join("eboot.bin"), &eboot).unwrap();
+        std::fs::write(d.join("Media/Modules/Il2cppUserAssemblies.prx"), b"m").unwrap();
+        let got = module_case_renames(None, &d, &d.to_string_lossy());
+        assert_eq!(
+            got,
+            vec![(
+                "Media/Modules/Il2cppUserAssemblies.prx".to_string(),
+                "Media/Modules/Il2CppUserAssemblies.prx".to_string()
+            )]
+        );
+        // Not a game folder: nothing is read, nothing renamed.
+        std::fs::remove_file(d.join("eboot.bin")).unwrap();
+        assert!(module_case_renames(None, &d, &d.to_string_lossy()).is_empty());
+        let _ = std::fs::remove_dir_all(&d);
     }
 }
