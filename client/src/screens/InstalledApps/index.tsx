@@ -812,6 +812,11 @@ export default function InstalledAppsScreen() {
       if (probe.isStale()) return;
       setTitles(res.titles);
       setRegisteredUnavailable(res.registeredUnavailable);
+      if (res.incomplete) {
+        console.warn(
+          "[installed] the console's installed list may be incomplete (a listing or app.db read did not finish); refresh to retry",
+        );
+      }
       try {
         const sdk = await sdkScan(mgmtAddr(probe.host));
         if (!probe.isStale()) setSdkState(sdk);

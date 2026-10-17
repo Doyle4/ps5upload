@@ -281,7 +281,7 @@ export default function LibraryScreen() {
             "[library] installed-apps probe failed; disk-image rows will show filenames only:",
             e,
           );
-          return { titles: [], registeredUnavailable: true };
+          return { titles: [], registeredUnavailable: true, incomplete: true };
         }),
       ]);
       // Two ways a registered title points back at a Library row:

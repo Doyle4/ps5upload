@@ -34,6 +34,13 @@ What's new in ps5upload, written for humans.
 - **Only the console can open it by default.** In Settings you can allow other devices on your
   network (it asks first, because anyone on the network could then manage your files) and hide
   the home screen tile.
+- **Big app databases no longer hide installed games.** The console's app database was read
+  only up to its first 256 entries, and a long list could be cut shorter still, with nothing
+  saying so. On a console with many entries, a game installed by a homebrew installer (no
+  home-screen metadata folder) that sorted past that point was missing from Games. The app now
+  reads the whole database page by page. If the database still can't be read in full, games
+  whose folder and registration are on the console are listed anyway, and the app logs a warning
+  that the list may be incomplete (#473).
 
 ---
 

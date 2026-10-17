@@ -247,12 +247,103 @@ pub struct AppDbList {
     /// a caller that sees a blank name knows whether to believe it.
     #[serde(default)]
     pub source: Option<String>,
+    /// One page's window (#473): the first row it holds, the row the next page starts at, and
+    /// whether one follows. Absent from an older helper, which answers one unpaged reply, and
+    /// from the list [`appdb_query`] returns, which is every page joined.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub offset: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub next: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub more: Option<bool>,
+    /// The table's row count when the page was read (SQL reader only). A change between pages
+    /// means rows moved under the walk, so one may have been skipped: the list is truncated.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub total: Option<u64>,
+    /// True when app.db holds rows this list does not: the helper could not deliver them, a
+    /// page failed (`err` says why), the page bound was reached, or an older helper answered
+    /// a full 256 rows (its old cap, which it could not report). A truncated list is never
+    /// proof that a title is absent.
+    #[serde(default)]
+    pub truncated: bool,
 }
 
-/// Query app.db for the title_id ↔ app_id ↔ name mapping.
+/// The most app.db pages [`appdb_query`] reads. A page holds up to 512 rows, so this is
+/// far past any real console; it bounds the loop against a helper that never says it is done.
+pub const APPDB_MAX_PAGES: usize = 32;
+
+/// The row count an older, unpaged helper stopped at without saying so.
+const APPDB_LEGACY_CAP: usize = 256;
+
+/// Query app.db for the title_id ↔ app_id ↔ name mapping: every page of it (#473).
+///
+/// The helper answers a window (`{"offset":N}` in; `next`, `more` and `truncated` out); this
+/// follows it until `more` is false, at most [`APPDB_MAX_PAGES`] calls. An older helper ignores
+/// the window and answers once, which is then the whole answer. Whatever stops the walk early
+/// sets `truncated` on the result, so callers can tell a partial list from a complete one:
+/// a failure after the first page keeps the rows read so far, with the reason in `err`.
 pub fn appdb_query(addr: &str) -> Result<AppDbList> {
-    let resp = mgmt::call(addr, m::APP_DB_QUERY, &[])?;
-    Ok(serde_json::from_slice(&resp)?)
+    let mut list: Option<AppDbList> = None;
+    let mut offset: u64 = 0;
+    for _ in 0..APPDB_MAX_PAGES {
+        let body = serde_json::json!({ "offset": offset }).to_string();
+        let page = mgmt::call(addr, m::APP_DB_QUERY, body.as_bytes())
+            .and_then(|resp| Ok(serde_json::from_slice::<AppDbList>(&resp)?));
+        let mut page = match (page, list.as_mut()) {
+            (Ok(p), _) => p,
+            // Page one failing is the call failing, as it always was.
+            (Err(e), None) => return Err(e),
+            (Err(e), Some(l)) => {
+                l.truncated = true;
+                l.err = Some(format!("app.db page at row {offset}: {e:#}"));
+                break;
+            }
+        };
+        let paged = page.more.is_some() || page.next.is_some();
+        let more = page.more.unwrap_or(false);
+        let next = page.next.unwrap_or(offset + page.apps.len() as u64);
+        let got = page.apps.len();
+        let total_moved = match (list.as_ref().and_then(|l| l.total), page.total) {
+            (Some(a), Some(b)) => a != b,
+            _ => false,
+        };
+        let page_truncated = page.truncated
+            || total_moved
+            || (!paged && got >= APPDB_LEGACY_CAP)
+            // A page that claims more but does not move forward would loop.
+            || (more && next <= offset);
+        match list.as_mut() {
+            None => {
+                page.truncated = page_truncated;
+                list = Some(page);
+            }
+            Some(l) => {
+                l.apps.append(&mut page.apps);
+                l.truncated |= page_truncated;
+                if page.err.is_some() {
+                    l.err = page.err.take();
+                    l.truncated = true;
+                }
+            }
+        }
+        let l = list.as_mut().expect("set above");
+        if !paged || !more || next <= offset || l.err.is_some() {
+            l.offset = None;
+            l.next = None;
+            l.more = None;
+            l.total = None;
+            return Ok(list.expect("set above"));
+        }
+        offset = next;
+    }
+    // Here only when a later page failed or the page bound ran out with pages still to read.
+    let mut l = list.expect("APPDB_MAX_PAGES > 0");
+    l.truncated = true;
+    l.offset = None;
+    l.next = None;
+    l.more = None;
+    l.total = None;
+    Ok(l)
 }
 
 /// One (key, value) row of appinfo.db for a title.
