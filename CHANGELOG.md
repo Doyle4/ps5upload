@@ -6,7 +6,7 @@ What's new in ps5upload, written for humans.
 
 ## 7.1.0
 
-- **PS5Upload now has a tile on the PS5 home screen that opens a page in the PS5 browser.** Pick
+- **PS5Upload Files is a new tile on the PS5 home screen that opens a page in the PS5 browser.** Pick
   the tile to manage your files without a PC. The page fills the TV and has four sections: Home,
   Files, Cheats and Settings.
 - **Home shows what is going on.** The game that is running (with Close game and a shortcut to
