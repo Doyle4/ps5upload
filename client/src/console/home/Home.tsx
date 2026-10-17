@@ -150,13 +150,21 @@ export interface HomeViewProps {
   onDismiss: () => void;
   /** Browse USB, or null to hide it (no USB drive, or Files cannot open a path yet). */
   onBrowseUsb: (() => void) | null;
+  /** ✕ on a storage card: Files at that drive's path, or null when Files cannot open a path. */
+  onOpenDrive: ((path: string) => void) | null;
 }
 
-function VolumeCard({ v }: { v: Volume }) {
+/** One drive. Focusable; ✕ (a click) opens Files there when `onOpen` is given. */
+export function VolumeCard({ v, onOpen }: { v: Volume; onOpen: ((path: string) => void) | null }) {
   const used = v.total_bytes > 0 ? Math.max(0, Math.min(100, 100 - (v.free_bytes / v.total_bytes) * 100)) : 0;
   const Icon = isUsbStick(v) || isUsbExt(v) ? Usb : HardDrive;
   return (
-    <li className="cw-focusable cw-volume" tabIndex={0} data-volume={v.path}>
+    <li
+      className="cw-focusable cw-volume"
+      tabIndex={0}
+      data-volume={v.path}
+      onClick={onOpen ? () => onOpen(v.path) : undefined}
+    >
       <div className="cw-volume-head">
         <Icon aria-hidden />
         <span className="cw-volume-name">{volumeLabel(v)}</span>
@@ -279,7 +287,7 @@ export function HomeView(p: HomeViewProps) {
         ) : (
           <ul className="cw-volumes">
             {drives.map((v) => (
-              <VolumeCard key={v.path} v={v} />
+              <VolumeCard key={v.path} v={v} onOpen={p.onOpenDrive} />
             ))}
           </ul>
         )}
@@ -375,6 +383,7 @@ export function Home({ ctx }: { ctx: SectionContext }) {
 
   const usb = volumes ? firstUsbVolume(volumes) : null;
   const onBrowseUsb = usb && canOpen("files") ? () => openSection("files", { path: usb.path }) : null;
+  const onOpenDrive = canOpen("files") ? (path: string) => openSection("files", { path }) : null;
 
   return (
     <HomeView
@@ -394,6 +403,7 @@ export function Home({ ctx }: { ctx: SectionContext }) {
       onConfirm={onConfirm}
       onDismiss={onDismiss}
       onBrowseUsb={onBrowseUsb}
+      onOpenDrive={onOpenDrive}
     />
   );
 }

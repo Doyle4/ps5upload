@@ -280,10 +280,71 @@ function focusables(): FocusCandidate[] {
   return out;
 }
 
+/* ---- regions ----------------------------------------------------------- */
+
+/*
+ * The page is split into regions, [data-nav-region] (App: the rail and the
+ * content). Up/Down never leave the focused element's region. Left/Right move
+ * inside it while something lies straight that way; otherwise they enter the
+ * neighbouring region that way, at its entry: its [data-nav-entry] (the rail's
+ * active section), else the element last focused there if it is still shown,
+ * else its first control. Open modals ignore regions (focus stays in the modal).
+ */
+
+const REGION = "[data-nav-region]";
+
+/** Region element → the element last focused inside it. */
+const lastInRegion = new WeakMap<Element, HTMLElement>();
+
+function regionOf(el: Element | null): Element | null {
+  return el && typeof el.closest === "function" ? el.closest(REGION) : null;
+}
+
+function remember(el: Element | null): void {
+  const region = regionOf(el);
+  if (region) lastInRegion.set(region, el as HTMLElement);
+}
+
+/** Where focus lands when it enters `region` from another one. */
+function regionEntry(region: Element, all: FocusCandidate[]): HTMLElement | null {
+  const inside = all.filter((c) => region.contains(c.el));
+  if (!inside.length) return null;
+  const marked = inside.find((c) => c.el.hasAttribute("data-nav-entry"));
+  if (marked) return marked.el;
+  const last = lastInRegion.get(region);
+  const kept = last ? inside.find((c) => c.el === last) : undefined;
+  return (kept ?? inside[0]).el;
+}
+
 /** Focus `el` and keep it on screen. */
 export function focusElement(el: HTMLElement): void {
+  if (typeof document !== "undefined") remember(document.activeElement);
   el.focus();
+  remember(el);
   if (typeof el.scrollIntoView === "function") el.scrollIntoView({ block: "nearest", inline: "nearest" });
+}
+
+function inBeam(from: DOMRect, r: DOMRect, dir: Direction): boolean {
+  return crossAxis(from, r, dir).overlap > 0;
+}
+
+/** The target of `dir` from `current` when it sits in `region` (no modal open). */
+function regionMove(current: FocusCandidate, region: Element, all: FocusCandidate[], dir: Direction): HTMLElement | null {
+  const others = all.filter((c) => c !== current);
+  const same = others.filter((c) => region.contains(c.el));
+  if (dir === "up" || dir === "down") return nextFocus(current.rect, same, dir);
+  const aligned = same.filter((c) => isBeyond(current.rect, c.rect, dir) && inBeam(current.rect, c.rect, dir));
+  if (aligned.length) return nextFocus(current.rect, aligned, dir);
+  // Nothing straight that way here: the neighbouring region that way, if any.
+  const regions: FocusCandidate[] = [];
+  document.querySelectorAll<HTMLElement>(REGION).forEach((r) => {
+    if (r === region || r.contains(region) || region.contains(r)) return;
+    if (!all.some((c) => r.contains(c.el))) return;
+    regions.push({ el: r, rect: r.getBoundingClientRect() });
+  });
+  const neighbour = nextFocus((region as HTMLElement).getBoundingClientRect(), regions, dir);
+  if (neighbour) return regionEntry(neighbour, all);
+  return nextFocus(current.rect, same, dir);
 }
 
 function move(dir: Direction): void {
@@ -296,11 +357,14 @@ function move(dir: Direction): void {
     focusElement(preferred.el);
     return;
   }
-  const next = nextFocus(
-    current.rect,
-    all.filter((c) => c !== current),
-    dir,
-  );
+  const region = topModal() ? null : regionOf(current.el);
+  const next = region
+    ? regionMove(current, region, all, dir)
+    : nextFocus(
+        current.rect,
+        all.filter((c) => c !== current),
+        dir,
+      );
   if (next) focusElement(next);
 }
 

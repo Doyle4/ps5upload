@@ -118,7 +118,9 @@ export function App({ inputMap }: { inputMap: InputMap }) {
       <TopBar status={status} chipFallback={chipFallback} />
       <div className="cw-body" aria-hidden={expired ? true : undefined}>
         <Rail sections={SECTIONS} active={active} onSelect={(id) => show(id)} />
-        <main className="cw-content">{section.render(ctx)}</main>
+        <main className="cw-content" data-nav-region="content">
+          {section.render(ctx)}
+        </main>
       </div>
       <HintBar map={inputMap} />
       {expired ? <ReloadBanner /> : null}

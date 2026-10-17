@@ -10,7 +10,16 @@ vi.mock("../api", async (importOriginal) => {
 import { ApiError, call } from "../api";
 import { t } from "../strings";
 import { ConfirmDialog, dialogNavHandler } from "../ui/ConfirmDialog";
-import { errorText, firstUsbVolume, HomeView, runAsk, type Ask, type HomeViewProps, type Volume } from "./Home";
+import {
+  errorText,
+  firstUsbVolume,
+  HomeView,
+  runAsk,
+  VolumeCard,
+  type Ask,
+  type HomeViewProps,
+  type Volume,
+} from "./Home";
 import { TaskRow } from "./TaskRow";
 import { cancelJob, type Job } from "./useJobs";
 
@@ -73,6 +82,7 @@ function viewProps(over: Partial<HomeViewProps> = {}): HomeViewProps {
     onConfirm: vi.fn(),
     onDismiss: vi.fn(),
     onBrowseUsb: null,
+    onOpenDrive: null,
     ...over,
   };
 }
@@ -191,6 +201,19 @@ describe("Home", () => {
     expect(html).toContain(t("cw_home_vol_internal"));
     expect(html).toContain(t("cw_home_vol_usb"));
     expect(html.split("data-volume=").length - 1).toBe(2);
+  });
+
+  it("F3: ✕ on a storage card opens Files at that drive's path", () => {
+    const open = vi.fn();
+    const cards = elements(
+      HomeView(viewProps({ volumes: [vol("/data", "x"), vol("/mnt/usb0", "/dev/da0s1")], onOpenDrive: open })),
+    ).filter((e) => e.type === VolumeCard);
+    expect(cards).toHaveLength(2);
+    // ✕ clicks the focused card (nav.ts confirm): the card's li carries the onClick.
+    const li = VolumeCard(cards[1].props as Parameters<typeof VolumeCard>[0]) as ReactElement<Record<string, unknown>>;
+    expect(li.props["data-volume"]).toBe("/mnt/usb0");
+    (li.props.onClick as () => void)();
+    expect(open).toHaveBeenCalledWith("/mnt/usb0");
   });
 
   it("errors become short translated messages", () => {

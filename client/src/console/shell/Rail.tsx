@@ -1,7 +1,10 @@
 import type { Section } from "../sections";
 import { t } from "../strings";
 
-/** The left icon rail. Real buttons: D-pad left from the content reaches it, ✕ opens a section. */
+/**
+ * The left icon rail, a nav region: D-pad left from the content enters it on
+ * the active section ([data-nav-entry]), ✕ opens a section.
+ */
 export function Rail({
   sections,
   active,
@@ -12,7 +15,7 @@ export function Rail({
   onSelect: (id: string) => void;
 }) {
   return (
-    <nav className="cw-rail" aria-label={t("cw_nav_sections")}>
+    <nav className="cw-rail" aria-label={t("cw_nav_sections")} data-nav-region="rail">
       {sections.map((s) => {
         const Icon = s.icon;
         return (
@@ -22,6 +25,7 @@ export function Rail({
             className="cw-focusable cw-rail-item"
             data-rail-id={s.id}
             aria-current={s.id === active ? "page" : undefined}
+            data-nav-entry={s.id === active ? "" : undefined}
             onClick={() => onSelect(s.id)}
           >
             <Icon aria-hidden />

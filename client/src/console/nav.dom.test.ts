@@ -3,6 +3,7 @@ import {
   createEchoGuard,
   DEFAULT_INPUT_MAP,
   dispatchNav,
+  focusElement,
   installNavigation,
   onNavAction,
 } from "./nav";
@@ -43,13 +44,19 @@ class FakeEl {
   }
   querySelectorAll(sel: string): FakeEl[] {
     if (sel === "[data-nav-modal]") return this.descendants().filter((e) => "data-nav-modal" in e.attrs);
+    if (sel === "[data-nav-region]") return this.descendants().filter((e) => "data-nav-region" in e.attrs);
     return this.descendants().filter((e) => e.tagName === "BUTTON"); // the FOCUSABLE selector
   }
-  closest(): null {
-    return null; // nothing is inert or aria-hidden in these fixtures
+  closest(sel: string): FakeEl | null {
+    if (sel !== "[data-nav-region]") return null; // nothing is inert or aria-hidden in these fixtures
+    if ("data-nav-region" in this.attrs) return this;
+    return this.parent ? this.parent.closest(sel) : null;
   }
   hasAttribute(a: string): boolean {
     return a in this.attrs;
+  }
+  getAttribute(a: string): string | null {
+    return a in this.attrs ? this.attrs[a] : null;
   }
   getBoundingClientRect(): DOMRect {
     const { left, top, width, height } = this.box;
@@ -188,6 +195,140 @@ describe("modal scope", () => {
     expect(fakeDoc.activeElement).toBe(reload);
     dispatchNav("down");
     expect(fakeDoc.activeElement).toBe(reload);
+  });
+});
+
+/*
+ * The page's two regions, like App: the rail (left) and the content (right).
+ * Rail items stack down the left; the content's controls sit to the right.
+ */
+function regions() {
+  const rail = new FakeEl("rail", { "data-nav-region": "rail" }, { left: 0, top: 60, width: 120, height: 600 });
+  const content = new FakeEl("content", { "data-nav-region": "content" }, { left: 130, top: 60, width: 900, height: 600 });
+  const home = btn("home", 0, 100);
+  const files = new FakeEl("files", { "data-nav-entry": "" }, { left: 0, top: 160, width: 100, height: 40 }, "BUTTON");
+  const settings = btn("settings", 0, 520);
+  rail.add(home, files, settings);
+  body.add(rail, content);
+  return { rail, content, home, files, settings };
+}
+
+describe("rail and content regions", () => {
+  it("F1: Left from the content enters the rail on the active section's item, not the nearest", () => {
+    const r = regions();
+    const low = btn("low", 140, 520); // level with Settings
+    r.content.add(btn("top", 140, 100), low);
+    low.focus();
+    dispatchNav("left");
+    expect(fakeDoc.activeElement).toBe(r.files);
+  });
+
+  it("F1: Left inside the content still moves within the content when something is that way", () => {
+    const r = regions();
+    const a = btn("a", 140, 300);
+    const b = btn("b", 260, 300);
+    r.content.add(a, b);
+    b.focus();
+    dispatchNav("left");
+    expect(fakeDoc.activeElement).toBe(a);
+  });
+
+  it("F1: a wide card's Left goes to the rail, not up to a narrower control above it", () => {
+    const r = regions();
+    const quick = btn("quick", 140, 100);
+    const card = new FakeEl("card", {}, { left: 140, top: 300, width: 400, height: 120 }, "BUTTON");
+    r.content.add(quick, card);
+    card.focus();
+    dispatchNav("left");
+    expect(fakeDoc.activeElement).toBe(r.files);
+  });
+
+  it("F2: Down on the last rail item stays put, never jumps into the content", () => {
+    const r = regions();
+    r.content.add(btn("card", 140, 600));
+    r.settings.focus();
+    dispatchNav("down");
+    expect(fakeDoc.activeElement).toBe(r.settings);
+    dispatchNav("up");
+    expect(fakeDoc.activeElement).toBe(r.files);
+  });
+
+  it("F2: Down at the end of the content stays put, never jumps to a rail item", () => {
+    const r = regions();
+    const first = btn("first", 140, 100);
+    const last = btn("last", 140, 300);
+    r.content.add(first, last);
+    last.focus();
+    dispatchNav("down"); // Settings (rail, y=520) is below
+    expect(fakeDoc.activeElement).toBe(last);
+    dispatchNav("up");
+    expect(fakeDoc.activeElement).toBe(first);
+    dispatchNav("up"); // Home (rail, y=100) is level; nothing above in the content
+    expect(fakeDoc.activeElement).toBe(first);
+  });
+
+  it("F2: Right from the rail enters the content on its first control, not the nearest", () => {
+    const r = regions();
+    const first = btn("first", 140, 100);
+    const nearSettings = btn("near", 140, 520);
+    r.content.add(first, nearSettings);
+    r.settings.focus();
+    dispatchNav("right");
+    expect(fakeDoc.activeElement).toBe(first);
+  });
+
+  it("F2: Right from the rail returns to the control last focused in the content", () => {
+    const r = regions();
+    const first = btn("first", 140, 100);
+    const second = btn("second", 140, 300);
+    r.content.add(first, second);
+    second.focus();
+    dispatchNav("left");
+    expect(fakeDoc.activeElement).toBe(r.files);
+    dispatchNav("down");
+    expect(fakeDoc.activeElement).toBe(r.settings);
+    dispatchNav("right");
+    expect(fakeDoc.activeElement).toBe(second);
+  });
+
+  it("F2: the remembered control is gone (section changed) → the content's first control", () => {
+    const r = regions();
+    const first = btn("first", 140, 100);
+    const second = btn("second", 140, 300);
+    r.content.add(first, second);
+    second.focus();
+    dispatchNav("left");
+    second.remove();
+    dispatchNav("right");
+    expect(fakeDoc.activeElement).toBe(first);
+  });
+
+  it("○ to the rail (App's handler) also remembers where the content was", () => {
+    const r = regions();
+    const first = btn("first", 140, 100);
+    const second = btn("second", 140, 300);
+    r.content.add(first, second);
+    second.focus();
+    offs.push(
+      onNavAction((a) => {
+        if (a !== "back") return false;
+        focusElement(r.files as unknown as HTMLElement);
+        return true;
+      }),
+    );
+    dispatchNav("back");
+    expect(fakeDoc.activeElement).toBe(r.files);
+    dispatchNav("right");
+    expect(fakeDoc.activeElement).toBe(second);
+  });
+
+  it("a modal inside the content keeps the D-pad in the modal, regions aside", () => {
+    const r = regions();
+    const ok = btn("ok", 400, 300);
+    r.content.add(btn("behind", 140, 300), new FakeEl("dialog", { "data-nav-modal": "" }).add(ok));
+    ok.focus();
+    dispatchNav("left");
+    expect(fakeDoc.activeElement).toBe(ok);
   });
 });
 
