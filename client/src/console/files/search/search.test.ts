@@ -22,6 +22,7 @@ describe("search helpers", () => {
     expect(namePattern(" eboot ")).toBe("*eboot*");
     expect(namePattern("*.pkg")).toBe("*.pkg");
     expect(namePattern("CUSA0784?")).toBe("CUSA0784?");
+    expect(namePattern("**a***b?**")).toBe("*a*b?*"); // runs of stars are one star
     expect(namePattern("")).toBeNull();
     expect(namePattern("   ")).toBeNull();
   });

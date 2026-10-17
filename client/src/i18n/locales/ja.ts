@@ -4508,6 +4508,10 @@ c2c_test_deep_bad: "4 KiB のテスト送信が届きませんでした: {detail
 "cw_files_usage_busy": "別のフォルダーのサイズを計測中です。終わってから再試行してください。",
 "cw_files_usage_skipped": "未計測",
 "cw_files_usage_unreadable": "読み取れません",
+"cw_files_vw_earlier_lines": "前の {n} 行を表示",
+"cw_files_vw_page_first": "最初のページ",
+"cw_files_vw_page_last": "最後のページ",
+"cw_files_search_none_capped": "ほかの場所で一致するファイルが多すぎて、このフォルダーの結果が返りませんでした。もっと長い名前にするか、「作り直す」でこのフォルダーだけをインデックスしてください。",
 };
 
 export default ja;

@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Binary, ChevronLeft, ChevronRight, FileText } from "lucide-react";
 import { callBlob } from "../api";
 import { t } from "../strings";
+import { NAV_ARROW_EVENT } from "../nav";
 import { Modal } from "../ui/Modal";
 import { HexView } from "./viewer/HexView";
 import { HEX_MAX } from "./viewer/hex";
@@ -26,10 +27,11 @@ export async function readUpTo(path: string, max: number, signal?: AbortSignal):
   let at = 0;
   while (at < max) {
     if (signal?.aborted) throw new Error("aborted");
-    const b = await callBlob("/api/fs/read", { path, offset: at, len: VIEW_MAX }, signal);
+    const want = Math.min(VIEW_MAX, max - at);
+    const b = await callBlob("/api/fs/read", { path, offset: at, len: want }, signal);
     parts.push(b);
     at += b.size;
-    if (b.size < VIEW_MAX) break;
+    if (b.size < want) break;
   }
   return parts.length === 1 ? parts[0] : new Blob(parts);
 }
@@ -124,12 +126,22 @@ export function Viewer({
   const prevImage = nb?.prev ?? null;
   const nextImage = nb?.next ?? null;
 
+  /** The picture's blob: URL shown now: revoked when the next one replaces it, and on close. */
+  const shownUrl = useRef<string | null>(null);
+  const showUrl = useCallback((url: string | null) => {
+    const old = shownUrl.current;
+    shownUrl.current = url;
+    if (old && old !== url) URL.revokeObjectURL(old);
+  }, []);
+  useEffect(() => () => showUrl(null), [showUrl]);
+
   useEffect(() => {
     let live = true;
-    let url: string | null = null;
     const stop = new AbortController();
-    setLoaded(null);
+    // The next image keeps the one shown (and the focus on it) until it arrives.
+    setLoaded((l) => (mode === "image" && l?.kind === "image" ? l : null));
     if (mode === "image" && imageTooLarge(size, null)) {
+      showUrl(null);
       setLoaded({ kind: "too_large" }); // nothing read: it would not be shown
       return;
     }
@@ -139,12 +151,14 @@ export function Viewer({
         if (!live) return;
         if (mode === "image") {
           if (imageTooLarge(size, blob.size)) {
+            showUrl(null);
             setLoaded({ kind: "too_large" });
             return;
           }
           const ext = name.slice(name.lastIndexOf(".") + 1).toLowerCase();
-          url = URL.createObjectURL(new Blob([blob], { type: ext === "png" ? "image/png" : "image/jpeg" }));
+          const url = URL.createObjectURL(new Blob([blob], { type: ext === "png" ? "image/png" : "image/jpeg" }));
           setLoaded({ kind: "image", url, size: blob.size });
+          showUrl(url);
           return;
         }
         const buf = await new Response(blob).arrayBuffer();
@@ -157,30 +171,31 @@ export function Viewer({
         setLoaded({ kind: "text", model: textModel(path, name, text), size: blob.size });
       },
       () => {
-        if (live) setLoaded({ kind: "error" });
+        if (!live) return;
+        showUrl(null);
+        setLoaded({ kind: "error" });
       },
     );
     return () => {
       live = false;
       stop.abort();
-      if (url) URL.revokeObjectURL(url);
     };
-  }, [path, name, mode, size]);
+  }, [path, name, mode, size, showUrl]);
 
-  // ← / → on the picture itself (when the browser delivers them): previous / next image.
+  // ← / → (D-pad or keys) on the picture itself: previous / next image. The nav layer hands
+  // left/right on a [data-nav-arrows] element to it as a NAV_ARROW_EVENT instead of moving focus.
+  const loadedImage = loaded?.kind === "image";
   useEffect(() => {
-    if (!onOpenImage || (!prevImage && !nextImage) || typeof window === "undefined") return;
-    const onKey = (e: KeyboardEvent) => {
-      if (!imageRef.current || document.activeElement !== imageRef.current) return;
-      const to = e.key === "ArrowLeft" ? prevImage : e.key === "ArrowRight" ? nextImage : null;
-      if (!to) return;
-      e.preventDefault();
-      e.stopPropagation();
-      onOpenImage(to);
+    const img = imageRef.current;
+    if (!img || !onOpenImage) return;
+    const onArrow = (e: Event) => {
+      const dir = (e as CustomEvent<"left" | "right">).detail;
+      const to = dir === "left" ? prevImage : nextImage;
+      if (to) onOpenImage(to);
     };
-    window.addEventListener("keydown", onKey, true);
-    return () => window.removeEventListener("keydown", onKey, true);
-  }, [prevImage, nextImage, onOpenImage]);
+    img.addEventListener(NAV_ARROW_EVENT, onArrow);
+    return () => img.removeEventListener(NAV_ARROW_EVENT, onArrow);
+  }, [prevImage, nextImage, onOpenImage, loadedImage]);
 
   return (
     <Modal label={name} className="cw-viewer" onBack={onClose}>
@@ -218,14 +233,22 @@ export function Viewer({
             data-action="image-prev"
             aria-label={t("cw_files_vw_image_prev")}
             data-tip={t("cw_files_vw_image_prev")}
-            disabled={!nb.prev}
+            aria-disabled={!nb.prev || undefined}
             onClick={() => nb.prev && onOpenImage(nb.prev)}
           >
             <ChevronLeft aria-hidden />
           </button>
         ) : null}
         {loaded?.kind === "image" ? (
-          <img ref={imageRef} className="cw-focusable" tabIndex={0} src={loaded.url} alt={name} data-image-view="" />
+          <img
+            ref={imageRef}
+            className="cw-focusable"
+            tabIndex={0}
+            src={loaded.url}
+            alt={name}
+            data-image-view=""
+            data-nav-arrows={onOpenImage ? "" : undefined}
+          />
         ) : null}
         {mode === "image" && nb && onOpenImage ? (
           <button
@@ -234,7 +257,7 @@ export function Viewer({
             data-action="image-next"
             aria-label={t("cw_files_vw_image_next")}
             data-tip={t("cw_files_vw_image_next")}
-            disabled={!nb.next}
+            aria-disabled={!nb.next || undefined}
             onClick={() => nb.next && onOpenImage(nb.next)}
           >
             <ChevronRight aria-hidden />

@@ -4506,6 +4506,10 @@ c2c_test_deep_bad: "4 KiB 테스트 전송이 도착하지 않았습니다: {det
 "cw_files_usage_busy": "다른 폴더 크기를 측정하는 중입니다. 끝난 뒤 다시 시도하세요.",
 "cw_files_usage_skipped": "측정 안 됨",
 "cw_files_usage_unreadable": "읽을 수 없음",
+"cw_files_vw_earlier_lines": "이전 {n}줄 보기",
+"cw_files_vw_page_first": "첫 페이지",
+"cw_files_vw_page_last": "마지막 페이지",
+"cw_files_search_none_capped": "다른 위치에서 일치하는 파일이 너무 많아 이 폴더의 결과가 돌아오지 않았습니다. 더 긴 이름을 쓰거나 “다시 만들기”로 이 폴더만 색인하세요.",
 };
 
 export default ko;

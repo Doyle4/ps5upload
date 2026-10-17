@@ -36,6 +36,9 @@ export function resultsText(s: SearchState): string | null {
   if (s.searching) return t("cw_files_search_searching");
   if (!s.done) return null;
   const n = s.done.results.hits.length;
+  // Nothing here, but the helper stopped at its limit: matches elsewhere filled it (an older helper
+  // filters "This folder" after its limit). Not "nothing matches".
+  if (!n && s.done.results.truncated) return t("cw_files_search_none_capped");
   if (!n) return t("cw_files_search_none", { q: s.done.pattern });
   return s.done.results.truncated ? t("cw_files_search_more", { n }) : t("cw_files_search_found", { n });
 }
@@ -43,6 +46,7 @@ export function resultsText(s: SearchState): string | null {
 /** The props-only view (tests render it). */
 export function SearchView({
   state,
+  ready = true,
   field,
   scope,
   folder,
@@ -55,6 +59,8 @@ export function SearchView({
   onClose,
 }: {
   state: SearchState;
+  /** The scope's roots are known (the drives have loaded): Search can run. */
+  ready?: boolean;
   field: string;
   scope: Scope;
   folder: string;
@@ -84,7 +90,7 @@ export function SearchView({
         role="search"
         onSubmit={(e) => {
           e.preventDefault();
-          if (!bad) onSubmit();
+          if (!bad && ready) onSubmit();
         }}
       >
         <label className="cw-tv-find">
@@ -108,7 +114,7 @@ export function SearchView({
           type="submit"
           className="cw-focusable cw-button is-primary"
           data-action="search-go"
-          disabled={state.unsupported || !field.trim() || bad || state.searching}
+          disabled={!ready || state.unsupported || !field.trim() || bad || state.searching}
         >
           <span>{t("cw_files_search_go")}</span>
         </button>
@@ -235,6 +241,7 @@ export function SearchDialog({
     <Modal label={t("cw_files_search")} className="cw-viewer cw-search" onBack={onClose}>
       <SearchView
         state={state}
+        ready={roots.length > 0}
         field={field}
         scope={scope}
         folder={folder}
@@ -242,7 +249,9 @@ export function SearchDialog({
         onScope={setScope}
         onSubmit={() => void flow.current?.submit(field, scope, roots, scope === "folder" ? folder : null)}
         onCancel={() => void flow.current?.cancel()}
-        onRebuild={() => void flow.current?.rebuild(roots)}
+        onRebuild={() => {
+          if (roots.length) void flow.current?.rebuild(roots);
+        }}
         onReveal={(h) => onReveal(h.folder, h.name)}
         onClose={onClose}
       />

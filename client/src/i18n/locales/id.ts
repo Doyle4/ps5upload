@@ -4496,6 +4496,10 @@ c2c_test_deep_bad: "Kiriman uji 4 KiB tidak tiba: {detail}",
 "cw_files_usage_busy": "Ukuran folder lain sedang diukur. Coba lagi setelah selesai.",
 "cw_files_usage_skipped": "tidak diukur",
 "cw_files_usage_unreadable": "tidak terbaca",
+"cw_files_vw_earlier_lines": "Tampilkan {n} baris sebelumnya",
+"cw_files_vw_page_first": "Halaman pertama",
+"cw_files_vw_page_last": "Halaman terakhir",
+"cw_files_search_none_capped": "Terlalu banyak file di tempat lain yang cocok, jadi tidak ada dari folder ini yang kembali. Gunakan nama yang lebih panjang, atau Buat ulang untuk mengindeks folder ini saja.",
 };
 
 export default id;

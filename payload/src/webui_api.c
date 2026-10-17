@@ -1090,8 +1090,7 @@ static void r_cheats_toggle(const char *b, size_t n, uint8_t *out, int fd) {
  * it finds is the one it asked for. The AVA1 trust store's files are never answered. */
 
 #define API_INDEX_RESULTS_MAX 500u           /* results one search answers */
-#define API_INDEX_ASK_ALL 500u               /* INDEX_SEARCH limit for a search of every root */
-#define API_INDEX_ASK_UNDER 5000u            /* for one folder: the helper's own maximum, filtered here */
+#define API_INDEX_ASK 500u                   /* INDEX_SEARCH's limit (it filters "under" first) */
 #define API_INDEX_JSON (256u * 1024u)        /* 500 results with long, escaped paths fit easily */
 #define API_INDEX_STATUS_JSON (WEBUI_INDEX_ROOTS_MAX * (6u * WEBUI_INDEX_ROOT_CAP + 3u) + 160u) /* 8 roots, escaped */
 
@@ -1213,7 +1212,7 @@ static void r_index_status(const char *b, size_t n, uint8_t *out, int fd) {
 /* {query, under?}: files whose NAME matches `query` (the helper's glob: * and ?, ASCII case-insensitive,
  * the whole name), under the folder `under` when given. -> {"results":[{"path","size"}],"truncated"}. */
 static void r_index_search(const char *b, size_t n, uint8_t *out, int fd) {
-    char query[WEBUI_INDEX_ROOT_CAP + 1], under[API_PATH], body[WEBUI_INDEX_ROOT_CAP + 64], *json;
+    char query[WEBUI_INDEX_ROOT_CAP + 1], under[API_PATH], body[2 * WEBUI_INDEX_ROOT_CAP + 64], *json;
     const uint8_t *t;
     size_t ol, tl;
     unsigned ask;
@@ -1223,13 +1222,19 @@ static void r_index_search(const char *b, size_t n, uint8_t *out, int fd) {
         return;
     }
     rc = webui_json_str(b, n, "under", under, sizeof under);
-    if (rc < 0 || (rc == 1 && under[0] != '/')) {
+    if (rc < 0 || (rc == 1 && !webui_index_root_ok(under))) {
         send_bad(fd, "bad_under");
         return;
     }
     if (rc == 0) under[0] = '\0';
-    ask = under[0] ? API_INDEX_ASK_UNDER : API_INDEX_ASK_ALL;
-    k = snprintf(body, sizeof body, "{\"query\":\"%s\",\"limit\":%u}", query, ask); /* checked: no quote, no backslash */
+    webui_index_collapse_stars(query);
+    ask = API_INDEX_ASK;
+    /* checked: no quote, no backslash. "under" makes the helper filter before its limit applies (an
+     * older helper ignores it: the filter below still holds, and the reply says truncated). */
+    if (under[0])
+        k = snprintf(body, sizeof body, "{\"query\":\"%s\",\"under\":\"%s\",\"limit\":%u}", query, under, ask);
+    else
+        k = snprintf(body, sizeof body, "{\"query\":\"%s\",\"limit\":%u}", query, ask);
     if (k <= 0 || (size_t)k >= sizeof body) {
         send_bad(fd, "bad_query");
         return;

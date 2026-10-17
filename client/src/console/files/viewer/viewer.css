@@ -27,7 +27,8 @@
   width: 1.8rem;
   height: 1.8rem;
 }
-.cw-image-nav:disabled {
+.cw-image-nav[aria-disabled="true"],
+.cw-tv-bar .cw-button[aria-disabled="true"] {
   opacity: 0.35;
 }
 .cw-viewer-body.is-text,

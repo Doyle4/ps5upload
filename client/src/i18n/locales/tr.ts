@@ -4494,6 +4494,10 @@ c2c_test_deep_bad: "4 KiB'lik test gönderimi ulaşmadı: {detail}",
 "cw_files_usage_busy": "Başka bir klasörün boyutu ölçülüyor. Bitince yeniden deneyin.",
 "cw_files_usage_skipped": "ölçülmedi",
 "cw_files_usage_unreadable": "okunamıyor",
+"cw_files_vw_earlier_lines": "Önceki {n} satırı göster",
+"cw_files_vw_page_first": "İlk sayfa",
+"cw_files_vw_page_last": "Son sayfa",
+"cw_files_search_none_capped": "Başka yerlerde çok fazla dosya eşleşiyor, bu yüzden bu klasörden hiçbiri gelmedi. Daha uzun bir ad kullanın ya da yalnızca bu klasörü dizinlemek için Yeniden oluştur’a basın.",
 };
 
 export default tr;

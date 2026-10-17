@@ -68,6 +68,8 @@ export function paramJsonText(text: string): GameInfo | null {
 const PSF_MAGIC = [0x00, 0x50, 0x53, 0x46];
 /** Entries read at most (a real param.sfo has ~20-60). */
 const SFO_MAX_ENTRIES = 512;
+/** A key name's longest (Sony's are under 20 bytes). */
+const SFO_KEY_MAX = 64;
 
 /**
  * A param.sfo's keys: strings (formats 0x0004 and 0x0204, UTF-8, NULs
@@ -94,8 +96,11 @@ export function parseSfo(bytes: Uint8Array): Record<string, string | number> | n
     const k = keyTable + keyOff;
     const d = dataTable + dataOff;
     if (k >= bytes.length || d > bytes.length || len > bytes.length - d) continue;
+    // A key is a short name: look at most SFO_KEY_MAX bytes for its NUL (a damaged table never scans the file).
+    const kmax = Math.min(bytes.length, k + SFO_KEY_MAX);
     let ke = k;
-    while (ke < bytes.length && bytes[ke] !== 0) ke++;
+    while (ke < kmax && bytes[ke] !== 0) ke++;
+    if (ke >= kmax) continue;
     const key = dec.decode(bytes.subarray(k, ke));
     if (!key || Object.prototype.hasOwnProperty.call(out, key)) continue;
     if (fmt === 0x0004 || fmt === 0x0204) {

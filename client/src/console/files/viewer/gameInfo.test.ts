@@ -107,6 +107,12 @@ describe("param.sfo", () => {
     expect(keys?.TITLE_ID).toBe("CUSA07842");
   });
 
+  it("a key without its NUL within 64 bytes is skipped", () => {
+    const long = sfo([["X".repeat(70), { s: "v" }], ["TITLE_ID", { s: "CUSA00001" }]]);
+    const keys = parseSfo(long);
+    expect(Object.keys(keys ?? {})).toEqual(["TITLE_ID"]);
+  });
+
   it("without TITLE and TITLE_ID it names no game", () => {
     expect(sfoInfo(parseSfo(sfo([["CATEGORY", { s: "gd" }]])))).toBeNull();
   });

@@ -4496,6 +4496,10 @@ c2c_test_deep_bad: "การส่งทดสอบ 4 KiB ไปไม่ถ�
 "cw_files_usage_busy": "กำลังวัดขนาดโฟลเดอร์อื่นอยู่ ลองอีกครั้งเมื่อเสร็จ",
 "cw_files_usage_skipped": "ไม่ได้วัด",
 "cw_files_usage_unreadable": "อ่านไม่ได้",
+"cw_files_vw_earlier_lines": "แสดง {n} บรรทัดก่อนหน้า",
+"cw_files_vw_page_first": "หน้าแรก",
+"cw_files_vw_page_last": "หน้าสุดท้าย",
+"cw_files_search_none_capped": "มีไฟล์ที่อื่นตรงกันมากเกินไป จึงไม่มีผลจากโฟลเดอร์นี้กลับมา ใช้ชื่อที่ยาวขึ้น หรือกด สร้างใหม่ เพื่อทำดัชนีเฉพาะโฟลเดอร์นี้",
 };
 
 export default th;

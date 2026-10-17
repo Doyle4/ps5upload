@@ -6,7 +6,7 @@
  * while another measurement or a "Calculate folder size" runs.
  */
 import { ApiError, call } from "../../api";
-import { folderSizeRunning, walkFolder, type ListPage, type WalkDeps } from "../folderSize";
+import { holdWalk, walkFolder, type ListPage, type WalkDeps } from "../folderSize";
 import { joinPath } from "../move";
 import { LIST_PAGE } from "../useDir";
 
@@ -196,12 +196,16 @@ export function startUsage(
   deps?: WalkDeps,
   limits?: UsageLimits,
 ): { done: Promise<UsageSnapshot>; cancel: () => void } | null {
-  if (running || folderSizeRunning()) return null;
+  if (running) return null;
+  // One walk page-wide: Disk usage and "Calculate folder size" never run together.
+  const release = holdWalk();
+  if (!release) return null;
   let cancelled = false;
   const cancel = () => {
     cancelled = true;
   };
   const done = measureUsage(root, { cancelled: () => cancelled, onUpdate, ...limits }, deps).finally(() => {
+    release();
     if (running?.done === done) running = null;
   });
   running = { cancel, done };

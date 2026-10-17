@@ -158,6 +158,9 @@ int webui_index_root_ok(const char *p);
 /* 1 when `q` can be a name pattern: 1-255 bytes, no '"', '\\' or control character. */
 int webui_index_query_ok(const char *q);
 
+/* Runs of '*' in a pattern collapsed to one, in place (they mean the same; fewer backtrack points). */
+void webui_index_collapse_stars(char *q);
+
 /* INDEX_START's body {"roots":["/a","/b"]} for `n` roots (each webui_index_root_ok, 1 <= n <= 8).
  * Returns the length, or -1 (a bad root, a bad count, or it does not fit; out is then ""). */
 int webui_index_start_body(char *out, size_t cap, const char *const *roots, int n);

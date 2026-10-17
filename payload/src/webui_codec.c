@@ -888,6 +888,17 @@ int webui_index_root_ok(const char *p) { return index_text_ok(p) && p[0] == '/';
 
 int webui_index_query_ok(const char *q) { return index_text_ok(q); }
 
+void webui_index_collapse_stars(char *q) {
+    char *w = q;
+    const char *r = q;
+    if (!q) return;
+    for (; *r; r++) {
+        if (*r == '*' && w > q && w[-1] == '*') continue;
+        *w++ = *r;
+    }
+    *w = '\0';
+}
+
 int webui_index_start_body(char *out, size_t cap, const char *const *roots, int n) {
     size_t at = 0;
     int i;

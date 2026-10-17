@@ -4742,6 +4742,10 @@ c2c_test_deep_bad: "Testowa wysyłka 4 KiB nie dotarła: {detail}",
 "cw_files_usage_busy": "Trwa mierzenie rozmiaru innego folderu. Spróbuj ponownie, gdy się skończy.",
 "cw_files_usage_skipped": "nie zmierzono",
 "cw_files_usage_unreadable": "nieczytelny",
+"cw_files_vw_earlier_lines": "Pokaż {n} wcześniejszych wierszy",
+"cw_files_vw_page_first": "Pierwsza strona",
+"cw_files_vw_page_last": "Ostatnia strona",
+"cw_files_search_none_capped": "Zbyt wiele plików w innych miejscach pasuje, więc z tego folderu nic nie wróciło. Użyj dłuższej nazwy albo „Zbuduj ponownie”, by zindeksować tylko ten folder.",
 };
 
 export default pl;

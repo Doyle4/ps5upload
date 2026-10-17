@@ -4437,6 +4437,10 @@ c2c_test_deep_bad: "El envío de prueba de 4 KiB no llegó: {detail}",
 "cw_files_usage_busy": "Se está midiendo el tamaño de otra carpeta. Vuelve a intentarlo cuando termine.",
 "cw_files_usage_skipped": "sin medir",
 "cw_files_usage_unreadable": "ilegible",
+"cw_files_vw_earlier_lines": "Mostrar {n} líneas anteriores",
+"cw_files_vw_page_first": "Primera página",
+"cw_files_vw_page_last": "Última página",
+"cw_files_search_none_capped": "Coinciden demasiados archivos de otros lugares, así que no llegó ninguno de esta carpeta. Usa un nombre más largo o «Crear de nuevo» para indexar solo esta carpeta.",
 };
 
 export default es;

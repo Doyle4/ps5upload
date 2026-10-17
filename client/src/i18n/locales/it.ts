@@ -4437,6 +4437,10 @@ c2c_test_deep_bad: "L’invio di prova di 4 KiB non è arrivato: {detail}",
 "cw_files_usage_busy": "È in corso la misura di un’altra cartella. Riprova quando è finita.",
 "cw_files_usage_skipped": "non misurato",
 "cw_files_usage_unreadable": "illeggibile",
+"cw_files_vw_earlier_lines": "Mostra {n} righe precedenti",
+"cw_files_vw_page_first": "Prima pagina",
+"cw_files_vw_page_last": "Ultima pagina",
+"cw_files_search_none_capped": "Troppi file altrove corrispondono, quindi nessuno di questa cartella è tornato. Usa un nome più lungo, o «Ricrea» per indicizzare solo questa cartella.",
 };
 
 export default it;

@@ -114,9 +114,27 @@ export async function walkFolder(root: string, opts: WalkOptions, deps: WalkDeps
 
 let running: { cancel: () => void } | null = null;
 
-/** A walk runs now (another Info dialog's). */
+/** Another page-wide walk (Disk usage) holds the walker: folder size waits for it. */
+let held = false;
+
+/** A walk runs now (another Info dialog's, or Disk usage's). */
 export function folderSizeRunning(): boolean {
-  return running != null;
+  return running != null || held;
+}
+
+/**
+ * Take the page's one walk for another tool (Disk usage): null while a folder
+ * size walk (or another holder) runs, else the function that gives it back.
+ */
+export function holdWalk(): (() => void) | null {
+  if (running || held) return null;
+  held = true;
+  let given = false;
+  return () => {
+    if (given) return;
+    given = true;
+    held = false;
+  };
 }
 
 /**
@@ -129,7 +147,7 @@ export function startFolderSize(
   deps?: WalkDeps,
   limits?: { maxEntries?: number; maxMs?: number },
 ): { done: Promise<SizeResult>; cancel: () => void } | null {
-  if (running) return null;
+  if (running || held) return null;
   let cancelled = false;
   const me = {
     cancel: () => {

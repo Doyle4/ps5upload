@@ -4504,6 +4504,10 @@ c2c_test_deep_bad: "O envio de teste de 4 KiB não chegou: {detail}",
 "cw_files_usage_busy": "O tamanho de outra pasta está sendo medido. Tente de novo quando terminar.",
 "cw_files_usage_skipped": "não medido",
 "cw_files_usage_unreadable": "ilegível",
+"cw_files_vw_earlier_lines": "Mostrar {n} linhas anteriores",
+"cw_files_vw_page_first": "Primeira página",
+"cw_files_vw_page_last": "Última página",
+"cw_files_search_none_capped": "Arquivos demais em outros lugares correspondem, então nenhum desta pasta voltou. Use um nome mais longo ou “Criar de novo” para indexar só esta pasta.",
 };
 
 export default pt_BR;

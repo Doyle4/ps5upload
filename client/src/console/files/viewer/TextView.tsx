@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, ChevronUp, Search, WrapText } from "lucide-react";
 import { t } from "../../strings";
 import {
@@ -8,9 +8,10 @@ import {
   highlight,
   ROW_WINDOW,
   stepMatch,
-  windowFor,
+  windowAround,
   type Match,
   type Row,
+  type RowWindow,
 } from "./text";
 import "./viewer.css";
 
@@ -23,60 +24,132 @@ export function findCountText(query: string, count: number, current: number, cap
   return capped ? `${at} · ${t("cw_files_vw_find_capped")}` : at;
 }
 
+type Mark = { start: number; end: number; index: number };
+
+interface Found {
+  query: string;
+  matches: Match[];
+  capped: boolean;
+}
+
+const NONE: Found = { query: "", matches: [], capped: false };
+
+/** One focusable block of rows. Memoized: Next / Previous re-render only the blocks whose current mark changes. */
+const Block = memo(function Block({
+  rows,
+  first,
+  marks,
+  current,
+}: {
+  rows: Row[];
+  /** Index of its first row. */
+  first: number;
+  /** Its rows' matches, by row index (stable while the query is). */
+  marks: Map<number, Mark[]> | undefined;
+  /** The current match's index when it is in this block, else -1. */
+  current: number;
+}) {
+  return (
+    <div className="cw-focusable cw-tv-block" tabIndex={0}>
+      {rows.map((r, ri) => {
+        const m = marks?.get(first + ri);
+        return (
+          <div key={ri} className="cw-tv-row">
+            <span className="cw-tv-n" aria-hidden>
+              {r.cont ? "" : r.line}
+            </span>
+            <span className="cw-tv-t">
+              {m
+                ? highlight(r.text, m).map(([s, mi], k) =>
+                    mi < 0 ? (
+                      s
+                    ) : (
+                      <mark key={k} data-match={mi} className={mi === current ? "is-current" : undefined}>
+                        {s}
+                      </mark>
+                    ),
+                  )
+                : r.text}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+});
+
 /**
  * Numbered rows of text with find (the field, then Previous / Next: on-screen
- * buttons, ✕ on each) and a wrap toggle. Rows are drawn ROW_WINDOW at a time
- * ("Show more lines", or a match further down extends it), in focusable
- * blocks the D-pad steps through. Text is rendered as text nodes, never HTML.
+ * buttons, ✕ on each) and a wrap toggle. A window of rows is drawn (ROW_WINDOW
+ * at first; "Show more" / "Show earlier" extend it; a find jump outside it
+ * draws a fresh window around the match), in memoized focusable blocks the
+ * D-pad steps through. Text is rendered as text nodes, never HTML.
  */
-export function TextView({ rows }: { rows: Row[] }) {
-  const [field, setField] = useState("");
-  const [query, setQuery] = useState("");
-  const [current, setCurrent] = useState(-1);
+export function TextView({ rows, initialQuery }: { rows: Row[]; /** Tests: start with this found. */ initialQuery?: string }) {
+  const [state, setState] = useState(() => {
+    const found = initialQuery ? { query: initialQuery, ...findMatches(rows, initialQuery) } : NONE;
+    const current = found.matches.length ? 0 : -1;
+    const win0: RowWindow = { start: 0, end: Math.min(rows.length, ROW_WINDOW) };
+    const win = current >= 0 ? windowAround(found.matches[0].row, win0, rows.length) : win0;
+    return { found, current, win };
+  });
+  const [field, setField] = useState(initialQuery ?? "");
   const [wrap, setWrap] = useState(true);
-  const [limit, setLimit] = useState(ROW_WINDOW);
   const body = useRef<HTMLDivElement>(null);
-  const found = useMemo(() => findMatches(rows, query), [rows, query]);
+  const { found, current, win } = state;
   const { matches, capped } = found;
 
-  const byRow = useMemo(() => {
-    const m = new Map<number, { start: number; end: number; index: number }[]>();
-    matches.forEach((x: Match, index) => {
-      const list = m.get(x.row);
-      if (list) list.push({ start: x.start, end: x.end, index });
-      else m.set(x.row, [{ start: x.start, end: x.end, index }]);
+  /** Every block of the file (slices made once per file). */
+  const blocks = useMemo(() => {
+    const out: Row[][] = [];
+    for (let i = 0; i < rows.length; i += BLOCK_ROWS) out.push(rows.slice(i, i + BLOCK_ROWS));
+    return out;
+  }, [rows]);
+
+  /** Matches by block, then by row (once per query). */
+  const byBlock = useMemo(() => {
+    const m = new Map<number, Map<number, Mark[]>>();
+    matches.forEach((x, index) => {
+      const b = Math.floor(x.row / BLOCK_ROWS);
+      let rowsOf = m.get(b);
+      if (!rowsOf) m.set(b, (rowsOf = new Map()));
+      const list = rowsOf.get(x.row);
+      const mark = { start: x.start, end: x.end, index };
+      if (list) list.push(mark);
+      else rowsOf.set(x.row, [mark]);
     });
     return m;
   }, [matches]);
 
-  // A new current match: draw down to it, then bring it into view (focus stays on Next / Previous).
+  // The current match into view (focus stays on Next / Previous).
   useEffect(() => {
-    if (current < 0 || current >= matches.length) return;
-    const row = matches[current].row;
-    if (row >= limit) {
-      setLimit((l) => windowFor(row, l));
-      return;
-    }
+    if (current < 0) return;
     const el = body.current?.querySelector<HTMLElement>(`[data-match="${current}"]`);
     if (el && typeof el.scrollIntoView === "function") el.scrollIntoView({ block: "center", inline: "nearest" });
-  }, [current, matches, limit]);
+  }, [current, win]);
 
-  /** Find what the field holds: a new query starts at the first match; the same one steps on. */
+  /** Find what the field holds: a new query (scanned once) starts at its first match; the same one steps on. */
   const go = (dir: 1 | -1) => {
-    if (field !== query) {
-      const next = findMatches(rows, field);
-      setQuery(field);
-      setCurrent(dir === 1 ? firstMatchFrom(next.matches, 0) : next.matches.length - 1);
-      return;
-    }
-    setCurrent((c) => stepMatch(c, matches.length, dir));
+    setState((s) => {
+      let f = s.found;
+      let cur: number;
+      if (field !== f.query) {
+        f = { query: field, ...findMatches(rows, field) };
+        cur = dir === 1 ? firstMatchFrom(f.matches, s.win.start) : f.matches.length - 1;
+      } else {
+        cur = stepMatch(s.current, f.matches.length, dir);
+      }
+      const w = cur >= 0 ? windowAround(f.matches[cur].row, s.win, rows.length) : s.win;
+      return { found: f, current: cur, win: w };
+    });
   };
+  const setWin = (w: RowWindow) => setState((s) => ({ ...s, win: w }));
 
-  const shown = rows.slice(0, limit);
-  const blocks: Row[][] = [];
-  for (let i = 0; i < shown.length; i += BLOCK_ROWS) blocks.push(shown.slice(i, i + BLOCK_ROWS));
+  const firstBlock = Math.floor(win.start / BLOCK_ROWS);
+  const lastBlock = Math.ceil(win.end / BLOCK_ROWS);
+  const curBlock = current >= 0 ? Math.floor(matches[current].row / BLOCK_ROWS) : -1;
   const gutter = String(rows.length ? rows[rows.length - 1].line : 1).length;
-  const count = findCountText(query, matches.length, current, capped);
+  const count = findCountText(found.query, matches.length, current, capped);
 
   return (
     <div className="cw-tv">
@@ -127,42 +200,28 @@ export function TextView({ rows }: { rows: Row[] }) {
       </form>
       <div ref={body} className={`cw-tv-body${wrap ? " is-wrap" : ""}`} style={{ ["--cw-gutter" as string]: `${gutter}ch` }}>
         {!rows.length ? <p className="cw-dim">{t("cw_files_vw_empty")}</p> : null}
-        {blocks.map((b, bi) => (
-          <div key={bi} className="cw-focusable cw-tv-block" tabIndex={0}>
-            {b.map((r, ri) => {
-              const index = bi * BLOCK_ROWS + ri;
-              const marks = byRow.get(index);
-              return (
-                <div key={ri} className="cw-tv-row">
-                  <span className="cw-tv-n" aria-hidden>
-                    {r.cont ? "" : r.line}
-                  </span>
-                  <span className="cw-tv-t">
-                    {marks
-                      ? highlight(r.text, marks).map(([s, mi], k) =>
-                          mi < 0 ? (
-                            s
-                          ) : (
-                            <mark key={k} data-match={mi} className={mi === current ? "is-current" : undefined}>
-                              {s}
-                            </mark>
-                          ),
-                        )
-                      : r.text}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        ))}
-        {rows.length > limit ? (
+        {win.start > 0 ? (
+          <button
+            type="button"
+            className="cw-focusable cw-button cw-more"
+            data-action="earlier-lines"
+            onClick={() => setWin({ start: Math.max(0, win.start - ROW_WINDOW), end: win.end })}
+          >
+            <span>{t("cw_files_vw_earlier_lines", { n: win.start.toLocaleString() })}</span>
+          </button>
+        ) : null}
+        {blocks.slice(firstBlock, lastBlock).map((b, i) => {
+          const k = firstBlock + i;
+          return <Block key={k} rows={b} first={k * BLOCK_ROWS} marks={byBlock.get(k)} current={k === curBlock ? current : -1} />;
+        })}
+        {rows.length > win.end ? (
           <button
             type="button"
             className="cw-focusable cw-button cw-more"
             data-action="more-lines"
-            onClick={() => setLimit((l) => l + ROW_WINDOW)}
+            onClick={() => setWin({ start: win.start, end: Math.min(rows.length, win.end + ROW_WINDOW) })}
           >
-            <span>{t("cw_files_vw_more_lines", { n: (rows.length - limit).toLocaleString() })}</span>
+            <span>{t("cw_files_vw_more_lines", { n: (rows.length - win.end).toLocaleString() })}</span>
           </button>
         ) : null}
       </div>

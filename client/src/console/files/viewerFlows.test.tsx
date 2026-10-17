@@ -15,7 +15,7 @@ import type { DirState, Entry } from "./useDir";
 import { GameBanner, GameBannerView } from "./viewer/GameBanner";
 import { HexView } from "./viewer/HexView";
 import { TextView, findCountText } from "./viewer/TextView";
-import { toRows } from "./viewer/text";
+import { ROW_WINDOW, toRows } from "./viewer/text";
 import { GameSummary, textModel, Viewer } from "./Viewer";
 
 function elements(node: ReactNode): ReactElement<Record<string, unknown>>[] {
@@ -154,6 +154,19 @@ describe("viewer in Files", () => {
     expect(findCountText("x", 10000, 0, true)).toContain(t("cw_files_vw_find_capped"));
   });
 
+  it("a find jump in a 50,000-line file draws a bounded window around the match", () => {
+    const lines = Array.from({ length: 50_000 }, (_, i) => (i === 40_000 ? "the needle is here" : `line ${i + 1}`));
+    const html = renderToStaticMarkup(<TextView rows={toRows(lines.join("\n"))} initialQuery="needle" />);
+    const drawn = html.split('class="cw-tv-row"').length - 1;
+    expect(drawn).toBeLessThanOrEqual(ROW_WINDOW + 30);
+    expect(drawn).toBeGreaterThan(0);
+    expect(html).toContain('<mark data-match="0" class="is-current">needle</mark>');
+    expect(html).toMatch(/cw-tv-n"[^>]*>40001</);
+    expect(html).not.toMatch(/cw-tv-n"[^>]*>1</);
+    expect(html).toContain('data-action="earlier-lines"');
+    expect(html).toContain('data-action="more-lines"');
+  });
+
   it("hex view: offset | hex | ASCII, a page at a time", () => {
     const bytes = new Uint8Array(2048).map((_, i) => i & 255);
     const html = renderToStaticMarkup(<HexView bytes={bytes} size={1_000_000} />);
@@ -161,8 +174,11 @@ describe("viewer in Files", () => {
     expect(html).toContain("00 01 02 03 04 05 06 07  08 09 0a 0b 0c 0d 0e 0f");
     expect(html).not.toContain("00000400"); // page 2
     expect(html).toContain(t("cw_files_vw_page", { at: 1, n: 2 }));
-    expect(html).toMatch(/data-action="hex-prev"[^>]*disabled/);
-    expect(html).not.toMatch(/data-action="hex-next"[^>]*disabled/);
+    expect(html).toMatch(/data-action="hex-prev" aria-disabled="true"/);
+    expect(html).toMatch(/data-action="hex-first" aria-disabled="true"/);
+    expect(html).not.toMatch(/data-action="hex-next" aria-disabled/);
+    expect(html).not.toMatch(/data-action="hex-last" aria-disabled/);
+    expect(html).not.toMatch(/data-action="hex-(prev|next|first|last)"[^>]*disabled=""/); // never disabled: focus stays
     expect(html).toContain("First 64 KiB of");
   });
 
@@ -170,8 +186,9 @@ describe("viewer in Files", () => {
     const img = renderToStaticMarkup(
       <Viewer path="/d/a.png" name="a.png" kind="image" images={["a.png", "b.png"]} onOpenImage={vi.fn()} onClose={vi.fn()} />,
     );
-    expect(img).toMatch(/data-action="image-prev"[^>]*disabled/);
-    expect(img).not.toMatch(/data-action="image-next"[^>]*disabled/);
+    expect(img).toMatch(/data-action="image-prev"[^>]*aria-disabled="true"/);
+    expect(img).not.toMatch(/data-action="image-next"[^>]*aria-disabled/);
+    expect(img).not.toMatch(/data-action="image-(prev|next)"[^>]*disabled=""/);
     expect(img).toContain(t("cw_files_vw_image_at", { at: 1, n: 2 }));
     const txt = renderToStaticMarkup(<Viewer path="/d/a.txt" name="a.txt" kind="text" onClose={vi.fn()} />);
     expect(txt).toContain('data-action="as-hex"');

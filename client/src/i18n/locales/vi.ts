@@ -4489,6 +4489,10 @@ c2c_test_deep_bad: "Lượt gửi thử 4 KiB không tới: {detail}",
 "cw_files_usage_busy": "Đang đo kích thước một thư mục khác. Hãy thử lại khi xong.",
 "cw_files_usage_skipped": "chưa đo",
 "cw_files_usage_unreadable": "không đọc được",
+"cw_files_vw_earlier_lines": "Hiện {n} dòng trước đó",
+"cw_files_vw_page_first": "Trang đầu",
+"cw_files_vw_page_last": "Trang cuối",
+"cw_files_search_none_capped": "Quá nhiều tệp ở nơi khác khớp nên không có tệp nào trong thư mục này được trả về. Hãy dùng tên dài hơn, hoặc Tạo lại để chỉ lập chỉ mục thư mục này.",
 };
 
 export default vi;

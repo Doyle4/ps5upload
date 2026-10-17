@@ -4487,6 +4487,10 @@ c2c_test_deep_bad: "4 KiB-এর পরীক্ষামূলক পাঠা�
 "cw_files_usage_busy": "অন্য একটি ফোল্ডারের আকার মাপা হচ্ছে। সেটি শেষ হলে আবার চেষ্টা করুন।",
 "cw_files_usage_skipped": "মাপা হয়নি",
 "cw_files_usage_unreadable": "পড়া যায় না",
+"cw_files_vw_earlier_lines": "আগের {n}টি লাইন দেখান",
+"cw_files_vw_page_first": "প্রথম পৃষ্ঠা",
+"cw_files_vw_page_last": "শেষ পৃষ্ঠা",
+"cw_files_search_none_capped": "অন্য জায়গায় অনেক বেশি ফাইল মিলে যায়, তাই এই ফোল্ডার থেকে কিছু ফেরেনি। লম্বা নাম দিন, অথবা শুধু এই ফোল্ডার ইনডেক্স করতে “আবার তৈরি করুন” বেছে নিন।",
 };
 
 export default bn;

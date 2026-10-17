@@ -4503,6 +4503,10 @@ c2c_test_deep_bad: "4 KiB का परीक्षण नहीं पहुँ
 "cw_files_usage_busy": "किसी दूसरे फ़ोल्डर का आकार मापा जा रहा है। उसके खत्म होने पर फिर कोशिश करें।",
 "cw_files_usage_skipped": "नहीं मापा गया",
 "cw_files_usage_unreadable": "पढ़ा नहीं जा सकता",
+"cw_files_vw_earlier_lines": "पिछली {n} पंक्तियाँ दिखाएँ",
+"cw_files_vw_page_first": "पहला पेज",
+"cw_files_vw_page_last": "आखिरी पेज",
+"cw_files_search_none_capped": "दूसरी जगहों पर बहुत सारी फ़ाइलें मेल खाती हैं, इसलिए इस फ़ोल्डर से कोई परिणाम नहीं लौटा। लंबा नाम आज़माएँ, या सिर्फ़ इस फ़ोल्डर का इंडेक्स बनाने के लिए “फिर से बनाएँ” चुनें।",
 };
 
 export default hi;

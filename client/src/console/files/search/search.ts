@@ -56,7 +56,8 @@ function plain(s: string): boolean {
 export function namePattern(text: string): string | null {
   const q = text.trim();
   if (!q) return null;
-  const p = /[*?]/.test(q) ? q : `*${q}*`;
+  // A run of stars means one star (fewer backtrack points for the helper's matcher).
+  const p = (/[*?]/.test(q) ? q : `*${q}*`).replace(/\*{2,}/g, "*");
   return plain(p) ? p : null;
 }
 

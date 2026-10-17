@@ -4443,6 +4443,10 @@ c2c_test_deep_bad: "4 KiB 测试发送未到达：{detail}",
 "cw_files_usage_busy": "正在测量另一个文件夹的大小。请在其结束后重试。",
 "cw_files_usage_skipped": "未测量",
 "cw_files_usage_unreadable": "无法读取",
+"cw_files_vw_earlier_lines": "显示前面的 {n} 行",
+"cw_files_vw_page_first": "第一页",
+"cw_files_vw_page_last": "最后一页",
+"cw_files_search_none_capped": "其他位置匹配的文件太多，此文件夹中的结果没有返回。请使用更长的名称，或点“重新建立”只为此文件夹建立索引。",
 };
 
 export default zh_CN;

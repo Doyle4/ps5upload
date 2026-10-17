@@ -4802,6 +4802,10 @@ c2c_test_deep_bad: "A 4 KiB-os tesztküldés nem érkezett meg: {detail}",
 "cw_files_usage_busy": "Most egy másik mappa mérete mérődik. Próbáld újra, ha végzett.",
 "cw_files_usage_skipped": "nincs mérve",
 "cw_files_usage_unreadable": "nem olvasható",
+"cw_files_vw_earlier_lines": "{n} korábbi sor megjelenítése",
+"cw_files_vw_page_first": "Első oldal",
+"cw_files_vw_page_last": "Utolsó oldal",
+"cw_files_search_none_capped": "Túl sok máshol lévő fájl egyezik, ezért ebből a mappából egy sem jött vissza. Adj meg hosszabb nevet, vagy az „Újraépítés” csak ezt a mappát indexeli.",
 };
 
 export default hu;

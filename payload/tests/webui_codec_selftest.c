@@ -800,6 +800,16 @@ static void index_codec(void) {
     CHECK(!webui_index_query_ok("a\"b"));
     CHECK(!webui_index_query_ok("a\\b"));
     CHECK(!webui_index_query_ok("a\tb"));
+    /* runs of '*' collapse to one */
+    {
+        char q[32];
+        strcpy(q, "**a***b*?**");
+        webui_index_collapse_stars(q);
+        CHECK(strcmp(q, "*a*b*?*") == 0);
+        strcpy(q, "abc");
+        webui_index_collapse_stars(q);
+        CHECK(strcmp(q, "abc") == 0);
+    }
     /* INDEX_START's body */
     CHECK(webui_index_start_body(out, sizeof out, roots, 3) > 0);
     CHECK(strcmp(out, "{\"roots\":[\"/data\",\"/mnt/ext0\",\"/mnt/usb0\"]}") == 0);

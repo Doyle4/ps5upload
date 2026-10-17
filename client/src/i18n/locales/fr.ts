@@ -4505,6 +4505,10 @@ c2c_test_deep_bad: "L’envoi test de 4 Kio n’est pas arrivé : {detail}",
 "cw_files_usage_busy": "La taille d’un autre dossier est en cours de mesure. Réessayez quand elle sera terminée.",
 "cw_files_usage_skipped": "non mesuré",
 "cw_files_usage_unreadable": "illisible",
+"cw_files_vw_earlier_lines": "Afficher {n} lignes précédentes",
+"cw_files_vw_page_first": "Première page",
+"cw_files_vw_page_last": "Dernière page",
+"cw_files_search_none_capped": "Trop de fichiers ailleurs correspondent, aucun de ce dossier n’est revenu. Utilisez un nom plus long, ou « Recréer » pour n’indexer que ce dossier.",
 };
 
 export default fr;

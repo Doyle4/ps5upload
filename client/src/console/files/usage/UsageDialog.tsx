@@ -79,7 +79,7 @@ export function UsageView({
         </button>
       </div>
       <div className="cw-tv-bar">
-        <button type="button" className="cw-focusable cw-button" data-action="usage-up" disabled={!canUp} onClick={onUp}>
+        <button type="button" className="cw-focusable cw-button" data-action="usage-up" aria-disabled={!canUp || undefined} onClick={onUp}>
           <ArrowUp aria-hidden />
           <span>{t("cw_files_up")}</span>
         </button>
@@ -157,8 +157,8 @@ export function UsageView({
 }
 
 /**
- * Disk usage (a Files tool): the subfolders of a folder (at first the drive
- * Files is on) as bars, biggest first, measured one after another. "›" looks
+ * Disk usage (a Files tool): the subfolders of a folder (at first the one
+ * Files shows; Up goes as far as its drive) as bars, biggest first, measured one after another. "›" looks
  * inside a folder (a new measurement; ○ comes back up); ✕ on a row opens it in
  * Files. One measurement at a time; closing the dialog cancels it.
  */
@@ -168,14 +168,15 @@ export function UsageDialog({
   onOpen,
   onClose,
 }: {
-  /** The folder Files shows: the measurement starts at its drive. */
+  /** The folder Files shows: the measurement starts there (Up reaches its drive). */
   folder: string;
   volumes: Volume[];
   onOpen: (path: string) => void;
   onClose: () => void;
 }) {
+  // Up goes as far as the drive; the measurement starts at the folder Files shows.
   const top = (volumeOf(folder, volumes)?.path ?? folder).replace(/\/+$/, "") || "/";
-  const [root, setRoot] = useState(top);
+  const [root, setRoot] = useState(() => folder.replace(/\/+$/, "") || "/");
   const [snap, setSnap] = useState<UsageSnapshot | null>(null);
   const [refused, setRefused] = useState(false);
   const [tick, setTick] = useState(0);
@@ -205,10 +206,10 @@ export function UsageDialog({
     const [attr, value] = want;
     // Compared as-is (no CSS escaping of folder names).
     const el = Array.from(document.querySelectorAll<HTMLElement>(`[${attr}]`)).find((x) => x.getAttribute(attr) === value);
-    if (el && !(el as HTMLButtonElement).disabled) {
+    if (el && el.getAttribute("aria-disabled") !== "true") {
       focusNext.current = null;
       focusElement(el);
-    } else if (snap?.end != null) focusNext.current = null;
+    } else if (snap && snap.root === root && snap.end != null) focusNext.current = null; // it ended without that row
   }, [root, snap]);
 
   const canUp = root !== top && root !== "/";

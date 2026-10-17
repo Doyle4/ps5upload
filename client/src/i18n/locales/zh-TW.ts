@@ -4437,6 +4437,10 @@ c2c_test_deep_bad: "4 KiB 測試傳送未抵達：{detail}",
 "cw_files_usage_busy": "正在測量另一個資料夾的大小。請在結束後重試。",
 "cw_files_usage_skipped": "未測量",
 "cw_files_usage_unreadable": "無法讀取",
+"cw_files_vw_earlier_lines": "顯示前面的 {n} 行",
+"cw_files_vw_page_first": "第一頁",
+"cw_files_vw_page_last": "最後一頁",
+"cw_files_search_none_capped": "其他位置符合的檔案太多，此資料夾中的結果沒有傳回。請使用較長的名稱，或按「重新建立」只為此資料夾建立索引。",
 };
 
 export default zh_TW;

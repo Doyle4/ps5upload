@@ -915,6 +915,11 @@ test-payload: payload
 		$(PAYLOAD_DIR)/ava1/gen/ava1_gen.c $(PAYLOAD_DIR)/ava1/ava1_wire.c
 	@/tmp/ps5upload-webui-codec-selftest
 	@echo "✓ Unicode, quoted and very large folders survive the web UI's JSON both ways"
+	@echo "Running file index name-match self-test (host build)..."
+	@cc -O2 -Wall -Wextra -Werror -I$(PAYLOAD_DIR)/include \
+		-o /tmp/ps5upload-index-glob-selftest $(PAYLOAD_DIR)/tests/index_glob_selftest.c
+	@/tmp/ps5upload-index-glob-selftest
+	@echo "✓ index name patterns match in linear time, whatever the pattern"
 	@echo "Running file manager prefs self-test (host build)..."
 	@cc -O2 -Wall -Wextra -Werror -pthread -I$(PAYLOAD_DIR)/include -I$(PAYLOAD_DIR)/ava1 -I$(PAYLOAD_DIR)/ava1/gen \
 		-o /tmp/ps5upload-files-prefs-selftest \

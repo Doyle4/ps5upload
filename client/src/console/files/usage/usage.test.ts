@@ -162,6 +162,9 @@ describe("disk usage", () => {
     await walk?.done;
     const again = startUsage("/data", () => undefined, slow);
     expect(again).not.toBeNull();
+    // and the other way round: a folder size walk waits while Disk usage runs
+    expect(startFolderSize("/data", () => undefined)).toBeNull();
     await again?.done;
+    expect(usageRunning()).toBe(false);
   });
 });

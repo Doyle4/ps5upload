@@ -4810,6 +4810,10 @@ c2c_test_deep_bad: "The 4 KiB test send did not arrive: {detail}",
 "cw_files_usage_busy": "Another folder size is being measured. Try again when it ends.",
 "cw_files_usage_skipped": "not measured",
 "cw_files_usage_unreadable": "unreadable",
+"cw_files_vw_earlier_lines": "Show {n} earlier lines",
+"cw_files_vw_page_first": "First page",
+"cw_files_vw_page_last": "Last page",
+"cw_files_search_none_capped": "Too many files elsewhere match, so none in this folder came back. Use a longer name, or Build again to index this folder only.",
 };
 
 export default en;

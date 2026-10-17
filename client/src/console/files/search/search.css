@@ -77,3 +77,6 @@
   padding: 0.3rem 0;
   justify-content: center;
 }
+.cw-usage .cw-button[aria-disabled="true"] {
+  opacity: 0.4;
+}

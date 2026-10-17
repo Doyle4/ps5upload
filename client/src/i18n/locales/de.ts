@@ -4495,6 +4495,10 @@ c2c_test_deep_bad: "Die 4-KiB-Testsendung ist nicht angekommen: {detail}",
 "cw_files_usage_busy": "Gerade wird eine andere Ordnergröße gemessen. Versuche es danach erneut.",
 "cw_files_usage_skipped": "nicht gemessen",
 "cw_files_usage_unreadable": "nicht lesbar",
+"cw_files_vw_earlier_lines": "{n} frühere Zeilen anzeigen",
+"cw_files_vw_page_first": "Erste Seite",
+"cw_files_vw_page_last": "Letzte Seite",
+"cw_files_search_none_capped": "Zu viele Dateien an anderen Orten passen, daher kam keine aus diesem Ordner zurück. Nutze einen längeren Namen oder „Neu erstellen“, um nur diesen Ordner zu indizieren.",
 };
 
 export default de;

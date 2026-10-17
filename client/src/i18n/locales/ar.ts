@@ -4487,6 +4487,10 @@ c2c_test_deep_bad: "لم يصل الإرسال التجريبي بحجم 4 KiB: 
 "cw_files_usage_busy": "يجري قياس حجم مجلد آخر. أعد المحاولة عند انتهائه.",
 "cw_files_usage_skipped": "لم يُقس",
 "cw_files_usage_unreadable": "غير قابل للقراءة",
+"cw_files_vw_earlier_lines": "عرض {n} سطرًا سابقًا",
+"cw_files_vw_page_first": "الصفحة الأولى",
+"cw_files_vw_page_last": "الصفحة الأخيرة",
+"cw_files_search_none_capped": "تطابق ملفات كثيرة جدًا في أماكن أخرى، لذا لم يعد أي ملف من هذا المجلد. استخدم اسمًا أطول، أو «إنشاء من جديد» لفهرسة هذا المجلد وحده.",
 };
 
 export default ar;

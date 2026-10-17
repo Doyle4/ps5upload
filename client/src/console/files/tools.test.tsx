@@ -84,10 +84,11 @@ describe("search page", () => {
   });
 
   const base = (over: Partial<SearchState>): SearchState => ({ ...INITIAL_SEARCH, ...over });
-  const view = (s: SearchState, field = "eboot") =>
+  const view = (s: SearchState, field = "eboot", ready = true) =>
     renderToStaticMarkup(
       <SearchView
         state={s}
+        ready={ready}
         field={field}
         scope="all"
         folder="/data/g"
@@ -126,6 +127,10 @@ describe("search page", () => {
     expect(resultsText(base({ done: { pattern: "*x*", scope: "all", results: { hits: [], truncated: false } } }))).toBe(
       t("cw_files_search_none", { q: "*x*" }),
     );
+    // nothing in this folder but the helper stopped at its limit: not "nothing matches"
+    expect(resultsText(base({ done: { pattern: "*x*", scope: "folder", results: { hits: [], truncated: true } } }))).toBe(
+      t("cw_files_search_none_capped"),
+    );
   });
 
   it("an older helper, a bad pattern, an error", () => {
@@ -135,6 +140,9 @@ describe("search page", () => {
     expect(bad).toMatch(/data-action="search-go"[^>]*disabled/);
     expect(bad).toContain(t("cw_files_search_no_index"));
     expect(view(base({ error: new ApiError(500, "oom") }))).toContain("oom");
+    // the drives have not loaded: nothing to search yet
+    expect(view(base({}), "eboot", false)).toMatch(/data-action="search-go"[^>]*disabled/);
+    expect(view(base({}), "eboot", true)).not.toMatch(/data-action="search-go"[^>]*disabled/);
   });
 });
 
@@ -182,7 +190,7 @@ describe("disk usage page", () => {
     expect(html).toContain('data-usage-drill="/data/games"');
     expect(html).not.toContain('data-usage-drill="/data"');
     expect(html).toContain('data-action="usage-cancel"');
-    expect(html).toMatch(/data-action="usage-up"[^>]*disabled/);
+    expect(html).toMatch(/data-action="usage-up" aria-disabled="true"/);
     expect(html).toContain(t("cw_files_usage_running", { at: 1, n: 3, items: "6" }));
     expect(rowSize(snap.rows[2])).toMatch(/\+$/);
     expect(rowSize(snap.rows[3])).toBe("…");

@@ -525,9 +525,26 @@ function toRail(): void {
   if (target) focusElement(target);
 }
 
+/**
+ * ← / → on an element marked [data-nav-arrows] (the viewer's picture) do not
+ * move focus: the element gets a NAV_ARROW_EVENT (detail "left" | "right")
+ * instead and decides what they mean (previous / next image).
+ */
+export const NAV_ARROW_EVENT = "cw-nav-arrow";
+
+function handArrow(dir: Direction): boolean {
+  if (dir !== "left" && dir !== "right") return false;
+  if (typeof document === "undefined" || typeof CustomEvent === "undefined") return false;
+  const active = document.activeElement as HTMLElement | null;
+  if (!active || typeof active.hasAttribute !== "function" || !active.hasAttribute("data-nav-arrows")) return false;
+  active.dispatchEvent(new CustomEvent(NAV_ARROW_EVENT, { detail: dir }));
+  return true;
+}
+
 /** Run one action: movement and confirm here, the rest through the handlers. */
 export function dispatchNav(action: NavAction): void {
   if (isDirection(action)) {
+    if (handArrow(action)) return;
     move(action);
     return;
   }

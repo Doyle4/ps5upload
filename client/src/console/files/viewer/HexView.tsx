@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
 import { formatBytes } from "../../../lib/format";
 import { t } from "../../strings";
 import { HEX_PAGE, hexPage, hexPages } from "./hex";
@@ -10,7 +10,8 @@ const HEX_BLOCK = 16;
 
 /**
  * The first 64 KiB of a file as offset | hex | ASCII, a page (1 KiB) at a time
- * with Previous / Next page buttons. `size` is the whole file's, when known.
+ * with First / Previous / Next / Last page buttons. A button at the end stays
+ * focusable (marked aria-disabled, a no-op), so the focus never drops off it. `size` is the whole file's, when known.
  */
 export function HexView({ bytes, size }: { bytes: Uint8Array; size?: number }) {
   const [page, setPage] = useState(0);
@@ -27,8 +28,18 @@ export function HexView({ bytes, size }: { bytes: Uint8Array; size?: number }) {
         <button
           type="button"
           className="cw-focusable cw-button"
+          data-action="hex-first"
+          aria-disabled={page <= 0 || undefined}
+          onClick={() => setPage(0)}
+        >
+          <ChevronsLeft aria-hidden />
+          <span>{t("cw_files_vw_page_first")}</span>
+        </button>
+        <button
+          type="button"
+          className="cw-focusable cw-button"
           data-action="hex-prev"
-          disabled={page <= 0}
+          aria-disabled={page <= 0 || undefined}
           onClick={() => setPage((p) => Math.max(0, p - 1))}
         >
           <ChevronLeft aria-hidden />
@@ -38,11 +49,21 @@ export function HexView({ bytes, size }: { bytes: Uint8Array; size?: number }) {
           type="button"
           className="cw-focusable cw-button"
           data-action="hex-next"
-          disabled={page >= pages - 1}
+          aria-disabled={page >= pages - 1 || undefined}
           onClick={() => setPage((p) => Math.min(pages - 1, p + 1))}
         >
           <ChevronRight aria-hidden />
           <span>{t("cw_files_vw_page_next")}</span>
+        </button>
+        <button
+          type="button"
+          className="cw-focusable cw-button"
+          data-action="hex-last"
+          aria-disabled={page >= pages - 1 || undefined}
+          onClick={() => setPage(pages - 1)}
+        >
+          <ChevronsRight aria-hidden />
+          <span>{t("cw_files_vw_page_last")}</span>
         </button>
         <span className="cw-dim cw-tv-count" role="status" data-hex-page="">
           {t("cw_files_vw_page", { at: page + 1, n: pages })}

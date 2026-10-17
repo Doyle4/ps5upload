@@ -89,10 +89,21 @@ export function firstMatchFrom(matches: Match[], row: number): number {
   return i < 0 ? 0 : i;
 }
 
-/** How many rows to draw so row `row` is among them (never fewer than now). */
-export function windowFor(row: number, current: number, step: number = ROW_WINDOW): number {
-  if (row < current) return current;
-  return (Math.floor(row / step) + 1) * step;
+/** The rows drawn: [start, end). */
+export interface RowWindow {
+  start: number;
+  end: number;
+}
+
+/**
+ * The rows to draw so row `row` is among them: the window as it is when it
+ * already holds it, else a fresh ROW_WINDOW-sized one around it (starting on a
+ * block boundary), so a find jump far down never draws everything above it.
+ */
+export function windowAround(row: number, win: RowWindow, total: number, size: number = ROW_WINDOW): RowWindow {
+  if (row >= win.start && row < win.end) return win;
+  const start = Math.max(0, Math.floor((row - size / 2) / BLOCK_ROWS) * BLOCK_ROWS);
+  return { start, end: Math.min(total, start + size) };
 }
 
 /** A row's text cut around its matches: [text, matchIndex | -1] pieces, in order. */

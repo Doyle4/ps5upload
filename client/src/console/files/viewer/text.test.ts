@@ -8,7 +8,7 @@ import {
   ROW_WINDOW,
   stepMatch,
   toRows,
-  windowFor,
+  windowAround,
 } from "./text";
 
 describe("text rows", () => {
@@ -88,10 +88,19 @@ describe("find", () => {
     expect(firstMatchFrom([], 0)).toBe(-1);
   });
 
-  it("draws far enough to show a match further down, never less than now", () => {
-    expect(windowFor(10, ROW_WINDOW)).toBe(ROW_WINDOW);
-    expect(windowFor(ROW_WINDOW, ROW_WINDOW)).toBe(2 * ROW_WINDOW);
-    expect(windowFor(5000, ROW_WINDOW)).toBe(Math.ceil(5001 / ROW_WINDOW) * ROW_WINDOW);
+  it("a find jump draws a bounded window around the match, never everything above it", () => {
+    const w0 = { start: 0, end: ROW_WINDOW };
+    expect(windowAround(10, w0, 50_000)).toBe(w0); // already drawn: unchanged
+    const far = windowAround(40_000, w0, 50_000);
+    expect(far.end - far.start).toBe(ROW_WINDOW);
+    expect(far.start).toBeLessThanOrEqual(40_000);
+    expect(far.end).toBeGreaterThan(40_000);
+    expect(far.start % 30).toBe(0); // starts on a block
+    const near0 = windowAround(100, { start: 30_000, end: 31_500 }, 50_000);
+    expect(near0.start).toBe(0);
+    const end = windowAround(49_999, w0, 50_000);
+    expect(end.end).toBe(50_000);
+    expect(end.start).toBeLessThanOrEqual(49_999);
   });
 
   it("cuts a row around its matches", () => {

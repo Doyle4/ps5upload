@@ -4788,6 +4788,10 @@ c2c_test_deep_bad: "ارسال آزمایشی ۴ KiB نرسید: {detail}",
 "cw_files_usage_busy": "اندازهٔ پوشهٔ دیگری در حال اندازه‌گیری است. پس از پایان آن دوباره امتحان کنید.",
 "cw_files_usage_skipped": "اندازه‌گیری نشده",
 "cw_files_usage_unreadable": "خواندنی نیست",
+"cw_files_vw_earlier_lines": "نمایش {n} خط پیشین",
+"cw_files_vw_page_first": "صفحهٔ نخست",
+"cw_files_vw_page_last": "صفحهٔ آخر",
+"cw_files_search_none_capped": "فایل‌های زیادی در جاهای دیگر جور هستند، پس هیچ نتیجه‌ای از این پوشه برنگشت. نام بلندتری بنویسید، یا «ساخت دوباره» را بزنید تا فقط همین پوشه نمایه شود.",
 };
 
 export default fa;
