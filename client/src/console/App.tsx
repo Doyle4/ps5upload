@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { call, isOffline, onTokenExpired } from "./api";
 import { focusElement, onNavAction, type InputMap } from "./nav";
-import { SECTIONS } from "./sections";
+import { SECTIONS, type SectionContext, type SectionParams } from "./sections";
 import { HintBar } from "./shell/HintBar";
 import { Rail } from "./shell/Rail";
 import { ReloadBanner } from "./shell/ReloadBanner";
@@ -21,6 +21,16 @@ export function App({ inputMap }: { inputMap: InputMap }) {
   const [expired, setExpired] = useState(false);
   const [status, setStatus] = useState<ConsoleStatus | null>(null);
   const [offline, setOffline] = useState(false);
+  /** Bumped to read /api/status again at once. */
+  const [statusTick, setStatusTick] = useState(0);
+  /** What the active section was opened with (Home's Browse USB → Files at a path). */
+  const [params, setParams] = useState<SectionParams | null>(null);
+
+  /** Switch section; params go only to a section opened through openSection. */
+  const show = useCallback((id: string, p: SectionParams | null = null) => {
+    setActive(id);
+    setParams(p);
+  }, []);
 
   useEffect(() => onTokenExpired(() => setExpired(true)), []);
 
@@ -46,7 +56,7 @@ export function App({ inputMap }: { inputMap: InputMap }) {
       live = false;
       window.clearInterval(timer);
     };
-  }, [expired]);
+  }, [expired, statusTick]);
 
   // Start with focus on the rail, so the D-pad works at once.
   useEffect(() => {
@@ -62,7 +72,7 @@ export function App({ inputMap }: { inputMap: InputMap }) {
         if (action === "prevSection" || action === "nextSection") {
           const step = action === "nextSection" ? 1 : SECTIONS.length - 1;
           const next = SECTIONS[(i + step) % SECTIONS.length].id;
-          setActive(next);
+          show(next);
           const el = railButton(next);
           if (el) focusElement(el);
           return true;
@@ -73,7 +83,7 @@ export function App({ inputMap }: { inputMap: InputMap }) {
             const el = railButton(active);
             if (el) focusElement(el);
           } else if (active !== SECTIONS[0].id) {
-            setActive(SECTIONS[0].id);
+            show(SECTIONS[0].id);
             const el = railButton(SECTIONS[0].id);
             if (el) focusElement(el);
           }
@@ -81,7 +91,23 @@ export function App({ inputMap }: { inputMap: InputMap }) {
         }
         return false;
       }),
-    [active],
+    [active, show],
+  );
+
+  const ctx = useMemo<SectionContext>(
+    () => ({
+      status,
+      refreshStatus: () => setStatusTick((n) => n + 1),
+      openSection: (id, p) => {
+        if (!SECTIONS.some((s) => s.id === id)) return;
+        show(id, p ?? null);
+        const el = railButton(id);
+        if (el) focusElement(el);
+      },
+      canOpen: (id) => SECTIONS.some((s) => s.id === id && s.acceptsParams),
+      params,
+    }),
+    [status, params, show],
   );
 
   const section = SECTIONS.find((s) => s.id === active) ?? SECTIONS[0];
@@ -91,8 +117,8 @@ export function App({ inputMap }: { inputMap: InputMap }) {
     <div className="cw-app">
       <TopBar status={status} chipFallback={chipFallback} />
       <div className="cw-body" aria-hidden={expired ? true : undefined}>
-        <Rail sections={SECTIONS} active={active} onSelect={setActive} />
-        <main className="cw-content">{section.render()}</main>
+        <Rail sections={SECTIONS} active={active} onSelect={(id) => show(id)} />
+        <main className="cw-content">{section.render(ctx)}</main>
       </div>
       <HintBar map={inputMap} />
       {expired ? <ReloadBanner /> : null}

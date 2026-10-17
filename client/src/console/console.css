@@ -243,3 +243,236 @@ button {
   width: 1.2rem;
   height: 1.2rem;
 }
+.cw-button.is-danger {
+  background: var(--color-bad);
+  color: #fff;
+}
+.cw-button.is-danger:focus {
+  background: var(--color-bad);
+  box-shadow: 0 0 0 4px var(--color-bad-soft);
+}
+
+/* ---- shared text ---- */
+.cw-h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+.cw-dim {
+  color: var(--color-muted);
+}
+.cw-mono {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.8rem;
+}
+.cw-tag {
+  display: inline-block;
+  padding: 0.05rem 0.5rem;
+  margin-left: 0.6rem;
+  border-radius: var(--radius-control);
+  background: var(--color-pill);
+  color: var(--color-muted);
+  font-size: 0.75rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.cw-tag.is-pc {
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+}
+
+/* ---- progress bar ---- */
+.cw-bar {
+  height: 0.4rem;
+  margin: 0.35rem 0;
+  border-radius: 0.2rem;
+  background: var(--color-surface-3);
+  overflow: hidden;
+}
+.cw-bar-fill {
+  height: 100%;
+  border-radius: 0.2rem;
+  background: var(--accent-fill);
+}
+.cw-bar-fill.is-warn {
+  background: var(--color-warn);
+}
+.cw-bar-fill.is-unknown {
+  opacity: 0.4;
+}
+
+/* ---- confirm dialog ---- */
+.cw-scrim {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--overlay-scrim, rgba(0, 0, 0, 0.6));
+  z-index: 20;
+}
+.cw-dialog {
+  width: 32rem;
+  max-width: calc(100vw - 2rem);
+  padding: 1.2rem 1.4rem;
+  border-radius: var(--radius-panel);
+  background: var(--color-float);
+  border: 1px solid var(--color-border-strong);
+  box-shadow: var(--shadow-3);
+}
+.cw-dialog h2 {
+  margin: 0 0 0.4rem;
+  font-size: 1.2rem;
+}
+.cw-dialog p {
+  margin: 0 0 1rem;
+  color: var(--color-muted);
+}
+.cw-dialog-buttons {
+  display: flex;
+  justify-content: flex-end;
+}
+.cw-dialog-buttons .cw-button {
+  margin-left: 0.8rem;
+}
+
+/* ---- Home ---- */
+.cw-msg {
+  margin: 0 0 0.8rem;
+  padding: 0.5rem 0.9rem;
+  border-radius: var(--radius-field);
+  background: var(--color-surface-2);
+}
+.cw-msg.is-error {
+  background: var(--color-bad-soft);
+  color: var(--color-bad);
+}
+.cw-msg.is-info {
+  background: var(--color-good-soft);
+  color: var(--color-good);
+}
+.cw-quick {
+  display: flex;
+  flex-wrap: wrap;
+  margin-bottom: 0.6rem;
+}
+.cw-quick .cw-button {
+  margin: 0 0.7rem 0.5rem 0;
+}
+.cw-card {
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+}
+.cw-game {
+  display: flex;
+  align-items: center;
+  padding: 0.8rem 1rem;
+  margin-bottom: 1.2rem;
+}
+.cw-game-icon {
+  flex: none;
+  width: 2rem;
+  height: 2rem;
+  margin-right: 0.9rem;
+  color: var(--color-muted);
+}
+.cw-game-text {
+  flex: 1;
+  min-width: 0;
+}
+.cw-game-title {
+  font-size: 1.15rem;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cw-home-section {
+  margin-bottom: 1.2rem;
+}
+.cw-home-section > p {
+  margin: 0;
+}
+.cw-tasks,
+.cw-volumes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.cw-task {
+  display: flex;
+  align-items: center;
+  margin-bottom: 0.5rem;
+  padding-right: 0.8rem;
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+}
+.cw-task-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  padding: 0.6rem 0.9rem;
+  text-align: left;
+}
+.cw-task-icon {
+  flex: none;
+  width: 1.5rem;
+  height: 1.5rem;
+  margin-right: 0.8rem;
+  color: var(--color-muted);
+}
+.cw-task-text {
+  flex: 1;
+  min-width: 0;
+}
+.cw-task-title {
+  font-weight: 600;
+}
+.cw-task-sub {
+  font-size: 0.85rem;
+}
+.cw-task.is-failed .cw-task-sub {
+  color: var(--color-bad);
+}
+.cw-task.is-done .cw-task-sub {
+  color: var(--color-good);
+}
+.cw-task > .cw-button {
+  flex: none;
+  margin-left: 0.8rem;
+}
+.cw-volumes {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
+  grid-gap: 0.8rem;
+  gap: 0.8rem;
+}
+.cw-volume {
+  padding: 0.7rem 0.9rem;
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+}
+.cw-volume-head {
+  display: flex;
+  align-items: center;
+}
+.cw-volume-head svg {
+  flex: none;
+  width: 1.3rem;
+  height: 1.3rem;
+  margin-right: 0.5rem;
+  color: var(--color-muted);
+}
+.cw-volume-name {
+  font-weight: 600;
+}
+.cw-volume-free {
+  font-size: 0.85rem;
+}
