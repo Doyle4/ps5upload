@@ -6,34 +6,38 @@ What's new in ps5upload, written for humans.
 
 ## 7.1.0
 
-- **PS5Upload Files is a new tile on the PS5 home screen that opens a page in the PS5 browser.** Pick
-  the tile to manage your files without a PC. The page fills the TV and has four sections: Home,
-  Files, Cheats and Settings.
-- **Home shows what is going on.** The game that is running (with Close game and a shortcut to
-  its cheats), the tasks that are running, and your drives; pick a drive to open it in Files.
-  Uploads and copies started from your PC show up as "from a PC", and a task can be cancelled
-  from here.
-- **Move, copy, rename and delete files from the couch.** Browse the internal drive, M.2 and USB
-  drives, make folders, view text and pictures, and see a file's details. Several items are
-  copied, moved or deleted one after another, with "3 of 40" and a Stop button while they run.
-- **Cheats for the running game.** Switch the cheats PS5Upload already has for the game on and
-  off. Adding cheats stays in the app on your PC; when no game is running, the page says what to
-  do.
-- **Made for the controller.** ✕ selects what is highlighted and the PS5's Back button (○) steps
-  back inside the page (out of a dialog, up a folder, back to Home). The PS5's own pointer works
-  too: whatever it is over is highlighted, so the highlight and what ✕ clicks are always the
-  same. Every action also has a button on screen.
-- **Tips and a Controls screen.** Three short tips show the first time (skip them with ○ or
-  Skip; Settings shows them again). Help, at the bottom of the left bar, lists the buttons that
-  work on the screen in front of you. Controls draws the DualSense with each button's job on the
-  page and lights up each button the page receives, so you can see which ones your PS5 passes
-  on; while it is open, button presses are saved to a small log on the console to improve
-  controller support.
-- **The desktop app's themes.** Dark, Light, OLED and Peach, plus high contrast, in Settings,
-  along with the page's language and full screen.
-- **Only the console can open it by default.** In Settings you can allow other devices on your
-  network (it asks first, because anyone on the network could then manage your files) and hide
-  the home screen tile.
+- **PS5Upload Files: manage your files from the couch.** A new PS5Upload Files tile on the
+  PS5 home screen opens a page in the PS5 browser that fills the TV. It has four sections:
+  **Home** (the running game with Close game, the tasks that are running with Cancel, and your
+  drives), **Files**, **Cheats** (switch the running game's cheats on and off) and **Settings**.
+  The PS5Upload helper must be loaded; when it isn't, the tile shows a page that says so, and
+  the page opens by itself once the helper answers. After an update, a banner offers to reload.
+- **Made for the controller.** ✕ selects, ○ steps back, △ opens an item's actions, and the PS5's
+  own pointer works too. Every action also has a button on screen. Three short tips show the
+  first time, Help lists the buttons that work on the current screen, and Controls shows which
+  buttons your PS5 passes on to the page. Dark, Light, OLED and Peach themes, high contrast,
+  the language and full screen are in Settings.
+- **Browse and organise.** A path bar with Go to path, pinned and recent folders, and your
+  drives, with Eject for USB drives and Unmount for game images (refused while a game is
+  running). Sort, filter, show hidden files and select all. Copy, cut and paste, with Replace,
+  Keep both or Skip when a name is taken (and Apply to all); rename one item or many at once
+  with a pattern (a change of letter case alone works too); new folder; delete; Fix permissions.
+- **Look inside files.** Info with folder size; Verify (BLAKE3 and CRC32); Decompress a
+  `.ffpfsc` back to its image, with progress. The viewer shows text (with find), JSON, a
+  summary of a game's `param.json`, hex, and pictures (step through a folder's images); a game
+  folder shows its banner. Search finds files by name in this folder or on all drives (the first
+  search builds an index), and Disk usage shows what takes the space.
+- **Works with the app on your PC.** File System shows the folders pinned on the console
+  ("Pinned on console"), and **Show on console** opens a folder on the TV; **Show on PC** on the
+  console opens it in the PC app. Files being uploaded from your PC show an Uploading badge.
+  These need the 7.1.0 helper; with an older one the app simply doesn't show them.
+- **Only the console can open it by default.** Settings → Allow other devices lets a phone or
+  computer on your network open the page too. There is no password, so anyone on your network
+  can then manage your files; turn it off when you're done. While it's on, text boxes on the
+  console show a "Continue on your phone" code to type there instead.
+- **The tile is yours to remove.** Settings → Show PS5Upload Files on the home screen removes or
+  restores it. The tile is left out of the app's game list (an older engine or Docker image may
+  still list PSUP00001).
 - **Big app databases no longer hide installed games.** The console's app database was read
   only up to its first 256 entries, and a long list could be cut shorter still, with nothing
   saying so. On a console with many entries, a game installed by a homebrew installer (no

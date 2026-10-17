@@ -1609,6 +1609,49 @@ For save data specifically, use the Save data screen.
 
 ---
 
+## PS5Upload Files (on the console)
+
+**Q: What is PS5Upload Files?**
+A file manager that runs on the PS5 itself, in the PS5's web browser, for when your PC isn't
+nearby. It has four sections: **Home** (the running game, running tasks and your drives),
+**Files** (browse, copy, move, rename, delete, view, verify, search and more), **Cheats** for the
+running game, and **Settings**. The PS5Upload helper serves it on port 9180.
+
+**Q: How do I open it?**
+Pick the **PS5Upload Files** tile on the PS5 home screen. You can also open
+`http://127.0.0.1:9180/` in the PS5's web browser. Either way the PS5Upload helper must be
+loaded (send it from the app, or from your payload loader), and it must be the 7.1.0 helper or
+newer.
+
+**Q: The tile shows "PS5Upload Files isn't running".**
+The helper isn't loaded, for example after a reboot or rest mode. Load the PS5Upload helper from
+the app on your PC or from your payload loader; the page notices and opens by itself (or press
+**Try again**). It is the browser's saved copy of the page saying the helper didn't answer;
+nothing is wrong with your files.
+
+**Q: How do I use it with the controller?**
+✕ selects what is highlighted, ○ goes back one step (out of a dialog, up a folder, back to
+Home), and △ opens the actions for the highlighted item; the **⋯** button on each row does the
+same. The PS5's pointer works too: move it with the left stick, and ✕ clicks what it is over.
+Every action has a button on screen. **Help**, at the bottom of the left bar, lists the buttons
+that work on the current screen, and **Settings** shows the first-time tips again.
+
+**Q: Can I use it from my phone or PC?**
+Yes. On the console, open **Settings → Allow other devices on the network** and confirm. Then
+open `http://<console-ip>:9180/` in a browser on the same network (the console's address is the
+one you use in the app). There is no password: while this is on, **anyone on your network can
+use the page and manage your files**, so turn it off when you're done. Turning it off
+disconnects the other devices; the console keeps access. While it is on, text boxes on the
+console show a QR code ("Continue on your phone") so you can type on your phone instead.
+
+**Q: How do I hide or bring back the tile?**
+In **Settings**, switch off **Show PS5Upload Files on the home screen** to remove the tile, and
+switch it on again to bring it back. With the tile hidden you can still open
+`http://127.0.0.1:9180/` in the PS5's browser. The tile (title id `PSUP00001`) is left out of
+the app's game list; an older engine or Docker image may still list it.
+
+---
+
 ## Servers, safe moves, and backport helpers
 
 **Q: Why can't I rename a file from one PS5 drive to another?**
