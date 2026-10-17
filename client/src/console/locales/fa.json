@@ -74,6 +74,7 @@
   "cw_files_filter_active": "فیلتر: {q}",
   "cw_files_filter_clear": "پاک کردن فیلتر",
   "cw_files_filter_label": "نام شامل",
+  "cw_files_filter_on": "فیلتر روشن است",
   "cw_files_filter_title": "فیلتر این پوشه",
   "cw_files_fixperm": "اصلاح مجوزها",
   "cw_files_fixperm_batch": "در حال اصلاح مجوزها {at} از {total}…",

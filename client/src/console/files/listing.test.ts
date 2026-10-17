@@ -11,7 +11,9 @@ import {
   DEFAULT_VIEW,
   iconKind,
   invertShown,
+  keyStats,
   loadView,
+  namesOf,
   saveView,
   selectAllShown,
   sortEntries,
@@ -148,27 +150,61 @@ describe("load all", () => {
   });
 });
 
+describe("natKey and code-point order", () => {
+  it("folds accents so Éclair sorts with eclair, before zebra", () => {
+    const l = [e("zebra"), e("Éclair"), e("eclair2"), e("Apple"), e("éclair10")];
+    expect(names(sortEntries(l))).toEqual(["Apple", "Éclair", "eclair2", "éclair10", "zebra"]);
+  });
+  it("compares by code point, not UTF-16 unit (astral after U+FF61)", () => {
+    const l = [e("\u{1F600}"), e("\uFF61")];
+    expect(names(sortEntries(l))).toEqual(["\uFF61", "\u{1F600}"]);
+  });
+});
+
+describe("load all results", () => {
+  it("reports skipped (busy / done) and failed, so Select all does not stay armed", async () => {
+    mockCall.mockImplementation(async (_r: string, body?: object) => {
+      const { offset } = body as { offset: number };
+      return { entries: [e(`f${offset}`)], more: offset < 2, next: offset + 1 } as never;
+    });
+    const l = createDirLoader("/d", () => {});
+    const first = l.loadAll(100);
+    expect(await l.loadAll(100)).toBe("skipped"); // busy
+    expect(await first).toBe("ok");
+    expect(await l.loadAll(100)).toBe("skipped"); // done
+    mockCall.mockRejectedValue(new Error("x"));
+    const l2 = createDirLoader("/d2", () => {});
+    expect(await l2.loadAll(100)).toBe("failed");
+  });
+});
+
 describe("20,000 entries", () => {
-  it("sort + filter + select all + status stay fast", () => {
+  it("keys each entry once across repeated sorts and never mutates the input", () => {
     const l: Entry[] = [];
     for (let i = 0; i < 20_000; i++) {
       l.push(e(`${i % 7 === 0 ? "." : ""}file_${(i * 7919) % 100003}_ゲーム.dat`, i % 50 === 0 ? "dir" : "file", (i * 31) % 9999, i));
     }
-    const run = (v: ViewPrefs) => {
-      const t0 = performance.now();
+    const before = names(l);
+    const built0 = keyStats.built;
+    const first = visibleEntries(l, view({ hidden: true }));
+    expect(keyStats.built - built0).toBe(20_000);
+    for (const v of [view({ hidden: true, sort: "size", dir: "desc" }), view({ hidden: true, filter: "_1" }), view({ hidden: true, sort: "date" })]) {
       const shown = visibleEntries(l, v);
-      const sel = selectAllShown([], shown);
-      const inv = invertShown(sel.slice(0, 100), shown);
-      statusOf(shown, l.length, sel, l);
-      return { ms: performance.now() - t0, shown, inv };
-    };
-    run(view({ hidden: true })); // warm-up: builds the sort keys
-    const worst = Math.max(
-      run(view({ hidden: true })).ms,
-      run(view({ hidden: true, sort: "size", dir: "desc" })).ms,
-      run(view({ hidden: true, filter: "_1" })).ms,
-    );
-    expect(run(view()).shown.length).toBeLessThan(20_000);
-    expect(worst).toBeLessThan(80); // measured ~28 ms for sort+filter+select-all+status; slack for a loaded CI box
+      expect(shown.length).toBeGreaterThan(0);
+      selectAllShown([], shown);
+      invertShown(["x"], shown);
+      statusOf(shown, l.length, namesOf(shown), l);
+    }
+    expect(keyStats.built - built0).toBe(20_000); // no re-keying (no O(n log n) key rebuilds)
+    expect(first).toHaveLength(20_000);
+    expect(names(l)).toEqual(before); // input untouched
+    // Sorted: folders first, then names ascending by key.
+    const firstFile = first.findIndex((x) => x.kind !== "dir");
+    expect(first.slice(0, firstFile).every((x) => x.kind === "dir")).toBe(true);
+    expect(visibleEntries(l, view()).length).toBeLessThan(20_000);
+    // Generous smoke bound only (real timing was ~28 ms; wall time is not asserted tightly).
+    const t0 = performance.now();
+    visibleEntries(l, view({ hidden: true, sort: "size" }));
+    expect(performance.now() - t0).toBeLessThan(1500);
   });
 });

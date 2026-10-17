@@ -4129,6 +4129,7 @@ c2c_test_deep_bad: "لم يصل الإرسال التجريبي بحجم 4 KiB: 
 "cw_files_status_size_dirs": "{size}، بدون احتساب المجلدات",
 "cw_files_none_match": "لا شيء يطابق التصفية.",
 "cw_files_tools": "أدوات المجلد",
+"cw_files_filter_on": "التصفية مفعّلة",
 "cw_files_selected": "تم تحديد {n}",
 "cw_files_items": "{n} عناصر",
 "cw_files_free": "{free} متاحة",

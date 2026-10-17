@@ -458,8 +458,8 @@ function TasksLine({ tasks }: { tasks: Job[] }) {
 }
 
 /**
- * One toolbar button: an icon, named by aria-label; its name shows next to it
- * while it has focus (CSS) and in the hint bar (data-tip).
+ * One toolbar button: an icon, named by aria-label; the hint bar shows the
+ * focused one's name (data-tip).
  */
 function ToolButton({
   icon: Icon,
@@ -490,9 +490,6 @@ function ToolButton({
       onClick={onClick}
     >
       <Icon aria-hidden />
-      <span className="cw-tool-label" aria-hidden>
-        {label}
-      </span>
     </button>
   );
 }
@@ -581,6 +578,14 @@ export function FilesView(p: FilesViewProps) {
                       onClick={() => p.onAsk({ kind: "sheet", names: p.selected })}
                     />
                   ) : null}
+                  {view.filter ? (
+                    <ToolButton
+                      icon={FilterX}
+                      label={t("cw_files_filter_clear")}
+                      action="filter-clear"
+                      onClick={() => p.onView?.({ filter: "" })}
+                    />
+                  ) : null}
                   {p.dir.more && p.onLoadAll ? loadAllButton : null}
                   <ToolButton
                     icon={SquareCheck}
@@ -651,6 +656,7 @@ export function FilesView(p: FilesViewProps) {
             <p className="cw-dim cw-status" role="status" data-status="">
               {[
                 statusText(st),
+                p.selecting && view.filter ? t("cw_files_filter_on") : null,
                 capped ? t("cw_files_capped", { n: p.dir.entries.length }) : null,
                 vol ? t("cw_files_free", { free: formatBytes(vol.free_bytes) }) : null,
               ]
@@ -1029,7 +1035,10 @@ export function Files({ ctx }: { ctx: SectionContext }) {
     if (dir.more && !dir.loading) {
       // Pages remain: read them first so "all" means the whole folder.
       selectAfterLoad.current = true;
-      loadAll();
+      // A load that did not run (busy, folder left) or failed selects nothing later.
+      void loadAll().then((r) => {
+        if (r !== "ok") selectAfterLoad.current = false;
+      });
       return;
     }
     setSelected((s) => selectAllShown(s, shown));
@@ -1037,8 +1046,8 @@ export function Files({ ctx }: { ctx: SectionContext }) {
   useEffect(() => {
     if (!selectAfterLoad.current || dir.loading) return;
     selectAfterLoad.current = false;
-    setSelected((s) => selectAllShown(s, shown));
-  }, [dir.loading, shown]);
+    if (!dir.error) setSelected((s) => selectAllShown(s, shown));
+  }, [dir.loading, dir.error, shown]);
   const onSelectNone = useCallback(() => setSelected([]), []);
   const onSelectInvert = useCallback(() => setSelected((s) => invertShown(s, shown)), [shown]);
 

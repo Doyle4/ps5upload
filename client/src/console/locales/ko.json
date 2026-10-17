@@ -74,6 +74,7 @@
   "cw_files_filter_active": "필터: {q}",
   "cw_files_filter_clear": "필터 해제",
   "cw_files_filter_label": "이름에 포함",
+  "cw_files_filter_on": "필터 켜짐",
   "cw_files_filter_title": "이 폴더 필터",
   "cw_files_fixperm": "권한 수정",
   "cw_files_fixperm_batch": "권한 수정 중 {at}/{total}…",

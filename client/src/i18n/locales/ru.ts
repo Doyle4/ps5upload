@@ -4079,6 +4079,7 @@ c2c_test_deep_bad: "Тестовая отправка 4 КиБ не дошла: 
 "cw_files_status_size_dirs": "{size}, папки не учтены",
 "cw_files_none_match": "Ничего не подходит под фильтр.",
 "cw_files_tools": "Инструменты папки",
+"cw_files_filter_on": "Фильтр включён",
 "cw_files_selected": "Выбрано: {n}",
 "cw_files_items": "Элементов: {n}",
 "cw_files_free": "Свободно: {free}",

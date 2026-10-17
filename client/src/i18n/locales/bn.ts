@@ -4129,6 +4129,7 @@ c2c_test_deep_bad: "4 KiB-এর পরীক্ষামূলক পাঠা�
 "cw_files_status_size_dirs": "{size}, ফোল্ডার গণনা হয়নি",
 "cw_files_none_match": "ফিল্টারের সাথে কিছু মেলেনি।",
 "cw_files_tools": "ফোল্ডারের টুল",
+"cw_files_filter_on": "ফিল্টার চালু",
 "cw_files_selected": "{n}টি নির্বাচিত",
 "cw_files_items": "{n}টি আইটেম",
 "cw_files_free": "{free} খালি",

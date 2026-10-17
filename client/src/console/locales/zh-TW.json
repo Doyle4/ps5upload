@@ -74,6 +74,7 @@
   "cw_files_filter_active": "篩選：{q}",
   "cw_files_filter_clear": "清除篩選",
   "cw_files_filter_label": "名稱包含",
+  "cw_files_filter_on": "篩選已開啟",
   "cw_files_filter_title": "篩選此資料夾",
   "cw_files_fixperm": "修正權限",
   "cw_files_fixperm_batch": "正在修正權限 {at}/{total}…",

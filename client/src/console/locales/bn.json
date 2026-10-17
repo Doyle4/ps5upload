@@ -74,6 +74,7 @@
   "cw_files_filter_active": "ফিল্টার: {q}",
   "cw_files_filter_clear": "ফিল্টার সরান",
   "cw_files_filter_label": "নামে আছে",
+  "cw_files_filter_on": "ফিল্টার চালু",
   "cw_files_filter_title": "এই ফোল্ডার ফিল্টার করুন",
   "cw_files_fixperm": "অনুমতি ঠিক করুন",
   "cw_files_fixperm_batch": "অনুমতি ঠিক করা হচ্ছে: {total}টির মধ্যে {at}…",

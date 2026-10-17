@@ -74,6 +74,7 @@
   "cw_files_filter_active": "Szűrő: {q}",
   "cw_files_filter_clear": "Szűrő törlése",
   "cw_files_filter_label": "A név tartalmazza",
+  "cw_files_filter_on": "Szűrő bekapcsolva",
   "cw_files_filter_title": "Mappa szűrése",
   "cw_files_fixperm": "Jogosultságok javítása",
   "cw_files_fixperm_batch": "Jogosultságok javítása: {at} / {total}…",

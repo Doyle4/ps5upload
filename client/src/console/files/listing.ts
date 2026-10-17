@@ -61,19 +61,42 @@ const keys = new WeakMap<Entry, string>();
  * stable for any script, CJK included.)
  */
 export function natKey(name: string): string {
-  return name.toLowerCase().replace(/\d+/g, (d) => (d.length >= 20 ? d : d.padStart(20, "0")));
+  // NFD + dropped combining marks: "Éclair" sorts with "eclair", before "zebra".
+  return name
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/\d+/g, (d) => (d.length >= 20 ? d : d.padStart(20, "0")));
 }
+
+/** How many sort keys were built (tests: each entry is keyed once across repeated sorts). */
+export const keyStats = { built: 0 };
 
 function keyOf(e: Entry): string {
   let k = keys.get(e);
   if (k === undefined) {
+    keyStats.built++;
     k = natKey(e.name);
     keys.set(e, k);
   }
   return k;
 }
 
-const cmpStr = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
+/** By code point (plain `<` compares UTF-16 units, which puts astral characters before U+E000-U+FFFF). */
+function cmpStr(a: string, b: string): number {
+  if (a === b) return 0;
+  const n = Math.min(a.length, b.length);
+  for (let i = 0; i < n; i++) {
+    let x = a.charCodeAt(i);
+    let y = b.charCodeAt(i);
+    if (x !== y) {
+      if (x >= 0xd800) x += x >= 0xe000 ? -0x800 : 0x2000;
+      if (y >= 0xd800) y += y >= 0xe000 ? -0x800 : 0x2000;
+      return x < y ? -1 : 1;
+    }
+  }
+  return a.length < b.length ? -1 : 1;
+}
 const isDir = (e: Entry): boolean => e.kind === "dir";
 
 /** Folders first, then by `sort` (`dir` flips files and, for name/date, folders too). */

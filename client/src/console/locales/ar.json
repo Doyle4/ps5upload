@@ -74,6 +74,7 @@
   "cw_files_filter_active": "التصفية: {q}",
   "cw_files_filter_clear": "مسح التصفية",
   "cw_files_filter_label": "الاسم يحتوي على",
+  "cw_files_filter_on": "التصفية مفعّلة",
   "cw_files_filter_title": "تصفية هذا المجلد",
   "cw_files_fixperm": "إصلاح الأذونات",
   "cw_files_fixperm_batch": "جارٍ إصلاح الأذونات {at} من {total}…",

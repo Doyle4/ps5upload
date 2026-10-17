@@ -4145,6 +4145,7 @@ c2c_test_deep_bad: "4 KiB का परीक्षण नहीं पहुँ
 "cw_files_status_size_dirs": "{size}, फ़ोल्डर गिने नहीं गए",
 "cw_files_none_match": "फ़िल्टर से कुछ मेल नहीं खाता।",
 "cw_files_tools": "फ़ोल्डर के टूल",
+"cw_files_filter_on": "फ़िल्टर चालू है",
 "cw_files_selected": "{n} चुने गए",
 "cw_files_items": "{n} आइटम",
 "cw_files_free": "{free} खाली",

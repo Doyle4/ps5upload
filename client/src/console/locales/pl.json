@@ -74,6 +74,7 @@
   "cw_files_filter_active": "Filtr: {q}",
   "cw_files_filter_clear": "Wyczyść filtr",
   "cw_files_filter_label": "Nazwa zawiera",
+  "cw_files_filter_on": "Filtr włączony",
   "cw_files_filter_title": "Filtruj ten folder",
   "cw_files_fixperm": "Napraw uprawnienia",
   "cw_files_fixperm_batch": "Naprawianie uprawnień {at} z {total}…",

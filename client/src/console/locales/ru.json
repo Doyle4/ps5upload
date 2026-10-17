@@ -74,6 +74,7 @@
   "cw_files_filter_active": "Фильтр: {q}",
   "cw_files_filter_clear": "Сбросить фильтр",
   "cw_files_filter_label": "Имя содержит",
+  "cw_files_filter_on": "Фильтр включён",
   "cw_files_filter_title": "Фильтр по этой папке",
   "cw_files_fixperm": "Исправить права",
   "cw_files_fixperm_batch": "Исправление прав {at} из {total}…",

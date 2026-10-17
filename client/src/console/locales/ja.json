@@ -74,6 +74,7 @@
   "cw_files_filter_active": "絞り込み: {q}",
   "cw_files_filter_clear": "絞り込みを解除",
   "cw_files_filter_label": "名前に含む文字",
+  "cw_files_filter_on": "絞り込み中",
   "cw_files_filter_title": "このフォルダを絞り込む",
   "cw_files_fixperm": "権限を修正",
   "cw_files_fixperm_batch": "権限を修正中 {at}/{total}…",

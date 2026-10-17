@@ -74,6 +74,7 @@
   "cw_files_filter_active": "Filtre: {q}",
   "cw_files_filter_clear": "Filtreyi temizle",
   "cw_files_filter_label": "Ad şunu içerir",
+  "cw_files_filter_on": "Filtre açık",
   "cw_files_filter_title": "Bu klasörü filtrele",
   "cw_files_fixperm": "İzinleri düzelt",
   "cw_files_fixperm_batch": "İzinler düzeltiliyor: {at} / {total}…",

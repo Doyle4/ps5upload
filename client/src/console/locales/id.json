@@ -74,6 +74,7 @@
   "cw_files_filter_active": "Filter: {q}",
   "cw_files_filter_clear": "Hapus filter",
   "cw_files_filter_label": "Nama berisi",
+  "cw_files_filter_on": "Filter aktif",
   "cw_files_filter_title": "Filter folder ini",
   "cw_files_fixperm": "Perbaiki izin",
   "cw_files_fixperm_batch": "Memperbaiki izin {at} dari {total}…",

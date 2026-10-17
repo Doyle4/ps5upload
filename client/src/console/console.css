@@ -1265,24 +1265,6 @@ button {
   opacity: 0.45;
   cursor: default;
 }
-.cw-tool-label {
-  display: none;
-  position: absolute;
-  top: calc(100% + 0.25rem);
-  right: 0;
-  z-index: 5;
-  padding: 0.25rem 0.6rem;
-  border-radius: var(--radius-control);
-  background: var(--color-surface-3);
-  border: 1px solid var(--color-border);
-  color: var(--color-text);
-  font-size: 0.9rem;
-  white-space: nowrap;
-  pointer-events: none;
-}
-.cw-tool:focus .cw-tool-label {
-  display: block;
-}
 .cw-files-screen .cw-status {
   margin: 0 0 0.4rem;
 }

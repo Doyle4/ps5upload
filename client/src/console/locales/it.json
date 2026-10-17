@@ -74,6 +74,7 @@
   "cw_files_filter_active": "Filtro: {q}",
   "cw_files_filter_clear": "Rimuovi filtro",
   "cw_files_filter_label": "Il nome contiene",
+  "cw_files_filter_on": "Filtro attivo",
   "cw_files_filter_title": "Filtra questa cartella",
   "cw_files_fixperm": "Correggi permessi",
   "cw_files_fixperm_batch": "Correzione dei permessi {at} di {total}…",

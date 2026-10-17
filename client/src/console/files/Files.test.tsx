@@ -279,6 +279,23 @@ describe("Files listing controls", () => {
     );
     expect(html).toContain('data-action="select-all"');
     expect(html).not.toContain('data-action="sortview"'); // the selection bar replaces the right side
+    expect(html).not.toContain('data-action="filter-clear"');
+    const filtered = renderToStaticMarkup(
+      <>
+        {FilesView(
+          props({
+            dir: dir(many),
+            shown: many,
+            status: { items: 700, total: 700, selected: 0, bytes: 0, folders: 0 },
+            view: { sort: "name", dir: "asc", hidden: false, filter: "f1" },
+            onView: vi.fn(),
+            selecting: true,
+          }),
+        )}
+      </>,
+    );
+    expect(filtered).toContain('data-action="filter-clear"');
+    expect(filtered).toContain(t("cw_files_filter_on"));
     const plain = renderToStaticMarkup(<>{FilesView(props({ onView: vi.fn(), onGoTo: vi.fn(), prefs: { favorites: [], recent: [], last: null }, onPin: vi.fn(), onUnpin: vi.fn() }))}</>);
     for (const a of ["pin", "goto", "mkdir", "select", "sortview", "filter"]) expect(plain).toContain(`data-action="${a}"`);
     expect(plain).toContain('data-tip="Sort and view"');

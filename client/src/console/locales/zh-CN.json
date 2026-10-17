@@ -74,6 +74,7 @@
   "cw_files_filter_active": "筛选：{q}",
   "cw_files_filter_clear": "清除筛选",
   "cw_files_filter_label": "名称包含",
+  "cw_files_filter_on": "筛选已开启",
   "cw_files_filter_title": "筛选此文件夹",
   "cw_files_fixperm": "修复权限",
   "cw_files_fixperm_batch": "正在修复权限 {at}/{total}…",

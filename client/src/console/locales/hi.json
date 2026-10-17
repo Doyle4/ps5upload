@@ -74,6 +74,7 @@
   "cw_files_filter_active": "फ़िल्टर: {q}",
   "cw_files_filter_clear": "फ़िल्टर हटाएँ",
   "cw_files_filter_label": "नाम में है",
+  "cw_files_filter_on": "फ़िल्टर चालू है",
   "cw_files_filter_title": "इस फ़ोल्डर को फ़िल्टर करें",
   "cw_files_fixperm": "अनुमतियाँ ठीक करें",
   "cw_files_fixperm_batch": "अनुमतियाँ ठीक की जा रही हैं: {total} में से {at}…",

@@ -74,6 +74,7 @@
   "cw_files_filter_active": "Bộ lọc: {q}",
   "cw_files_filter_clear": "Xóa bộ lọc",
   "cw_files_filter_label": "Tên chứa",
+  "cw_files_filter_on": "Đang lọc",
   "cw_files_filter_title": "Lọc thư mục này",
   "cw_files_fixperm": "Sửa quyền",
   "cw_files_fixperm_batch": "Đang sửa quyền {at}/{total}…",

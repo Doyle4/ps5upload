@@ -74,6 +74,7 @@
   "cw_files_filter_active": "ตัวกรอง: {q}",
   "cw_files_filter_clear": "ล้างตัวกรอง",
   "cw_files_filter_label": "ชื่อมีคำว่า",
+  "cw_files_filter_on": "ตัวกรองเปิดอยู่",
   "cw_files_filter_title": "กรองโฟลเดอร์นี้",
   "cw_files_fixperm": "แก้ไขสิทธิ์",
   "cw_files_fixperm_batch": "กำลังแก้ไขสิทธิ์ {at} จาก {total}…",

@@ -45,11 +45,14 @@ export function sortEntries(entries: Entry[]): Entry[] {
   return sortListing(entries, "name", "asc");
 }
 
+/** "ok": the pages were read; "skipped": nothing ran (busy, done, folder left); "failed": a page failed. */
+export type LoadAllResult = "ok" | "skipped" | "failed";
+
 export interface DirLoader {
   /** Read the next page (the first on the first call). No-op while one is read or when done. */
   loadMore(): Promise<void>;
   /** Read every remaining page, up to `cap` entries in all (one emit at the end). */
-  loadAll(cap: number): Promise<void>;
+  loadAll(cap: number): Promise<LoadAllResult>;
   /** Read again from the start, as many pages as were shown. */
   refresh(): Promise<void>;
   /** Drop every answer from now on (the folder was left). */
@@ -106,14 +109,15 @@ export function createDirLoader(path: string, onState: (s: DirState) => void): D
       }
     },
     async loadAll(cap) {
-      if (busy || stopped || (loaded && !more)) return;
+      if (busy || stopped || (loaded && !more)) return "skipped";
       busy = true;
       emit(true, null);
+      let result: LoadAllResult = "ok";
       try {
         while (!loaded || more) {
           if (loaded && raw.length >= cap) break;
           const r = await page(next);
-          if (stopped) return;
+          if (stopped) return "skipped";
           raw = raw.concat(Array.isArray(r?.entries) ? r.entries : []);
           more = !!r?.more;
           next = typeof r?.next === "number" ? r.next : next + LIST_PAGE;
@@ -122,10 +126,12 @@ export function createDirLoader(path: string, onState: (s: DirState) => void): D
         }
         emit(false, null);
       } catch (e) {
+        result = "failed";
         emit(false, e);
       } finally {
         settle();
       }
+      return result;
     },
     async refresh() {
       if (stopped) return;
@@ -171,7 +177,7 @@ export function createDirLoader(path: string, onState: (s: DirState) => void): D
 export interface DirHandle extends DirState {
   loadMore(): void;
   /** Read all the remaining pages (bounded by LOAD_ALL_CAP). */
-  loadAll(): void;
+  loadAll(): Promise<LoadAllResult>;
   refresh(): void;
 }
 
@@ -198,8 +204,8 @@ export function useDir(path: string | null): DirHandle {
   const loadMore = useCallback(() => {
     void loader.current?.loadMore();
   }, []);
-  const loadAll = useCallback(() => {
-    void loader.current?.loadAll(LOAD_ALL_CAP);
+  const loadAll = useCallback(async (): Promise<LoadAllResult> => {
+    return (await loader.current?.loadAll(LOAD_ALL_CAP)) ?? "skipped";
   }, []);
   const refresh = useCallback(() => {
     void loader.current?.refresh();
