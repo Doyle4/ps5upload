@@ -51,6 +51,12 @@ int ava1_op_run_rpc(const uint8_t *body, uint32_t len, const uint8_t owner[32], 
                     size_t *out_len);
 /* job.list: the peer's jobs of every kind as a JobListResult. */
 int ava1_op_list_rpc(const uint8_t owner[32], uint8_t *out, size_t cap, size_t *out_len);
+/* The console page's job list: like ava1_op_list_rpc but every job of every owner (uploads,
+ * downloads, copies, operations) as a JobListResult. `me` is the page's identity; the entries
+ * carry no owner, so the page marks its own with ava1_jobs_owner_is. */
+int ava1_jobs_list_all(const uint8_t me[32], uint8_t *out, size_t cap, size_t *out_len);
+/* 1 when job `id` is listed and `me` owns it, else 0 (an absent job included). */
+int ava1_jobs_owner_is(const uint8_t id[16], const uint8_t me[32]);
 /* Encodes the Status of an operation job (job.status / job.run reply). */
 int ava1_op_encode_status(ava1_job_t *j, uint8_t *out, size_t cap, size_t *out_len);
 /* job.cancel on an operation job: raises the flag and returns (never waits); the worker stops at

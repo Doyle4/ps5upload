@@ -1329,6 +1329,23 @@ static void tell_cancelled(ava1_job_t *j) {
     }
 }
 
+/* JOB_CANCEL's effect on a job the caller holds a reference to. */
+static void cancel_job(ava1_job_t *j) {
+    if (j->kind == AVA1_JOB_OPKIND) ava1_op_cancel(j); /* an operation: stays listed, finished */
+    else {
+        tell_cancelled(j);
+        ava1_recv_cancel(j); /* stops it and unlists it: the journal stays */
+    }
+}
+
+int ava1_job_cancel_any(const uint8_t id[16]) {
+    ava1_job_t *j = ava1_job_find(id);
+    if (!j) return AVA1_ERR_UNKNOWN_JOB;
+    cancel_job(j);
+    ava1_job_put(j);
+    return AVA1_STATUS_OK;
+}
+
 int ava1_data_rpc(uint16_t method, const uint8_t *body, uint32_t len, uint8_t *out, size_t cap,
                   size_t *out_len) {
     const uint8_t *peer = ava1_server_rpc_peer();
@@ -1404,11 +1421,7 @@ int ava1_data_rpc(uint16_t method, const uint8_t *body, uint32_t len, uint8_t *o
             int fin = j->kind == AVA1_JOB_OPKIND && ava1_op_finished_before(j); /* before encoding */
             st = encode_status(j, out, cap, out_len);
             if (st == AVA1_STATUS_OK && j->kind == AVA1_JOB_OPKIND) ava1_op_status_delivered(j, fin);
-        } else if (j->kind == AVA1_JOB_OPKIND) ava1_op_cancel(j); /* an operation: stays listed, finished */
-        else {
-            tell_cancelled(j);
-            ava1_recv_cancel(j); /* stops it and unlists it: the journal stays */
-        }
+        } else cancel_job(j);
         ava1_job_put(j);
         return st;
     }

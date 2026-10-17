@@ -2502,3 +2502,33 @@ impl Drop for TempDir {
         let _ = std::fs::remove_dir_all(&self.0);
     }
 }
+
+extern "C" {
+    fn ava1_jobs_list_all(me: *const u8, out: *mut u8, cap: usize, out_len: *mut usize) -> c_int;
+    fn ava1_jobs_owner_is(id: *const u8, me: *const u8) -> c_int;
+    fn ava1_job_cancel_any(id: *const u8) -> c_int;
+}
+
+/// `ava1_jobs_list_all` (the console page's job list): every job the data layer holds, of
+/// any owner, as an encoded `JobListResult`; `Err(status)` on failure. Call it while a
+/// `CServer::start_data` server runs (it holds the C server lock, so this takes none).
+pub fn c_jobs_list_all(me: &[u8; 32]) -> Result<Vec<u8>, i32> {
+    let mut out = vec![0u8; 64 * 1024];
+    let mut n = 0usize;
+    let rc = unsafe { ava1_jobs_list_all(me.as_ptr(), out.as_mut_ptr(), out.len(), &mut n) };
+    if rc != 0 {
+        return Err(rc);
+    }
+    out.truncate(n);
+    Ok(out)
+}
+
+/// `ava1_jobs_owner_is`: 1 when job `id` is listed and owned by `me`, else 0.
+pub fn c_jobs_owner_is(id: &[u8; 16], me: &[u8; 32]) -> i32 {
+    unsafe { ava1_jobs_owner_is(id.as_ptr(), me.as_ptr()) }
+}
+
+/// `ava1_job_cancel_any`: `JOB_CANCEL` without the owner check (0, or `ERR_UNKNOWN_JOB`).
+pub fn c_job_cancel_any(id: &[u8; 16]) -> i32 {
+    unsafe { ava1_job_cancel_any(id.as_ptr()) }
+}

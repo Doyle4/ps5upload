@@ -137,6 +137,9 @@ const ava1_data_hooks_t *ava1_data_hooks(void);
  * data layer's, so an embedder's own handler runs (ava1_glue.c, Task 21). */
 int ava1_data_rpc(uint16_t method, const uint8_t *body, uint32_t len, uint8_t *out, size_t cap,
                   size_t *out_len);
+/* JOB_CANCEL without the owner check, for the console page (which runs under its own identity
+ * and may stop any job, a paired PC's included): AVA1_STATUS_OK, or AVA1_ERR_UNKNOWN_JOB. */
+int ava1_job_cancel_any(const uint8_t id[16]);
 /* Five file-create/fsync measurements used to choose an initial worker count. */
 int ava1_calibrate(const uint8_t *body, uint32_t len, uint8_t *out, size_t cap, size_t *out_len);
 /* Attaches a job to session `sid`: its messages go there (waiting sends), its lanes are

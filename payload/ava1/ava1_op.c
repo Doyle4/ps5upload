@@ -384,7 +384,7 @@ int ava1_op_run_rpc(const uint8_t *body, uint32_t len, const uint8_t owner[32], 
 /* ---- job.list ---- */
 
 typedef struct {
-    const uint8_t *owner;
+    const uint8_t *owner; /* NULL: every owner's jobs (the console page) */
     ava1_job_entry_t e[AVA1_MAX_JOBS];
     unsigned n;
 } list_t;
@@ -393,7 +393,7 @@ static void list_one(ava1_job_t *j, void *ctx) {
     list_t *l = ctx;
     ava1_job_entry_t *e;
     int fin;
-    if (memcmp(j->owner, l->owner, 32) != 0 || l->n >= AVA1_MAX_JOBS) return;
+    if ((l->owner && memcmp(j->owner, l->owner, 32) != 0) || l->n >= AVA1_MAX_JOBS) return;
     e = &l->e[l->n++];
     memset(e, 0, sizeof *e);
     memcpy(e->job_id, j->id, 16);
@@ -422,7 +422,7 @@ static void list_one(ava1_job_t *j, void *ctx) {
     e->state = !fin ? 0 : (j->final_status == AVA1_STATUS_OK ? 1 : 2);
 }
 
-int ava1_op_list_rpc(const uint8_t owner[32], uint8_t *out, size_t cap, size_t *out_len) {
+static int list_jobs(const uint8_t *owner, uint8_t *out, size_t cap, size_t *out_len) {
     list_t *l = calloc(1, sizeof *l);
     uint8_t *blob;
     ava1_w_t bw, w;
@@ -449,4 +449,22 @@ int ava1_op_list_rpc(const uint8_t owner[32], uint8_t *out, size_t cap, size_t *
     free(blob);
     free(l);
     return rc;
+}
+
+int ava1_op_list_rpc(const uint8_t owner[32], uint8_t *out, size_t cap, size_t *out_len) {
+    return list_jobs(owner, out, cap, out_len);
+}
+
+int ava1_jobs_list_all(const uint8_t me[32], uint8_t *out, size_t cap, size_t *out_len) {
+    (void)me; /* every job is listed; the caller marks its own with ava1_jobs_owner_is */
+    return list_jobs(NULL, out, cap, out_len);
+}
+
+int ava1_jobs_owner_is(const uint8_t id[16], const uint8_t me[32]) {
+    ava1_job_t *j = ava1_job_find(id);
+    int mine;
+    if (!j) return 0;
+    mine = memcmp(j->owner, me, 32) == 0;
+    ava1_job_put(j);
+    return mine;
 }
