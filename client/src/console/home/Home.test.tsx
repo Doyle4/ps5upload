@@ -12,9 +12,9 @@ import { t } from "../strings";
 import { ConfirmDialog, dialogNavHandler } from "../ui/ConfirmDialog";
 import {
   errorText,
-  firstUsbVolume,
   keepsDialogOpen,
   HomeView,
+  MAX_TASK_ROWS,
   runAsk,
   VolumeCard,
   type Ask,
@@ -82,7 +82,6 @@ function viewProps(over: Partial<HomeViewProps> = {}): HomeViewProps {
     onAsk: vi.fn(),
     onConfirm: vi.fn(),
     onDismiss: vi.fn(),
-    onBrowseUsb: null,
     onOpenDrive: null,
     ...over,
   };
@@ -165,38 +164,47 @@ describe("Home", () => {
     expect(mockCall).toHaveBeenCalledWith("/api/app/close", { app_id: 77 });
   });
 
-  it("rest mode and restart ask, then post the power action", async () => {
-    const props = viewProps();
-    (byAction(HomeView(props), "rest").props.onClick as () => void)();
-    (byAction(HomeView(props), "restart").props.onClick as () => void)();
-    expect(props.onAsk).toHaveBeenNthCalledWith(1, {
-      kind: "power",
-      action: "rest",
-    });
-    expect(props.onAsk).toHaveBeenNthCalledWith(2, {
-      kind: "power",
-      action: "reboot",
-    });
-    expect(mockCall).not.toHaveBeenCalled();
-    await runAsk({ kind: "power", action: "rest" }, { cancel: cancelJob });
-    expect(mockCall).toHaveBeenCalledWith("/api/power", { action: "rest" });
-    await runAsk({ kind: "power", action: "reboot" }, { cancel: cancelJob });
-    expect(mockCall).toHaveBeenCalledWith("/api/power", { action: "reboot" });
+  it("Home has no power actions or Browse USB", () => {
+    const html = renderToStaticMarkup(
+      <HomeView {...viewProps({ volumes: [vol("/mnt/usb0", "/dev/da0s1")], onOpenDrive: vi.fn() })} />,
+    );
+    for (const a of ["rest", "restart", "browse-usb"]) expect(html).not.toContain(`data-action="${a}"`);
+    expect(html).not.toContain("api/power");
   });
 
-  it("Browse USB shows only when there is somewhere to go", () => {
-    expect(() => byAction(HomeView(viewProps()), "browse-usb")).toThrow();
+  const running = {
+    version: null,
+    firmware: null,
+    model: null,
+    temp_c: null,
+    running: { title_id: "PPSA01234", app_id: 77, name: "Some Game" },
+  };
+
+  it("running card: name, cover, Close; Cheats shortcut only once the section exists", () => {
+    const hidden = renderToStaticMarkup(<HomeView {...viewProps({ status: running, cover: "blob:x" })} />);
+    expect(hidden).toContain("Some Game");
+    expect(hidden).toContain('src="blob:x"');
+    expect(hidden).toContain('data-action="close-game"');
+    expect(hidden).not.toContain('data-action="open-cheats"');
     const go = vi.fn();
-    (byAction(HomeView(viewProps({ onBrowseUsb: go })), "browse-usb").props.onClick as () => void)();
+    (byAction(HomeView(viewProps({ status: running, onOpenCheats: go })), "open-cheats").props.onClick as () => void)();
     expect(go).toHaveBeenCalled();
   });
 
-  it("first USB volume: a /mnt/usbN stick or USB extended storage, never internal or M.2", () => {
-    expect(firstUsbVolume([vol("/data", "/dev/ssd0.user"), vol("/mnt/ext0", "/dev/nvme0p1")])).toBeNull();
-    expect(
-      firstUsbVolume([vol("/data", "x"), vol("/mnt/ext1", "/dev/da0"), vol("/mnt/usb0", "/dev/da1s1")])?.path,
-    ).toBe("/mnt/ext1");
-    expect(firstUsbVolume([vol("/mnt/usb0", "/dev/da0s1")])?.path).toBe("/mnt/usb0");
+  it("empty states say what to do next", () => {
+    const html = renderToStaticMarkup(<HomeView {...viewProps({ status: { ...running, running: null } })} />);
+    expect(html).toContain(t("cw_home_no_game_next"));
+    expect(t("cw_home_no_game_next")).not.toBe("cw_home_no_game_next");
+    expect(html).toContain(t("cw_home_no_tasks"));
+  });
+
+  it("tasks are capped with +N more so the drives stay in view", () => {
+    const many = [1, 2, 3, 4].map((i) => job({ job: `${i}`.repeat(32), mine: true }));
+    const html = renderToStaticMarkup(<HomeView {...viewProps({ jobs: many })} />);
+    expect(html.split("cw-task is-").length - 1).toBe(MAX_TASK_ROWS);
+    expect(html).toContain(t("cw_home_tasks_more", { n: 2 }));
+    const two = renderToStaticMarkup(<HomeView {...viewProps({ jobs: many.slice(0, 2) })} />);
+    expect(two).not.toContain(t("cw_home_tasks_more", { n: 0 }));
   });
 
   it("one storage card per drive with free of total", () => {
@@ -244,7 +252,7 @@ describe("Home", () => {
     expect(keepsDialogOpen(new ApiError(500, "io_error"))).toBe(false);
     expect(keepsDialogOpen(new ApiError(401, "token"))).toBe(false);
     const dialog = elements(
-      HomeView(viewProps({ ask: { kind: "power", action: "rest" }, askError: t("cw_home_err_busy") })),
+      HomeView(viewProps({ ask: { kind: "close", appId: 1, titleId: "X" }, askError: t("cw_home_err_busy") })),
     ).find((e) => e.type === ConfirmDialog)!;
     expect(dialog.props.error).toBe(t("cw_home_err_busy"));
     const html = renderToStaticMarkup(

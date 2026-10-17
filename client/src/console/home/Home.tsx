@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
-import { FolderOpen, Gamepad2, HardDrive, Moon, RotateCw, Usb, X } from "lucide-react";
+import { Gamepad2, HardDrive, Sparkles, Usb, X } from "lucide-react";
 import { formatBytes } from "../../lib/format";
-import { ApiError, call, isOffline } from "../api";
+import { ApiError, call, callBlob, isOffline } from "../api";
 import { onNavAction } from "../nav";
 import type { SectionContext } from "../sections";
 import type { ConsoleStatus } from "../shell/TopBar";
@@ -14,6 +14,8 @@ import { useJobs, visibleJobs, type Job } from "./useJobs";
 const VOLUMES_POLL_MS = 15_000;
 /** An action's result line clears itself after this long. */
 const MESSAGE_MS = 8_000;
+/** Home shows this many task rows, then "+N more": the running game and the drives stay in view. */
+export const MAX_TASK_ROWS = 2;
 
 /** One /api/volumes entry (payload/src/runtime.c handle_fs_list_volumes). */
 export interface Volume {
@@ -29,8 +31,7 @@ export interface Volume {
 /** Something Home asks about before doing it. */
 export type Ask =
   | { kind: "cancel"; job: Job }
-  | { kind: "close"; appId: number; titleId: string }
-  | { kind: "power"; action: "rest" | "reboot" };
+  | { kind: "close"; appId: number; titleId: string };
 
 export interface Message {
   tone: "error" | "info";
@@ -47,11 +48,6 @@ const isUsbExt = (v: Volume) => isExt(v) && v.mount_from.startsWith("/dev/da");
 /** The console's drives: internal, extended/M.2 and USB. Mounted disk images are left out. */
 export function isDrive(v: Volume): boolean {
   return v.path === "/data" || isExt(v) || isUsbStick(v);
-}
-
-/** The first USB drive in the helper's order (a stick or USB extended storage), or null. */
-export function firstUsbVolume(volumes: Volume[]): Volume | null {
-  return volumes.find((v) => isUsbStick(v) || isUsbExt(v)) ?? null;
 }
 
 export function volumeLabel(v: Volume): string {
@@ -83,18 +79,15 @@ export function keepsDialogOpen(err: unknown): boolean {
   return err instanceof ApiError && (err.status === 409 || err.status === 503);
 }
 
-/** Do what was confirmed. Resolves to a line to show (the power actions), throws the ApiError. */
-export async function runAsk(ask: Ask, deps: { cancel: (id: string) => Promise<void> }): Promise<string | null> {
+/** Do what was confirmed. Throws the ApiError. */
+export async function runAsk(ask: Ask, deps: { cancel: (id: string) => Promise<void> }): Promise<void> {
   switch (ask.kind) {
     case "cancel":
       await deps.cancel(ask.job.job);
-      return null;
+      return;
     case "close":
       await call("/api/app/close", { app_id: ask.appId });
-      return null;
-    case "power":
-      await call("/api/power", { action: ask.action });
-      return t(ask.action === "rest" ? "cw_home_rest_sent" : "cw_home_restart_sent");
+      return;
   }
 }
 
@@ -121,20 +114,6 @@ function askCopy(ask: Ask): {
         confirm: t("cw_home_close_game"),
         danger: true,
       };
-    case "power":
-      return ask.action === "rest"
-        ? {
-            title: t("cw_home_confirm_rest_title"),
-            body: t("cw_home_confirm_rest_body"),
-            confirm: t("cw_home_rest"),
-            danger: false,
-          }
-        : {
-            title: t("cw_home_confirm_restart_title"),
-            body: t("cw_home_confirm_restart_body"),
-            confirm: t("cw_home_restart"),
-            danger: true,
-          };
   }
 }
 
@@ -156,8 +135,10 @@ export interface HomeViewProps {
   onAsk: (ask: Ask) => void;
   onConfirm: () => void;
   onDismiss: () => void;
-  /** Browse USB, or null to hide it (no USB drive, or Files cannot open a path yet). */
-  onBrowseUsb: (() => void) | null;
+  /** The running game's cover (an object URL), or null (the generic icon shows). */
+  cover?: string | null;
+  /** Open the Cheats section, or null while there is none (the shortcut is hidden). */
+  onOpenCheats?: (() => void) | null;
   /** ✕ on a storage card: Files at that drive's path, or null when Files cannot open a path. */
   onOpenDrive: ((path: string) => void) | null;
 }
@@ -191,7 +172,7 @@ export function VolumeCard({ v, onOpen }: { v: Volume; onOpen: ((path: string) =
           <span className="cw-volume-name">{volumeLabel(v)}</span>
           {!v.writable ? <span className="cw-tag">{t("cw_home_vol_readonly")}</span> : null}
         </div>
-        <div className="cw-dim cw-mono">{v.path}</div>
+        <div className="cw-dim cw-mono cw-volume-path">{v.path}</div>
         <div className="cw-bar" aria-hidden>
           <div className={`cw-bar-fill${used >= 90 ? " is-warn" : ""}`} style={{ width: `${used}%` }} />
         </div>
@@ -209,7 +190,9 @@ export function VolumeCard({ v, onOpen }: { v: Volume; onOpen: ((path: string) =
 /** Home without state: everything comes in through props (tests render it directly). */
 export function HomeView(p: HomeViewProps) {
   const running = p.status?.running ?? null;
-  const tasks = visibleJobs(p.jobs);
+  const allTasks = visibleJobs(p.jobs);
+  const tasks = allTasks.slice(0, MAX_TASK_ROWS);
+  const moreTasks = allTasks.length - tasks.length;
   const drives = (p.volumes ?? []).filter(isDrive);
   const copy = p.ask ? askCopy(p.ask) : null;
 
@@ -231,35 +214,12 @@ export function HomeView(p: HomeViewProps) {
         </div>
       ) : null}
 
-      <div className="cw-quick" role="group" aria-label={t("cw_home_quick")}>
-        {p.onBrowseUsb ? (
-          <button type="button" className="cw-focusable cw-button" data-action="browse-usb" onClick={p.onBrowseUsb}>
-            <FolderOpen aria-hidden />
-            <span>{t("cw_home_browse_usb")}</span>
-          </button>
-        ) : null}
-        <button
-          type="button"
-          className="cw-focusable cw-button"
-          data-action="rest"
-          onClick={() => p.onAsk({ kind: "power", action: "rest" })}
-        >
-          <Moon aria-hidden />
-          <span>{t("cw_home_rest")}</span>
-        </button>
-        <button
-          type="button"
-          className="cw-focusable cw-button"
-          data-action="restart"
-          onClick={() => p.onAsk({ kind: "power", action: "reboot" })}
-        >
-          <RotateCw aria-hidden />
-          <span>{t("cw_home_restart")}</span>
-        </button>
-      </div>
-
       <section className="cw-card cw-game" aria-label={t("cw_home_now_running")}>
-        <Gamepad2 className="cw-game-icon" aria-hidden />
+        {running && p.cover ? (
+          <img className="cw-game-cover" src={p.cover} alt="" />
+        ) : (
+          <Gamepad2 className="cw-game-icon" aria-hidden />
+        )}
         {running ? (
           <>
             <div className="cw-game-text">
@@ -282,9 +242,20 @@ export function HomeView(p: HomeViewProps) {
               <X aria-hidden />
               <span>{t("cw_home_close_game")}</span>
             </button>
+            {p.onOpenCheats ? (
+              <button
+                type="button"
+                className="cw-focusable cw-button cw-game-cheats"
+                data-action="open-cheats"
+                onClick={p.onOpenCheats}
+              >
+                <Sparkles aria-hidden />
+                <span>{t("cw_home_cheats")}</span>
+              </button>
+            ) : null}
           </>
         ) : (
-          <div className="cw-game-text cw-dim">{p.status ? t("cw_home_no_game") : t("cw_home_loading")}</div>
+          <div className="cw-game-text cw-dim">{p.status ? t("cw_home_no_game_next") : t("cw_home_loading")}</div>
         )}
       </section>
 
@@ -300,6 +271,7 @@ export function HomeView(p: HomeViewProps) {
             ))}
           </ul>
         )}
+        {moreTasks > 0 ? <p className="cw-dim cw-more">{t("cw_home_tasks_more", { n: moreTasks })}</p> : null}
       </section>
 
       <section className="cw-home-section">
@@ -365,7 +337,36 @@ function useVolumes(tick: number): { volumes: Volume[] | null; error: boolean } 
   return { volumes, error };
 }
 
-/** The Home section: the running game, tasks, storage and quick actions. */
+/** A title id the helper can look up (also keeps the path below free of anything else). */
+const TITLE_ID = /^[A-Z]{4}\d{5}$/;
+
+/** The running game's cover: its icon0.png read through the helper, as an object URL; null when unreadable. */
+function useAppCover(titleId: string | null): string | null {
+  const [url, setUrl] = useState<string | null>(null);
+  useEffect(() => {
+    setUrl(null);
+    if (!titleId || !TITLE_ID.test(titleId)) return;
+    let live = true;
+    let made: string | null = null;
+    const ctl = new AbortController();
+    callBlob("/api/fs/read", { path: `/user/appmeta/${titleId}/icon0.png` }, ctl.signal).then(
+      (b) => {
+        if (!live || b.size === 0) return;
+        made = URL.createObjectURL(b);
+        setUrl(made);
+      },
+      () => {},
+    );
+    return () => {
+      live = false;
+      ctl.abort();
+      if (made) URL.revokeObjectURL(made);
+    };
+  }, [titleId]);
+  return url;
+}
+
+/** The Home section: the running game, tasks and storage. */
 export function Home({ ctx }: { ctx: SectionContext }) {
   const { jobs, loaded, error: jobsError, cancel, refresh: refreshJobs } = useJobs();
   const [volumesTick, setVolumesTick] = useState(0);
@@ -374,7 +375,7 @@ export function Home({ ctx }: { ctx: SectionContext }) {
   const [busy, setBusy] = useState(false);
   const [askError, setAskError] = useState<string | null>(null);
   const [message, setMessage] = useState<Message | null>(null);
-  const { refreshStatus, openSection, canOpen } = ctx;
+  const { refreshStatus, openSection, canOpen, hasSection } = ctx;
 
   // Create (refresh): read the tasks and drives again; App's fallback re-reads the status.
   useEffect(
@@ -399,8 +400,8 @@ export function Home({ ctx }: { ctx: SectionContext }) {
     setBusy(true);
     setAskError(null);
     runAsk(ask, { cancel }).then(
-      (notice) => {
-        setMessage(notice ? { tone: "info", text: notice } : null);
+      () => {
+        setMessage(null);
         if (ask.kind === "close") refreshStatus();
         setBusy(false);
         setAsk(null);
@@ -425,8 +426,8 @@ export function Home({ ctx }: { ctx: SectionContext }) {
     setAskError(null);
   }, [busy]);
 
-  const usb = volumes ? firstUsbVolume(volumes) : null;
-  const onBrowseUsb = usb && canOpen("files") ? () => openSection("files", { path: usb.path }) : null;
+  const cover = useAppCover(ctx.status?.running?.title_id ?? null);
+  const onOpenCheats = hasSection("cheats") ? () => openSection("cheats") : null;
   const onOpenDrive = canOpen("files") ? (path: string) => openSection("files", { path }) : null;
 
   return (
@@ -448,7 +449,8 @@ export function Home({ ctx }: { ctx: SectionContext }) {
       }}
       onConfirm={onConfirm}
       onDismiss={onDismiss}
-      onBrowseUsb={onBrowseUsb}
+      cover={cover}
+      onOpenCheats={onOpenCheats}
       onOpenDrive={onOpenDrive}
     />
   );

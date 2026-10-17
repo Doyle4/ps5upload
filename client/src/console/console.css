@@ -369,8 +369,24 @@ button {
 .cw-game {
   display: flex;
   align-items: center;
-  padding: 0.8rem 1rem;
-  margin-bottom: 1.2rem;
+  padding: 0.6rem 0.9rem;
+  margin-bottom: 0.8rem;
+}
+.cw-game-cover {
+  flex: none;
+  width: 4rem;
+  height: 4rem;
+  margin-right: 0.9rem;
+  border-radius: 0.5rem;
+  background: var(--color-surface);
+  object-fit: cover;
+}
+.cw-game .cw-button {
+  flex: none;
+  margin-left: 0.7rem;
+}
+.cw-more {
+  margin: 0.1rem 0 0 0.3rem;
 }
 .cw-game-icon {
   flex: none;
@@ -391,7 +407,7 @@ button {
   white-space: nowrap;
 }
 .cw-home-section {
-  margin-bottom: 1.2rem;
+  margin-bottom: 0.8rem;
 }
 .cw-home-section > p {
   margin: 0;
@@ -405,7 +421,7 @@ button {
 .cw-task {
   display: flex;
   align-items: center;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.4rem;
   padding-right: 0.8rem;
   border-radius: var(--radius-card);
   background: var(--color-surface);
@@ -416,7 +432,7 @@ button {
   min-width: 0;
   display: flex;
   align-items: center;
-  padding: 0.6rem 0.9rem;
+  padding: 0.45rem 0.9rem;
   text-align: left;
 }
 .cw-task-icon {
@@ -448,9 +464,9 @@ button {
 }
 .cw-volumes {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
-  grid-gap: 0.8rem;
-  gap: 0.8rem;
+  grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr));
+  grid-gap: 0.6rem;
+  gap: 0.6rem;
 }
 .cw-volume-item {
   display: flex;
@@ -458,7 +474,7 @@ button {
 .cw-volume {
   flex: 1 1 auto;
   min-width: 0;
-  padding: 0.7rem 0.9rem;
+  padding: 0.5rem 0.8rem;
   border-radius: var(--radius-card);
   background: var(--color-surface);
   border: 1px solid var(--color-border);
@@ -715,4 +731,55 @@ button {
   background: var(--color-accent-soft);
   color: var(--color-text);
   box-shadow: inset 0 0 0 2px var(--color-accent);
+}
+
+/* ---- Home: compact, so the game, two task rows and the drives fit 1540x700 without scrolling ---- */
+.cw-home .cw-h1 {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+.cw-home .cw-h2 {
+  margin: 0 0 0.3rem;
+  font-size: 1.05rem;
+}
+.cw-home .cw-game {
+  padding: 0.4rem 0.8rem;
+  margin-bottom: 0.5rem;
+}
+.cw-home .cw-game-cover {
+  width: 3.2rem;
+  height: 3.2rem;
+}
+.cw-home .cw-game-title {
+  font-size: 1.05rem;
+}
+.cw-home .cw-task-main {
+  padding: 0.3rem 0.8rem;
+}
+.cw-home .cw-task {
+  margin-bottom: 0.3rem;
+}
+.cw-home .cw-home-section {
+  margin-bottom: 0.5rem;
+}
+.cw-home .cw-volumes {
+  grid-template-columns: repeat(3, 1fr);
+}
+.cw-home .cw-volume {
+  padding: 0.35rem 0.7rem;
+}
+.cw-home .cw-volume-path {
+  display: none;
+}
+.cw-home .cw-home-section:last-of-type {
+  margin-bottom: 0;
+}
+.cw-home .cw-task-main {
+  padding-top: 0.2rem;
+  padding-bottom: 0.2rem;
 }

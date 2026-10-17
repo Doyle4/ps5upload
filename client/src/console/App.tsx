@@ -26,7 +26,7 @@ export function App({ inputMap }: { inputMap: InputMap }) {
   const [offline, setOffline] = useState(false);
   /** Bumped to read /api/status again at once. */
   const [statusTick, setStatusTick] = useState(0);
-  /** What the active section was opened with (Home's Browse USB → Files at a path). */
+  /** What the active section was opened with (Home's drive cards → Files at a path). */
   const [params, setParams] = useState<SectionParams | null>(null);
 
   /** Switch section; params go only to a section opened through openSection. */
@@ -119,6 +119,7 @@ export function App({ inputMap }: { inputMap: InputMap }) {
         const el = railButton(id);
         if (el) focusElement(el);
       },
+      hasSection: (id) => SECTIONS.some((s) => s.id === id),
       canOpen: (id) => SECTIONS.some((s) => s.id === id && s.acceptsParams),
       params,
     }),

@@ -625,31 +625,6 @@ static void r_app_close(const char *b, size_t n, uint8_t *out, int fd) {
     else send_json(fd, 200, (const char *)t, tl);
 }
 
-/* POWER_CONTROL: rest (the helper's "standby"), reboot, shutdown. The helper replies first and
- * acts ~0.4 s later, so this answer reaches the page before the network goes down. */
-static void r_power(const char *b, size_t n, uint8_t *out, int fd) {
-    char action[16], req[48];
-    const char *sys;
-    const uint8_t *t;
-    size_t ol, tl;
-    int k, st;
-    if (webui_json_str(b, n, "action", action, sizeof action) != 1) {
-        send_bad(fd, "bad_action");
-        return;
-    }
-    if (strcmp(action, "rest") == 0) sys = "standby";
-    else if (strcmp(action, "reboot") == 0) sys = "reboot";
-    else if (strcmp(action, "shutdown") == 0) sys = "shutdown";
-    else {
-        send_bad(fd, "bad_action");
-        return;
-    }
-    k = snprintf(req, sizeof req, "{\"action\":\"%s\"}", sys);
-    st = call_text(AVA1_METHOD_POWER_CONTROL, req, (size_t)k, out, &ol, &t, &tl);
-    if (st != AVA1_STATUS_OK) send_status_error(fd, st, out, ol);
-    else send_json(fd, 200, (const char *)t, tl);
-}
-
 /* ---- settings ---- */
 
 /* The live settings. g_set_mu is held across a save, so two /api/settings/set calls never write
@@ -845,7 +820,6 @@ static const struct {
     { "/api/jobs", r_jobs },
     { "/api/jobs/cancel", r_jobs_cancel },
     { "/api/app/close", r_app_close },
-    { "/api/power", r_power },
     { "/api/settings", r_settings },
     { "/api/settings/set", r_settings_set },
     { "/api/input-log", r_input_log },

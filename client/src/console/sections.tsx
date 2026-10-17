@@ -18,6 +18,8 @@ export interface SectionContext {
   openSection: (id: string, params?: SectionParams) => void;
   /** Whether section `id` exists and reads params (e.g. Files at a path). */
   canOpen: (id: string) => boolean;
+  /** Whether section `id` is registered (Home hides the Cheats shortcut until it is). */
+  hasSection: (id: string) => boolean;
   /** The params this section was opened with, or null. */
   params: SectionParams | null;
 }
@@ -28,12 +30,12 @@ export interface Section {
   icon: LucideIcon;
   labelKey: string;
   render: (ctx: SectionContext) => ReactNode;
-  /** It reads ctx.params, so other sections may open it at a place (Home's Browse USB → Files). */
+  /** It reads ctx.params, so other sections may open it at a place (Home's drive cards → Files). */
   acceptsParams?: boolean;
 }
 
-// Files opens at ctx.params.path
-// (acceptsParams), so Home shows Browse USB.
+// Registry: Home, Files, (Cheats: added by its own task), Settings. Files opens at ctx.params.path
+// (acceptsParams), so Home's drive cards open it at a drive.
 export const SECTIONS: Section[] = [
   {
     id: "home",
