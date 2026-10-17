@@ -13,7 +13,9 @@ import { t } from "../strings";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { ActionsSheet } from "./ActionsSheet";
 import { DirList } from "./DirList";
-import { batchMessage, filesErrorText, FilesView, upFrom, viewKind, type FilesViewProps } from "./Files";
+import { batchMessage, filesErrorText, FilesView, pasteMessage, upFrom, viewKind, type FilesViewProps } from "./Files";
+import { clearClipboard, getClipboard, setClipboard } from "./clipboard";
+import { ConflictDialog } from "./ConflictDialog";
 import { IntoItselfError, renameEntry } from "./move";
 import { TextPrompt } from "./TextPrompt";
 import type { DirState, Entry } from "./useDir";
@@ -308,5 +310,85 @@ describe("Files listing controls", () => {
     expect(more).toContain('data-action="load-all"');
     const none = renderToStaticMarkup(<>{FilesView(props({ dir: dir([entry("a")]), shown: [], onView: vi.fn() }))}</>);
     expect(none).toContain(t("cw_files_none_match"));
+  });
+
+  it("clipboard: Copy / Cut in the sheet, the bar in the status line, kept across folders", () => {
+    for (const names of [["b"], ["a.txt", "b", "c"]]) {
+      const p = props({ ask: { kind: "sheet", names }, onClip: vi.fn() });
+      const sheet = elements(FilesView(p)).find((e) => e.type === ActionsSheet)!;
+      expect(sheet.props.actions).toEqual(expect.arrayContaining(["clipcopy", "cut"]));
+      (sheet.props.onChoose as (a: string) => void)("cut");
+      expect(p.onClip).toHaveBeenCalledWith("cut", names);
+      (sheet.props.onChoose as (a: string) => void)("clipcopy");
+      expect(p.onClip).toHaveBeenCalledWith("copy", names);
+    }
+    clearClipboard();
+    setClipboard("cut", ["x", "y", "z"].map((n) => ({ path: `/data/a/${n}`, dir: false })));
+    // Another folder, another render: the clipboard is page state, not the folder's.
+    for (const path of ["/data/games", "/mnt/usb0"]) {
+      const onPaste = vi.fn();
+      const onClipClear = vi.fn();
+      const p = props({
+        path,
+        clip: getClipboard(),
+        onPaste,
+        onClipClear,
+        status: { items: 3, total: 3, selected: 0, bytes: 0, folders: 0 },
+      });
+      const html = renderToStaticMarkup(<>{FilesView(p)}</>);
+      expect(html).toContain("3 items to paste (cut)");
+      expect(html).toContain('data-action="paste"');
+      expect(html).toContain('data-action="clip-clear"');
+      // In the status line's row, beside the item count.
+      expect(html).toMatch(/cw-status-row.*3 items.*cw-clip/);
+    }
+    expect(getClipboard()?.items).toHaveLength(3);
+    const one = renderToStaticMarkup(
+      <>{FilesView(props({ clip: { mode: "copy", items: [{ path: "/data/a/x.txt", dir: false }] }, onPaste: vi.fn() }))}</>,
+    );
+    expect(one).toContain("x.txt to paste (copy)");
+    // A batch running: Paste waits for it.
+    const busy = renderToStaticMarkup(
+      <>{FilesView(props({ clip: getClipboard(), onPaste: vi.fn(), busy: { op: "copy", at: 1, total: 2, stopping: false } }))}</>,
+    );
+    expect(busy).toMatch(/data-action="paste" disabled=""/);
+    clearClipboard();
+  });
+
+  it("a waiting paste conflict shows its dialog over anything else", () => {
+    const answer = vi.fn();
+    const conflict = { item: "/data/a/x.txt", dest: "/data/games/x.txt", destDir: false, canReplace: true, left: 2 };
+    const p = props({ ask: { kind: "sheet", names: ["b"] }, conflict: { conflict, answer } });
+    const els = elements(FilesView(p));
+    const d = els.find((e) => e.type === ConflictDialog)!;
+    expect(els.find((e) => e.type === ActionsSheet)).toBeUndefined();
+    (d.props.onAnswer as (x: unknown) => void)({ choice: "skip", all: false });
+    expect(answer).toHaveBeenCalledWith({ choice: "skip", all: false });
+
+    const html = renderToStaticMarkup(<ConflictDialog conflict={conflict} onAnswer={vi.fn()} />);
+    expect(html).toContain(t("cw_files_conflict_title", { name: "x.txt" }));
+    for (const c of ["skip", "keep", "replace"]) expect(html).toContain(`data-conflict="${c}"`);
+    expect(html).toContain(t("cw_files_conflict_all", { n: 2 }));
+    // Skip is the safe default; Replace is in the danger colour.
+    expect(html).toMatch(/data-conflict="skip" data-nav-default/);
+    expect(html).toMatch(/is-danger" data-conflict="replace"/);
+    // The item itself (copy into its own folder): no Replace; the last one: no Apply to all.
+    const self = renderToStaticMarkup(
+      <ConflictDialog conflict={{ ...conflict, canReplace: false, left: 0 }} onAnswer={vi.fn()} />,
+    );
+    expect(self).not.toContain('data-conflict="replace"');
+    expect(self).not.toContain('data-action="conflict-all"');
+  });
+
+  it("paste messages: skipped, already here, failures", () => {
+    const base = { started: [], moved: [], failed: [], jobFailed: [], skipped: [], done: [], declined: [], here: [] };
+    expect(pasteMessage({ ...base, done: ["/a"] })?.text).toBe(t("cw_files_done"));
+    expect(pasteMessage({ ...base, done: ["/a"], declined: ["/b", "/c"] })?.text).toBe(t("cw_files_paste_done_skipped", { n: 2 }));
+    expect(pasteMessage({ ...base, here: ["/a"] })?.text).toBe(t("cw_files_paste_here_already"));
+    expect(pasteMessage({ ...base, skipped: ["/a"] })?.text).toBe(t("cw_files_batch_stopped", { n: 1 }));
+    expect(pasteMessage({ ...base, failed: [{ item: "/a", error: new IntoItselfError("/a") }] })?.text).toContain(
+      t("cw_files_err_into_itself"),
+    );
+    expect(filesErrorText(new ApiError(500, "replace_delete_failed"))).toBe(t("cw_files_replace_failed"));
   });
 });

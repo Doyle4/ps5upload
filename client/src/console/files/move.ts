@@ -78,7 +78,8 @@ export interface BatchOptions {
   stopped?: () => boolean;
 }
 
-async function each(
+/** Run `one` for each item in turn (see BatchOptions); its returned job id is waited on before the next. */
+export async function each(
   items: string[],
   opts: BatchOptions | undefined,
   one: (item: string, r: BatchResult) => Promise<string | void>,
@@ -115,8 +116,9 @@ async function each(
   return r;
 }
 
-async function startCopy(src: string, dest: string, move: boolean, r: BatchResult): Promise<string> {
-  const { job } = await call<{ job: string }>("/api/fs/copy", { src, dest, move });
+/** Start a copy job (move: the source goes once copied; overwrite: an existing destination FILE is replaced). */
+export async function startCopy(src: string, dest: string, move: boolean, r: BatchResult, overwrite = false): Promise<string> {
+  const { job } = await call<{ job: string }>("/api/fs/copy", overwrite ? { src, dest, move, overwrite } : { src, dest, move });
   r.started.push(job);
   return job;
 }

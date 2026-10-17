@@ -1,4 +1,5 @@
 import {
+  ClipboardCopy,
   Copy,
   Eye,
   FolderInput,
@@ -6,6 +7,7 @@ import {
   FolderPlus,
   Info,
   PencilLine,
+  Scissors,
   ShieldCheck,
   Star,
   StarOff,
@@ -18,6 +20,8 @@ import { Modal } from "../ui/Modal";
 export type SheetAction =
   | "open"
   | "view"
+  | "clipcopy"
+  | "cut"
   | "copy"
   | "move"
   | "rename"
@@ -31,6 +35,8 @@ export type SheetAction =
 const ITEMS: Record<SheetAction, { icon: LucideIcon; key: string }> = {
   open: { icon: FolderOpen, key: "cw_files_open" },
   view: { icon: Eye, key: "cw_files_view" },
+  clipcopy: { icon: ClipboardCopy, key: "cw_files_clip_copy" },
+  cut: { icon: Scissors, key: "cw_files_clip_cut" },
   copy: { icon: Copy, key: "cw_files_copy_to" },
   move: { icon: FolderInput, key: "cw_files_move_to" },
   rename: { icon: PencilLine, key: "cw_files_rename" },

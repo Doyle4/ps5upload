@@ -117,12 +117,12 @@ export interface BatchControl {
  * Run `work` as the page's batch. Null (nothing started) while another batch
  * runs. The batch is over when the promise settles.
  */
-export function startBatch(
+export function startBatch<R extends BatchResult = BatchResult>(
   op: BatchOp,
   total: number,
-  work: (ctl: BatchControl) => Promise<BatchResult>,
+  work: (ctl: BatchControl) => Promise<R>,
   paths?: string[],
-): Promise<BatchResult> | null {
+): Promise<R> | null {
   if (progress) return null;
   stopAsked = false;
   progress = { op, at: 0, total, stopping: false, ...(paths ? { paths } : {}) };
@@ -135,7 +135,7 @@ export function startBatch(
     },
     stopped: () => stopAsked,
   };
-  let run: Promise<BatchResult>;
+  let run: Promise<R>;
   try {
     run = work(ctl);
   } catch (e) {

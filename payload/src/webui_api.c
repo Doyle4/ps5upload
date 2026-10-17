@@ -495,12 +495,20 @@ static void r_fs_copy(const char *b, size_t n, uint8_t *out, int fd) {
     ava1_job_copy_t q;
     ava1_w_t w;
     size_t ol;
-    int move = 0, st, rc;
+    int move = 0, overwrite = 0, st, rc;
     if (need_path(fd, b, n, "src", src, sizeof src) != 0) return;
     if (need_path(fd, b, n, "dest", dest, sizeof dest) != 0) return;
     rc = webui_json_bool(b, n, "move", &move);
     if (rc < 0) {
         send_bad(fd, "bad_move");
+        return;
+    }
+    /* "overwrite" (off unless sent true): an existing destination FILE is replaced (per file,
+     * via .part + rename); on a folder the job merges, so the page only sends it for files
+     * (Replace in a paste conflict). Without it the job refuses an existing dest (409). */
+    rc = webui_json_bool(b, n, "overwrite", &overwrite);
+    if (rc < 0) {
+        send_bad(fd, "bad_overwrite");
         return;
     }
     memset(&q, 0, sizeof q);
@@ -509,7 +517,7 @@ static void r_fs_copy(const char *b, size_t n, uint8_t *out, int fd) {
     q.src_len = (uint16_t)strlen(src);
     q.dest = (const uint8_t *)dest;
     q.dest_len = (uint16_t)strlen(dest);
-    q.flags = move ? (uint32_t)AVA1_JF_MOVE : 0u;
+    q.flags = (move ? (uint32_t)AVA1_JF_MOVE : 0u) | (overwrite ? (uint32_t)AVA1_JF_OVERWRITE : 0u);
     ava1_w_init(&w, req, sizeof req);
     if (ava1_job_copy_encode(&q, &w) != 0) {
         send_bad(fd, "bad_path");

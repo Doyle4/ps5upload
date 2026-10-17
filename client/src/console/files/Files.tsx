@@ -3,6 +3,8 @@ import {
   ArrowDownUp,
   CheckCheck,
   ChevronsDown,
+  ClipboardPaste,
+  ClipboardX,
   Ellipsis,
   Filter,
   FilterX,
@@ -47,6 +49,19 @@ import {
   type BatchResult,
 } from "./move";
 import { currentBatch, startBatch, stopBatch, useBatch, waitJob, type BatchProgress } from "./batch";
+import {
+  askConflict,
+  clearClipboard,
+  dropFromClipboard,
+  getClipboard,
+  setClipboard,
+  useClipboard,
+  useConflict,
+  type Clip,
+  type PendingConflict,
+} from "./clipboard";
+import { ConflictDialog } from "./ConflictDialog";
+import { pasteItems, type PasteMode, type PasteResult } from "./paste";
 import { PathBar } from "./PathBar";
 import { DEFAULT_VIEW, invertShown, loadView, saveView, selectAllShown, statusOf, visibleEntries, LOAD_ALL_CAP, type Status, type ViewPrefs } from "./listing";
 import { checkFolder, typedPath } from "./pathParts";
@@ -97,6 +112,14 @@ export function batchMessage(r: BatchResult, op?: Busy["op"]): Message | null {
   return { tone: "info", text: t(op === "chmod" ? "cw_files_fixperm_done" : "cw_files_done") };
 }
 
+/** The line a finished paste leaves: batchMessage's, or what was skipped / already there. */
+export function pasteMessage(r: PasteResult): Message | null {
+  if (r.failed.length || r.jobFailed.length || r.skipped.length) return batchMessage(r);
+  if (!r.done.length && !r.declined.length && r.here.length) return { tone: "info", text: t("cw_files_paste_here_already") };
+  if (r.declined.length) return { tone: "info", text: t("cw_files_paste_done_skipped", { n: r.declined.length }) };
+  return batchMessage(r);
+}
+
 /** A failed call as a short line; null for a 401 (the reload banner says it). */
 export function filesErrorText(err: unknown): string | null {
   if (err instanceof ApiError) {
@@ -105,6 +128,7 @@ export function filesErrorText(err: unknown): string | null {
     // 409 is "exists" or "busy" (and cross_mount, handled by moveItems): only an
     // "exist…" code says the name is taken.
     if (err.status === 409 && /exist/i.test(err.code)) return t("cw_files_err_exists");
+    if (err.code === "replace_delete_failed") return t("cw_files_replace_failed");
   }
   if (err instanceof IntoItselfError) return t("cw_files_err_into_itself");
   return errorText(err);
@@ -178,6 +202,15 @@ export interface FilesViewProps {
   gameRunning?: boolean;
   /** Stop the running batch before its next item. */
   onStopBatch?: () => void;
+  /** What Copy / Cut put in the clipboard (kept across folders and sections). */
+  clip?: Clip | null;
+  /** A paste conflict waiting for an answer. */
+  conflict?: PendingConflict | null;
+  /** Copy / Cut these entries of the folder shown into the clipboard. */
+  onClip?: (mode: PasteMode, names: string[]) => void;
+  /** Paste the clipboard into the folder shown. */
+  onPaste?: () => void;
+  onClipClear?: () => void;
   onOpen: (path: string | null) => void;
   onUp: () => void;
   onEntry: (e: Entry) => void;
@@ -207,11 +240,11 @@ export function busyText(b: Busy | null): string | null {
 
 /** What the sheet offers for `names` (one entry, or the selection); a folder can be pinned. */
 function sheetActions(names: string[], entries: Entry[], pinned: boolean | null): SheetAction[] {
-  if (names.length !== 1) return ["copy", "move", "fixperm", "delete"];
+  if (names.length !== 1) return ["clipcopy", "cut", "copy", "move", "fixperm", "delete"];
   const e = entries.find((x) => x.name === names[0]);
   const out: SheetAction[] = [];
   if (e && e.kind !== "dir" && viewKind(e.name)) out.push("view");
-  out.push("copy", "move", "rename", "mkdir", "info");
+  out.push("clipcopy", "cut", "copy", "move", "rename", "mkdir", "info");
   if (e && e.kind === "dir" && pinned != null) out.push(pinned ? "unpin" : "pin");
   out.push("fixperm", "delete");
   return out;
@@ -350,6 +383,10 @@ function askView(p: FilesViewProps) {
                 if (type) p.onAsk({ kind: "view", name, type });
                 return;
               }
+              case "clipcopy":
+                return p.onClip?.("copy", a.names);
+              case "cut":
+                return p.onClip?.("cut", a.names);
               case "copy":
               case "move":
                 return p.onAsk({ kind: "pick", op: act, names: a.names });
@@ -503,6 +540,28 @@ export function statusText(st: Status): string {
   return `${items} · ${t("cw_files_status_selected", { n: st.selected, size })}`;
 }
 
+/** "3 items to paste (cut)" with Paste here and Clear: in the status line, not a toolbar row of its own. */
+function ClipBar({ clip, busy, onPaste, onClear }: { clip: Clip; busy: boolean; onPaste?: () => void; onClear?: () => void }) {
+  const what = clip.items.length === 1 ? baseName(clip.items[0].path) : t("cw_files_items", { n: clip.items.length });
+  return (
+    <div className="cw-clip" data-clip={clip.mode}>
+      <span className="cw-clip-text">{t(clip.mode === "cut" ? "cw_files_clip_bar_cut" : "cw_files_clip_bar_copy", { what })}</span>
+      {onPaste ? (
+        <button type="button" className="cw-focusable cw-button cw-clip-button" data-action="paste" disabled={busy} onClick={onPaste}>
+          <ClipboardPaste aria-hidden />
+          <span>{t("cw_files_clip_paste")}</span>
+        </button>
+      ) : null}
+      {onClear ? (
+        <button type="button" className="cw-focusable cw-button cw-clip-button" data-action="clip-clear" onClick={onClear}>
+          <ClipboardX aria-hidden />
+          <span>{t("cw_files_clip_clear")}</span>
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
 /** Files without state: everything comes in through props (tests call it directly). */
 export function FilesView(p: FilesViewProps) {
   const vol = p.path != null && p.volumes ? volumeOf(p.path, p.volumes) : null;
@@ -652,17 +711,22 @@ export function FilesView(p: FilesViewProps) {
               )}
             </div>
           </div>
-          {st && p.dir.loaded ? (
-            <p className="cw-dim cw-status" role="status" data-status="">
-              {[
-                statusText(st),
-                p.selecting && view.filter ? t("cw_files_filter_on") : null,
-                capped ? t("cw_files_capped", { n: p.dir.entries.length }) : null,
-                vol ? t("cw_files_free", { free: formatBytes(vol.free_bytes) }) : null,
-              ]
-                .filter(Boolean)
-                .join(" · ")}
-            </p>
+          {(st && p.dir.loaded) || p.clip ? (
+            <div className="cw-status-row">
+              {st && p.dir.loaded ? (
+                <p className="cw-dim cw-status" role="status" data-status="">
+                  {[
+                    statusText(st),
+                    p.selecting && view.filter ? t("cw_files_filter_on") : null,
+                    capped ? t("cw_files_capped", { n: p.dir.entries.length }) : null,
+                    vol ? t("cw_files_free", { free: formatBytes(vol.free_bytes) }) : null,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </p>
+              ) : null}
+              {p.clip ? <ClipBar clip={p.clip} busy={p.busy != null} onPaste={p.onPaste} onClear={p.onClipClear} /> : null}
+            </div>
           ) : null}
 
           {p.dir.error && !p.dir.loading ? (
@@ -710,7 +774,11 @@ export function FilesView(p: FilesViewProps) {
           ) : null}
         </>
       )}
-      {askView(p)}
+      {p.conflict ? (
+        <ConflictDialog key={p.conflict.conflict.item} conflict={p.conflict.conflict} onAnswer={p.conflict.answer} />
+      ) : (
+        askView(p)
+      )}
     </div>
   );
 }
@@ -766,6 +834,8 @@ export function Files({ ctx }: { ctx: SectionContext }) {
   const selectAfterLoad = useRef(false);
   const [ask, setAsk] = useState<FilesAsk | null>(null);
   const busy = useBatch();
+  const clip = useClipboard();
+  const conflict = useConflict();
   const [message, setMessage] = useState<Message | null>(null);
   const [askBusy, setAskBusy] = useState(false);
   const [askError, setAskError] = useState<string | null>(null);
@@ -885,7 +955,7 @@ export function Files({ ctx }: { ctx: SectionContext }) {
       }
     }
     if (lastAnchor.current && focusLost()) restoreFocus(lastAnchor.current);
-  }, [path, dir.entries, dir.loaded, dir.loading, dir.error, volumes]);
+  }, [path, dir.entries, dir.loaded, dir.loading, dir.error, volumes, clip, conflict]);
 
   const { loadMore } = dir;
   const onLoadMore = useCallback(() => {
@@ -968,6 +1038,52 @@ export function Files({ ctx }: { ctx: SectionContext }) {
     },
     [runBatch],
   );
+
+  const onClip = useCallback(
+    (mode: PasteMode, names: string[]) => {
+      setAsk(null);
+      if (path == null) return;
+      const kinds = new Map(dir.entries.map((e) => [e.name, e.kind]));
+      setClipboard(
+        mode,
+        names.map((n) => ({ path: joinPath(path, n), dir: kinds.get(n) === "dir" })),
+      );
+      setSelecting(false);
+      setSelected([]);
+    },
+    [path, dir.entries],
+  );
+
+  const onPaste = useCallback(() => {
+    const c = getClipboard();
+    if (path == null || !c || currentBatch()) return;
+    const dest = path;
+    setMessage(null);
+    const run = startBatch(
+      c.mode === "cut" ? "move" : "copy",
+      c.items.length,
+      (ctl) =>
+        pasteItems(
+          c.items,
+          dest,
+          c.mode,
+          { decide: askConflict, volumes: volumes ?? undefined },
+          { onProgress: ctl.onProgress, stopped: ctl.stopped, waitJob: (id) => waitJob(id, ctl.stopped) },
+        ),
+      c.items.map((i) => i.path).concat(dest),
+    );
+    run?.then(
+      (r) => {
+        // A cut item that moved (or was skipped on purpose) leaves the clipboard; a copy stays to paste again.
+        if (c.mode === "cut") dropFromClipboard(r.done.concat(r.declined));
+        if (mounted.current) {
+          setMessage(pasteMessage(r));
+          refresh();
+        }
+      },
+      () => undefined,
+    );
+  }, [path, volumes, refresh]);
 
   const onRename = useCallback(
     (name: string, newName: string) => {
@@ -1240,6 +1356,11 @@ export function Files({ ctx }: { ctx: SectionContext }) {
         onGoTo={onGoTo}
         gameRunning={gameRunning}
         onStopBatch={stopBatch}
+        clip={clip}
+        conflict={conflict}
+        onClip={onClip}
+        onPaste={onPaste}
+        onClipClear={clearClipboard}
         onOpen={(p) => go(p)}
         onUp={goUp}
         onEntry={onEntry}

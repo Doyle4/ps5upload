@@ -1283,3 +1283,53 @@ button {
   color: var(--color-text);
   font-weight: 600;
 }
+
+/* ---- Files: clipboard bar (in the status line) and paste conflicts ---- */
+.cw-status-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 2rem;
+  margin: 0 0 0.4rem;
+}
+.cw-files-screen .cw-status-row .cw-status {
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cw-clip {
+  display: flex;
+  flex: none;
+  align-items: center;
+  margin-left: auto;
+  padding: 0.15rem 0.2rem 0.15rem 0.8rem;
+  border-radius: var(--radius-control);
+  background: var(--color-accent-soft);
+  font-size: 0.85rem;
+}
+.cw-clip-text {
+  max-width: 26rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cw-clip-button {
+  margin-left: 0.5rem;
+  padding: 0.25rem 0.8rem;
+}
+.cw-conflict {
+  max-width: 44rem;
+}
+.cw-conflict p {
+  margin: 0 0 0.8rem;
+  overflow-wrap: anywhere;
+}
+.cw-conflict-all {
+  margin-bottom: 1rem;
+}
+.cw-conflict-all[aria-pressed="true"] {
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+}
