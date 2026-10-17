@@ -1627,7 +1627,8 @@ newer.
 The helper isn't loaded, for example after a reboot or rest mode. Load the PS5Upload helper from
 the app on your PC or from your payload loader; the page notices and opens by itself (or press
 **Try again**). It is the browser's saved copy of the page saying the helper didn't answer;
-nothing is wrong with your files.
+nothing is wrong with your files. If you see the browser's own error page instead, the browser
+had no saved copy: load the helper the same way and pick the tile again.
 
 **Q: How do I use it with the controller?**
 ✕ selects what is highlighted, ○ goes back one step (out of a dialog, up a folder, back to

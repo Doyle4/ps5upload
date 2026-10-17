@@ -10,8 +10,9 @@ What's new in ps5upload, written for humans.
   PS5 home screen opens a page in the PS5 browser that fills the TV. It has four sections:
   **Home** (the running game with Close game, the tasks that are running with Cancel, and your
   drives), **Files**, **Cheats** (switch the running game's cheats on and off) and **Settings**.
-  The PS5Upload helper must be loaded; when it isn't, the tile shows a page that says so, and
-  the page opens by itself once the helper answers. After an update, a banner offers to reload.
+  The PS5Upload helper must be loaded. If it isn't, the page tries to show a note that says so
+  (from a copy the PS5 browser keeps) and opens by itself once the helper answers. After an
+  update, a banner offers to reload.
 - **Made for the controller.** ✕ selects, ○ steps back, △ opens an item's actions, and the PS5's
   own pointer works too. Every action also has a button on screen. Three short tips show the
   first time, Help lists the buttons that work on the current screen, and Controls shows which
