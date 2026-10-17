@@ -39,10 +39,18 @@ export function visibleJobs(jobs: Job[]): Job[] {
   return running.concat(jobs.filter((j) => j.state !== "running" && j.mine));
 }
 
+/** One read of /api/jobs: the jobs, and where running uploads (a PC's) are writing. */
+export async function fetchJobsAll(): Promise<{ jobs: Job[]; uploading: string[] }> {
+  const r = await call<{ jobs?: unknown; uploading?: unknown }>("/api/jobs");
+  const uploading = Array.isArray(r?.uploading)
+    ? r.uploading.filter((x): x is string => typeof x === "string" && x.startsWith("/"))
+    : [];
+  return { jobs: Array.isArray(r?.jobs) ? (r.jobs as Job[]) : [], uploading };
+}
+
 /** One read of /api/jobs. */
 export async function fetchJobs(): Promise<Job[]> {
-  const r = await call<{ jobs?: unknown }>("/api/jobs");
-  return Array.isArray(r?.jobs) ? (r.jobs as Job[]) : [];
+  return (await fetchJobsAll()).jobs;
 }
 
 /** Ask the helper to stop job `id` (any owner's). */
@@ -58,7 +66,10 @@ export interface JobsPoller {
 }
 
 /** The polling loop behind useJobs, with no React in it. */
-export function createJobsPoller(opts: { onJobs: (jobs: Job[]) => void; onError: (err: unknown) => void }): JobsPoller {
+export function createJobsPoller(opts: {
+  onJobs: (jobs: Job[], uploading: string[]) => void;
+  onError: (err: unknown) => void;
+}): JobsPoller {
   let timer: ReturnType<typeof setTimeout> | undefined;
   let stopped = false;
   let inFlight = false;
@@ -80,9 +91,9 @@ export function createJobsPoller(opts: { onJobs: (jobs: Job[]) => void; onError:
     inFlight = true;
     let delay = JOBS_SLOW_MS;
     try {
-      const jobs = await fetchJobs();
+      const { jobs, uploading } = await fetchJobsAll();
       if (stopped) return;
-      opts.onJobs(jobs);
+      opts.onJobs(jobs, uploading);
       delay = nextJobsDelay(jobs);
     } catch (e) {
       if (stopped) return;
@@ -120,6 +131,8 @@ export function createJobsPoller(opts: { onJobs: (jobs: Job[]) => void; onError:
 
 export interface JobsState {
   jobs: Job[];
+  /** Where running uploads (a PC's) are writing: Files badges those folders. */
+  uploading: string[];
   /** The first answer has come in. */
   loaded: boolean;
   /** The last read failed (null after a good one). */
@@ -132,14 +145,16 @@ export interface JobsState {
 
 export function useJobs(): JobsState {
   const [jobs, setJobs] = useState<Job[]>([]);
+  const [uploading, setUploading] = useState<string[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const poller = useRef<JobsPoller | null>(null);
 
   useEffect(() => {
     const p = createJobsPoller({
-      onJobs: (j) => {
+      onJobs: (j, u) => {
         setJobs(j);
+        setUploading((prev) => (prev.length === u.length && prev.every((x, i) => x === u[i]) ? prev : u));
         setLoaded(true);
         setError(null);
       },
@@ -165,5 +180,5 @@ export function useJobs(): JobsState {
     poller.current?.refresh();
   }, []);
 
-  return { jobs, loaded, error, cancel, refresh };
+  return { jobs, uploading, loaded, error, cancel, refresh };
 }

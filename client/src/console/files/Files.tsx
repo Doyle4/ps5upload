@@ -30,6 +30,7 @@ import { t } from "../strings";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { anchorOf, focusLost, restoreFocus, type FocusAnchor } from "../ui/restoreFocus";
 import { ActionsSheet, type SheetAction } from "./ActionsSheet";
+import { canShowOnPc, showOnPc, uploadingNames, useHandoffNotice } from "./handoff";
 import { DirList, ROW_WINDOW, viewKind } from "./DirList";
 import { canEject, DriveList, isImage, isSystemVolume, placeLabel } from "./DriveList";
 import { InfoDialog } from "./InfoDialog";
@@ -201,6 +202,10 @@ export interface FilesViewProps {
   askError?: string | null;
   onPin?: (path: string) => void;
   onUnpin?: (path: string) => void;
+  /** "Show on PC": the PC app's File System opens it. */
+  onShowPc?: (path: string) => void;
+  /** Entries of the folder shown that a PC upload is writing into. */
+  uploading?: ReadonlySet<string>;
   onEject?: (path: string, force: boolean) => void;
   onUnmount?: (path: string) => void;
   onGoTo?: (path: string) => void;
@@ -252,6 +257,7 @@ function sheetActions(names: string[], entries: Entry[], pinned: boolean | null)
   if (e && e.kind !== "dir" && viewKind(e.name)) out.push("view");
   out.push("clipcopy", "cut", "copy", "move", "rename", "mkdir", "info");
   if (e && e.kind === "dir" && pinned != null) out.push(pinned ? "unpin" : "pin");
+  if (canShowOnPc()) out.push("showpc");
   out.push("fixperm", "delete");
   return out;
 }
@@ -406,6 +412,8 @@ function askView(p: FilesViewProps) {
                 return p.onPin?.(joinPath(path, name));
               case "unpin":
                 return p.onUnpin?.(joinPath(path, name));
+              case "showpc":
+                return p.onShowPc?.(joinPath(path, name));
               case "open":
                 return;
               case "fixperm":
@@ -765,6 +773,7 @@ export function FilesView(p: FilesViewProps) {
             onToggleItem={p.onToggleItem}
             onActions={(name) => p.onAsk({ kind: "sheet", names: [name] })}
             label={p.path}
+            uploading={p.uploading}
           />
           {p.dir.more ? (
             // Reaching it with the D-pad reads the next page: big folders load as you scroll.
@@ -833,11 +842,12 @@ function byAttr(root: Element, attr: string, value: string): HTMLElement | null 
 /** The Files section: drives → folders, with the actions sheet, select, copy/move, viewer. */
 export function Files({ ctx }: { ctx: SectionContext }) {
   const wanted = ctx.params?.path ?? null;
+  const wantedFocus = ctx.params?.focus ?? "";
   const [path, setPath] = useState<string | null>(wanted);
   const [volumesTick, setVolumesTick] = useState(0);
   const { volumes, error: volumesError } = useVolumes(path, volumesTick);
   const dir = useDir(path);
-  const { jobs } = useJobs();
+  const { jobs, uploading } = useJobs();
   const [selecting, setSelecting] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
   const [view, setView] = useState<ViewPrefs>(loadView);
@@ -901,8 +911,11 @@ export function Files({ ctx }: { ctx: SectionContext }) {
   // Home's Browse USB (or any openSection) opens a path: like any folder change,
   // the selection is cleared and focus goes to its first row.
   useEffect(() => {
-    if (wanted != null) go(wanted);
-  }, [wanted, go]);
+    if (wanted != null) go(wanted, wantedFocus);
+  }, [wanted, wantedFocus, go]);
+  // Opened by the PC ("Show on TV"): say so, or that the folder is gone.
+  useHandoffNotice(ctx.params, setMessage);
+  const uploadingHere = useMemo(() => uploadingNames(path, uploading), [path, uploading]);
 
   // Opened without a place: back where Files was last (a folder that is gone falls back to the drives).
   useEffect(() => {
@@ -1365,6 +1378,11 @@ export function Files({ ctx }: { ctx: SectionContext }) {
         askError={askError}
         onPin={onPin}
         onUnpin={onUnpin}
+        onShowPc={(x) => {
+          setAsk(null);
+          void showOnPc(x).then((m) => mounted.current && setMessage(m));
+        }}
+        uploading={uploadingHere}
         onEject={onEject}
         onUnmount={onUnmount}
         onGoTo={onGoTo}

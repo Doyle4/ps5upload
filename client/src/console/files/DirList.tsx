@@ -58,6 +58,7 @@ export function DirList({
   label,
   limit = Infinity,
   onMoreRows,
+  uploading,
 }: {
   entries: Entry[];
   selecting: boolean;
@@ -69,6 +70,8 @@ export function DirList({
   /** Draw only the first `limit` rows; the rest wait behind "Show more rows". */
   limit?: number;
   onMoreRows?: () => void;
+  /** Entries a running PC upload is writing into: an "Uploading" badge. */
+  uploading?: ReadonlySet<string>;
 }) {
   const marked = new Set(selected);
   const drawn = entries.length > limit ? entries.slice(0, limit) : entries;
@@ -89,6 +92,11 @@ export function DirList({
               <Icon className="cw-file-icon" aria-hidden />
               <span className="cw-file-text">
                 <span className="cw-file-name">{e.name}</span>
+                {uploading?.has(e.name) ? (
+                  <span className="cw-tag is-pc" data-uploading="">
+                    {t("cw_files_uploading")}
+                  </span>
+                ) : null}
               </span>
               <span className="cw-file-meta cw-dim">
                 {e.kind === "dir" ? t("cw_files_kind_dir") : formatBytes(e.size)}

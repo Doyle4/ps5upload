@@ -14,6 +14,7 @@ import { ReloadBanner } from "./shell/ReloadBanner";
 import { TopBar, type ConsoleStatus } from "./shell/TopBar";
 import { focusLost } from "./ui/restoreFocus";
 import { pollWhileVisible } from "./ui/visiblePoll";
+import { useHandoffPoll } from "./files/handoff";
 import { t } from "./strings";
 
 /** The console chip refreshes this often (the temperature moves). */
@@ -126,6 +127,17 @@ export function App({ inputMap }: { inputMap: InputMap }) {
       }, undefined, { fallback: true }),
     [active, show, openHelp],
   );
+
+  // "Show on TV": the PC app left a folder; Files opens there (any section).
+  const openFromPc = useCallback(
+    (p: SectionParams) => {
+      show("files", p);
+      const el = railButton("files");
+      if (el) focusElement(el);
+    },
+    [show],
+  );
+  useHandoffPoll(openFromPc, !expired);
 
   const ctx = useMemo<SectionContext>(
     () => ({
