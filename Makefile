@@ -896,6 +896,12 @@ test-payload: payload
 		$(PAYLOAD_DIR)/tests/webui_strings_selftest.c $(PAYLOAD_DIR)/src/webui_strings.c
 	@/tmp/ps5upload-webui-strings-selftest
 	@echo "✓ GET /strings/<lang>.json answers only the embedded languages, never a crafted path"
+	@echo "Running webui offline copy lookup self-test (host build)..."
+	@cc -O2 -Wall -Wextra -Werror -I$(PAYLOAD_DIR)/include \
+		-o /tmp/ps5upload-webui-offline-selftest \
+		$(PAYLOAD_DIR)/tests/webui_offline_selftest.c $(PAYLOAD_DIR)/src/webui_offline.c
+	@/tmp/ps5upload-webui-offline-selftest
+	@echo "✓ GET /sw.js and /cache.appcache answer with their own types; nothing else matches"
 	@echo "Running webui auth self-test (host build)..."
 	@cc -O2 -Wall -Wextra -Werror -I$(PAYLOAD_DIR)/include \
 		-o /tmp/ps5upload-webui-auth-selftest \

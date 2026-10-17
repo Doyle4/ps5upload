@@ -47,7 +47,11 @@ async function fetchToken(): Promise<string> {
     throw new ApiError(0, "offline");
   }
   if (!res.ok) throw new ApiError(res.status, res.status === 503 ? "stopping" : "token_unavailable");
-  const body = (await res.json()) as { token?: unknown };
+  // Anything but JSON (another server on the port, a captive page) is not the helper.
+  const body = (await res.json().catch(() => {
+    throw new ApiError(0, "offline");
+  })) as { token?: unknown } | null;
+  if (!body || typeof body !== "object") throw new ApiError(0, "offline");
   if (typeof body.token !== "string" || !body.token) throw new ApiError(res.status, "token_unavailable");
   return body.token;
 }
@@ -61,6 +65,20 @@ function token(): Promise<string> {
     });
   }
   return tokenPromise;
+}
+
+/**
+ * Is the helper there? Reads the token (kept for the calls that follow). False only when nothing
+ * answered like the helper (the page came from the browser's offline copy: the service worker or
+ * the appcache) or it is shutting down; any other answer means it is running.
+ */
+export async function probeHelper(): Promise<boolean> {
+  try {
+    await token();
+    return true;
+  } catch (e) {
+    return !isOffline(e);
+  }
 }
 
 /** POST `body` as JSON to `route`; the Response when it is 2xx, else the ApiError. */

@@ -30,6 +30,7 @@
 #include "ps5_firmware.h"
 #include "webui_codec.h"
 #include "webui_inputlog.h"
+#include "webui_offline.h"
 #include "webui_page.h"
 #include "webui_server.h"
 #include "webui_settings.h"
@@ -1274,11 +1275,14 @@ static const struct {
 };
 
 /* The page's own headers: only same-origin fetches, inline script/style (the page is one file),
+ * no-cache rather than no-store (revalidated on every visit, but storable: the appcache keeps it as
+ * the offline copy; webui_offline.h),
  * data:/blob: images; nosniff is on every response already. Never framed (frame-ancestors plus
  * X-Frame-Options for older engines): with LAN access on, another site could otherwise frame the
  * page, whose token works inside the frame, and click its buttons for the user. */
 #define PAGE_HEADERS                                                                       \
     "Content-Encoding: gzip\r\n"                                                          \
+    "Cache-Control: no-cache\r\n"                                                         \
     "Content-Security-Policy: default-src 'self' 'unsafe-inline' data: blob:; connect-src 'self'; " \
     "frame-ancestors 'none'\r\n"                                                          \
     "X-Frame-Options: DENY\r\n"
@@ -1296,20 +1300,27 @@ _Static_assert(sizeof(STRINGS_HEADERS) <= 300, "STRINGS_HEADERS must fit webui_s
 
 #define STRINGS_PREFIX "/strings/"
 
-/* GET /, GET /api/token and GET /strings/<lang>.json: the server checked Host/Origin but no token
- * (is_api is 0 for all three). None reaches a helper method, so they stay outside the in-flight RPC
+/* The offline copy's files (webui_offline.h): checked on every visit. */
+#define OFFLINE_HEADERS "Cache-Control: no-cache\r\n"
+
+/* GET /, GET /api/token, GET /strings/<lang>.json, GET /sw.js and GET /cache.appcache: the server
+ * checked Host/Origin but no token (is_api is 0 for all of them). None reaches a helper method, so they stay outside the in-flight RPC
  * gate. The token goes out as JSON with no CORS headers: another site's page cannot read the reply,
  * and loaded through a <script> tag it executes nothing. Never serve it as JavaScript. A strings
  * path names one of the embedded languages exactly (webui_strings_find) or answers 404. */
 static int serve_static(const webui_req_t *r, int fd) {
     int page = strcmp(r->path, "/") == 0;
     int strings = strncmp(r->path, STRINGS_PREFIX, sizeof STRINGS_PREFIX - 1) == 0;
-    if (!page && !strings && strcmp(r->path, "/api/token") != 0) return 0;
+    webui_offline_file_t off;
+    int offline = webui_offline_find(r->path, &off);
+    if (!page && !strings && !offline && strcmp(r->path, "/api/token") != 0) return 0;
     if (strcmp(r->method, "GET") != 0) {
         webui_send_json(fd, 405, "{\"error\":\"method_not_allowed\"}");
         return 1;
     }
-    if (strings) {
+    if (offline) {
+        webui_send_ex(fd, 200, off.ctype, off.data, off.len, OFFLINE_HEADERS);
+    } else if (strings) {
         const webui_strings_entry_t *e = webui_strings_find(webui_strings_table, webui_strings_count, r->path);
         if (!e) webui_send_json(fd, 404, "{\"error\":\"not_found\"}");
         else webui_send_ex(fd, 200, "application/json", e->data, e->len, STRINGS_HEADERS);

@@ -1,11 +1,15 @@
-import { StrictMode, useSyncExternalStore } from "react";
+import { StrictMode, useEffect, useState, useSyncExternalStore } from "react";
 import { createRoot } from "react-dom/client";
 import "virtual:pc-tokens.css";
 import "./console.css";
 import { App } from "./App";
+import { probeHelper } from "./api";
 import { installBackHistory } from "./backHistory";
 import { installFullscreen } from "./fullscreen";
 import { DEFAULT_INPUT_MAP, dispatchNav, installNavigation } from "./nav";
+import { installOfflineCopy } from "./offline/offlineCopy";
+import { OfflinePage } from "./offline/OfflinePage";
+import { ErrorBoundary } from "./ui/ErrorBoundary";
 import { applyStoredTheme } from "./theme";
 import { getLanguage, onLanguageChange, setLanguage, stringsVersion } from "./strings";
 
@@ -18,12 +22,31 @@ installNavigation(DEFAULT_INPUT_MAP);
 installFullscreen();
 // The browser's Back (the PS5's ○) steps back inside the page: see backHistory.ts.
 installBackHistory(() => dispatchNav("back"));
+// The offline copy (service worker + appcache): the tile opens the "not running" screen, not an error.
+installOfflineCopy();
 
-/** Re-renders the whole page when its strings change (a language loaded or chosen in Settings). */
+/**
+ * Re-renders the whole page when its strings change (a language loaded or chosen in Settings).
+ * First asks the helper for the token: no answer = this is the offline copy and the helper is not
+ * running (OfflinePage). Any render error shows ErrorBoundary instead of a blank page.
+ */
 function Root() {
   // An external store, so a load that lands before the first commit is not missed.
   useSyncExternalStore(onLanguageChange, stringsVersion);
-  return <App inputMap={DEFAULT_INPUT_MAP} />;
+  const [up, setUp] = useState<boolean | null>(null);
+  useEffect(() => {
+    let live = true;
+    void probeHelper().then((ok) => {
+      if (live) setUp(ok);
+    });
+    return () => {
+      live = false;
+    };
+  }, []);
+  if (up === null) return null;
+  return (
+    <ErrorBoundary>{up ? <App inputMap={DEFAULT_INPUT_MAP} /> : <OfflinePage />}</ErrorBoundary>
+  );
 }
 
 const root = document.getElementById("root");

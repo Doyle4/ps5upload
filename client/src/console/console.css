@@ -1337,6 +1337,9 @@ button {
 /* ---- bulk rename, verify, decompress, folder size ---- */
 .cw-dialog.cw-bulk-rename {
   width: 64rem;
+  max-height: calc(100vh - 2rem);
+  overflow-y: auto;
+  box-sizing: border-box;
 }
 .cw-br-modes {
   display: flex;
@@ -1431,3 +1434,43 @@ button {
 .cw-dialog .cw-field-error {
   color: var(--color-bad);
 }
+
+/* ---- offline screen and error screen (OfflinePage, ErrorBoundary) ---- */
+.cw-offline {
+  min-height: 100vh;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  text-align: center;
+  background: var(--color-canvas);
+}
+.cw-offline h1 {
+  margin: 0 0 0.8rem;
+  font-size: 1.8rem;
+}
+.cw-offline p {
+  max-width: 40rem;
+  margin: 0 0 1.4rem;
+  color: var(--color-muted);
+  line-height: 1.5;
+}
+.cw-offline .cw-dialog-buttons {
+  justify-content: center;
+}
+.cw-error-detail {
+  max-width: 40rem;
+  max-height: 6rem;
+  overflow: hidden;
+  margin: 0 0 1.4rem;
+  padding: 0.5rem 0.8rem;
+  border-radius: var(--radius-control);
+  background: var(--color-surface-3);
+  color: var(--color-muted);
+  font-size: 0.8rem;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
