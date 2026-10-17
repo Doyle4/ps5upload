@@ -751,6 +751,107 @@ int webui_api_tile_off(void) {
     return rc;
 }
 
+/* ---- cheats: the running game's cheats, through the methods the engine calls (cheats.rs) ---- */
+
+#define API_CHEATS_JSON (96u * 1024u) /* CHEATS_GET's 64 KiB reply, re-escaped */
+
+/* A required title id the cheat methods can take (webui_cheats_title_ok); else 400 bad_title_id. */
+static int need_title(int fd, const char *b, size_t n, char *out, size_t cap) {
+    if (webui_json_str(b, n, "title_id", out, cap) == 1 && webui_cheats_title_ok(out)) return 0;
+    send_bad(fd, "bad_title_id");
+    return -1;
+}
+
+/* CHEATS_STATUS (empty request): {"engine":bool,"game":{"title_id":..}|null}. Cheap (the helper
+ * caches the running game): the page polls it. */
+static void r_cheats_status(const char *b, size_t n, uint8_t *out, int fd) {
+    const uint8_t *t;
+    size_t ol, tl;
+    char json[96];
+    int st;
+    (void)b;
+    (void)n;
+    st = call_text(AVA1_METHOD_CHEATS_STATUS, NULL, 0, out, &ol, &t, &tl);
+    if (st != AVA1_STATUS_OK) {
+        send_status_error(fd, st, out, ol);
+        return;
+    }
+    if (webui_cheats_status_to_json((const char *)t, tl, json, sizeof json) != 0) send_error(fd, 500, "bad_cheats_reply", 16);
+    else send_json(fd, 200, json, strlen(json));
+}
+
+/* {title_id}: CHEATS_GET {"title_id":..}, as {"mods":[{index,name,desc,button,on}],"truncated":bool}. */
+static void r_cheats_list(const char *b, size_t n, uint8_t *out, int fd) {
+    char title[32], req[64], err[API_CAUSE_MAX];
+    const uint8_t *t;
+    size_t ol, tl;
+    char *json;
+    int st, k;
+    if (need_title(fd, b, n, title, sizeof title) != 0) return;
+    k = snprintf(req, sizeof req, "{\"title_id\":\"%s\"}", title); /* letters and digits only */
+    st = call_text(AVA1_METHOD_CHEATS_GET, req, (size_t)k, out, &ol, &t, &tl);
+    if (st != AVA1_STATUS_OK) {
+        send_status_error(fd, st, out, ol);
+        return;
+    }
+    json = malloc(API_CHEATS_JSON);
+    if (!json) {
+        send_error(fd, 500, "out_of_memory", 13);
+        return;
+    }
+    if (webui_cheats_mods_to_json((const char *)t, tl, json, API_CHEATS_JSON, err, sizeof err) < 0) {
+        if (err[0]) send_error(fd, 500, err, strlen(err));
+        else send_error(fd, 500, "bad_cheats_reply", 16);
+    } else {
+        send_json(fd, 200, json, strlen(json));
+    }
+    free(json);
+}
+
+static int cheats_error_http(const char *token) {
+    if (strcmp(token, "game_not_running") == 0 || strcmp(token, "module_missing") == 0) return 409;
+    if (strcmp(token, "no_cheats") == 0) return 404;
+    if (strcmp(token, "bad_index") == 0) return 400;
+    return 500;
+}
+
+/* {title_id, index, on}: CHEATS_TOGGLE as the engine sends it. The helper refuses unless that game
+ * is running (it patches the live process) and turns its cheat engine on with any switch-on. A
+ * refusal is {"error":"game_not_running"|"no_cheats"|"bad_index"|"module_missing"|"toggle_failed"}. */
+static void r_cheats_toggle(const char *b, size_t n, uint8_t *out, int fd) {
+    char title[32], req[96];
+    const uint8_t *t;
+    size_t ol, tl;
+    uint64_t index;
+    int on, st, k;
+    if (need_title(fd, b, n, title, sizeof title) != 0) return;
+    if (webui_json_u64(b, n, "index", &index) != 1 || index > 0x7fffffffu) {
+        send_bad(fd, "bad_index");
+        return;
+    }
+    if (webui_json_bool(b, n, "on", &on) != 1) {
+        send_bad(fd, "bad_on");
+        return;
+    }
+    k = snprintf(req, sizeof req, "{\"title_id\":\"%s\",\"index\":%lu,\"on\":%s}", title, (unsigned long)index,
+                 on ? "true" : "false");
+    st = call_text(AVA1_METHOD_CHEATS_TOGGLE, req, (size_t)k, out, &ol, &t, &tl);
+    if (st != AVA1_STATUS_OK) {
+        /* the handler's whole {"ok":false,"err":..} body is the cause (mgmt_call_text_keep) */
+        if (ol && out[0] == '{') {
+            const char *tok = webui_cheats_toggle_error((const char *)out, ol);
+            send_error(fd, cheats_error_http(tok), tok, strlen(tok));
+        } else {
+            send_status_error(fd, st, out, ol);
+        }
+        return;
+    }
+    {
+        const char *ok = on ? "{\"ok\":true,\"on\":true}" : "{\"ok\":true,\"on\":false}";
+        send_json(fd, 200, ok, strlen(ok));
+    }
+}
+
 /* ---- input log ---- */
 
 /* One append at a time (the file is a ring rewritten in place), and the time of the last one: a
@@ -823,6 +924,9 @@ static const struct {
     { "/api/settings", r_settings },
     { "/api/settings/set", r_settings_set },
     { "/api/input-log", r_input_log },
+    { "/api/cheats/status", r_cheats_status },
+    { "/api/cheats/list", r_cheats_list },
+    { "/api/cheats/toggle", r_cheats_toggle },
 };
 
 /* The page's own headers: only same-origin fetches, inline script/style (the page is one file),

@@ -84,4 +84,30 @@ int webui_is_game_title_id(const char *tid);
  * *app_id set, 0 when no game runs, -1 when the reply does not parse. */
 int webui_focus_running(const char *json, size_t n, char *title_id, size_t cap, uint32_t *app_id);
 
+/* ---- cheats (CHEATS_STATUS / CHEATS_GET / CHEATS_TOGGLE, as the engine calls them) ---- */
+
+/* 1 when `tid` can name a game to the cheat methods: 4 to 15 ASCII letters and digits. */
+int webui_cheats_title_ok(const char *tid);
+
+/* A CHEATS_STATUS reply ({"enabled":bool,"patches_last":N,"patches_total":N,"game_running":bool,
+ * "game_title_id":"..","game_pid":N}) as {"engine":bool,"game":{"title_id":".."}|null}. `game` is
+ * null unless a game runs under a usable title id (webui_cheats_title_ok) that is not the page's own
+ * tile. 0, or -1 (no "enabled", or does not fit; out is then ""). */
+int webui_cheats_status_to_json(const char *json, size_t n, char *out, size_t cap);
+
+/* A CHEATS_GET reply ({"title_id":..,"mods":[{"index":N,"name":..,"desc":..,"type":"checkbox"|"button",
+ * "on":bool},...]}, or {"mods":[],"error":"no cheat files found"}) as
+ *   {"mods":[{"index":N,"name":"..","desc":"..","button":bool,"on":bool},...],"truncated":bool}
+ * Every string is re-escaped (valid JSON whatever the cheat file held). A mod without an index or a
+ * name is left out. The helper's reply can end mid-entry (its 64 KiB buffer): the entries before the
+ * cut are kept and "truncated" is set; so too when `out` is full. Returns the number of mods written,
+ * or -1: no mods array, or the reply names an error other than "no cheat files found" (copied to
+ * `err`, cut to err_cap - 1), or not even the empty list fits. */
+int webui_cheats_mods_to_json(const char *json, size_t n, char *out, size_t cap, char *err, size_t err_cap);
+
+/* A failed CHEATS_TOGGLE's cause ({"ok":false,"err":"<text>"}) as a token the page acts on:
+ * "game_not_running" (no game, or a different game than the one asked for), "no_cheats",
+ * "bad_index", "module_missing", else "toggle_failed". */
+const char *webui_cheats_toggle_error(const char *cause, size_t n);
+
 #endif

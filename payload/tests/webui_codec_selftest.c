@@ -536,6 +536,94 @@ static void array_span(void) {
     CHECK(webui_json_array("{\"events\":[\"a\"", 13, "events", &v, &len) == -1); /* cut short */
 }
 
+/* ---- cheats ---- */
+
+static void cheats_status(void) {
+    char out[256];
+    CHECK(webui_cheats_title_ok("PPSA01650") && webui_cheats_title_ok("CUSA07842") && webui_cheats_title_ok("FAKE1"));
+    CHECK(!webui_cheats_title_ok("") && !webui_cheats_title_ok("ABC") && !webui_cheats_title_ok("PPSA0165\"") &&
+          !webui_cheats_title_ok("PPSA/0165") && !webui_cheats_title_ok("ABCDEFGHIJKLMNOP") && !webui_cheats_title_ok(NULL));
+    const char *j = "{\"enabled\":true,\"patches_last\":2,\"patches_total\":5,\"game_running\":true,"
+                    "\"game_title_id\":\"PPSA01650\",\"game_pid\":77}";
+    CHECK(webui_cheats_status_to_json(j, strlen(j), out, sizeof out) == 0);
+    CHECK(strcmp(out, "{\"engine\":true,\"game\":{\"title_id\":\"PPSA01650\"}}") == 0);
+    j = "{\"enabled\":false,\"patches_last\":0,\"patches_total\":0,\"game_running\":false,\"game_title_id\":\"\","
+        "\"game_pid\":0}";
+    CHECK(webui_cheats_status_to_json(j, strlen(j), out, sizeof out) == 0);
+    CHECK(strcmp(out, "{\"engine\":false,\"game\":null}") == 0);
+    /* running but no usable title id, or the page's own tile: no game */
+    j = "{\"enabled\":false,\"game_running\":true,\"game_title_id\":\"\"}";
+    CHECK(webui_cheats_status_to_json(j, strlen(j), out, sizeof out) == 0);
+    CHECK(strcmp(out, "{\"engine\":false,\"game\":null}") == 0);
+    j = "{\"enabled\":false,\"game_running\":true,\"game_title_id\":\"PSUP00001\"}";
+    CHECK(webui_cheats_status_to_json(j, strlen(j), out, sizeof out) == 0);
+    CHECK(strcmp(out, "{\"engine\":false,\"game\":null}") == 0);
+    /* a title id that is not plain letters and digits is never echoed */
+    j = "{\"enabled\":true,\"game_running\":true,\"game_title_id\":\"AB\\\"<x>\"}";
+    CHECK(webui_cheats_status_to_json(j, strlen(j), out, sizeof out) == 0);
+    CHECK(strcmp(out, "{\"engine\":true,\"game\":null}") == 0);
+    CHECK(webui_cheats_status_to_json("nope", 4, out, sizeof out) == -1);
+    CHECK(webui_cheats_status_to_json("{\"x\":1}", 7, out, sizeof out) == -1); /* no enabled */
+    CHECK(webui_cheats_status_to_json(j, strlen(j), out, 8) == -1);           /* does not fit */
+}
+
+static void cheats_mods(void) {
+    static char out[4096];
+    char err[64];
+    const char *j =
+        "{\"title_id\":\"PPSA01650\",\"mods\":["
+        "{\"index\":0,\"name\":\"Infinite \\\"HP\\\"\",\"desc\":\"\",\"type\":\"checkbox\",\"on\":true},"
+        "{\"index\":1,\"name\":\"\xe7\x84\xa1\xe9\x99\x90\",\"desc\":\"UTF-8 kept\",\"type\":\"button\",\"on\":false},"
+        "{\"index\":2,\"desc\":\"no name: left out\",\"type\":\"checkbox\",\"on\":false},"
+        "{\"index\":3,\"name\":\"Max money\",\"desc\":\"a\\nb\",\"type\":\"checkbox\",\"on\":false}]}";
+    CHECK(webui_cheats_mods_to_json(j, strlen(j), out, sizeof out, err, sizeof err) == 3);
+    CHECK(json_valid(out));
+    CHECK(strcmp(out, "{\"mods\":["
+                      "{\"index\":0,\"name\":\"Infinite \\\"HP\\\"\",\"desc\":\"\",\"button\":false,\"on\":true},"
+                      "{\"index\":1,\"name\":\"\xe7\x84\xa1\xe9\x99\x90\",\"desc\":\"UTF-8 kept\",\"button\":true,\"on\":false},"
+                      "{\"index\":3,\"name\":\"Max money\",\"desc\":\"a\\nb\",\"button\":false,\"on\":false}],"
+                      "\"truncated\":false}") == 0);
+    /* the helper's "no cheat files" answer: an empty list, not an error */
+    j = "{\"mods\":[],\"error\":\"no cheat files found\"}";
+    CHECK(webui_cheats_mods_to_json(j, strlen(j), out, sizeof out, err, sizeof err) == 0);
+    CHECK(strcmp(out, "{\"mods\":[],\"truncated\":false}") == 0);
+    /* any other error is one */
+    j = "{\"mods\":[],\"error\":\"oom\"}";
+    CHECK(webui_cheats_mods_to_json(j, strlen(j), out, sizeof out, err, sizeof err) == -1);
+    CHECK(strcmp(err, "oom") == 0);
+    CHECK(webui_cheats_mods_to_json("{\"x\":1}", 7, out, sizeof out, err, sizeof err) == -1);
+    /* the helper's 64 KiB reply cut mid-entry: the whole entries before the cut, truncated set */
+    j = "{\"title_id\":\"PPSA01650\",\"mods\":[{\"index\":0,\"name\":\"A\",\"desc\":\"\",\"type\":\"checkbox\",\"on\":false},"
+        "{\"index\":1,\"name\":\"B";
+    CHECK(webui_cheats_mods_to_json(j, strlen(j), out, sizeof out, err, sizeof err) == 1);
+    CHECK(json_valid(out));
+    CHECK(strstr(out, "\"truncated\":true}") != NULL);
+    /* an output too small for every entry keeps the ones that fit and says truncated */
+    j = "{\"mods\":[{\"index\":0,\"name\":\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\",\"desc\":\"\",\"type\":\"checkbox\",\"on\":false},"
+        "{\"index\":1,\"name\":\"BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB\",\"desc\":\"\",\"type\":\"checkbox\",\"on\":false}]}";
+    CHECK(webui_cheats_mods_to_json(j, strlen(j), out, 140, err, sizeof err) == 1);
+    CHECK(json_valid(out));
+    CHECK(strstr(out, "AAAA") && !strstr(out, "BBBB") && strstr(out, "\"truncated\":true}"));
+    CHECK(webui_cheats_mods_to_json(j, strlen(j), out, 10, err, sizeof err) == -1);
+}
+
+static void cheats_toggle_errors(void) {
+    const char *c = "{\"ok\":false,\"err\":\"no game is currently running\"}";
+    CHECK(strcmp(webui_cheats_toggle_error(c, strlen(c)), "game_not_running") == 0);
+    c = "{\"ok\":false,\"err\":\"running game (PPSA00001) does not match cheat target (PPSA01650)\"}";
+    CHECK(strcmp(webui_cheats_toggle_error(c, strlen(c)), "game_not_running") == 0);
+    c = "{\"ok\":false,\"err\":\"no cheat file for PPSA01650. Drop a .json/.shn/.mc4 into /data/etaHEN/cheats\"}";
+    CHECK(strcmp(webui_cheats_toggle_error(c, strlen(c)), "no_cheats") == 0);
+    c = "{\"ok\":false,\"err\":\"cheat index out of range\"}";
+    CHECK(strcmp(webui_cheats_toggle_error(c, strlen(c)), "bad_index") == 0);
+    c = "{\"ok\":false,\"err\":\"module \\\"x.prx\\\" is not loaded in the target process\"}";
+    CHECK(strcmp(webui_cheats_toggle_error(c, strlen(c)), "module_missing") == 0);
+    c = "{\"ok\":false,\"err\":\"pt_attach failed (errno=1)\"}";
+    CHECK(strcmp(webui_cheats_toggle_error(c, strlen(c)), "toggle_failed") == 0);
+    CHECK(strcmp(webui_cheats_toggle_error(NULL, 0), "toggle_failed") == 0);
+    CHECK(strcmp(webui_cheats_toggle_error("busy", 4), "toggle_failed") == 0);
+}
+
 int main(void) {
     unicode_path_round_trips();
     array_span();
@@ -551,6 +639,9 @@ int main(void) {
     kv_lines();
     focus_running();
     focus_running_fallback_games_only();
+    cheats_status();
+    cheats_mods();
+    cheats_toggle_errors();
     if (failures) {
         fprintf(stderr, "webui_codec_selftest: %d failure(s)\n", failures);
         return 1;

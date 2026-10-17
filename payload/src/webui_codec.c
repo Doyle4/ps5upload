@@ -609,3 +609,120 @@ int webui_focus_running(const char *json, size_t n, char *title_id, size_t cap, 
     }
     return 0;
 }
+
+/* ---- cheats ---- */
+
+int webui_cheats_title_ok(const char *tid) {
+    size_t i, n = tid ? strlen(tid) : 0;
+    if (n < 4 || n > 15) return 0;
+    for (i = 0; i < n; i++) {
+        char c = tid[i];
+        if (!((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9'))) return 0;
+    }
+    return 1;
+}
+
+int webui_cheats_status_to_json(const char *json, size_t n, char *out, size_t cap) {
+    char tid[32];
+    int enabled = 0, running = 0, game, k;
+    if (cap) out[0] = '\0';
+    if (webui_json_bool(json, n, "enabled", &enabled) != 1) return -1;
+    if (webui_json_bool(json, n, "game_running", &running) != 1) running = 0;
+    game = running && webui_json_str(json, n, "game_title_id", tid, sizeof tid) == 1 && webui_cheats_title_ok(tid) &&
+           strcmp(tid, WEBUI_TILE_TITLE_ID) != 0;
+    if (game)
+        k = snprintf(out, cap, "{\"engine\":%s,\"game\":{\"title_id\":\"%s\"}}", enabled ? "true" : "false", tid);
+    else
+        k = snprintf(out, cap, "{\"engine\":%s,\"game\":null}", enabled ? "true" : "false");
+    if (k < 0 || (size_t)k >= cap) {
+        if (cap) out[0] = '\0';
+        return -1;
+    }
+    return 0;
+}
+
+/* Room kept for the list's tail: `],"truncated":false}` and the NUL. */
+#define CHEATS_TAIL_ROOM 24u
+#define CHEATS_NO_FILES "no cheat files found" /* cheats.c cheats_list_mods: an empty list */
+
+int webui_cheats_mods_to_json(const char *json, size_t n, char *out, size_t cap, char *err, size_t err_cap) {
+    const char *e = json + n, *p, *q;
+    char msg[160], name[512], desc[512], type[32];
+    size_t pos;
+    int written = 0, truncated = 0;
+    if (cap) out[0] = '\0';
+    if (err_cap) err[0] = '\0';
+    if (webui_json_str(json, n, "error", msg, sizeof msg) == 1 && strcmp(msg, CHEATS_NO_FILES) != 0) {
+        if (err_cap) {
+            size_t l = strlen(msg) < err_cap - 1 ? strlen(msg) : err_cap - 1;
+            memcpy(err, msg, l);
+            err[l] = '\0';
+        }
+        return -1;
+    }
+    p = top_value(json, n, "mods");
+    if (!p || *p != '[') return -1;
+    if (cap < sizeof "{\"mods\":[" - 1 + CHEATS_TAIL_ROOM) return -1;
+    memcpy(out, "{\"mods\":[", 9);
+    pos = 9;
+    q = p + 1;
+    for (;;) {
+        const char *el, *end;
+        size_t l;
+        uint64_t idx;
+        int on = 0;
+        q = ws(q, e);
+        if (q >= e) {
+            truncated = 1; /* cut before the closing ']' */
+            break;
+        }
+        if (*q == ']') break;
+        el = q;
+        end = skip_val(q, e);
+        if (!end) {
+            truncated = 1; /* cut mid-entry */
+            break;
+        }
+        l = (size_t)(end - el);
+        if (*el == '{' && webui_json_u64(el, l, "index", &idx) == 1 && idx <= 0x7fffffffu &&
+            webui_json_str(el, l, "name", name, sizeof name) == 1 && name[0]) {
+            jw_t w;
+            char head[48];
+            int hl;
+            if (webui_json_str(el, l, "desc", desc, sizeof desc) != 1) desc[0] = '\0';
+            if (webui_json_str(el, l, "type", type, sizeof type) != 1) type[0] = '\0';
+            if (webui_json_bool(el, l, "on", &on) != 1) on = 0;
+            memset(&w, 0, sizeof w);
+            w.out = out + pos;
+            w.cap = cap - pos - CHEATS_TAIL_ROOM + 1; /* pos + entry stays CHEATS_TAIL_ROOM short of cap */
+            hl = snprintf(head, sizeof head, "%s{\"index\":%llu,\"name\":\"", written ? "," : "", (unsigned long long)idx);
+            put(&w, head, (size_t)hl);
+            esc(&w, name, strlen(name));
+            put(&w, "\",\"desc\":\"", 10);
+            esc(&w, desc, strlen(desc));
+            put(&w, strcmp(type, "button") == 0 ? "\",\"button\":true" : "\",\"button\":false", strcmp(type, "button") == 0 ? 15 : 16);
+            put(&w, on ? ",\"on\":true}" : ",\"on\":false}", on ? 11 : 12);
+            if (w.full) {
+                truncated = 1;
+                break;
+            }
+            pos += w.wrote;
+            written++;
+        }
+        q = ws(end, e);
+        if (q < e && *q == ',') q++;
+    }
+    snprintf(out + pos, cap - pos, "],\"truncated\":%s}", truncated ? "true" : "false");
+    return written;
+}
+
+const char *webui_cheats_toggle_error(const char *cause, size_t n) {
+    char msg[300];
+    if (!cause || !n || webui_json_str(cause, n, "err", msg, sizeof msg) != 1) return "toggle_failed";
+    if (strstr(msg, "no game is currently running") || strstr(msg, "does not match cheat target"))
+        return "game_not_running";
+    if (strstr(msg, "no cheat file")) return "no_cheats";
+    if (strstr(msg, "index out of range")) return "bad_index";
+    if (strstr(msg, "is not loaded in the target process")) return "module_missing";
+    return "toggle_failed";
+}

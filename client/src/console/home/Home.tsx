@@ -361,7 +361,7 @@ function useVolumes(tick: number): { volumes: Volume[] | null; error: boolean } 
 const TITLE_ID = /^[A-Z]{4}\d{5}$/;
 
 /** The running game's cover: its icon0.png read through the helper, as an object URL; null when unreadable. */
-function useAppCover(titleId: string | null): string | null {
+export function useAppCover(titleId: string | null): string | null {
   const [url, setUrl] = useState<string | null>(null);
   useEffect(() => {
     setUrl(null);

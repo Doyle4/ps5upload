@@ -790,3 +790,101 @@ button {
   min-height: 0;
   padding: 0.2rem 0.9rem;
 }
+
+/* ---- Cheats: three columns of equal rows, so a game's usual dozen-plus cheats fit 1540x700 ---- */
+/* The rail names the section (as on Home): the heading stays for screen readers only. */
+.cw-cheats-section .cw-h1 {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+.cw-cheats-section .cw-game {
+  padding: 0.4rem 0.8rem;
+  margin-bottom: 0.6rem;
+}
+.cw-cheats-section .cw-game-cover {
+  width: 3.2rem;
+  height: 3.2rem;
+}
+.cw-cheats-how {
+  font-size: 0.85rem;
+}
+.cw-cheats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-gap: 0.5rem 0.8rem;
+  gap: 0.5rem 0.8rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.cw-cheat-item {
+  display: flex;
+  min-width: 0;
+}
+.cw-cheat {
+  flex: 1;
+  min-width: 0;
+  justify-content: space-between;
+  min-height: 3.3rem;
+  padding: 0.35rem 0.9rem;
+  text-align: left;
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  box-shadow: inset 0 0 0 1px var(--color-border);
+}
+/* On is the filled tag, never a ring: a ring is what focus looks like. */
+.cw-cheat .cw-tag.is-on {
+  background: var(--accent-fill);
+  color: var(--color-accent-contrast);
+  box-shadow: none;
+}
+.cw-cheat[aria-disabled="true"] {
+  cursor: progress;
+}
+.cw-cheat[aria-disabled="true"]:not([aria-busy="true"]) {
+  opacity: 0.6;
+}
+.cw-cheat-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.cw-cheat-name,
+.cw-cheat-desc {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cw-cheat-name {
+  font-weight: 600;
+}
+.cw-cheat-desc {
+  font-size: 0.8rem;
+}
+.cw-cheat .cw-tag {
+  flex: none;
+  min-width: 3.2rem;
+  text-align: center;
+}
+.cw-cheats-note {
+  margin: 0.6rem 0 0;
+}
+.cw-cheats-empty {
+  max-width: 44rem;
+  padding: 1rem 1.2rem;
+}
+.cw-cheats-empty p {
+  margin: 0 0 0.6rem;
+}
+.cw-cheats-empty-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+.cw-cheats-empty.is-error .cw-cheats-empty-title {
+  color: var(--color-bad);
+}
