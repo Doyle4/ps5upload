@@ -286,12 +286,12 @@ static void list_result_to_json(void) {
                  "{\"entries\":[{\"name\":\"a.txt\",\"kind\":\"file\",\"size\":5,\"mtime\":100},"
                  "{\"name\":\"\xe5\xad\x90\xe7\x9b\xae\xe5\xbd\x95\",\"kind\":\"dir\",\"size\":0,\"mtime\":200},"
                  "{\"name\":\"l\\\"q\\\\\",\"kind\":\"link\",\"size\":0,\"mtime\":null}],"
-                 "\"more\":true,\"total\":13}") == 0);
+                 "\"more\":true,\"next\":13}") == 0);
     CHECK(json_valid(out));
     /* an empty directory */
     n = encode_list(enc, sizeof enc, e, 0, 0, 0);
     CHECK(webui_list_to_json(enc, n, out, sizeof out) == 0);
-    CHECK(strcmp(out, "{\"entries\":[],\"more\":false,\"total\":0}") == 0);
+    CHECK(strcmp(out, "{\"entries\":[],\"more\":false,\"next\":0}") == 0);
     /* garbage does not decode */
     CHECK(webui_list_to_json((const uint8_t *)"\x01\x02", 2, out, sizeof out) == -1);
     /* other / unknown kinds read "other" */
@@ -330,7 +330,7 @@ static void list_json_truncates_at_cap_with_more(void) {
     len = strlen(out);
     CHECK(len < 16384);
     CHECK(json_valid(out));
-    snprintf(tail, sizeof tail, "],\"more\":true,\"total\":%d}", 512 + got);
+    snprintf(tail, sizeof tail, "],\"more\":true,\"next\":%d}", 512 + got);
     CHECK(len > strlen(tail) && strcmp(out + len - strlen(tail), tail) == 0);
     /* a window too small for even the empty list */
     CHECK(webui_list_to_json(enc, n, out, 16) == -1);
@@ -444,8 +444,12 @@ static void mime_types(void) {
     CHECK(strcmp(webui_mime_for("/a/b.log"), "text/plain; charset=utf-8") == 0);
     CHECK(strcmp(webui_mime_for("/a/config.ini"), "text/plain; charset=utf-8") == 0);
     CHECK(strcmp(webui_mime_for("/a/param.json"), "application/json") == 0);
-    CHECK(strcmp(webui_mime_for("/a/x.xml"), "application/xml") == 0);
+    /* active-document types are never served as themselves */
+    CHECK(strcmp(webui_mime_for("/a/x.xml"), "application/octet-stream") == 0);
+    CHECK(strcmp(webui_mime_for("/a/x.XML"), "application/octet-stream") == 0);
     CHECK(strcmp(webui_mime_for("/a/x.html"), "application/octet-stream") == 0);
+    CHECK(strcmp(webui_mime_for("/a/x.htm"), "application/octet-stream") == 0);
+    CHECK(strcmp(webui_mime_for("/a/x.xhtml"), "application/octet-stream") == 0);
     CHECK(strcmp(webui_mime_for("/a/x.svg"), "application/octet-stream") == 0);
     CHECK(strcmp(webui_mime_for("/a.png/noext"), "application/octet-stream") == 0);
     CHECK(strcmp(webui_mime_for("png"), "application/octet-stream") == 0);

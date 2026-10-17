@@ -909,6 +909,12 @@ test-payload: payload
 		$(PAYLOAD_DIR)/ava1/gen/ava1_gen.c $(PAYLOAD_DIR)/ava1/ava1_wire.c
 	@/tmp/ps5upload-webui-codec-selftest
 	@echo "✓ Unicode, quoted and very large folders survive the web UI's JSON both ways"
+	@echo "Running AVA1 in-flight RPC gate self-test (host build)..."
+	@cc -O2 -Wall -Wextra -Werror -pthread -I$(PAYLOAD_DIR)/ava1 \
+		-o /tmp/ps5upload-ava1-rpc-gate-selftest \
+		$(PAYLOAD_DIR)/tests/ava1_rpc_gate_selftest.c
+	@/tmp/ps5upload-ava1-rpc-gate-selftest
+	@echo "✓ the helper's exit waits for web UI calls and refuses new ones"
 	@echo "Running cheat title list self-test (host build)..."
 	@cc -O2 -Wall -Wextra -Werror -I$(PAYLOAD_DIR)/include \
 		-o /tmp/ps5upload-cheats-list-selftest \

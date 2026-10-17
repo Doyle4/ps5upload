@@ -31,10 +31,10 @@ size_t webui_json_escape(char *out, size_t cap, const char *s, size_t n);
 
 /* An encoded ava1_fs_list_result_t as
  *   {"entries":[{"name":..,"kind":"file"|"dir"|"link"|"other","size":N,"mtime":N|null},...],
- *    "more":bool,"total":N}
- * Entries that do not fit `cap` are left out and "more" is set; "total" is the directory
- * position after the last entry written (the next page's offset), so a cut page still pages
- * correctly. Returns the number of entries written, or -1 when `res` does not decode or not even
+ *    "more":bool,"next":N}
+ * Entries that do not fit `cap` are left out and "more" is set; "next" is the directory
+ * position after the last entry written (the next page's offset; not a count), so a cut page
+ * still pages correctly. Returns the number of entries written, or -1 when `res` does not decode or not even
  * the empty list fits. `out` is always NUL-terminated when cap > 0. */
 int webui_list_to_json(const uint8_t *res, size_t n, char *out, size_t cap);
 
@@ -58,8 +58,8 @@ int webui_parse_hex16(const char *s, uint8_t id[16]);
 int webui_http_status_for(int ava1_status, const char *cause);
 
 /* The Content-Type /api/fs/read answers for `path`, by its extension (case-insensitive):
- * png, jpg/jpeg, txt/log/ini (UTF-8 text), json, xml; anything else
- * application/octet-stream. Never a type a browser would render as a page. */
+ * png, jpg/jpeg, txt/log/ini (UTF-8 text), json; anything else (xml, svg, html included: they
+ * can render as active documents) application/octet-stream. */
 const char *webui_mime_for(const char *path);
 
 /* `key=value` lines (HW_INFO, HW_TEMPS): the value of `key` as a string (1 found, 0 absent;

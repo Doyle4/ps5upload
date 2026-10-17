@@ -50,5 +50,7 @@ void webui_token_copy(char out[65]);
 /* Write a complete response (head + body) within the connection deadline. */
 void webui_send(int fd, int status, const char *ctype, const void *body, size_t len);
 void webui_send_json(int fd, int status, const char *json);
+/* webui_send with extra header lines (each a complete "Name: value\r\n"), e.g. a CSP. */
+void webui_send_ex(int fd, int status, const char *ctype, const void *body, size_t len, const char *extra_headers);
 
 #endif

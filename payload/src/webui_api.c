@@ -442,7 +442,9 @@ static void r_fs_read(const char *b, size_t n, uint8_t *out, int fd) {
         got += r.data_len;
         if (r.eof || r.data_len == 0) break;
     }
-    webui_send(fd, 200, webui_mime_for(path), data, got);
+    /* nosniff is on every response (webui_http_head); the sandbox keeps a file opened as a document
+     * from running script in this origin, whatever its bytes. */
+    webui_send_ex(fd, 200, webui_mime_for(path), data, got, "Content-Security-Policy: sandbox\r\n");
     free(data);
 }
 
@@ -642,14 +644,23 @@ int webui_api_route(const webui_req_t *r, const uint8_t *body, size_t body_len, 
         webui_send_json(fd, 405, "{\"error\":\"method_not_allowed\"}");
         return 0;
     }
+    /* Counted with the AVA1 workers' RPCs, so the exit (ava1_payload_stop) waits for this call
+     * before it stops the data layer; refused once the exit has begun. Every route reaches the
+     * helper (mgmt, data layer, job table), so the whole route is inside the gate. */
+    if (ava1_server_local_rpc_enter() != 0) {
+        webui_send_json(fd, 503, "{\"error\":\"stopping\"}");
+        return 0;
+    }
     /* Every call acts as the console page, never as whichever device this thread served last. */
     ava1_server_set_rpc_peer(k_console_id);
     out = malloc(API_OUT_MAX);
     if (!out) {
+        ava1_server_local_rpc_leave();
         webui_send_json(fd, 500, "{\"error\":\"out_of_memory\"}");
         return 0;
     }
     k_routes[i].fn((const char *)body, body_len, out, fd);
     free(out);
+    ava1_server_local_rpc_leave();
     return 0;
 }

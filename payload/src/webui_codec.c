@@ -321,7 +321,7 @@ static const char *entry_kind(uint8_t k) {
     }
 }
 
-/* Room kept for the list's tail: `],"more":false,"total":<20 digits>}` and the NUL. */
+/* Room kept for the list's tail: `],"more":false,"next":<20 digits>}` and the NUL. */
 #define LIST_TAIL_ROOM 48u
 
 int webui_list_to_json(const uint8_t *res, size_t n, char *out, size_t cap) {
@@ -330,7 +330,7 @@ int webui_list_to_json(const uint8_t *res, size_t n, char *out, size_t cap) {
     ava1_r_t it;
     size_t pos;
     uint32_t written = 0, skipped;
-    uint64_t total;
+    uint64_t next;
     int more, rc;
     if (cap) out[0] = '\0';
     if (ava1_fs_list_result_decode(res, n, &r) != 0) return -1;
@@ -368,8 +368,8 @@ int webui_list_to_json(const uint8_t *res, size_t n, char *out, size_t cap) {
         return -1;
     }
     skipped = r.entries_count > written ? r.entries_count - written : 0;
-    total = r.total_scanned >= skipped ? (uint64_t)(r.total_scanned - skipped) : 0;
-    snprintf(out + pos, cap - pos, "],\"more\":%s,\"total\":%llu}", more ? "true" : "false", (unsigned long long)total);
+    next = r.total_scanned >= skipped ? (uint64_t)(r.total_scanned - skipped) : 0;
+    snprintf(out + pos, cap - pos, "],\"more\":%s,\"next\":%llu}", more ? "true" : "false", (unsigned long long)next);
     return (int)written;
 }
 
@@ -492,7 +492,6 @@ const char *webui_mime_for(const char *path) {
     if (ext_is(dot, "jpg") || ext_is(dot, "jpeg")) return "image/jpeg";
     if (ext_is(dot, "txt") || ext_is(dot, "log") || ext_is(dot, "ini")) return "text/plain; charset=utf-8";
     if (ext_is(dot, "json")) return "application/json";
-    if (ext_is(dot, "xml")) return "application/xml";
     return "application/octet-stream";
 }
 

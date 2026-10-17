@@ -218,9 +218,13 @@ static int send_all(int fd, const void *buf, size_t len, uint64_t end) {
 }
 
 void webui_send(int fd, int status, const char *ctype, const void *body, size_t len) {
+    webui_send_ex(fd, status, ctype, body, len, NULL);
+}
+
+void webui_send_ex(int fd, int status, const char *ctype, const void *body, size_t len, const char *extra_headers) {
     char head[512];
     uint64_t end = mono_ms() + send_budget_ms(fd);
-    int hl = webui_http_head(head, sizeof head, status, ctype, len, NULL);
+    int hl = webui_http_head(head, sizeof head, status, ctype, len, extra_headers);
     if (hl < 0) return;
     if (send_all(fd, head, (size_t)hl, end) != 0) return;
     if (len > 0 && body) (void)send_all(fd, body, len, end);
