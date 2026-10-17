@@ -885,6 +885,11 @@ test-payload: payload
 		$(PAYLOAD_DIR)/tests/xml_encoding_selftest.c
 	@/tmp/ps5upload-xml-encoding-selftest
 	@echo "✓ UTF-16 SHN/MC4 cheat files convert so their cheats appear"
+	@echo "Running web UI HTTP parser self-test (host build)..."
+	@cc -O2 -Wall -Wextra -Werror -I$(PAYLOAD_DIR)/include \
+		-o /tmp/ps5upload-webui-http-selftest \
+		$(PAYLOAD_DIR)/tests/webui_http_selftest.c
+	@/tmp/ps5upload-webui-http-selftest
 	@echo "Running cheat title list self-test (host build)..."
 	@cc -O2 -Wall -Wextra -Werror -I$(PAYLOAD_DIR)/include \
 		-o /tmp/ps5upload-cheats-list-selftest \
