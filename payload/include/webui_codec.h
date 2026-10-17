@@ -59,6 +59,27 @@ int webui_list_to_json(const uint8_t *res, size_t n, char *out, size_t cap);
 int webui_jobs_to_json(const uint8_t *res, size_t n, int (*mine)(const uint8_t id[16], void *ctx), void *ctx,
                        char *out, size_t cap);
 
+/* The longest operation result /api/jobs/status carries (a HASH result is ~2.2 KiB with a long
+ * path; CRC32 and FFPFSC_UNPACK far less). A longer one is answered as "result":null. */
+#define WEBUI_JOB_RESULT_MAX 4096u
+
+/* An encoded ava1_status_t (a JOB_STATUS reply) as
+ *   {"job":"<32 hex>","state":"running"|"done"|"failed","files_done":N,"files_total":N,
+ *    "bytes_done":N,"bytes_total":N,"message":".."|null,"result":".."|null,"code":N|null}
+ * `message` is the operation's current line (on a failure its cause token), `result` the
+ * operation's own result body (JSON text, carried as a string; null past WEBUI_JOB_RESULT_MAX),
+ * `code` the AVA1 status of a failed job. 0, or -1 (does not decode, or does not fit). */
+int webui_job_status_to_json(const uint8_t *res, size_t n, char *out, size_t cap);
+
+/* 1 when `s` can be one file name: 1-255 bytes, no '/', no control character, not "." or "..". */
+int webui_name_ok(const char *s);
+
+/* A one-path job operation's args as the engine sends them: {"path":"<escaped>"}, then
+ * ,"name":"<escaped>" when `name` is not NULL, then `tail` (raw JSON members such as
+ * ,"mode":"0777"; may be NULL) and the closing brace. Returns the length, or -1 (no path, or
+ * it does not fit; out is then ""). */
+int webui_path_job_args(char *out, size_t cap, const char *path, const char *name, const char *tail);
+
 /* 16 bytes as 32 lowercase hex characters + NUL. */
 void webui_hex16(const uint8_t id[16], char out[33]);
 /* Exactly 32 hex characters (either case) to 16 bytes: 0, or -1. */

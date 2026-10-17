@@ -23,6 +23,7 @@
 #include "ava1_wire.h"
 #include "config.h"
 #include "files_prefs.h"
+#include "fs_jobs.h"
 #include "path_policy.h"
 #include "proc_identity.h"
 #include "ps5_firmware.h"
@@ -37,6 +38,7 @@
 #define API_OUT_MAX (256u * 1024u)   /* an AVA1 reply's ceiling (the server's RPC_OUT_MAX) */
 #define API_LIST_JSON (64u * 1024u)  /* one fs.list page as JSON: entries past it page on */
 #define API_JOBS_JSON (16u * 1024u)  /* AVA1_MAX_JOBS (32) entries of ~260 bytes */
+#define API_STATUS_JSON (8u * 6u * 1024u) /* one job status: a result of WEBUI_JOB_RESULT_MAX, escaped */
 #define API_PATH (1024u)             /* a path, NUL included (the helper's FS_PATH_MAX) */
 #define API_READ_MAX (1024u * 1024u) /* /api/fs/read's longest answer */
 #define API_LIST_MAX 256u            /* fs.list entries per call (the helper's own ceiling) */
@@ -544,15 +546,15 @@ static void r_fs_copy(const char *b, size_t n, uint8_t *out, int fd) {
     else send_job(fd, q.job_id);
 }
 
-/* A one-path job (delete, chmod): op's args are {"path":...} plus `tail` (e.g. ,"mode":"0777"). */
-static void run_path_job(const char *b, size_t n, uint8_t *out, int fd, int op, const char *tail) {
-    char path[API_PATH], *args;
+/* A one-path job (delete, chmod, hash, crc32, unpack): op's args are {"path":...} as the engine sends
+ * them, then ,"name":... when `name` is set (unpack's Keep both), then `tail` (e.g. ,"mode":"0777"). */
+static void start_path_job(int fd, uint8_t *out, int op, const char *path, const char *name, const char *tail) {
+    char *args;
     uint8_t *req;
-    size_t args_cap = 6 * API_PATH + 16, at, ol;
+    size_t args_cap = 6 * API_PATH + 6 * 256 + 64, ol;
     ava1_job_run_t q;
     ava1_w_t w;
-    int st;
-    if (need_path(fd, b, n, "path", path, sizeof path) != 0) return;
+    int st, len;
     args = malloc(args_cap);
     req = malloc(args_cap + 64);
     if (!args || !req) {
@@ -561,18 +563,15 @@ static void run_path_job(const char *b, size_t n, uint8_t *out, int fd, int op, 
         send_error(fd, 500, "out_of_memory", 13);
         return;
     }
-    /* {"path":...}: fs_jobs.c's op_delete reads it with fsj_json_str (\" \\ \uXXXX understood) */
-    at = (size_t)snprintf(args, args_cap, "{\"path\":\"");
-    at += webui_json_escape(args + at, args_cap - at, path, strlen(path));
-    if (at + 40 > args_cap) at = args_cap - 40; /* escape returns the full length (cannot trigger: 6x fits) */
-    at += (size_t)snprintf(args + at, args_cap - at, "\"%s}", tail);
+    /* fs_jobs.c reads it with fsj_json_str (\" \\ \uXXXX understood) */
+    len = webui_path_job_args(args, args_cap, path, name, tail);
     memset(&q, 0, sizeof q);
     arc4random_buf(q.job_id, sizeof q.job_id);
     q.op = (uint8_t)op;
     q.args = (const uint8_t *)args;
-    q.args_len = (uint32_t)at;
+    q.args_len = len > 0 ? (uint32_t)len : 0;
     ava1_w_init(&w, req, args_cap + 64);
-    if (ava1_job_run_encode(&q, &w) != 0) {
+    if (len <= 0 || ava1_job_run_encode(&q, &w) != 0) {
         free(args);
         free(req);
         send_bad(fd, "bad_path");
@@ -585,6 +584,12 @@ static void run_path_job(const char *b, size_t n, uint8_t *out, int fd, int op, 
     else send_job(fd, q.job_id);
 }
 
+static void run_path_job(const char *b, size_t n, uint8_t *out, int fd, int op, const char *tail) {
+    char path[API_PATH];
+    if (need_path(fd, b, n, "path", path, sizeof path) != 0) return;
+    start_path_job(fd, out, op, path, NULL, tail);
+}
+
 static void r_fs_delete(const char *b, size_t n, uint8_t *out, int fd) {
     run_path_job(b, n, out, fd, AVA1_JOB_OP_DELETE, "");
 }
@@ -592,6 +597,52 @@ static void r_fs_delete(const char *b, size_t n, uint8_t *out, int fd) {
 /* Fix permissions: the PC app's recursive chmod, fixed to 0777 (the page never picks a mode). */
 static void r_fs_chmod(const char *b, size_t n, uint8_t *out, int fd) {
     run_path_job(b, n, out, fd, AVA1_JOB_OP_CHMOD_R, ",\"mode\":\"0777\"");
+}
+
+/* Verify: BLAKE3 (HASH) and CRC32 of one file, each a job; the result is read with /api/jobs/status. */
+static void r_fs_hash(const char *b, size_t n, uint8_t *out, int fd) { run_path_job(b, n, out, fd, AVA1_JOB_OP_HASH, ""); }
+
+static void r_fs_crc32(const char *b, size_t n, uint8_t *out, int fd) {
+    run_path_job(b, n, out, fd, AVA1_JOB_OP_CRC32, "");
+}
+
+/* Decompress a .ffpfsc beside it (FFPFSC_UNPACK). Optional "name": the image's file name instead of
+ * the one inside (Keep both); the helper still refuses an existing destination and a full drive. */
+static void r_fs_unpack(const char *b, size_t n, uint8_t *out, int fd) {
+    char path[API_PATH], name[256];
+    int rc;
+    if (need_path(fd, b, n, "path", path, sizeof path) != 0) return;
+    rc = webui_json_str(b, n, "name", name, sizeof name);
+    if (rc < 0 || (rc == 1 && !webui_name_ok(name))) {
+        send_bad(fd, "bad_name");
+        return;
+    }
+    start_path_job(fd, out, AVA1_JOB_OP_FFPFSC_UNPACK, path, rc == 1 ? name : NULL, "");
+}
+
+/* What a decompress would write, before it starts: {"name","size","need","free"|null,"exists",
+ * "compressed"}. A source the unpack would refuse answers its cause (403 path, 404 cannot open, 409 not a usable container). */
+static void r_fs_unpack_info(const char *b, size_t n, uint8_t *out, int fd) {
+    char path[API_PATH];
+    fsj_unpack_probe_t pr;
+    const char *bad;
+    char *j = (char *)out;
+    size_t at = 0, cap = API_OUT_MAX;
+    if (need_path(fd, b, n, "path", path, sizeof path) != 0) return;
+    bad = fsj_ffpfsc_probe(path, &pr);
+    if (bad) {
+        int http = strstr(bad, "not_allowed") ? 403 : (strstr(bad, "open_failed") ? 404 : 409);
+        send_error(fd, http, bad, strlen(bad));
+        return;
+    }
+    put_fmt(j, cap, &at, "{");
+    put_str(j, cap, &at, "name", pr.name);
+    put_fmt(j, cap, &at, ",\"size\":%llu,\"need\":%llu,", (unsigned long long)pr.size, (unsigned long long)pr.need);
+    if (pr.have_free) put_fmt(j, cap, &at, "\"free\":%llu,", (unsigned long long)pr.free);
+    else put_fmt(j, cap, &at, "\"free\":null,");
+    put_fmt(j, cap, &at, "\"exists\":%s,\"compressed\":%s}", pr.exists ? "true" : "false",
+            pr.compressed ? "true" : "false");
+    send_json(fd, 200, j, at);
 }
 
 static int is_mine(const uint8_t id[16], void *ctx) {
@@ -641,6 +692,42 @@ static void r_jobs_cancel(const char *b, size_t n, uint8_t *out, int fd) {
     st = ava1_job_cancel_any(id);
     if (st != AVA1_STATUS_OK) send_status_error(fd, st, NULL, 0);
     else send_json(fd, 200, "{}", 2);
+}
+
+/* One of the page's own operation jobs, read as JOB_STATUS (progress, its message, and once it ended
+ * well the operation's result: a hash, a checksum, an unpacked image). A finished job read here is
+ * delivered: released after the grace, like the engine's job.status. Another owner's job is 404. */
+static void r_jobs_status(const char *b, size_t n, uint8_t *out, int fd) {
+    char hex[40], *json;
+    uint8_t id[16], req[32];
+    ava1_job_ref_t q;
+    ava1_w_t w;
+    size_t ol;
+    int st;
+    if (webui_json_str(b, n, "job", hex, sizeof hex) != 1 || webui_parse_hex16(hex, id) != 0) {
+        send_bad(fd, "bad_job");
+        return;
+    }
+    memset(&q, 0, sizeof q);
+    memcpy(q.job_id, id, 16);
+    ava1_w_init(&w, req, sizeof req);
+    if (ava1_job_ref_encode(&q, &w) != 0) {
+        send_bad(fd, "bad_job");
+        return;
+    }
+    st = call(AVA1_METHOD_JOB_STATUS, req, w.len, out, &ol);
+    if (st != AVA1_STATUS_OK) {
+        send_status_error(fd, st, out, ol);
+        return;
+    }
+    json = malloc(API_STATUS_JSON);
+    if (!json) {
+        send_error(fd, 500, "out_of_memory", 13);
+        return;
+    }
+    if (webui_job_status_to_json(out, ol, json, API_STATUS_JSON) != 0) send_error(fd, 500, "bad_status_reply", 16);
+    else send_json(fd, 200, json, strlen(json));
+    free(json);
 }
 
 /* APP_LIFECYCLE kill, as the engine sends it: {"action":"kill","app_id":N}. */
@@ -1065,7 +1152,12 @@ static const struct {
     { "/api/fs/copy", r_fs_copy },
     { "/api/fs/delete", r_fs_delete },
     { "/api/fs/chmod", r_fs_chmod },
+    { "/api/fs/hash", r_fs_hash },
+    { "/api/fs/crc32", r_fs_crc32 },
+    { "/api/fs/unpack", r_fs_unpack },
+    { "/api/fs/unpack/info", r_fs_unpack_info },
     { "/api/jobs", r_jobs },
+    { "/api/jobs/status", r_jobs_status },
     { "/api/jobs/cancel", r_jobs_cancel },
     { "/api/app/close", r_app_close },
     { "/api/settings", r_settings },

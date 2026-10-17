@@ -504,6 +504,90 @@ int webui_jobs_to_json(const uint8_t *res, size_t n, int (*mine)(const uint8_t i
     return written;
 }
 
+/* Appends `"key":"<escaped>"` or `"key":null`; 0, or -1 when it does not fit. */
+static int put_jstr(char *out, size_t cap, size_t *pos, const char *key, const char *s, size_t n) {
+    size_t k, need;
+    if (!s) {
+        k = (size_t)snprintf(out + *pos, cap - *pos, "\"%s\":null", key);
+        if (k >= cap - *pos) return -1;
+        *pos += k;
+        return 0;
+    }
+    k = (size_t)snprintf(out + *pos, cap - *pos, "\"%s\":\"", key);
+    if (k >= cap - *pos) return -1;
+    *pos += k;
+    need = webui_json_escape(out + *pos, cap - *pos, s, n);
+    if (need >= cap - *pos || cap - *pos - need < 2) return -1;
+    *pos += need;
+    out[(*pos)++] = '"';
+    out[*pos] = '\0';
+    return 0;
+}
+
+int webui_job_status_to_json(const uint8_t *res, size_t n, char *out, size_t cap) {
+    ava1_status_t s;
+    char hex[33];
+    size_t pos;
+    int k;
+    if (cap) out[0] = '\0';
+    if (cap < 16 || ava1_status_decode(res, n, &s) != 0) return -1;
+    webui_hex16(s.job_id, hex);
+    k = snprintf(out, cap,
+                 "{\"job\":\"%s\",\"state\":\"%s\",\"files_done\":%lu,\"files_total\":%lu,\"bytes_done\":%llu,"
+                 "\"bytes_total\":%llu,",
+                 hex, !s.has_state || s.state == 0 ? "running" : (s.state == 1 ? "done" : "failed"),
+                 (unsigned long)s.files_done, (unsigned long)s.files_total, (unsigned long long)s.bytes_durable,
+                 (unsigned long long)s.bytes_total);
+    if (k < 0 || (size_t)k >= cap) goto fail;
+    pos = (size_t)k;
+    if (put_jstr(out, cap, &pos, "message", s.has_current && s.current_len ? (const char *)s.current : NULL,
+                 s.current_len) != 0)
+        goto fail;
+    if (cap - pos < 2) goto fail;
+    out[pos++] = ',';
+    /* the result is the operation's own JSON text: carried as a string the page parses */
+    if (put_jstr(out, cap, &pos, "result",
+                 s.has_result && s.result_len && s.result_len <= WEBUI_JOB_RESULT_MAX ? (const char *)s.result : NULL,
+                 s.result_len) != 0)
+        goto fail;
+    if (s.has_code) k = snprintf(out + pos, cap - pos, ",\"code\":%u}", (unsigned)s.code);
+    else k = snprintf(out + pos, cap - pos, ",\"code\":null}");
+    if (k < 0 || (size_t)k >= cap - pos) goto fail;
+    return 0;
+fail:
+    out[0] = '\0';
+    return -1;
+}
+
+int webui_name_ok(const char *s) {
+    size_t i, n = s ? strlen(s) : 0;
+    if (n == 0 || n > 255 || strcmp(s, ".") == 0 || strcmp(s, "..") == 0) return 0;
+    for (i = 0; i < n; i++)
+        if (s[i] == '/' || (unsigned char)s[i] < 0x20) return 0;
+    return 1;
+}
+
+int webui_path_job_args(char *out, size_t cap, const char *path, const char *name, const char *tail) {
+    size_t pos = 0, k;
+    if (!cap) return -1;
+    out[0] = '\0';
+    if (!path || !path[0]) return -1;
+    if (cap < 2) return -1;
+    out[pos++] = '{';
+    if (put_jstr(out, cap, &pos, "path", path, strlen(path)) != 0) goto fail;
+    if (name) {
+        if (cap - pos < 2) goto fail;
+        out[pos++] = ',';
+        if (put_jstr(out, cap, &pos, "name", name, strlen(name)) != 0) goto fail;
+    }
+    k = (size_t)snprintf(out + pos, cap - pos, "%s}", tail ? tail : "");
+    if (k >= cap - pos) goto fail;
+    return (int)(pos + k);
+fail:
+    out[0] = '\0';
+    return -1;
+}
+
 /* ---- errors, types, small parsers ---- */
 
 /* The number after "errno_" in cause, or -1. */

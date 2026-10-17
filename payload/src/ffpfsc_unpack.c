@@ -183,6 +183,57 @@ static int ends_with_ci(const char *s, const char *suffix) {
     return a >= b && strcasecmp(s + a - b, suffix) == 0;
 }
 
+/* One file name: 1-255 bytes, no '/', no control character, not "." or "..". */
+static int unp_name_ok(const char *s) {
+    size_t i, n = strlen(s);
+    if (n == 0 || n > 255 || strcmp(s, ".") == 0 || strcmp(s, "..") == 0) return 0;
+    for (i = 0; i < n; i++)
+        if (s[i] == '/' || (unsigned char)s[i] < 0x20) return 0;
+    return 1;
+}
+
+/* The checks the unpack makes before it writes anything, for a caller that asks first (the
+ * console page): the source policy, the layout, the destination and the free space. */
+const char *fsj_ffpfsc_probe(const char *path, fsj_unpack_probe_t *p) {
+    char src[1024], dir[1024], dst[1400];
+    unp_layout_t L;
+    struct stat st;
+    struct statvfs sv;
+    const char *bad;
+    int in;
+    memset(p, 0, sizeof *p);
+    memset(&L, 0, sizeof L);
+    if (snprintf(src, sizeof src, "%s", path) >= (int)sizeof src) return "fs_unpack_path_not_allowed";
+    if (fsj_normalize_path(src) != 0 || !may_write_here(src) || !ends_with_ci(src, ".ffpfsc") ||
+        strncmp(src, "/mnt/shadowmnt/", 15) == 0)
+        return "fs_unpack_path_not_allowed";
+    in = open(src, O_RDONLY);
+    if (in < 0) return "fs_unpack_open_failed";
+    if (fstat(in, &st) != 0 || !S_ISREG(st.st_mode)) {
+        close(in);
+        return "fs_unpack_open_failed";
+    }
+    bad = read_layout(in, &L);
+    close(in);
+    if (bad) return bad;
+    if (L.base + L.stored > (uint64_t)st.st_size) return "fs_unpack_truncated";
+    snprintf(dir, sizeof dir, "%s", src);
+    char *slash = strrchr(dir, '/');
+    if (!slash) return "fs_unpack_path_not_allowed";
+    *slash = 0;
+    snprintf(p->name, sizeof p->name, "%s", L.name);
+    p->size = L.raw;
+    p->need = L.raw + UNP_MARGIN;
+    p->compressed = L.compressed;
+    snprintf(dst, sizeof dst, "%s/%s", dir, L.name);
+    p->exists = lstat(dst, &st) == 0;
+    if (statvfs(dir, &sv) == 0) {
+        p->free = (uint64_t)sv.f_bavail * sv.f_frsize;
+        p->have_free = 1;
+    }
+    return NULL;
+}
+
 int fsj_op_ffpfsc_unpack(void *arg, ava1_op_ctx_t *c, const uint8_t *args, size_t n) {
     char src[1024], dir[1024], dst[1400], part[1408], resp[1600];
     unp_layout_t L;
@@ -236,7 +287,18 @@ int fsj_op_ffpfsc_unpack(void *arg, ava1_op_ctx_t *c, const uint8_t *args, size_
         goto done;
     }
     *slash = 0;
-    snprintf(dst, sizeof dst, "%s/%s", dir, L.name);
+    /* "name" (optional; the console page's Keep both): the image's file name beside the source
+     * instead of the one it carries inside. One plain name, never a path. */
+    {
+        char want[256];
+        int rc = fsj_json_str((const char *)args, "name", want, sizeof want);
+        if (rc && !unp_name_ok(want)) {
+            ava1_op_message(c, "fs_unpack_bad_name");
+            status = AVA1_ERR_PROTOCOL;
+            goto done;
+        }
+        snprintf(dst, sizeof dst, "%s/%s", dir, rc ? want : L.name);
+    }
     snprintf(part, sizeof part, "%s.part", dst);
     if (!may_write_here(dst) || !may_write_here(part)) {
         ava1_op_message(c, "fs_unpack_path_not_allowed");

@@ -1,5 +1,8 @@
 import {
   ClipboardCopy,
+  FileArchive,
+  FileCheck,
+  Replace,
   Copy,
   Eye,
   FolderInput,
@@ -25,10 +28,13 @@ export type SheetAction =
   | "copy"
   | "move"
   | "rename"
+  | "bulkrename"
   | "mkdir"
   | "info"
   | "pin"
   | "unpin"
+  | "verify"
+  | "unpack"
   | "fixperm"
   | "delete";
 
@@ -40,16 +46,22 @@ const ITEMS: Record<SheetAction, { icon: LucideIcon; key: string }> = {
   copy: { icon: Copy, key: "cw_files_copy_to" },
   move: { icon: FolderInput, key: "cw_files_move_to" },
   rename: { icon: PencilLine, key: "cw_files_rename" },
+  bulkrename: { icon: Replace, key: "cw_files_bulk_rename" },
   mkdir: { icon: FolderPlus, key: "cw_files_new_folder" },
   info: { icon: Info, key: "cw_files_info" },
   pin: { icon: Star, key: "cw_files_pin" },
   unpin: { icon: StarOff, key: "cw_files_unpin" },
+  verify: { icon: FileCheck, key: "cw_files_verify" },
+  unpack: { icon: FileArchive, key: "cw_files_unpack" },
   fixperm: { icon: ShieldCheck, key: "cw_files_fixperm" },
   delete: { icon: Trash2, key: "cw_files_delete" },
 };
 
 /** The ones a running copy/move/delete request holds back (one batch at a time). */
-const HELD: ReadonlySet<SheetAction> = new Set(["copy", "move", "fixperm", "delete"]);
+const HELD: ReadonlySet<SheetAction> = new Set(["copy", "move", "bulkrename", "unpack", "fixperm", "delete"]);
+
+/** More actions than this go in two columns. */
+export const SHEET_ONE_COLUMN = 8;
 
 /**
  * △ / "⋯": what can be done with one item or the selection, as a list of
@@ -72,15 +84,20 @@ export function ActionsSheet({
   onChoose: (a: SheetAction) => void;
   onClose: () => void;
 }) {
+  // A long list (a file's full menu) in two columns, top to bottom: it fits the TV's 700 px height.
+  const two = actions.length > SHEET_ONE_COLUMN;
   return (
-    <Modal label={title} className="cw-sheet" onBack={onClose}>
+    <Modal label={title} className={`cw-sheet${two ? " is-two" : ""}`} onBack={onClose}>
       <h2 className="cw-sheet-title">{title}</h2>
       {note ? (
         <p className="cw-dim" role="status">
           {note}
         </p>
       ) : null}
-      <div className="cw-sheet-items">
+      <div
+        className="cw-sheet-items"
+        style={two ? { gridTemplateRows: `repeat(${Math.ceil(actions.length / 2)}, auto)` } : undefined}
+      >
         {actions.map((a, i) => {
           const { icon: Icon, key } = ITEMS[a];
           return (

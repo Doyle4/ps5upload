@@ -16,7 +16,7 @@ import { ApiError } from "../api";
 import { fetchJobs, type Job } from "../home/useJobs";
 import type { BatchResult, JobEnd } from "./move";
 
-export type BatchOp = "copy" | "move" | "delete" | "chmod";
+export type BatchOp = "copy" | "move" | "delete" | "chmod" | "rename" | "unpack";
 
 /** The batch running now: item `at` (1-based) of `total` is being sent or waited on. */
 export interface BatchProgress {

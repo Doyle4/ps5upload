@@ -407,6 +407,114 @@ static void jobs_to_json(void) {
     CHECK(webui_jobs_to_json(enc, w.len, NULL, NULL, out, 40) == -1);
 }
 
+static size_t status_enc(const ava1_status_t *st, uint8_t *enc, size_t cap) {
+    ava1_w_t w;
+    ava1_w_init(&w, enc, cap);
+    CHECK(ava1_status_encode(st, &w) == 0);
+    return w.len;
+}
+
+static void job_status_to_json(void) {
+    ava1_status_t st;
+    static uint8_t enc[16384];
+    static char out[65536], big[WEBUI_JOB_RESULT_MAX + 2];
+    size_t len;
+    const char *res = "{\"path\":\"/data/a \\\"b\\\".bin\",\"size\":5,\"hash\":\"ab12\"}";
+    char back[256];
+    /* running, with the operation's line */
+    memset(&st, 0, sizeof st);
+    memset(st.job_id, 0x11, 16);
+    st.has_state = 1;
+    st.state = 0;
+    st.bytes_durable = st.bytes_received = 3;
+    st.bytes_total = 10;
+    st.files_total = 1;
+    st.has_current = 1;
+    st.current = (const uint8_t *)"unpacking x.exfat";
+    st.current_len = 17;
+    len = status_enc(&st, enc, sizeof enc);
+    CHECK(webui_job_status_to_json(enc, len, out, sizeof out) == 0);
+    CHECK(strcmp(out, "{\"job\":\"11111111111111111111111111111111\",\"state\":\"running\",\"files_done\":0,"
+                      "\"files_total\":1,\"bytes_done\":3,\"bytes_total\":10,\"message\":\"unpacking x.exfat\","
+                      "\"result\":null,\"code\":null}") == 0);
+    CHECK(json_valid(out));
+    /* done, with a result carried as a string that unescapes back to the operation's JSON */
+    st.state = 1;
+    st.has_current = 0;
+    st.has_result = 1;
+    st.result = (const uint8_t *)res;
+    st.result_len = (uint32_t)strlen(res);
+    len = status_enc(&st, enc, sizeof enc);
+    CHECK(webui_job_status_to_json(enc, len, out, sizeof out) == 0);
+    CHECK(json_valid(out));
+    CHECK(strstr(out, "\"state\":\"done\"") != NULL && strstr(out, "\"message\":null") != NULL);
+    CHECK(webui_json_str(out, strlen(out), "result", back, sizeof back) == 1 && strcmp(back, res) == 0);
+    /* failed: the cause and the status code */
+    memset(&st, 0, sizeof st);
+    st.has_state = 1;
+    st.state = 2;
+    st.has_current = 1;
+    st.current = (const uint8_t *)"fs_unpack_destination_exists";
+    st.current_len = 28;
+    st.has_code = 1;
+    st.code = 6;
+    len = status_enc(&st, enc, sizeof enc);
+    CHECK(webui_job_status_to_json(enc, len, out, sizeof out) == 0);
+    CHECK(json_valid(out));
+    CHECK(strstr(out, "\"state\":\"failed\"") && strstr(out, "\"message\":\"fs_unpack_destination_exists\"") &&
+          strstr(out, "\"code\":6}"));
+    /* a result past the cap is left out, never cut */
+    memset(big, 'x', sizeof big - 1);
+    big[sizeof big - 1] = '\0';
+    memset(&st, 0, sizeof st);
+    st.has_state = 1;
+    st.state = 1;
+    st.has_result = 1;
+    st.result = (const uint8_t *)big;
+    st.result_len = (uint32_t)strlen(big);
+    len = status_enc(&st, enc, sizeof enc);
+    CHECK(webui_job_status_to_json(enc, len, out, sizeof out) == 0);
+    CHECK(strstr(out, "\"result\":null") != NULL);
+    /* too small, or not a status */
+    CHECK(webui_job_status_to_json(enc, len, out, 40) == -1 && out[0] == '\0');
+    CHECK(webui_job_status_to_json((const uint8_t *)"\xff\xff", 2, out, sizeof out) == -1);
+}
+
+static void path_job_args(void) {
+    char out[512], back[256];
+    /* hash / crc32 / unpack / delete: exactly the engine's {"path":...} */
+    CHECK(webui_path_job_args(out, sizeof out, "/data/a.bin", NULL, NULL) == 22);
+    CHECK(strcmp(out, "{\"path\":\"/data/a.bin\"}") == 0);
+    CHECK(webui_path_job_args(out, sizeof out, "/data/a.bin", NULL, "") > 0 && strcmp(out, "{\"path\":\"/data/a.bin\"}") == 0);
+    /* chmod's tail */
+    CHECK(webui_path_job_args(out, sizeof out, "/data/x", NULL, ",\"mode\":\"0777\"") > 0);
+    CHECK(strcmp(out, "{\"path\":\"/data/x\",\"mode\":\"0777\"}") == 0);
+    /* unpack's Keep both name; quotes, backslashes and CJK survive */
+    CHECK(webui_path_job_args(out, sizeof out, "/mnt/usb0/\xe5\xae\x8c \"q\"\\.ffpfsc", "img (2).exfat", NULL) > 0);
+    CHECK(json_valid(out));
+    CHECK(webui_json_str(out, strlen(out), "path", back, sizeof back) == 1 &&
+          strcmp(back, "/mnt/usb0/\xe5\xae\x8c \"q\"\\.ffpfsc") == 0);
+    CHECK(webui_json_str(out, strlen(out), "name", back, sizeof back) == 1 && strcmp(back, "img (2).exfat") == 0);
+    /* no path, or no room: nothing */
+    CHECK(webui_path_job_args(out, sizeof out, "", NULL, NULL) == -1 && out[0] == '\0');
+    CHECK(webui_path_job_args(out, 12, "/data/a.bin", NULL, NULL) == -1 && out[0] == '\0');
+    CHECK(webui_path_job_args(out, 23, "/data/a.bin", NULL, NULL) == 22);
+    CHECK(webui_path_job_args(out, 22, "/data/a.bin", NULL, NULL) == -1);
+}
+
+static void name_checks(void) {
+    char long_name[300];
+    CHECK(webui_name_ok("a.exfat") && webui_name_ok("img (2).exfat") && webui_name_ok("\xe5\xae\x8c.exfat"));
+    CHECK(!webui_name_ok("") && !webui_name_ok(".") && !webui_name_ok("..") && !webui_name_ok("a/b"));
+    CHECK(!webui_name_ok("a\nb") && !webui_name_ok(NULL));
+    memset(long_name, 'a', 255);
+    long_name[255] = '\0';
+    CHECK(webui_name_ok(long_name));
+    long_name[255] = 'a';
+    long_name[256] = '\0';
+    CHECK(!webui_name_ok(long_name));
+}
+
 static void hex_ids(void) {
     uint8_t id[16], back[16];
     char hex[33];
@@ -672,6 +780,9 @@ int main(void) {
     list_json_truncates_at_cap_with_more();
     escape_makes_valid_json();
     jobs_to_json();
+    job_status_to_json();
+    path_job_args();
+    name_checks();
     hex_ids();
     status_mapping();
     mime_types();

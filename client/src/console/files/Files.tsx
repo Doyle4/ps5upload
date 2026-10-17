@@ -33,6 +33,11 @@ import { ActionsSheet, type SheetAction } from "./ActionsSheet";
 import { DirList, ROW_WINDOW, viewKind } from "./DirList";
 import { canEject, DriveList, isImage, isSystemVolume, placeLabel } from "./DriveList";
 import { InfoDialog } from "./InfoDialog";
+import { BulkRenameDialog } from "./BulkRenameDialog";
+import { runRenames, type RenameItem, type RenameResult, type RenameRow } from "./bulkRename";
+import { isFfpfsc, opCause, opResult, startOp, watchOp, type OpEnd } from "./opJob";
+import { UnpackDialog, unpackCauseText, unpackErrorText } from "./UnpackDialog";
+import { VerifyDialog } from "./VerifyDialog";
 import {
   copyItems,
   deleteItems,
@@ -84,6 +89,11 @@ export type FilesAsk =
   | { kind: "delete"; names: string[] }
   | { kind: "fixperm"; names: string[] }
   | { kind: "rename"; name: string }
+  /** Rename by a rule (one item or the selection). */
+  | { kind: "bulkrename"; names: string[] }
+  | { kind: "verify"; name: string }
+  /** Decompress a .ffpfsc next to it. */
+  | { kind: "unpack"; name: string }
   | { kind: "mkdir" }
   | { kind: "pick"; op: "copy" | "move"; names: string[] }
   | { kind: "info"; name: string }
@@ -229,6 +239,10 @@ export interface FilesViewProps {
   onConfirmDelete: (names: string[]) => void;
   onConfirmFixPerm: (names: string[]) => void;
   onRename: (name: string, newName: string) => void;
+  /** Run a bulk rename plan's rows (one at a time, stopping at the first failure). */
+  onBulkRename?: (rows: RenameRow[]) => void;
+  /** Decompress `name` (a .ffpfsc in the folder shown); `outName` = Keep both's name, else the image's own. */
+  onUnpack?: (name: string, outName: string | null) => void;
   onMkdir: (name: string) => void;
   onPicked: (op: "copy" | "move", names: string[], destDir: string) => void;
 }
@@ -241,19 +255,68 @@ export function busyText(b: Busy | null): string | null {
   if (b.op === "copy") return t("cw_files_batch_copy", { at, total: b.total });
   if (b.op === "move") return t("cw_files_batch_move", { at, total: b.total });
   if (b.op === "chmod") return t("cw_files_fixperm_batch", { at, total: b.total });
+  if (b.op === "rename") return t("cw_files_br_batch", { at, total: b.total });
+  if (b.op === "unpack") return t("cw_files_unpack_batch", { name: baseName(b.paths?.[0] ?? "") });
   return t("cw_files_batch_delete", { at, total: b.total });
 }
 
-/** What the sheet offers for `names` (one entry, or the selection); a folder can be pinned. */
-function sheetActions(names: string[], entries: Entry[], pinned: boolean | null): SheetAction[] {
-  if (names.length !== 1) return ["clipcopy", "cut", "copy", "move", "fixperm", "delete"];
+/**
+ * What the sheet offers for `names` (one entry, or the selection), by type: a
+ * folder can be pinned; a file can be verified; a .ffpfsc can be decompressed.
+ */
+export function sheetActions(names: string[], entries: Entry[], pinned: boolean | null): SheetAction[] {
+  if (names.length !== 1) return ["clipcopy", "cut", "copy", "move", "bulkrename", "fixperm", "delete"];
   const e = entries.find((x) => x.name === names[0]);
   const out: SheetAction[] = [];
   if (e && e.kind !== "dir" && viewKind(e.name)) out.push("view");
-  out.push("clipcopy", "cut", "copy", "move", "rename", "mkdir", "info");
+  out.push("clipcopy", "cut", "copy", "move", "rename", "bulkrename", "mkdir", "info");
   if (e && e.kind === "dir" && pinned != null) out.push(pinned ? "unpin" : "pin");
+  if (e && e.kind === "file") out.push("verify");
+  if (e && e.kind === "file" && isFfpfsc(e.name)) out.push("unpack");
   out.push("fixperm", "delete");
   return out;
+}
+
+/** `names` as bulk rename items, in the order the list shows them (numbering follows it). */
+export function renameItems(names: string[], shown: Entry[], entries: Entry[]): RenameItem[] {
+  const want = new Set(names);
+  const kinds = new Map(entries.map((e) => [e.name, e.kind]));
+  const ordered = shown.filter((e) => want.has(e.name)).map((e) => e.name);
+  const seen = new Set(ordered);
+  for (const n of names) if (!seen.has(n)) ordered.push(n);
+  return ordered.map((name) => ({ name, dir: kinds.get(name) === "dir" }));
+}
+
+/** The line a finished bulk rename leaves. */
+export function renameMessage(r: RenameResult): Message | null {
+  if (r.failedRow) {
+    const why = filesErrorText(r.failed[0]?.error);
+    if (why == null) return null;
+    return {
+      tone: "error",
+      text: t("cw_files_br_failed", { from: r.failedRow.from, to: r.failedRow.to, reason: why, done: r.done.length, rest: r.skipped.length }),
+    };
+  }
+  if (r.skipped.length) return { tone: "info", text: t("cw_files_br_stopped", { done: r.done.length, rest: r.skipped.length }) };
+  return { tone: "info", text: t("cw_files_br_done", { n: r.done.length }) };
+}
+
+/** The line a finished decompress leaves. */
+export function unpackMessage(end: OpEnd | { end: "error"; error: unknown }, source: string): Message | null {
+  if (end.end === "done") {
+    const r = opResult<{ path?: unknown }>(end.status);
+    const out = r && typeof r.path === "string" ? baseName(r.path) : null;
+    return { tone: "info", text: out ? t("cw_files_unpack_done", { name: out, source }) : t("cw_files_unpack_done_plain") };
+  }
+  if (end.end === "cancelled") return { tone: "info", text: t("cw_files_unpack_stopped") };
+  if (end.end === "gone") return { tone: "info", text: t("cw_files_op_gone") };
+  if (end.end === "error") {
+    const why = unpackErrorText(end.error);
+    return why ? { tone: "error", text: t("cw_files_unpack_failed", { reason: why }) } : null;
+  }
+  const cause = opCause(end.status);
+  const why = unpackCauseText(cause) ?? t("cw_files_unpack_failed_generic", { cause: cause || "?" });
+  return { tone: "error", text: t("cw_files_unpack_failed", { reason: why }) };
 }
 
 /** Go to path's pinned folders: one button each, ✕ opens it. */
@@ -398,6 +461,12 @@ function askView(p: FilesViewProps) {
                 return p.onAsk({ kind: "pick", op: act, names: a.names });
               case "rename":
                 return p.onAsk({ kind: "rename", name });
+              case "bulkrename":
+                return p.onAsk({ kind: "bulkrename", names: a.names });
+              case "verify":
+                return p.onAsk({ kind: "verify", name });
+              case "unpack":
+                return p.onAsk({ kind: "unpack", name });
               case "mkdir":
                 return p.onAsk({ kind: "mkdir" });
               case "info":
@@ -456,6 +525,28 @@ function askView(p: FilesViewProps) {
     case "mkdir":
       return (
         <TextPrompt title={t("cw_files_new_folder")} initial="" onSubmit={p.onMkdir} onCancel={p.onDismiss} />
+      );
+    case "bulkrename":
+      return (
+        <BulkRenameDialog
+          items={renameItems(a.names, p.shown ?? p.dir.entries, p.dir.entries)}
+          existing={p.dir.entries.map((e) => e.name)}
+          onRename={(plan) => p.onBulkRename?.(plan.rows)}
+          onCancel={p.onDismiss}
+        />
+      );
+    case "verify":
+      return <VerifyDialog path={joinPath(path, a.name)} name={a.name} onClose={p.onDismiss} />;
+    case "unpack":
+      return (
+        <UnpackDialog
+          dir={path}
+          name={a.name}
+          path={joinPath(path, a.name)}
+          busy={p.busy != null}
+          onStart={(outName) => p.onUnpack?.(a.name, outName)}
+          onCancel={p.onDismiss}
+        />
       );
     case "pick":
       return (
@@ -597,7 +688,7 @@ export function FilesView(p: FilesViewProps) {
       {status ? (
         <div className="cw-msg" role="status">
           {status}
-          {p.onStopBatch && p.busy && !p.busy.stopping && p.busy.total > 1 ? (
+          {p.onStopBatch && p.busy && !p.busy.stopping && (p.busy.total > 1 || p.busy.op === "unpack") ? (
             <button
               type="button"
               className="cw-focusable cw-button cw-msg-action"
@@ -1117,6 +1208,69 @@ export function Files({ ctx }: { ctx: SectionContext }) {
     [path, refresh],
   );
 
+  const onBulkRename = useCallback(
+    (rows: RenameRow[]) => {
+      if (path == null || currentBatch()) return;
+      const dirPath = path;
+      setAsk(null);
+      setMessage(null);
+      setSelecting(false);
+      setSelected([]);
+      const run = startBatch<RenameResult>(
+        "rename",
+        rows.length,
+        (ctl) => runRenames(dirPath, rows, { onProgress: ctl.onProgress, stopped: ctl.stopped }),
+        [dirPath],
+      );
+      run?.then(
+        (r) => {
+          if (!mounted.current) return;
+          setMessage(renameMessage(r));
+          if (r.done.length) focusName.current = r.done[0][1];
+          refresh();
+        },
+        () => undefined,
+      );
+    },
+    [path, refresh],
+  );
+
+  const onUnpack = useCallback(
+    (name: string, outName: string | null) => {
+      if (path == null || currentBatch()) return;
+      const src = joinPath(path, name);
+      setAsk(null);
+      setMessage(null);
+      let end: OpEnd | { end: "error"; error: unknown } = { end: "gone" };
+      const run = startBatch(
+        "unpack",
+        1,
+        async (ctl) => {
+          const r: BatchResult = { started: [], moved: [], failed: [], jobFailed: [], skipped: [] };
+          ctl.onProgress(1, 1);
+          try {
+            const job = await startOp("/api/fs/unpack", outName ? { path: src, name: outName } : { path: src });
+            r.started.push(job);
+            end = await watchOp(job, { stopped: ctl.stopped });
+          } catch (error) {
+            end = { end: "error", error };
+          }
+          return r;
+        },
+        [src, path],
+      );
+      run?.then(
+        () => {
+          if (!mounted.current) return;
+          setMessage(unpackMessage(end, name));
+          refresh();
+        },
+        () => undefined,
+      );
+    },
+    [path, refresh],
+  );
+
   const onMkdir = useCallback(
     (name: string) => {
       setAsk(null);
@@ -1397,6 +1551,8 @@ export function Files({ ctx }: { ctx: SectionContext }) {
         onConfirmDelete={onConfirmDelete}
         onConfirmFixPerm={onConfirmFixPerm}
         onRename={onRename}
+        onBulkRename={onBulkRename}
+        onUnpack={onUnpack}
         onMkdir={onMkdir}
         onPicked={onPicked}
       />

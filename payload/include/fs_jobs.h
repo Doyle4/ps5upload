@@ -66,8 +66,21 @@ extern uint32_t fsj_test_file_delay_us;
  * (a mount point), so the walkers' device guard can be exercised without a mount. NULL = off. */
 extern const char *fsj_test_cross_name;
 
-/* JOB_OP_FFPFSC_UNPACK {"path"}: a .ffpfsc's image written beside it (#453, ffpfsc_unpack.c). */
+/* JOB_OP_FFPFSC_UNPACK {"path"[,"name"]}: a .ffpfsc's image written beside it (#453, ffpfsc_unpack.c),
+ * under the name it carries inside, or under "name" (one plain file name: the console page's Keep
+ * both; the engine never sends it). */
 struct ava1_op_ctx;
 int fsj_op_ffpfsc_unpack(void *arg, struct ava1_op_ctx *c, const uint8_t *args, size_t n);
+
+/* What an unpack of `path` would write, read without writing: the image's own name and size,
+ * the room it needs (size + the 1 GiB margin the unpack keeps), whether that name exists beside
+ * the source, and the free space there (have_free 0 when statvfs failed). NULL, or the cause
+ * token the unpack would fail with (path not allowed, not a PFS, truncated, ...). */
+typedef struct {
+    char name[256];
+    uint64_t size, need, free;
+    int compressed, exists, have_free;
+} fsj_unpack_probe_t;
+const char *fsj_ffpfsc_probe(const char *path, fsj_unpack_probe_t *p);
 
 #endif
