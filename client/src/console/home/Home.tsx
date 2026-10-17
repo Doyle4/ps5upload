@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { FolderOpen, Gamepad2, HardDrive, Moon, RotateCw, Usb, X } from "lucide-react";
 import { formatBytes } from "../../lib/format";
 import { ApiError, call, isOffline } from "../api";
+import { onNavAction } from "../nav";
 import type { SectionContext } from "../sections";
 import type { ConsoleStatus } from "../shell/TopBar";
 import { t } from "../strings";
@@ -333,7 +334,7 @@ export function HomeView(p: HomeViewProps) {
 
 /* ---- the section ---- */
 
-function useVolumes(): { volumes: Volume[] | null; error: boolean } {
+function useVolumes(tick: number): { volumes: Volume[] | null; error: boolean } {
   const [volumes, setVolumes] = useState<Volume[] | null>(null);
   const [error, setError] = useState(false);
   useEffect(() => {
@@ -360,19 +361,32 @@ function useVolumes(): { volumes: Volume[] | null; error: boolean } {
       live = false;
       if (timer !== undefined) clearTimeout(timer);
     };
-  }, []);
+  }, [tick]);
   return { volumes, error };
 }
 
 /** The Home section: the running game, tasks, storage and quick actions. */
 export function Home({ ctx }: { ctx: SectionContext }) {
-  const { jobs, loaded, error: jobsError, cancel } = useJobs();
-  const { volumes, error: volumesError } = useVolumes();
+  const { jobs, loaded, error: jobsError, cancel, refresh: refreshJobs } = useJobs();
+  const [volumesTick, setVolumesTick] = useState(0);
+  const { volumes, error: volumesError } = useVolumes(volumesTick);
   const [ask, setAsk] = useState<Ask | null>(null);
   const [busy, setBusy] = useState(false);
   const [askError, setAskError] = useState<string | null>(null);
   const [message, setMessage] = useState<Message | null>(null);
   const { refreshStatus, openSection, canOpen } = ctx;
+
+  // Create (refresh): read the tasks and drives again; App's fallback re-reads the status.
+  useEffect(
+    () =>
+      onNavAction((a) => {
+        if (a !== "refresh") return false;
+        refreshJobs();
+        setVolumesTick((n) => n + 1);
+        return false;
+      }),
+    [refreshJobs],
+  );
 
   useEffect(() => {
     if (!message) return;

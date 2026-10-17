@@ -4188,6 +4188,14 @@ c2c_test_deep_bad: "4 KiB 테스트 전송이 도착하지 않았습니다: {det
 "cw_files_too_large": "너무 커서 미리 볼 수 없습니다.",
 "cw_settings_err_tile_add": "홈 화면에 PS5Upload를 추가하지 못했습니다. 다시 시도하세요.",
 "cw_settings_err_tile_remove": "홈 화면에서 PS5Upload를 제거하지 못했습니다. 다시 시도하세요.",
+"cw_hint_page": "페이지 위/아래",
+"cw_hint_top": "맨 위로",
+"cw_hint_help": "도움말",
+"cw_hint_refresh": "새로 고침",
+"cw_hint_fullscreen": "전체 화면",
+"cw_settings_display": "화면",
+"cw_settings_fullscreen": "전체 화면",
+"cw_settings_fullscreen_note": "브라우저 막대를 숨겨 페이지가 TV 화면을 가득 채웁니다. 다음에 버튼을 누를 때 적용됩니다.",
 };
 
 export default ko;

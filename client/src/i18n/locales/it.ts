@@ -4119,6 +4119,14 @@ c2c_test_deep_bad: "L’invio di prova di 4 KiB non è arrivato: {detail}",
 "cw_files_too_large": "Troppo grande per l'anteprima.",
 "cw_settings_err_tile_add": "Impossibile aggiungere PS5Upload alla schermata Home. Riprova.",
 "cw_settings_err_tile_remove": "Impossibile rimuovere PS5Upload dalla schermata Home. Riprova.",
+"cw_hint_page": "Pagina su/giù",
+"cw_hint_top": "Inizio",
+"cw_hint_help": "Guida",
+"cw_hint_refresh": "Aggiorna",
+"cw_hint_fullscreen": "Schermo intero",
+"cw_settings_display": "Schermo",
+"cw_settings_fullscreen": "Schermo intero",
+"cw_settings_fullscreen_note": "Nasconde le barre del browser così la pagina riempie la TV. Si applica alla prossima pressione di un tasto.",
 };
 
 export default it;

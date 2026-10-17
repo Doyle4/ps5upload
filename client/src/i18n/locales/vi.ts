@@ -4171,6 +4171,14 @@ c2c_test_deep_bad: "Lượt gửi thử 4 KiB không tới: {detail}",
 "cw_files_too_large": "Quá lớn để xem trước.",
 "cw_settings_err_tile_add": "Không thể thêm PS5Upload vào màn hình chính. Hãy thử lại.",
 "cw_settings_err_tile_remove": "Không thể gỡ PS5Upload khỏi màn hình chính. Hãy thử lại.",
+"cw_hint_page": "Lên/xuống một trang",
+"cw_hint_top": "Lên đầu",
+"cw_hint_help": "Trợ giúp",
+"cw_hint_refresh": "Làm mới",
+"cw_hint_fullscreen": "Toàn màn hình",
+"cw_settings_display": "Hiển thị",
+"cw_settings_fullscreen": "Toàn màn hình",
+"cw_settings_fullscreen_note": "Ẩn các thanh của trình duyệt để trang lấp đầy TV. Có hiệu lực ở lần bấm nút tiếp theo.",
 };
 
 export default vi;

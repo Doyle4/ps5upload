@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiError, call, isOffline } from "../api";
+import { fullscreenPref, fullscreenSupported, setFullscreenPref } from "../fullscreen";
+import { onNavAction } from "../nav";
 import { LANGUAGE_NAMES } from "../languages";
 import { chooseLanguage, LANGUAGES, storedLanguage, t } from "../strings";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
@@ -69,6 +71,9 @@ export interface SettingsViewProps {
   onDismissLan: () => void;
   onToggleTile: () => void;
   onLanguage: (code: string) => void;
+  /** The Full screen switch: on/off, or null where the browser cannot (the switch is hidden). */
+  fullscreen?: boolean | null;
+  onToggleFullscreen?: () => void;
 }
 
 function Switch({
@@ -142,6 +147,20 @@ export function SettingsView(p: SettingsViewProps) {
         )}
       </section>
 
+      {typeof p.fullscreen === "boolean" ? (
+        <section className="cw-home-section">
+          <h2 className="cw-h2">{t("cw_settings_display")}</h2>
+          <Switch
+            action="fullscreen"
+            label={t("cw_settings_fullscreen")}
+            on={p.fullscreen}
+            disabled={false}
+            onClick={() => p.onToggleFullscreen?.()}
+            note={t("cw_settings_fullscreen_note")}
+          />
+        </section>
+      ) : null}
+
       <section className="cw-home-section">
         <h2 className="cw-h2">{t("cw_settings_language")}</h2>
         <div className="cw-quick" role="group" aria-label={t("cw_settings_language")}>
@@ -182,7 +201,7 @@ export function SettingsView(p: SettingsViewProps) {
   );
 }
 
-/** The Settings section: network access, the home-screen tile, language, About. */
+/** The Settings section: network access, the home-screen tile, full screen, language, About. */
 export function Settings() {
   const [settings, setSettings] = useState<WebSettings | null>(null);
   const [loadFailed, setLoadFailed] = useState(false);
@@ -190,6 +209,18 @@ export function Settings() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [language, setLanguageState] = useState(storedLanguage);
+  const [fullscreen, setFullscreen] = useState<boolean | null>(() => (fullscreenSupported() ? fullscreenPref() : null));
+  /** Bumped by Create (refresh) to read /api/settings again. */
+  const [tick, setTick] = useState(0);
+
+  useEffect(
+    () =>
+      onNavAction((a) => {
+        if (a === "refresh") setTick((n) => n + 1);
+        return false;
+      }),
+    [],
+  );
 
   useEffect(() => {
     let live = true;
@@ -204,7 +235,7 @@ export function Settings() {
     return () => {
       live = false;
     };
-  }, []);
+  }, [tick]);
 
   const live = useRef(true);
   useEffect(() => {
@@ -268,6 +299,12 @@ export function Settings() {
       onLanguage={(code) => {
         chooseLanguage(code);
         setLanguageState(code);
+      }}
+      fullscreen={fullscreen}
+      onToggleFullscreen={() => {
+        if (fullscreen === null) return;
+        setFullscreenPref(!fullscreen);
+        setFullscreen(!fullscreen);
       }}
     />
   );

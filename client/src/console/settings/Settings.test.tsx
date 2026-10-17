@@ -80,6 +80,16 @@ describe("settings", () => {
     expect(last?.tile_busy).toBe(true);
   });
 
+  it("full screen switch shows only where the browser supports it", () => {
+    const onToggleFullscreen = vi.fn();
+    const on = elements(SettingsView(base({ fullscreen: true, onToggleFullscreen }))).find((e) => e.props.action === "fullscreen");
+    expect(on?.props.on).toBe(true);
+    (on?.props.onClick as () => void)();
+    expect(onToggleFullscreen).toHaveBeenCalledTimes(1);
+    const hidden = elements(SettingsView(base({ fullscreen: null }))).find((e) => e.props.action === "fullscreen");
+    expect(hidden).toBeUndefined();
+  });
+
   it("language_choice_persists_and_survives_storage_errors", () => {
     const store = new Map<string, string>();
     vi.stubGlobal("localStorage", {

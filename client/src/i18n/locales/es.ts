@@ -4119,6 +4119,14 @@ c2c_test_deep_bad: "El envío de prueba de 4 KiB no llegó: {detail}",
 "cw_files_too_large": "Demasiado grande para la vista previa.",
 "cw_settings_err_tile_add": "No se pudo añadir PS5Upload a la pantalla de inicio. Inténtalo de nuevo.",
 "cw_settings_err_tile_remove": "No se pudo quitar PS5Upload de la pantalla de inicio. Inténtalo de nuevo.",
+"cw_hint_page": "Página arriba/abajo",
+"cw_hint_top": "Arriba del todo",
+"cw_hint_help": "Ayuda",
+"cw_hint_refresh": "Actualizar",
+"cw_hint_fullscreen": "Pantalla completa",
+"cw_settings_display": "Pantalla",
+"cw_settings_fullscreen": "Pantalla completa",
+"cw_settings_fullscreen_note": "Oculta las barras del navegador para que la página ocupe toda la TV. Se aplica en tu próxima pulsación.",
 };
 
 export default es;

@@ -525,8 +525,20 @@ static void focus_running_fallback_games_only(void) {
           !webui_is_game_title_id(""));
 }
 
+static void array_span(void) {
+    const char *j = "{\"n\":{\"events\":[1]},\"events\":[\"a]\",[2],\"b\"],\"x\":3}";
+    const char *v = NULL;
+    size_t len = 0;
+    CHECK(webui_json_array(j, strlen(j), "events", &v, &len) == 1);
+    CHECK(v && len == strlen("[\"a]\",[2],\"b\"]") && memcmp(v, "[\"a]\",[2],\"b\"]", len) == 0);
+    CHECK(webui_json_array(j, strlen(j), "x", &v, &len) == -1);   /* not an array */
+    CHECK(webui_json_array(j, strlen(j), "nope", &v, &len) == 0);
+    CHECK(webui_json_array("{\"events\":[\"a\"", 13, "events", &v, &len) == -1); /* cut short */
+}
+
 int main(void) {
     unicode_path_round_trips();
+    array_span();
     surrogate_pair_decodes();
     missing_key_is_absent_not_empty();
     list_result_to_json();

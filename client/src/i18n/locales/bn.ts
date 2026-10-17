@@ -4169,6 +4169,14 @@ c2c_test_deep_bad: "4 KiB-এর পরীক্ষামূলক পাঠা�
 "cw_files_too_large": "প্রিভিউ করার জন্য খুব বড়।",
 "cw_settings_err_tile_add": "হোম স্ক্রিনে PS5Upload যোগ করা যায়নি। আবার চেষ্টা করুন।",
 "cw_settings_err_tile_remove": "হোম স্ক্রিন থেকে PS5Upload সরানো যায়নি। আবার চেষ্টা করুন।",
+"cw_hint_page": "পেজ উপরে/নিচে",
+"cw_hint_top": "একদম উপরে",
+"cw_hint_help": "সাহায্য",
+"cw_hint_refresh": "রিফ্রেশ",
+"cw_hint_fullscreen": "ফুল স্ক্রিন",
+"cw_settings_display": "ডিসপ্লে",
+"cw_settings_fullscreen": "ফুল স্ক্রিন",
+"cw_settings_fullscreen_note": "ব্রাউজারের বারগুলো লুকিয়ে রাখে যাতে পেজটি পুরো টিভি জুড়ে থাকে। পরের বার বোতাম চাপলে কার্যকর হয়।",
 };
 
 export default bn;

@@ -4190,6 +4190,14 @@ c2c_test_deep_bad: "4 KiB のテスト送信が届きませんでした: {detail
 "cw_files_too_large": "大きすぎてプレビューできません。",
 "cw_settings_err_tile_add": "ホーム画面に PS5Upload を追加できませんでした。もう一度お試しください。",
 "cw_settings_err_tile_remove": "ホーム画面から PS5Upload を削除できませんでした。もう一度お試しください。",
+"cw_hint_page": "前/次のページ",
+"cw_hint_top": "先頭へ",
+"cw_hint_help": "ヘルプ",
+"cw_hint_refresh": "更新",
+"cw_hint_fullscreen": "全画面",
+"cw_settings_display": "表示",
+"cw_settings_fullscreen": "全画面",
+"cw_settings_fullscreen_note": "ブラウザーのバーを隠して、ページをテレビ全体に表示します。次にボタンを押したときに有効になります。",
 };
 
 export default ja;

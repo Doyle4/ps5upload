@@ -4169,6 +4169,14 @@ c2c_test_deep_bad: "لم يصل الإرسال التجريبي بحجم 4 KiB: 
 "cw_files_too_large": "كبير جدًا للمعاينة.",
 "cw_settings_err_tile_add": "تعذرت إضافة PS5Upload إلى الشاشة الرئيسية. حاول مرة أخرى.",
 "cw_settings_err_tile_remove": "تعذرت إزالة PS5Upload من الشاشة الرئيسية. حاول مرة أخرى.",
+"cw_hint_page": "صفحة لأعلى/لأسفل",
+"cw_hint_top": "الأعلى",
+"cw_hint_help": "مساعدة",
+"cw_hint_refresh": "تحديث",
+"cw_hint_fullscreen": "ملء الشاشة",
+"cw_settings_display": "العرض",
+"cw_settings_fullscreen": "ملء الشاشة",
+"cw_settings_fullscreen_note": "يخفي أشرطة المتصفح لتملأ الصفحة شاشة التلفاز. يسري عند ضغطتك التالية على زر.",
 };
 
 export default ar;

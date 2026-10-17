@@ -4187,6 +4187,14 @@ c2c_test_deep_bad: "L’envoi test de 4 Kio n’est pas arrivé : {detail}",
 "cw_files_too_large": "Trop volumineux pour l'aperçu.",
 "cw_settings_err_tile_add": "Impossible d'ajouter PS5Upload à l'écran d'accueil. Réessayez.",
 "cw_settings_err_tile_remove": "Impossible de retirer PS5Upload de l'écran d'accueil. Réessayez.",
+"cw_hint_page": "Page préc./suiv.",
+"cw_hint_top": "Haut",
+"cw_hint_help": "Aide",
+"cw_hint_refresh": "Actualiser",
+"cw_hint_fullscreen": "Plein écran",
+"cw_settings_display": "Affichage",
+"cw_settings_fullscreen": "Plein écran",
+"cw_settings_fullscreen_note": "Masque les barres du navigateur pour que la page remplisse la TV. Prend effet à votre prochaine pression de touche.",
 };
 
 export default fr;

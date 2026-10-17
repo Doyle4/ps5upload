@@ -4185,6 +4185,14 @@ c2c_test_deep_bad: "4 KiB का परीक्षण नहीं पहुँ
 "cw_files_too_large": "पूर्वावलोकन के लिए बहुत बड़ा है।",
 "cw_settings_err_tile_add": "होम स्क्रीन पर PS5Upload नहीं जोड़ा जा सका। फिर कोशिश करें।",
 "cw_settings_err_tile_remove": "होम स्क्रीन से PS5Upload नहीं हटाया जा सका। फिर कोशिश करें।",
+"cw_hint_page": "पेज ऊपर/नीचे",
+"cw_hint_top": "सबसे ऊपर",
+"cw_hint_help": "सहायता",
+"cw_hint_refresh": "रीफ़्रेश करें",
+"cw_hint_fullscreen": "फ़ुल स्क्रीन",
+"cw_settings_display": "डिस्प्ले",
+"cw_settings_fullscreen": "फ़ुल स्क्रीन",
+"cw_settings_fullscreen_note": "ब्राउज़र की पट्टियाँ छिपाता है ताकि पेज पूरे टीवी पर दिखे। अगली बार बटन दबाने पर लागू होता है।",
 };
 
 export default hi;

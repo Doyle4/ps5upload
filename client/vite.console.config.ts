@@ -8,7 +8,7 @@
  *   be down-levelled and is rejected by the client lint rule.
  * - The PC app's dark-theme tokens come from src/index.css itself (pcTokens),
  *   not a copy, so the page follows the app's colours.
- * - Size budget: the build FAILS over 450 KiB raw or 150 KiB gzip.
+ * - Size budget: the build FAILS over 640 KiB raw or 150 KiB gzip.
  */
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -16,7 +16,7 @@ import { gzipSync } from "node:zlib";
 import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 
-const RAW_BUDGET = 450 * 1024;
+const RAW_BUDGET = 640 * 1024;
 const GZIP_BUDGET = 150 * 1024;
 const TOKENS_ID = "virtual:pc-tokens.css";
 

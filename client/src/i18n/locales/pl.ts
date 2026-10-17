@@ -4424,6 +4424,14 @@ c2c_test_deep_bad: "Testowa wysyłka 4 KiB nie dotarła: {detail}",
 "cw_files_too_large": "Za duży, by pokazać podgląd.",
 "cw_settings_err_tile_add": "Nie udało się dodać PS5Upload do ekranu głównego. Spróbuj ponownie.",
 "cw_settings_err_tile_remove": "Nie udało się usunąć PS5Upload z ekranu głównego. Spróbuj ponownie.",
+"cw_hint_page": "Strona w górę/w dół",
+"cw_hint_top": "Na górę",
+"cw_hint_help": "Pomoc",
+"cw_hint_refresh": "Odśwież",
+"cw_hint_fullscreen": "Pełny ekran",
+"cw_settings_display": "Ekran",
+"cw_settings_fullscreen": "Pełny ekran",
+"cw_settings_fullscreen_note": "Ukrywa paski przeglądarki, aby strona wypełniała cały telewizor. Działa od następnego naciśnięcia przycisku.",
 };
 
 export default pl;

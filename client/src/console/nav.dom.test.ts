@@ -4,6 +4,7 @@ import {
   DEFAULT_INPUT_MAP,
   dispatchNav,
   focusElement,
+  FOCUSABLE,
   installNavigation,
   onNavAction,
 } from "./nav";
@@ -45,9 +46,14 @@ class FakeEl {
   querySelectorAll(sel: string): FakeEl[] {
     if (sel === "[data-nav-modal]") return this.descendants().filter((e) => "data-nav-modal" in e.attrs);
     if (sel === "[data-nav-region]") return this.descendants().filter((e) => "data-nav-region" in e.attrs);
+    if (sel === '[data-nav-region="rail"]') return this.descendants().filter((e) => e.attrs["data-nav-region"] === "rail");
     return this.descendants().filter((e) => e.tagName === "BUTTON"); // the FOCUSABLE selector
   }
   closest(sel: string): FakeEl | null {
+    if (sel === FOCUSABLE) {
+      if (this.tagName === "BUTTON") return this;
+      return this.parent ? this.parent.closest(sel) : null;
+    }
     if (sel !== "[data-nav-region]") return null; // nothing is inert or aria-hidden in these fixtures
     if ("data-nav-region" in this.attrs) return this;
     return this.parent ? this.parent.closest(sel) : null;
@@ -62,7 +68,10 @@ class FakeEl {
     const { left, top, width, height } = this.box;
     return { left, top, width, height, right: left + width, bottom: top + height, x: left, y: top } as DOMRect;
   }
-  focus(): void {
+  focusOpts: unknown = undefined;
+  scrollTop = 0;
+  focus(opts?: unknown): void {
+    this.focusOpts = opts;
     fakeDoc.activeElement = this;
   }
   click(): void {
@@ -380,5 +389,192 @@ describe("R12 gamepad/keyboard echo", () => {
     now = 1300;
     keydown!({ key: "ArrowDown", target: null, preventDefault: vi.fn() });
     expect(fakeDoc.activeElement).toBe(below);
+  });
+});
+
+/* A window that keeps every listener, so a test can fire keys and pointer events at it. */
+function fakeWindow() {
+  const listeners: Record<string, ((e: any) => void)[]> = {};
+  (globalThis as any).window = {
+    innerHeight: 700,
+    addEventListener: (t: string, fn: (e: any) => void) => {
+      (listeners[t] ??= []).push(fn);
+    },
+    removeEventListener: (t: string, fn: (e: any) => void) => {
+      listeners[t] = (listeners[t] ?? []).filter((f) => f !== fn);
+    },
+  };
+  (globalThis as any).requestAnimationFrame = () => 1;
+  (globalThis as any).cancelAnimationFrame = () => {};
+  vi.stubGlobal("navigator", {}); // no Gamepad API, like the PS5 browser
+  const fire = (type: string, e: Record<string, unknown>) => {
+    const ev = { preventDefault: vi.fn(), stopPropagation: vi.fn(), defaultPrevented: false, ...e };
+    for (const fn of listeners[type] ?? []) fn(ev);
+    return ev;
+  };
+  return {
+    fire,
+    key: (key: string, keyCode = 0) => fire("keydown", { key, keyCode, target: fakeDoc.activeElement }),
+    move: (target: FakeEl, x: number, y: number) => fire("mousemove", { target, clientX: x, clientY: y }),
+  };
+}
+
+describe("pointer = focus (the PS5 browser's left stick drives a pointer)", () => {
+  it("hovering a control focuses it without scrolling", () => {
+    const w = fakeWindow();
+    offs.push(installNavigation(DEFAULT_INPUT_MAP));
+    railHome.focus();
+    w.move(railFiles, 50, 180);
+    expect(fakeDoc.activeElement).toBe(railFiles);
+    expect(railFiles.focusOpts).toEqual({ preventScroll: true });
+  });
+
+  it("hovering inside a control (its icon) focuses the control", () => {
+    const w = fakeWindow();
+    offs.push(installNavigation(DEFAULT_INPUT_MAP));
+    const icon = new FakeEl("icon");
+    railFiles.add(icon);
+    w.move(icon, 50, 180);
+    expect(fakeDoc.activeElement).toBe(railFiles);
+  });
+
+  it("hover outside the open modal never moves focus behind it", () => {
+    const w = fakeWindow();
+    offs.push(installNavigation(DEFAULT_INPUT_MAP));
+    body.add(modal);
+    reload.focus();
+    w.move(railFiles, 50, 180);
+    expect(fakeDoc.activeElement).toBe(reload);
+  });
+
+  it("Enter activates the focused control (once: the native activation is prevented)", () => {
+    const w = fakeWindow();
+    offs.push(installNavigation(DEFAULT_INPUT_MAP));
+    w.move(railFiles, 50, 180);
+    const ev = w.key("Enter", 13);
+    expect(railFiles.clicks).toBe(1);
+    expect(ev.preventDefault).toHaveBeenCalled();
+  });
+
+  it("an arrow after hovering continues from the hovered control", () => {
+    const w = fakeWindow();
+    offs.push(installNavigation(DEFAULT_INPUT_MAP));
+    const below = btn("below", 0, 220);
+    body.add(below);
+    railHome.focus();
+    w.move(railFiles, 50, 180);
+    w.key("ArrowDown", 40);
+    expect(fakeDoc.activeElement).toBe(below);
+  });
+
+  it("after a key move, pointer jitter (stick drift) does not take focus back; a real move does", () => {
+    const w = fakeWindow();
+    offs.push(installNavigation(DEFAULT_INPUT_MAP));
+    w.move(railHome, 50, 120);
+    w.key("ArrowDown", 40);
+    expect(fakeDoc.activeElement).toBe(railFiles);
+    w.move(railHome, 52, 121); // drift, still over Home
+    expect(fakeDoc.activeElement).toBe(railFiles);
+    w.move(railHome, 50, 120); // a page scroll re-sends the same spot
+    expect(fakeDoc.activeElement).toBe(railFiles);
+    w.move(railHome, 60, 130); // the stick really moved
+    expect(fakeDoc.activeElement).toBe(railHome);
+  });
+
+  it("a pointer click after a key move activates the focused control, not the one under the pointer", () => {
+    const w = fakeWindow();
+    offs.push(installNavigation(DEFAULT_INPUT_MAP));
+    w.move(railHome, 50, 120);
+    w.key("ArrowDown", 40);
+    const down = w.fire("mousedown", { target: railHome, clientX: 50, clientY: 120, button: 0 });
+    expect(down.preventDefault).toHaveBeenCalled(); // focus does not jump to the pointer
+    const click = w.fire("click", { target: railHome, clientX: 50, clientY: 120, detail: 1, isTrusted: true });
+    expect(click.preventDefault).toHaveBeenCalled();
+    expect(click.stopPropagation).toHaveBeenCalled();
+    expect(railFiles.clicks).toBe(1);
+    expect(fakeDoc.activeElement).toBe(railFiles);
+  });
+
+  it("a pointer click on the hovered control is left to the browser", () => {
+    const w = fakeWindow();
+    offs.push(installNavigation(DEFAULT_INPUT_MAP));
+    w.move(railFiles, 50, 180);
+    const click = w.fire("click", { target: railFiles, clientX: 50, clientY: 180, detail: 1, isTrusted: true });
+    expect(click.preventDefault).not.toHaveBeenCalled();
+    expect(railFiles.clicks).toBe(0); // the native click runs, not ours
+  });
+
+  it("keys are matched by keyCode when the browser names the key Unidentified", () => {
+    const w = fakeWindow();
+    offs.push(installNavigation(DEFAULT_INPUT_MAP));
+    railHome.focus();
+    w.key("Unidentified", 13);
+    expect(railHome.clicks).toBe(1);
+  });
+
+  it("the wheel (right stick) is never taken over", () => {
+    const w = fakeWindow();
+    offs.push(installNavigation(DEFAULT_INPUT_MAP));
+    const ev = w.fire("wheel", { target: railHome, deltaY: 120 });
+    expect(ev.preventDefault).not.toHaveBeenCalled();
+  });
+});
+
+describe("the other DualSense actions", () => {
+  it("help, refresh, fullscreen and select reach the handlers", () => {
+    const seen: string[] = [];
+    offs.push(
+      onNavAction((a) => {
+        seen.push(a);
+        return true;
+      }),
+    );
+    railHome.focus();
+    for (const a of ["help", "refresh", "fullscreen", "select", "actions"] as const) dispatchNav(a);
+    expect(seen).toEqual(["help", "refresh", "fullscreen", "select", "actions"]);
+  });
+
+  it("R3 focuses the section rail at the active section", () => {
+    const r = regions();
+    const deep = btn("deep", 140, 500);
+    r.content.add(btn("first", 140, 100), deep);
+    deep.focus();
+    dispatchNav("rail");
+    expect(fakeDoc.activeElement).toBe(r.files);
+  });
+
+  it("L3 jumps to the top of the current region and scrolls it there", () => {
+    const r = regions();
+    const first = btn("first", 140, 100);
+    const deep = btn("deep", 140, 500);
+    r.content.add(first, deep);
+    r.content.scrollTop = 400;
+    deep.focus();
+    dispatchNav("top");
+    expect(fakeDoc.activeElement).toBe(first);
+    expect(r.content.scrollTop).toBe(0);
+  });
+
+  it("R2/L2 move focus about a page down/up the current list", () => {
+    (globalThis as any).window = { innerHeight: 300 };
+    const r = regions();
+    const rows = Array.from({ length: 20 }, (_, i) => btn(`row${i}`, 140, 100 + i * 50));
+    r.content.add(...rows);
+    rows[0].focus();
+    dispatchNav("pageDown");
+    // A page is 80 % of the 300 px viewport: 240 px, so 5 rows of 50 px.
+    expect(fakeDoc.activeElement).toBe(rows[5]);
+    dispatchNav("pageUp");
+    expect(fakeDoc.activeElement).toBe(rows[0]);
+  });
+
+  it("a section handler may take R2 over (it returns true)", () => {
+    const r = regions();
+    const rows = Array.from({ length: 4 }, (_, i) => btn(`row${i}`, 140, 100 + i * 50));
+    r.content.add(...rows);
+    rows[0].focus();
+    offs.push(onNavAction((a) => a === "pageDown"));
+    dispatchNav("pageDown");
+    expect(fakeDoc.activeElement).toBe(rows[0]);
   });
 });

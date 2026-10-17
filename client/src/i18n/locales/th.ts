@@ -4178,6 +4178,14 @@ c2c_test_deep_bad: "การส่งทดสอบ 4 KiB ไปไม่ถ�
 "cw_files_too_large": "ใหญ่เกินกว่าจะแสดงตัวอย่าง",
 "cw_settings_err_tile_add": "เพิ่ม PS5Upload ลงในหน้าจอหลักไม่ได้ ลองอีกครั้ง",
 "cw_settings_err_tile_remove": "นำ PS5Upload ออกจากหน้าจอหลักไม่ได้ ลองอีกครั้ง",
+"cw_hint_page": "เลื่อนขึ้น/ลงทีละหน้า",
+"cw_hint_top": "บนสุด",
+"cw_hint_help": "ความช่วยเหลือ",
+"cw_hint_refresh": "รีเฟรช",
+"cw_hint_fullscreen": "เต็มจอ",
+"cw_settings_display": "การแสดงผล",
+"cw_settings_fullscreen": "เต็มจอ",
+"cw_settings_fullscreen_note": "ซ่อนแถบของเบราว์เซอร์เพื่อให้หน้าเต็มจอทีวี มีผลเมื่อคุณกดปุ่มครั้งถัดไป",
 };
 
 export default th;

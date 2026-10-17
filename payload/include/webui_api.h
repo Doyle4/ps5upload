@@ -6,6 +6,10 @@
  * starts as "ps5upload-console-webui". The route table in webui_api.c is the allowlist: any other
  * path answers 404, a known path with another method 405.
  *
+ * POST /api/input-log {"events":["<line>",...]} is the one route that reaches no helper method: it
+ * appends the page's controller-input measurements to WEBUI_INPUTLOG_PATH (webui_inputlog.h),
+ * bodies over WEBUI_INPUTLOG_BODY_MAX answer 413, calls closer than 500 ms apart 429.
+ *
  * Two GET routes sit outside the table: GET / serves the embedded page (webui_page.h) and
  * GET /api/token answers {"token":"<hex>"}, both after the server's Host/Origin check only. */
 #ifndef PS5UPLOAD_WEBUI_API_H

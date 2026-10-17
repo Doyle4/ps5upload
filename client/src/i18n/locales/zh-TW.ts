@@ -4119,6 +4119,14 @@ c2c_test_deep_bad: "4 KiB 測試傳送未抵達：{detail}",
 "cw_files_too_large": "檔案太大，無法預覽。",
 "cw_settings_err_tile_add": "無法將 PS5Upload 加到主畫面，請再試一次。",
 "cw_settings_err_tile_remove": "無法從主畫面移除 PS5Upload，請再試一次。",
+"cw_hint_page": "上一頁/下一頁",
+"cw_hint_top": "頂端",
+"cw_hint_help": "說明",
+"cw_hint_refresh": "重新整理",
+"cw_hint_fullscreen": "全螢幕",
+"cw_settings_display": "顯示",
+"cw_settings_fullscreen": "全螢幕",
+"cw_settings_fullscreen_note": "隱藏瀏覽器的工具列，讓頁面佔滿電視。在你下次按鍵時生效。",
 };
 
 export default zh_TW;

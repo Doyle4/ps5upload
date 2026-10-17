@@ -588,6 +588,11 @@ export function Files({ ctx }: { ctx: SectionContext }) {
   useEffect(
     () =>
       onNavAction((a) => {
+        if (a === "refresh") {
+          // Create: read the folder again (App's fallback still re-reads the status).
+          if (path != null) refresh();
+          return false;
+        }
         const el = root.current;
         const active = document.activeElement;
         if (!el || !active || !el.contains(active)) return false;
@@ -613,7 +618,7 @@ export function Files({ ctx }: { ctx: SectionContext }) {
         }
         return false;
       }),
-    [path, selecting, selected, goUp, onToggleItem, onToggleSelecting],
+    [path, selecting, selected, goUp, onToggleItem, onToggleSelecting, refresh],
   );
 
   const onDismiss = useCallback(() => {

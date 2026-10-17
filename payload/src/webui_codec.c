@@ -213,6 +213,17 @@ int webui_json_bool(const char *json, size_t n, const char *key, int *out) {
     return -1;
 }
 
+int webui_json_array(const char *json, size_t n, const char *key, const char **val, size_t *len) {
+    const char *e = json + n, *p = top_value(json, n, key), *end;
+    if (!p) return 0;
+    if (*p != '[') return -1;
+    end = skip_val(p, e);
+    if (!end) return -1;
+    *val = p;
+    *len = (size_t)(end - p);
+    return 1;
+}
+
 /* A signed integer value (focus ids are -1 when unknown): 1, 0 absent, -1 not an integer. */
 static int json_i64(const char *json, size_t n, const char *key, long long *out) {
     const char *e = json + n, *p = top_value(json, n, key);

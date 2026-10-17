@@ -4470,6 +4470,14 @@ c2c_test_deep_bad: "ارسال آزمایشی ۴ KiB نرسید: {detail}",
 "cw_files_too_large": "برای پیش‌نمایش بیش از حد بزرگ است.",
 "cw_settings_err_tile_add": "افزودن PS5Upload به صفحه اصلی انجام نشد. دوباره تلاش کنید.",
 "cw_settings_err_tile_remove": "حذف PS5Upload از صفحه اصلی انجام نشد. دوباره تلاش کنید.",
+"cw_hint_page": "صفحه بالا/پایین",
+"cw_hint_top": "بالای صفحه",
+"cw_hint_help": "راهنما",
+"cw_hint_refresh": "تازه‌سازی",
+"cw_hint_fullscreen": "تمام‌صفحه",
+"cw_settings_display": "نمایش",
+"cw_settings_fullscreen": "تمام‌صفحه",
+"cw_settings_fullscreen_note": "نوارهای مرورگر را پنهان می‌کند تا صفحه کل تلویزیون را پر کند. با فشار بعدی دکمه اعمال می‌شود.",
 };
 
 export default fa;

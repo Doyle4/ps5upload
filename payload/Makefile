@@ -186,7 +186,7 @@ SRCS := src/main.c src/runtime.c src/shell_builtin.c src/takeover.c src/takeover
         src/tmdb.c src/fw_spoof.c src/focus_probe.c \
         src/content_db.c src/mgmt_rpc.c src/fs_jobs.c src/net_probe.c src/net_ports.c src/mgmt_fs.c src/path_policy.c \
         src/webui_http.c src/webui_auth.c src/webui_server.c src/webui_codec.c src/webui_api.c \
-        src/webui_settings.c src/webui_tile.c $(WEBUI_TILE_ICON_C) $(WEBUI_PAGE_C) \
+        src/webui_settings.c src/webui_inputlog.c src/webui_tile.c $(WEBUI_TILE_ICON_C) $(WEBUI_PAGE_C) \
         third_party/tiny_aes/aes.c \
         $(BLAKE3_SRCS)
 

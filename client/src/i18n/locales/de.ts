@@ -4177,6 +4177,14 @@ c2c_test_deep_bad: "Die 4-KiB-Testsendung ist nicht angekommen: {detail}",
 "cw_files_too_large": "Zu groß für die Vorschau.",
 "cw_settings_err_tile_add": "PS5Upload konnte nicht zum Startbildschirm hinzugefügt werden. Versuche es erneut.",
 "cw_settings_err_tile_remove": "PS5Upload konnte nicht vom Startbildschirm entfernt werden. Versuche es erneut.",
+"cw_hint_page": "Seite hoch/runter",
+"cw_hint_top": "Nach oben",
+"cw_hint_help": "Hilfe",
+"cw_hint_refresh": "Aktualisieren",
+"cw_hint_fullscreen": "Vollbild",
+"cw_settings_display": "Anzeige",
+"cw_settings_fullscreen": "Vollbild",
+"cw_settings_fullscreen_note": "Blendet die Leisten des Browsers aus, damit die Seite den ganzen Fernseher füllt. Gilt ab dem nächsten Tastendruck.",
 };
 
 export default de;

@@ -11,22 +11,18 @@
  */
 
 html {
-  /* TV type: 22px at 1920×1080, the PS5 browser's viewport. */
+  /*
+   * TV type that scales with the viewport: the PS5 browser's page is 1540×700
+   * (26 px here, 27 rem tall), a 1920×1080 window gets ~34 px. The smaller of
+   * the width and height rules wins, so a short window never pushes a
+   * section's primary actions below the fold. clamp/min: Safari 13.1+.
+   */
   font-size: 22px;
+  font-size: clamp(16px, min(1.75vw, 3.75vh), 44px);
   background: var(--atmosphere-base);
   color: var(--color-text);
   font-family: var(--font-sans);
   -webkit-text-size-adjust: 100%;
-}
-@media (max-width: 1280px) {
-  html {
-    font-size: 18px;
-  }
-}
-@media (min-width: 2400px) {
-  html {
-    font-size: 30px;
-  }
 }
 
 *,
@@ -74,7 +70,7 @@ button {
 .cw-top {
   display: flex;
   align-items: center;
-  padding: 0.6rem 1.2rem;
+  padding: 0.35rem 1rem;
   border-bottom: 1px solid var(--color-border);
 }
 .cw-top img {
@@ -143,12 +139,12 @@ button {
 .cw-content {
   flex: 1;
   min-width: 0;
-  padding: 1rem 1.4rem;
+  padding: 0.6rem 1.2rem 1rem;
   overflow-y: auto;
 }
 .cw-h1 {
-  margin: 0 0 0.8rem;
-  font-size: 1.5rem;
+  margin: 0 0 0.5rem;
+  font-size: 1.35rem;
   font-weight: 600;
 }
 
@@ -156,7 +152,7 @@ button {
 .cw-hints {
   display: flex;
   align-items: center;
-  padding: 0.4rem 1.2rem;
+  padding: 0.3rem 1rem;
   color: var(--color-muted);
   font-size: 0.8rem;
   border-top: 1px solid var(--color-border);

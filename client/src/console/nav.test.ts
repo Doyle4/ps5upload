@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createPadReader, DEFAULT_INPUT_MAP, nextFocus, type InputMap } from "./nav";
+import { bindingForKey, createPadReader, DEFAULT_INPUT_MAP, hintEntries, nextFocus, type InputMap } from "./nav";
 
 // Vitest runs in node here (no jsdom): rects are plain objects and the
 // "elements" are tagged stand-ins, which is all nextFocus looks at.
@@ -91,20 +91,66 @@ describe("gamepad reader", () => {
   });
 
   it("ignores buttons the map does not name", () => {
-    const map: InputMap = { keys: {}, buttons: { 1: { action: "back", glyph: "○", verified: false } } };
+    const map: InputMap = [{ button: "circle", glyph: "○", action: "back", keys: [], keyCodes: [], pad: 1, verified: false }];
     const read = createPadReader(map);
     expect(read(press(0, 1), 0)).toEqual(["back"]);
   });
 });
 
 describe("default input map", () => {
-  it("ships every R11 binding unverified", () => {
-    const all = [...Object.values(DEFAULT_INPUT_MAP.keys), ...Object.values(DEFAULT_INPUT_MAP.buttons)];
-    expect(all.length).toBeGreaterThan(0);
-    expect(all.every((b) => b.verified === false)).toBe(true);
-    expect(DEFAULT_INPUT_MAP.buttons[0].action).toBe("confirm");
-    expect(DEFAULT_INPUT_MAP.buttons[1].action).toBe("back");
-    expect(DEFAULT_INPUT_MAP.keys.Escape.action).toBe("back");
-    expect(DEFAULT_INPUT_MAP.keys.Backspace.action).toBe("back");
+  const entry = (b: string) => DEFAULT_INPUT_MAP.find((x) => x.button === b);
+
+  it("covers every DualSense button, each unverified until measured", () => {
+    const want = [
+      "cross", "circle", "triangle", "square", "up", "down", "left", "right", "lstick", "rstick",
+      "l1", "r1", "l2", "r2", "l3", "r3", "options", "create", "touchpad", "ps", "mute",
+    ];
+    expect(DEFAULT_INPUT_MAP.map((x) => x.button).sort()).toEqual([...want].sort());
+    expect(DEFAULT_INPUT_MAP.every((x) => x.verified === false)).toBe(true);
+  });
+
+  it("wires each button to its action", () => {
+    const actions: Record<string, string> = {
+      cross: "confirm", circle: "back", triangle: "actions", square: "select",
+      up: "up", down: "down", left: "left", right: "right", lstick: "pointer", rstick: "scroll",
+      l1: "prevSection", r1: "nextSection", l2: "pageUp", r2: "pageDown", l3: "top", r3: "rail",
+      options: "help", create: "refresh", touchpad: "fullscreen", ps: "system", mute: "system",
+    };
+    for (const [b, a] of Object.entries(actions)) expect(entry(b)?.action, b).toBe(a);
+  });
+
+  it("seeds the standard keys: Enter, Escape/Backspace, arrows, PageUp/PageDown, Home, ContextMenu, F5", () => {
+    expect(entry("cross")?.keys).toContain("Enter");
+    expect(entry("circle")?.keys).toEqual(expect.arrayContaining(["Escape", "Backspace"]));
+    expect(entry("up")?.keys).toContain("ArrowUp");
+    expect(entry("l2")?.keys).toContain("PageUp");
+    expect(entry("r2")?.keys).toContain("PageDown");
+    expect(entry("l3")?.keys).toContain("Home");
+    expect(entry("triangle")?.keys).toContain("ContextMenu");
+    expect(entry("create")?.keys).toContain("F5");
+    expect(entry("cross")?.keyCodes).toContain(13);
+    // The PS button and Mute never reach the page; nothing listens for them.
+    expect(entry("ps")?.keys).toEqual([]);
+    expect(entry("mute")?.keys).toEqual([]);
+  });
+
+  it("bindingForKey matches by key, then by keyCode when the key is not named", () => {
+    expect(bindingForKey(DEFAULT_INPUT_MAP, "Enter", 0)?.action).toBe("confirm");
+    expect(bindingForKey(DEFAULT_INPUT_MAP, "Unidentified", 27)?.action).toBe("back");
+    expect(bindingForKey(DEFAULT_INPUT_MAP, "x", 88)).toBeNull();
+  });
+});
+
+describe("hint bar entries", () => {
+  it("shows ✕ and ○ always, others only once verified", () => {
+    expect(hintEntries(DEFAULT_INPUT_MAP).map((h) => h.glyph)).toEqual(["✕", "○"]);
+    const map = DEFAULT_INPUT_MAP.map((b) => (b.button === "l2" ? { ...b, verified: true } : b));
+    expect(hintEntries(map).map((h) => h.glyph)).toEqual(["✕", "○", "L2"]);
+  });
+
+  it("never advertises system buttons or the sticks", () => {
+    const all = DEFAULT_INPUT_MAP.map((b) => ({ ...b, verified: true }));
+    const glyphs = hintEntries(all).map((h) => h.glyph);
+    for (const g of ["PS", "MUTE", "LS", "RS"]) expect(glyphs).not.toContain(g);
   });
 });

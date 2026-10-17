@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { call, isOffline, onTokenExpired } from "./api";
 import { useBackLevel } from "./backHistory";
+import { toggleFullscreen } from "./fullscreen";
 import { focusElement, onNavAction, type InputMap } from "./nav";
 import { SECTIONS, type SectionContext, type SectionParams } from "./sections";
 import { HintBar } from "./shell/HintBar";
@@ -69,10 +70,19 @@ export function App({ inputMap }: { inputMap: InputMap }) {
     if (el) focusElement(el);
   }, []);
 
-  // L1/R1 step through the sections; ○ goes from the content to the rail, then to Home.
+  // L1/R1 step through the sections; ○ goes from the content to the rail, then to Home;
+  // Create re-reads the status (sections re-read their own data first); the touchpad toggles full screen.
   useEffect(
     () =>
       onNavAction((action) => {
+        if (action === "refresh") {
+          setStatusTick((n) => n + 1);
+          return true;
+        }
+        if (action === "fullscreen") {
+          toggleFullscreen();
+          return true;
+        }
         const i = SECTIONS.findIndex((s) => s.id === active);
         if (action === "prevSection" || action === "nextSection") {
           const step = action === "nextSection" ? 1 : SECTIONS.length - 1;

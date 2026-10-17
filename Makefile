@@ -917,6 +917,12 @@ test-payload: payload
 		$(PAYLOAD_DIR)/ava1/gen/ava1_gen.c $(PAYLOAD_DIR)/ava1/ava1_wire.c
 	@/tmp/ps5upload-webui-settings-selftest
 	@echo "✓ a missing or garbled settings file falls back to defaults; the tile is written only when it differs"
+	@echo "Running webui input log self-test (host build)..."
+	@cc -O2 -Wall -Wextra -Werror -I$(PAYLOAD_DIR)/include \
+		-o /tmp/ps5upload-webui-inputlog-selftest \
+		$(PAYLOAD_DIR)/tests/webui_inputlog_selftest.c $(PAYLOAD_DIR)/src/webui_inputlog.c
+	@/tmp/ps5upload-webui-inputlog-selftest
+	@echo "✓ the controller input log takes only plain short lines and never grows past its 64 KiB ring"
 	@echo "Running AVA1 in-flight RPC gate self-test (host build)..."
 	@cc -O2 -Wall -Wextra -Werror -pthread -I$(PAYLOAD_DIR)/ava1 \
 		-o /tmp/ps5upload-ava1-rpc-gate-selftest \

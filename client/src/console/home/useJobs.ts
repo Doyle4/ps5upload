@@ -126,6 +126,8 @@ export interface JobsState {
   error: unknown;
   /** Stop job `id`; throws the ApiError when the helper refuses. Re-reads either way. */
   cancel(id: string): Promise<void>;
+  /** Read the jobs again now (Create = refresh). */
+  refresh(): void;
 }
 
 export function useJobs(): JobsState {
@@ -159,5 +161,9 @@ export function useJobs(): JobsState {
     }
   }, []);
 
-  return { jobs, loaded, error, cancel };
+  const refresh = useCallback(() => {
+    poller.current?.refresh();
+  }, []);
+
+  return { jobs, loaded, error, cancel, refresh };
 }

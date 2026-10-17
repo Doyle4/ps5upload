@@ -4492,6 +4492,14 @@ c2c_test_deep_bad: "The 4 KiB test send did not arrive: {detail}",
 "cw_files_too_large": "Too large to preview.",
 "cw_settings_err_tile_add": "Could not add PS5Upload to the home screen. Try again.",
 "cw_settings_err_tile_remove": "Could not remove PS5Upload from the home screen. Try again.",
+"cw_hint_page": "Page up/down",
+"cw_hint_top": "Top",
+"cw_hint_help": "Help",
+"cw_hint_refresh": "Refresh",
+"cw_hint_fullscreen": "Full screen",
+"cw_settings_display": "Display",
+"cw_settings_fullscreen": "Full screen",
+"cw_settings_fullscreen_note": "Hides the browser's bars so the page fills the TV. Takes effect on your next button press.",
 };
 
 export default en;

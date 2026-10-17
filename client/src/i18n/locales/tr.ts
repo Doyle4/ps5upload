@@ -4176,6 +4176,14 @@ c2c_test_deep_bad: "4 KiB'lik test gönderimi ulaşmadı: {detail}",
 "cw_files_too_large": "Önizleme için çok büyük.",
 "cw_settings_err_tile_add": "PS5Upload ana ekrana eklenemedi. Tekrar deneyin.",
 "cw_settings_err_tile_remove": "PS5Upload ana ekrandan kaldırılamadı. Tekrar deneyin.",
+"cw_hint_page": "Sayfa yukarı/aşağı",
+"cw_hint_top": "En üst",
+"cw_hint_help": "Yardım",
+"cw_hint_refresh": "Yenile",
+"cw_hint_fullscreen": "Tam ekran",
+"cw_settings_display": "Ekran",
+"cw_settings_fullscreen": "Tam ekran",
+"cw_settings_fullscreen_note": "Sayfanın tüm TV'yi doldurması için tarayıcı çubuklarını gizler. Bir sonraki tuşa basışınızda etkinleşir.",
 };
 
 export default tr;

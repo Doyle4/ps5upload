@@ -4119,6 +4119,14 @@ c2c_test_deep_bad: "Тестовая отправка 4 КиБ не дошла: 
 "cw_files_too_large": "Слишком большой для просмотра.",
 "cw_settings_err_tile_add": "Не удалось добавить PS5Upload на главный экран. Повторите попытку.",
 "cw_settings_err_tile_remove": "Не удалось убрать PS5Upload с главного экрана. Повторите попытку.",
+"cw_hint_page": "Страница вверх/вниз",
+"cw_hint_top": "В начало",
+"cw_hint_help": "Справка",
+"cw_hint_refresh": "Обновить",
+"cw_hint_fullscreen": "Полный экран",
+"cw_settings_display": "Экран",
+"cw_settings_fullscreen": "Полный экран",
+"cw_settings_fullscreen_note": "Скрывает панели браузера, чтобы страница заполняла весь телевизор. Срабатывает при следующем нажатии кнопки.",
 };
 
 export default ru;

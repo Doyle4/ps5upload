@@ -1,18 +1,25 @@
 /**
- * Controller and keyboard navigation for the console page.
+ * Controller, pointer and keyboard navigation for the console page.
  *
  * Focus is always real DOM focus on real controls (<button>, <a>, inputs), so
  * the browser's own focus handling keeps working; this layer only adds:
+ *   - pointer = focus: the PS5 browser drives an on-screen pointer with the
+ *     left stick and ✕ clicks at it, so hovering a control focuses it; the
+ *     focus ring and what ✕ activates are then the same element;
  *   - spatial movement: a direction moves focus to the nearest focusable
  *     element that way (nextFocus), from arrow keys or the D-pad;
- *   - confirm: clicks the focused control;
+ *   - confirm: clicks the focused control (Enter, or ✕ when it arrives as a key);
+ *   - page moves (L2/R2), top of the list (L3), the rail (R3);
  *   - the other actions (back, actions, select, prevSection, nextSection,
- *     filter) go to the handlers registered with onNavAction, newest first.
+ *     help, refresh, fullscreen) go to the handlers registered with
+ *     onNavAction, newest first.
  *
- * Which keys and Gamepad buttons the PS5 browser really delivers has not been
- * measured yet (ruling R11), so the bindings are one table, InputMap, with a
- * `verified` flag per entry. The HintBar shows only verified entries, and every
- * action has an on-screen control as well, so nothing depends on a shortcut.
+ * Which keys the PS5 browser really delivers for each button has not been
+ * measured yet, so the bindings are one table, DEFAULT_INPUT_MAP, covering the
+ * whole DualSense with a `verified` flag per entry (the input log, inputLog.ts,
+ * is how they get measured). The HintBar shows ✕ and ○ always and the others
+ * only once verified, and every action has an on-screen control as well, so
+ * nothing depends on a shortcut.
  */
 import { requestBack } from "./backHistory";
 
@@ -25,51 +32,134 @@ export type NavAction =
   | "select"
   | "prevSection"
   | "nextSection"
-  | "filter";
+  | "pageUp"
+  | "pageDown"
+  | "top"
+  | "rail"
+  | "help"
+  | "refresh"
+  | "fullscreen";
+
+/** What a table entry does: a NavAction, or a button the page never acts on itself. */
+export type ButtonAction =
+  | NavAction
+  /** The browser's own pointer (left stick): hover = focus, handled by installNavigation. */
+  | "pointer"
+  /** The browser's own scrolling (right stick): left native. */
+  | "scroll"
+  /** Used by the PS5 itself, never delivered to the page (PS, Mute). */
+  | "system";
+
+export type ButtonId =
+  | "cross"
+  | "circle"
+  | "triangle"
+  | "square"
+  | "up"
+  | "down"
+  | "left"
+  | "right"
+  | "lstick"
+  | "rstick"
+  | "l1"
+  | "r1"
+  | "l2"
+  | "r2"
+  | "l3"
+  | "r3"
+  | "options"
+  | "create"
+  | "touchpad"
+  | "ps"
+  | "mute";
 
 export interface InputBinding {
-  action: NavAction;
-  /** The controller glyph the HintBar shows (gamepad entries). */
-  glyph?: string;
-  /** Measured on a real console. Only verified entries are advertised. */
+  button: ButtonId;
+  /** The controller glyph the HintBar and the Controls screen show. */
+  glyph: string;
+  action: ButtonAction;
+  /** KeyboardEvent.key values the button may arrive as (seeded guesses until verified). */
+  keys: string[];
+  /** KeyboardEvent.keyCode values, for a browser that names the key "Unidentified". */
+  keyCodes: number[];
+  /** Gamepad API "standard" button index (only where the Gamepad API exists; the PS5 browser has none). */
+  pad?: number;
+  /** Measured on a real console. Only verified entries (and ✕/○) are advertised. */
   verified: boolean;
 }
 
-export interface InputMap {
-  /** KeyboardEvent.key → binding. */
-  keys: Record<string, InputBinding>;
-  /** Gamepad API "standard" button index → binding. */
-  buttons: Record<number, InputBinding>;
+/** The whole controller, one entry per button. */
+export type InputMap = InputBinding[];
+
+const bind = (
+  button: ButtonId,
+  glyph: string,
+  action: ButtonAction,
+  keys: string[],
+  keyCodes: number[],
+  pad?: number,
+): InputBinding => ({ button, glyph, action, keys, keyCodes, pad, verified: false });
+
+/**
+ * Every DualSense button. Keys are the standard keyboard equivalents where one
+ * exists (the measurement pass replaces them with what the PS5 browser really
+ * sends and sets `verified`).
+ */
+export const DEFAULT_INPUT_MAP: InputMap = [
+  bind("cross", "✕", "confirm", ["Enter"], [13], 0),
+  bind("circle", "○", "back", ["Escape", "Backspace", "GoBack", "BrowserBack"], [27, 8], 1),
+  bind("square", "□", "select", [], [], 2),
+  bind("triangle", "△", "actions", ["ContextMenu"], [93], 3),
+  bind("up", "↑", "up", ["ArrowUp"], [38], 12),
+  bind("down", "↓", "down", ["ArrowDown"], [40], 13),
+  bind("left", "←", "left", ["ArrowLeft"], [37], 14),
+  bind("right", "→", "right", ["ArrowRight"], [39], 15),
+  bind("lstick", "LS", "pointer", [], []),
+  bind("rstick", "RS", "scroll", [], []),
+  bind("l1", "L1", "prevSection", [], [], 4),
+  bind("r1", "R1", "nextSection", [], [], 5),
+  bind("l2", "L2", "pageUp", ["PageUp"], [33], 6),
+  bind("r2", "R2", "pageDown", ["PageDown"], [34], 7),
+  bind("l3", "L3", "top", ["Home"], [36], 10),
+  bind("r3", "R3", "rail", [], [], 11),
+  bind("options", "OPTIONS", "help", ["F1", "Help"], [112], 9),
+  bind("create", "CREATE", "refresh", ["F5", "BrowserRefresh"], [116], 8),
+  bind("touchpad", "TOUCHPAD", "fullscreen", ["F11"], [122]),
+  bind("ps", "PS", "system", [], []),
+  bind("mute", "MUTE", "system", [], []),
+];
+
+const ACTIONS_THE_PAGE_RUNS: ReadonlySet<ButtonAction> = new Set<ButtonAction>([
+  "up",
+  "down",
+  "left",
+  "right",
+  "confirm",
+  "back",
+  "actions",
+  "select",
+  "prevSection",
+  "nextSection",
+  "pageUp",
+  "pageDown",
+  "top",
+  "rail",
+  "help",
+  "refresh",
+  "fullscreen",
+]);
+
+function isNavAction(a: ButtonAction): a is NavAction {
+  return ACTIONS_THE_PAGE_RUNS.has(a);
 }
 
-const k = (action: NavAction): InputBinding => ({ action, verified: false });
-const b = (action: NavAction, glyph: string): InputBinding => ({ action, glyph, verified: false });
-
-/** R11's default table. Every entry is unverified until the console capture. */
-export const DEFAULT_INPUT_MAP: InputMap = {
-  keys: {
-    ArrowUp: k("up"),
-    ArrowDown: k("down"),
-    ArrowLeft: k("left"),
-    ArrowRight: k("right"),
-    Enter: k("confirm"),
-    Escape: k("back"),
-    Backspace: k("back"),
-  },
-  buttons: {
-    0: b("confirm", "✕"),
-    1: b("back", "○"),
-    2: b("select", "□"),
-    3: b("actions", "△"),
-    4: b("prevSection", "L1"),
-    5: b("nextSection", "R1"),
-    7: b("filter", "R2"),
-    12: b("up", "↑"),
-    13: b("down", "↓"),
-    14: b("left", "←"),
-    15: b("right", "→"),
-  },
-};
+/** The binding a keydown belongs to: by `key`, else by `keyCode` (a key the browser does not name). */
+export function bindingForKey(map: InputMap, key: string, keyCode: number): InputBinding | null {
+  for (const b of map) if (isNavAction(b.action) && b.keys.includes(key)) return b;
+  if (key.length === 1) return null; // a printable key is text, never a button
+  if (keyCode) for (const b of map) if (isNavAction(b.action) && b.keyCodes.includes(keyCode)) return b;
+  return null;
+}
 
 /* ---- spatial focus ---------------------------------------------------- */
 
@@ -167,11 +257,12 @@ const DIRECTIONS: ReadonlySet<NavAction> = new Set(["up", "down", "left", "right
 export function createPadReader(map: InputMap): (pressed: boolean[], now: number) => NavAction[] {
   const downSince = new Map<number, number>();
   const lastFire = new Map<number, number>();
+  const padded = map.filter((b) => b.pad !== undefined && isNavAction(b.action));
   return (pressed, now) => {
     const out: NavAction[] = [];
-    for (const key of Object.keys(map.buttons)) {
-      const i = Number(key);
-      const binding = map.buttons[i];
+    for (const binding of padded) {
+      const i = binding.pad as number;
+      const action = binding.action as NavAction;
       if (!pressed[i]) {
         downSince.delete(i);
         continue;
@@ -180,15 +271,15 @@ export function createPadReader(map: InputMap): (pressed: boolean[], now: number
       if (since === undefined) {
         downSince.set(i, now);
         lastFire.set(i, now);
-        out.push(binding.action);
+        out.push(action);
         continue;
       }
-      if (!DIRECTIONS.has(binding.action)) continue;
+      if (!DIRECTIONS.has(action)) continue;
       const last = lastFire.get(i) ?? since;
       const due = last === since ? since + REPEAT_DELAY_MS : last + REPEAT_MS;
       if (now >= due) {
         lastFire.set(i, now);
-        out.push(binding.action);
+        out.push(action);
       }
     }
     return out;
@@ -217,7 +308,7 @@ export function createEchoGuard(windowMs: number = ECHO_MS) {
   };
 }
 
-function isDirection(a: NavAction): a is Direction {
+function isDirection(a: ButtonAction): a is Direction {
   return a === "up" || a === "down" || a === "left" || a === "right";
 }
 
@@ -348,15 +439,16 @@ function regionMove(current: FocusCandidate, region: Element, all: FocusCandidat
   return nextFocus(current.rect, same, dir);
 }
 
-function move(dir: Direction): void {
+/** Move focus one step `dir`; the distance the focus travelled along `dir` (before any scroll), or null. */
+function move(dir: Direction): number | null {
   const all = focusables();
-  if (!all.length) return;
+  if (!all.length) return null;
   const active = document.activeElement as HTMLElement | null;
   const current = active ? all.find((c) => c.el === active) : undefined;
   if (!current) {
     const preferred = all.find((c) => c.el.hasAttribute("data-nav-default")) ?? all[0];
     focusElement(preferred.el);
-    return;
+    return null;
   }
   const region = topModal() ? null : regionOf(current.el);
   const next = region
@@ -366,7 +458,50 @@ function move(dir: Direction): void {
         all.filter((c) => c !== current),
         dir,
       );
-  if (next) focusElement(next);
+  if (!next) return null;
+  const to = all.find((c) => c.el === next)?.rect ?? next.getBoundingClientRect();
+  const along =
+    dir === "up" || dir === "down" ? Math.abs(to.top - current.rect.top) : Math.abs(to.left - current.rect.left);
+  focusElement(next);
+  return along;
+}
+
+/** A page for L2/R2: most of the viewport, so the last row of one page is still in sight on the next. */
+export const PAGE_FRACTION = 0.8;
+const PAGE_STEPS_MAX = 200;
+
+/** L2/R2: focus moves down (up) the current list until it has travelled about a page. */
+function page(dir: "up" | "down"): void {
+  const span = (typeof window !== "undefined" && window.innerHeight ? window.innerHeight : 700) * PAGE_FRACTION;
+  let travelled = 0;
+  for (let i = 0; i < PAGE_STEPS_MAX && travelled < span; i++) {
+    const d = move(dir);
+    if (d === null || d <= 0) break;
+    travelled += d;
+  }
+}
+
+/** L3: the first control of the focused element's region (or the open modal), scrolled to the top. */
+function toTop(): void {
+  const all = focusables();
+  if (!all.length) return;
+  const modal = topModal();
+  const active = document.activeElement as HTMLElement | null;
+  const region = modal ?? regionOf(active) ?? null;
+  const inside = region ? all.filter((c) => region.contains(c.el)) : all;
+  if (!inside.length) return;
+  if (region && typeof (region as HTMLElement).scrollTop === "number") (region as HTMLElement).scrollTop = 0;
+  focusElement(inside[0].el);
+}
+
+/** R3: the section rail, at its entry (the active section). */
+function toRail(): void {
+  if (topModal()) return;
+  const all = focusables();
+  const rail = document.querySelectorAll<HTMLElement>('[data-nav-region="rail"]')[0];
+  const regions = rail ? [rail] : Array.from(document.querySelectorAll<HTMLElement>(REGION));
+  const target = regions.length ? regionEntry(regions[0], all) : null;
+  if (target) focusElement(target);
 }
 
 /** Run one action: movement and confirm here, the rest through the handlers. */
@@ -395,6 +530,11 @@ export function dispatchNav(action: NavAction): void {
     }
     if (h.fn(action)) return;
   }
+  // Nobody took it: the page-wide default, where there is one.
+  if (action === "pageUp") page("up");
+  else if (action === "pageDown") page("down");
+  else if (action === "top") toTop();
+  else if (action === "rail") toRail();
 }
 
 /** Text fields keep the keys that edit text. */
@@ -417,26 +557,116 @@ function act(action: NavAction): void {
   else dispatchNav(action);
 }
 
+/** Pointer movement smaller than this (px) after a key move is stick drift or a scroll re-send, not the user. */
+export const POINTER_SLOP_PX = 6;
+
+/** Focus `el` because the pointer is over it: no scroll (the pointer is already there). */
+function focusFromPointer(el: HTMLElement): void {
+  remember(document.activeElement);
+  el.focus({ preventScroll: true });
+  remember(el);
+}
+
+/** The control a pointer event is over, if hovering may focus it now. */
+function hoverTarget(target: EventTarget | null): HTMLElement | null {
+  const t = target as Element | null;
+  if (!t || typeof t.closest !== "function") return null;
+  const el = t.closest<HTMLElement>(FOCUSABLE);
+  if (!el || el.closest("[inert], [aria-hidden='true']")) return null;
+  const modal = topModal();
+  if (modal && !modal.contains(el)) return null;
+  return el;
+}
+
 /**
- * Listen for the keys and gamepad buttons in `map` until the returned function
- * is called. Keyboard: keydown (one a control handled itself is left alone).
- * Gamepad: polled once per animation frame.
+ * Listen for the keys, the pointer and gamepad buttons until the returned
+ * function is called.
+ *
+ * Keyboard: keydown (one a control handled itself is left alone), matched by
+ * key then keyCode (bindingForKey).
+ *
+ * Pointer: a mousemove over a control focuses it (hover = focus). After a key
+ * moved focus the pointer is "parked": it stays where it was, so moves within
+ * POINTER_SLOP_PX of that spot are ignored (stick drift, the browser re-sending
+ * the spot after a scroll), and a pointer click there, which would land on
+ * whatever is under the pointer, activates the focused control instead. The
+ * ring and what ✕ activates never disagree. The wheel (right stick) is left
+ * to the browser.
+ *
+ * Gamepad: polled once per animation frame where the Gamepad API exists.
  */
 export function installNavigation(map: InputMap): () => void {
   const echo = createEchoGuard();
+  const ptr = { x: NaN, y: NaN, parked: false, ax: NaN, ay: NaN };
+  const park = () => {
+    ptr.parked = true;
+    ptr.ax = ptr.x;
+    ptr.ay = ptr.y;
+  };
+
   const onKey = (e: KeyboardEvent) => {
     if (e.altKey || e.ctrlKey || e.metaKey || e.defaultPrevented) return;
-    const binding = map.keys[e.key];
-    if (!binding) return;
+    const binding = bindingForKey(map, e.key, e.keyCode);
+    if (!binding || !isNavAction(binding.action)) return;
+    const action = binding.action;
     const typing = isTextField(e.target as Element | null);
-    if (typing && (binding.action === "left" || binding.action === "right" || e.key === "Backspace" || binding.action === "confirm")) {
+    if (
+      typing &&
+      (action === "left" || action === "right" || action === "confirm" || action === "top" || e.key === "Backspace")
+    ) {
       return;
     }
     e.preventDefault();
-    if (isDirection(binding.action) && !echo.keyAllowed(binding.action, performance.now())) return;
-    act(binding.action);
+    if (isDirection(action) && !echo.keyAllowed(action, performance.now())) return;
+    park();
+    act(action);
   };
+
+  const onMove = (e: MouseEvent) => {
+    const x = e.clientX;
+    const y = e.clientY;
+    if (ptr.parked) {
+      if (Number.isNaN(ptr.ax)) {
+        // Where the pointer sat when the key moved focus was unknown: this is that spot.
+        ptr.ax = x;
+        ptr.ay = y;
+        ptr.x = x;
+        ptr.y = y;
+        return;
+      }
+      if (Math.hypot(x - ptr.ax, y - ptr.ay) < POINTER_SLOP_PX) return;
+      ptr.parked = false;
+    }
+    ptr.x = x;
+    ptr.y = y;
+    const el = hoverTarget(e.target);
+    if (!el || el === document.activeElement) return;
+    if (isTextField(document.activeElement)) return; // never pull focus out of a field being typed into
+    focusFromPointer(el);
+  };
+
+  /** A parked pointer's press would land away from the ring: true when it must be redirected. */
+  const strays = (target: EventTarget | null): boolean => {
+    if (!ptr.parked) return false;
+    const active = document.activeElement as HTMLElement | null;
+    if (!active || active === document.body) return false;
+    return !active.contains(target as Node | null);
+  };
+  const onDown = (e: MouseEvent) => {
+    if (e.button === 0 && strays(e.target)) e.preventDefault(); // focus stays on the ring
+  };
+  const onClick = (e: MouseEvent) => {
+    // detail 0: a click from a key or from .click(), not the pointer.
+    if (!e.isTrusted || !e.detail || !strays(e.target)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    dispatchNav("confirm");
+  };
+
   window.addEventListener("keydown", onKey);
+  window.addEventListener("mousemove", onMove, true);
+  window.addEventListener("mousedown", onDown, true);
+  window.addEventListener("click", onClick, true);
 
   let frame = 0;
   let stopped = false;
@@ -457,6 +687,7 @@ export function installNavigation(map: InputMap): () => void {
       const pressed = pad.buttons.map((btn) => btn.pressed);
       for (const action of read(pressed, now)) {
         if (isDirection(action)) echo.padFired(action, now);
+        park();
         act(action);
       }
     }
@@ -467,13 +698,21 @@ export function installNavigation(map: InputMap): () => void {
   return () => {
     stopped = true;
     window.removeEventListener("keydown", onKey);
+    window.removeEventListener("mousemove", onMove, true);
+    window.removeEventListener("mousedown", onDown, true);
+    window.removeEventListener("click", onClick, true);
     if (frame) cancelAnimationFrame(frame);
   };
 }
 
-/** The bindings the HintBar may advertise: verified gamepad entries. */
-export function verifiedButtons(map: InputMap): InputBinding[] {
-  return Object.keys(map.buttons)
-    .map((i) => map.buttons[Number(i)])
-    .filter((x) => x.verified);
+/**
+ * What the HintBar shows: ✕ and ○ always (they work in every browser: ○ is the
+ * browser's own Back), then each verified button with an action of its own.
+ * Directions, the sticks and the system buttons are never listed.
+ */
+export function hintEntries(map: InputMap): InputBinding[] {
+  const always = (b: InputBinding) => b.button === "cross" || b.button === "circle";
+  return map.filter(
+    (b) => always(b) || (b.verified && isNavAction(b.action) && !isDirection(b.action)),
+  );
 }

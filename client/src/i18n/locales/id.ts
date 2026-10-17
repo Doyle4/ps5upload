@@ -4178,6 +4178,14 @@ c2c_test_deep_bad: "Kiriman uji 4 KiB tidak tiba: {detail}",
 "cw_files_too_large": "Terlalu besar untuk pratinjau.",
 "cw_settings_err_tile_add": "PS5Upload tidak dapat ditambahkan ke layar utama. Coba lagi.",
 "cw_settings_err_tile_remove": "PS5Upload tidak dapat dihapus dari layar utama. Coba lagi.",
+"cw_hint_page": "Halaman atas/bawah",
+"cw_hint_top": "Paling atas",
+"cw_hint_help": "Bantuan",
+"cw_hint_refresh": "Muat ulang",
+"cw_hint_fullscreen": "Layar penuh",
+"cw_settings_display": "Tampilan",
+"cw_settings_fullscreen": "Layar penuh",
+"cw_settings_fullscreen_note": "Menyembunyikan bilah browser agar halaman memenuhi TV. Berlaku saat Anda menekan tombol berikutnya.",
 };
 
 export default id;

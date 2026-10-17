@@ -180,6 +180,7 @@ static const char *status_text(int status) {
     case 408: return "Request Timeout";
     case 413: return "Payload Too Large";
     case 414: return "URI Too Long";
+    case 429: return "Too Many Requests";
     case 431: return "Request Header Fields Too Large";
     case 500: return "Internal Server Error";
     case 503: return "Service Unavailable";

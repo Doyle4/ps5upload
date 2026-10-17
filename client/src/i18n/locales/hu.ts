@@ -4484,6 +4484,14 @@ c2c_test_deep_bad: "A 4 KiB-os tesztküldés nem érkezett meg: {detail}",
 "cw_files_too_large": "Túl nagy az előnézethez.",
 "cw_settings_err_tile_add": "A PS5Upload nem került fel a kezdőképernyőre. Próbáld újra.",
 "cw_settings_err_tile_remove": "A PS5Upload nem került le a kezdőképernyőről. Próbáld újra.",
+"cw_hint_page": "Lapozás fel/le",
+"cw_hint_top": "Elejére",
+"cw_hint_help": "Súgó",
+"cw_hint_refresh": "Frissítés",
+"cw_hint_fullscreen": "Teljes képernyő",
+"cw_settings_display": "Megjelenítés",
+"cw_settings_fullscreen": "Teljes képernyő",
+"cw_settings_fullscreen_note": "Elrejti a böngésző sávjait, hogy az oldal kitöltse a tévét. A következő gombnyomástól érvényes.",
 };
 
 export default hu;

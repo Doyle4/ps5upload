@@ -12,6 +12,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #include "ava1_data.h"
 #include "ava1_gen.h"
@@ -24,6 +25,7 @@
 #include "proc_identity.h"
 #include "ps5_firmware.h"
 #include "webui_codec.h"
+#include "webui_inputlog.h"
 #include "webui_page.h"
 #include "webui_server.h"
 #include "webui_settings.h"
@@ -774,6 +776,58 @@ int webui_api_tile_off(void) {
     return rc;
 }
 
+/* ---- input log ---- */
+
+/* One append at a time (the file is a ring rewritten in place), and the time of the last one: a
+ * page that ignores its one-a-second rule is told 429 instead of making the helper write. */
+static pthread_mutex_t g_inlog_mu = PTHREAD_MUTEX_INITIALIZER;
+static long long g_inlog_last_ms = -1000000;
+#define INLOG_MIN_GAP_MS 500 /* half the page's period: its timer jitter never trips it */
+#define INLOG_LINES_CAP (8u * 1024u)
+
+static long long mono_ms(void) {
+    struct timespec ts;
+    if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0) return 0;
+    return (long long)ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
+}
+
+/* {events:["<line>",...]}: appended to WEBUI_INPUTLOG_PATH (webui_inputlog.c checks every line).
+ * `out` (API_OUT_MAX, heap) holds the lines, then serves as the ring rewrite's scratch. */
+static void r_input_log(const char *b, size_t n, uint8_t *out, int fd) {
+    const char *arr;
+    size_t alen;
+    long lines;
+    long long now;
+    int rc;
+    _Static_assert(INLOG_LINES_CAP + WEBUI_INPUTLOG_CAP <= API_OUT_MAX, "input log scratch must fit the route buffer");
+    if (n > WEBUI_INPUTLOG_BODY_MAX) {
+        send_error(fd, 413, "too_large", 9);
+        return;
+    }
+    if (webui_json_array(b, n, "events", &arr, &alen) != 1) {
+        send_bad(fd, "bad_events");
+        return;
+    }
+    lines = webui_inputlog_lines(arr, alen, (char *)out, INLOG_LINES_CAP);
+    if (lines < 0) {
+        send_bad(fd, "bad_events");
+        return;
+    }
+    pthread_mutex_lock(&g_inlog_mu);
+    now = mono_ms();
+    if (now - g_inlog_last_ms < INLOG_MIN_GAP_MS) {
+        pthread_mutex_unlock(&g_inlog_mu);
+        send_error(fd, 429, "too_many", 8);
+        return;
+    }
+    g_inlog_last_ms = now;
+    rc = webui_inputlog_append(WEBUI_INPUTLOG_PATH, (const char *)out, (size_t)lines, WEBUI_INPUTLOG_CAP,
+                               (char *)out + INLOG_LINES_CAP, API_OUT_MAX - INLOG_LINES_CAP);
+    pthread_mutex_unlock(&g_inlog_mu);
+    if (rc != 0) send_error(fd, 500, "write_failed", 12);
+    else send_json(fd, 200, "{\"ok\":true}", 11);
+}
+
 /* The allowlist: nothing else is reachable. */
 static const struct {
     const char *path;
@@ -794,6 +848,7 @@ static const struct {
     { "/api/power", r_power },
     { "/api/settings", r_settings },
     { "/api/settings/set", r_settings_set },
+    { "/api/input-log", r_input_log },
 };
 
 /* The page's own headers: only same-origin fetches, inline script/style (the page is one file),
