@@ -152,7 +152,46 @@ static void head_has_connection_close(void) {
     CHECK(webui_http_head(out, sizeof out, 200, NULL, 1, NULL) > 0);
 }
 
+static void every_prefix_of_long_request(void) {
+    static char req[2300];
+    webui_req_t r;
+    size_t n = 0, k, term;
+    memcpy(req, "GET /", 5); n = 5;
+    memset(req + n, 'p', 99); n += 99;               /* path 100 */
+    req[n++] = '?';
+    memset(req + n, 'q', 1000); n += 1000;           /* query 1000 */
+    memcpy(req + n, " HTTP/1.1\r\nHost: h\r\n\r\n", 22); n += 22;
+    term = n;
+    for (k = 0; k < term; k++)
+        CHECK(webui_http_parse(req, k, &r) == WEBUI_PARSE_MORE);
+    CHECK(webui_http_parse(req, n, &r) == WEBUI_PARSE_OK);
+    CHECK(strlen(r.query) == 1000);
+
+    /* Largest legal line (path 1024, query 1024) also never flips. */
+    n = 0;
+    memcpy(req, "DELETE /", 8); n = 8;
+    memset(req + n, 'p', 1023); n += 1023;
+    req[n++] = '?';
+    memset(req + n, 'q', 1024); n += 1024;
+    memcpy(req + n, " HTTP/1.1\r\n\r\n", 13); n += 13;
+    for (k = 0; k < n; k++)
+        CHECK(webui_http_parse(req, k, &r) == WEBUI_PARSE_MORE);
+    CHECK(webui_http_parse(req, n, &r) == WEBUI_PARSE_OK);
+}
+
+static void duplicate_identity_headers_bad(void) {
+    webui_req_t r;
+    CHECK(parse_str("GET / HTTP/1.1\r\nHost: a\r\nhost: b\r\n\r\n", &r)
+          == WEBUI_PARSE_BAD);
+    CHECK(parse_str("GET / HTTP/1.1\r\nOrigin: a\r\nORIGIN: a\r\n\r\n", &r)
+          == WEBUI_PARSE_BAD);
+    CHECK(parse_str("GET / HTTP/1.1\r\nX-PS5U-Token: a\r\nx-ps5u-token: b\r\n\r\n",
+                    &r) == WEBUI_PARSE_BAD);
+}
+
 int main(void) {
+    every_prefix_of_long_request();
+    duplicate_identity_headers_bad();
     parses_get_with_headers();
     post_body_not_consumed();
     incomplete_headers_need_more();

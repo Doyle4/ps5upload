@@ -79,7 +79,7 @@ static int copy_value(char *dst, size_t cap, const char *v, size_t n) {
 int webui_http_parse(const char *buf, size_t len, webui_req_t *out) {
     const char *end = buf + len, *p, *eol, *term = NULL;
     size_t scan, i;
-    int rc, have_cl = 0;
+    int rc, have_cl = 0, have_host = 0, have_origin = 0, have_token = 0;
 
     memset(out, 0, sizeof *out);
 
@@ -97,8 +97,13 @@ int webui_http_parse(const char *buf, size_t len, webui_req_t *out) {
     if (!term) {
         if (len > WEBUI_HEADER_CAP) return WEBUI_PARSE_TOO_BIG;
         if (!eol) {
-            /* No request line yet: a path can't legally exceed the cap. */
-            if (len > WEBUI_PATH_CAP + 32) return WEBUI_PARSE_TOO_BIG;
+            /* No request line yet: bound by the longest legal line, i.e.
+             * method(7) SP path(1024) '?' query(1024) SP HTTP/1.x(8), plus
+             * a possible lone '\r' of the CRLF. Must match
+             * parse_request_line so the verdict never depends on how the
+             * bytes were segmented. */
+            if (len > 7 + 1 + WEBUI_PATH_CAP + 1 + WEBUI_PATH_CAP + 1 + 8 + 1)
+                return WEBUI_PARSE_TOO_BIG;
             return WEBUI_PARSE_MORE;
         }
     }
@@ -125,10 +130,16 @@ int webui_http_parse(const char *buf, size_t len, webui_req_t *out) {
         while (ve > v && (ve[-1] == ' ' || ve[-1] == '\t')) ve--;
 
         if (name_is(p, nlen, "host")) {
+            if (have_host) return WEBUI_PARSE_BAD;
+            have_host = 1;
             rc = copy_value(out->host, sizeof out->host, v, (size_t)(ve - v));
         } else if (name_is(p, nlen, "origin")) {
+            if (have_origin) return WEBUI_PARSE_BAD;
+            have_origin = 1;
             rc = copy_value(out->origin, sizeof out->origin, v, (size_t)(ve - v));
         } else if (name_is(p, nlen, "x-ps5u-token")) {
+            if (have_token) return WEBUI_PARSE_BAD;
+            have_token = 1;
             rc = copy_value(out->token, sizeof out->token, v, (size_t)(ve - v));
         } else if (name_is(p, nlen, "transfer-encoding")) {
             return WEBUI_PARSE_BAD;
