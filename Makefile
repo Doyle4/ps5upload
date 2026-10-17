@@ -895,6 +895,13 @@ test-payload: payload
 		-o /tmp/ps5upload-webui-auth-selftest \
 		$(PAYLOAD_DIR)/tests/webui_auth_selftest.c $(PAYLOAD_DIR)/src/webui_auth.c
 	@/tmp/ps5upload-webui-auth-selftest
+	@echo "Running webui server self-test (host build, ~20 s)..."
+	@cc -O2 -Wall -Wextra -Werror -pthread -I$(PAYLOAD_DIR)/include \
+		-o /tmp/ps5upload-webui-server-selftest \
+		$(PAYLOAD_DIR)/tests/webui_server_selftest.c $(PAYLOAD_DIR)/src/webui_server.c \
+		$(PAYLOAD_DIR)/src/webui_http.c $(PAYLOAD_DIR)/src/webui_auth.c
+	@/tmp/ps5upload-webui-server-selftest
+	@echo "✓ silent, half-sent and flooding web clients never stall the helper"
 	@echo "Running cheat title list self-test (host build)..."
 	@cc -O2 -Wall -Wextra -Werror -I$(PAYLOAD_DIR)/include \
 		-o /tmp/ps5upload-cheats-list-selftest \

@@ -33,4 +33,7 @@
  * startup reconciliation to detect orphaned mounts. */
 #define PS5UPLOAD2_MOUNTS_DIR "/data/ps5upload/mounts"
 
+/* Console web UI (webui_server.c): loopback-only unless LAN access is on. */
+#define WEBUI_PORT 9180
+
 #endif

@@ -31,6 +31,7 @@
 #include "sony_api_lock.h"
 
 #include "proc_identity.h"
+#include "webui_server.h"
 /* Sony "debugger" / system-process authid. Setting our process's
  * ucred authid to this value grants the credentials Sony's kernel
  * stubs check before allowing sensor reads / launches / installs
@@ -490,6 +491,13 @@ static void redirect_stdio_to_file(void) {
 
 /* Starts the AVA1 side; only ever reached through takeover_gate_start (no other helper holds the port). */
 static int g_ava1_start_rc = 0;
+/* Console web UI router: 404 for everything until the API lands (Task 4 replaces it). */
+static int webui_route_none(const webui_req_t *r, const uint8_t *body, size_t body_len, int fd) {
+    (void)r; (void)body; (void)body_len;
+    webui_send_json(fd, 404, "{\"error\":\"not_found\"}");
+    return 0;
+}
+
 static void start_ava1_cb(void *ctx) {
     (void)ctx;
     int ava1_rc = ava1_payload_start();
@@ -791,6 +799,17 @@ int main(void) {
     }
     startup_trace("TOAST_DONE");
 
+    /* Console web UI, after AVA1 is up. A bind failure is not fatal: the server's accept thread
+     * retries every 5 s (a takeover's old instance may still hold the port for a moment). */
+    {
+        webui_cfg_t wc;
+        wc.port = WEBUI_PORT;
+        wc.lan = 0;
+        wc.route = webui_route_none;
+        if (webui_start(&wc) != 0) fprintf(stderr, "webui: server did not start\n");
+        startup_trace("WEBUI_STARTED");
+    }
+
     /* The AVA1 server runs on its own threads; this thread has nothing left to serve. It waits for
      * node.shutdown or the takeover flag (runtime_request_shutdown), then tears down. */
     runtime_wait_for_shutdown(&state);
@@ -810,6 +829,8 @@ int main(void) {
     /* The AVA1 half: stop accepting, wait for the sessions (2 s) and for any in-flight Sony call
      * (this does NOT return while one runs: only the exit watchdog armed above (8 s, or up to 60 s while a Sony call runs) can end the
      * process then), then stop the data layer so journals are closed and durable jobs resume. */
+    webui_stop(); /* bounded: joins its workers within 2 s, detaches a stuck one */
+
     {
         int sr = ava1_payload_stop(2000, 3000);
         if (sr) fprintf(stderr, "ava1: stop was slow (0x%x): sessions or a Sony call outlived the soft wait\n", sr);

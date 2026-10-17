@@ -78,12 +78,13 @@ fn c_payload_binds_only_9120() {
     binders.sort();
     assert_eq!(
         binders,
-        vec!["ava1/ava1_server.c"],
-        "only the AVA1 server (9120) opens a listener"
+        vec!["ava1/ava1_server.c", "src/webui_server.c"],
+        "only the AVA1 server (9120) and the console web UI server (WEBUI_PORT) open a listener"
     );
-    // The AVA1 server binds AVA1_DEFAULT_PORT and the config carries no other helper port.
+    // The AVA1 server binds AVA1_DEFAULT_PORT; the only other helper port is the web UI's.
     let cfg = std::fs::read_to_string(payload().join("include/config.h")).unwrap();
     assert!(!cfg.contains("9113") && !cfg.contains("9114"));
+    assert!(cfg.contains("#define WEBUI_PORT 9180"));
     let gen = std::fs::read_to_string(payload().join("ava1/gen/ava1_gen.h")).unwrap();
     assert!(gen.contains("AVA1_DEFAULT_PORT 9120"));
 }
