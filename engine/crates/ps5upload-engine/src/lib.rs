@@ -4945,6 +4945,18 @@ fn looks_like_title_id(name: &str) -> bool {
         && b[4..].iter().all(|c| c.is_ascii_digit())
 }
 
+/// The title id of the console web UI's home-screen tile. It is a link to the PS5Upload page, not a
+/// game, so no PC library listing may show it. Keep in sync with `WEBUI_TILE_TITLE_ID` in
+/// payload/include/config.h (a test below checks they match).
+pub(crate) const CONSOLE_WEBUI_TILE_TITLE_ID: &str = "PSUP00001";
+
+/// True for the console page's tile, which the PC library hides.
+pub(crate) fn is_console_webui_tile(title_id: &str) -> bool {
+    title_id
+        .trim()
+        .eq_ignore_ascii_case(CONSOLE_WEBUI_TILE_TITLE_ID)
+}
+
 /// Best-effort title name from `/user/appmeta/<title_id>/`. Tries PS5
 /// `param.json` first, then falls back to PS4 `param.sfo`, then queries
 /// `app.db` (raw file scan when sqlite is unavailable). Returns None on
@@ -5011,6 +5023,7 @@ fn appdb_installed_additions(
         let tid = id.trim();
         if !looks_like_title_id(tid)
             || tid.starts_with("NPXS")
+            || is_console_webui_tile(tid)
             || seen.contains(tid)
             || !app_dirs.contains(tid)
             || !taken.insert(tid.to_string())
@@ -5064,7 +5077,7 @@ async fn ps5_apps_installed(
             let listing_whole = listing.entries.len() < 512;
             let mut titles: Vec<InstalledApp> = Vec::new();
             for e in listing.entries {
-                if !looks_like_title_id(&e.name) {
+                if !looks_like_title_id(&e.name) || is_console_webui_tile(&e.name) {
                     continue;
                 }
                 let tid = e.name;
@@ -12566,6 +12579,33 @@ mod appdb_installed_additions_tests {
                 ("FAKE10101".to_string(), None),
             ]
         );
+    }
+
+    #[test]
+    fn drops_the_console_page_tile() {
+        let rows = vec![
+            ("PSUP00001".to_string(), "PS5Upload".to_string()),
+            ("PLDM00001".to_string(), "Payload Manager".to_string()),
+        ];
+        let got =
+            appdb_installed_additions(&rows, &set(&["PSUP00001", "PLDM00001"]), &HashSet::new());
+        assert_eq!(got.len(), 1);
+        assert_eq!(got[0].0, "PLDM00001");
+    }
+
+    #[test]
+    fn the_tile_id_matches_the_payload_config() {
+        let cfg = include_str!("../../../../payload/include/config.h");
+        let line = cfg
+            .lines()
+            .find(|l| l.contains("#define WEBUI_TILE_TITLE_ID"))
+            .expect("config.h defines WEBUI_TILE_TITLE_ID");
+        assert!(
+            line.contains(&format!("\"{}\"", super::CONSOLE_WEBUI_TILE_TITLE_ID)),
+            "{line}"
+        );
+        assert!(super::is_console_webui_tile("PSUP00001"));
+        assert!(!super::is_console_webui_tile("PLDM00001"));
     }
 
     #[test]

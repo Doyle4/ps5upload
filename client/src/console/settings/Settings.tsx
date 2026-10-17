@@ -207,12 +207,13 @@ export function Settings() {
   }, []);
 
   const live = useRef(true);
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    // Set true here too: StrictMode runs the cleanup and then the effect again.
+    live.current = true;
+    return () => {
       live.current = false;
-    },
-    [],
-  );
+    };
+  }, []);
 
   const save = useCallback((change: Partial<Pick<WebSettings, "lan" | "tile">>) => {
     setBusy(true);

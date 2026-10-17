@@ -762,12 +762,13 @@ int webui_api_tile_off(void) {
     pthread_mutex_lock(&g_set_mu);
     s = g_set;
     s.tile = 0;
+    /* The tile is removed whatever the save does, so memory says off even when the save fails:
+     * Settings then shows what is true (the file may still say on until the next successful save). */
     if (g_set.tile && webui_settings_save(WEBUI_SETTINGS_PATH, &s) != 0) {
         fprintf(stderr, "webui: cannot save tile:false after a PC removed the tile\n");
         rc = -1;
-    } else {
-        g_set = s;
     }
+    g_set = s;
     pthread_mutex_unlock(&g_set_mu);
     webui_tile_request(0, WEBUI_PORT);
     return rc;

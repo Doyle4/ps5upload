@@ -457,12 +457,13 @@ fn with_app_folders(
 ) -> std::collections::HashMap<String, Option<String>> {
     let mut out: std::collections::HashMap<String, Option<String>> = registered
         .into_iter()
+        .filter(|(id, _)| !crate::is_console_webui_tile(id))
         .map(|(id, from)| (id.to_ascii_uppercase(), from))
         .collect();
     for f in folders {
         let id = f.to_ascii_uppercase();
         // By bytes: a folder name with a multi-byte character must not be sliced mid-char.
-        if crate::collection::is_game_id(&id) {
+        if crate::collection::is_game_id(&id) && !crate::is_console_webui_tile(&id) {
             out.entry(id).or_insert(None);
         }
     }
