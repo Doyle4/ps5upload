@@ -59,6 +59,7 @@
 #include "sony_api_lock.h"
 #include "net_probe.h"
 #include "net_ports.h"
+#include "files_handoff.h"
 #include "focus_probe.h"
 #include "proc_list.h"
 #include "proc_identity.h"
@@ -270,6 +271,14 @@
 #define MGMT_FRAME_SAVE_UNMOUNT_ACK 264u
 #define MGMT_FRAME_NET_PORTS 265u
 #define MGMT_FRAME_NET_PORTS_ACK 266u
+#define MGMT_FRAME_FILES_PREFS_GET 267u
+#define MGMT_FRAME_FILES_PREFS_GET_ACK 268u
+#define MGMT_FRAME_FILES_PREFS_SET 269u
+#define MGMT_FRAME_FILES_PREFS_SET_ACK 270u
+#define MGMT_FRAME_FILES_HANDOFF_PUT 271u
+#define MGMT_FRAME_FILES_HANDOFF_PUT_ACK 272u
+#define MGMT_FRAME_FILES_HANDOFF_TAKE 273u
+#define MGMT_FRAME_FILES_HANDOFF_TAKE_ACK 274u
 #define MGMT_FRAME_SDK_SCAN 214u
 #define MGMT_FRAME_SDK_SCAN_ACK 215u
 #define MGMT_FRAME_SDK_PATCH 216u
@@ -7817,6 +7826,54 @@ static int handle_net_ports(runtime_state_t *state, const char *body, uint64_t b
     int rc = mgmt_reply(MGMT_FRAME_NET_PORTS_ACK, resp, (uint64_t)n);
     free(resp);
     return rc;
+}
+
+/* files.*: the console file manager's pinned/recent folders and the "Show on TV" / "Show on PC"
+ * handoffs, for the PC app (the console page reaches the same code through its web routes). The
+ * bodies live in files_handoff.c (host-tested); the answer buffer is on the heap. */
+static int files_method_reply(runtime_state_t *state, uint16_t ack, int which, const char *body, uint64_t body_len) {
+    const size_t cap = FILES_PREFS_FILE_MAX + 1;
+    char *resp;
+    int n, rc;
+    if (!state) return -1;
+    resp = malloc(cap);
+    if (!resp) {
+        const char *err = "{\"ok\":false,\"err\":\"out_of_memory\"}";
+        return mgmt_reply(ack, err, strlen(err));
+    }
+    pthread_mutex_lock(&state->state_mtx);
+    state->command_count += 1;
+    pthread_mutex_unlock(&state->state_mtx);
+    switch (which) {
+    case 0: n = files_mgmt_prefs_get(FILES_PREFS_PATH, resp, cap); break;
+    case 1: n = files_mgmt_prefs_set(FILES_PREFS_PATH, body, (size_t)body_len, resp, cap); break;
+    case 2: n = files_mgmt_handoff_put(body, (size_t)body_len, files_handoff_now_ms(), resp, cap); break;
+    default: n = files_mgmt_handoff_take(body, (size_t)body_len, files_handoff_now_ms(), resp, cap); break;
+    }
+    if (n < 0) {
+        const char *err = "{\"ok\":false,\"err\":\"internal\"}";
+        rc = mgmt_reply(ack, err, strlen(err));
+    } else {
+        rc = mgmt_reply(ack, resp, (uint64_t)n);
+    }
+    free(resp);
+    return rc;
+}
+
+static int handle_files_prefs_get(runtime_state_t *state) {
+    return files_method_reply(state, MGMT_FRAME_FILES_PREFS_GET_ACK, 0, "", 0);
+}
+
+static int handle_files_prefs_set(runtime_state_t *state, const char *body, uint64_t body_len) {
+    return files_method_reply(state, MGMT_FRAME_FILES_PREFS_SET_ACK, 1, body, body_len);
+}
+
+static int handle_files_handoff_put(runtime_state_t *state, const char *body, uint64_t body_len) {
+    return files_method_reply(state, MGMT_FRAME_FILES_HANDOFF_PUT_ACK, 2, body, body_len);
+}
+
+static int handle_files_handoff_take(runtime_state_t *state, const char *body, uint64_t body_len) {
+    return files_method_reply(state, MGMT_FRAME_FILES_HANDOFF_TAKE_ACK, 3, body, body_len);
 }
 
 /* ── Network round-trip ack ──────────────────────────────────────────── */

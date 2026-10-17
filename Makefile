@@ -922,6 +922,13 @@ test-payload: payload
 		$(PAYLOAD_DIR)/ava1/gen/ava1_gen.c $(PAYLOAD_DIR)/ava1/ava1_wire.c
 	@/tmp/ps5upload-files-prefs-selftest
 	@echo "✓ pinned/recent folders stay bounded; a garbled prefs file reads as empty; saves are atomic"
+	@echo "Running Show on TV / Show on PC handoff self-test (host build)..."
+	@cc -O2 -Wall -Wextra -Werror -pthread -I$(PAYLOAD_DIR)/include -I$(PAYLOAD_DIR)/ava1 -I$(PAYLOAD_DIR)/ava1/gen \
+		-o /tmp/ps5upload-files-handoff-selftest \
+		$(PAYLOAD_DIR)/tests/files_handoff_selftest.c $(PAYLOAD_DIR)/src/files_handoff.c $(PAYLOAD_DIR)/src/files_prefs.c \
+		$(PAYLOAD_DIR)/src/webui_codec.c $(PAYLOAD_DIR)/ava1/gen/ava1_gen.c $(PAYLOAD_DIR)/ava1/ava1_wire.c
+	@/tmp/ps5upload-files-handoff-selftest
+	@echo "✓ a handoff opens once, expires after two minutes, and the PC reads the same prefs as the console"
 	@echo "Running webui settings + tile self-test (host build)..."
 	@cc -O2 -Wall -Wextra -Werror -DWEBUI_TILE_HOST_TEST -I$(PAYLOAD_DIR)/include -I$(PAYLOAD_DIR)/ava1 -I$(PAYLOAD_DIR)/ava1/gen \
 		-o /tmp/ps5upload-webui-settings-selftest \

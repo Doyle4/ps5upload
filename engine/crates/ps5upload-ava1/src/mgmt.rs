@@ -109,6 +109,7 @@ fn is_read_only(method: u16) -> bool {
             | gen::METHOD_RP_STATUS
             | gen::METHOD_RP_READINESS
             | gen::METHOD_RP_DEVICES
+            | gen::METHOD_FILES_PREFS_GET
     )
 }
 

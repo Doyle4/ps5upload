@@ -123,6 +123,10 @@ ones (`ava1-ctest/tests/mgmt*.rs`, `ps5upload-ava1/tests/mgmt*.rs`). Methods 119
 | SaveMount 261 | 145 `save.mount` | `MgmtText` {image} | `src/runtime.c` `handle_save_mount` | `ps5upload-core/src/saves.rs` | opens a save: copies its image under /data, unseals the key through /dev/pfsmgr, mounts it with sceFsMountSaveData at /data/ps5upload/save_mount; an empty image reports what is open |
 | SaveUnmount 263 | 146 `save.unmount` | `MgmtText` {} | `src/runtime.c` `handle_save_unmount` | `ps5upload-core/src/saves.rs` | closes the open save and copies the image back over the real one (`written_back`) |
 | NetPorts 265 | 147 `net.ports` | `MgmtText` {lan} | `src/runtime.c` `handle_net_ports` (`src/net_ports.c`) | `ps5upload-core/src/diagnostics.rs` | the ports held on the console, found by bind() and close (never a connection); `scope` all / console / lan says where each is reachable from |
+| FilesPrefsGet 267 | 148 `files.prefs_get` | `MgmtText` | `src/runtime.c` `handle_files_prefs_get` (`src/files_handoff.c`, `src/files_prefs.c`) | `ps5upload-core/src/console_files.rs` | the console file manager's pinned folders, recent folders and last folder (`/data/ps5upload/files-prefs.json`), as the console page's `/api/files/prefs` answers; `payload/tests/files_handoff_selftest.c` |
+| FilesPrefsSet 269 | 149 `files.prefs_set` | `MgmtText` {op: pin / unpin / visit, path} | `src/runtime.c` `handle_files_prefs_set` (`src/files_handoff.c`, `src/files_prefs.c`) | `ps5upload-core/src/console_files.rs` | one change under the prefs lock, answers the new prefs; a full list or a bad path is an error |
+| FilesHandoffPut 271 | 150 `files.handoff_put` | `MgmtText` {to: console / pc, path} | `src/runtime.c` `handle_files_handoff_put` (`src/files_handoff.c`) | `ps5upload-core/src/console_files.rs` | Show on TV / Show on PC: one slot per direction in helper memory, replaced by the next put, gone after two minutes |
+| FilesHandoffTake 273 | 151 `files.handoff_take` | `MgmtText` {for: console / pc} -> {path, age_ms} or {} | `src/runtime.c` `handle_files_handoff_take` (`src/files_handoff.c`) | `ps5upload-core/src/console_files.rs` | takes (and clears) that direction's handoff |
 | UsbEject 259 | 144 `usb.eject` | `MgmtText` | `src/runtime.c` `handle_usb_eject` | `ps5upload-core/src/fs_ops.rs` | unmounts `/mnt/usbN` so the drive can be pulled; plain unmount, or `force` (after a sync) since the shell's own services keep the drive open (EBUSY on FW 13.60) |
 | — | 21 `job.list` | empty -> `JobListResult` | `ava1/ava1_data.c` (the data plane) | none | `ava1-ctest/tests/job_run.rs` `repeat_job_run_is_idempotent`, `at_most_eight_operations_run_at_once_and_an_unknown_op_is_refused` (listing); no engine caller yet |
 | — | 34 `fs.stat` | `FsPath` -> `FsStat` | native `src/mgmt_fs.c` `mgmt_run_fs_stat` | none | host-tested |
@@ -156,6 +160,8 @@ detect truncation (SPEC §7.3): a buffer smaller than the answer is `ERR_INTERNA
 | app.icon_set | <= 1 KiB | fits |
 | app.hidden_list | 16 KiB | fits |
 | usb.eject | <= 0.3 KiB | fits |
+| files.prefs_get, files.prefs_set | 64 KiB (`FILES_PREFS_FILE_MAX`) | fits |
+| files.handoff_put, files.handoff_take | <= 6.2 KiB (`FILES_HANDOFF_OUT_MAX`) | fits |
 | app.db_query | 64 KiB | fits |
 | proc.focus | 8 KiB | fits |
 | proc.list | 64 KiB | fits |

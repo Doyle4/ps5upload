@@ -55,6 +55,10 @@ int ava1_op_list_rpc(const uint8_t owner[32], uint8_t *out, size_t cap, size_t *
  * downloads, copies, operations) as a JobListResult. `me` is the page's identity; the entries
  * carry no owner, so the page marks its own with ava1_jobs_owner_is. */
 int ava1_jobs_list_all(const uint8_t me[32], uint8_t *out, size_t cap, size_t *out_len);
+/* The roots (destination paths, as requested) of up to `max` running uploads, any owner's, into
+ * roots[i] (each AVA1_MAX_PATH + 1 bytes, NUL-terminated). Returns how many. The console page shows
+ * an "Uploading" badge on those folders. */
+int ava1_jobs_upload_roots(char (*roots)[AVA1_MAX_PATH + 1], unsigned max);
 /* 1 when job `id` is listed and `me` owns it, else 0 (an absent job included). */
 int ava1_jobs_owner_is(const uint8_t id[16], const uint8_t me[32]);
 /* The console page has read the job list: every FINISHED operation or copy that `me` owns is

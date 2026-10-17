@@ -39,6 +39,7 @@ mod c2c_api;
 mod collection;
 mod collection_api;
 mod collection_tidy_api;
+mod console_files_api;
 mod console_read;
 mod console_snapshot;
 mod convert_source;
@@ -10546,6 +10547,22 @@ async fn run(cfg: EngineConfig) -> anyhow::Result<()> {
         )
         .route("/api/ps5/focus", get(ps5_focus))
         .route("/api/ps5/net/ports", get(ps5_net_ports))
+        .route(
+            "/api/ps5/files/prefs",
+            get(console_files_api::prefs_get_handler),
+        )
+        .route(
+            "/api/ps5/files/prefs/set",
+            post(console_files_api::prefs_set_handler),
+        )
+        .route(
+            "/api/ps5/files/handoff/put",
+            post(console_files_api::handoff_put_handler),
+        )
+        .route(
+            "/api/ps5/files/handoff/take",
+            post(console_files_api::handoff_take_handler),
+        )
         .route("/api/ps5/fs/read-preview", post(ps5_fs_read_preview))
         .route("/api/ps5/process/list", get(ps5_process_list))
         .route("/api/ps5/elfldr/health", get(ps5_elfldr_health))
