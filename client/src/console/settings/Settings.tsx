@@ -6,6 +6,7 @@ import { LANGUAGE_NAMES } from "../languages";
 import { chooseLanguage, LANGUAGES, storedLanguage, t } from "../strings";
 import { getContrast, getTheme, setContrast, setTheme, THEMES, type Theme } from "../theme";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
+import { forgetPhoneUrl } from "../ui/PhoneHandoff";
 
 /** /api/settings (payload/src/webui_api.c send_settings). */
 export interface WebSettings {
@@ -340,6 +341,7 @@ export function Settings({ onOpenControls, onShowTips }: { onOpenControls?: () =
       .then(
         async (s) => {
           setSettings(s);
+          if (change.lan !== undefined) forgetPhoneUrl(); // "Continue on your phone" asks again
           if (change.tile === undefined) return;
           // The tile is added or removed after the reply: wait for the real result (the switch stays
           // disabled meanwhile) and say so when it did not work.

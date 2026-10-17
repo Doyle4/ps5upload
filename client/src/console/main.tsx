@@ -6,6 +6,7 @@ import { App } from "./App";
 import { probeHelper } from "./api";
 import { installBackHistory } from "./backHistory";
 import { installFullscreen } from "./fullscreen";
+import { installMarquee } from "./ui/marquee";
 import { DEFAULT_INPUT_MAP, dispatchNav, installNavigation } from "./nav";
 import { installOfflineCopy } from "./offline/offlineCopy";
 import { OfflinePage } from "./offline/OfflinePage";
@@ -22,6 +23,8 @@ installNavigation(DEFAULT_INPUT_MAP);
 installFullscreen();
 // The browser's Back (the PS5's ○) steps back inside the page: see backHistory.ts.
 installBackHistory(() => dispatchNav("back"));
+// Long names scroll inside their row while focused.
+installMarquee();
 // The offline copy (service worker + appcache): the tile opens the "not running" screen, not an error.
 installOfflineCopy();
 

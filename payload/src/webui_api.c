@@ -381,9 +381,10 @@ static void r_fs_stat(const char *b, size_t n, uint8_t *out, int fd) {
     }
     /* The entry's identity (device + inode, as strings: an inode can pass 2^53) so the page can tell
      * "the item itself" from a different entry by more than its spelling: exFAT USB is
-     * case-insensitive, so /mnt/usb0/Games and /mnt/usb0/games are one folder. lstat (the
-     * entry itself, not a link's target) of the path the FS_STAT above already accepted. */
-    if (lstat(path, &ls) == 0)
+     * case-insensitive, so /mnt/usb0/Games and /mnt/usb0/games are one folder. stat(), like
+     * FS_STAT above (which follows links): a symlink to the destination is the destination, so a
+     * paste of that link into it is seen as "into itself". The path is the one FS_STAT accepted. */
+    if (stat(path, &ls) == 0)
         k = snprintf(json, sizeof json,
                      "{\"kind\":\"%s\",\"size\":%llu,\"mtime\":%llu,\"mode\":%lu,\"dev\":\"%llu\",\"ino\":\"%llu\"}",
                      kind_name(s.kind), (unsigned long long)s.size, (unsigned long long)s.mtime, (unsigned long)s.mode,
@@ -977,14 +978,21 @@ void webui_api_settings_init(const webui_settings_t *s) {
 /* tile_busy / tile_failed: the tile switch is applied on the tile thread after this reply (Sony calls
  * take seconds), so the page re-reads /api/settings until tile_busy is false and then says so when
  * the last ensure/remove failed (webui_tile_state). */
+/* `addr`: with LAN access on, the console's address a phone opens ("Continue on your phone"; the
+ * page builds http://<addr>:<port>/ from it); "" when off or there is none. Dotted IPv4 only. */
 static void send_settings(int fd, const webui_settings_t *s) {
-    char json[200];
+    char json[256], addr[INET_ADDRSTRLEN];
     int busy, failed, k;
     webui_tile_state(&busy, &failed);
+    if (!s->lan || !webui_lan_addr(addr)) addr[0] = '\0';
     k = snprintf(json, sizeof json,
-                 "{\"lan\":%s,\"tile\":%s,\"tile_busy\":%s,\"tile_failed\":%s,\"version\":\"%s\"}",
+                 "{\"lan\":%s,\"tile\":%s,\"tile_busy\":%s,\"tile_failed\":%s,\"version\":\"%s\",\"addr\":\"%s\"}",
                  s->lan ? "true" : "false", s->tile ? "true" : "false", busy ? "true" : "false",
-                 failed ? "true" : "false", PS5UPLOAD2_VERSION);
+                 failed ? "true" : "false", PS5UPLOAD2_VERSION, addr);
+    if (k < 0 || (size_t)k >= sizeof json) {
+        send_error(fd, 500, "bad_settings_reply", 18);
+        return;
+    }
     send_json(fd, 200, json, (size_t)k);
 }
 
@@ -1142,7 +1150,9 @@ static void r_cheats_list(const char *b, size_t n, uint8_t *out, int fd) {
 }
 
 static int cheats_error_http(const char *token) {
-    if (strcmp(token, "game_not_running") == 0 || strcmp(token, "module_missing") == 0) return 409;
+    if (strcmp(token, "game_not_running") == 0 || strcmp(token, "module_missing") == 0 ||
+        strcmp(token, "game_busy") == 0)
+        return 409;
     if (strcmp(token, "no_cheats") == 0) return 404;
     if (strcmp(token, "bad_index") == 0) return 400;
     return 500;

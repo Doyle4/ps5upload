@@ -188,14 +188,28 @@ static const char *status_text(int status) {
     }
 }
 
+/* Does a header block ("Name: value\r\n"...) have a line starting with `name` (lowercase, ending
+ * in ':'), compared without regard to case? */
+static int has_line(const char *h, const char *name) {
+    size_t n = strlen(name);
+    while (h && *h) {
+        size_t i = 0;
+        while (i < n && h[i] && lower(h[i]) == name[i]) i++;
+        if (i == n) return 1;
+        h = strstr(h, "\r\n");
+        if (h) h += 2;
+    }
+    return 0;
+}
+
 int webui_http_head(char *out, size_t cap, int status, const char *content_type,
                     size_t body_len, const char *extra_headers) {
     int n, own_cache;
     size_t used;
     if (!out || cap == 0) return -1;
-    /* no-store unless the extra headers carry their own Cache-Control line (the strings files). */
-    own_cache = extra_headers && (strncmp(extra_headers, "Cache-Control:", 14) == 0 ||
-                                  strstr(extra_headers, "\r\nCache-Control:") != NULL);
+    /* no-store unless the extra headers carry their own Cache-Control line (the page, the strings
+     * files, the offline copy), in any letter case. */
+    own_cache = has_line(extra_headers, "cache-control:");
     n = snprintf(out, cap,
                  "HTTP/1.1 %d %s\r\n"
                  "Content-Type: %s\r\n"

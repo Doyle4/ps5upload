@@ -161,6 +161,14 @@ static void head_has_connection_close(void) {
     /* "Cache-Control" inside another header's value is not a Cache-Control line. */
     n = webui_http_head(out, sizeof out, 200, "text/plain", 0, "X-Note: Cache-Control: nope\r\n");
     CHECK(n > 0 && strstr(out, "Cache-Control: no-store\r\n") != NULL);
+    /* Any letter case counts as the own line (HTTP header names are case-insensitive). */
+    n = webui_http_head(out, sizeof out, 200, "text/plain", 0, "cache-control: no-cache\r\n");
+    CHECK(n > 0 && strstr(out, "no-store") == NULL && strstr(out, "cache-control: no-cache\r\n") != NULL);
+    n = webui_http_head(out, sizeof out, 200, "text/plain", 0, "X-A: 1\r\nCACHE-CONTROL: no-cache\r\n");
+    CHECK(n > 0 && strstr(out, "no-store") == NULL);
+    /* A longer name that starts the same is another header. */
+    n = webui_http_head(out, sizeof out, 200, "text/plain", 0, "Cache-Controlled: x\r\n");
+    CHECK(n > 0 && strstr(out, "Cache-Control: no-store\r\n") != NULL);
 
     CHECK(webui_http_head(out, 20, 200, "text/plain", 1, NULL) == -1);
     CHECK(webui_http_head(out, sizeof out, 200, NULL, 1, NULL) > 0);

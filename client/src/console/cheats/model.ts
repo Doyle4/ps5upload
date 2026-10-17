@@ -97,6 +97,7 @@ export function toggleErrorText(err: unknown): string | null {
     if (err.status === 401 || err.code === "game_not_running") return null;
     if (isOffline(err)) return t("cw_home_err_offline");
     if (err.code === "module_missing") return t("cw_cheats_err_module");
+    if (err.code === "game_busy") return t("cw_cheats_err_busy");
     if (err.code === "bad_index" || err.code === "no_cheats") return t("cw_cheats_err_changed");
     return t("cw_cheats_err_toggle", { code: err.code });
   }
@@ -159,7 +160,8 @@ export function createCheatsController(onChange: (s: CheatsState) => void): Chea
     const seq = ++listSeq;
     try {
       const r = await call<unknown>("/api/cheats/list", { title_id: tid });
-      if (seq !== listSeq || title() !== tid) return;
+      // A switch running now re-reads when it ends: this older answer would flash its old state.
+      if (seq !== listSeq || title() !== tid || s.busy !== null) return;
       set({ list: readList(tid, r), listError: null });
     } catch (e) {
       if (seq !== listSeq || title() !== tid) return;
@@ -204,6 +206,14 @@ export function createCheatsController(onChange: (s: CheatsState) => void): Chea
     } catch (e) {
       gone = e instanceof ApiError && e.code === "game_not_running";
       set({ message: toggleErrorText(e) });
+    }
+    if (gone && s.status && title() === tid) {
+      // Said at once (the "closed" screen), not after the next status read: the helper dropped its
+      // running-game cache with this answer, so the read below confirms it (or brings the game back).
+      listSeq++;
+      set({ busy: null, status: { ...s.status, game: null }, seen: tid, list: null, listError: null });
+      await loadStatus();
+      return;
     }
     set({ busy: null });
     if (gone) await loadStatus();

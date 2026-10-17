@@ -11,6 +11,7 @@ import {
   setLanguage,
   stringsReady,
   stringsUrl,
+  STRINGS_TIMEOUT_MS,
   stringsVersion,
   t,
 } from "./strings";
@@ -187,13 +188,56 @@ describe("console strings", () => {
     expect(asked).toEqual(["de", "fr", "de"]);
   });
 
+  it("switching from a shown language to one still loading keeps the shown one (no English flash)", async () => {
+    let releaseFr: (v: Record<string, string>) => void = () => {};
+    _setStringsLoaderForTests((code) =>
+      code === "fr"
+        ? new Promise((resolve) => {
+            releaseFr = resolve;
+          })
+        : Promise.resolve(de),
+    );
+    setLanguage("de");
+    await stringsReady();
+    expect(html.lang).toBe("de");
+    setLanguage("fr");
+    expect(getLanguage()).toBe("fr");
+    expect(html.lang).toBe("de"); // still German while French loads
+    expect(t("cw_nav_settings")).toBe(de.cw_nav_settings);
+    releaseFr(JSON.parse(committed["./locales/fr.json"]) as Record<string, string>);
+    await stringsReady();
+    expect(html.lang).toBe("fr");
+  });
+
+  it("the real loader gives up on a strings file that never arrives", async () => {
+    vi.useFakeTimers();
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const fetchMock = vi.fn(
+      (_url: string, init?: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener("abort", () => reject(new Error("aborted")));
+        }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    try {
+      setLanguage("ko");
+      const done = stringsReady();
+      await vi.advanceTimersByTimeAsync(STRINGS_TIMEOUT_MS);
+      await done;
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(html.lang).toBe("en");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("the real loader fetches the helper's URL and keeps English when it fails", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const fetchMock = vi.fn(() => Promise.resolve(new Response("nope", { status: 404 })));
     vi.stubGlobal("fetch", fetchMock);
     setLanguage("ja");
     await stringsReady();
-    expect(fetchMock).toHaveBeenCalledWith(stringsUrl("ja"), { credentials: "same-origin" });
+    expect(fetchMock).toHaveBeenCalledWith(stringsUrl("ja"), expect.objectContaining({ credentials: "same-origin" }));
     expect(t("cw_nav_settings")).toBe(en.cw_nav_settings);
     expect(warn).toHaveBeenCalledTimes(1);
     fetchMock.mockImplementation(() =>

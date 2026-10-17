@@ -47,6 +47,7 @@ import {
   joinPath,
   moveItems,
   baseName,
+  parentPath,
   renameEntry,
   upFrom,
   volumeOf,
@@ -122,6 +123,21 @@ export function batchMessage(r: BatchResult, op?: Busy["op"]): Message | null {
   if (r.jobFailed.length) return { tone: "error", text: t("cw_files_batch_failed", { n: r.jobFailed.length }) };
   if (r.skipped.length) return { tone: "info", text: t("cw_files_batch_stopped", { n: r.skipped.length }) };
   return { tone: "info", text: t(op === "chmod" ? "cw_files_fixperm_done" : "cw_files_done") };
+}
+
+/**
+ * The items of `dir` a finished batch could not do (refused, or their job failed): they stay
+ * selected afterwards, so a retry (or a look at them) is one press away. Items elsewhere (a
+ * paste's sources) are left out.
+ */
+export function failedNamesIn(r: BatchResult, dir: string): string[] {
+  const out: string[] = [];
+  for (const p of r.failed.map((f) => f.item).concat(r.jobFailed)) {
+    if (parentPath(p) !== dir) continue;
+    const name = baseName(p);
+    if (name && !out.includes(name)) out.push(name);
+  }
+  return out;
 }
 
 /** The line a finished paste leaves: batchMessage's, or what was skipped / already there. */
@@ -546,7 +562,11 @@ function askView(p: FilesViewProps) {
     case "fixperm":
       return (
         <ConfirmDialog
-          title={a.names.length === 1 ? `${t("cw_files_fixperm")}: ${a.names[0]}` : t("cw_files_fixperm")}
+          title={
+            a.names.length === 1
+              ? `${t("cw_files_fixperm")}: ${a.names[0]}`
+              : t("cw_files_fixperm_many", { n: a.names.length })
+          }
           body={busyText(p.busy) ?? t("cw_files_fixperm_body")}
           confirmLabel={t("cw_files_fixperm")}
           busy={p.busy != null}
@@ -995,6 +1015,11 @@ export function Files({ ctx }: { ctx: SectionContext }) {
   const root = useRef<HTMLDivElement>(null);
   /** False once Files unmounts: a batch that ends later reports to no one (it ran to the end anyway). */
   const mounted = useRef(true);
+  /** The folder shown now (a batch that ends later checks it is still the same). */
+  const pathRef = useRef(path);
+  useEffect(() => {
+    pathRef.current = path;
+  }, [path]);
   /** Where focus was last in the list (to put it back when that row goes). */
   const lastAnchor = useRef<FocusAnchor | null>(null);
   /** After the next load, focus this row ("" = the first one), then forget it. */
@@ -1162,9 +1187,17 @@ export function Files({ ctx }: { ctx: SectionContext }) {
           work(items, { onProgress: ctl.onProgress, stopped: ctl.stopped, waitJob: (id) => waitJob(id, ctl.stopped) }),
         destDir != null ? items.concat(destDir) : items,
       );
+      const batchDir = path;
       run?.then(
         (r) => {
-          if (mounted.current) report(r, op);
+          if (!mounted.current) return;
+          report(r, op);
+          // Still in that folder: what failed stays selected (Task 9 deferred).
+          const keep = failedNamesIn(r, batchDir);
+          if (keep.length && pathRef.current === batchDir) {
+            setSelecting(true);
+            setSelected(keep);
+          }
         },
         () => undefined,
       );

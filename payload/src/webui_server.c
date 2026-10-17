@@ -47,6 +47,9 @@
 #define WEBUI_DRAIN_MS       250u
 #define WEBUI_STACK          (256u * 1024u)
 #define WEBUI_MAX_ADDRS      8
+#define WEBUI_WATCH_MS       5000u   /* the accept thread's listener check (resume, IP change) */
+#define WEBUI_BROKEN_MS      5000u   /* a listener failing this long is rebound */
+#define WEBUI_RESUME_GAP_MS  10000u  /* a clock gap this long between checks = a resume */
 #define WEBUI_THREAD_NAME    "ps5upload-web"
 #define WEBUI_BUF_CAP        (WEBUI_HEADER_CAP + WEBUI_BODY_CAP)
 
@@ -149,6 +152,69 @@ static size_t own_addrs(char out[WEBUI_MAX_ADDRS][INET_ADDRSTRLEN]) {
     }
     freeifaddrs(ifa);
     return n;
+}
+
+/* ---- listener watch (pure; webui_server.h) ------------------------------ */
+
+int webui_watch_broken(uint64_t err_since, uint64_t now) {
+    return err_since != 0 && now >= err_since && now - err_since >= WEBUI_BROKEN_MS;
+}
+
+int webui_watch_resumed(uint64_t mono_prev, uint64_t mono_now, int64_t real_prev, int64_t real_now) {
+    uint64_t mono = mono_now >= mono_prev ? mono_now - mono_prev : 0;
+    int64_t real = real_now - real_prev;
+    /* The loop wakes every 200 ms: a long gap on either clock means the console slept (or the
+     * thread was frozen); a wall clock that ran far ahead of the monotonic one too (a clock that
+     * stops in rest mode). A clock set by hand looks the same: one harmless rebind. */
+    if (mono > WEBUI_RESUME_GAP_MS) return 1;
+    if (real > (int64_t)mono + (int64_t)WEBUI_RESUME_GAP_MS) return 1;
+    return 0;
+}
+
+int webui_addrs_differ(const char (*a)[INET_ADDRSTRLEN], size_t na, const char (*b)[INET_ADDRSTRLEN], size_t nb) {
+    size_t i, j;
+    if (na != nb) return 1;
+    for (i = 0; i < na; i++) {
+        for (j = 0; j < nb; j++)
+            if (strcmp(a[i], b[j]) == 0) break;
+        if (j == nb) return 1;
+    }
+    return 0;
+}
+
+int webui_pick_lan_addr(const char (*addrs)[INET_ADDRSTRLEN], size_t n, char out[INET_ADDRSTRLEN]) {
+    size_t i;
+    int best = -1, best_rank = 0;
+    for (i = 0; i < n; i++) {
+        const char *a = addrs[i];
+        int rank;
+        if (strncmp(a, "127.", 4) == 0 || strncmp(a, "0.", 2) == 0) continue;
+        /* a private LAN address first, then any other, link-local (no DHCP answer) last */
+        if (strncmp(a, "192.168.", 8) == 0 || strncmp(a, "10.", 3) == 0 ||
+            (strncmp(a, "172.", 4) == 0 && atoi(a + 4) >= 16 && atoi(a + 4) <= 31))
+            rank = 3;
+        else if (strncmp(a, "169.254.", 8) == 0)
+            rank = 1;
+        else
+            rank = 2;
+        if (rank > best_rank) {
+            best_rank = rank;
+            best = (int)i;
+        }
+    }
+    if (best < 0) {
+        out[0] = '\0';
+        return 0;
+    }
+    memcpy(out, addrs[best], INET_ADDRSTRLEN);
+    out[INET_ADDRSTRLEN - 1] = '\0';
+    return 1;
+}
+
+static int64_t real_ms(void) {
+    struct timespec ts;
+    clock_gettime(CLOCK_REALTIME, &ts);
+    return (int64_t)ts.tv_sec * 1000 + (int64_t)ts.tv_nsec / 1000000;
 }
 
 /* Non-blocking listener on 127.0.0.1 or 0.0.0.0. -1 with errno on failure. */
@@ -402,20 +468,62 @@ static void *worker_main(void *arg) {
 
 /* ---- accept thread ------------------------------------------------------ */
 
+/* Close the listener so the loop binds a fresh one (s->mu held). */
+static void drop_listener_locked(srv_t *s) {
+    if (s->listen_fd >= 0) close(s->listen_fd);
+    s->listen_fd = -1;
+    s->bound = 0;
+}
+
+/* Every WEBUI_WATCH_MS: after a resume from rest mode, or (LAN access on) when the console's
+ * addresses changed (DHCP, another network), refresh the Host allowlist and rebind, as Payload
+ * Manager's watchdog does. One getifaddrs per check, on this thread: no thread, no allocation that
+ * outlives the call. */
+static void watch_listener(srv_t *s, uint64_t *mono_prev, int64_t *real_prev) {
+    uint64_t mono = mono_ms();
+    int64_t real = real_ms();
+    int resumed, lan, changed = 0;
+    char addrs[WEBUI_MAX_ADDRS][INET_ADDRSTRLEN];
+    size_t n = 0;
+    resumed = webui_watch_resumed(*mono_prev, mono, *real_prev, real);
+    *mono_prev = mono;
+    *real_prev = real;
+    pthread_mutex_lock(&s->mu);
+    lan = s->lan;
+    pthread_mutex_unlock(&s->mu);
+    if (lan) n = own_addrs(addrs);
+    pthread_mutex_lock(&s->mu);
+    if (lan && s->lan && webui_addrs_differ((const char (*)[INET_ADDRSTRLEN])s->addrs, s->n_addrs,
+                                            (const char (*)[INET_ADDRSTRLEN])addrs, n)) {
+        memcpy(s->addrs, addrs, sizeof addrs);
+        s->n_addrs = n;
+        changed = 1;
+    }
+    if ((resumed || changed) && s->listen_fd >= 0) drop_listener_locked(s);
+    pthread_mutex_unlock(&s->mu);
+    if (resumed) fprintf(stderr, "webui: resumed (clock gap); rebinding port %u\n", (unsigned)s->port);
+    if (changed) fprintf(stderr, "webui: console addresses changed (%u now); rebinding port %u\n", (unsigned)n, (unsigned)s->port);
+}
+
 static void *accept_main(void *arg) {
     srv_t *s = (srv_t *)arg;
     unsigned fails = 0;
+    uint64_t next_watch = mono_ms() + WEBUI_WATCH_MS, mono_prev = mono_ms(), err_since = 0;
+    int64_t real_prev = real_ms();
     proc_name_set_self(WEBUI_THREAD_NAME);
     while (!stopping(s)) {
         struct pollfd pf;
         int fd, r, lan, fl;
 
+        if (mono_ms() >= next_watch) {
+            watch_listener(s, &mono_prev, &real_prev);
+            next_watch = mono_ms() + WEBUI_WATCH_MS;
+        }
+
         pthread_mutex_lock(&s->mu);
         if (s->rebind_req) {
             s->rebind_req = 0;
-            if (s->listen_fd >= 0) close(s->listen_fd);
-            s->listen_fd = -1;
-            s->bound = 0;
+            drop_listener_locked(s);
             fails = 0;
         }
         lan = s->lan;
@@ -458,17 +566,48 @@ static void *accept_main(void *arg) {
         pf.events = POLLIN;
         pf.revents = 0;
         r = poll(&pf, 1, WEBUI_SLICE_MS);
-        if (r <= 0) {
-            if (r < 0 && errno != EINTR) nap_ms(50);
+        if (r == 0) {
+            err_since = 0; /* a quiet, healthy listener */
+            continue;
+        }
+        if (r < 0 || (pf.revents & (POLLERR | POLLHUP | POLLNVAL))) {
+            if (r < 0 && errno == EINTR) continue;
+            /* A broken listener (the network went away under it): rebind once it has failed for
+             * WEBUI_BROKEN_MS, instead of failing every slice forever. */
+            if (!err_since) err_since = mono_ms();
+            else if (webui_watch_broken(err_since, mono_ms())) {
+                fprintf(stderr, "webui: listener on port %u failing for %u ms; rebinding\n", (unsigned)s->port,
+                        (unsigned)WEBUI_BROKEN_MS);
+                pthread_mutex_lock(&s->mu);
+                if (s->listen_fd == fd) drop_listener_locked(s);
+                pthread_mutex_unlock(&s->mu);
+                err_since = 0;
+                continue;
+            }
+            nap_ms(50);
             continue;
         }
         r = accept(fd, NULL, NULL);
         if (r < 0) {
             /* Never leave the loop on an accept error (a stray errno once killed a helper's
-             * server); back off briefly on the ones that would otherwise spin. */
-            if (errno != EAGAIN && errno != EWOULDBLOCK && errno != EINTR) nap_ms(50);
+             * server); back off briefly on the ones that would otherwise spin, and rebind when they
+             * go on for WEBUI_BROKEN_MS. */
+            if (errno != EAGAIN && errno != EWOULDBLOCK && errno != EINTR && errno != ECONNABORTED) {
+                if (!err_since) err_since = mono_ms();
+                else if (webui_watch_broken(err_since, mono_ms())) {
+                    fprintf(stderr, "webui: accept on port %u failing for %u ms (errno %d); rebinding\n",
+                            (unsigned)s->port, (unsigned)WEBUI_BROKEN_MS, errno);
+                    pthread_mutex_lock(&s->mu);
+                    if (s->listen_fd == fd) drop_listener_locked(s);
+                    pthread_mutex_unlock(&s->mu);
+                    err_since = 0;
+                    continue;
+                }
+                nap_ms(50);
+            }
             continue;
         }
+        err_since = 0;
         /* BSD hands the listener's O_NONBLOCK to the accepted socket; workers expect blocking
          * sockets bounded by timeouts and poll. */
         fl = fcntl(r, F_GETFL, 0);
@@ -690,4 +829,19 @@ void webui_token_copy(char out[65]) {
     memcpy(out, g_token, 65);
     pthread_mutex_unlock(&g_mu);
     out[64] = '\0';
+}
+
+int webui_lan_addr(char out[INET_ADDRSTRLEN]) {
+    srv_t *s;
+    int ok = 0;
+    out[0] = '\0';
+    pthread_mutex_lock(&g_mu);
+    s = g_srv;
+    if (s) {
+        pthread_mutex_lock(&s->mu);
+        if (s->lan) ok = webui_pick_lan_addr((const char (*)[INET_ADDRSTRLEN])s->addrs, s->n_addrs, out);
+        pthread_mutex_unlock(&s->mu);
+    }
+    pthread_mutex_unlock(&g_mu);
+    return ok;
 }

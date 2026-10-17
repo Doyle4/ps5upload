@@ -9,6 +9,7 @@
 #ifndef PS5UPLOAD_WEBUI_SERVER_H
 #define PS5UPLOAD_WEBUI_SERVER_H
 
+#include <netinet/in.h>
 #include <stddef.h>
 #include <stdint.h>
 #include "webui_http.h"
@@ -40,6 +41,27 @@ void webui_stop(void);
  * the new listener is bound, -1 when it is not (yet): the accept thread keeps
  * retrying every 5 s. */
 int webui_restart(int lan);
+
+/* The listener heals itself (the accept thread, no other thread): every 5 s it checks for a resume
+ * from rest mode (a gap of 10 s or more on either clock) and, with LAN access on, for a change in
+ * the console's IPv4 addresses (DHCP, another network: the Host allowlist is refreshed); either one
+ * rebinds the listener (the token is kept). A listener whose poll or accept keeps failing for 5 s
+ * is rebound too. */
+
+/* The console's LAN address a phone should open (a private one first, never loopback), from the
+ * running server's list; 1 and `out` set when LAN access is on and there is one, else 0 and "". */
+int webui_lan_addr(char out[INET_ADDRSTRLEN]);
+
+/* The watch's decisions, pure (tests): */
+/* Did the console sleep between two checks? (monotonic and wall-clock ms at each) */
+int webui_watch_resumed(uint64_t mono_prev, uint64_t mono_now, int64_t real_prev, int64_t real_now);
+/* Has a listener failing since `err_since` (0 = not failing) failed long enough to rebind? */
+int webui_watch_broken(uint64_t err_since, uint64_t now);
+/* Do two address lists differ (as sets)? */
+int webui_addrs_differ(const char (*a)[INET_ADDRSTRLEN], size_t na, const char (*b)[INET_ADDRSTRLEN], size_t nb);
+/* The address to show for LAN access: private ranges first, then others, link-local last; never
+ * 127.x or 0.x. 1 and `out` set, else 0 and "". */
+int webui_pick_lan_addr(const char (*addrs)[INET_ADDRSTRLEN], size_t n, char out[INET_ADDRSTRLEN]);
 
 /* The token for this start ("" when the server is not running). */
 const char *webui_token(void);

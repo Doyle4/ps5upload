@@ -278,6 +278,50 @@ static void restart_keeps_token_and_serves(void) {
     CHECK(request("/api/x", webui_token(), resp, sizeof resp) == 200);
 }
 
+/* The listener watch's decisions (pure). */
+static void watch_decisions(void) {
+    char a[3][INET_ADDRSTRLEN] = { "127.0.0.1", "192.168.86.99", "169.254.3.4" };
+    char b[3][INET_ADDRSTRLEN] = { "192.168.86.99", "169.254.3.4", "127.0.0.1" };
+    char c[2][INET_ADDRSTRLEN] = { "127.0.0.1", "192.168.86.120" };
+    char d[2][INET_ADDRSTRLEN] = { "127.0.0.1", "169.254.9.9" };
+    char e[1][INET_ADDRSTRLEN] = { "127.0.0.1" };
+    char f[2][INET_ADDRSTRLEN] = { "8.8.4.4", "172.20.1.2" };
+    char out[INET_ADDRSTRLEN];
+
+    /* resume: a normal 5 s check is not one; a 10 s+ gap on either clock is */
+    CHECK(webui_watch_resumed(1000, 6000, 50000, 55000) == 0);
+    CHECK(webui_watch_resumed(1000, 6200, 50000, 55300) == 0); /* jitter */
+    CHECK(webui_watch_resumed(1000, 31000, 50000, 80000) == 1); /* the thread was frozen */
+    CHECK(webui_watch_resumed(1000, 6000, 50000, 3650000) == 1); /* monotonic stopped in rest mode */
+    CHECK(webui_watch_resumed(6000, 1000, 0, 0) == 0);          /* never underflows */
+
+    /* broken listener: only after 5 s of failures */
+    CHECK(webui_watch_broken(0, 999999) == 0);
+    CHECK(webui_watch_broken(1000, 5999) == 0);
+    CHECK(webui_watch_broken(1000, 6000) == 1);
+
+    /* address sets */
+    CHECK(webui_addrs_differ((const char (*)[INET_ADDRSTRLEN])a, 3, (const char (*)[INET_ADDRSTRLEN])b, 3) == 0);
+    CHECK(webui_addrs_differ((const char (*)[INET_ADDRSTRLEN])a, 3, (const char (*)[INET_ADDRSTRLEN])c, 2) == 1);
+    CHECK(webui_addrs_differ((const char (*)[INET_ADDRSTRLEN])c, 2, (const char (*)[INET_ADDRSTRLEN])d, 2) == 1); /* DHCP moved */
+    CHECK(webui_addrs_differ((const char (*)[INET_ADDRSTRLEN])e, 0, (const char (*)[INET_ADDRSTRLEN])e, 0) == 0);
+
+    /* the address a phone opens */
+    CHECK(webui_pick_lan_addr((const char (*)[INET_ADDRSTRLEN])a, 3, out) == 1 && strcmp(out, "192.168.86.99") == 0);
+    CHECK(webui_pick_lan_addr((const char (*)[INET_ADDRSTRLEN])d, 2, out) == 1 && strcmp(out, "169.254.9.9") == 0);
+    CHECK(webui_pick_lan_addr((const char (*)[INET_ADDRSTRLEN])e, 1, out) == 0 && out[0] == '\0');
+    CHECK(webui_pick_lan_addr((const char (*)[INET_ADDRSTRLEN])f, 2, out) == 1 && strcmp(out, "172.20.1.2") == 0);
+}
+
+/* The watch runs on the accept thread every 5 s: across a check the server keeps serving (loopback:
+ * nothing to rebind), and LAN mode off means no address for a phone. */
+static void watch_cycle_keeps_serving(void) {
+    char resp[2048], addr[INET_ADDRSTRLEN];
+    sleep_ms(5600);
+    CHECK(request("/api/x", webui_token(), resp, sizeof resp) == 200);
+    CHECK(webui_lan_addr(addr) == 0 && addr[0] == '\0');
+}
+
 int main(void) {
     signal(SIGPIPE, SIG_IGN);
     g_port = free_port();
@@ -294,6 +338,8 @@ int main(void) {
     stop_then_start_rebinds_with_new_token();
     stop_while_workers_busy();
     restart_keeps_token_and_serves();
+    watch_decisions();
+    watch_cycle_keeps_serving();
     webui_stop();
     if (failures) {
         fprintf(stderr, "webui_server_selftest: %d failure(s)\n", failures);

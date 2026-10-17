@@ -13,7 +13,7 @@ import { t } from "../strings";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { ActionsSheet } from "./ActionsSheet";
 import { DirList } from "./DirList";
-import { batchMessage, filesErrorText, FilesView, pasteMessage, upFrom, viewKind, type FilesViewProps } from "./Files";
+import { batchMessage, failedNamesIn, filesErrorText, FilesView, pasteMessage, upFrom, viewKind, type FilesViewProps } from "./Files";
 import { clearClipboard, getClipboard, setClipboard } from "./clipboard";
 import { ConflictDialog } from "./ConflictDialog";
 import { IntoItselfError, renameEntry } from "./move";
@@ -131,6 +131,7 @@ describe("Files", () => {
     const q = props({ ask: { kind: "fixperm", names: ["b", "c"] } });
     const d = elements(FilesView(q)).find((e) => e.type === ConfirmDialog)!;
     expect(d.props.body).toBe(t("cw_files_fixperm_body"));
+    expect(d.props.title).toBe(t("cw_files_fixperm_many", { n: 2 })); // the count, as Delete says it
     expect(d.props.danger).toBeUndefined();
     (d.props.onConfirm as () => void)();
     expect(q.onConfirmFixPerm).toHaveBeenCalledWith(["b", "c"]);
@@ -397,5 +398,23 @@ describe("Files listing controls", () => {
     expect(pasteMessage({ ...base, halted: ["/data/a/G"], skipped: ["/data/a/G", "/data/a/H"] })?.text).toBe(
       `${t("cw_files_paste_halted", { name: "G" })} ${t("cw_files_batch_stopped", { n: 1 })}`,
     );
+  });
+});
+
+describe("failed items stay selected after a batch", () => {
+  it("keeps the folder's refused and failed items, once each, and nothing from elsewhere", () => {
+    const r = {
+      started: ["/data/a"],
+      moved: [],
+      failed: [
+        { item: "/data/b", error: new Error("x") },
+        { item: "/mnt/usb0/src/c", error: new Error("x") },
+      ],
+      jobFailed: ["/data/d", "/data/b"],
+      skipped: ["/data/e"],
+    };
+    expect(failedNamesIn(r, "/data")).toEqual(["b", "d"]);
+    expect(failedNamesIn(r, "/mnt/usb0")).toEqual([]);
+    expect(failedNamesIn({ started: [], moved: [], failed: [], jobFailed: ["/x"], skipped: [] }, "/")).toEqual(["x"]);
   });
 });

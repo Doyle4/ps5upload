@@ -7,6 +7,8 @@ import { pollWhileVisible } from "../ui/visiblePoll";
 /** While the offline screen shows, the helper is asked again this often. */
 export const OFFLINE_RETRY_MS = 5000;
 
+const reloadPage = () => window.location.reload();
+
 /**
  * Shown instead of the page when the helper did not answer GET /api/token: the
  * page came from the browser's offline copy (offlineCopy.ts) and the helper is
@@ -16,7 +18,7 @@ export const OFFLINE_RETRY_MS = 5000;
  */
 export function OfflinePage({
   probe = probeHelper,
-  onBack = () => window.location.reload(),
+  onBack = reloadPage,
 }: {
   probe?: () => Promise<boolean>;
   /** The helper answered. */

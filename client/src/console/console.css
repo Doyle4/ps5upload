@@ -1474,3 +1474,51 @@ button {
   overflow-wrap: anywhere;
 }
 
+/* ---- long names scroll while focused (ui/marquee.ts) ---- */
+@keyframes cw-marquee {
+  0%,
+  15% {
+    text-indent: 0;
+  }
+  85%,
+  100% {
+    text-indent: calc(-1 * var(--cw-marquee, 0px));
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .cw-file-name.cw-marquee {
+    text-overflow: clip;
+    animation: cw-marquee var(--cw-marquee-s, 6s) ease-in-out infinite alternate;
+  }
+}
+
+/* ---- continue on your phone (ui/PhoneHandoff.tsx) ---- */
+.cw-phone {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  margin: 0.9rem 0 0;
+  padding: 0.6rem;
+  border-radius: 12px;
+  background: var(--color-surface-3);
+  text-align: start;
+}
+.cw-phone svg {
+  flex: none;
+  width: 6.5rem;
+  height: 6.5rem;
+  border-radius: 4px;
+}
+.cw-phone strong {
+  display: block;
+  margin-bottom: 0.2rem;
+}
+.cw-phone p {
+  margin: 0 0 0.3rem;
+  color: var(--color-muted);
+  font-size: 0.85rem;
+}
+.cw-phone code {
+  font-size: 0.95rem;
+  overflow-wrap: anywhere;
+}

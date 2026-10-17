@@ -882,6 +882,7 @@ const char *webui_cheats_toggle_error(const char *cause, size_t n) {
     if (strstr(msg, "no cheat file")) return "no_cheats";
     if (strstr(msg, "index out of range")) return "bad_index";
     if (strstr(msg, "is not loaded in the target process")) return "module_missing";
+    if (strstr(msg, "is attached to the game")) return "game_busy";
     return "toggle_failed";
 }
 

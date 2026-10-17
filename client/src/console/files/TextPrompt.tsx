@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { t } from "../strings";
 import { Modal } from "../ui/Modal";
+import { PhoneHandoff } from "../ui/PhoneHandoff";
 import { validName } from "./move";
 
 /** The default check: a file or folder name ("/", "." and ".." refused). */
@@ -11,7 +12,8 @@ const checkName = (v: string): string | null => (validName(v) ? null : t("cw_fil
  * OK and Cancel. `check` says why a value cannot be used (shown under the box,
  * the prompt stays open); by default a name with "/" (or "." / "..") is
  * refused here, before any call. An async check (Go to path asks the console)
- * holds OK until it answers.
+ * holds OK until it answers. With LAN access on, "Continue on your phone" (a QR
+ * code of this page's LAN address) shows under the box.
  */
 export function TextPrompt({
   title,
@@ -95,6 +97,7 @@ export function TextPrompt({
           </p>
         ) : null}
         {extra}
+        <PhoneHandoff />
         <div className="cw-dialog-buttons">
           <button type="button" className="cw-focusable cw-button" onClick={onCancel}>
             <span>{t("cw_dialog_cancel")}</span>

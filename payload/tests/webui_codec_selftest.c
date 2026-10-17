@@ -794,6 +794,8 @@ static void cheats_toggle_errors(void) {
     CHECK(strcmp(webui_cheats_toggle_error(c, strlen(c)), "bad_index") == 0);
     c = "{\"ok\":false,\"err\":\"module \\\"x.prx\\\" is not loaded in the target process\"}";
     CHECK(strcmp(webui_cheats_toggle_error(c, strlen(c)), "module_missing") == 0);
+    c = "{\"ok\":false,\"err\":\"pt_attach failed: another debugger or cheat tool is attached to the game (errno=16)\"}";
+    CHECK(strcmp(webui_cheats_toggle_error(c, strlen(c)), "game_busy") == 0);
     c = "{\"ok\":false,\"err\":\"pt_attach failed (errno=1)\"}";
     CHECK(strcmp(webui_cheats_toggle_error(c, strlen(c)), "toggle_failed") == 0);
     CHECK(strcmp(webui_cheats_toggle_error(NULL, 0), "toggle_failed") == 0);

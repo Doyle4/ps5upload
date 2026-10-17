@@ -5,9 +5,11 @@
  * language is fetched from the helper (GET /strings/<code>.json?v=<hash>,
  * gzip'd into the ELF) when it is chosen, at start or in Settings.
  *
- * Until a language's strings arrive the page stays in English (no flash of
- * raw keys), keys a language lacks fall back to English, and a failed load
- * leaves the page in English (logged once). The language follows the PS5's
+ * Until a language's strings arrive the page stays in the language it shows
+ * (English at start; the previous choice when Settings switches: never a flash
+ * of English in between), keys a language lacks fall back to English, and a
+ * failed or timed-out load (STRINGS_TIMEOUT_MS) leaves the page as it was
+ * (logged once). The language follows the PS5's
  * system language (navigator.language) until setLanguage overrides it.
  */
 import { LANGUAGE_NAMES } from "./languages";
@@ -80,10 +82,19 @@ export function cleanStrings(raw: unknown): Record<string, string> {
   return out;
 }
 
+/** A strings file that has not arrived by then is given up (the page stays as it is). */
+export const STRINGS_TIMEOUT_MS = 10_000;
+
 const fetchStrings: StringsLoader = async (code) => {
-  const res = await fetch(stringsUrl(code), { credentials: "same-origin" });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return cleanStrings(await res.json());
+  const stop = typeof AbortController === "function" ? new AbortController() : null;
+  const timer = setTimeout(() => stop?.abort(), STRINGS_TIMEOUT_MS);
+  try {
+    const res = await fetch(stringsUrl(code), { credentials: "same-origin", signal: stop?.signal });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return cleanStrings(await res.json());
+  } finally {
+    clearTimeout(timer);
+  }
 };
 
 const STORAGE_KEY = "ps5upload.console.lang";
@@ -157,7 +168,7 @@ function load(code: string): Promise<void> {
       (err: unknown) => {
         if (!loggedFailure) {
           loggedFailure = true;
-          console.warn(`console page: ${code} strings did not load, staying in English`, err);
+          console.warn(`console page: ${code} strings did not load, staying in ${shown}`, err);
         }
       },
     )
@@ -171,8 +182,9 @@ function load(code: string): Promise<void> {
 
 /**
  * Switch the page's language (Settings' manual override, and main.tsx at start). A language
- * already loaded applies at once; another one is fetched and applies when it arrives, English
- * until then. Re-renders through the listeners whenever the shown strings change.
+ * already loaded applies at once; another one is fetched and applies when it arrives, the page
+ * keeping the language it shows until then. Re-renders through the listeners whenever the shown
+ * strings change.
  */
 export function setLanguage(code: string): void {
   current = pickLanguage(code, LANGUAGES);
@@ -180,7 +192,6 @@ export function setLanguage(code: string): void {
     show(current);
     return;
   }
-  if (shown !== "en") show("en");
   void load(current);
 }
 
