@@ -158,7 +158,7 @@
   "cw_files_select_none": "Batalkan pilihan",
   "cw_files_selected": "{n} dipilih",
   "cw_files_show_pc": "Tampilkan di PC",
-  "cw_files_show_pc_done": "Dikirim ke PC Anda. Terbuka di Sistem File PS5Upload.",
+  "cw_files_show_pc_done": "Dikirim ke PC Anda.",
   "cw_files_show_pc_failed": "Tidak dapat mengirim ke PC.",
   "cw_files_some_failed": "{n} gagal: {reason}",
   "cw_files_sort_date": "Urutkan menurut tanggal",

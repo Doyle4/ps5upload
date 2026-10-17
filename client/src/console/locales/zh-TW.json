@@ -158,7 +158,7 @@
   "cw_files_select_none": "取消全選",
   "cw_files_selected": "已選取 {n} 項",
   "cw_files_show_pc": "在電腦上顯示",
-  "cw_files_show_pc_done": "已傳送到你的電腦，將在 PS5Upload 的檔案系統中開啟。",
+  "cw_files_show_pc_done": "已傳送到你的電腦。",
   "cw_files_show_pc_failed": "無法傳送到電腦。",
   "cw_files_some_failed": "{n} 項失敗：{reason}",
   "cw_files_sort_date": "依日期排序",

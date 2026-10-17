@@ -158,7 +158,7 @@
   "cw_files_select_none": "لغو انتخاب",
   "cw_files_selected": "{n} انتخاب شده",
   "cw_files_show_pc": "نمایش روی رایانه",
-  "cw_files_show_pc_done": "به رایانهٔ شما فرستاده شد. در سیستم فایل PS5Upload باز می‌شود.",
+  "cw_files_show_pc_done": "به رایانهٔ شما فرستاده شد.",
   "cw_files_show_pc_failed": "فرستادن به رایانه ممکن نشد.",
   "cw_files_some_failed": "{n} ناموفق: {reason}",
   "cw_files_sort_date": "مرتب‌سازی بر اساس تاریخ",

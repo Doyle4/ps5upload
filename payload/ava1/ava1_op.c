@@ -460,32 +460,8 @@ int ava1_jobs_list_all(const uint8_t me[32], uint8_t *out, size_t cap, size_t *o
     return list_jobs(NULL, out, cap, out_len);
 }
 
-typedef struct {
-    char (*roots)[AVA1_MAX_PATH + 1];
-    unsigned max, n;
-} roots_t;
-
-static void root_one(ava1_job_t *j, void *ctx) {
-    roots_t *r = ctx;
-    size_t len;
-    if (r->n >= r->max || j->kind != AVA1_JOB_UPLOAD || __atomic_load_n(&j->finished, __ATOMIC_ACQUIRE)) return;
-    len = strnlen(j->root, AVA1_MAX_PATH);
-    if (!len) return;
-    memcpy(r->roots[r->n], j->root, len);
-    r->roots[r->n][len] = '\0';
-    r->n++;
-}
-
 int ava1_jobs_upload_roots(char (*roots)[AVA1_MAX_PATH + 1], unsigned max) {
-    roots_t r;
-    r.roots = roots;
-    r.max = max;
-    r.n = 0;
-    /* Under the table lock, without the job's: a root is written once, as the job opens, so a listing
-     * at that moment may read it half-written (bounded: the buffer is fixed and NUL-capped here). The
-     * cost is one wrong badge for one poll; nothing acts on these paths. */
-    ava1_job_foreach(root_one, &r);
-    return (int)r.n;
+    return ava1_data_upload_roots(roots, max);
 }
 
 typedef struct {

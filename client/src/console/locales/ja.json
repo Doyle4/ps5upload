@@ -158,7 +158,7 @@
   "cw_files_select_none": "選択を解除",
   "cw_files_selected": "{n} 件選択中",
   "cw_files_show_pc": "PC で表示",
-  "cw_files_show_pc_done": "PC に送信しました。PS5Upload のファイルシステムで開きます。",
+  "cw_files_show_pc_done": "PC に送信しました。",
   "cw_files_show_pc_failed": "PC に送信できませんでした。",
   "cw_files_some_failed": "{n} 件失敗: {reason}",
   "cw_files_sort_date": "日付順",

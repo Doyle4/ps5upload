@@ -158,7 +158,7 @@
   "cw_files_select_none": "إلغاء التحديد",
   "cw_files_selected": "تم تحديد {n}",
   "cw_files_show_pc": "العرض على الكمبيوتر",
-  "cw_files_show_pc_done": "أُرسل إلى الكمبيوتر. يُفتح في نظام ملفات PS5Upload.",
+  "cw_files_show_pc_done": "أُرسل إلى الكمبيوتر.",
   "cw_files_show_pc_failed": "تعذّر الإرسال إلى الكمبيوتر.",
   "cw_files_some_failed": "فشل {n}: {reason}",
   "cw_files_sort_date": "ترتيب حسب التاريخ",

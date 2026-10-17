@@ -158,7 +158,7 @@
   "cw_files_select_none": "선택 해제",
   "cw_files_selected": "{n}개 선택됨",
   "cw_files_show_pc": "PC에서 보기",
-  "cw_files_show_pc_done": "PC로 보냈습니다. PS5Upload의 파일 시스템에서 열립니다.",
+  "cw_files_show_pc_done": "PC로 보냈습니다.",
   "cw_files_show_pc_failed": "PC로 보낼 수 없습니다.",
   "cw_files_some_failed": "{n}개 실패: {reason}",
   "cw_files_sort_date": "날짜순",

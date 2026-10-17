@@ -82,6 +82,11 @@ static void test_json(void) {
     CHECK(files_handoff_put(FILES_HANDOFF_TO_CONSOLE, "/data/My \"Game\" \\ 游戏", 100) == 0);
     n = files_handoff_take_json(FILES_HANDOFF_TO_CONSOLE, 350, out, sizeof out);
     CHECK(n > 0 && strcmp(out, "{\"path\":\"/data/My \\\"Game\\\" \\\\ 游戏\",\"age_ms\":250}") == 0);
+    /* a buffer too small refuses before taking: the handoff is still there */
+    CHECK(files_handoff_put(FILES_HANDOFF_TO_CONSOLE, "/data/keep", 0) == 0);
+    CHECK(files_handoff_take_json(FILES_HANDOFF_TO_CONSOLE, 1, out, 16) == -1);
+    n = files_handoff_take_json(FILES_HANDOFF_TO_CONSOLE, 1, out, sizeof out);
+    CHECK(n > 0 && strstr(out, "/data/keep") != NULL);
     /* through the method bodies */
     n = files_mgmt_handoff_put(B("{\"to\":\"console\",\"path\":\"/mnt/usb0/x\"}"), 0, out, sizeof out);
     CHECK(n > 0 && strcmp(out, "{\"ok\":true}") == 0);

@@ -158,7 +158,7 @@
   "cw_files_select_none": "বাছাই সরান",
   "cw_files_selected": "{n}টি নির্বাচিত",
   "cw_files_show_pc": "PC-তে দেখান",
-  "cw_files_show_pc_done": "আপনার PC-তে পাঠানো হয়েছে। এটি PS5Upload-এর ফাইল সিস্টেমে খুলবে।",
+  "cw_files_show_pc_done": "আপনার PC-তে পাঠানো হয়েছে।",
   "cw_files_show_pc_failed": "PC-তে পাঠানো যায়নি।",
   "cw_files_some_failed": "{n}টি ব্যর্থ: {reason}",
   "cw_files_sort_date": "তারিখ অনুযায়ী সাজান",

@@ -73,6 +73,9 @@ void ava1_unswept_add(int64_t delta);
 uint64_t ava1_unswept_total(void);
 /* 0 once ava1_data_stop has begun: long background work (recovery) checks it and returns. */
 int ava1_data_running(void);
+/* The roots of up to `max` uploads a session is sending now (attached, not finished or stopping,
+ * not a recovery placeholder), read under the open lock: the console page's "Uploading" badge. */
+int ava1_data_upload_roots(char (*roots)[AVA1_MAX_PATH + 1], unsigned max);
 /* Housekeeping loop iterations since start (tests: a slow recovery must not stall the reaper). */
 extern unsigned ava1_house_ticks;
 

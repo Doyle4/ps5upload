@@ -158,7 +158,7 @@
   "cw_files_select_none": "Kijelölés törlése",
   "cw_files_selected": "{n} kijelölve",
   "cw_files_show_pc": "Megjelenítés a PC-n",
-  "cw_files_show_pc_done": "Elküldve a PC-dre. A PS5Upload fájlrendszerében nyílik meg.",
+  "cw_files_show_pc_done": "Elküldve a PC-dre.",
   "cw_files_show_pc_failed": "Nem sikerült elküldeni a PC-re.",
   "cw_files_some_failed": "{n} sikertelen: {reason}",
   "cw_files_sort_date": "Rendezés dátum szerint",

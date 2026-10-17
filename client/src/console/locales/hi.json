@@ -158,7 +158,7 @@
   "cw_files_select_none": "चयन हटाएँ",
   "cw_files_selected": "{n} चुने गए",
   "cw_files_show_pc": "PC पर दिखाएँ",
-  "cw_files_show_pc_done": "आपके PC पर भेजा गया। यह PS5Upload के फ़ाइल सिस्टम में खुलेगा।",
+  "cw_files_show_pc_done": "आपके PC पर भेजा गया।",
   "cw_files_show_pc_failed": "PC पर नहीं भेज सके।",
   "cw_files_some_failed": "{n} विफल: {reason}",
   "cw_files_sort_date": "तारीख़ के अनुसार क्रम",

@@ -84,8 +84,9 @@ int files_handoff_take_json(int side, long long now_ms, char *out, size_t cap) {
     char path[FILES_PREFS_PATH_MAX];
     long long age = 0;
     size_t at;
-    if (!files_handoff_take(side, now_ms, path, &age)) return answer(out, cap, "{}");
+    /* before the take: a buffer too small must not empty the slot and lose the handoff */
     if (cap < FILES_HANDOFF_OUT_MAX) return -1;
+    if (!files_handoff_take(side, now_ms, path, &age)) return answer(out, cap, "{}");
     at = (size_t)snprintf(out, cap, "{\"path\":\"");
     at += webui_json_escape(out + at, cap - at, path, strlen(path)); /* fits: 6x the path + 64 */
     snprintf(out + at, cap - at, "\",\"age_ms\":%lld}", age);

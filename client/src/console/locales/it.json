@@ -158,7 +158,7 @@
   "cw_files_select_none": "Deseleziona tutto",
   "cw_files_selected": "{n} selezionati",
   "cw_files_show_pc": "Mostra sul PC",
-  "cw_files_show_pc_done": "Inviato al tuo PC. Si apre nel file system di PS5Upload.",
+  "cw_files_show_pc_done": "Inviato al tuo PC.",
   "cw_files_show_pc_failed": "Impossibile inviarlo al PC.",
   "cw_files_some_failed": "{n} non riusciti: {reason}",
   "cw_files_sort_date": "Ordina per data",

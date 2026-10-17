@@ -158,7 +158,7 @@
   "cw_files_select_none": "Seçimi kaldır",
   "cw_files_selected": "{n} seçili",
   "cw_files_show_pc": "PC'de göster",
-  "cw_files_show_pc_done": "PC'ne gönderildi. PS5Upload'ın Dosya Sistemi'nde açılır.",
+  "cw_files_show_pc_done": "PC'ne gönderildi.",
   "cw_files_show_pc_failed": "PC'ye gönderilemedi.",
   "cw_files_some_failed": "{n} başarısız: {reason}",
   "cw_files_sort_date": "Tarihe göre sırala",

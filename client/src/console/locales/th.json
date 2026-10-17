@@ -158,7 +158,7 @@
   "cw_files_select_none": "ไม่เลือกเลย",
   "cw_files_selected": "เลือกแล้ว {n}",
   "cw_files_show_pc": "แสดงบน PC",
-  "cw_files_show_pc_done": "ส่งไปยัง PC ของคุณแล้ว จะเปิดในระบบไฟล์ของ PS5Upload",
+  "cw_files_show_pc_done": "ส่งไปยัง PC ของคุณแล้ว",
   "cw_files_show_pc_failed": "ไม่สามารถส่งไปยัง PC ได้",
   "cw_files_some_failed": "ล้มเหลว {n}: {reason}",
   "cw_files_sort_date": "เรียงตามวันที่",

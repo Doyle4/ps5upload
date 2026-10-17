@@ -158,7 +158,7 @@
   "cw_files_select_none": "Bỏ chọn",
   "cw_files_selected": "Đã chọn {n}",
   "cw_files_show_pc": "Hiển thị trên PC",
-  "cw_files_show_pc_done": "Đã gửi đến PC của bạn. Sẽ mở trong Hệ thống tệp của PS5Upload.",
+  "cw_files_show_pc_done": "Đã gửi đến PC của bạn.",
   "cw_files_show_pc_failed": "Không thể gửi đến PC.",
   "cw_files_some_failed": "{n} thất bại: {reason}",
   "cw_files_sort_date": "Sắp xếp theo ngày",
