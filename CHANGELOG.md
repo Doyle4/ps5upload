@@ -4,6 +4,15 @@ What's new in ps5upload, written for humans.
 
 ---
 
+## Unreleased
+
+- **Big app databases no longer hide installed games.** The console's app database was read
+  only up to its first 256 entries, and a long list could be cut shorter still, with nothing
+  saying so. On a console with many entries, a game installed by a homebrew installer (no
+  home-screen metadata folder) that sorted past that point was missing from Games. The app now
+  reads the whole database page by page, also lists any game it registered whose folder is on
+  the console, and logs a warning when a list could not be read in full (#473).
+
 ## 7.0.34
 
 - **Unity games no longer crash when they run as a folder.** Some game dumps name a file

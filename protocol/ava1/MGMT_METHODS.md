@@ -59,7 +59,7 @@ ones (`ava1-ctest/tests/mgmt*.rs`, `ps5upload-ava1/tests/mgmt*.rs`). Methods 119
 | ProcModules 114 | 61 `proc.modules` | `MgmtText` | `src/runtime.c` `handle_proc_modules` | `ps5upload-core/src/diagnostics.rs` |  |
 | ShellExec 116 | 87 `shell.exec` | `MgmtText` | `src/runtime.c` `handle_shell_exec` | `ps5upload-core/src/diagnostics.rs` |  |
 | Crc32File 118 | 20 `job.run (op CRC32)` | `JobRun` -> `Status` (ext `state`, `result`, `code`) | `src/fs_jobs.c` `op_crc32` | `ps5upload-core/src/diagnostics.rs` | `ava1-ctest/tests/job_run.rs` `crc32_of_a_large_file_is_a_job_that_can_be_cancelled`; engine `mgmt_job.rs` `recursive_chmod_hash_crc32_fsck_and_backup_run_as_jobs_with_their_reply_shapes` |
-| AppDbQuery 120 | 56 `app.db_query` | `MgmtText` | `src/runtime.c` `handle_appdb_query` | `ps5upload-core/src/diagnostics.rs` |  |
+| AppDbQuery 120 | 56 `app.db_query` | `MgmtText`; request `{"offset":N,"limit":M}` (both optional, empty = page one), reply adds `offset`, `next`, `more`, `truncated` (#473) | `src/runtime.c` `handle_appdb_query` | `ps5upload-core/src/diagnostics.rs` (pages until `more` is false) |  |
 | NetSpeedTest 122 | 11 `net.speedtest` | `MgmtText` | `src/runtime.c` `handle_net_speed_test` | `ps5upload-core/src/diagnostics.rs` |  |
 | PkgDirectMount 124 | 42 `fs.mount_pkg` | `MgmtText` | `src/runtime.c` `handle_pkg_direct_mount` | `ps5upload-core/src/diagnostics.rs` | host-tested |
 | UfsFsck 126 | 20 `job.run (op FSCK)` | `JobRun` -> `Status` (ext `state`, `result`, `code`) | `src/runtime.c` `handle_ufs_fsck` | `ps5upload-core/src/diagnostics.rs` | `ava1-ctest/tests/job_run.rs` `fsck_keeps_its_ok_false_body_as_the_answer_and_a_frame_error_is_a_failure`; engine `mgmt_job.rs` (same shapes test) |

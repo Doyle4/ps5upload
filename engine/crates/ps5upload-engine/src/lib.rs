@@ -4933,6 +4933,40 @@ struct InstalledAppsResponse {
     /// UI then can't reliably tag the "registered" group, so it shows
     /// everything under "installed" with a soft note rather than erroring.
     registered_unavailable: bool,
+    /// True when the list may be missing titles: a directory listing hit its page size,
+    /// or app.db could not be read in full (a failed query, or a helper that could not
+    /// deliver every row, #473). The titles shown are real; there may be more.
+    incomplete: bool,
+}
+
+/// app.db, read at most once per request: a paged read is several calls (#473), and the
+/// installed list asks it for names title by title.
+struct AppDbOnce<'a> {
+    addr: &'a str,
+    got: Option<Result<ps5upload_core::diagnostics::AppDbList, String>>,
+}
+
+impl<'a> AppDbOnce<'a> {
+    fn new(addr: &'a str) -> Self {
+        Self { addr, got: None }
+    }
+
+    fn get(&mut self) -> &Result<ps5upload_core::diagnostics::AppDbList, String> {
+        let addr = self.addr;
+        self.got
+            .get_or_insert_with(|| appdb_query(addr).map_err(|e| format!("{e:#}")))
+    }
+
+    /// app.db's display name for `title_id`, when it has one that is not the id itself.
+    fn name_of(&mut self, title_id: &str) -> Option<String> {
+        let list = self.get().as_ref().ok()?;
+        list.apps
+            .iter()
+            .filter(|a| a.title_id == title_id)
+            .map(|a| a.name.trim())
+            .find(|n| !n.is_empty() && *n != title_id)
+            .map(str::to_string)
+    }
 }
 
 /// PS5 title-ids are 4 uppercase letters + 5 digits (PPSA01234, NPXS39041,
@@ -4950,7 +4984,7 @@ fn looks_like_title_id(name: &str) -> bool {
 /// `app.db` (raw file scan when sqlite is unavailable). Returns None on
 /// any failure (no metadata file — common for system apps — bad JSON,
 /// bad SFO, path denied); the caller falls back to the bare title_id.
-fn appmeta_title_name(addr: &str, title_id: &str) -> Option<String> {
+fn appmeta_title_name(addr: &str, title_id: &str, appdb: &mut AppDbOnce<'_>) -> Option<String> {
     // /user/appmeta/<id> first; then the app's own sce_sys, which is all a
     // title installed by a homebrew installer has on FW 13.60.
     for dir in [
@@ -4981,17 +5015,7 @@ fn appmeta_title_name(addr: &str, title_id: &str) -> Option<String> {
     // This is the only way to resolve PS4 BC titles (CUSA IDs) whose
     // metadata lives solely in app.db — their appmeta dirs have no
     // param.sfo or param.json.
-    if let Ok(appdb) = appdb_query(addr) {
-        for app in &appdb.apps {
-            if app.title_id == title_id {
-                let name = app.name.trim();
-                if !name.is_empty() && name != title_id {
-                    return Some(name.to_string());
-                }
-            }
-        }
-    }
-    None
+    appdb.name_of(title_id)
 }
 
 /// Titles app.db knows are installed that the /user/appmeta scan missed,
@@ -5024,6 +5048,26 @@ fn appdb_installed_additions(
     out
 }
 
+/// Titles we registered whose app folder exists but that neither the /user/appmeta scan
+/// nor app.db produced (#473): a homebrew-installed title has no appmeta folder, and app.db
+/// may not have answered for it (a failed or partial read). The registration and the folder
+/// on disk are evidence enough. Sorted, so the list does not reshuffle between refreshes.
+fn registered_only_additions<'a>(
+    registered: impl IntoIterator<Item = &'a str>,
+    app_dirs: &std::collections::HashSet<String>,
+    seen: &std::collections::HashSet<String>,
+) -> Vec<String> {
+    let mut out: Vec<String> = registered
+        .into_iter()
+        .map(str::trim)
+        .filter(|tid| looks_like_title_id(tid) && app_dirs.contains(*tid) && !seen.contains(*tid))
+        .map(str::to_string)
+        .collect();
+    out.sort();
+    out.dedup();
+    out
+}
+
 /// GET /api/ps5/apps/installed?addr=IP:MGMT_PORT
 async fn ps5_apps_installed(
     State(state): State<AppState>,
@@ -5050,6 +5094,7 @@ async fn ps5_apps_installed(
                 }
             };
 
+            let mut appdb = AppDbOnce::new(&addr);
             // Full installed set: every /user/appmeta/<title_id>/ dir.
             let listing = list_dir(
                 &addr,
@@ -5074,7 +5119,7 @@ async fn ps5_apps_installed(
                     // the id (older registrations stored id-as-name), try
                     // param.json for a friendlier label.
                     let name = if reg.title_name.trim().is_empty() || reg.title_name == tid {
-                        appmeta_title_name(&addr, &tid).unwrap_or_else(|| tid.clone())
+                        appmeta_title_name(&addr, &tid, &mut appdb).unwrap_or_else(|| tid.clone())
                     } else {
                         reg.title_name.clone()
                     };
@@ -5087,7 +5132,8 @@ async fn ps5_apps_installed(
                         system,
                     });
                 } else {
-                    let name = appmeta_title_name(&addr, &tid).unwrap_or_else(|| tid.clone());
+                    let name =
+                        appmeta_title_name(&addr, &tid, &mut appdb).unwrap_or_else(|| tid.clone());
                     titles.push(InstalledApp {
                         title_id: tid.clone(),
                         title_name: name,
@@ -5138,40 +5184,81 @@ async fn ps5_apps_installed(
             complete = complete
                 && crate::console_snapshot::app_folders_whole(internal_listing, app_dirs.len());
             if !app_dirs.is_empty() {
-                match appdb_query(&addr) {
-                    Ok(appdb) => {
-                        let seen: std::collections::HashSet<String> =
-                            titles.iter().map(|t| t.title_id.clone()).collect();
-                        let rows: Vec<(String, String)> = appdb
-                            .apps
-                            .into_iter()
-                            .map(|a| (a.title_id, a.name))
-                            .collect();
-                        for (tid, db_name) in appdb_installed_additions(&rows, &app_dirs, &seen) {
-                            let name = match db_name {
-                                Some(n) => n,
-                                None => {
-                                    appmeta_title_name(&addr, &tid).unwrap_or_else(|| tid.clone())
-                                }
-                            };
-                            let (origin, image_backed, source) = match reg_map.get(&tid) {
-                                Some(reg) => ("registered", reg.image_backed, reg.src.clone()),
-                                None => ("pkg", false, String::new()),
-                            };
-                            titles.push(InstalledApp {
-                                title_id: tid,
-                                title_name: name,
-                                origin: origin.to_string(),
-                                image_backed,
-                                source,
-                                system: false,
-                            });
+                let rows: Option<Vec<(String, String)>> = match appdb.get() {
+                    Ok(list) => {
+                        // `err` with no rows: the helper could not read app.db at all.
+                        if list.truncated || list.err.is_some() {
+                            // Every row the helper delivered is used; the list just may not be whole.
+                            crate::log_warn!(
+                                "apps/installed: app.db read incomplete ({} rows{})",
+                                list.apps.len(),
+                                list.err
+                                    .as_deref()
+                                    .map(|e| format!(": {e}"))
+                                    .unwrap_or_default()
+                            );
+                            complete = false;
                         }
+                        Some(
+                            list.apps
+                                .iter()
+                                .map(|a| (a.title_id.clone(), a.name.clone()))
+                                .collect(),
+                        )
                     }
                     Err(e) => {
-                        crate::log_warn!("apps/installed: app.db query failed: {e:#}");
+                        crate::log_warn!("apps/installed: app.db query failed: {e}");
                         complete = false;
+                        None
                     }
+                };
+                if let Some(rows) = rows {
+                    let seen: std::collections::HashSet<String> =
+                        titles.iter().map(|t| t.title_id.clone()).collect();
+                    for (tid, db_name) in appdb_installed_additions(&rows, &app_dirs, &seen) {
+                        let name = match db_name {
+                            Some(n) => n,
+                            None => appmeta_title_name(&addr, &tid, &mut appdb)
+                                .unwrap_or_else(|| tid.clone()),
+                        };
+                        let (origin, image_backed, source) = match reg_map.get(&tid) {
+                            Some(reg) => ("registered", reg.image_backed, reg.src.clone()),
+                            None => ("pkg", false, String::new()),
+                        };
+                        titles.push(InstalledApp {
+                            title_id: tid,
+                            title_name: name,
+                            origin: origin.to_string(),
+                            image_backed,
+                            source,
+                            system: false,
+                        });
+                    }
+                }
+                // Registered titles whose folder is there but that neither listing above
+                // produced (#473): never let a registration vanish because app.db did not
+                // answer for it.
+                let seen: std::collections::HashSet<String> =
+                    titles.iter().map(|t| t.title_id.clone()).collect();
+                for tid in
+                    registered_only_additions(reg_map.keys().map(String::as_str), &app_dirs, &seen)
+                {
+                    let Some(reg) = reg_map.get(&tid) else {
+                        continue;
+                    };
+                    let name = if reg.title_name.trim().is_empty() || reg.title_name == tid {
+                        appmeta_title_name(&addr, &tid, &mut appdb).unwrap_or_else(|| tid.clone())
+                    } else {
+                        reg.title_name.clone()
+                    };
+                    titles.push(InstalledApp {
+                        system: tid.starts_with("NPXS"),
+                        title_id: tid,
+                        title_name: name,
+                        origin: "registered".to_string(),
+                        image_backed: reg.image_backed,
+                        source: reg.src.clone(),
+                    });
                 }
             }
             // Kept for the game page. System apps are not games.
@@ -5211,6 +5298,7 @@ async fn ps5_apps_installed(
             Ok(InstalledAppsResponse {
                 titles,
                 registered_unavailable,
+                incomplete: !complete,
             })
         })
         .await
@@ -12537,7 +12625,7 @@ mod job_stage_tests {
 
 #[cfg(test)]
 mod appdb_installed_additions_tests {
-    use super::appdb_installed_additions;
+    use super::{appdb_installed_additions, registered_only_additions};
     use std::collections::HashSet;
 
     fn set(v: &[&str]) -> HashSet<String> {
@@ -12566,6 +12654,42 @@ mod appdb_installed_additions_tests {
                 ("FAKE10101".to_string(), None),
             ]
         );
+    }
+
+    /// #473: a title past the first 256 app.db rows is still added once the
+    /// rows arrive — the window, not the filter, was what hid it.
+    #[test]
+    fn a_late_sorting_title_past_row_256_is_kept() {
+        let mut rows: Vec<(String, String)> = (0..1000)
+            .map(|i| (format!("CUSA{i:05}"), format!("Game {i}")))
+            .collect();
+        rows.insert(0, ("AAAA00001".to_string(), "Early".to_string()));
+        rows.push(("ZZZZ99999".to_string(), "Late Title".to_string()));
+        let got = appdb_installed_additions(&rows, &set(&["ZZZZ99999"]), &HashSet::new());
+        assert_eq!(
+            got,
+            vec![("ZZZZ99999".to_string(), Some("Late Title".to_string()))]
+        );
+    }
+
+    /// #473: a registered title with its app folder but no appmeta and no
+    /// app.db row (a failed or partial app.db read) is still listed.
+    #[test]
+    fn registered_titles_with_a_folder_are_reconciled() {
+        let got = registered_only_additions(
+            [
+                "PPSA00002",
+                "ZZZZ99999",
+                "CUSA00001",
+                "PPSA00003",
+                "not-an-id",
+            ],
+            &set(&["ZZZZ99999", "CUSA00001", "PPSA00002", "not-an-id"]),
+            // already listed by the appmeta scan or app.db
+            &set(&["CUSA00001"]),
+        );
+        // PPSA00003 has no folder: a stale registration is not an installed title.
+        assert_eq!(got, vec!["PPSA00002".to_string(), "ZZZZ99999".to_string()]);
     }
 
     #[test]

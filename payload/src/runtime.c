@@ -6991,9 +6991,31 @@ static int handle_shell_exec(runtime_state_t *state, const char *body,
  * The scan survives inside content_db_apps_json as the fallback for a
  * database that will not open at all (locked by the shell, or damaged),
  * which is a genuine runtime condition rather than a permanent one.
+ *
+ * Paged (#473): the request may carry {"offset":N,"limit":M}; the reply
+ * says where the next page starts ("next") and whether one follows
+ * ("more"), see content_db_apps_page_json. An empty request -- what an
+ * older engine sends -- is page one.
  */
-static int handle_appdb_query(runtime_state_t *state) {
+static int handle_appdb_query(runtime_state_t *state, const char *body,
+                              uint64_t body_len) {
     if (!state) return -1;
+
+    uint64_t offset = 0, limit = 0;
+    if (body && body_len > 0) {
+        /* mgmt_json_u64 reads a C string; the body is not terminated. */
+        char req[256];
+        size_t n = body_len < sizeof(req) - 1 ? (size_t)body_len
+                                              : sizeof(req) - 1;
+        memcpy(req, body, n);
+        req[n] = '\0';
+        if (mgmt_json_u64(req, "offset", &offset) < 0 ||
+            mgmt_json_u64(req, "limit", &limit) < 0 || offset > UINT32_MAX ||
+            limit > UINT32_MAX) {
+            const char *err = "{\"err\":\"bad_window\",\"apps\":[]}";
+            return mgmt_reply(MGMT_FRAME_APPDB_QUERY_ACK, err, strlen(err));
+        }
+    }
 
     const size_t cap = 64 * 1024;
     char *resp = (char *)malloc(cap);
@@ -7004,7 +7026,9 @@ static int handle_appdb_query(runtime_state_t *state) {
 
     size_t written = 0;
     int rc;
-    if (content_db_apps_json(resp, cap, &written) != 0 || written == 0) {
+    if (content_db_apps_page_json((unsigned)offset, (unsigned)limit, resp, cap,
+                                  &written) != 0 ||
+        written == 0) {
         const char *err = "{\"err\":\"appdb_unreadable\",\"apps\":[]}";
         rc = mgmt_reply(MGMT_FRAME_APPDB_QUERY_ACK, err, strlen(err));
     } else {

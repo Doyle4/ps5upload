@@ -2853,6 +2853,10 @@ export interface AppDbEntry {
 export interface AppDbList {
   apps: AppDbEntry[];
   err?: string;
+  /** Which reader answered: "sqlite", "sqlite-immutable" or "scan". */
+  source?: string;
+  /** True when app.db holds rows this list does not (#473). */
+  truncated?: boolean;
 }
 
 export async function appdbQuery(addr: string): Promise<AppDbList> {
@@ -3519,6 +3523,9 @@ export interface InstalledAppsResult {
   /** True if the payload couldn't report the "registered" set (older
    *  payload); the UI then shows everything as "installed" with a note. */
   registeredUnavailable: boolean;
+  /** True if the console's list may be missing titles (a listing hit its
+   *  page size, or app.db could not be read in full, #473). */
+  incomplete: boolean;
 }
 
 /** List every installed title on the PS5, grouped by origin. Routes through
@@ -3538,6 +3545,7 @@ export async function appsInstalled(
       system?: boolean;
     }>;
     registered_unavailable?: boolean;
+    incomplete?: boolean;
   }>("ps5_apps_installed", { addr });
   const titles: InstalledTitle[] = (res?.titles ?? [])
     .filter((t): t is { title_id: string } & typeof t => !!t.title_id)
@@ -3550,7 +3558,11 @@ export async function appsInstalled(
       source: t.source ?? "",
       system: !!t.system,
     }));
-  return { titles, registeredUnavailable: !!res?.registered_unavailable };
+  return {
+    titles,
+    registeredUnavailable: !!res?.registered_unavailable,
+    incomplete: !!res?.incomplete,
+  };
 }
 
 export type InstalledPkgKind = "base" | "patch" | "dlc";
