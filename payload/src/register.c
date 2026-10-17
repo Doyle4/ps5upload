@@ -1028,6 +1028,15 @@ static int unmount_title_nullfs(const char *title_id) {
     return -1;
 }
 
+int register_remount_nullfs(const char *title_id, const char *src_path,
+                           const char **err_reason_out) {
+    if (!title_id || !src_path || !is_safe_component(title_id)) {
+        if (err_reason_out) *err_reason_out = "register_args_invalid";
+        return -1;
+    }
+    return mount_title_nullfs(title_id, src_path, err_reason_out);
+}
+
 /* -- sqlite-backed snd0info patch + list_registered -------------------- */
 
 /* An earlier build updated snd0info on the app.db row after Sony's

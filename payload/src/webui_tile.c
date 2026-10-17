@@ -146,6 +146,15 @@ static int remove_tree(const char *path, int depth) {
 
 int webui_tile_remove_files(const char *dir) { return remove_tree(dir, 0); }
 
+webui_tile_action_t webui_tile_plan(int files_changed, int mount_live, int lnk_ours, int appmeta) {
+    if (files_changed) return WEBUI_TILE_REGISTER;
+    if (mount_live && lnk_ours) return WEBUI_TILE_NONE;
+    /* A live mount that is not ours, or a half-removed registration: only the full register
+     * (which pre-cleans the mount point and restages everything) puts it right. */
+    if (!mount_live && lnk_ours && appmeta) return WEBUI_TILE_REBIND;
+    return WEBUI_TILE_REGISTER;
+}
+
 #ifndef WEBUI_TILE_HOST_TEST
 
 #include <pthread.h>
@@ -163,17 +172,21 @@ int webui_tile_remove_files(const char *dir) { return remove_tree(dir, 0); }
 /* Serializes ensure and remove (Sony calls, the folder) whoever calls them. */
 static pthread_mutex_t g_op_mu = PTHREAD_MUTEX_INITIALIZER;
 
-/* Registered this boot by us, from this folder: the nullfs register_title_from_path binds at
- * /system_ex/app/PSUP00001 is live (it is rolled back when Sony's install call fails, and does not
- * survive a reboot) and /user/app/PSUP00001/mount.lnk names WEBUI_TILE_DIR. One statfs and one
- * small read: no Sony call, no app.db open. */
-static int tile_registered(void) {
+#define TILE_USER_APP "/user/app/" WEBUI_TILE_TITLE_ID
+#define TILE_APPMETA "/user/appmeta/" WEBUI_TILE_TITLE_ID
+
+/* The nullfs register_title_from_path binds at /system_ex/app/PSUP00001 is live. It is rolled back
+ * when Sony's install call fails and does not survive a reboot. One statfs. */
+static int tile_mount_live(void) {
     struct statfs sfs;
+    return statfs(TILE_SYSTEM_EX, &sfs) == 0 && strcmp(sfs.f_mntonname, TILE_SYSTEM_EX) == 0;
+}
+
+/* /user/app/PSUP00001/mount.lnk (written by register_title_from_path) names WEBUI_TILE_DIR. */
+static int tile_lnk_ours(void) {
     char lnk[256];
     ssize_t n;
-    int fd;
-    if (statfs(TILE_SYSTEM_EX, &sfs) != 0 || strcmp(sfs.f_mntonname, TILE_SYSTEM_EX) != 0) return 0;
-    fd = open(TILE_MOUNT_LNK, O_RDONLY);
+    int fd = open(TILE_MOUNT_LNK, O_RDONLY);
     if (fd < 0) return 0;
     n = read(fd, lnk, sizeof lnk - 1);
     close(fd);
@@ -183,23 +196,51 @@ static int tile_registered(void) {
     return strcmp(lnk, WEBUI_TILE_DIR) == 0;
 }
 
-int webui_tile_ensure(uint16_t port) {
+static int is_dir(const char *p) {
+    struct stat st;
+    return stat(p, &st) == 0 && S_ISDIR(st.st_mode);
+}
+
+static int tile_register(void) {
     char tid[REGISTER_MAX_TITLE_ID], tname[REGISTER_MAX_TITLE_NAME];
     const char *err = NULL;
-    int changed, used = 0, rc = 0;
+    int used = 0;
+    if (register_title_from_path(WEBUI_TILE_DIR, 0, tid, tname, &used, &err) != 0) {
+        fprintf(stderr, "webui tile: full register failed: %s\n", err ? err : "unknown");
+        return -1;
+    }
+    fprintf(stderr, "webui tile: full register of %s done\n", tid);
+    return 0;
+}
+
+int webui_tile_ensure(uint16_t port) {
+    const char *err = NULL;
+    int changed, rc = 0;
     pthread_mutex_lock(&g_op_mu);
     changed = webui_tile_write_files(WEBUI_TILE_DIR, port);
     if (changed < 0) {
         fprintf(stderr, "webui tile: cannot write %s: %s\n", WEBUI_TILE_DIR, strerror(errno));
         rc = -1;
-    } else if (changed > 0 || !tile_registered()) {
-        /* register copies sce_sys into /user/app and /user/appmeta: a changed file needs a re-register
-         * even while the title is registered (Sony answers 0x80990002 "restored": success). */
-        if (register_title_from_path(WEBUI_TILE_DIR, 0, tid, tname, &used, &err) != 0) {
-            fprintf(stderr, "webui tile: register failed: %s\n", err ? err : "unknown");
-            rc = -1;
-        } else {
-            fprintf(stderr, "webui tile: registered %s\n", tid);
+    } else {
+        switch (webui_tile_plan(changed > 0, tile_mount_live(), tile_lnk_ours(), is_dir(TILE_APPMETA))) {
+        case WEBUI_TILE_NONE:
+            fprintf(stderr, "webui tile: already registered this boot\n");
+            break;
+        case WEBUI_TILE_REBIND:
+            /* Still registered with Sony from an earlier boot: re-mount only, no Sony call. */
+            if (register_remount_nullfs(WEBUI_TILE_TITLE_ID, WEBUI_TILE_DIR, &err) == 0) {
+                fprintf(stderr, "webui tile: re-bound the nullfs (no Sony call)\n");
+            } else {
+                fprintf(stderr, "webui tile: re-bind failed (%s); falling back to a full register\n",
+                        err ? err : "unknown");
+                rc = tile_register();
+            }
+            break;
+        default:
+            /* A changed file (register copies sce_sys into /user/app and /user/appmeta, so the copies
+             * must be refreshed; Sony answers 0x80990002 "restored": success), or never registered. */
+            rc = tile_register();
+            break;
         }
     }
     pthread_mutex_unlock(&g_op_mu);
@@ -212,12 +253,19 @@ int webui_tile_remove(void) {
     int rc = 0;
     pthread_mutex_lock(&g_op_mu);
     /* The nullfs must be gone before the folder under it is deleted: on an unregister failure the
-     * folder stays (a tile pointing at nothing is worse than a tile that still works). */
+     * folders stay (a tile pointing at nothing is worse than a tile that still works). */
     if (unregister_title(WEBUI_TILE_TITLE_ID, &err, &sony_rc) != 0) {
         fprintf(stderr, "webui tile: unregister failed: %s; keeping %s\n", err ? err : "unknown", WEBUI_TILE_DIR);
         rc = -1;
     } else {
         if (sony_rc) fprintf(stderr, "webui tile: Sony uninstall rc=0x%08x (the tile may linger)\n", sony_rc);
+        /* unregister_title keeps the staged /user/app/PSUP00001 (sce_sys, icon, mount.lnk). On FW 13.x
+         * register goes through AppInstallAll, which installs everything staged there: left behind,
+         * the next folder-game register would bring back the tile the user removed. */
+        if (webui_tile_remove_files(TILE_USER_APP) != 0) {
+            fprintf(stderr, "webui tile: cannot delete %s: %s\n", TILE_USER_APP, strerror(errno));
+            rc = -1;
+        }
         if (webui_tile_remove_files(WEBUI_TILE_DIR) != 0) {
             fprintf(stderr, "webui tile: cannot delete %s: %s\n", WEBUI_TILE_DIR, strerror(errno));
             rc = -1;

@@ -98,6 +98,14 @@ int unregister_title(const char *title_id,
                      const char **err_reason_out,
                      unsigned *sony_rc_out);
 
+/* Re-establish only the nullfs bind /system_ex/app/<title_id> -> src_path
+ * (step 4 of register_title_from_path, with its /system_ex rw remount and
+ * eboot.bin checks) for a title that is still registered with Sony but whose
+ * bind did not survive a reboot. No Sony call, no copies, no app.db write.
+ * 0, or -1 with *err_reason_out set. */
+int register_remount_nullfs(const char *title_id, const char *src_path,
+                           const char **err_reason_out);
+
 /* Launch an already-registered title via sceLncUtilLaunchApp. The title
  * must already be in app.db; this does not register. On firmware where
  * the service is unavailable, returns -1 with reason

@@ -181,6 +181,32 @@ static void tile_files_written_only_when_different(void) {
     rmdir(p);
 }
 
+/* ensure's decision: every combination of (files changed, mount live, mount.lnk ours, appmeta). */
+static void tile_plan_decides_rebind_or_register(void) {
+    int c, m, l, a;
+    for (c = 0; c < 2; c++)
+        for (m = 0; m < 2; m++)
+            for (l = 0; l < 2; l++)
+                for (a = 0; a < 2; a++) {
+                    webui_tile_action_t want;
+                    if (c) want = WEBUI_TILE_REGISTER;           /* the copies must be refreshed */
+                    else if (m && l) want = WEBUI_TILE_NONE;     /* registered this boot */
+                    else if (!m && l && a) want = WEBUI_TILE_REBIND; /* after a reboot: re-mount only */
+                    else want = WEBUI_TILE_REGISTER;             /* never ours, half-removed, or someone else's bind */
+                    if (webui_tile_plan(c, m, l, a) != want) {
+                        fprintf(stderr, "FAIL plan(changed=%d mount=%d lnk=%d appmeta=%d) = %d, want %d\n", c, m, l, a,
+                                (int)webui_tile_plan(c, m, l, a), (int)want);
+                        failures++;
+                    }
+                }
+    /* The cases the review named, spelled out. */
+    CHECK(webui_tile_plan(0, 0, 1, 1) == WEBUI_TILE_REBIND);
+    CHECK(webui_tile_plan(0, 0, 1, 0) == WEBUI_TILE_REGISTER);
+    CHECK(webui_tile_plan(0, 0, 0, 1) == WEBUI_TILE_REGISTER);
+    CHECK(webui_tile_plan(0, 1, 1, 1) == WEBUI_TILE_NONE);
+    CHECK(webui_tile_plan(1, 1, 1, 1) == WEBUI_TILE_REGISTER);
+}
+
 int main(void) {
     snprintf(g_dir, sizeof g_dir, "/tmp/ps5upload-webui-settings-XXXXXX");
     if (!mkdtemp(g_dir)) {
@@ -192,6 +218,7 @@ int main(void) {
     save_then_load_round_trips();
     param_json_exact();
     tile_files_written_only_when_different();
+    tile_plan_decides_rebind_or_register();
     rmdir(g_dir);
     if (failures) {
         fprintf(stderr, "webui settings self-test: %d failure(s)\n", failures);
