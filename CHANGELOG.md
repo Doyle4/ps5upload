@@ -7,19 +7,33 @@ What's new in ps5upload, written for humans.
 ## 7.1.0
 
 - **PS5Upload now has a tile on the PS5 home screen that opens a page in the PS5 browser.** Pick
-  the tile to manage your files without a PC. The page is made for the controller (the D-pad and
-  ✕) and works with the PS5's Back button (○). It looks like the desktop app and has Home, Files
-  and Settings.
+  the tile to manage your files without a PC. The page fills the TV and has four sections: Home,
+  Files, Cheats and Settings.
+- **Home shows what is going on.** The game that is running (with Close game and a shortcut to
+  its cheats), the tasks that are running, and your drives; pick a drive to open it in Files.
+  Uploads and copies started from your PC show up as "from a PC", and a task can be cancelled
+  from here.
 - **Move, copy, rename and delete files from the couch.** Browse the internal drive, M.2 and USB
-  drives, start a copy to another drive and watch it on Home, and close or rest the console from
-  the same page. Several items are copied, moved or deleted one after another, with "3 of 40" and
-  a Stop button while they run.
-- **Uploads and copies from your PC show up on the console's Home** as "from a PC", so you can
-  see what is running without going back to the desk.
-- **It works while the helper is running, and only the console can open it by default.** In
-  Settings you can allow other devices on your network (it asks first, because anyone on the
-  network could then manage your files), hide the home screen tile, and pick the page's
-  language.
+  drives, make folders, view text and pictures, and see a file's details. Several items are
+  copied, moved or deleted one after another, with "3 of 40" and a Stop button while they run.
+- **Cheats for the running game.** Switch the cheats PS5Upload already has for the game on and
+  off. Adding cheats stays in the app on your PC; when no game is running, the page says what to
+  do.
+- **Made for the controller.** ✕ selects what is highlighted and the PS5's Back button (○) steps
+  back inside the page (out of a dialog, up a folder, back to Home). The PS5's own pointer works
+  too: whatever it is over is highlighted, so the highlight and what ✕ clicks are always the
+  same. Every action also has a button on screen.
+- **Tips and a Controls screen.** Three short tips show the first time (skip them with ○ or
+  Skip; Settings shows them again). Help, at the bottom of the left bar, lists the buttons that
+  work on the screen in front of you. Controls draws the DualSense with each button's job on the
+  page and lights up each button the page receives, so you can see which ones your PS5 passes
+  on; while it is open, button presses are saved to a small log on the console to improve
+  controller support.
+- **The desktop app's themes.** Dark, Light, OLED and Peach, plus high contrast, in Settings,
+  along with the page's language and full screen.
+- **Only the console can open it by default.** In Settings you can allow other devices on your
+  network (it asks first, because anyone on the network could then manage your files) and hide
+  the home screen tile.
 
 ---
 

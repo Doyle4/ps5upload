@@ -1,4 +1,4 @@
-import { HardDrive, Usb } from "lucide-react";
+import { HardDrive, RotateCw, Usb } from "lucide-react";
 import { formatBytes } from "../../lib/format";
 import { isDrive, volumeLabel, type Volume } from "../home/Home";
 import { t } from "../strings";
@@ -10,14 +10,28 @@ export function DriveList({
   volumes,
   error,
   onOpen,
+  onRetry,
 }: {
   volumes: Volume[] | null;
   error: boolean;
   onOpen: (path: string) => void;
+  /** Read the drives again. */
+  onRetry?: () => void;
 }) {
   const drives = (volumes ?? []).filter(isDrive);
   if (!drives.length) {
-    return <p className="cw-dim">{error ? t("cw_home_err_load_storage") : t("cw_home_loading")}</p>;
+    if (!error) return <p className="cw-dim">{t("cw_home_loading")}</p>;
+    return (
+      <div className="cw-msg is-error" role="alert">
+        {t("cw_home_err_load_storage")}
+        {onRetry ? (
+          <button type="button" className="cw-focusable cw-button cw-msg-action" data-action="retry" onClick={onRetry}>
+            <RotateCw aria-hidden />
+            <span>{t("cw_files_retry")}</span>
+          </button>
+        ) : null}
+      </div>
+    );
   }
   return (
     <ul className="cw-files" data-nav-list aria-label={t("cw_files_drives")}>

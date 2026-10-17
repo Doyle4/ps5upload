@@ -83,6 +83,8 @@ export interface FilesViewProps {
   path: string | null;
   volumes: Volume[] | null;
   volumesError: boolean;
+  /** Read the drives again (the drive list's Try again). */
+  onRetryVolumes?: () => void;
   dir: DirState;
   selecting: boolean;
   selected: string[];
@@ -271,7 +273,7 @@ export function FilesView(p: FilesViewProps) {
       <TasksLine tasks={p.tasks} />
 
       {p.path == null ? (
-        <DriveList volumes={p.volumes} error={p.volumesError} onOpen={p.onOpen} />
+        <DriveList volumes={p.volumes} error={p.volumesError} onOpen={p.onOpen} onRetry={p.onRetryVolumes} />
       ) : (
         <>
           <div className="cw-toolbar">
@@ -314,7 +316,9 @@ export function FilesView(p: FilesViewProps) {
           ) : null}
           {!p.dir.loaded && !p.dir.error ? <p className="cw-dim">{t("cw_home_loading")}</p> : null}
           {p.dir.loaded && !p.dir.entries.length && !p.dir.more ? (
-            <p className="cw-dim">{t("cw_files_empty")}</p>
+            <p className="cw-dim">
+              {t("cw_files_empty")} {t("cw_files_empty_next")}
+            </p>
           ) : null}
           <DirList
             entries={p.dir.entries}
@@ -346,7 +350,7 @@ export function FilesView(p: FilesViewProps) {
 
 /* ---- the section ---- */
 
-function useVolumes(path: string | null): { volumes: Volume[] | null; error: boolean } {
+function useVolumes(path: string | null, tick: number): { volumes: Volume[] | null; error: boolean } {
   const [volumes, setVolumes] = useState<Volume[] | null>(null);
   const [error, setError] = useState(false);
   const atDrives = path == null;
@@ -366,7 +370,7 @@ function useVolumes(path: string | null): { volumes: Volume[] | null; error: boo
     return () => {
       live = false;
     };
-  }, [atDrives]);
+  }, [atDrives, tick]);
   return { volumes, error };
 }
 
@@ -381,7 +385,8 @@ function byAttr(root: Element, attr: string, value: string): HTMLElement | null 
 export function Files({ ctx }: { ctx: SectionContext }) {
   const wanted = ctx.params?.path ?? null;
   const [path, setPath] = useState<string | null>(wanted);
-  const { volumes, error: volumesError } = useVolumes(path);
+  const [volumesTick, setVolumesTick] = useState(0);
+  const { volumes, error: volumesError } = useVolumes(path, volumesTick);
   const dir = useDir(path);
   const { jobs } = useJobs();
   const [selecting, setSelecting] = useState(false);
@@ -650,6 +655,7 @@ export function Files({ ctx }: { ctx: SectionContext }) {
         onEntry={onEntry}
         onLoadMore={onLoadMore}
         onRetry={refresh}
+        onRetryVolumes={() => setVolumesTick((n) => n + 1)}
         onToggleSelecting={onToggleSelecting}
         onToggleItem={onToggleItem}
         onAsk={(a) => {

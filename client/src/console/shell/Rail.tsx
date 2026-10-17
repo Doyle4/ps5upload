@@ -1,3 +1,4 @@
+import { CircleHelp } from "lucide-react";
 import type { Section } from "../sections";
 import { t } from "../strings";
 
@@ -9,10 +10,13 @@ export function Rail({
   sections,
   active,
   onSelect,
+  onHelp,
 }: {
   sections: Section[];
   active: string;
   onSelect: (id: string) => void;
+  /** The help overlay (also OPTIONS): at the bottom of the rail, so the pointer and the D-pad reach it. */
+  onHelp?: () => void;
 }) {
   return (
     <nav className="cw-rail" aria-label={t("cw_nav_sections")} data-nav-region="rail">
@@ -33,6 +37,12 @@ export function Rail({
           </button>
         );
       })}
+      {onHelp ? (
+        <button type="button" className="cw-focusable cw-rail-item cw-rail-help" data-action="help" onClick={onHelp}>
+          <CircleHelp aria-hidden />
+          <span>{t("cw_hint_help")}</span>
+        </button>
+      ) : null}
     </nav>
   );
 }

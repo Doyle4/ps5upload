@@ -8,7 +8,9 @@
  *   be down-levelled and is rejected by the client lint rule.
  * - The PC app's theme tokens (dark, light, peach, OLED, high contrast) come from src/index.css itself (pcTokens),
  *   not a copy, so the page follows the app's colours.
- * - Size budget: the build FAILS over 640 KiB raw or 150 KiB gzip.
+ * - Size budget: the build FAILS over 640 KiB raw or 220 KiB gzip. Ruling R19 raised the gzip
+ *   cap from 150 KiB: 21 inlined locales of console strings (the Controls screen, tips and help
+ *   added ~60 keys each) compress poorly across scripts; the ELF embeds the gzip, still small.
  */
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -17,7 +19,7 @@ import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 
 const RAW_BUDGET = 640 * 1024;
-const GZIP_BUDGET = 150 * 1024;
+const GZIP_BUDGET = 220 * 1024; // ruling R19 (was 150 KiB)
 const TOKENS_ID = "virtual:pc-tokens.css";
 
 /** The `{…}` body that starts at `open` (the index of a "{"), braces balanced. */

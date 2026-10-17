@@ -23,6 +23,10 @@ export interface SectionContext {
   hasSection: (id: string) => boolean;
   /** The params this section was opened with, or null. */
   params: SectionParams | null;
+  /** Open the Controls screen (Settings). */
+  openControls?: () => void;
+  /** Show the first-run tips again (Settings). */
+  showTips?: () => void;
 }
 
 /** One entry of the Rail. Only implemented sections are listed. */
@@ -61,6 +65,6 @@ export const SECTIONS: Section[] = [
     id: "settings",
     icon: Settings,
     labelKey: "cw_nav_settings",
-    render: () => <SettingsSection />,
+    render: (ctx) => <SettingsSection onOpenControls={ctx.openControls} onShowTips={ctx.showTips} />,
   },
 ];

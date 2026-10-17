@@ -102,7 +102,9 @@ export function PathPicker({
         </ul>
         {path != null && !dir.loaded ? <p className="cw-dim">{t("cw_home_loading")}</p> : null}
         {path != null && dir.loaded && !folders.length && !dir.more ? (
-          <p className="cw-dim">{t("cw_files_no_folders")}</p>
+          <p className="cw-dim">
+            {t("cw_files_no_folders")} {t("cw_files_no_folders_next")}
+          </p>
         ) : null}
         {path != null && dir.more ? (
           <button type="button" className="cw-focusable cw-button" onFocus={dir.loadMore} onClick={dir.loadMore}>

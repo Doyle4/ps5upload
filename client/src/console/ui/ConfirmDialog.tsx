@@ -18,7 +18,7 @@ export function dialogNavHandler(onCancel: () => void): (action: NavAction) => b
 
 /**
  * "Are you sure?" for anything that cannot be undone: close a game, cancel a
- * task, rest mode, restart, delete. A nav modal: the D-pad stays inside it,
+ * task, delete. A nav modal: the D-pad stays inside it,
  * focus starts on the safe choice (listed first), ○ closes it, and focus goes
  * back where it was when it closes (restoreFocus: a neighbour if that is gone).
  */

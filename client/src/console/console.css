@@ -888,3 +888,201 @@ button {
 .cw-cheats-empty.is-error .cw-cheats-empty-title {
   color: var(--color-bad);
 }
+
+/* ---- rail: Help at the bottom ---- */
+.cw-rail-help {
+  margin-top: auto;
+  margin-bottom: 0;
+}
+
+/* ---- guides: help overlay, tour, Controls ---- */
+.cw-help h2,
+.cw-tour h2 {
+  margin: 0 0 0.6rem;
+}
+.cw-help-list {
+  list-style: none;
+  margin: 0 0 0.8rem;
+  padding: 0;
+}
+.cw-help-list .cw-hint {
+  display: flex;
+  margin: 0 0 0.45rem;
+}
+.cw-help-list.is-dim {
+  color: var(--color-muted);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  column-gap: 1rem;
+  font-size: 0.85rem;
+}
+.cw-dialog.cw-help {
+  width: 46rem;
+  max-height: calc(100vh - 1rem);
+  overflow-y: auto;
+}
+.cw-help-sub {
+  margin: 0 0 0.4rem;
+  font-size: 0.8rem;
+}
+.cw-dialog-buttons .cw-button:first-child {
+  margin-left: 0;
+}
+.cw-tour {
+  width: 40rem;
+}
+.cw-tour-step {
+  margin: 0 0 0.2rem;
+  font-size: 0.75rem;
+}
+.cw-tour-lines {
+  margin: 0 0 1.1rem;
+  padding: 0 0 0 1.1rem;
+}
+.cw-tour-lines li {
+  margin: 0 0 0.45rem;
+}
+
+/* The guides' float colour over the page's solid base: nothing behind shows through (light themes'
+   float is 97% opaque, enough to ghost the page's text through a full-screen panel). */
+.cw-dialog.cw-controls,
+.cw-dialog.cw-help,
+.cw-dialog.cw-tour {
+  background: linear-gradient(var(--color-float), var(--color-float)), var(--atmosphere-base);
+}
+.cw-dialog.cw-controls {
+  width: calc(100vw - 2rem);
+  height: calc(100vh - 1.4rem);
+  display: flex;
+  flex-direction: column;
+  padding: 0.8rem 1.2rem 0.6rem;
+}
+.cw-ctl-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.cw-ctl-head h2 {
+  margin: 0;
+}
+.cw-dialog .cw-ctl-lead {
+  margin: 0.3rem 0 0.5rem;
+  color: var(--color-text);
+  font-size: 0.85rem;
+}
+.cw-dialog .cw-ctl-last {
+  min-height: 1.3rem;
+  margin: 0 0 0.4rem;
+  font-size: 0.8rem;
+  color: var(--color-good);
+}
+.cw-ctl-last .cw-glyph {
+  margin: 0 0.35rem 0 0.45rem;
+}
+.cw-ctl-main {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+.cw-ctl-stage {
+  flex: 0 0 40%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 1rem;
+  padding: 0.3rem;
+  border-radius: var(--radius-card);
+}
+.cw-ctl-picture {
+  width: 100%;
+  max-height: 100%;
+}
+.cw-ctl-body {
+  fill: var(--color-surface-2);
+  stroke: var(--color-border-strong);
+  stroke-width: 2;
+}
+.cw-ctl-btn rect,
+.cw-ctl-btn circle {
+  fill: var(--color-surface-3);
+  stroke: var(--color-border-strong);
+  stroke-width: 2;
+}
+.cw-ctl-picture text {
+  fill: var(--color-text);
+  font-size: 15px;
+  font-weight: 600;
+}
+.cw-ctl-btn.is-received rect,
+.cw-ctl-btn.is-received circle {
+  fill: var(--color-good-soft);
+  stroke: var(--color-good);
+}
+.cw-ctl-btn.is-system rect,
+.cw-ctl-btn.is-system circle {
+  stroke-dasharray: 4 3;
+}
+.cw-ctl-btn.is-system text {
+  fill: var(--color-muted);
+}
+.cw-ctl-btn.is-lit rect,
+.cw-ctl-btn.is-lit circle {
+  fill: var(--color-accent);
+  stroke: var(--color-accent);
+}
+.cw-ctl-btn.is-lit text {
+  fill: var(--color-accent-contrast);
+}
+.cw-ctl-legend {
+  flex: 1;
+  min-width: 0;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: repeat(11, auto);
+  grid-auto-flow: column;
+  column-gap: 1rem;
+  align-content: start;
+  font-size: 0.62rem;
+}
+.cw-ctl-legend li {
+  display: flex;
+  align-items: center;
+  padding: 0.1rem 0.4rem;
+  margin-bottom: 0.08rem;
+  border-radius: var(--radius-field);
+  min-width: 0;
+}
+.cw-ctl-legend .cw-glyph {
+  flex: none;
+  min-width: 2.7rem;
+  height: 1.15rem;
+  line-height: 1.15rem;
+  font-size: 0.55rem;
+  margin-right: 0.45rem;
+}
+.cw-ctl-job {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cw-ctl-state {
+  flex: none;
+  margin-left: 0.4rem;
+  color: var(--color-muted);
+}
+.cw-ctl-legend li.is-received .cw-ctl-state {
+  color: var(--color-good);
+  font-weight: 600;
+}
+.cw-ctl-legend li.is-lit {
+  background: var(--color-accent-soft);
+}
+.cw-ctl-foot {
+  margin: 0.4rem 0 0;
+  font-size: 0.6rem;
+}

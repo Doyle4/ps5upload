@@ -81,6 +81,11 @@ export interface SettingsViewProps {
   contrast?: boolean;
   onTheme?: (theme: Theme) => void;
   onToggleContrast?: () => void;
+  /** The Controls screen and the first-run tips (App's overlays); each button shows only when given. */
+  onOpenControls?: () => void;
+  onShowTips?: () => void;
+  /** Read /api/settings again after a failed load. */
+  onRetry?: () => void;
 }
 
 function Switch({
@@ -117,7 +122,23 @@ function Switch({
   );
 }
 
-/** Settings without state: everything comes in through props (tests render it directly). */
+/** A plain button row (Controls, Show tips again) with an optional note under it. */
+function ActionRow({ setting, label, note, onClick }: { setting: string; label: string; note?: string; onClick: () => void }) {
+  return (
+    <div className="cw-setting" data-setting={setting}>
+      <button type="button" className="cw-focusable cw-button" data-action={setting} onClick={onClick}>
+        <span>{label}</span>
+      </button>
+      {note ? <p className="cw-dim cw-setting-note">{note}</p> : null}
+    </div>
+  );
+}
+
+/**
+ * Settings without state: everything comes in through props (tests render it directly).
+ * Order: Theme · Language · Full screen · Controls · Show tips again · Allow other devices ·
+ * Show PS5Upload on the home screen · About (each row carries data-setting).
+ */
 export function SettingsView(p: SettingsViewProps) {
   const s = p.settings;
   return (
@@ -129,74 +150,36 @@ export function SettingsView(p: SettingsViewProps) {
         </div>
       ) : null}
 
-      <section className="cw-home-section">
-        <h2 className="cw-h2">{t("cw_settings_network")}</h2>
-        {s ? (
-          <>
-            <Switch
-              action="lan"
-              label={t("cw_settings_lan")}
-              on={s.lan}
-              disabled={p.busy}
-              onClick={p.onToggleLan}
-              note={t(s.lan ? "cw_settings_lan_off_note" : "cw_settings_lan_warning")}
-            />
-            <Switch
-              action="tile"
-              label={t("cw_settings_tile")}
-              on={s.tile}
-              disabled={p.busy}
-              onClick={p.onToggleTile}
-            />
-          </>
-        ) : (
-          <p className="cw-dim">{t(p.loadFailed ? "cw_settings_err_load" : "cw_home_loading")}</p>
-        )}
-      </section>
-
-      <section className="cw-home-section">
-        <h2 className="cw-h2">{t("cw_settings_display")}</h2>
-        {p.theme ? (
-          <div className="cw-setting">
-            <p className="cw-dim cw-setting-note">{t("cw_settings_theme")}</p>
-            <div className="cw-quick" role="group" aria-label={t("cw_settings_theme")}>
-              {THEMES.map((th) => (
-                <button
-                  key={th}
-                  type="button"
-                  className="cw-focusable cw-button"
-                  data-theme-choice={th}
-                  aria-pressed={p.theme === th}
-                  onClick={() => p.onTheme?.(th)}
-                >
-                  <span>{t(`cw_theme_${th}`)}</span>
-                </button>
-              ))}
-            </div>
+      {p.theme ? (
+        <section className="cw-home-section" data-setting="theme">
+          <h2 className="cw-h2">{t("cw_settings_theme")}</h2>
+          <div className="cw-quick" role="group" aria-label={t("cw_settings_theme")}>
+            {THEMES.map((th) => (
+              <button
+                key={th}
+                type="button"
+                className="cw-focusable cw-button"
+                data-theme-choice={th}
+                aria-pressed={p.theme === th}
+                onClick={() => p.onTheme?.(th)}
+              >
+                <span>{t(`cw_theme_${th}`)}</span>
+              </button>
+            ))}
           </div>
-        ) : null}
-        {typeof p.contrast === "boolean" ? (
-          <Switch
-            action="contrast"
-            label={t("cw_settings_contrast")}
-            on={p.contrast}
-            disabled={false}
-            onClick={() => p.onToggleContrast?.()}
-          />
-        ) : null}
-        {typeof p.fullscreen === "boolean" ? (
-          <Switch
-            action="fullscreen"
-            label={t("cw_settings_fullscreen")}
-            on={p.fullscreen}
-            disabled={false}
-            onClick={() => p.onToggleFullscreen?.()}
-            note={t("cw_settings_fullscreen_note")}
-          />
-        ) : null}
-      </section>
+          {typeof p.contrast === "boolean" ? (
+            <Switch
+              action="contrast"
+              label={t("cw_settings_contrast")}
+              on={p.contrast}
+              disabled={false}
+              onClick={() => p.onToggleContrast?.()}
+            />
+          ) : null}
+        </section>
+      ) : null}
 
-      <section className="cw-home-section">
+      <section className="cw-home-section" data-setting="language">
         <h2 className="cw-h2">{t("cw_settings_language")}</h2>
         <div className="cw-quick" role="group" aria-label={t("cw_settings_language")}>
           {[""].concat(LANGUAGES).map((code) => (
@@ -215,6 +198,69 @@ export function SettingsView(p: SettingsViewProps) {
       </section>
 
       <section className="cw-home-section">
+        <h2 className="cw-h2">{t("cw_settings_using")}</h2>
+        {typeof p.fullscreen === "boolean" ? (
+          <div data-setting="fullscreen">
+            <Switch
+              action="fullscreen"
+              label={t("cw_settings_fullscreen")}
+              on={p.fullscreen}
+              disabled={false}
+              onClick={() => p.onToggleFullscreen?.()}
+              note={t("cw_settings_fullscreen_note")}
+            />
+          </div>
+        ) : null}
+        {p.onOpenControls ? (
+          <ActionRow
+            setting="controls"
+            label={t("cw_settings_controls")}
+            note={t("cw_settings_controls_note")}
+            onClick={p.onOpenControls}
+          />
+        ) : null}
+        {p.onShowTips ? <ActionRow setting="tips" label={t("cw_settings_tips")} onClick={p.onShowTips} /> : null}
+      </section>
+
+      <section className="cw-home-section">
+        <h2 className="cw-h2">{t("cw_settings_network")}</h2>
+        {s ? (
+          <>
+            <div data-setting="lan">
+              <Switch
+                action="lan"
+                label={t("cw_settings_lan")}
+                on={s.lan}
+                disabled={p.busy}
+                onClick={p.onToggleLan}
+                note={t(s.lan ? "cw_settings_lan_off_note" : "cw_settings_lan_warning")}
+              />
+            </div>
+            <div data-setting="tile">
+              <Switch
+                action="tile"
+                label={t("cw_settings_tile")}
+                on={s.tile}
+                disabled={p.busy}
+                onClick={p.onToggleTile}
+              />
+            </div>
+          </>
+        ) : p.loadFailed ? (
+          <div className="cw-msg is-error" role="alert">
+            {t("cw_settings_err_load")}
+            {p.onRetry ? (
+              <button type="button" className="cw-focusable cw-button cw-msg-action" data-action="retry" onClick={p.onRetry}>
+                <span>{t("cw_files_retry")}</span>
+              </button>
+            ) : null}
+          </div>
+        ) : (
+          <p className="cw-dim">{t("cw_home_loading")}</p>
+        )}
+      </section>
+
+      <section className="cw-home-section" data-setting="about">
         <h2 className="cw-h2">{t("cw_settings_about")}</h2>
         <p className="cw-dim">
           {t("cw_settings_app_name")}
@@ -236,8 +282,8 @@ export function SettingsView(p: SettingsViewProps) {
   );
 }
 
-/** The Settings section: network access, the home-screen tile, full screen, language, About. */
-export function Settings() {
+/** The Settings section: theme, language, full screen, controls and tips, network, About. */
+export function Settings({ onOpenControls, onShowTips }: { onOpenControls?: () => void; onShowTips?: () => void } = {}) {
   const [settings, setSettings] = useState<WebSettings | null>(null);
   const [loadFailed, setLoadFailed] = useState(false);
   const [askLan, setAskLan] = useState(false);
@@ -264,6 +310,7 @@ export function Settings() {
 
   useEffect(() => {
     let live = true;
+    setLoadFailed(false);
     call<WebSettings>("/api/settings").then(
       (r) => {
         if (live) setSettings(r);
@@ -350,6 +397,9 @@ export function Settings() {
         setContrast(!contrast);
         setContrastState(!contrast);
       }}
+      onOpenControls={onOpenControls}
+      onShowTips={onShowTips}
+      onRetry={() => setTick((n) => n + 1)}
       fullscreen={fullscreen}
       onToggleFullscreen={() => {
         if (fullscreen !== null) setFullscreenPref(!fullscreen);

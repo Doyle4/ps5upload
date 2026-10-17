@@ -1,13 +1,18 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useReducer, useState } from "react";
 import { call, isOffline, onTokenExpired } from "./api";
 import { useBackLevel } from "./backHistory";
 import { toggleFullscreen } from "./fullscreen";
+import { Controls } from "./help/Controls";
+import { HelpOverlay } from "./help/HelpOverlay";
+import { overlayReducer } from "./help/overlay";
+import { Tour } from "./help/Tour";
 import { focusElement, onNavAction, type InputMap } from "./nav";
 import { SECTIONS, type SectionContext, type SectionParams } from "./sections";
 import { HintBar } from "./shell/HintBar";
 import { Rail } from "./shell/Rail";
 import { ReloadBanner } from "./shell/ReloadBanner";
 import { TopBar, type ConsoleStatus } from "./shell/TopBar";
+import { focusLost } from "./ui/restoreFocus";
 import { pollWhileVisible } from "./ui/visiblePoll";
 import { t } from "./strings";
 
@@ -28,6 +33,11 @@ export function App({ inputMap }: { inputMap: InputMap }) {
   const [statusTick, setStatusTick] = useState(0);
   /** What the active section was opened with (Home's drive cards → Files at a path). */
   const [params, setParams] = useState<SectionParams | null>(null);
+  /** The tour (first run), the help overlay or the Controls screen; at most one. */
+  const [overlay, overlayDo] = useReducer(overlayReducer, null, () => overlayReducer(null, { type: "start" }));
+  const closeOverlay = useCallback(() => overlayDo({ type: "close" }), []);
+  const openHelp = useCallback(() => overlayDo({ type: "help" }), []);
+  const openControls = useCallback(() => overlayDo({ type: "controls" }), []);
 
   /** Switch section; params go only to a section opened through openSection. */
   const show = useCallback((id: string, p: SectionParams | null = null) => {
@@ -64,11 +74,15 @@ export function App({ inputMap }: { inputMap: InputMap }) {
     };
   }, [expired, statusTick]);
 
-  // Start with focus on the rail, so the D-pad works at once.
+  // Start with focus on the rail, so the D-pad works at once (after the tour, when it shows first:
+  // it opened before anything had focus, so there is nothing to go back to).
   useEffect(() => {
-    const el = railButton(SECTIONS[0].id);
+    if (overlay !== null || !focusLost()) return;
+    const el = railButton(active);
     if (el) focusElement(el);
-  }, []);
+    // Only when an overlay closes (or the page opens), not on every section switch.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [overlay]);
 
   // L1/R1 step through the sections; ○ goes from the content to the rail, then to Home;
   // Create re-reads the status (sections re-read their own data first); the touchpad toggles full screen.
@@ -77,6 +91,10 @@ export function App({ inputMap }: { inputMap: InputMap }) {
       onNavAction((action) => {
         if (action === "refresh") {
           setStatusTick((n) => n + 1);
+          return true;
+        }
+        if (action === "help") {
+          openHelp();
           return true;
         }
         if (action === "fullscreen") {
@@ -106,7 +124,7 @@ export function App({ inputMap }: { inputMap: InputMap }) {
         }
         return false;
       }, undefined, { fallback: true }),
-    [active, show],
+    [active, show, openHelp],
   );
 
   const ctx = useMemo<SectionContext>(
@@ -122,8 +140,10 @@ export function App({ inputMap }: { inputMap: InputMap }) {
       hasSection: (id) => SECTIONS.some((s) => s.id === id),
       canOpen: (id) => SECTIONS.some((s) => s.id === id && s.acceptsParams),
       params,
+      openControls,
+      showTips: () => overlayDo({ type: "tips" }),
     }),
-    [status, params, show],
+    [status, params, show, openControls],
   );
 
   const section = SECTIONS.find((s) => s.id === active) ?? SECTIONS[0];
@@ -133,12 +153,17 @@ export function App({ inputMap }: { inputMap: InputMap }) {
     <div className="cw-app">
       <TopBar status={status} chipFallback={chipFallback} />
       <div className="cw-body" aria-hidden={expired ? true : undefined}>
-        <Rail sections={SECTIONS} active={active} onSelect={(id) => show(id)} />
+        <Rail sections={SECTIONS} active={active} onSelect={(id) => show(id)} onHelp={openHelp} />
         <main className="cw-content" data-nav-region="content">
           {section.render(ctx)}
         </main>
       </div>
-      <HintBar map={inputMap} />
+      <HintBar map={inputMap} screen={overlay ?? section.id} />
+      {overlay === "tour" ? <Tour onClose={closeOverlay} /> : null}
+      {overlay === "help" ? (
+        <HelpOverlay map={inputMap} screen={section.id} onControls={openControls} onClose={closeOverlay} />
+      ) : null}
+      {overlay === "controls" ? <Controls map={inputMap} onClose={closeOverlay} /> : null}
       {expired ? <ReloadBanner /> : null}
     </div>
   );

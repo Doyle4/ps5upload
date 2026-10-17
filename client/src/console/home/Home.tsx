@@ -206,13 +206,14 @@ export function HomeView(p: HomeViewProps) {
   const drives = (p.volumes ?? []).filter(isDrive);
   const copy = p.ask ? askCopy(p.ask) : null;
 
+  // Every empty or failed state says what happens next (both lists are read again every few seconds).
   let tasksNote: string | null = null;
-  if (p.jobsError && !tasks.length) tasksNote = t("cw_home_err_load_tasks");
+  if (p.jobsError && !tasks.length) tasksNote = `${t("cw_home_err_load_tasks")} ${t("cw_home_retrying")}`;
   else if (!p.jobsLoaded) tasksNote = t("cw_home_loading");
-  else if (!tasks.length) tasksNote = t("cw_home_no_tasks");
+  else if (!tasks.length) tasksNote = `${t("cw_home_no_tasks")} ${t("cw_home_no_tasks_next")}`;
 
   let drivesNote: string | null = null;
-  if (p.volumesError && !drives.length) drivesNote = t("cw_home_err_load_storage");
+  if (p.volumesError && !drives.length) drivesNote = `${t("cw_home_err_load_storage")} ${t("cw_home_retrying")}`;
   else if (p.volumes == null) drivesNote = t("cw_home_loading");
 
   return (
