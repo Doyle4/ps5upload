@@ -7,11 +7,13 @@ What's new in ps5upload, written for humans.
 ## 7.1.0
 
 - **PS5Upload now has a tile on the PS5 home screen that opens a page in the PS5 browser.** Pick
-  the tile and manage your files with the controller alone, no PC needed. The page looks like the
-  desktop app and has Home, Files and Settings.
+  the tile to manage your files without a PC. The page is made for the controller (the D-pad and
+  ✕) and works with the PS5's Back button (○). It looks like the desktop app and has Home, Files
+  and Settings.
 - **Move, copy, rename and delete files from the couch.** Browse the internal drive, M.2 and USB
   drives, start a copy to another drive and watch it on Home, and close or rest the console from
-  the same page.
+  the same page. Several items are copied, moved or deleted one after another, with "3 of 40" and
+  a Stop button while they run.
 - **Uploads and copies from your PC show up on the console's Home** as "from a PC", so you can
   see what is running without going back to the desk.
 - **It works while the helper is running, and only the console can open it by default.** In
