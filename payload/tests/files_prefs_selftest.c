@@ -258,6 +258,13 @@ static void test_atomic_save(void) {
     CHECK(files_prefs_update(g_file, FILES_PREFS_PIN, "/data/c", g_out, sizeof g_out) == FILES_PREFS_E_IO);
     CHECK(files_prefs_load(g_file, q) == 0 && q->nfav == 1);
     rmdir(tmp);
+    /* a visit that changes nothing writes nothing: it succeeds even while a save could not */
+    CHECK(files_prefs_update(g_file, FILES_PREFS_VISIT, "/data/v", g_out, sizeof g_out) > 0);
+    CHECK(mkdir(tmp, 0755) == 0);
+    CHECK(files_prefs_update(g_file, FILES_PREFS_VISIT, "/data/v/", g_out, sizeof g_out) > 0);
+    CHECK(strstr(g_out, "\"last\":\"/data/v\"") != NULL);
+    CHECK(files_prefs_update(g_file, FILES_PREFS_VISIT, "/data/w", g_out, sizeof g_out) == FILES_PREFS_E_IO);
+    rmdir(tmp);
     /* a folder that does not exist: refused, nothing created */
     snprintf(bad_file, sizeof bad_file, "%s/missing/prefs.json", g_dir);
     CHECK(files_prefs_save(bad_file, p) == FILES_PREFS_E_IO);

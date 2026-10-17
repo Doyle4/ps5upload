@@ -536,6 +536,20 @@ static void array_span(void) {
     CHECK(webui_json_array("{\"events\":[\"a\"", 13, "events", &v, &len) == -1); /* cut short */
 }
 
+static void unmount_refusal(void) {
+    static const char *sys[] = { "/", "/data", "/data/x", "/user", "/user/app", "/system", "/system_ex", "/preinst",
+                                 "/dev/lvd0", "/mnt/usb0", "/mnt/ext1" };
+    size_t i;
+    for (i = 0; i < sizeof sys / sizeof sys[0]; i++) {
+        CHECK(webui_unmount_refusal(sys[i], 0) && strcmp(webui_unmount_refusal(sys[i], 0), "system_volume") == 0);
+        CHECK(strcmp(webui_unmount_refusal(sys[i], 1), "system_volume") == 0);
+    }
+    CHECK(webui_unmount_refusal("/mnt/ps5upload/game.exfat", 0) == NULL);
+    CHECK(strcmp(webui_unmount_refusal("/mnt/ps5upload/game.exfat", 1), "game_running") == 0);
+    CHECK(webui_unmount_refusal("/mnt/shadowmnt/x", 0) == NULL); /* the helper's own consent rule decides */
+    CHECK(strcmp(webui_unmount_refusal(NULL, 0), "system_volume") == 0);
+}
+
 static void array_strings(void) {
     const char *j = "{\"a\":[ \"/x\" , \"\\u5b8c \\\"q\\\"\" ],\"e\":[ ],\"m\":[\"ok\",3],\"z\":null,\"s\":\"null\"}";
     const char *v = NULL;
@@ -651,6 +665,7 @@ int main(void) {
     unicode_path_round_trips();
     array_span();
     array_strings();
+    unmount_refusal();
     surrogate_pair_decodes();
     missing_key_is_absent_not_empty();
     list_result_to_json();

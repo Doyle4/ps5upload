@@ -774,3 +774,13 @@ const char *webui_cheats_toggle_error(const char *cause, size_t n) {
     if (strstr(msg, "is not loaded in the target process")) return "module_missing";
     return "toggle_failed";
 }
+
+static int starts(const char *p, const char *pre) { return strncmp(p, pre, strlen(pre)) == 0; }
+
+const char *webui_unmount_refusal(const char *p, int game_running) {
+    if (!p || strcmp(p, "/") == 0 || strcmp(p, "/data") == 0 || starts(p, "/data/") || strcmp(p, "/user") == 0 ||
+        starts(p, "/user/") || starts(p, "/system") || starts(p, "/preinst") || starts(p, "/mnt/usb") ||
+        starts(p, "/mnt/ext") || starts(p, "/dev"))
+        return "system_volume";
+    return game_running ? "game_running" : NULL;
+}

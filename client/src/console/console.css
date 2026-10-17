@@ -592,6 +592,14 @@ button {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.cw-goto-pinned {
+  margin-top: 0.6rem;
+  max-height: 14rem;
+  overflow-y: auto;
+}
+.cw-goto-pinned > .cw-dim {
+  margin: 0 0 0.3rem;
+}
 .cw-row-action {
   flex: none;
   margin: 0 0.4rem;

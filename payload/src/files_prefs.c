@@ -286,6 +286,13 @@ int files_prefs_get(const char *file, char *out, size_t cap) {
     return len < 0 ? FILES_PREFS_E_FULL : len;
 }
 
+/* Already the newest recent folder and the last one: a visit would write the same file again. */
+static int visit_is_noop(const files_prefs_t *p, const char *path) {
+    char clean[FILES_PREFS_PATH_MAX];
+    if (files_prefs_clean_path(path, clean) != FILES_PREFS_OK) return 0;
+    return p->has_last && strcmp(p->last, clean) == 0 && p->nrecent > 0 && strcmp(p->recent[0], clean) == 0;
+}
+
 int files_prefs_update(const char *file, int op, const char *path, char *out, size_t cap) {
     files_prefs_t *p;
     int rc, len;
@@ -294,6 +301,12 @@ int files_prefs_update(const char *file, int op, const char *path, char *out, si
     if (!p) return FILES_PREFS_E_NOMEM;
     pthread_mutex_lock(&g_prefs_mu);
     (void)files_prefs_load(file, p); /* garbage reads as empty and is replaced below */
+    if (op == FILES_PREFS_VISIT && visit_is_noop(p, path)) {
+        pthread_mutex_unlock(&g_prefs_mu);
+        len = files_prefs_to_json(p, out, cap);
+        free(p);
+        return len < 0 ? FILES_PREFS_E_FULL : len;
+    }
     rc = op == FILES_PREFS_PIN ? files_prefs_pin(p, path)
          : op == FILES_PREFS_UNPIN ? files_prefs_unpin(p, path)
                                    : files_prefs_visit(p, path);

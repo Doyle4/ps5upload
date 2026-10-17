@@ -13,7 +13,9 @@ import { t } from "../strings";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { ActionsSheet } from "./ActionsSheet";
 import { canEject, DriveList, isImage, isSystemVolume, placeLabel } from "./DriveList";
-import { FilesView, volumeErrorText, type FilesViewProps } from "./Files";
+import { ejectBlocker, FilesView, PinnedChoices, volumeErrorText, type FilesViewProps } from "./Files";
+import { createPrefsApplier } from "./prefs";
+import type { Job } from "../home/useJobs";
 import { PathBar } from "./PathBar";
 import { barItems, checkFolder, pathSegments, typedPath } from "./pathParts";
 import { cleanPath, EMPTY_PREFS, isPinned, toPrefs, type FilesPrefs } from "./prefs";
@@ -183,6 +185,21 @@ describe("path bar", () => {
     const q = props({ ask: { kind: "goto" } });
     expect(elements(FilesView(q)).find((e) => e.type === TextPrompt)!.props.initial).toBe("/");
   });
+
+  it("go to path lists the pinned folders as buttons; ✕ opens one", () => {
+    const p = props({ path: "/data", ask: { kind: "goto" } });
+    const prompt = elements(FilesView(p)).find((e) => e.type === TextPrompt)!;
+    const extra = prompt.props.extra as ReactElement<{ paths: string[]; onOpen: (x: string) => void }>;
+    expect(extra.type).toBe(PinnedChoices);
+    expect(extra.props.paths).toEqual(PREFS.favorites);
+    const buttons = elements(PinnedChoices(extra.props)).filter((e) => e.props["data-goto-pin"]);
+    expect(buttons.map((b) => b.props["data-goto-pin"])).toEqual(PREFS.favorites);
+    (buttons[1].props.onClick as () => void)();
+    expect(p.onGoTo).toHaveBeenCalledWith("/data");
+    // Nothing pinned: no list.
+    const none = props({ ask: { kind: "goto" }, prefs: EMPTY_PREFS });
+    expect(elements(FilesView(none)).find((e) => e.type === TextPrompt)!.props.extra).toBeNull();
+  });
 });
 
 describe("pinned and recent", () => {
@@ -312,6 +329,62 @@ describe("eject and unmount", () => {
     expect(d.props.danger).toBe(true);
     (d.props.onConfirm as () => void)();
     expect(p.onUnmount).toHaveBeenCalledWith("/mnt/ps5upload/game.exfat");
+  });
+
+  it("unmount is held while a game runs", () => {
+    const html = renderToStaticMarkup(<FilesView {...props({ gameRunning: true })} />);
+    expect(html).not.toContain("data-unmount=");
+    expect(html).toContain('data-unmount-held="/mnt/ps5upload/game.exfat"');
+    expect(html).toContain(t("cw_files_unmount_game"));
+    const p = props({ gameRunning: true, ask: { kind: "unmount", path: "/mnt/ps5upload/game.exfat" } });
+    const d = elements(FilesView(p)).find((e) => e.type === ConfirmDialog)!;
+    expect(d.props.busy).toBe(true); // ✕ on Unmount does nothing
+    expect(d.props.error).toBe(t("cw_files_unmount_game"));
+    expect(volumeErrorText(new ApiError(409, "game_running"))).toBe(t("cw_files_unmount_game"));
+  });
+
+  it("eject is held while the page's batch or any transfer uses the drive", () => {
+    const job = (over: Partial<Job>): Job => ({
+      job: "a".repeat(32),
+      kind: "copy",
+      state: "running",
+      files_done: 0,
+      files_total: 1,
+      bytes_done: 0,
+      bytes_total: 1,
+      mine: true,
+      ...over,
+    });
+    const batch = (paths: string[]) => ({ op: "copy" as const, at: 1, total: 2, stopping: false, paths });
+    expect(ejectBlocker("/mnt/usb0", null, [])).toBeNull();
+    // The page's batch copies onto the drive, or from it.
+    expect(ejectBlocker("/mnt/usb0", batch(["/data/a", "/mnt/usb0/games"]), [job({})])).toBe(
+      t("cw_files_eject_blocked_batch"),
+    );
+    expect(ejectBlocker("/mnt/usb0", batch(["/mnt/usb0/a", "/data"]), [])).toBe(t("cw_files_eject_blocked_batch"));
+    // A batch elsewhere: its own job does not hold this drive.
+    expect(ejectBlocker("/mnt/usb0", batch(["/data/a", "/mnt/ext1"]), [job({})])).toBeNull();
+    // A PC upload (where it writes is not listed), or a job a stopped batch left running, holds it.
+    expect(ejectBlocker("/mnt/usb0", null, [job({ kind: "upload", mine: false })])).toBe(t("cw_files_eject_blocked_jobs"));
+    expect(ejectBlocker("/mnt/usb0", null, [job({})])).toBe(t("cw_files_eject_blocked_jobs"));
+    expect(ejectBlocker("/mnt/usb0", null, [job({ state: "done", mine: false })])).toBeNull();
+    // "/mnt/usb0" is not inside "/mnt/usb01".
+    expect(ejectBlocker("/mnt/usb0", batch(["/mnt/usb01/x"]), [])).toBeNull();
+  });
+
+  it("prefs answers arriving out of order: the older one is dropped", async () => {
+    const seen: string[][] = [];
+    const apply = createPrefsApplier((p) => seen.push(p.recent));
+    let first: (v: unknown) => void = () => {};
+    mockCall.mockImplementationOnce(() => new Promise((res) => (first = res)) as never);
+    mockCall.mockResolvedValueOnce({ favorites: [], recent: ["/b", "/a"], last: "/b" } as never);
+    const a = apply("visit", "/a");
+    await apply("visit", "/b");
+    first({ favorites: [], recent: ["/a"], last: "/a" });
+    await a;
+    expect(seen).toEqual([["/b", "/a"]]);
+    mockCall.mockRejectedValueOnce(new ApiError(409, "prefs_full"));
+    await expect(apply("pin", "/c")).rejects.toThrow();
   });
 
   it("the helper's refusals read as what to do", () => {

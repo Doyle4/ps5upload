@@ -118,4 +118,10 @@ int webui_cheats_mods_to_json(const char *json, size_t n, char *out, size_t cap,
  * "bad_index", "module_missing", else "toggle_failed". */
 const char *webui_cheats_toggle_error(const char *cause, size_t n);
 
+/* Why /api/volumes/unmount refuses `p` before asking the helper, or NULL: "system_volume" for the console's
+ * own volumes (/, /data, /user, /system*, /preinst*, /dev*, /mnt/usbN, /mnt/extN), else "game_running" when
+ * a game runs (`game_running` != 0 also when that could not be read). The helper's FS_UNMOUNT forces a busy
+ * unmount, so a running game is never asked about: it would lose its image (ruling R20). */
+const char *webui_unmount_refusal(const char *p, int game_running);
+
 #endif

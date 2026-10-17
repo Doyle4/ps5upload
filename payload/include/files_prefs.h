@@ -87,7 +87,8 @@ int files_prefs_get(const char *file, char *out, size_t cap);
 
 /* Locked: load, apply op to path, save, and answer the new prefs as JSON into out (as above). A
  * visit that would pass the file cap drops the oldest recent entries until it fits; a pin that
- * would is refused (FILES_PREFS_E_FULL). On any error the file is unchanged. Length, or an error. */
+ * would is refused (FILES_PREFS_E_FULL). A visit of the folder that is already last and newest recent
+ * writes nothing. On any error the file is unchanged. Length, or an error. */
 int files_prefs_update(const char *file, int op, const char *path, char *out, size_t cap);
 
 #endif

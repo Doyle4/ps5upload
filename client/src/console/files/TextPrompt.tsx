@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { t } from "../strings";
 import { Modal } from "../ui/Modal";
 import { validName } from "./move";
@@ -18,6 +18,7 @@ export function TextPrompt({
   initial,
   fieldLabel,
   check = checkName,
+  extra,
   onSubmit,
   onCancel,
 }: {
@@ -26,12 +27,22 @@ export function TextPrompt({
   /** The box's label; default "Name". */
   fieldLabel?: string;
   check?: (value: string) => string | null | Promise<string | null>;
+  /** Shown under the box (Go to path's pinned folders). */
+  extra?: ReactNode;
   onSubmit: (value: string) => void;
   onCancel: () => void;
 }) {
   const [value, setValue] = useState(initial);
   const [bad, setBad] = useState<string | null>(null);
   const [checking, setChecking] = useState(false);
+  /** False once the prompt is gone: a check that answers late (after Cancel) does nothing. */
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
   const submit = () => {
     if (checking) return;
     const r = check(value);
@@ -43,11 +54,14 @@ export function TextPrompt({
     setChecking(true);
     r.then(
       (why) => {
+        if (!mounted.current) return;
         setChecking(false);
         if (why != null) setBad(why);
         else onSubmit(value);
       },
-      () => setChecking(false),
+      () => {
+        if (mounted.current) setChecking(false);
+      },
     );
   };
   return (
@@ -80,6 +94,7 @@ export function TextPrompt({
             {bad}
           </p>
         ) : null}
+        {extra}
         <div className="cw-dialog-buttons">
           <button type="button" className="cw-focusable cw-button" onClick={onCancel}>
             <span>{t("cw_dialog_cancel")}</span>

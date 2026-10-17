@@ -88,6 +88,19 @@ describe("the page's one batch", () => {
     expect(currentBatch()).toBeNull();
   });
 
+  it("keeps what it touches while it runs (eject reads it)", async () => {
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((res) => (release = res));
+    const run = startBatch("copy", 1, async () => {
+      await gate;
+      return empty();
+    }, ["/data/a", "/mnt/usb0"]);
+    expect(currentBatch()?.paths).toEqual(["/data/a", "/mnt/usb0"]);
+    release();
+    await run;
+    expect(currentBatch()).toBeNull();
+  });
+
   it("ends even when the work throws", async () => {
     const run = startBatch("move", 2, async () => {
       throw new Error("boom");

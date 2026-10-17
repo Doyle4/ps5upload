@@ -662,24 +662,30 @@ static void r_volumes_eject(const char *b, size_t n, uint8_t *out, int fd) {
     else send_json(fd, 200, "{}", 2);
 }
 
-/* The console's own volumes are never unmounted from the page (the helper refuses anything it did not
- * mount itself as well: fs_unmount_not_our_mount). */
-static int is_system_volume(const char *p) {
-    return strcmp(p, "/") == 0 || strcmp(p, "/data") == 0 || strncmp(p, "/data/", 6) == 0 || strcmp(p, "/user") == 0 ||
-           strncmp(p, "/user/", 6) == 0 || strncmp(p, "/system", 7) == 0 || strncmp(p, "/preinst", 8) == 0 ||
-           strncmp(p, "/mnt/usb", 8) == 0 || strncmp(p, "/mnt/ext", 8) == 0 || strncmp(p, "/dev", 4) == 0;
-}
-
-/* FS_UNMOUNT {"mount_point":..} (fs_ops.rs fs_unmount): an image the helper mounted. A game running from
- * it holds it open: 409 fs_unmount_busy. */
+/* FS_UNMOUNT {"mount_point":..} (fs_ops.rs fs_unmount): an image the helper mounted. The helper does NOT
+ * refuse a busy mount: fs_mount_try_unmount (runtime.c) escalates to MNT_FORCE on EBUSY, so a game
+ * running from the image would lose it mid-play. Ruling R20: refused here while any game runs (the same
+ * PROC_FOCUS reading /api/status shows: 409 game_running), and the console's own volumes are never
+ * unmounted from the page (403 system_volume; webui_unmount_refusal). The helper itself still refuses
+ * mounts it did not make (fs_unmount_not_our_mount). */
 static void r_volumes_unmount(const char *b, size_t n, uint8_t *out, int fd) {
     char path[API_PATH], req[API_PATH * 2 + 32];
     const uint8_t *t;
     size_t ol, tl, at = 0;
     int st;
+    const char *why;
+    char title[16];
+    uint32_t app_id = 0;
+    int running = 0;
     if (need_path(fd, b, n, "path", path, sizeof path) != 0) return;
-    if (is_system_volume(path)) {
-        send_error(fd, 403, "system_volume", 13);
+    if (!webui_unmount_refusal(path, 0)) {
+        /* a failed focus read counts as running: never force an unmount on a guess */
+        running = call_text(AVA1_METHOD_PROC_FOCUS, NULL, 0, out, &ol, &t, &tl) != AVA1_STATUS_OK ||
+                  webui_focus_running((const char *)t, tl, title, sizeof title, &app_id) != 0;
+    }
+    why = webui_unmount_refusal(path, running);
+    if (why) {
+        send_error(fd, strcmp(why, "game_running") == 0 ? 409 : 403, why, strlen(why));
         return;
     }
     put_fmt(req, sizeof req, &at, "{");

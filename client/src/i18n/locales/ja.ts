@@ -4306,8 +4306,8 @@ c2c_test_deep_bad: "4 KiB のテスト送信が届きませんでした: {detail
 "cw_files_pin_full": "これ以上フォルダーをピン留めできません。先にどれかを外してください。",
 "cw_files_eject_title": "{path} を取り出しますか？",
 "cw_files_eject_force_title": "{path} はまだ使用中です。それでも取り出しますか？",
-"cw_files_eject_body": "ドライブを抜けるようにマウントを解除します。先に、使っているゲームやアプリを終了してください。",
-"cw_files_eject_force_body": "PS5 がドライブを開いたままにしています（たいてい本体のサービスです）。強制的に取り出すと先にすべてをドライブに書き込むので、今ゲームやアプリが読み込んでいなければ安全です。",
+"cw_files_eject_body": "ドライブを抜けるようにマウントを解除します。先に、ドライブを読み書きしているゲームやアプリを終了してください。",
+"cw_files_eject_force_body": "PS5 がドライブを開いたままにしています（たいてい本体のサービスです）。強制的に取り出すと先にすべてをドライブに書き込むので、今ゲームやアプリがドライブを読み書きしていなければ安全です。",
 "cw_files_eject_force": "それでも取り出す",
 "cw_files_unmount_title": "{path} のマウントを解除しますか？",
 "cw_files_unmount_body": "このイメージから起動しているゲームは停止し、イメージを再びマウントするまでそのファイルは使えなくなります。",
@@ -4316,6 +4316,10 @@ c2c_test_deep_bad: "4 KiB のテスト送信が届きませんでした: {detail
 "cw_files_eject_done": "{path} を取り出しました。ドライブを抜いてかまいません。",
 "cw_files_unmount_done": "{path} のマウントを解除しました。",
 "cw_files_last_gone": "前回開いていたフォルダー（{path}）はもうありません。",
+"cw_files_unmount_game": "先にゲームを終了してください。",
+"cw_files_eject_blocked_batch": "ファイルがこのドライブでコピー・移動・削除を続けています。終わってから取り出してください。",
+"cw_files_eject_blocked_jobs": "転送が実行中です。終わってからドライブを取り出してください。",
+"cw_files_goto_pinned": "ピン留めしたフォルダー",
 };
 
 export default ja;

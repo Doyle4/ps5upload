@@ -4304,8 +4304,8 @@ c2c_test_deep_bad: "4 KiB 테스트 전송이 도착하지 않았습니다: {det
 "cw_files_pin_full": "더 이상 폴더를 고정할 수 없습니다. 먼저 하나를 고정 해제하세요.",
 "cw_files_eject_title": "{path}을(를) 꺼낼까요?",
 "cw_files_eject_force_title": "{path}이(가) 아직 사용 중입니다. 그래도 꺼낼까요?",
-"cw_files_eject_body": "드라이브를 뽑을 수 있도록 마운트를 해제합니다. 먼저 드라이브를 쓰는 게임이나 앱을 종료하세요.",
-"cw_files_eject_force_body": "PS5가 드라이브를 열어 두고 있습니다. 보통 본체 서비스 때문입니다. 그래도 꺼내면 먼저 모든 내용을 드라이브에 기록하므로, 지금 드라이브를 읽고 있는 게임이나 앱이 없다면 안전합니다.",
+"cw_files_eject_body": "드라이브를 뽑을 수 있도록 마운트를 해제합니다. 먼저 드라이브를 읽거나 쓰고 있는 게임이나 앱을 종료하세요.",
+"cw_files_eject_force_body": "PS5가 드라이브를 열어 두고 있습니다. 보통 본체 서비스 때문입니다. 그래도 꺼내면 먼저 모든 내용을 드라이브에 기록하므로, 지금 드라이브를 읽거나 쓰고 있는 게임이나 앱이 없다면 안전합니다.",
 "cw_files_eject_force": "그래도 꺼내기",
 "cw_files_unmount_title": "{path} 마운트를 해제할까요?",
 "cw_files_unmount_body": "이 이미지에서 실행 중인 게임은 멈추고, 이미지를 다시 마운트할 때까지 그 파일을 쓸 수 없습니다.",
@@ -4314,6 +4314,10 @@ c2c_test_deep_bad: "4 KiB 테스트 전송이 도착하지 않았습니다: {det
 "cw_files_eject_done": "{path}을(를) 꺼냈습니다. 드라이브를 뽑아도 됩니다.",
 "cw_files_unmount_done": "{path} 마운트를 해제했습니다.",
 "cw_files_last_gone": "마지막으로 열었던 폴더({path})가 없습니다.",
+"cw_files_unmount_game": "먼저 게임을 종료하세요.",
+"cw_files_eject_blocked_batch": "파일이 아직 이 드라이브에서 복사, 이동 또는 삭제 중입니다. 끝난 뒤 꺼내세요.",
+"cw_files_eject_blocked_jobs": "전송이 진행 중입니다. 끝난 뒤 드라이브를 꺼내세요.",
+"cw_files_goto_pinned": "고정된 폴더",
 };
 
 export default ko;

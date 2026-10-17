@@ -20,6 +20,7 @@ import { InfoDialog } from "./InfoDialog";
 import {
   copyItems,
   deleteItems,
+  isInside,
   fixPermItems,
   joinPath,
   moveItems,
@@ -89,6 +90,18 @@ export function filesErrorText(err: unknown): string | null {
   return errorText(err);
 }
 
+/**
+ * Why the USB drive at `vol` must not be ejected now, or null. The page's own
+ * batch says what it touches; the helper's job list does not say where a job
+ * writes, so any other running job (a PC upload, a job a stopped batch left
+ * running) holds every eject until it ends.
+ */
+export function ejectBlocker(vol: string, batch: Busy | null, jobs: Job[]): string | null {
+  if (batch?.paths?.some((p) => isInside(p, vol))) return t("cw_files_eject_blocked_batch");
+  if (jobs.some((j) => j.state === "running" && (!j.mine || !batch))) return t("cw_files_eject_blocked_jobs");
+  return null;
+}
+
 /** Why an eject, unmount or pin did not work, by the helper's error code. */
 export function volumeErrorText(err: unknown): string | null {
   if (err instanceof ApiError) {
@@ -98,6 +111,7 @@ export function volumeErrorText(err: unknown): string | null {
     if (err.code === "fs_unmount_not_our_mount") return t("cw_files_unmount_not_ours");
     if (err.code === "system_volume") return t("cw_files_unmount_system");
     if (err.code === "prefs_full") return t("cw_files_pin_full");
+    if (err.code === "game_running") return t("cw_files_unmount_game");
   }
   return filesErrorText(err);
 }
@@ -128,6 +142,8 @@ export interface FilesViewProps {
   onEject?: (path: string, force: boolean) => void;
   onUnmount?: (path: string) => void;
   onGoTo?: (path: string) => void;
+  /** A game is running (Home's status): Unmount is held (it would take the game's image away). */
+  gameRunning?: boolean;
   /** Stop the running batch before its next item. */
   onStopBatch?: () => void;
   onOpen: (path: string | null) => void;
@@ -167,6 +183,27 @@ function sheetActions(names: string[], entries: Entry[], pinned: boolean | null)
   if (e && e.kind === "dir" && pinned != null) out.push(pinned ? "unpin" : "pin");
   out.push("fixperm", "delete");
   return out;
+}
+
+/** Go to path's pinned folders: one button each, ✕ opens it. */
+export function PinnedChoices({ paths, onOpen }: { paths: string[]; onOpen: (path: string) => void }) {
+  return (
+    <div className="cw-goto-pinned">
+      <p className="cw-dim">{t("cw_files_goto_pinned")}</p>
+      <ul className="cw-files" data-nav-list aria-label={t("cw_files_goto_pinned")}>
+        {paths.map((x) => (
+          <li key={x} className="cw-file is-plain" data-nav-item>
+            <button type="button" className="cw-focusable cw-file-main" data-goto-pin={x} onClick={() => onOpen(x)}>
+              <Star className="cw-file-icon is-pinned" aria-hidden />
+              <span className="cw-file-text">
+                <span className="cw-dim cw-mono cw-file-sub">{x}</span>
+              </span>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
 }
 
 /** The modals of the drive list level (and Go to path, at any level). */
@@ -211,8 +248,8 @@ function placeAskView(p: FilesViewProps) {
           body={t("cw_files_unmount_body")}
           confirmLabel={t("cw_files_unmount")}
           danger
-          busy={p.askBusy}
-          error={p.askError}
+          busy={p.askBusy || p.gameRunning}
+          error={p.gameRunning ? t("cw_files_unmount_game") : p.askError}
           onConfirm={() => p.onUnmount?.(a.path)}
           onCancel={p.onDismiss}
         />
@@ -226,6 +263,7 @@ function placeAskView(p: FilesViewProps) {
           check={checkFolder}
           onSubmit={(v) => p.onGoTo?.(typedPath(v) ?? v)}
           onCancel={p.onDismiss}
+          extra={p.prefs?.favorites.length ? <PinnedChoices paths={p.prefs.favorites} onOpen={(x) => p.onGoTo?.(x)} /> : null}
         />
       );
     default:
@@ -434,6 +472,7 @@ export function FilesView(p: FilesViewProps) {
           onRetry={p.onRetryVolumes}
           onEject={p.onEject ? (path) => p.onAsk({ kind: "eject", path, force: false }) : undefined}
           onUnmount={p.onUnmount ? (path) => p.onAsk({ kind: "unmount", path }) : undefined}
+          unmountHeld={p.gameRunning ? t("cw_files_unmount_game") : null}
           onPlaceActions={(path) => p.onAsk({ kind: "place", path })}
           onGoTo={p.onGoTo ? () => p.onAsk({ kind: "goto" }) : undefined}
         />
@@ -719,7 +758,12 @@ export function Files({ ctx }: { ctx: SectionContext }) {
   );
 
   const runBatch = useCallback(
-    (op: Busy["op"], names: string[], work: (items: string[], opts: BatchOptions) => Promise<BatchResult>) => {
+    (
+      op: Busy["op"],
+      names: string[],
+      work: (items: string[], opts: BatchOptions) => Promise<BatchResult>,
+      destDir?: string,
+    ) => {
       if (path == null || currentBatch()) return;
       const items = names.map((n) => joinPath(path, n));
       // The dialog closes at once: the batch runs on (one item at a time) with its progress and Stop
@@ -728,8 +772,12 @@ export function Files({ ctx }: { ctx: SectionContext }) {
       setMessage(null);
       setSelecting(false);
       setSelected([]);
-      const run = startBatch(op, items.length, (ctl) =>
-        work(items, { onProgress: ctl.onProgress, stopped: ctl.stopped, waitJob: (id) => waitJob(id, ctl.stopped) }),
+      const run = startBatch(
+        op,
+        items.length,
+        (ctl) =>
+          work(items, { onProgress: ctl.onProgress, stopped: ctl.stopped, waitJob: (id) => waitJob(id, ctl.stopped) }),
+        destDir != null ? items.concat(destDir) : items,
       );
       run?.then(
         (r) => {
@@ -754,7 +802,7 @@ export function Files({ ctx }: { ctx: SectionContext }) {
   const onPicked = useCallback(
     (op: "copy" | "move", names: string[], destDir: string) => {
       setAsk(null);
-      runBatch(op, names, (items, opts) => (op === "copy" ? copyItems : moveItems)(items, destDir, opts));
+      runBatch(op, names, (items, opts) => (op === "copy" ? copyItems : moveItems)(items, destDir, opts), destDir);
     },
     [runBatch],
   );
@@ -831,7 +879,11 @@ export function Files({ ctx }: { ctx: SectionContext }) {
           }
           const vp = active.closest("[data-volume]")?.getAttribute("data-volume");
           const v = vp ? (volumes ?? []).find((x) => x.path === vp) : undefined;
-          if (v && canEject(v)) setAsk({ kind: "eject", path: v.path, force: false });
+          if (v && canEject(v)) {
+            const held = ejectBlocker(v.path, currentBatch(), jobs);
+            if (held) setMessage({ tone: "error", text: held });
+            else setAsk({ kind: "eject", path: v.path, force: false });
+          }
           else if (v && isImage(v)) setAsk({ kind: "unmount", path: v.path });
           return true;
         }
@@ -850,7 +902,7 @@ export function Files({ ctx }: { ctx: SectionContext }) {
         }
         return false;
       }),
-    [path, volumes, selecting, selected, goUp, onToggleItem, onToggleSelecting, refresh],
+    [path, volumes, jobs, selecting, selected, goUp, onToggleItem, onToggleSelecting, refresh],
   );
 
   const onDismiss = useCallback(() => {
@@ -910,25 +962,36 @@ export function Files({ ctx }: { ctx: SectionContext }) {
   );
 
   const onEject = useCallback(
-    (p: string, force: boolean) =>
+    (p: string, force: boolean) => {
+      const held = ejectBlocker(p, currentBatch(), jobs);
+      if (held) {
+        setAskError(held);
+        return;
+      }
       volumeCall("/api/volumes/eject", { path: p, force }, t("cw_files_eject_done", { path: p }), (e) => {
         // The PS5's own services usually hold a USB drive open: ask once more, to eject anyway.
         if (force || !(e instanceof ApiError) || e.code !== "usb_eject_busy") return false;
         setAsk({ kind: "eject", path: p, force: true });
         return true;
-      }),
-    [volumeCall],
+      });
+    },
+    [volumeCall, jobs],
   );
 
+  const gameRunning = ctx.status?.running != null;
   const onUnmount = useCallback(
     (p: string) => {
       if (isSystemVolume(p)) {
         setAskError(t("cw_files_unmount_system"));
         return;
       }
+      if (gameRunning) {
+        setAskError(t("cw_files_unmount_game"));
+        return;
+      }
       volumeCall("/api/volumes/unmount", { path: p }, t("cw_files_unmount_done", { path: p }));
     },
-    [volumeCall],
+    [volumeCall, gameRunning],
   );
 
   const onGoTo = useCallback(
@@ -966,6 +1029,7 @@ export function Files({ ctx }: { ctx: SectionContext }) {
         onEject={onEject}
         onUnmount={onUnmount}
         onGoTo={onGoTo}
+        gameRunning={gameRunning}
         onStopBatch={stopBatch}
         onOpen={(p) => go(p)}
         onUp={goUp}
@@ -978,6 +1042,11 @@ export function Files({ ctx }: { ctx: SectionContext }) {
         onAsk={(a) => {
           setMessage(null);
           setAskError(null);
+          const held = a.kind === "eject" ? ejectBlocker(a.path, currentBatch(), jobs) : null;
+          if (held) {
+            setMessage({ tone: "error", text: held });
+            return;
+          }
           setAsk(a);
         }}
         onDismiss={onDismiss}

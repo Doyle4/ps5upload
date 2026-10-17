@@ -86,6 +86,7 @@ export function DriveList({
   onUnmount,
   onPlaceActions,
   onGoTo,
+  unmountHeld,
 }: {
   volumes: Volume[] | null;
   error: boolean;
@@ -98,6 +99,8 @@ export function DriveList({
   onUnmount?: (path: string) => void;
   onPlaceActions?: (path: string) => void;
   onGoTo?: () => void;
+  /** Why Unmount is held now (a game is running), shown in its place. */
+  unmountHeld?: string | null;
 }) {
   const all = volumes ?? [];
   const drives = all.filter(isDrive);
@@ -208,7 +211,12 @@ export function DriveList({
                   </span>
                   <span className="cw-file-meta cw-dim">{formatBytes(v.total_bytes)}</span>
                 </button>
-                {onUnmount ? (
+                {onUnmount && unmountHeld ? (
+                  <span className="cw-dim cw-row-action" data-unmount-held={v.path}>
+                    {unmountHeld}
+                  </span>
+                ) : null}
+                {onUnmount && !unmountHeld ? (
                   <button
                     type="button"
                     className="cw-focusable cw-button cw-row-action"

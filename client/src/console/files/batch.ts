@@ -25,6 +25,8 @@ export interface BatchProgress {
   total: number;
   /** Stop was asked: no further item is sent. */
   stopping: boolean;
+  /** What it reads and writes: its items and (copy/move) the destination folder. */
+  paths?: string[];
 }
 
 /** How often a running job is checked. */
@@ -119,10 +121,11 @@ export function startBatch(
   op: BatchOp,
   total: number,
   work: (ctl: BatchControl) => Promise<BatchResult>,
+  paths?: string[],
 ): Promise<BatchResult> | null {
   if (progress) return null;
   stopAsked = false;
-  progress = { op, at: 0, total, stopping: false };
+  progress = { op, at: 0, total, stopping: false, ...(paths ? { paths } : {}) };
   emit();
   const ctl: BatchControl = {
     onProgress: (at, n) => {

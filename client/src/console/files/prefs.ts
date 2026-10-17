@@ -48,6 +48,23 @@ export function isPinned(prefs: FilesPrefs | null, path: string | null): boolean
   return !!prefs && path != null && prefs.favorites.includes(cleanPath(path));
 }
 
+/**
+ * Changes as numbered requests: an answer older than the last one applied is
+ * dropped (two quick visits whose answers arrive out of order must not leave
+ * the older list showing). Rejects with the helper's error.
+ */
+export function createPrefsApplier(onPrefs: (p: FilesPrefs) => void) {
+  let sent = 0;
+  let applied = 0;
+  return async (op: PrefsOp, path: string): Promise<void> => {
+    const n = ++sent;
+    const p = await changePrefs(op, path);
+    if (n <= applied) return;
+    applied = n;
+    onPrefs(p);
+  };
+}
+
 export interface PrefsState {
   /** null until the first answer (or when the helper has no prefs routes: then it stays null). */
   prefs: FilesPrefs | null;
@@ -89,9 +106,11 @@ export function usePrefs(): PrefsState {
     };
   }, []);
 
+  /** One numbered sequence for this Files (set on mount). */
+  const applier = useRef<ReturnType<typeof createPrefsApplier> | null>(null);
   const apply = useCallback(async (op: PrefsOp, path: string) => {
-    const p = await changePrefs(op, path);
-    if (live.current) setPrefs(p);
+    if (!applier.current) applier.current = createPrefsApplier((p) => live.current && setPrefs(p));
+    await applier.current(op, path);
   }, []);
 
   const pin = useCallback((path: string) => apply("pin", path), [apply]);
