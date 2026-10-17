@@ -76,7 +76,9 @@ import { isPinned, usePrefs, type FilesPrefs } from "./prefs";
 import { TextPrompt } from "./TextPrompt";
 import { ViewMenu } from "./ViewMenu";
 import { useDir, type DirState, type Entry } from "./useDir";
-import { Viewer } from "./Viewer";
+import { Viewer, type ViewKind } from "./Viewer";
+import { GameBanner } from "./viewer/GameBanner";
+import { sceSysName } from "./viewer/gameFolder";
 
 export { upFrom, viewKind };
 
@@ -97,7 +99,7 @@ export type FilesAsk =
   | { kind: "mkdir" }
   | { kind: "pick"; op: "copy" | "move"; names: string[] }
   | { kind: "info"; name: string }
-  | { kind: "view"; name: string; type: "image" | "text" }
+  | { kind: "view"; name: string; type: ViewKind }
   /** A pinned or recent folder's menu (the drive list). */
   | { kind: "place"; path: string }
   /** Eject a USB drive; `force` after the helper said it is still in use. */
@@ -271,7 +273,7 @@ export function sheetActions(names: string[], entries: Entry[], pinned: boolean 
   if (e && e.kind !== "dir" && viewKind(e.name)) out.push("view");
   out.push("clipcopy", "cut", "copy", "move", "rename", "bulkrename", "mkdir", "info");
   if (e && e.kind === "dir" && pinned != null) out.push(pinned ? "unpin" : "pin");
-  if (e && e.kind === "file") out.push("verify");
+  if (e && e.kind === "file") out.push("verify", "hex");
   if (e && e.kind === "file" && isFfpfsc(e.name)) out.push("unpack");
   out.push("fixperm", "delete");
   return out;
@@ -465,6 +467,8 @@ function askView(p: FilesViewProps) {
                 return p.onAsk({ kind: "bulkrename", names: a.names });
               case "verify":
                 return p.onAsk({ kind: "verify", name });
+              case "hex":
+                return p.onAsk({ kind: "view", name, type: "hex" });
               case "unpack":
                 return p.onAsk({ kind: "unpack", name });
               case "mkdir":
@@ -568,6 +572,8 @@ function askView(p: FilesViewProps) {
           name={a.name}
           kind={a.type}
           size={p.dir.entries.find((e) => e.name === a.name)?.size}
+          images={a.type === "image" ? (p.shown ?? p.dir.entries).filter((e) => e.kind !== "dir" && viewKind(e.name) === "image").map((e) => e.name) : undefined}
+          onOpenImage={(name) => p.onAsk({ kind: "view", name, type: "image" })}
           onClose={p.onDismiss}
         />
       );
@@ -668,6 +674,7 @@ export function FilesView(p: FilesViewProps) {
   const capped = p.dir.more && p.dir.entries.length >= LOAD_ALL_CAP;
   const st = p.status;
   const pinned = p.path != null && p.prefs ? isPinned(p.prefs, p.path) : false;
+  const sceSys = p.path != null ? sceSysName(p.dir.entries) : null;
   const loadAllButton = (
     <ToolButton
       icon={ChevronsDown}
@@ -846,6 +853,7 @@ export function FilesView(p: FilesViewProps) {
               {t("cw_files_empty")} {t("cw_files_empty_next")}
             </p>
           ) : null}
+          {p.dir.loaded && sceSys ? <GameBanner key={p.path} folder={p.path} sceSys={sceSys} /> : null}
           <DirList
             entries={shown}
             limit={p.rowLimit}

@@ -1,4 +1,5 @@
 import {
+  Binary,
   ClipboardCopy,
   FileArchive,
   FileCheck,
@@ -34,6 +35,7 @@ export type SheetAction =
   | "pin"
   | "unpin"
   | "verify"
+  | "hex"
   | "unpack"
   | "fixperm"
   | "delete";
@@ -52,6 +54,7 @@ const ITEMS: Record<SheetAction, { icon: LucideIcon; key: string }> = {
   pin: { icon: Star, key: "cw_files_pin" },
   unpin: { icon: StarOff, key: "cw_files_unpin" },
   verify: { icon: FileCheck, key: "cw_files_verify" },
+  hex: { icon: Binary, key: "cw_files_vw_as_hex" },
   unpack: { icon: FileArchive, key: "cw_files_unpack" },
   fixperm: { icon: ShieldCheck, key: "cw_files_fixperm" },
   delete: { icon: Trash2, key: "cw_files_delete" },
