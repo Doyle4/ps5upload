@@ -279,6 +279,7 @@
   "cw_files_unpack_no_space": "No hay espacio suficiente: necesita {need} (la imagen más 1 GiB) y hay {free} libres.",
   "cw_files_unpack_no_space_short": "No hay espacio suficiente en esa unidad.",
   "cw_files_unpack_not_container": "No es un .ffpfsc que la consola pueda leer.",
+  "cw_files_unpack_not_image": "La imagen que contiene no es una imagen exFAT, así que no es compatible.",
   "cw_files_unpack_stopped": "Descompresión detenida. No se conservó nada.",
   "cw_files_unpack_title": "Descomprimir «{name}»",
   "cw_files_unpack_wait_batch": "Hay otra tarea en curso. Descomprimir podrá empezar cuando termine.",

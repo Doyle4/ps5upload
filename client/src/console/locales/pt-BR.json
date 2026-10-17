@@ -279,6 +279,7 @@
   "cw_files_unpack_no_space": "Espaço livre insuficiente: precisa de {need} (a imagem mais 1 GiB) e há {free} livres.",
   "cw_files_unpack_no_space_short": "Espaço livre insuficiente nessa unidade.",
   "cw_files_unpack_not_container": "Não é um .ffpfsc que o console consiga ler.",
+  "cw_files_unpack_not_image": "A imagem dentro dele não é uma imagem exFAT, então não é compatível.",
   "cw_files_unpack_stopped": "Descompactação parada. Nada foi mantido.",
   "cw_files_unpack_title": "Descompactar “{name}”",
   "cw_files_unpack_wait_batch": "Outra tarefa está em andamento. A descompactação pode começar quando ela terminar.",

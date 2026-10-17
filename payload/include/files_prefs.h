@@ -43,9 +43,9 @@ enum {
     FILES_PREFS_E_BAD_OP = -5,
 };
 
-typedef enum { FILES_PREFS_PIN = 1, FILES_PREFS_UNPIN = 2, FILES_PREFS_VISIT = 3 } files_prefs_op_t;
+typedef enum { FILES_PREFS_PIN = 1, FILES_PREFS_UNPIN = 2, FILES_PREFS_VISIT = 3, FILES_PREFS_FORGET = 4 } files_prefs_op_t;
 
-/* "pin" / "unpin" / "visit" -> the op; 0 for anything else. */
+/* "pin" / "unpin" / "visit" / "forget" -> the op; 0 for anything else. */
 int files_prefs_op_from_name(const char *name);
 
 /* Copies `in` into `out` (cap FILES_PREFS_PATH_MAX) in its stored form: '//' collapsed, a trailing
@@ -77,10 +77,13 @@ int files_prefs_save(const char *file, const files_prefs_t *p);
  * unpin: removed when present (absent = no change).
  * visit: `last` = path, and path moves to the front of recent (once). When the folder before it
  *        was its parent or another ancestor (walking down a tree), that ancestor's entry is
- *        replaced, so one walk leaves one entry. Cut to FILES_PREFS_RECENT_MAX. */
+ *        replaced, so one walk leaves one entry. Cut to FILES_PREFS_RECENT_MAX.
+ * forget: removed from recent (a folder that no longer exists); `last` cleared when it is that
+ *        path. Absent = no change. */
 int files_prefs_pin(files_prefs_t *p, const char *path);
 int files_prefs_unpin(files_prefs_t *p, const char *path);
 int files_prefs_visit(files_prefs_t *p, const char *path);
+int files_prefs_forget(files_prefs_t *p, const char *path);
 
 /* Locked: the file's prefs as JSON into out (cap >= FILES_PREFS_FILE_MAX + 1). Length, or an error. */
 int files_prefs_get(const char *file, char *out, size_t cap);

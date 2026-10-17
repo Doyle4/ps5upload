@@ -4473,6 +4473,7 @@ c2c_test_deep_bad: "4 KiB का परीक्षण नहीं पहुँ
 "cw_files_unpack_failed_generic": "कंसोल ने कहा “{cause}”।",
 "cw_files_unpack_not_container": "यह ऐसी .ffpfsc नहीं है जिसे कंसोल पढ़ सके।",
 "cw_files_unpack_damaged": "फ़ाइल खराब है।",
+"cw_files_unpack_not_image": "इसके अंदर की इमेज exFAT इमेज नहीं है, इसलिए यह समर्थित नहीं है।",
 "cw_files_unpack_busy": "कंसोल पर दूसरा डीकंप्रेस चल रहा है।",
 "cw_files_vw_find": "इस फ़ाइल में खोजें",
 "cw_files_vw_prev": "पिछला",

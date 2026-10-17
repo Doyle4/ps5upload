@@ -291,6 +291,11 @@ describe("decompress", () => {
     );
     const failed = unpackMessage({ end: "failed", status: { ...status, state: "failed", result: null, message: "fs_unpack_no_space: needs 9 bytes, 1 free" } }, "g");
     expect(failed).toEqual({ tone: "error", text: t("cw_files_unpack_failed", { reason: t("cw_files_unpack_no_space_short") }) });
+    // An image of another file system is unsupported, not damaged.
+    const other = unpackMessage({ end: "failed", status: { ...status, state: "failed", result: null, message: "fs_unpack_not_exfat" } }, "g");
+    expect(other?.text).toBe(t("cw_files_unpack_failed", { reason: t("cw_files_unpack_not_image") }));
+    const bad = unpackMessage({ end: "failed", status: { ...status, state: "failed", result: null, message: "fs_unpack_corrupt_block 3" } }, "g");
+    expect(bad?.text).toBe(t("cw_files_unpack_failed", { reason: t("cw_files_unpack_damaged") }));
     const odd = unpackMessage({ end: "failed", status: { ...status, state: "failed", result: null, message: "fs_unpack_weird" } }, "g");
     expect(odd?.text).toContain("fs_unpack_weird");
     expect(unpackMessage({ end: "cancelled", status }, "g")?.text).toBe(t("cw_files_unpack_stopped"));

@@ -279,6 +279,7 @@
   "cw_files_unpack_no_space": "पर्याप्त खाली जगह नहीं: {need} चाहिए (इमेज और 1 GiB), खाली {free} है।",
   "cw_files_unpack_no_space_short": "उस ड्राइव पर पर्याप्त खाली जगह नहीं है।",
   "cw_files_unpack_not_container": "यह ऐसी .ffpfsc नहीं है जिसे कंसोल पढ़ सके।",
+  "cw_files_unpack_not_image": "इसके अंदर की इमेज exFAT इमेज नहीं है, इसलिए यह समर्थित नहीं है।",
   "cw_files_unpack_stopped": "डीकंप्रेस रोका गया। कुछ भी नहीं रखा गया।",
   "cw_files_unpack_title": "“{name}” डीकंप्रेस करें",
   "cw_files_unpack_wait_batch": "दूसरा काम चल रहा है। उसके पूरा होने पर डीकंप्रेस शुरू हो सकता है।",

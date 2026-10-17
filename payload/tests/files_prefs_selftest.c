@@ -71,7 +71,8 @@ static void test_clean_path(void) {
     big[FILES_PREFS_PATH_MAX] = '\0';
     CHECK(files_prefs_clean_path(big, out) == FILES_PREFS_E_BAD_PATH);
     CHECK(files_prefs_op_from_name("pin") == FILES_PREFS_PIN && files_prefs_op_from_name("unpin") == FILES_PREFS_UNPIN &&
-          files_prefs_op_from_name("visit") == FILES_PREFS_VISIT && files_prefs_op_from_name("delete") == 0 &&
+          files_prefs_op_from_name("visit") == FILES_PREFS_VISIT && files_prefs_op_from_name("forget") == FILES_PREFS_FORGET &&
+          files_prefs_op_from_name("delete") == 0 &&
           files_prefs_op_from_name("") == 0);
 }
 
@@ -116,6 +117,12 @@ static void test_recent_order(void) {
     files_prefs_visit(p, "/mnt/usb0b"); /* a sibling with the same prefix is not a child */
     CHECK(p->nrecent == 4 && strcmp(p->recent[1], "/mnt/usb0") == 0);
     CHECK(strcmp(p->last, "/mnt/usb0b") == 0);
+    /* forget: a gone folder leaves recent (and last, when it is that one); others keep their order */
+    CHECK(files_prefs_forget(p, "/mnt/usb0/") == 0 && p->nrecent == 3 && strcmp(p->recent[0], "/mnt/usb0b") == 0 &&
+          strcmp(p->recent[1], "/data/homebrew") == 0 && p->has_last);
+    CHECK(files_prefs_forget(p, "/mnt/usb0b") == 0 && p->nrecent == 2 && !p->has_last);
+    CHECK(files_prefs_forget(p, "/never") == 0 && p->nrecent == 2);
+    CHECK(files_prefs_forget(p, "rel") == FILES_PREFS_E_BAD_PATH);
     free(p);
 }
 

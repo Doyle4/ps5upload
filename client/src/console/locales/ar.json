@@ -279,6 +279,7 @@
   "cw_files_unpack_no_space": "لا توجد مساحة كافية: يحتاج {need} (الصورة مع 1 GiB)، والمتاح {free}.",
   "cw_files_unpack_no_space_short": "لا توجد مساحة كافية على ذلك المحرك.",
   "cw_files_unpack_not_container": "هذا ليس ملف .ffpfsc يستطيع الجهاز قراءته.",
+  "cw_files_unpack_not_image": "الصورة الموجودة بداخله ليست صورة exFAT، لذا فهي غير مدعومة.",
   "cw_files_unpack_stopped": "أُوقف فك الضغط. لم يُحتفظ بشيء.",
   "cw_files_unpack_title": "فك ضغط «{name}»",
   "cw_files_unpack_wait_batch": "مهمة أخرى قيد التشغيل. يمكن أن يبدأ فك الضغط بعد انتهائها.",

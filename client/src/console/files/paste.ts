@@ -106,7 +106,10 @@ export function sameEntry(a: Stat | null | undefined, b: Stat | null | undefined
 /** The entry at `path`, or null when nothing is there (404). */
 export async function statOrNull(path: string): Promise<Stat | null> {
   try {
-    return await call<Stat>("/api/fs/stat", { path });
+    // missing_ok: the helper answers 200 {"missing":true} for a path that is not there (no 404
+    // in the browser's console); an older helper ignores it and answers 404, read the same way.
+    const st = await call<Stat | { missing: true }>("/api/fs/stat", { path, missing_ok: true });
+    return "missing" in st && st.missing === true ? null : (st as Stat);
   } catch (e) {
     if (e instanceof ApiError && e.status === 404) return null;
     throw e;

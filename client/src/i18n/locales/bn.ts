@@ -4457,6 +4457,7 @@ c2c_test_deep_bad: "4 KiB-এর পরীক্ষামূলক পাঠা�
 "cw_files_unpack_failed_generic": "কনসোল বলেছে “{cause}”।",
 "cw_files_unpack_not_container": "এটি এমন .ffpfsc নয় যা কনসোল পড়তে পারে।",
 "cw_files_unpack_damaged": "ফাইলটি ক্ষতিগ্রস্ত।",
+"cw_files_unpack_not_image": "ভেতরের ইমেজটি exFAT ইমেজ নয়, তাই এটি সমর্থিত নয়।",
 "cw_files_unpack_busy": "কনসোলে আরেকটি ডিকম্প্রেস চলছে।",
 "cw_files_vw_find": "এই ফাইলে খুঁজুন",
 "cw_files_vw_prev": "আগের",

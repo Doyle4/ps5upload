@@ -4476,6 +4476,7 @@ c2c_test_deep_bad: "4 KiB 테스트 전송이 도착하지 않았습니다: {det
 "cw_files_unpack_failed_generic": "콘솔 응답: “{cause}”.",
 "cw_files_unpack_not_container": "콘솔이 읽을 수 있는 .ffpfsc가 아닙니다.",
 "cw_files_unpack_damaged": "파일이 손상되었습니다.",
+"cw_files_unpack_not_image": "안에 있는 이미지가 exFAT 이미지가 아니어서 지원되지 않습니다.",
 "cw_files_unpack_busy": "콘솔에서 다른 압축 풀기가 진행 중입니다.",
 "cw_files_vw_find": "이 파일에서 찾기",
 "cw_files_vw_prev": "이전",

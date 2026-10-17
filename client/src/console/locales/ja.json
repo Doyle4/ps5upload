@@ -279,6 +279,7 @@
   "cw_files_unpack_no_space": "空き容量が足りません: {need}（イメージ + 1 GiB）が必要で、空きは {free} です。",
   "cw_files_unpack_no_space_short": "そのドライブの空き容量が足りません。",
   "cw_files_unpack_not_container": "本体が読み取れる .ffpfsc ではありません。",
+  "cw_files_unpack_not_image": "中のイメージは exFAT イメージではないため、対応していません。",
   "cw_files_unpack_stopped": "展開を停止しました。何も残っていません。",
   "cw_files_unpack_title": "「{name}」を展開",
   "cw_files_unpack_wait_batch": "別のタスクが実行中です。終わると展開を開始できます。",

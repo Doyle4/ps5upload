@@ -14,7 +14,7 @@ export interface FilesPrefs {
 
 export const EMPTY_PREFS: FilesPrefs = { favorites: [], recent: [], last: null };
 
-export type PrefsOp = "pin" | "unpin" | "visit";
+export type PrefsOp = "pin" | "unpin" | "visit" | "forget";
 
 const strings = (v: unknown): string[] =>
   Array.isArray(v) ? v.filter((x): x is string => typeof x === "string" && x.startsWith("/")) : [];
@@ -73,6 +73,8 @@ export interface PrefsState {
   pin: (path: string) => Promise<void>;
   unpin: (path: string) => Promise<void>;
   visit: (path: string) => void;
+  /** Drops a folder that no longer exists from Recent (fire-and-forget, like a visit). */
+  forget: (path: string) => void;
 }
 
 /**
@@ -122,5 +124,12 @@ export function usePrefs(): PrefsState {
     },
     [apply],
   );
-  return { prefs, settled, pin, unpin, visit };
+  const forget = useCallback(
+    (path: string) => {
+      if (!supported.current) return;
+      apply("forget", path).catch(() => undefined);
+    },
+    [apply],
+  );
+  return { prefs, settled, pin, unpin, visit, forget };
 }

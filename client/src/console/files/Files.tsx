@@ -76,7 +76,7 @@ import { PathBar } from "./PathBar";
 import { DEFAULT_VIEW, invertShown, loadView, saveView, selectAllShown, statusOf, visibleEntries, LOAD_ALL_CAP, type Status, type ViewPrefs } from "./listing";
 import { checkFolder, typedPath } from "./pathParts";
 import { PathPicker } from "./PathPicker";
-import { isPinned, usePrefs, type FilesPrefs } from "./prefs";
+import { cleanPath, isPinned, usePrefs, type FilesPrefs } from "./prefs";
 import { TextPrompt } from "./TextPrompt";
 import { ViewMenu } from "./ViewMenu";
 import { useDir, type DirState, type Entry } from "./useDir";
@@ -1039,7 +1039,7 @@ export function Files({ ctx }: { ctx: SectionContext }) {
   const [message, setMessage] = useState<Message | null>(null);
   const [askBusy, setAskBusy] = useState(false);
   const [askError, setAskError] = useState<string | null>(null);
-  const { prefs, settled: prefsSettled, pin, unpin, visit } = usePrefs();
+  const { prefs, settled: prefsSettled, pin, unpin, visit, forget } = usePrefs();
   /** Files was moved somewhere (or opened at a place): the last location is not restored any more. */
   const moved = useRef(wanted != null);
   /** The folder restored from the last visit (left for the drive list when it is gone). */
@@ -1116,6 +1116,12 @@ export function Files({ ctx }: { ctx: SectionContext }) {
     setMessage({ tone: "info", text: t("cw_files_last_gone", { path }) });
     go(null);
   }, [path, dir.error, go]);
+
+  // A recent folder that is gone (deleted, renamed, its drive unplugged) leaves Recent.
+  useEffect(() => {
+    if (path == null || !(dir.error instanceof ApiError) || dir.error.status !== 404) return;
+    if (prefs?.recent.includes(cleanPath(path))) forget(cleanPath(path));
+  }, [path, dir.error, prefs, forget]);
 
   // A folder that opened is a visit: recent folders and the last location (on the console).
   useEffect(() => {

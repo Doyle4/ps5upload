@@ -908,7 +908,7 @@ test-payload: payload
 		$(PAYLOAD_DIR)/tests/webui_auth_selftest.c $(PAYLOAD_DIR)/src/webui_auth.c
 	@/tmp/ps5upload-webui-auth-selftest
 	@echo "Running webui server self-test (host build, ~25 s)..."
-	@cc -O2 -Wall -Wextra -Werror -pthread -I$(PAYLOAD_DIR)/include \
+	@cc -O2 -Wall -Wextra -Werror -pthread -I$(PAYLOAD_DIR)/include -I$(PAYLOAD_DIR)/ava1 \
 		-o /tmp/ps5upload-webui-server-selftest \
 		$(PAYLOAD_DIR)/tests/webui_server_selftest.c $(PAYLOAD_DIR)/src/webui_server.c \
 		$(PAYLOAD_DIR)/src/webui_http.c $(PAYLOAD_DIR)/src/webui_auth.c

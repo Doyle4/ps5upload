@@ -279,6 +279,7 @@
   "cw_files_unpack_no_space": "可用空間不足：需要 {need}（映像檔加 1 GiB），可用 {free}。",
   "cw_files_unpack_no_space_short": "該磁碟機可用空間不足。",
   "cw_files_unpack_not_container": "這不是主機能讀取的 .ffpfsc。",
+  "cw_files_unpack_not_image": "其中的映像不是 exFAT 映像，因此不受支援。",
   "cw_files_unpack_stopped": "解壓縮已停止。沒有保留任何內容。",
   "cw_files_unpack_title": "解壓縮「{name}」",
   "cw_files_unpack_wait_batch": "另一個工作正在進行。完成後才能開始解壓縮。",

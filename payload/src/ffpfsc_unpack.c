@@ -421,6 +421,8 @@ int fsj_op_ffpfsc_unpack(void *arg, ava1_op_ctx_t *c, const uint8_t *args, size_
         goto done;
     }
     if (ends_with_ci(L.name, ".exfat") && !exfat_boot_ok(part)) {
+        /* Decoded in full, but the image inside is another file system (not a damaged block). */
+        fprintf(stderr, "ffpfsc unpack: %s holds %s, which is not an exFAT image; nothing kept\n", src, L.name);
         ava1_op_message(c, "fs_unpack_not_exfat");
         goto done;
     }

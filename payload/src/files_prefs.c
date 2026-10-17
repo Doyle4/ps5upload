@@ -22,6 +22,7 @@ int files_prefs_op_from_name(const char *name) {
     if (strcmp(name, "pin") == 0) return FILES_PREFS_PIN;
     if (strcmp(name, "unpin") == 0) return FILES_PREFS_UNPIN;
     if (strcmp(name, "visit") == 0) return FILES_PREFS_VISIT;
+    if (strcmp(name, "forget") == 0) return FILES_PREFS_FORGET;
     return 0;
 }
 
@@ -274,6 +275,17 @@ int files_prefs_visit(files_prefs_t *p, const char *path) {
     return FILES_PREFS_OK;
 }
 
+int files_prefs_forget(files_prefs_t *p, const char *path) {
+    char clean[FILES_PREFS_PATH_MAX];
+    if (files_prefs_clean_path(path, clean) != FILES_PREFS_OK) return FILES_PREFS_E_BAD_PATH;
+    remove_at(p->recent, &p->nrecent, find(p->recent, p->nrecent, clean));
+    if (p->has_last && strcmp(p->last, clean) == 0) {
+        p->has_last = 0;
+        p->last[0] = '\0';
+    }
+    return FILES_PREFS_OK;
+}
+
 int files_prefs_get(const char *file, char *out, size_t cap) {
     files_prefs_t *p = malloc(sizeof *p);
     int len;
@@ -296,7 +308,8 @@ static int visit_is_noop(const files_prefs_t *p, const char *path) {
 int files_prefs_update(const char *file, int op, const char *path, char *out, size_t cap) {
     files_prefs_t *p;
     int rc, len;
-    if (op != FILES_PREFS_PIN && op != FILES_PREFS_UNPIN && op != FILES_PREFS_VISIT) return FILES_PREFS_E_BAD_OP;
+    if (op != FILES_PREFS_PIN && op != FILES_PREFS_UNPIN && op != FILES_PREFS_VISIT && op != FILES_PREFS_FORGET)
+        return FILES_PREFS_E_BAD_OP;
     p = malloc(sizeof *p);
     if (!p) return FILES_PREFS_E_NOMEM;
     pthread_mutex_lock(&g_prefs_mu);
@@ -309,7 +322,8 @@ int files_prefs_update(const char *file, int op, const char *path, char *out, si
     }
     rc = op == FILES_PREFS_PIN ? files_prefs_pin(p, path)
          : op == FILES_PREFS_UNPIN ? files_prefs_unpin(p, path)
-                                   : files_prefs_visit(p, path);
+         : op == FILES_PREFS_FORGET ? files_prefs_forget(p, path)
+                                    : files_prefs_visit(p, path);
     /* favourites never take the room a visit needs: one recent folder and the last one, at their longest */
     if (rc == FILES_PREFS_OK && op == FILES_PREFS_PIN && build_json(p, NULL, 0) > FILES_PREFS_FILE_MAX - PIN_RESERVE)
         rc = FILES_PREFS_E_FULL;

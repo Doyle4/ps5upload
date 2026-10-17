@@ -17,7 +17,8 @@ export function unpackCauseText(code: string): string | null {
   if (/no_space/.test(code)) return t("cw_files_unpack_no_space_short");
   if (/destination_exists/.test(code)) return t("cw_files_err_exists");
   if (/unpack_busy/.test(code)) return t("cw_files_unpack_busy");
-  if (/corrupt_block|inner_missing|size_mismatch|not_exfat/.test(code)) return t("cw_files_unpack_damaged");
+  if (/not_exfat/.test(code)) return t("cw_files_unpack_not_image");
+  if (/corrupt_block|inner_missing|size_mismatch/.test(code)) return t("cw_files_unpack_damaged");
   if (/path_not_allowed/.test(code)) return t("cw_files_err_denied");
   return null;
 }

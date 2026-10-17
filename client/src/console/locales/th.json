@@ -279,6 +279,7 @@
   "cw_files_unpack_no_space": "พื้นที่ว่างไม่พอ: ต้องใช้ {need} (อิมเมจบวก 1 GiB) ว่างอยู่ {free}",
   "cw_files_unpack_no_space_short": "พื้นที่ว่างในไดรฟ์นั้นไม่พอ",
   "cw_files_unpack_not_container": "นี่ไม่ใช่ .ffpfsc ที่เครื่องอ่านได้",
+  "cw_files_unpack_not_image": "อิมเมจด้านในไม่ใช่อิมเมจ exFAT จึงไม่รองรับ",
   "cw_files_unpack_stopped": "หยุดการแตกไฟล์แล้ว ไม่มีอะไรถูกเก็บไว้",
   "cw_files_unpack_title": "แตกไฟล์ “{name}”",
   "cw_files_unpack_wait_batch": "มีงานอื่นกำลังทำงานอยู่ จะแตกไฟล์ได้เมื่องานนั้นเสร็จ",

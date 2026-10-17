@@ -385,6 +385,11 @@ describe("eject and unmount", () => {
     expect(seen).toEqual([["/b", "/a"]]);
     mockCall.mockRejectedValueOnce(new ApiError(409, "prefs_full"));
     await expect(apply("pin", "/c")).rejects.toThrow();
+    // A gone recent folder is forgotten through the same route.
+    mockCall.mockResolvedValueOnce({ favorites: [], recent: ["/a"], last: "/a" } as never);
+    await apply("forget", "/b");
+    expect(mockCall).toHaveBeenLastCalledWith("/api/files/prefs/set", { op: "forget", path: "/b" });
+    expect(seen[seen.length - 1]).toEqual(["/a"]);
   });
 
   it("the helper's refusals read as what to do", () => {

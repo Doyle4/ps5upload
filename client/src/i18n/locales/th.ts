@@ -4466,6 +4466,7 @@ c2c_test_deep_bad: "การส่งทดสอบ 4 KiB ไปไม่ถ�
 "cw_files_unpack_failed_generic": "เครื่องตอบว่า “{cause}”",
 "cw_files_unpack_not_container": "นี่ไม่ใช่ .ffpfsc ที่เครื่องอ่านได้",
 "cw_files_unpack_damaged": "ไฟล์เสียหาย",
+"cw_files_unpack_not_image": "อิมเมจด้านในไม่ใช่อิมเมจ exFAT จึงไม่รองรับ",
 "cw_files_unpack_busy": "เครื่องกำลังแตกไฟล์อื่นอยู่",
 "cw_files_vw_find": "ค้นหาในไฟล์นี้",
 "cw_files_vw_prev": "ก่อนหน้า",

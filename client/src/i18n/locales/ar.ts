@@ -4457,6 +4457,7 @@ c2c_test_deep_bad: "لم يصل الإرسال التجريبي بحجم 4 KiB: 
 "cw_files_unpack_failed_generic": "ردّ الجهاز بـ«{cause}».",
 "cw_files_unpack_not_container": "هذا ليس ملف .ffpfsc يستطيع الجهاز قراءته.",
 "cw_files_unpack_damaged": "الملف تالف.",
+"cw_files_unpack_not_image": "الصورة الموجودة بداخله ليست صورة exFAT، لذا فهي غير مدعومة.",
 "cw_files_unpack_busy": "يجري فك ضغط آخر على الجهاز.",
 "cw_files_vw_find": "البحث في هذا الملف",
 "cw_files_vw_prev": "السابق",

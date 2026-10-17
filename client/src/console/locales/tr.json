@@ -279,6 +279,7 @@
   "cw_files_unpack_no_space": "Yeterli boş alan yok: {need} gerekli (görüntü artı 1 GiB), {free} boş.",
   "cw_files_unpack_no_space_short": "O sürücüde yeterli boş alan yok.",
   "cw_files_unpack_not_container": "Bu, konsolun okuyabildiği bir .ffpfsc değil.",
+  "cw_files_unpack_not_image": "İçindeki imaj bir exFAT imajı değil, bu yüzden desteklenmiyor.",
   "cw_files_unpack_stopped": "Sıkıştırma açma durduruldu. Hiçbir şey tutulmadı.",
   "cw_files_unpack_title": "“{name}” sıkıştırmasını aç",
   "cw_files_unpack_wait_batch": "Başka bir görev çalışıyor. Bitince sıkıştırma açma başlayabilir.",

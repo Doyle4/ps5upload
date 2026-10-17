@@ -279,6 +279,7 @@
   "cw_files_unpack_no_space": "可用空间不足：需要 {need}（镜像加 1 GiB），可用 {free}。",
   "cw_files_unpack_no_space_short": "该驱动器可用空间不足。",
   "cw_files_unpack_not_container": "这不是主机能读取的 .ffpfsc。",
+  "cw_files_unpack_not_image": "其中的映像不是 exFAT 映像，因此不受支持。",
   "cw_files_unpack_stopped": "解压已停止。没有保留任何内容。",
   "cw_files_unpack_title": "解压“{name}”",
   "cw_files_unpack_wait_batch": "另一个任务正在进行。完成后才能开始解压。",

@@ -279,6 +279,7 @@
   "cw_files_unpack_no_space": "Za mało wolnego miejsca: potrzeba {need} (obraz plus 1 GiB), wolne: {free}.",
   "cw_files_unpack_no_space_short": "Za mało wolnego miejsca na tym dysku.",
   "cw_files_unpack_not_container": "To nie jest plik .ffpfsc, który konsola potrafi odczytać.",
+  "cw_files_unpack_not_image": "Obraz w środku nie jest obrazem exFAT, więc nie jest obsługiwany.",
   "cw_files_unpack_stopped": "Rozpakowywanie zatrzymane. Nic nie zostało zachowane.",
   "cw_files_unpack_title": "Rozpakuj „{name}”",
   "cw_files_unpack_wait_batch": "Trwa inne zadanie. Rozpakowywanie może się zacząć, gdy się skończy.",

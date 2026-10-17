@@ -279,6 +279,7 @@
   "cw_files_unpack_no_space": "فضای آزاد کافی نیست: {need} لازم است (ایمیج به‌علاوهٔ 1 GiB) و {free} آزاد است.",
   "cw_files_unpack_no_space_short": "فضای آزاد آن درایو کافی نیست.",
   "cw_files_unpack_not_container": "این یک .ffpfsc قابل خواندن برای کنسول نیست.",
+  "cw_files_unpack_not_image": "ایمیج داخل آن ایمیج exFAT نیست، پس پشتیبانی نمی‌شود.",
   "cw_files_unpack_stopped": "باز کردن متوقف شد. چیزی نگه داشته نشد.",
   "cw_files_unpack_title": "باز کردن فشرده‌سازی «{name}»",
   "cw_files_unpack_wait_batch": "کار دیگری در حال اجراست. پس از پایان آن می‌توان شروع کرد.",

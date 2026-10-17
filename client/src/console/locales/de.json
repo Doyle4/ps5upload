@@ -279,6 +279,7 @@
   "cw_files_unpack_no_space": "Nicht genug freier Speicher: Benötigt werden {need} (das Abbild plus 1 GiB), frei sind {free}.",
   "cw_files_unpack_no_space_short": "Nicht genug freier Speicher auf diesem Laufwerk.",
   "cw_files_unpack_not_container": "Das ist keine .ffpfsc-Datei, die die Konsole lesen kann.",
+  "cw_files_unpack_not_image": "Das Image darin ist kein exFAT-Image und wird daher nicht unterstützt.",
   "cw_files_unpack_stopped": "Entpacken gestoppt. Nichts wurde behalten.",
   "cw_files_unpack_title": "„{name}“ entpacken",
   "cw_files_unpack_wait_batch": "Eine andere Aufgabe läuft. Entpacken kann starten, wenn sie fertig ist.",

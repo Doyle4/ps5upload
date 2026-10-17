@@ -14,7 +14,7 @@ import { FilesView, sheetActions, type FilesViewProps } from "./Files";
 import type { DirState, Entry } from "./useDir";
 import { GameBanner, GameBannerView } from "./viewer/GameBanner";
 import { HexView } from "./viewer/HexView";
-import { TextView, findCountText } from "./viewer/TextView";
+import { TextView, findCountText, findTyped, type FindState } from "./viewer/TextView";
 import { ROW_WINDOW, toRows } from "./viewer/text";
 import { GameSummary, textModel, Viewer } from "./Viewer";
 
@@ -152,6 +152,20 @@ describe("viewer in Files", () => {
     expect(findCountText("x", 0, -1, false)).toBe(t("cw_files_vw_find_none"));
     expect(findCountText("x", 17, 2, false)).toBe(t("cw_files_vw_find_at", { at: 3, n: "17" }));
     expect(findCountText("x", 10000, 0, true)).toContain(t("cw_files_vw_find_capped"));
+  });
+
+  it("typing finds at once: the count shows without Next; Next then steps on", () => {
+    const rows = toRows("alpha\nbeta alpha\ngamma\nalpha");
+    const s0: FindState = { found: { query: "", matches: [], capped: false }, current: -1, win: { start: 0, end: rows.length } };
+    const s1 = findTyped(s0, "alpha", rows);
+    expect(s1.found.matches.length).toBe(3);
+    expect(s1.current).toBe(0);
+    expect(findCountText(s1.found.query, s1.found.matches.length, s1.current, false)).toBe(t("cw_files_vw_find_at", { at: 1, n: "3" }));
+    expect(findTyped(s1, "alpha", rows)).toBe(s1); // already found: unchanged
+    expect(findTyped(s1, "zzz", rows).found.matches).toEqual([]);
+    const cleared = findTyped(s1, "", rows);
+    expect(cleared.found.query).toBe("");
+    expect(cleared.current).toBe(-1);
   });
 
   it("a find jump in a 50,000-line file draws a bounded window around the match", () => {

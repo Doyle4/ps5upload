@@ -4407,6 +4407,7 @@ c2c_test_deep_bad: "Тестовая отправка 4 КиБ не дошла: 
 "cw_files_unpack_failed_generic": "консоль ответила «{cause}».",
 "cw_files_unpack_not_container": "Это не .ffpfsc, который консоль может прочитать.",
 "cw_files_unpack_damaged": "Файл повреждён.",
+"cw_files_unpack_not_image": "Образ внутри не является образом exFAT, поэтому не поддерживается.",
 "cw_files_unpack_busy": "На консоли уже идёт другая распаковка.",
 "cw_files_vw_find": "Найти в этом файле",
 "cw_files_vw_prev": "Назад",

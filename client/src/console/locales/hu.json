@@ -279,6 +279,7 @@
   "cw_files_unpack_no_space": "Nincs elég szabad hely: {need} kell (a kép plusz 1 GiB), és {free} szabad.",
   "cw_files_unpack_no_space_short": "Nincs elég szabad hely azon a meghajtón.",
   "cw_files_unpack_not_container": "Ez nem olyan .ffpfsc, amelyet a konzol olvasni tud.",
+  "cw_files_unpack_not_image": "A benne lévő image nem exFAT image, ezért nem támogatott.",
   "cw_files_unpack_stopped": "Kicsomagolás leállítva. Semmi sem maradt meg.",
   "cw_files_unpack_title": "„{name}” kicsomagolása",
   "cw_files_unpack_wait_batch": "Egy másik feladat fut. A kicsomagolás akkor indulhat, ha az véget ért.",

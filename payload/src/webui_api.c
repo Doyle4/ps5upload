@@ -372,6 +372,17 @@ static void r_fs_stat(const char *b, size_t n, uint8_t *out, int fd) {
     }
     st = call(AVA1_METHOD_FS_STAT, (const uint8_t *)req, w.len, out, &ol);
     if (st != AVA1_STATUS_OK) {
+        /* "missing_ok":true (the page probing for a free name): a path that is not there is an
+         * answer, 200 {"missing":true}, not a 404 the browser logs as an error. */
+        int missing_ok = 0;
+        char c[API_CAUSE_MAX + 1];
+        size_t cl = ol > API_CAUSE_MAX ? API_CAUSE_MAX : ol;
+        memcpy(c, out, cl);
+        c[cl] = '\0';
+        if (webui_json_bool(b, n, "missing_ok", &missing_ok) == 1 && missing_ok && webui_http_status_for(st, c) == 404) {
+            send_json(fd, 200, "{\"missing\":true}", 16);
+            return;
+        }
         send_status_error(fd, st, out, ol);
         return;
     }
@@ -905,7 +916,7 @@ static void r_files_prefs(const char *b, size_t n, uint8_t *out, int fd) {
     else send_json(fd, 200, (const char *)out, (size_t)len);
 }
 
-/* {"op":"pin"|"unpin"|"visit","path":".."} -> the new prefs, as /api/files/prefs answers. */
+/* {"op":"pin"|"unpin"|"visit"|"forget","path":".."} -> the new prefs, as /api/files/prefs answers. */
 static void r_files_prefs_set(const char *b, size_t n, uint8_t *out, int fd) {
     char op[16], path[API_PATH];
     int o, len;

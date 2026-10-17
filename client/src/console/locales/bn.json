@@ -279,6 +279,7 @@
   "cw_files_unpack_no_space": "যথেষ্ট খালি জায়গা নেই: {need} প্রয়োজন (ইমেজ ও 1 GiB), খালি আছে {free}।",
   "cw_files_unpack_no_space_short": "ওই ড্রাইভে যথেষ্ট খালি জায়গা নেই।",
   "cw_files_unpack_not_container": "এটি এমন .ffpfsc নয় যা কনসোল পড়তে পারে।",
+  "cw_files_unpack_not_image": "ভেতরের ইমেজটি exFAT ইমেজ নয়, তাই এটি সমর্থিত নয়।",
   "cw_files_unpack_stopped": "ডিকম্প্রেস থামানো হয়েছে। কিছুই রাখা হয়নি।",
   "cw_files_unpack_title": "“{name}” ডিকম্প্রেস করুন",
   "cw_files_unpack_wait_batch": "অন্য একটি কাজ চলছে। সেটি শেষ হলে ডিকম্প্রেস শুরু হতে পারে।",

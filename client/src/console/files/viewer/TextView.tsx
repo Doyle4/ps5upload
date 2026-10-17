@@ -34,6 +34,29 @@ interface Found {
 
 const NONE: Found = { query: "", matches: [], capped: false };
 
+/** A pause in typing this long finds what the field holds (the count shows without pressing Next). */
+export const FIND_TYPED_MS = 350;
+
+export interface FindState {
+  found: Found;
+  current: number;
+  win: RowWindow;
+}
+
+/**
+ * Find `field` as typed: a new query is scanned and its first match from the
+ * window's top becomes current; an empty field clears the find; the query
+ * already found is left as it is (Next / Previous step through it).
+ */
+export function findTyped(s: FindState, field: string, rows: Row[]): FindState {
+  if (field === s.found.query) return s;
+  if (!field) return { ...s, found: NONE, current: -1 };
+  const found = { query: field, ...findMatches(rows, field) };
+  const current = firstMatchFrom(found.matches, s.win.start);
+  const win = current >= 0 ? windowAround(found.matches[current].row, s.win, rows.length) : s.win;
+  return { found, current, win };
+}
+
 /** One focusable block of rows. Memoized: Next / Previous re-render only the blocks whose current mark changes. */
 const Block = memo(function Block({
   rows,
@@ -86,7 +109,7 @@ const Block = memo(function Block({
  * D-pad steps through. Text is rendered as text nodes, never HTML.
  */
 export function TextView({ rows, initialQuery }: { rows: Row[]; /** Tests: start with this found. */ initialQuery?: string }) {
-  const [state, setState] = useState(() => {
+  const [state, setState] = useState<FindState>(() => {
     const found = initialQuery ? { query: initialQuery, ...findMatches(rows, initialQuery) } : NONE;
     const current = found.matches.length ? 0 : -1;
     const win0: RowWindow = { start: 0, end: Math.min(rows.length, ROW_WINDOW) };
@@ -127,6 +150,13 @@ export function TextView({ rows, initialQuery }: { rows: Row[]; /** Tests: start
     const el = body.current?.querySelector<HTMLElement>(`[data-match="${current}"]`);
     if (el && typeof el.scrollIntoView === "function") el.scrollIntoView({ block: "center", inline: "nearest" });
   }, [current, win]);
+
+  // Typing pauses: find it, so the count shows at once (the PS5 keyboard's Done may not submit).
+  useEffect(() => {
+    if (field === found.query) return;
+    const id = setTimeout(() => setState((s) => findTyped(s, field, rows)), FIND_TYPED_MS);
+    return () => clearTimeout(id);
+  }, [field, found.query, rows]);
 
   /** Find what the field holds: a new query (scanned once) starts at its first match; the same one steps on. */
   const go = (dir: 1 | -1) => {

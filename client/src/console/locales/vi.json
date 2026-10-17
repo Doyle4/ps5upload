@@ -279,6 +279,7 @@
   "cw_files_unpack_no_space": "Không đủ dung lượng trống: cần {need} (ảnh đĩa cộng 1 GiB), còn trống {free}.",
   "cw_files_unpack_no_space_short": "Không đủ dung lượng trống trên ổ đó.",
   "cw_files_unpack_not_container": "Đây không phải tệp .ffpfsc mà máy đọc được.",
+  "cw_files_unpack_not_image": "Ảnh bên trong không phải ảnh exFAT nên không được hỗ trợ.",
   "cw_files_unpack_stopped": "Đã dừng giải nén. Không giữ lại gì.",
   "cw_files_unpack_title": "Giải nén “{name}”",
   "cw_files_unpack_wait_batch": "Một tác vụ khác đang chạy. Giải nén có thể bắt đầu khi nó xong.",

@@ -279,6 +279,7 @@
   "cw_files_unpack_no_space": "Pas assez d’espace libre : il faut {need} (l’image plus 1 GiB) et {free} sont libres.",
   "cw_files_unpack_no_space_short": "Pas assez d’espace libre sur ce disque.",
   "cw_files_unpack_not_container": "Ce n’est pas un .ffpfsc que la console peut lire.",
+  "cw_files_unpack_not_image": "L’image qu’il contient n’est pas une image exFAT : elle n’est pas prise en charge.",
   "cw_files_unpack_stopped": "Décompression arrêtée. Rien n’a été conservé.",
   "cw_files_unpack_title": "Décompresser « {name} »",
   "cw_files_unpack_wait_batch": "Une autre tâche est en cours. La décompression pourra commencer quand elle sera finie.",

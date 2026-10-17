@@ -34,6 +34,7 @@
 #include <time.h>
 #include <unistd.h>
 
+#include "ava1_thread.h"
 #include "proc_identity.h"
 #include "webui_auth.h"
 
@@ -45,7 +46,7 @@
 #define WEBUI_SLICE_MS       200
 #define WEBUI_MIN_SEND_MS    1000u   /* a route that computed long still gets this to write */
 #define WEBUI_DRAIN_MS       250u
-#define WEBUI_STACK          (256u * 1024u)
+#define WEBUI_STACK          AVA1_MGMT_STACK  /* routes run mgmt handlers sized for 512 KiB */
 #define WEBUI_MAX_ADDRS      8
 #define WEBUI_WATCH_MS       5000u   /* the accept thread's listener check (resume, IP change) */
 #define WEBUI_BROKEN_MS      5000u   /* a listener failing this long is rebound */

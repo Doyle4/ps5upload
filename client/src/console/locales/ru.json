@@ -279,6 +279,7 @@
   "cw_files_unpack_no_space": "Недостаточно места: нужно {need} (образ плюс 1 GiB), свободно {free}.",
   "cw_files_unpack_no_space_short": "Недостаточно свободного места на этом диске.",
   "cw_files_unpack_not_container": "Это не .ffpfsc, который консоль может прочитать.",
+  "cw_files_unpack_not_image": "Образ внутри не является образом exFAT, поэтому не поддерживается.",
   "cw_files_unpack_stopped": "Распаковка остановлена. Ничего не сохранено.",
   "cw_files_unpack_title": "Распаковать «{name}»",
   "cw_files_unpack_wait_batch": "Выполняется другая задача. Распаковка начнётся, когда она закончится.",

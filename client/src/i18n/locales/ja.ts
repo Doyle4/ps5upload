@@ -4478,6 +4478,7 @@ c2c_test_deep_bad: "4 KiB のテスト送信が届きませんでした: {detail
 "cw_files_unpack_failed_generic": "本体の応答:「{cause}」。",
 "cw_files_unpack_not_container": "本体が読み取れる .ffpfsc ではありません。",
 "cw_files_unpack_damaged": "ファイルが破損しています。",
+"cw_files_unpack_not_image": "中のイメージは exFAT イメージではないため、対応していません。",
 "cw_files_unpack_busy": "本体で別の展開が実行中です。",
 "cw_files_vw_find": "このファイル内を検索",
 "cw_files_vw_prev": "前へ",

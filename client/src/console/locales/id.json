@@ -279,6 +279,7 @@
   "cw_files_unpack_no_space": "Ruang kosong tidak cukup: butuh {need} (image plus 1 GiB), tersedia {free}.",
   "cw_files_unpack_no_space_short": "Ruang kosong di drive itu tidak cukup.",
   "cw_files_unpack_not_container": "Ini bukan .ffpfsc yang bisa dibaca konsol.",
+  "cw_files_unpack_not_image": "Image di dalamnya bukan image exFAT, jadi tidak didukung.",
   "cw_files_unpack_stopped": "Ekstrak dihentikan. Tidak ada yang disimpan.",
   "cw_files_unpack_title": "Ekstrak “{name}”",
   "cw_files_unpack_wait_batch": "Tugas lain sedang berjalan. Ekstrak bisa mulai setelah selesai.",
