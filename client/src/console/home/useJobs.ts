@@ -29,6 +29,16 @@ export function nextJobsDelay(jobs: Job[]): number {
   return jobs.some((j) => j.state === "running") ? JOBS_FAST_MS : JOBS_SLOW_MS;
 }
 
+/**
+ * The Tasks list: every running job whoever started it, but a finished,
+ * failed or cancelled one only when this page started it (the PC app reports
+ * its own outcomes). Running ones first. Polling still watches all jobs.
+ */
+export function visibleJobs(jobs: Job[]): Job[] {
+  const running = jobs.filter((j) => j.state === "running");
+  return running.concat(jobs.filter((j) => j.state !== "running" && j.mine));
+}
+
 async function fetchJobs(): Promise<Job[]> {
   const r = await call<{ jobs?: unknown }>("/api/jobs");
   return Array.isArray(r?.jobs) ? (r.jobs as Job[]) : [];

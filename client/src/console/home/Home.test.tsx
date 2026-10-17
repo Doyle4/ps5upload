@@ -134,6 +134,14 @@ describe("Home", () => {
     });
   });
 
+  it("Tasks hides finished PC jobs, shows running PC jobs and finished console jobs", () => {
+    const html = (jobs: Job[]) => renderToStaticMarkup(<HomeView {...viewProps({ jobs })} />);
+    const n = (h: string) => h.split("cw-task is-").length - 1;
+    expect(n(html([job({ state: "done", mine: false }), job({ state: "failed", mine: false })]))).toBe(0);
+    expect(n(html([job({ state: "running", mine: false })]))).toBe(1);
+    expect(n(html([job({ state: "done", mine: true }), job({ state: "failed", mine: true })]))).toBe(2);
+  });
+
   it("a finished task has no Cancel", () => {
     expect(() => byAction(TaskRow({ job: job({ state: "done" }), onCancel: () => {} }), "cancel")).toThrow();
   });

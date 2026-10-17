@@ -7,7 +7,7 @@ import type { ConsoleStatus } from "../shell/TopBar";
 import { t } from "../strings";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { TaskRow } from "./TaskRow";
-import { useJobs, type Job } from "./useJobs";
+import { useJobs, visibleJobs, type Job } from "./useJobs";
 
 /** Free space moves with every write: re-read this often while Home is open. */
 const VOLUMES_POLL_MS = 15_000;
@@ -187,7 +187,7 @@ export function VolumeCard({ v, onOpen }: { v: Volume; onOpen: ((path: string) =
 /** Home without state: everything comes in through props (tests render it directly). */
 export function HomeView(p: HomeViewProps) {
   const running = p.status?.running ?? null;
-  const tasks = p.jobs.filter((j) => j.state === "running").concat(p.jobs.filter((j) => j.state !== "running"));
+  const tasks = visibleJobs(p.jobs);
   const drives = (p.volumes ?? []).filter(isDrive);
   const copy = p.ask ? askCopy(p.ask) : null;
 
