@@ -388,6 +388,7 @@ whats_new_in: "Újdonságok a v{version} verzióban",
 about_tagline: "Gyors, megbízható feltöltések a számítógépedről a PS5-ödre. Átvitel, csatolás és böngészés — a PS5-oldali eszközeid mellé tervezve.",
 about_what_it_does: "Mit csinál",
 about_credits: "Köszönetnyilvánítás",
+about_website: "Weboldal",
 about_credits_text: "A licencfeltételekért lásd a LICENSE fájlt.",
 about_support_scene: "A ps5upload csak egy eszköz a sok közül. A PS5-szcéna tele van nagyszerű munkával: betöltők, kernelfoltok, csatoló eszközök, dumperek, csalómotorok, fájlkezelők és még sok más. Ha itt valami időt spórol neked, az azok mögött az eszközök mögött álló emberek ugyanazt a köszönetet érdemlik. Kérlek, támogasd őket is.",
 // Névjegy képernyő — funkciókártyák (egy {key, fallback} adattáblából
@@ -534,6 +535,7 @@ queue_title: "Sor",
 "upload_pkg_stream_recommended": "Ajánlott: a Streamelés és telepítés közvetlenül erről a számítógépről küldi – semmit sem másol előbb a PS5-re.",
 "upload_pkg_card_desc_upload": "Vagy Feltöltés és telepítés: a Feltöltés előbb a PS5 csomagkönyvtárába másolja, majd telepíti – ha a konzol nem éri el ezt a számítógépet. A másolat törlésig a könyvtárban marad.",
 "viewer_base_missing": "Az alapjáték nincs telepítve",
+"viewer_base_missing_ps5": "Az alapjáték nincs telepítve (a PS5 talán így is elfogadja)",
 "viewer_installed": "Telepítve",
 "viewer_open": "Részletek",
 "viewer_tab_overview": "Áttekintés",
@@ -2281,6 +2283,7 @@ roster_order_hint: "Ez a sorrend állítja be a konzolfüleket és a választót
     "Ez a forrás most nem elérhető — próbáld később a Frissítést.",
   "pkglib.baseMissing.body":
     "Ez a(z) {kind} a(z) {id} címhez tartozik, de az alapjátéka nincs telepítve a PS5-ön. A Sony telepítője elfogadja, de semmi sem települ, amíg az alapjáték nincs a konzolon — telepítsd előbb az alapjátékot.",
+  "pkglib.baseMissing.bodyPs5": "Ez a(z) {kind} a(z) {id} címhez tartozik, de az alapjátéka nincs telepítve a PS5-re. Egyes PS5-frissítések a teljes alkalmazást tartalmazzák, és önállóan is települnek; ha ez nem, a PS5 jelezni fogja.",
   "pkglib.baseMissing.bodyInLib":
     "Ez a(z) {kind} a(z) {id} címhez tartozik, amelynek alapjátéka még nincs telepítve a PS5-ön — de itt van a könyvtáradban. Telepítsd előbb az alapjátékot, majd ezt a(z) {kind} elemet. Ha most telepíted a(z) {kind} elemet, elfogadásra kerül, de valójában nem lép érvénybe.",
   "pkglib.baseMissing.installAnyway": "Telepítés mindenképp",

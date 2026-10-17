@@ -1133,7 +1133,13 @@ export default function InstallPackageScreen() {
           undefined,
           "Base game isn't installed",
         ),
-        message: baseInLib
+        message: entry.platform === "ps5" && !baseInLib
+          ? tr(
+              "pkglib.baseMissing.bodyPs5",
+              { kind, id: entry.titleId ?? "" },
+              `This ${kind} is for ${entry.titleId}, but its base game isn't installed on the PS5. Some PS5 updates carry the whole app and install on their own; if this one can't, the PS5 will say so.`,
+            )
+          : baseInLib
           ? tr(
               "pkglib.baseMissing.bodyInLib",
               { kind, id: entry.titleId ?? "" },

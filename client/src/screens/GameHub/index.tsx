@@ -906,11 +906,18 @@ function PackagesTab({
       confirmWithoutBase: () =>
         confirm({
           title: tr("pkglib.baseMissing.title", undefined, "Base game isn't installed"),
-          message: tr(
-            "pkglib.baseMissing.body",
-            { kind: what, id: titleId },
-            `This ${what} is for ${titleId}, but its base game isn't installed on the PS5. Sony's installer will accept it, but nothing installs until the base game is on the console — install the base first.`,
-          ),
+          message:
+            e.platform === "ps5"
+              ? tr(
+                  "pkglib.baseMissing.bodyPs5",
+                  { kind: what, id: titleId },
+                  `This ${what} is for ${titleId}, but its base game isn't installed on the PS5. Some PS5 updates carry the whole app and install on their own; if this one can't, the PS5 will say so.`,
+                )
+              : tr(
+                  "pkglib.baseMissing.body",
+                  { kind: what, id: titleId },
+                  `This ${what} is for ${titleId}, but its base game isn't installed on the PS5. Sony's installer will accept it, but nothing installs until the base game is on the console — install the base first.`,
+                ),
           confirmLabel: tr("pkglib.baseMissing.installAnyway", undefined, "Install anyway"),
         }),
     });

@@ -4,6 +4,21 @@ What's new in ps5upload, written for humans.
 
 ---
 
+## 7.0.33
+
+- **A PS5 update package installs even when its base game isn't there.** The app refused any
+  update whose base game wasn't installed ("Install the base game first"), but some PS5 updates
+  carry the whole app: a YouTube update package installed fine through the PS5's own debug
+  Package Installer while ps5upload refused it. For PS5 packages the app now warns ("the PS5 may
+  still accept it") and lets the PS5 decide; if it can't, the PS5's own error still shows. PS4
+  updates are still refused, since there Sony accepts the request and installs nothing.
+  Stream-installed on both consoles (FW 13.60) with YouTube removed first.
+- **An install counts as done when its exact bytes are on the console.** Such a package lands as
+  the app, not in the updates folder, so the app looked in the wrong place: it called an
+  installed copy "not installed" and could not confirm a finished install.
+- **About links to the website.** About now has a Website link to ps5upload.phantomptr.com, and
+  the author's name opens phantomptr.com.
+
 ## 7.0.32
 
 - **Rest mode is found on a computer with Wi-Fi and a cable at once.** A Mac on both, sending

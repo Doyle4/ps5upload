@@ -1204,6 +1204,11 @@ fn artifact_identity_matches(
     expected_fingerprint.is_empty()
 }
 
+/// Whether any installed artifact has exactly `fingerprint` (the package's sampled identity).
+fn exact_bytes_installed(artifacts: &[InstalledPkgArtifact], fingerprint: &str) -> bool {
+    !fingerprint.is_empty() && artifacts.iter().any(|a| a.fingerprint == fingerprint)
+}
+
 /// Verify the exact install target, not merely the shared base title.
 ///
 /// A patch install used to call `verify_launchable(content_id)`, which sees the
@@ -1232,6 +1237,12 @@ fn verify_installed_artifact(
     };
     let wanted_kind = package_kind_for_type(package_type);
     let inventory = installed_pkg_inventory(addr, &title_id);
+    // These exact bytes anywhere for the title are this package, whatever its category says:
+    // a PS5 update that carries the whole app lands as the app (`/user/app/<id>/app.pkg`).
+    // Measured with a YouTube update package (PS5DP) on 13.60.
+    if exact_bytes_installed(&inventory.artifacts, expected_fingerprint) {
+        return InstalledArtifactCheck::Match;
+    }
     let candidates: Vec<_> = inventory
         .artifacts
         .iter()
@@ -1405,8 +1416,12 @@ fn install_preflight(
         let base_present = inventory.artifacts.iter().any(|a| a.kind == "base");
         if !base_present {
             resp.state = "base_missing";
-            resp.detail =
-                "the base game isn't installed, so this can't be applied (Sony accepts the request and then writes nothing)".into();
+            resp.detail = if package_type.starts_with("PS5") {
+                // Not refused (see the install handler): some PS5 updates carry the whole app.
+                "the base game isn't installed; the PS5 may still accept this if it carries the whole app".into()
+            } else {
+                "the base game isn't installed, so this can't be applied (Sony accepts the request and then writes nothing)".into()
+            };
             return resp;
         }
     }
@@ -1900,7 +1915,12 @@ pub(crate) async fn install_start_handler(
     } else {
         "gd"
     };
-    if !req.link_only {
+    // PS4 only. A PS5 update can carry the whole app: a YouTube update package (PS5DP, 101 MB)
+    // installed on a 13.60 console without YouTube through the debug settings' Package
+    // Installer, while this check refused it. The PS5 is left to decide, and its own refusal
+    // (0x80A30004, "the base game is not installed") still reaches the person. Letting it try
+    // is safe: with no base installed there is nothing for an install to replace.
+    if !req.link_only && !package_type.starts_with("PS5") {
         let addr = req.ps5_addr.clone();
         let content_id = head_meta.content_id.clone();
         let cat = category;
@@ -5044,6 +5064,22 @@ Marvel's%20Spider-Man%202%20-%20PPSA03016%20-%20v1.4.3%20-%20US%20-%20BASE.pkg";
             "f9545e9cba776ca44864243b950466e7c55017644e400e1ebfe25e2ec8b3987f",
             "PS5GD",
         ));
+    }
+
+    #[test]
+    fn a_ps5_update_that_landed_as_the_app_is_installed() {
+        // YouTube's update package (PS5DP) installs on its own; Sony writes it as app.pkg.
+        let fp = "8f864cc3d9350b05b0be0eecd80f6493ed4fedfa54d033630788763217f0569f";
+        let app = sample_artifact(
+            "base",
+            101_515_264,
+            fp,
+            "UP4381-PPSA01650_00-YOUTUBESIEA00000",
+        );
+        assert!(exact_bytes_installed(std::slice::from_ref(&app), fp));
+        assert!(!exact_bytes_installed(std::slice::from_ref(&app), "other"));
+        // No fingerprint is no proof.
+        assert!(!exact_bytes_installed(std::slice::from_ref(&app), ""));
     }
 
     /// Coverage is what makes the stream progress bar honest. Both of the
