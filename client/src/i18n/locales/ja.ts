@@ -4188,7 +4188,6 @@ c2c_test_deep_bad: "4 KiB のテスト送信が届きませんでした: {detail
 "cw_hint_help": "ヘルプ",
 "cw_hint_refresh": "更新",
 "cw_hint_fullscreen": "全画面",
-"cw_settings_display": "表示",
 "cw_settings_fullscreen": "全画面",
 "cw_settings_fullscreen_note": "ブラウザーのバーを隠して、ページをテレビ全体に表示します。次にボタンを押したときに有効になります。",
 "cw_settings_theme": "テーマ",
@@ -4276,6 +4275,8 @@ c2c_test_deep_bad: "4 KiB のテスト送信が届きませんでした: {detail
 "cw_files_no_folders_next": "このフォルダーを使うには「ここ」を選んでください。",
 "cw_ctl_ok": "動作します",
 "cw_ctl_last": "最後に押したボタン:",
+"cw_ctl_received": "受信済み",
+"cw_ctl_received_job": "受信済み: {job}（まだ使われていません）",
 };
 
 export default ja;

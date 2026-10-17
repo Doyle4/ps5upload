@@ -4176,7 +4176,6 @@ c2c_test_deep_bad: "การส่งทดสอบ 4 KiB ไปไม่ถ�
 "cw_hint_help": "ความช่วยเหลือ",
 "cw_hint_refresh": "รีเฟรช",
 "cw_hint_fullscreen": "เต็มจอ",
-"cw_settings_display": "การแสดงผล",
 "cw_settings_fullscreen": "เต็มจอ",
 "cw_settings_fullscreen_note": "ซ่อนแถบของเบราว์เซอร์เพื่อให้หน้าเต็มจอทีวี มีผลเมื่อคุณกดปุ่มครั้งถัดไป",
 "cw_settings_theme": "ธีม",
@@ -4264,6 +4263,8 @@ c2c_test_deep_bad: "การส่งทดสอบ 4 KiB ไปไม่ถ�
 "cw_files_no_folders_next": "เลือก “ที่นี่” เพื่อใช้โฟลเดอร์นี้",
 "cw_ctl_ok": "ใช้ได้",
 "cw_ctl_last": "กดล่าสุด:",
+"cw_ctl_received": "ได้รับแล้ว",
+"cw_ctl_received_job": "ได้รับแล้ว: {job} (ยังไม่ได้ใช้)",
 };
 
 export default th;

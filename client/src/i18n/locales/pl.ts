@@ -4422,7 +4422,6 @@ c2c_test_deep_bad: "Testowa wysyłka 4 KiB nie dotarła: {detail}",
 "cw_hint_help": "Pomoc",
 "cw_hint_refresh": "Odśwież",
 "cw_hint_fullscreen": "Pełny ekran",
-"cw_settings_display": "Ekran",
 "cw_settings_fullscreen": "Pełny ekran",
 "cw_settings_fullscreen_note": "Ukrywa paski przeglądarki, aby strona wypełniała cały telewizor. Działa od następnego naciśnięcia przycisku.",
 "cw_settings_theme": "Motyw",
@@ -4510,6 +4509,8 @@ c2c_test_deep_bad: "Testowa wysyłka 4 KiB nie dotarła: {detail}",
 "cw_files_no_folders_next": "Wybierz „Tutaj”, aby użyć tego folderu.",
 "cw_ctl_ok": "Działa",
 "cw_ctl_last": "Ostatnio naciśnięty:",
+"cw_ctl_received": "Odebrano",
+"cw_ctl_received_job": "Odebrano: {job} (jeszcze nieużywany)",
 };
 
 export default pl;

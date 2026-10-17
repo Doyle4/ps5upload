@@ -4186,7 +4186,6 @@ c2c_test_deep_bad: "4 KiB 테스트 전송이 도착하지 않았습니다: {det
 "cw_hint_help": "도움말",
 "cw_hint_refresh": "새로 고침",
 "cw_hint_fullscreen": "전체 화면",
-"cw_settings_display": "화면",
 "cw_settings_fullscreen": "전체 화면",
 "cw_settings_fullscreen_note": "브라우저 막대를 숨겨 페이지가 TV 화면을 가득 채웁니다. 다음에 버튼을 누를 때 적용됩니다.",
 "cw_settings_theme": "테마",
@@ -4274,6 +4273,8 @@ c2c_test_deep_bad: "4 KiB 테스트 전송이 도착하지 않았습니다: {det
 "cw_files_no_folders_next": "이 폴더를 사용하려면 '여기'를 선택하세요.",
 "cw_ctl_ok": "작동함",
 "cw_ctl_last": "마지막으로 누른 버튼:",
+"cw_ctl_received": "받음",
+"cw_ctl_received_job": "받음: {job} (아직 사용 안 함)",
 };
 
 export default ko;

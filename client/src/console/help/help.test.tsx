@@ -14,6 +14,7 @@ import {
   buttonState,
   controlsReducer,
   INITIAL_CONTROLS,
+  pageActsOn,
   startControlsSession,
 } from "./controlsModel";
 import { HelpOverlay } from "./HelpOverlay";
@@ -57,12 +58,22 @@ describe("Controls screen", () => {
     expect(buttonForEvent(DEFAULT_INPUT_MAP, { type: "click", detail: 1 })).toBe("cross");
     expect(buttonForEvent(DEFAULT_INPUT_MAP, { type: "click", detail: 0 })).toBeNull();
 
-    const s = controlsReducer(INITIAL_CONTROLS, { type: "press", button: "triangle" });
+    // ✕ works (the page acts on Enter); △ arrived but is unverified: only "received" (R18).
+    const crossed = controlsReducer(INITIAL_CONTROLS, { type: "press", button: "cross", works: true });
+    const s = controlsReducer(crossed, { type: "press", button: "triangle", works: false });
     expect(s.lit).toBe("triangle");
-    expect(s.seen).toEqual(["triangle"]);
+    expect(s.seen).toEqual(["cross", "triangle"]);
     const html = renderToStaticMarkup(<ControlsView map={DEFAULT_INPUT_MAP} state={s} onClose={() => {}} />);
     expect(html).toMatch(/<g class="cw-ctl-btn is-received is-lit" data-button="triangle">/);
-    expect(html).toContain(t("cw_ctl_works", { job: t("cw_job_actions") }));
+    expect(html).toMatch(/<g class="cw-ctl-btn is-works" data-button="cross">/);
+    expect(html).toContain(t("cw_ctl_received_job", { job: t("cw_job_actions") }));
+    expect(html).not.toContain(t("cw_ctl_works", { job: t("cw_job_actions") }));
+    expect(html).toContain(t("cw_ctl_received"));
+    expect(html).toContain(t("cw_ctl_ok"));
+    const lastCross = renderToStaticMarkup(
+      <ControlsView map={DEFAULT_INPUT_MAP} state={{ ...crossed, lit: "cross" }} onClose={() => {}} />,
+    );
+    expect(lastCross).toContain(t("cw_ctl_works", { job: t("cw_job_confirm") }));
     // Not pressed: waiting; PS and Mute: kept by the PS5.
     expect(html).toMatch(/<g class="cw-ctl-btn is-waiting" data-button="square">/);
     expect(html).toMatch(/<g class="cw-ctl-btn is-system" data-button="ps">/);
@@ -93,11 +104,15 @@ describe("Controls screen", () => {
       },
     };
     const pressed: string[] = [];
+    const works: boolean[] = [];
     const unknown: string[] = [];
     const stop = startControlsSession({
       target,
       map: DEFAULT_INPUT_MAP,
-      onPress: (b) => pressed.push(b),
+      onPress: (b, w) => {
+        pressed.push(b);
+        works.push(w);
+      },
       onUnknown: (k) => unknown.push(k),
     });
     expect(setInputLogEnabled).toHaveBeenLastCalledWith(true);
@@ -113,13 +128,20 @@ describe("Controls screen", () => {
     // ○'s keys still go back (the screen closes the way Back always does).
     expect(key("Escape", 27).defaultPrevented).toBe(false);
     key("MediaPlayPause", 179);
-    expect(pressed).toEqual(["cross", "circle"]);
+    // F1 is OPTIONS' seeded key, not verified: the page does not act on it, so it is only received.
+    key("F1", 112);
+    expect(pressed).toEqual(["cross", "circle", "options"]);
+    expect(works).toEqual([true, true, false]);
+    // Verified, it works.
+    const map = DEFAULT_INPUT_MAP.map((b) => (b.button === "options" ? { ...b, verified: true } : b));
+    expect(pageActsOn(map, { type: "keydown", key: "F1", keyCode: 112 }, "options")).toBe(true);
+    expect(pageActsOn(DEFAULT_INPUT_MAP, { type: "mousemove" }, "lstick")).toBe(true);
     expect(unknown).toEqual(["MediaPlayPause (-, 179)"]);
 
     stop();
     expect(setInputLogEnabled).toHaveBeenLastCalledWith(false);
     key("Enter", 13);
-    expect(pressed).toHaveLength(2);
+    expect(pressed).toHaveLength(3);
   });
 });
 

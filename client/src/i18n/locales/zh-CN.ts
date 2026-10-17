@@ -4123,7 +4123,6 @@ c2c_test_deep_bad: "4 KiB 测试发送未到达：{detail}",
 "cw_hint_help": "帮助",
 "cw_hint_refresh": "刷新",
 "cw_hint_fullscreen": "全屏",
-"cw_settings_display": "显示",
 "cw_settings_fullscreen": "全屏",
 "cw_settings_fullscreen_note": "隐藏浏览器的工具栏，让页面占满电视。在你下次按键时生效。",
 "cw_settings_theme": "主题",
@@ -4211,6 +4210,8 @@ c2c_test_deep_bad: "4 KiB 测试发送未到达：{detail}",
 "cw_files_no_folders_next": "选择“这里”即可使用此文件夹。",
 "cw_ctl_ok": "可用",
 "cw_ctl_last": "最后按下：",
+"cw_ctl_received": "已收到",
+"cw_ctl_received_job": "已收到：{job}（尚未使用）",
 };
 
 export default zh_CN;

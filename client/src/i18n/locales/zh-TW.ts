@@ -4117,7 +4117,6 @@ c2c_test_deep_bad: "4 KiB 測試傳送未抵達：{detail}",
 "cw_hint_help": "說明",
 "cw_hint_refresh": "重新整理",
 "cw_hint_fullscreen": "全螢幕",
-"cw_settings_display": "顯示",
 "cw_settings_fullscreen": "全螢幕",
 "cw_settings_fullscreen_note": "隱藏瀏覽器的工具列，讓頁面佔滿電視。在你下次按鍵時生效。",
 "cw_settings_theme": "佈景主題",
@@ -4205,6 +4204,8 @@ c2c_test_deep_bad: "4 KiB 測試傳送未抵達：{detail}",
 "cw_files_no_folders_next": "選擇「這裡」即可使用此資料夾。",
 "cw_ctl_ok": "可用",
 "cw_ctl_last": "最後按下：",
+"cw_ctl_received": "已收到",
+"cw_ctl_received_job": "已收到：{job}（尚未使用）",
 };
 
 export default zh_TW;

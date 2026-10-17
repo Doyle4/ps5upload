@@ -4174,7 +4174,6 @@ c2c_test_deep_bad: "4 KiB'lik test gönderimi ulaşmadı: {detail}",
 "cw_hint_help": "Yardım",
 "cw_hint_refresh": "Yenile",
 "cw_hint_fullscreen": "Tam ekran",
-"cw_settings_display": "Ekran",
 "cw_settings_fullscreen": "Tam ekran",
 "cw_settings_fullscreen_note": "Sayfanın tüm TV'yi doldurması için tarayıcı çubuklarını gizler. Bir sonraki tuşa basışınızda etkinleşir.",
 "cw_settings_theme": "Tema",
@@ -4262,6 +4261,8 @@ c2c_test_deep_bad: "4 KiB'lik test gönderimi ulaşmadı: {detail}",
 "cw_files_no_folders_next": "Bu klasörü kullanmak için “Buraya” seçeneğini seçin.",
 "cw_ctl_ok": "Çalışıyor",
 "cw_ctl_last": "Son basılan:",
+"cw_ctl_received": "Alındı",
+"cw_ctl_received_job": "Alındı: {job} (henüz kullanılmıyor)",
 };
 
 export default tr;

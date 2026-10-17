@@ -4117,7 +4117,6 @@ c2c_test_deep_bad: "Тестовая отправка 4 КиБ не дошла: 
 "cw_hint_help": "Справка",
 "cw_hint_refresh": "Обновить",
 "cw_hint_fullscreen": "Полный экран",
-"cw_settings_display": "Экран",
 "cw_settings_fullscreen": "Полный экран",
 "cw_settings_fullscreen_note": "Скрывает панели браузера, чтобы страница заполняла весь телевизор. Срабатывает при следующем нажатии кнопки.",
 "cw_settings_theme": "Тема",
@@ -4205,6 +4204,8 @@ c2c_test_deep_bad: "Тестовая отправка 4 КиБ не дошла: 
 "cw_files_no_folders_next": "Выберите «Сюда», чтобы использовать эту папку.",
 "cw_ctl_ok": "Работает",
 "cw_ctl_last": "Последнее нажатие:",
+"cw_ctl_received": "Получено",
+"cw_ctl_received_job": "Получено: {job} (пока не используется)",
 };
 
 export default ru;

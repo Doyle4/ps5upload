@@ -4482,7 +4482,6 @@ c2c_test_deep_bad: "A 4 KiB-os tesztküldés nem érkezett meg: {detail}",
 "cw_hint_help": "Súgó",
 "cw_hint_refresh": "Frissítés",
 "cw_hint_fullscreen": "Teljes képernyő",
-"cw_settings_display": "Megjelenítés",
 "cw_settings_fullscreen": "Teljes képernyő",
 "cw_settings_fullscreen_note": "Elrejti a böngésző sávjait, hogy az oldal kitöltse a tévét. A következő gombnyomástól érvényes.",
 "cw_settings_theme": "Téma",
@@ -4570,6 +4569,8 @@ c2c_test_deep_bad: "A 4 KiB-os tesztküldés nem érkezett meg: {detail}",
 "cw_files_no_folders_next": "Válaszd az „Ide” lehetőséget ennek a mappának a használatához.",
 "cw_ctl_ok": "Működik",
 "cw_ctl_last": "Utoljára megnyomva:",
+"cw_ctl_received": "Megérkezett",
+"cw_ctl_received_job": "Megérkezett: {job} (még nincs használatban)",
 };
 
 export default hu;

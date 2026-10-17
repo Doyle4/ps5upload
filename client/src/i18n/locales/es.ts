@@ -4117,7 +4117,6 @@ c2c_test_deep_bad: "El envío de prueba de 4 KiB no llegó: {detail}",
 "cw_hint_help": "Ayuda",
 "cw_hint_refresh": "Actualizar",
 "cw_hint_fullscreen": "Pantalla completa",
-"cw_settings_display": "Pantalla",
 "cw_settings_fullscreen": "Pantalla completa",
 "cw_settings_fullscreen_note": "Oculta las barras del navegador para que la página ocupe toda la TV. Se aplica en tu próxima pulsación.",
 "cw_settings_theme": "Tema",
@@ -4205,6 +4204,8 @@ c2c_test_deep_bad: "El envío de prueba de 4 KiB no llegó: {detail}",
 "cw_files_no_folders_next": "Elige «Aquí» para usar esta carpeta.",
 "cw_ctl_ok": "Funciona",
 "cw_ctl_last": "Último pulsado:",
+"cw_ctl_received": "Recibido",
+"cw_ctl_received_job": "Recibido: {job} (aún sin uso)",
 };
 
 export default es;

@@ -6,7 +6,9 @@
  * 64 KiB ring file /data/ps5upload/webui-input.log (webui_inputlog.c).
  *
  * Off by default; the Controls screen (Task R5) turns it on while it is open
- * with setInputLogEnabled(true).
+ * with setInputLogEnabled(true). Turning it off, and the page being hidden or
+ * left while it is on, sends what is still queued at once (one batch, keepalive),
+ * so the last presses before closing — ○ itself — are not lost.
  *
  * Privacy: a line holds the event type, key/code/keyCode, the pointer's button
  * and position, and the element's tag plus its first cw- class (static code
@@ -17,7 +19,7 @@
  * most INPUT_LOG_MAX_QUEUE lines (extra events are counted, then reported as
  * one "dropped n=N" line), pointer moves sampled at most four a second.
  */
-import { call } from "./api";
+import { call, callKeepalive } from "./api";
 
 export const INPUT_LOG_ROUTE = "/api/input-log";
 export const INPUT_LOG_FLUSH_MS = 1000;
@@ -118,7 +120,8 @@ export function takeBatch(queue: string[], maxBytes = INPUT_LOG_MAX_BODY): strin
 }
 
 export interface InputLogDeps {
-  send: (lines: string[]) => Promise<unknown>;
+  /** `final`: the last batch before the log stops or the page goes away (sent with keepalive). */
+  send: (lines: string[], final?: boolean) => Promise<unknown>;
   now: () => number;
 }
 
@@ -126,6 +129,8 @@ export interface InputLog {
   record(e: LoggedEvent): void;
   setEnabled(on: boolean): void;
   enabled(): boolean;
+  /** Send what is queued now, as one final batch (page hidden or left). */
+  flushNow(): void;
 }
 
 export function createInputLog(deps: InputLogDeps): InputLog {
@@ -144,9 +149,8 @@ export function createInputLog(deps: InputLogDeps): InputLog {
     timer = setTimeout(flush, wait);
   };
 
-  function flush() {
-    timer = null;
-    if (!on) return;
+  /** The next batch, with the "dropped" note when it fits. */
+  function nextBatch(): string[] {
     const batch = takeBatch(queue);
     if (!queue.length && dropped) {
       const note = `${Math.round(deps.now() - t0)} dropped n=${dropped}`;
@@ -156,6 +160,23 @@ export function createInputLog(deps: InputLogDeps): InputLog {
         dropped = 0;
       }
     }
+    return batch;
+  }
+
+  /** One batch now, outside the once-a-second pacing (at most once per stop or page hide). */
+  function sendFinal() {
+    const batch = nextBatch();
+    if (!batch.length) return;
+    lastSend = deps.now();
+    deps.send(batch, true).catch(() => {
+      // measurement only
+    });
+  }
+
+  function flush() {
+    timer = null;
+    if (!on) return;
+    const batch = nextBatch();
     if (!batch.length) return;
     inFlight = true;
     lastSend = deps.now();
@@ -186,6 +207,7 @@ export function createInputLog(deps: InputLogDeps): InputLog {
     },
     setEnabled(next) {
       if (next === on) return;
+      if (!next) sendFinal();
       on = next;
       if (on) {
         t0 = deps.now();
@@ -198,6 +220,13 @@ export function createInputLog(deps: InputLogDeps): InputLog {
       }
     },
     enabled: () => on,
+    flushNow() {
+      if (!on) return;
+      if (timer !== null) clearTimeout(timer);
+      timer = null;
+      sendFinal();
+      schedule();
+    },
   };
 }
 
@@ -213,6 +242,7 @@ const WINDOW_EVENTS = [
   "wheel",
   "mousemove",
   "popstate",
+  "pagehide",
   "focus",
   "blur",
   "gamepadconnected",
@@ -220,11 +250,16 @@ const WINDOW_EVENTS = [
 const DOCUMENT_EVENTS = ["visibilitychange", "fullscreenchange", "webkitfullscreenchange"];
 
 const pageLog = createInputLog({
-  send: (lines) => call(INPUT_LOG_ROUTE, { events: lines }),
+  send: (lines, final) =>
+    final ? callKeepalive(INPUT_LOG_ROUTE, { events: lines }) : call(INPUT_LOG_ROUTE, { events: lines }),
   now: () => (typeof performance !== "undefined" ? performance.now() : Date.now()),
 });
 
-const onEvent = (e: Event) => pageLog.record(e as unknown as LoggedEvent);
+const onEvent = (e: Event) => {
+  pageLog.record(e as unknown as LoggedEvent);
+  // Hidden or left while logging: send the queue now, the page may never run again.
+  if (e.type === "pagehide" || (e.type === "visibilitychange" && document.visibilityState === "hidden")) pageLog.flushNow();
+};
 const OPTS: AddEventListenerOptions = { capture: true, passive: true };
 
 /** Start (true) or stop (false) logging this page's input to the helper. */

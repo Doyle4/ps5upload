@@ -4175,7 +4175,6 @@ c2c_test_deep_bad: "Die 4-KiB-Testsendung ist nicht angekommen: {detail}",
 "cw_hint_help": "Hilfe",
 "cw_hint_refresh": "Aktualisieren",
 "cw_hint_fullscreen": "Vollbild",
-"cw_settings_display": "Anzeige",
 "cw_settings_fullscreen": "Vollbild",
 "cw_settings_fullscreen_note": "Blendet die Leisten des Browsers aus, damit die Seite den ganzen Fernseher füllt. Gilt ab dem nächsten Tastendruck.",
 "cw_settings_theme": "Design",
@@ -4263,6 +4262,8 @@ c2c_test_deep_bad: "Die 4-KiB-Testsendung ist nicht angekommen: {detail}",
 "cw_files_no_folders_next": "Wähle „Hierher“, um diesen Ordner zu verwenden.",
 "cw_ctl_ok": "Funktioniert",
 "cw_ctl_last": "Zuletzt gedrückt:",
+"cw_ctl_received": "Empfangen",
+"cw_ctl_received_job": "Empfangen: {job} (noch nicht genutzt)",
 };
 
 export default de;

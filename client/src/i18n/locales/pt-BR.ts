@@ -4184,7 +4184,6 @@ c2c_test_deep_bad: "O envio de teste de 4 KiB não chegou: {detail}",
 "cw_hint_help": "Ajuda",
 "cw_hint_refresh": "Atualizar",
 "cw_hint_fullscreen": "Tela cheia",
-"cw_settings_display": "Tela",
 "cw_settings_fullscreen": "Tela cheia",
 "cw_settings_fullscreen_note": "Esconde as barras do navegador para a página ocupar a TV inteira. Vale a partir do próximo botão pressionado.",
 "cw_settings_theme": "Tema",
@@ -4272,6 +4271,8 @@ c2c_test_deep_bad: "O envio de teste de 4 KiB não chegou: {detail}",
 "cw_files_no_folders_next": "Escolha “Aqui” para usar esta pasta.",
 "cw_ctl_ok": "Funciona",
 "cw_ctl_last": "Último pressionado:",
+"cw_ctl_received": "Recebido",
+"cw_ctl_received_job": "Recebido: {job} (ainda não usado)",
 };
 
 export default pt_BR;

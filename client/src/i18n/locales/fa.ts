@@ -4468,7 +4468,6 @@ c2c_test_deep_bad: "ارسال آزمایشی ۴ KiB نرسید: {detail}",
 "cw_hint_help": "راهنما",
 "cw_hint_refresh": "تازه‌سازی",
 "cw_hint_fullscreen": "تمام‌صفحه",
-"cw_settings_display": "نمایش",
 "cw_settings_fullscreen": "تمام‌صفحه",
 "cw_settings_fullscreen_note": "نوارهای مرورگر را پنهان می‌کند تا صفحه کل تلویزیون را پر کند. با فشار بعدی دکمه اعمال می‌شود.",
 "cw_settings_theme": "تم",
@@ -4556,6 +4555,8 @@ c2c_test_deep_bad: "ارسال آزمایشی ۴ KiB نرسید: {detail}",
 "cw_files_no_folders_next": "برای استفاده از این پوشه «اینجا» را انتخاب کنید.",
 "cw_ctl_ok": "کار می‌کند",
 "cw_ctl_last": "آخرین دکمه:",
+"cw_ctl_received": "دریافت شد",
+"cw_ctl_received_job": "دریافت شد: {job} (هنوز استفاده نمی‌شود)",
 };
 
 export default fa;

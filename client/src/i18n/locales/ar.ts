@@ -4167,7 +4167,6 @@ c2c_test_deep_bad: "لم يصل الإرسال التجريبي بحجم 4 KiB: 
 "cw_hint_help": "مساعدة",
 "cw_hint_refresh": "تحديث",
 "cw_hint_fullscreen": "ملء الشاشة",
-"cw_settings_display": "العرض",
 "cw_settings_fullscreen": "ملء الشاشة",
 "cw_settings_fullscreen_note": "يخفي أشرطة المتصفح لتملأ الصفحة شاشة التلفاز. يسري عند ضغطتك التالية على زر.",
 "cw_settings_theme": "المظهر",
@@ -4255,6 +4254,8 @@ c2c_test_deep_bad: "لم يصل الإرسال التجريبي بحجم 4 KiB: 
 "cw_files_no_folders_next": "اختر «هنا» لاستخدام هذا المجلد.",
 "cw_ctl_ok": "يعمل",
 "cw_ctl_last": "آخر زر مضغوط:",
+"cw_ctl_received": "وصل",
+"cw_ctl_received_job": "وصل: {job} (غير مستخدم بعد)",
 };
 
 export default ar;

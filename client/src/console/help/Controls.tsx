@@ -65,7 +65,7 @@ function stateClass(b: InputBinding, s: ControlsState): string {
   return `cw-ctl-btn is-${st}${s.lit === b.button ? " is-lit" : ""}`;
 }
 
-/** The drawing: every button, lit when pressed, green once received, faded when the PS5 keeps it. */
+/** The drawing: every button, lit when pressed, green once it works, amber when only received, faded when the PS5 keeps it. */
 export function ControllerPicture({ map, state }: { map: InputMap; state: ControlsState }) {
   // The sticks before their clicks (L3/R3 sit on top of them).
   const order = map.slice().sort((a, b) => (a.button.endsWith("stick") ? 0 : 1) - (b.button.endsWith("stick") ? 0 : 1));
@@ -100,9 +100,11 @@ function Legend({ map, state }: { map: InputMap; state: ControlsState }) {
         const note =
           st === "system"
             ? t("cw_ctl_system")
-            : st === "received"
+            : st === "works"
               ? t("cw_ctl_ok")
-              : t("cw_ctl_not_yet");
+              : st === "received"
+                ? t("cw_ctl_received")
+                : t("cw_ctl_not_yet");
         return (
           <li key={b.button} className={stateClass(b, state)} data-legend={b.button}>
             <span className="cw-glyph" aria-hidden>
@@ -122,14 +124,18 @@ function LastPressed({ map, state }: { map: InputMap; state: ControlsState }) {
   const id = state.lit ?? state.seen[state.seen.length - 1];
   const b = id ? map.find((x) => x.button === id) : undefined;
   return (
-    <p className="cw-ctl-last" aria-live="polite">
+    <p className={`cw-ctl-last${b && !state.works.includes(b.button) ? " is-received" : ""}`} aria-live="polite">
       {b ? (
         <>
           {t("cw_ctl_last")}
           <span className="cw-glyph" aria-hidden>
             {b.glyph}
           </span>
-          <strong>{t("cw_ctl_works", { job: t(jobKey(b)) })}</strong>
+          <strong>
+            {state.works.includes(b.button)
+              ? t("cw_ctl_works", { job: t(jobKey(b)) })
+              : t("cw_ctl_received_job", { job: t(jobKey(b)) })}
+          </strong>
         </>
       ) : null}
     </p>
@@ -177,7 +183,7 @@ export function Controls({ map, onClose }: { map: InputMap; onClose: () => void 
       startControlsSession({
         target: window,
         map,
-        onPress: (button) => dispatch({ type: "press", button }),
+        onPress: (button, works) => dispatch({ type: "press", button, works }),
         onUnknown: (text) => dispatch({ type: "unknown", text }),
       }),
     [map],

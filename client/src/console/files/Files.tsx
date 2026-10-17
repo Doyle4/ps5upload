@@ -357,6 +357,8 @@ function useVolumes(path: string | null, tick: number): { volumes: Volume[] | nu
   // Read on open and each time the drive list shows again (free space moves).
   useEffect(() => {
     let live = true;
+    // A retry shows "Loading…" until the answer, not the old error.
+    setError(false);
     call<{ volumes?: unknown }>("/api/volumes").then(
       (r) => {
         if (!live) return;

@@ -4183,7 +4183,6 @@ c2c_test_deep_bad: "4 KiB का परीक्षण नहीं पहुँ
 "cw_hint_help": "सहायता",
 "cw_hint_refresh": "रीफ़्रेश करें",
 "cw_hint_fullscreen": "फ़ुल स्क्रीन",
-"cw_settings_display": "डिस्प्ले",
 "cw_settings_fullscreen": "फ़ुल स्क्रीन",
 "cw_settings_fullscreen_note": "ब्राउज़र की पट्टियाँ छिपाता है ताकि पेज पूरे टीवी पर दिखे। अगली बार बटन दबाने पर लागू होता है।",
 "cw_settings_theme": "थीम",
@@ -4271,6 +4270,8 @@ c2c_test_deep_bad: "4 KiB का परीक्षण नहीं पहुँ
 "cw_files_no_folders_next": "यह फ़ोल्डर इस्तेमाल करने के लिए “यहाँ” चुनें।",
 "cw_ctl_ok": "काम करता है",
 "cw_ctl_last": "आख़िरी दबाया:",
+"cw_ctl_received": "मिला",
+"cw_ctl_received_job": "मिला: {job} (अभी इस्तेमाल नहीं)",
 };
 
 export default hi;

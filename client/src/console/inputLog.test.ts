@@ -145,4 +145,41 @@ describe("createInputLog", () => {
     expect(moves.length).toBeGreaterThanOrEqual(3);
     vi.useRealTimers();
   });
+
+  it("sends an event recorded just before stop (○ closing Controls) as one final batch", async () => {
+    vi.useFakeTimers();
+    let now = 0;
+    const sent: { lines: string[]; final?: boolean }[] = [];
+    const log = createInputLog({
+      send: (lines, final) => {
+        sent.push({ lines, final });
+        return Promise.resolve();
+      },
+      now: () => now,
+    });
+    log.setEnabled(true);
+    log.record({ type: "keydown", key: "Enter", code: "Enter", keyCode: 13, target: null });
+    now += 10;
+    await vi.advanceTimersByTimeAsync(10);
+    expect(sent.length).toBe(1);
+    // Within the second after that send: the paced flush would wait, the stop sends at once.
+    now += 100;
+    log.record({ type: "popstate", target: null });
+    log.setEnabled(false);
+    expect(sent.length).toBe(2);
+    expect(sent[1].final).toBe(true);
+    expect(sent[1].lines).toEqual(["110 popstate"]);
+    now += 5000;
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(sent.length).toBe(2);
+
+    // Page hidden while on: the queue goes out now, and logging carries on.
+    log.setEnabled(true);
+    log.record({ type: "keydown", key: "Escape", code: "Escape", keyCode: 27, target: null });
+    log.flushNow();
+    expect(sent.length).toBe(3);
+    expect(sent[2].final).toBe(true);
+    expect(log.enabled()).toBe(true);
+    vi.useRealTimers();
+  });
 });

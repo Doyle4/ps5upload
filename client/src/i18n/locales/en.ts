@@ -4490,7 +4490,6 @@ c2c_test_deep_bad: "The 4 KiB test send did not arrive: {detail}",
 "cw_hint_help": "Help",
 "cw_hint_refresh": "Refresh",
 "cw_hint_fullscreen": "Full screen",
-"cw_settings_display": "Display",
 "cw_settings_fullscreen": "Full screen",
 "cw_settings_fullscreen_note": "Hides the browser's bars so the page fills the TV. Takes effect on your next button press.",
 "cw_settings_theme": "Theme",
@@ -4578,6 +4577,8 @@ c2c_test_deep_bad: "The 4 KiB test send did not arrive: {detail}",
 "cw_files_no_folders_next": "Choose Here to use this folder.",
 "cw_ctl_ok": "Works",
 "cw_ctl_last": "Last pressed:",
+"cw_ctl_received": "Received",
+"cw_ctl_received_job": "Received: {job} (not used yet)",
 };
 
 export default en;

@@ -4169,7 +4169,6 @@ c2c_test_deep_bad: "Lượt gửi thử 4 KiB không tới: {detail}",
 "cw_hint_help": "Trợ giúp",
 "cw_hint_refresh": "Làm mới",
 "cw_hint_fullscreen": "Toàn màn hình",
-"cw_settings_display": "Hiển thị",
 "cw_settings_fullscreen": "Toàn màn hình",
 "cw_settings_fullscreen_note": "Ẩn các thanh của trình duyệt để trang lấp đầy TV. Có hiệu lực ở lần bấm nút tiếp theo.",
 "cw_settings_theme": "Giao diện",
@@ -4257,6 +4256,8 @@ c2c_test_deep_bad: "Lượt gửi thử 4 KiB không tới: {detail}",
 "cw_files_no_folders_next": "Chọn “Tại đây” để dùng thư mục này.",
 "cw_ctl_ok": "Hoạt động",
 "cw_ctl_last": "Vừa nhấn:",
+"cw_ctl_received": "Đã nhận",
+"cw_ctl_received_job": "Đã nhận: {job} (chưa dùng)",
 };
 
 export default vi;

@@ -4185,7 +4185,6 @@ c2c_test_deep_bad: "L’envoi test de 4 Kio n’est pas arrivé : {detail}",
 "cw_hint_help": "Aide",
 "cw_hint_refresh": "Actualiser",
 "cw_hint_fullscreen": "Plein écran",
-"cw_settings_display": "Affichage",
 "cw_settings_fullscreen": "Plein écran",
 "cw_settings_fullscreen_note": "Masque les barres du navigateur pour que la page remplisse la TV. Prend effet à votre prochaine pression de touche.",
 "cw_settings_theme": "Thème",
@@ -4273,6 +4272,8 @@ c2c_test_deep_bad: "L’envoi test de 4 Kio n’est pas arrivé : {detail}",
 "cw_files_no_folders_next": "Choisissez « Ici » pour utiliser ce dossier.",
 "cw_ctl_ok": "Fonctionne",
 "cw_ctl_last": "Dernier appui :",
+"cw_ctl_received": "Reçu",
+"cw_ctl_received_job": "Reçu : {job} (pas encore utilisé)",
 };
 
 export default fr;

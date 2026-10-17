@@ -64,7 +64,7 @@ function token(): Promise<string> {
 }
 
 /** POST `body` as JSON to `route`; the Response when it is 2xx, else the ApiError. */
-async function post(route: string, body?: object, signal?: AbortSignal): Promise<Response> {
+async function post(route: string, body?: object, signal?: AbortSignal, keepalive?: boolean): Promise<Response> {
   const tok = await token();
   let res: Response;
   try {
@@ -75,6 +75,7 @@ async function post(route: string, body?: object, signal?: AbortSignal): Promise
       headers: { "Content-Type": "application/json", [TOKEN_HEADER]: tok },
       body: JSON.stringify(body ?? {}),
       signal,
+      ...(keepalive ? { keepalive: true } : {}),
     });
   } catch {
     throw new ApiError(0, "offline");
@@ -98,6 +99,15 @@ async function post(route: string, body?: object, signal?: AbortSignal): Promise
 export async function call<T>(route: string, body?: object): Promise<T> {
   const res = await post(route, body);
   return (await res.json().catch(() => null)) as T;
+}
+
+/**
+ * POST with `keepalive`: the request is sent even if the page is being hidden or
+ * left right after (the input log's last batch). Bodies stay small (≤ 64 KiB is the
+ * browser's keepalive limit; the input log sends ≤ 4 KiB).
+ */
+export async function callKeepalive(route: string, body?: object): Promise<void> {
+  await post(route, body, undefined, true);
 }
 
 /** POST `body` as JSON to `route` and return the raw reply (/api/fs/read's bytes). `signal` aborts it. */

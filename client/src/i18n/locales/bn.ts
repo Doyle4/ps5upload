@@ -4167,7 +4167,6 @@ c2c_test_deep_bad: "4 KiB-এর পরীক্ষামূলক পাঠা�
 "cw_hint_help": "সাহায্য",
 "cw_hint_refresh": "রিফ্রেশ",
 "cw_hint_fullscreen": "ফুল স্ক্রিন",
-"cw_settings_display": "ডিসপ্লে",
 "cw_settings_fullscreen": "ফুল স্ক্রিন",
 "cw_settings_fullscreen_note": "ব্রাউজারের বারগুলো লুকিয়ে রাখে যাতে পেজটি পুরো টিভি জুড়ে থাকে। পরের বার বোতাম চাপলে কার্যকর হয়।",
 "cw_settings_theme": "থিম",
@@ -4255,6 +4254,8 @@ c2c_test_deep_bad: "4 KiB-এর পরীক্ষামূলক পাঠা�
 "cw_files_no_folders_next": "এই ফোল্ডার ব্যবহার করতে “এখানে” বাছাই করুন।",
 "cw_ctl_ok": "কাজ করে",
 "cw_ctl_last": "শেষ চাপা:",
+"cw_ctl_received": "পাওয়া গেছে",
+"cw_ctl_received_job": "পাওয়া গেছে: {job} (এখনও ব্যবহার হয় না)",
 };
 
 export default bn;
