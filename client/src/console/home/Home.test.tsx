@@ -193,18 +193,48 @@ describe("Home", () => {
 
   it("empty states say what to do next", () => {
     const html = renderToStaticMarkup(<HomeView {...viewProps({ status: { ...running, running: null } })} />);
-    expect(html).toContain(t("cw_home_no_game_next"));
-    expect(t("cw_home_no_game_next")).not.toBe("cw_home_no_game_next");
+    expect(html).toContain(t("cw_home_no_game_plain"));
     expect(html).toContain(t("cw_home_no_tasks"));
   });
 
-  it("tasks are capped with +N more so the drives stay in view", () => {
-    const many = [1, 2, 3, 4].map((i) => job({ job: `${i}`.repeat(32), mine: true }));
-    const html = renderToStaticMarkup(<HomeView {...viewProps({ jobs: many })} />);
-    expect(html.split("cw-task is-").length - 1).toBe(MAX_TASK_ROWS);
-    expect(html).toContain(t("cw_home_tasks_more", { n: 2 }));
-    const two = renderToStaticMarkup(<HomeView {...viewProps({ jobs: many.slice(0, 2) })} />);
-    expect(two).not.toContain(t("cw_home_tasks_more", { n: 0 }));
+  it("every running task keeps a Cancel; only finished ones are capped, behind a +N more toggle", () => {
+    const id = (i: number) => `${i}`.repeat(32);
+    const runningJobs = [1, 2, 3].map((i) => job({ job: id(i), mine: i === 1 }));
+    const html3 = renderToStaticMarkup(<HomeView {...viewProps({ jobs: runningJobs, onToggleTasks: vi.fn() })} />);
+    expect(html3.split('data-action="cancel"').length - 1).toBe(3);
+    expect(html3).not.toContain('data-action="toggle-tasks"');
+
+    const finished = [4, 5, 6].map((i) => job({ job: id(i), state: "done", mine: true }));
+    const jobs = [runningJobs[0], ...finished];
+    const toggle = vi.fn();
+    const collapsed = renderToStaticMarkup(<HomeView {...viewProps({ jobs, onToggleTasks: toggle })} />);
+    expect(collapsed.split("cw-task is-").length - 1).toBe(MAX_TASK_ROWS);
+    expect(collapsed).toContain(t("cw_home_tasks_more", { n: 2 }));
+    (byAction(HomeView(viewProps({ jobs, onToggleTasks: toggle })), "toggle-tasks").props.onClick as () => void)();
+    expect(toggle).toHaveBeenCalled();
+
+    const open = renderToStaticMarkup(
+      <HomeView {...viewProps({ jobs, onToggleTasks: toggle, tasksExpanded: true })} />,
+    );
+    expect(open.split("cw-task is-").length - 1).toBe(4);
+    expect(open).toContain(t("cw_home_tasks_fewer"));
+  });
+
+  it("the no-game line promises Cheats only once the section exists", () => {
+    const idle = { ...running, running: null };
+    expect(renderToStaticMarkup(<HomeView {...viewProps({ status: idle })} />)).toContain(t("cw_home_no_game_plain"));
+    expect(renderToStaticMarkup(<HomeView {...viewProps({ status: idle, onOpenCheats: vi.fn() })} />)).toContain(
+      t("cw_home_no_game_next"),
+    );
+  });
+
+  it("a cover that fails to load is dropped", () => {
+    const onCoverError = vi.fn();
+    const img = elements(HomeView(viewProps({ status: running, cover: "blob:x", onCoverError }))).find(
+      (e) => e.type === "img",
+    )!;
+    (img.props.onError as () => void)();
+    expect(onCoverError).toHaveBeenCalled();
   });
 
   it("one storage card per drive with free of total", () => {

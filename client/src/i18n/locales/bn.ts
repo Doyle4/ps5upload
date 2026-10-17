@@ -4087,6 +4087,8 @@ c2c_test_deep_bad: "4 KiB-এর পরীক্ষামূলক পাঠা�
 "cw_home_no_game_next": "PS5 হোম স্ক্রিন থেকে একটি গেম চালু করুন; এর চিট এখানে দেখা যাবে।",
 "cw_home_cheats": "চিট",
 "cw_home_tasks_more": "আরও +{n}টি",
+"cw_home_no_game_plain": "PS5 হোম স্ক্রিন থেকে একটি গেম চালু করুন।",
+"cw_home_tasks_fewer": "কম দেখান",
 "cw_home_tasks": "কাজ",
 "cw_home_storage": "স্টোরেজ",
 "cw_files_drives": "ড্রাইভ",

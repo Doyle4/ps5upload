@@ -137,6 +137,11 @@ export interface HomeViewProps {
   onDismiss: () => void;
   /** The running game's cover (an object URL), or null (the generic icon shows). */
   cover?: string | null;
+  /** Finished tasks beyond the cap are shown. */
+  /** The cover failed to load: drop it (the generic icon shows). */
+  onCoverError?: () => void;
+  tasksExpanded?: boolean;
+  onToggleTasks?: () => void;
   /** Open the Cheats section, or null while there is none (the shortcut is hidden). */
   onOpenCheats?: (() => void) | null;
   /** ✕ on a storage card: Files at that drive's path, or null when Files cannot open a path. */
@@ -190,9 +195,14 @@ export function VolumeCard({ v, onOpen }: { v: Volume; onOpen: ((path: string) =
 /** Home without state: everything comes in through props (tests render it directly). */
 export function HomeView(p: HomeViewProps) {
   const running = p.status?.running ?? null;
+  // Every running task keeps its row (Home is where it is cancelled); only finished ones are capped.
   const allTasks = visibleJobs(p.jobs);
-  const tasks = allTasks.slice(0, MAX_TASK_ROWS);
-  const moreTasks = allTasks.length - tasks.length;
+  const runningTasks = allTasks.filter((j) => j.state === "running");
+  const finishedTasks = allTasks.filter((j) => j.state !== "running");
+  const finishedShown = p.tasksExpanded ? finishedTasks.length : Math.max(0, MAX_TASK_ROWS - runningTasks.length);
+  const tasks = runningTasks.concat(finishedTasks.slice(0, finishedShown));
+  const moreTasks = finishedTasks.length - Math.min(finishedShown, finishedTasks.length);
+  const canCollapse = !!p.tasksExpanded && finishedTasks.length > Math.max(0, MAX_TASK_ROWS - runningTasks.length);
   const drives = (p.volumes ?? []).filter(isDrive);
   const copy = p.ask ? askCopy(p.ask) : null;
 
@@ -216,7 +226,7 @@ export function HomeView(p: HomeViewProps) {
 
       <section className="cw-card cw-game" aria-label={t("cw_home_now_running")}>
         {running && p.cover ? (
-          <img className="cw-game-cover" src={p.cover} alt="" />
+          <img className="cw-game-cover" src={p.cover} alt="" onError={p.onCoverError} />
         ) : (
           <Gamepad2 className="cw-game-icon" aria-hidden />
         )}
@@ -255,7 +265,7 @@ export function HomeView(p: HomeViewProps) {
             ) : null}
           </>
         ) : (
-          <div className="cw-game-text cw-dim">{p.status ? t("cw_home_no_game_next") : t("cw_home_loading")}</div>
+          <div className="cw-game-text cw-dim">{p.status ? t(p.onOpenCheats ? "cw_home_no_game_next" : "cw_home_no_game_plain") : t("cw_home_loading")}</div>
         )}
       </section>
 
@@ -271,7 +281,17 @@ export function HomeView(p: HomeViewProps) {
             ))}
           </ul>
         )}
-        {moreTasks > 0 ? <p className="cw-dim cw-more">{t("cw_home_tasks_more", { n: moreTasks })}</p> : null}
+        {(moreTasks > 0 || canCollapse) && p.onToggleTasks ? (
+          <button
+            type="button"
+            className="cw-focusable cw-button cw-tasks-more"
+            data-action="toggle-tasks"
+            aria-expanded={!!p.tasksExpanded}
+            onClick={p.onToggleTasks}
+          >
+            <span>{moreTasks > 0 ? t("cw_home_tasks_more", { n: moreTasks }) : t("cw_home_tasks_fewer")}</span>
+          </button>
+        ) : null}
       </section>
 
       <section className="cw-home-section">
@@ -351,7 +371,7 @@ function useAppCover(titleId: string | null): string | null {
     const ctl = new AbortController();
     callBlob("/api/fs/read", { path: `/user/appmeta/${titleId}/icon0.png` }, ctl.signal).then(
       (b) => {
-        if (!live || b.size === 0) return;
+        if (!live || !/^image\/(png|jpeg)$/.test(b.type)) return;
         made = URL.createObjectURL(b);
         setUrl(made);
       },
@@ -426,7 +446,11 @@ export function Home({ ctx }: { ctx: SectionContext }) {
     setAskError(null);
   }, [busy]);
 
-  const cover = useAppCover(ctx.status?.running?.title_id ?? null);
+  const [coverFailed, setCoverFailed] = useState<string | null>(null);
+  const [tasksExpanded, setTasksExpanded] = useState(false);
+  const titleId = ctx.status?.running?.title_id ?? null;
+  const loadedCover = useAppCover(titleId);
+  const cover = loadedCover && coverFailed !== loadedCover ? loadedCover : null;
   const onOpenCheats = hasSection("cheats") ? () => openSection("cheats") : null;
   const onOpenDrive = canOpen("files") ? (path: string) => openSection("files", { path }) : null;
 
@@ -450,6 +474,9 @@ export function Home({ ctx }: { ctx: SectionContext }) {
       onConfirm={onConfirm}
       onDismiss={onDismiss}
       cover={cover}
+      onCoverError={() => setCoverFailed(loadedCover)}
+      tasksExpanded={tasksExpanded}
+      onToggleTasks={() => setTasksExpanded((v) => !v)}
       onOpenCheats={onOpenCheats}
       onOpenDrive={onOpenDrive}
     />

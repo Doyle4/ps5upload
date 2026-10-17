@@ -386,8 +386,8 @@ button {
   flex: none;
   margin-left: 0.7rem;
 }
-.cw-more {
-  margin: 0.1rem 0 0 0.3rem;
+.cw-tasks-more {
+  margin: 0;
 }
 .cw-game-icon {
   flex: none;
@@ -760,7 +760,7 @@ button {
   font-size: 1.05rem;
 }
 .cw-home .cw-task-main {
-  padding: 0.3rem 0.8rem;
+  padding: 0.2rem 0.8rem;
 }
 .cw-home .cw-task {
   margin-bottom: 0.3rem;
@@ -780,7 +780,13 @@ button {
 .cw-home .cw-home-section:last-of-type {
   margin-bottom: 0;
 }
-.cw-home .cw-task-main {
-  padding-top: 0.2rem;
-  padding-bottom: 0.2rem;
+.cw-home .cw-home-section {
+  position: relative;
+}
+.cw-home .cw-tasks-more {
+  position: absolute;
+  top: -0.35rem;
+  right: 0;
+  min-height: 0;
+  padding: 0.2rem 0.9rem;
 }

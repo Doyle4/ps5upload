@@ -4037,6 +4037,8 @@ c2c_test_deep_bad: "Тестовая отправка 4 КиБ не дошла: 
 "cw_home_no_game_next": "Запустите игру с главного экрана PS5, и её читы появятся здесь.",
 "cw_home_cheats": "Читы",
 "cw_home_tasks_more": "ещё +{n}",
+"cw_home_no_game_plain": "Запустите игру с главного экрана PS5.",
+"cw_home_tasks_fewer": "Показать меньше",
 "cw_home_tasks": "Задачи",
 "cw_home_storage": "Хранилище",
 "cw_files_drives": "Накопители",

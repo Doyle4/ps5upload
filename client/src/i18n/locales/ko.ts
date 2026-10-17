@@ -4106,6 +4106,8 @@ c2c_test_deep_bad: "4 KiB 테스트 전송이 도착하지 않았습니다: {det
 "cw_home_no_game_next": "PS5 홈 화면에서 게임을 시작하면 해당 치트가 여기에 표시됩니다.",
 "cw_home_cheats": "치트",
 "cw_home_tasks_more": "+{n}개 더",
+"cw_home_no_game_plain": "PS5 홈 화면에서 게임을 시작하세요.",
+"cw_home_tasks_fewer": "간략히 보기",
 "cw_home_tasks": "작업",
 "cw_home_storage": "저장소",
 "cw_files_drives": "드라이브",

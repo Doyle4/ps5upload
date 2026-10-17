@@ -4108,6 +4108,8 @@ c2c_test_deep_bad: "4 KiB のテスト送信が届きませんでした: {detail
 "cw_home_no_game_next": "PS5のホーム画面でゲームを起動すると、そのチートがここに表示されます。",
 "cw_home_cheats": "チート",
 "cw_home_tasks_more": "ほか{n}件",
+"cw_home_no_game_plain": "PS5のホーム画面でゲームを起動してください。",
+"cw_home_tasks_fewer": "表示を減らす",
 "cw_home_tasks": "タスク",
 "cw_home_storage": "ストレージ",
 "cw_files_drives": "ドライブ",

@@ -4096,6 +4096,8 @@ c2c_test_deep_bad: "การส่งทดสอบ 4 KiB ไปไม่ถ�
 "cw_home_no_game_next": "เริ่มเกมจากหน้าจอหลักของ PS5 แล้วโกงของเกมนั้นจะแสดงที่นี่",
 "cw_home_cheats": "โกง",
 "cw_home_tasks_more": "อีก +{n}",
+"cw_home_no_game_plain": "เริ่มเกมจากหน้าจอหลักของ PS5",
+"cw_home_tasks_fewer": "แสดงน้อยลง",
 "cw_home_tasks": "งาน",
 "cw_home_storage": "ที่เก็บข้อมูล",
 "cw_files_drives": "ไดรฟ์",

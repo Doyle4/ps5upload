@@ -4103,6 +4103,8 @@ c2c_test_deep_bad: "4 KiB का परीक्षण नहीं पहुँ
 "cw_home_no_game_next": "PS5 होम स्क्रीन से कोई गेम शुरू करें; उसके चीट यहाँ दिखेंगे।",
 "cw_home_cheats": "चीट",
 "cw_home_tasks_more": "+{n} और",
+"cw_home_no_game_plain": "PS5 होम स्क्रीन से कोई गेम शुरू करें।",
+"cw_home_tasks_fewer": "कम दिखाएँ",
 "cw_home_tasks": "कार्य",
 "cw_home_storage": "स्टोरेज",
 "cw_files_drives": "ड्राइव",

@@ -4087,6 +4087,8 @@ c2c_test_deep_bad: "لم يصل الإرسال التجريبي بحجم 4 KiB: 
 "cw_home_no_game_next": "ابدأ لعبة من الشاشة الرئيسية للـ PS5؛ تظهر شفراتها هنا.",
 "cw_home_cheats": "الشفرات",
 "cw_home_tasks_more": "+{n} أخرى",
+"cw_home_no_game_plain": "ابدأ لعبة من الشاشة الرئيسية للـ PS5.",
+"cw_home_tasks_fewer": "عرض أقل",
 "cw_home_tasks": "المهام",
 "cw_home_storage": "التخزين",
 "cw_files_drives": "محركات الأقراص",
