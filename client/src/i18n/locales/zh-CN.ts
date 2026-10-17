@@ -4302,6 +4302,8 @@ c2c_test_deep_bad: "4 KiB 测试发送未到达：{detail}",
 "cw_files_paste_here_already": "已在此文件夹中。",
 "cw_files_paste_done_skipped": "完成。已跳过 {n} 个。",
 "cw_files_replace_failed": "无法删除要替换的项目，因此未粘贴。",
+"cw_files_conflict_replace_all_body": "已有的文件会被覆盖；文件夹及其全部内容会先被删除。无法撤销。",
+"cw_files_paste_halted": "已停止。“{name}”未粘贴；要被替换的项目仍在删除中。",
 };
 
 export default zh_CN;

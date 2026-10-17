@@ -4367,6 +4367,8 @@ c2c_test_deep_bad: "4 KiB のテスト送信が届きませんでした: {detail
 "cw_files_paste_here_already": "すでにこのフォルダーにあります。",
 "cw_files_paste_done_skipped": "完了。{n} 件をスキップしました。",
 "cw_files_replace_failed": "置き換える項目を削除できなかったため、貼り付けませんでした。",
+"cw_files_conflict_replace_all_body": "既存のファイルは上書きされ、フォルダーは中身ごと先に削除されます。元に戻せません。",
+"cw_files_paste_halted": "停止しました。「{name}」は貼り付けられていません。置き換え対象の項目はまだ削除中です。",
 };
 
 export default ja;

@@ -4354,6 +4354,8 @@ c2c_test_deep_bad: "Die 4-KiB-Testsendung ist nicht angekommen: {detail}",
 "cw_files_paste_here_already": "Schon in diesem Ordner.",
 "cw_files_paste_done_skipped": "Fertig. {n} übersprungen.",
 "cw_files_replace_failed": "Das zu ersetzende Element ließ sich nicht löschen, daher wurde nichts eingefügt.",
+"cw_files_conflict_replace_all_body": "Vorhandene Dateien werden überschrieben; Ordner werden samt Inhalt zuerst gelöscht. Das lässt sich nicht rückgängig machen.",
+"cw_files_paste_halted": "Gestoppt. „{name}“ wurde nicht eingefügt; das Element, das es ersetzen sollte, wird noch gelöscht.",
 };
 
 export default de;

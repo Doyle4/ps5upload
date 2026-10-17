@@ -4661,6 +4661,8 @@ c2c_test_deep_bad: "A 4 KiB-os tesztküldés nem érkezett meg: {detail}",
 "cw_files_paste_here_already": "Már ebben a mappában van.",
 "cw_files_paste_done_skipped": "Kész. {n} kihagyva.",
 "cw_files_replace_failed": "A lecserélendő elemet nem sikerült törölni, ezért nem lett beillesztve.",
+"cw_files_conflict_replace_all_body": "Az itt lévő fájlok felülíródnak; a mappák a teljes tartalmukkal együtt előbb törlődnek. Ez nem vonható vissza.",
+"cw_files_paste_halted": "Leállítva. „{name}” nem lett beillesztve; a lecserélendő elem törlése még folyamatban van.",
 };
 
 export default hu;

@@ -342,3 +342,115 @@ describe("paste as the page's batch", () => {
     expect(currentBatch()).toBeNull();
   });
 });
+
+describe("the item itself, by identity (exFAT is case-insensitive)", () => {
+  /** /mnt/usb0 answers any letter case with the same entry (dev + ino), like exFAT. */
+  function exfat(fs: Record<string, "file" | "dir">, ids = true) {
+    const key = (p: string) => (p.startsWith("/mnt/usb0") ? p.toLowerCase() : p);
+    const norm: Record<string, "file" | "dir"> = {};
+    for (const [p, k] of Object.entries(fs)) norm[key(p)] = k;
+    let n = 0;
+    mockCall.mockImplementation(async (route: string, body?: unknown) => {
+      const b = body as Record<string, string>;
+      if (route === "/api/fs/stat") {
+        const k = norm[key(b.path)];
+        if (!k) throw new ApiError(404, "not_found");
+        return (ids ? { kind: k, dev: "7", ino: key(b.path) } : { kind: k }) as never;
+      }
+      if (route === "/api/fs/delete") return { job: `del${++n}` } as never;
+      if (route === "/api/fs/copy") return { job: `job${++n}` } as never;
+      return {} as never;
+    });
+  }
+
+  it("a cut into the same folder spelled differently is 'already here', nothing is sent", async () => {
+    exfat({ "/mnt/usb0/Games": "dir", "/mnt/usb0/Games/x": "file" });
+    const a = answers();
+    const r = await pasteItems([{ path: "/mnt/usb0/Games/x", dir: false }], "/mnt/usb0/games", "cut", {
+      decide: a.decide,
+      volumes: VOLS,
+    });
+    expect(a.asked).toEqual([]);
+    expect(routes()).toEqual([]);
+    expect(r.here).toEqual(["/mnt/usb0/Games/x"]);
+  });
+
+  it("the destination found is the item itself: Replace is never offered, Apply-to-all Replace skips it", async () => {
+    exfat({ "/mnt/usb0/Games": "dir", "/mnt/usb0/Games/x": "file", "/mnt/usb0/Games/y": "file" });
+    const a = answers({ choice: "replace", all: true });
+    const r = await pasteItems(
+      [
+        { path: "/mnt/usb0/Games/x", dir: false },
+        { path: "/mnt/usb0/Games/y", dir: false },
+      ],
+      "/mnt/usb0/games",
+      "copy",
+      { decide: a.decide, volumes: VOLS },
+    );
+    expect(a.asked[0].canReplace).toBe(false);
+    expect(routes()).toEqual([]); // no delete, no copy
+    expect(r.declined).toEqual(["/mnt/usb0/Games/x", "/mnt/usb0/Games/y"]);
+  });
+
+  it("a cut whose folder ids differ but the destination is the item itself: no-op, never deleted", async () => {
+    exfat({ "/mnt/usb0/Games/x": "file" });
+    // The folders' stats fail (no ids to compare): the item's own stat still catches it.
+    const base = mockCall.getMockImplementation()!;
+    mockCall.mockImplementation(async (route: string, body?: unknown) => {
+      const p = (body as { path?: string })?.path ?? "";
+      if (route === "/api/fs/stat" && !p.endsWith("/x")) throw new ApiError(500, "io");
+      return base(route, body as never);
+    });
+    const r = await pasteItems([{ path: "/mnt/usb0/Games/x", dir: false }], "/mnt/usb0/GAMES", "cut", {
+      decide: answers({ choice: "replace", all: false }).decide,
+      volumes: VOLS,
+    });
+    expect(routes()).toEqual([]);
+    expect(r.here).toEqual(["/mnt/usb0/Games/x"]);
+  });
+
+  it("an older helper without ids falls back to the path compare", async () => {
+    exfat({ "/data/a/x": "file", "/data/b/x": "file" }, false);
+    const a = answers({ choice: "replace", all: false });
+    await pasteItems([{ path: "/data/a/x", dir: false }], "/data/b", "copy", { decide: a.decide });
+    expect(a.asked[0].canReplace).toBe(true);
+  });
+});
+
+describe("Stop leaves a job running", () => {
+  it("a cut whose job Stop left running is not counted done (it stays in the clipboard)", async () => {
+    fakeConsole({ "/mnt/usb0/G": "dir" });
+    const r = await pasteItems([{ path: "/mnt/usb0/G", dir: true }], "/data/b", "cut", { decide: answers().decide, volumes: VOLS }, {
+      waitJob: async () => "left",
+    });
+    expect(r.left).toEqual(["/mnt/usb0/G"]);
+    expect(r.done).toEqual([]);
+  });
+
+  it("Stop during a replace delete is reported as halted", async () => {
+    fakeConsole({ "/data/a/G": "dir", "/data/b/G": "dir" });
+    const r = await pasteItems([{ path: "/data/a/G", dir: true }], "/data/b", "copy", {
+      decide: answers({ choice: "replace", all: false }).decide,
+    }, { waitJob: async () => "left" });
+    expect(r.halted).toEqual(["/data/a/G"]);
+    expect(r.left).toEqual([]);
+  });
+
+  it("Stop / Files closing answers a waiting conflict with Skip for the rest", async () => {
+    const { skipPendingConflict } = await import("./clipboard");
+    fakeConsole({ "/data/a/1": "file", "/data/a/2": "file", "/data/b/1": "file", "/data/b/2": "file" });
+    const run = pasteItems(
+      ["1", "2"].map((n) => ({ path: `/data/a/${n}`, dir: false })),
+      "/data/b",
+      "copy",
+      { decide: askConflict },
+    );
+    for (let i = 0; i < 20 && !currentConflict(); i++) await Promise.resolve();
+    expect(currentConflict()).not.toBeNull();
+    skipPendingConflict();
+    const r = await run;
+    expect(r.declined).toEqual(["/data/a/1", "/data/a/2"]);
+    expect(currentConflict()).toBeNull();
+    expect(routes()).toEqual([]);
+  });
+});

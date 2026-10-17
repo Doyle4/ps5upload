@@ -5,6 +5,9 @@
  * folders change and while another section is open, for the whole page
  * session; a paste that meets a conflict while Files is closed waits until
  * Files is open again to ask. Nothing here is saved: a reload empties it.
+ *
+ * Ruling R22: ○ (browser Back) never clears the clipboard, at any level; only
+ * the bar's Clear does, or a cut whose items all moved.
  */
 import { useEffect, useState } from "react";
 import type { Conflict, Decision, PasteMode } from "./paste";
@@ -92,6 +95,14 @@ export function askConflict(conflict: Conflict): Promise<Decision> {
       },
     });
   });
+}
+
+/**
+ * Answer a waiting conflict with Skip for it and every later one (Stop, or
+ * Files closing): the batch never sits busy behind a dialog nobody can see.
+ */
+export function skipPendingConflict(): void {
+  pending.get()?.answer({ choice: "skip", all: true });
 }
 
 export function currentConflict(): PendingConflict | null {

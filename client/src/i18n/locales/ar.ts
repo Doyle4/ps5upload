@@ -4346,6 +4346,8 @@ c2c_test_deep_bad: "لم يصل الإرسال التجريبي بحجم 4 KiB: 
 "cw_files_paste_here_already": "موجود في هذا المجلد بالفعل.",
 "cw_files_paste_done_skipped": "تم. تخطي {n}.",
 "cw_files_replace_failed": "تعذّر حذف العنصر المراد استبداله، لذلك لم يُلصق.",
+"cw_files_conflict_replace_all_body": "يُكتب فوق الملفات الموجودة هنا؛ وتُحذف المجلدات بكل محتواها أولًا. لا يمكن التراجع عن ذلك.",
+"cw_files_paste_halted": "توقف. لم يُلصق «{name}»؛ ولا يزال العنصر الذي كان سيستبدله قيد الحذف.",
 };
 
 export default ar;

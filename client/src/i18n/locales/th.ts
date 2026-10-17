@@ -4355,6 +4355,8 @@ c2c_test_deep_bad: "การส่งทดสอบ 4 KiB ไปไม่ถ�
 "cw_files_paste_here_already": "อยู่ในโฟลเดอร์นี้แล้ว",
 "cw_files_paste_done_skipped": "เสร็จแล้ว ข้าม {n} รายการ",
 "cw_files_replace_failed": "ลบรายการที่จะแทนที่ไม่ได้ จึงไม่ได้วาง",
+"cw_files_conflict_replace_all_body": "ไฟล์ที่มีอยู่จะถูกเขียนทับ ส่วนโฟลเดอร์พร้อมทุกอย่างข้างในจะถูกลบก่อน ย้อนกลับไม่ได้",
+"cw_files_paste_halted": "หยุดแล้ว ไม่ได้วาง “{name}” รายการที่จะถูกแทนที่ยังลบอยู่",
 };
 
 export default th;

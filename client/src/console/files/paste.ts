@@ -18,6 +18,14 @@
  * refuses the rename (cross_mount) and a copy job with the move flag does it.
  * A folder never goes into itself (IntoItselfError); a cut item pasted into
  * its own folder stays as it is.
+ *
+ * "The item itself" is decided by identity (/api/fs/stat's dev + ino), not by
+ * the path's spelling: exFAT USB drives are case-insensitive, so a cut of
+ * /mnt/usb0/Games/x pasted into a typed /mnt/usb0/games finds x itself at the
+ * destination. Offering Replace there would delete the item (delete-first), so
+ * an identical entry is never replaceable, and for a cut it is "already here".
+ * The destination folder is compared with each item's folder the same way. A
+ * helper without ids falls back to the path compare.
  */
 import { ApiError, call } from "../api";
 import {
@@ -63,6 +71,10 @@ export interface PasteItem {
 export interface PasteResult extends BatchResult {
   /** Items now in the folder (moved, or their job ended done). */
   done: string[];
+  /** Items whose job Stop left running (not known to be done: a cut keeps them in the clipboard). */
+  left: string[];
+  /** Items not pasted because Stop came while the delete for their Replace ran (that delete runs on). */
+  halted: string[];
   /** Conflicts the user skipped. */
   declined: string[];
   /** Cut items already in this folder (nothing to do). */
@@ -79,8 +91,16 @@ export interface PasteDeps {
 /** Keep both's tries before it gives up. */
 const KEEP_BOTH_TRIES = 999;
 
-interface Stat {
+export interface Stat {
   kind: string;
+  /** Device and inode (decimal strings), from a helper that sends them. */
+  dev?: string;
+  ino?: string;
+}
+
+/** The same entry on disk (both stats carry ids and they match). */
+export function sameEntry(a: Stat | null | undefined, b: Stat | null | undefined): boolean {
+  return !!a && !!b && a.dev != null && a.ino != null && a.dev === b.dev && a.ino === b.ino;
 }
 
 /** The entry at `path`, or null when nothing is there (404). */
@@ -138,22 +158,55 @@ export async function pasteItems(
   const here: string[] = [];
   /** The item whose Replace delete was left running by Stop: it was not pasted. */
   const halted: string[] = [];
+  /** Items whose job was still running when Stop let go of it. */
+  const leftRunning: string[] = [];
   const kinds = new Map(items.map((i) => [i.path, i.dir]));
   const paths = items.map((i) => i.path);
   let always: ConflictChoice | null = null;
+  let current = "";
+  /** Stats of folders (the destination, the items' folders), read once each. */
+  const folderStats = new Map<string, Promise<Stat | null>>();
+  const folderStat = (p: string) => {
+    let s = folderStats.get(p);
+    if (!s) {
+      s = statOrNull(p).catch(() => null);
+      folderStats.set(p, s);
+    }
+    return s;
+  };
+  const wait = opts?.waitJob;
+  const eachOpts: BatchOptions | undefined = opts && {
+    ...opts,
+    waitJob: wait
+      ? async (id) => {
+          const end = await wait(id);
+          if (end === "left") leftRunning.push(current);
+          return end;
+        }
+      : undefined,
+  };
 
-  const r = await each(paths, opts, async (item, res) => {
+  const r = await each(paths, eachOpts, async (item, res) => {
+    current = item;
     if (isInside(dir, item)) throw new IntoItselfError(item);
-    if (mode === "cut" && parentPath(item) === dir) {
-      here.push(item);
-      return;
+    if (mode === "cut") {
+      const from = parentPath(item);
+      if (from === dir || sameEntry(await folderStat(from), await folderStat(dir))) {
+        here.push(item);
+        return;
+      }
     }
     const isDir = kinds.get(item) ?? false;
     let dest = joinPath(dir, baseName(item));
     let overwrite = false;
     const existing = await statOrNull(dest);
     if (existing) {
-      const canReplace = !isInside(item, dest);
+      const self = sameEntry(existing, await statOrNull(item));
+      if (self && mode === "cut") {
+        here.push(item);
+        return;
+      }
+      const canReplace = !self && !isInside(item, dest);
       let choice = always;
       if (!choice) {
         const d = await deps.decide({
@@ -200,11 +253,15 @@ export async function pasteItems(
     return startCopy(item, dest, true, res, overwrite);
   });
 
-  const notDone = new Set<string>(declined.concat(here, halted, r.skipped, r.jobFailed, r.failed.map((f) => f.item)));
+  const notDone = new Set<string>(
+    declined.concat(here, halted, leftRunning, r.skipped, r.jobFailed, r.failed.map((f) => f.item)),
+  );
   return {
     ...r,
     skipped: halted.concat(r.skipped),
     done: paths.filter((p) => !notDone.has(p)),
+    left: leftRunning,
+    halted,
     declined,
     here,
   };

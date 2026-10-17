@@ -55,6 +55,7 @@ import {
   dropFromClipboard,
   getClipboard,
   setClipboard,
+  skipPendingConflict,
   useClipboard,
   useConflict,
   type Clip,
@@ -114,6 +115,11 @@ export function batchMessage(r: BatchResult, op?: Busy["op"]): Message | null {
 
 /** The line a finished paste leaves: batchMessage's, or what was skipped / already there. */
 export function pasteMessage(r: PasteResult): Message | null {
+  if (r.halted.length && !r.failed.length && !r.jobFailed.length) {
+    const rest = r.skipped.length - r.halted.length;
+    const text = t("cw_files_paste_halted", { name: baseName(r.halted[0]) });
+    return { tone: "info", text: rest > 0 ? `${text} ${t("cw_files_batch_stopped", { n: rest })}` : text };
+  }
   if (r.failed.length || r.jobFailed.length || r.skipped.length) return batchMessage(r);
   if (!r.done.length && !r.declined.length && r.here.length) return { tone: "info", text: t("cw_files_paste_here_already") };
   if (r.declined.length) return { tone: "info", text: t("cw_files_paste_done_skipped", { n: r.declined.length }) };
@@ -783,6 +789,12 @@ export function FilesView(p: FilesViewProps) {
   );
 }
 
+/** Stop: the batch ends before its next item, and a conflict it waits on is answered Skip. */
+export function stopBatchAndConflict(): void {
+  stopBatch();
+  skipPendingConflict();
+}
+
 /* ---- the section ---- */
 
 function useVolumes(path: string | null, tick: number): { volumes: Volume[] | null; error: boolean } {
@@ -863,6 +875,8 @@ export function Files({ ctx }: { ctx: SectionContext }) {
     mounted.current = true;
     return () => {
       mounted.current = false;
+      // A paste conflict nobody can answer now: skip it (and the rest), so the batch ends.
+      skipPendingConflict();
     };
   }, []);
 
@@ -1355,7 +1369,7 @@ export function Files({ ctx }: { ctx: SectionContext }) {
         onUnmount={onUnmount}
         onGoTo={onGoTo}
         gameRunning={gameRunning}
-        onStopBatch={stopBatch}
+        onStopBatch={stopBatchAndConflict}
         clip={clip}
         conflict={conflict}
         onClip={onClip}

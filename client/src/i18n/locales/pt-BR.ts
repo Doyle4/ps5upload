@@ -4363,6 +4363,8 @@ c2c_test_deep_bad: "O envio de teste de 4 KiB não chegou: {detail}",
 "cw_files_paste_here_already": "Já está nesta pasta.",
 "cw_files_paste_done_skipped": "Pronto. {n} pulados.",
 "cw_files_replace_failed": "Não foi possível excluir o item a ser substituído, então ele não foi colado.",
+"cw_files_conflict_replace_all_body": "Os arquivos que já estão aqui são sobrescritos; as pastas, com todo o conteúdo, são excluídas primeiro. Não dá para desfazer.",
+"cw_files_paste_halted": "Parado. “{name}” não foi colado; o item que ele substituiria ainda está sendo excluído.",
 };
 
 export default pt_BR;

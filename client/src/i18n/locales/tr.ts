@@ -4353,6 +4353,8 @@ c2c_test_deep_bad: "4 KiB'lik test gönderimi ulaşmadı: {detail}",
 "cw_files_paste_here_already": "Zaten bu klasörde.",
 "cw_files_paste_done_skipped": "Bitti. {n} atlandı.",
 "cw_files_replace_failed": "Değiştirilecek öğe silinemedi, bu yüzden yapıştırılmadı.",
+"cw_files_conflict_replace_all_body": "Buradaki dosyaların üzerine yazılır; klasörler içindeki her şeyle birlikte önce silinir. Bu geri alınamaz.",
+"cw_files_paste_halted": "Durduruldu. “{name}” yapıştırılmadı; yerine geçeceği öğe hâlâ siliniyor.",
 };
 
 export default tr;

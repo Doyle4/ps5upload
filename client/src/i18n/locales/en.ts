@@ -4669,6 +4669,8 @@ c2c_test_deep_bad: "The 4 KiB test send did not arrive: {detail}",
 "cw_files_paste_here_already": "Already in this folder.",
 "cw_files_paste_done_skipped": "Done. {n} skipped.",
 "cw_files_replace_failed": "Couldn't delete the item being replaced, so it was not pasted.",
+"cw_files_conflict_replace_all_body": "Files already here are overwritten; folders, and everything in them, are deleted first. This can't be undone.",
+"cw_files_paste_halted": "Stopped. “{name}” was not pasted; the item it was replacing is still being deleted.",
 };
 
 export default en;

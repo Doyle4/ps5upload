@@ -4296,6 +4296,8 @@ c2c_test_deep_bad: "4 KiB 測試傳送未抵達：{detail}",
 "cw_files_paste_here_already": "已在此資料夾中。",
 "cw_files_paste_done_skipped": "完成。已略過 {n} 個。",
 "cw_files_replace_failed": "無法刪除要取代的項目，因此未貼上。",
+"cw_files_conflict_replace_all_body": "現有的檔案會被覆寫；資料夾及其全部內容會先被刪除。無法復原。",
+"cw_files_paste_halted": "已停止。「{name}」未貼上；要被取代的項目仍在刪除中。",
 };
 
 export default zh_TW;

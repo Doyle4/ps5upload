@@ -4348,6 +4348,8 @@ c2c_test_deep_bad: "Lượt gửi thử 4 KiB không tới: {detail}",
 "cw_files_paste_here_already": "Đã ở trong thư mục này.",
 "cw_files_paste_done_skipped": "Xong. Đã bỏ qua {n}.",
 "cw_files_replace_failed": "Không xóa được mục cần thay thế nên chưa dán.",
+"cw_files_conflict_replace_all_body": "Các tệp đã có ở đây sẽ bị ghi đè; thư mục cùng toàn bộ nội dung sẽ bị xóa trước. Không thể hoàn tác.",
+"cw_files_paste_halted": "Đã dừng. “{name}” chưa được dán; mục cần thay thế vẫn đang bị xóa.",
 };
 
 export default vi;

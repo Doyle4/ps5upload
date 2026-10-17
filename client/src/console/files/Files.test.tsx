@@ -381,7 +381,7 @@ describe("Files listing controls", () => {
   });
 
   it("paste messages: skipped, already here, failures", () => {
-    const base = { started: [], moved: [], failed: [], jobFailed: [], skipped: [], done: [], declined: [], here: [] };
+    const base = { started: [], moved: [], failed: [], jobFailed: [], skipped: [], done: [], left: [], halted: [], declined: [], here: [] };
     expect(pasteMessage({ ...base, done: ["/a"] })?.text).toBe(t("cw_files_done"));
     expect(pasteMessage({ ...base, done: ["/a"], declined: ["/b", "/c"] })?.text).toBe(t("cw_files_paste_done_skipped", { n: 2 }));
     expect(pasteMessage({ ...base, here: ["/a"] })?.text).toBe(t("cw_files_paste_here_already"));
@@ -390,5 +390,12 @@ describe("Files listing controls", () => {
       t("cw_files_err_into_itself"),
     );
     expect(filesErrorText(new ApiError(500, "replace_delete_failed"))).toBe(t("cw_files_replace_failed"));
+    // Stop during a Replace's delete: that item is named, the rest counted.
+    expect(pasteMessage({ ...base, halted: ["/data/a/G"], skipped: ["/data/a/G"] })?.text).toBe(
+      t("cw_files_paste_halted", { name: "G" }),
+    );
+    expect(pasteMessage({ ...base, halted: ["/data/a/G"], skipped: ["/data/a/G", "/data/a/H"] })?.text).toBe(
+      `${t("cw_files_paste_halted", { name: "G" })} ${t("cw_files_batch_stopped", { n: 1 })}`,
+    );
   });
 });

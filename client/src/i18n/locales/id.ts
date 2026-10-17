@@ -4355,6 +4355,8 @@ c2c_test_deep_bad: "Kiriman uji 4 KiB tidak tiba: {detail}",
 "cw_files_paste_here_already": "Sudah ada di folder ini.",
 "cw_files_paste_done_skipped": "Selesai. {n} dilewati.",
 "cw_files_replace_failed": "Item yang akan diganti tidak bisa dihapus, jadi tidak ditempel.",
+"cw_files_conflict_replace_all_body": "File yang sudah ada akan ditimpa; folder beserta seluruh isinya dihapus terlebih dahulu. Ini tidak bisa dibatalkan.",
+"cw_files_paste_halted": "Dihentikan. “{name}” tidak ditempel; item yang akan diganti masih sedang dihapus.",
 };
 
 export default id;

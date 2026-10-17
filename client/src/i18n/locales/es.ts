@@ -4296,6 +4296,8 @@ c2c_test_deep_bad: "El envío de prueba de 4 KiB no llegó: {detail}",
 "cw_files_paste_here_already": "Ya está en esta carpeta.",
 "cw_files_paste_done_skipped": "Listo. {n} omitidos.",
 "cw_files_replace_failed": "No se pudo eliminar el elemento a reemplazar, así que no se pegó.",
+"cw_files_conflict_replace_all_body": "Los archivos que ya están aquí se sobrescriben; las carpetas, con todo su contenido, se eliminan primero. No se puede deshacer.",
+"cw_files_paste_halted": "Detenido. «{name}» no se pegó; el elemento que iba a reemplazar todavía se está eliminando.",
 };
 
 export default es;

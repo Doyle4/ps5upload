@@ -20,7 +20,13 @@ export function ConflictDialog({ conflict, onAnswer }: { conflict: Conflict; onA
     return (
       <ConfirmDialog
         title={t(all ? "cw_files_conflict_replace_all_title" : "cw_files_conflict_replace_title", { name })}
-        body={t(conflict.destDir ? "cw_files_conflict_replace_dir_body" : "cw_files_conflict_replace_file_body")}
+        body={t(
+          all
+            ? "cw_files_conflict_replace_all_body"
+            : conflict.destDir
+              ? "cw_files_conflict_replace_dir_body"
+              : "cw_files_conflict_replace_file_body",
+        )}
         confirmLabel={t("cw_files_conflict_replace")}
         danger
         onConfirm={() => onAnswer({ choice: "replace", all })}

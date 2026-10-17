@@ -4601,6 +4601,8 @@ c2c_test_deep_bad: "Testowa wysyłka 4 KiB nie dotarła: {detail}",
 "cw_files_paste_here_already": "Już jest w tym folderze.",
 "cw_files_paste_done_skipped": "Gotowe. Pominięto: {n}.",
 "cw_files_replace_failed": "Nie udało się usunąć zastępowanego elementu, więc nic nie wklejono.",
+"cw_files_conflict_replace_all_body": "Pliki, które już tu są, zostaną nadpisane; foldery wraz z całą zawartością zostaną najpierw usunięte. Tego nie da się cofnąć.",
+"cw_files_paste_halted": "Zatrzymano. „{name}” nie został wklejony; element, który miał zastąpić, jest jeszcze usuwany.",
 };
 
 export default pl;

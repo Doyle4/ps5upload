@@ -4647,6 +4647,8 @@ c2c_test_deep_bad: "ارسال آزمایشی ۴ KiB نرسید: {detail}",
 "cw_files_paste_here_already": "از قبل در همین پوشه است.",
 "cw_files_paste_done_skipped": "انجام شد. {n} مورد رد شد.",
 "cw_files_replace_failed": "حذف مورد جایگزین‌شونده ممکن نشد، پس چسبانده نشد.",
+"cw_files_conflict_replace_all_body": "فایل‌های موجود بازنویسی می‌شوند؛ پوشه‌ها با همه محتوایشان اول حذف می‌شوند. این کار برگشت‌پذیر نیست.",
+"cw_files_paste_halted": "متوقف شد. «{name}» چسبانده نشد؛ موردی که قرار بود جایگزینش شود هنوز در حال حذف است.",
 };
 
 export default fa;

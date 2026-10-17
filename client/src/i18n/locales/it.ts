@@ -4296,6 +4296,8 @@ c2c_test_deep_bad: "L’invio di prova di 4 KiB non è arrivato: {detail}",
 "cw_files_paste_here_already": "Già in questa cartella.",
 "cw_files_paste_done_skipped": "Fatto. {n} saltati.",
 "cw_files_replace_failed": "Impossibile eliminare l’elemento da sostituire, quindi non è stato incollato.",
+"cw_files_conflict_replace_all_body": "I file già presenti vengono sovrascritti; le cartelle, con tutto il contenuto, vengono prima eliminate. Non si può annullare.",
+"cw_files_paste_halted": "Interrotto. «{name}» non è stato incollato; l’elemento da sostituire è ancora in fase di eliminazione.",
 };
 
 export default it;

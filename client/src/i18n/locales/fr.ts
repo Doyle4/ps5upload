@@ -4364,6 +4364,8 @@ c2c_test_deep_bad: "L’envoi test de 4 Kio n’est pas arrivé : {detail}",
 "cw_files_paste_here_already": "Déjà dans ce dossier.",
 "cw_files_paste_done_skipped": "Terminé. {n} ignorés.",
 "cw_files_replace_failed": "Impossible de supprimer l’élément à remplacer : rien n’a été collé.",
+"cw_files_conflict_replace_all_body": "Les fichiers déjà présents sont écrasés ; les dossiers, avec tout leur contenu, sont d’abord supprimés. Action irréversible.",
+"cw_files_paste_halted": "Arrêté. « {name} » n’a pas été collé ; l’élément qu’il devait remplacer est encore en cours de suppression.",
 };
 
 export default fr;

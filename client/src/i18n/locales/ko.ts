@@ -4365,6 +4365,8 @@ c2c_test_deep_bad: "4 KiB 테스트 전송이 도착하지 않았습니다: {det
 "cw_files_paste_here_already": "이미 이 폴더에 있습니다.",
 "cw_files_paste_done_skipped": "완료. {n}개 건너뜀.",
 "cw_files_replace_failed": "바꿀 항목을 삭제하지 못해 붙여넣지 않았습니다.",
+"cw_files_conflict_replace_all_body": "기존 파일은 덮어쓰고, 폴더는 그 안의 모든 것과 함께 먼저 삭제됩니다. 되돌릴 수 없습니다.",
+"cw_files_paste_halted": "중지했습니다. “{name}”은(는) 붙여넣지 않았습니다. 바꿀 항목은 아직 삭제 중입니다.",
 };
 
 export default ko;

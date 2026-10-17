@@ -12,6 +12,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <time.h>
 
 #include "ava1_data.h"
@@ -347,9 +348,10 @@ static void r_fs_list(const char *b, size_t n, uint8_t *out, int fd) {
 }
 
 static void r_fs_stat(const char *b, size_t n, uint8_t *out, int fd) {
-    char path[API_PATH], req[API_PATH + 16], json[160];
+    char path[API_PATH], req[API_PATH + 16], json[256];
     ava1_fs_path_t q;
     ava1_fs_stat_t s;
+    struct stat ls;
     ava1_w_t w;
     size_t ol;
     int st, k;
@@ -371,8 +373,22 @@ static void r_fs_stat(const char *b, size_t n, uint8_t *out, int fd) {
         send_error(fd, 500, "bad_stat_reply", 14);
         return;
     }
-    k = snprintf(json, sizeof json, "{\"kind\":\"%s\",\"size\":%llu,\"mtime\":%llu,\"mode\":%lu}", kind_name(s.kind),
-                 (unsigned long long)s.size, (unsigned long long)s.mtime, (unsigned long)s.mode);
+    /* The entry's identity (device + inode, as strings: an inode can pass 2^53) so the page can tell
+     * "the item itself" from a different entry by more than its spelling: exFAT USB is
+     * case-insensitive, so /mnt/usb0/Games and /mnt/usb0/games are one folder. lstat (the
+     * entry itself, not a link's target) of the path the FS_STAT above already accepted. */
+    if (lstat(path, &ls) == 0)
+        k = snprintf(json, sizeof json,
+                     "{\"kind\":\"%s\",\"size\":%llu,\"mtime\":%llu,\"mode\":%lu,\"dev\":\"%llu\",\"ino\":\"%llu\"}",
+                     kind_name(s.kind), (unsigned long long)s.size, (unsigned long long)s.mtime, (unsigned long)s.mode,
+                     (unsigned long long)ls.st_dev, (unsigned long long)ls.st_ino);
+    else
+        k = snprintf(json, sizeof json, "{\"kind\":\"%s\",\"size\":%llu,\"mtime\":%llu,\"mode\":%lu}", kind_name(s.kind),
+                     (unsigned long long)s.size, (unsigned long long)s.mtime, (unsigned long)s.mode);
+    if (k < 0 || (size_t)k >= sizeof json) {
+        send_error(fd, 500, "bad_stat_reply", 14);
+        return;
+    }
     send_json(fd, 200, json, (size_t)k);
 }
 
