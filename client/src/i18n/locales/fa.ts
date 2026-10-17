@@ -4446,6 +4446,7 @@ c2c_test_deep_bad: "ارسال آزمایشی ۴ KiB نرسید: {detail}",
 "cw_files_info_modified": "تغییر",
 "cw_files_info_mode": "مجوزها",
 "cw_files_truncated": "فقط ۱ مبی‌بایت اول نمایش داده می‌شود.",
+"cw_files_err_into_itself": "پوشه را نمی‌توان در خودش یا یکی از زیرپوشه‌هایش قرار داد.",
 };
 
 export default fa;

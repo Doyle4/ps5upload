@@ -4095,6 +4095,7 @@ c2c_test_deep_bad: "El envío de prueba de 4 KiB no llegó: {detail}",
 "cw_files_info_modified": "Modificado",
 "cw_files_info_mode": "Permisos",
 "cw_files_truncated": "Se muestra el primer 1 MiB.",
+"cw_files_err_into_itself": "Una carpeta no puede ir dentro de sí misma ni de una de sus subcarpetas.",
 };
 
 export default es;

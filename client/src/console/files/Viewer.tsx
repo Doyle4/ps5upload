@@ -9,12 +9,17 @@ export const VIEW_MAX = 1024 * 1024;
 /** Images are read whole, 1 MiB per request, up to this much. */
 export const IMAGE_MAX = 16 * VIEW_MAX;
 
-/** Read `path` from the start, request after request, until it ends or `max` bytes. */
-async function readUpTo(path: string, max: number): Promise<Blob> {
+/**
+ * Read `path` from the start, request after request, until it ends or `max`
+ * bytes. `signal` (the viewer closed) stops it before the next request and
+ * aborts the one in flight: each holds one of the helper's four web workers.
+ */
+export async function readUpTo(path: string, max: number, signal?: AbortSignal): Promise<Blob> {
   const parts: Blob[] = [];
   let at = 0;
   while (at < max) {
-    const b = await callBlob("/api/fs/read", { path, offset: at, len: VIEW_MAX });
+    if (signal?.aborted) throw new Error("aborted");
+    const b = await callBlob("/api/fs/read", { path, offset: at, len: VIEW_MAX }, signal);
     parts.push(b);
     at += b.size;
     if (b.size < VIEW_MAX) break;
@@ -77,7 +82,8 @@ export function Viewer({
   useEffect(() => {
     let live = true;
     let url: string | null = null;
-    readUpTo(path, kind === "image" ? IMAGE_MAX : VIEW_MAX).then(
+    const stop = new AbortController();
+    readUpTo(path, kind === "image" ? IMAGE_MAX : VIEW_MAX, stop.signal).then(
       async (blob) => {
         if (!live) return;
         if (kind === "image") {
@@ -97,6 +103,7 @@ export function Viewer({
     );
     return () => {
       live = false;
+      stop.abort();
       if (url) URL.revokeObjectURL(url);
     };
   }, [path, name, kind]);

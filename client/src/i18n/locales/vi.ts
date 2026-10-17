@@ -4147,6 +4147,7 @@ c2c_test_deep_bad: "Lượt gửi thử 4 KiB không tới: {detail}",
 "cw_files_info_modified": "Sửa đổi",
 "cw_files_info_mode": "Quyền",
 "cw_files_truncated": "Đang hiện 1 MiB đầu tiên.",
+"cw_files_err_into_itself": "Không thể đặt thư mục vào chính nó hoặc thư mục con của nó.",
 };
 
 export default vi;

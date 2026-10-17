@@ -4145,6 +4145,7 @@ c2c_test_deep_bad: "لم يصل الإرسال التجريبي بحجم 4 KiB: 
 "cw_files_info_modified": "آخر تعديل",
 "cw_files_info_mode": "الأذونات",
 "cw_files_truncated": "يُعرض أول 1 MiB فقط.",
+"cw_files_err_into_itself": "لا يمكن وضع مجلد داخل نفسه أو داخل أحد مجلداته الفرعية.",
 };
 
 export default ar;

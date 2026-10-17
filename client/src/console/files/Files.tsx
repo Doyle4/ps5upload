@@ -25,6 +25,7 @@ import {
   renameEntry,
   upFrom,
   volumeOf,
+  IntoItselfError,
   type BatchResult,
 } from "./move";
 import { PathPicker } from "./PathPicker";
@@ -59,8 +60,11 @@ export function filesErrorText(err: unknown): string | null {
   if (err instanceof ApiError) {
     if (err.status === 403) return t("cw_files_err_denied");
     if (err.status === 404) return t("cw_files_err_missing");
-    if (err.status === 409 && err.code !== "busy") return t("cw_files_err_exists");
+    // 409 is "exists" or "busy" (and cross_mount, handled by moveItems): only an
+    // "exist…" code says the name is taken.
+    if (err.status === 409 && /exist/i.test(err.code)) return t("cw_files_err_exists");
   }
+  if (err instanceof IntoItselfError) return t("cw_files_err_into_itself");
   return errorText(err);
 }
 
@@ -359,10 +363,6 @@ export function Files({ ctx }: { ctx: SectionContext }) {
   const afterMore = useRef<number | null>(null);
   const { refresh } = dir;
 
-  // Home's Browse USB (or any openSection) opens a path.
-  useEffect(() => {
-    if (wanted != null) setPath(wanted);
-  }, [wanted]);
 
   useEffect(() => {
     if (!message) return;
@@ -377,6 +377,12 @@ export function Files({ ctx }: { ctx: SectionContext }) {
     setSelected([]);
     setPath(next);
   }, []);
+
+  // Home's Browse USB (or any openSection) opens a path: like any folder change,
+  // the selection is cleared and focus goes to its first row.
+  useEffect(() => {
+    if (wanted != null) go(wanted);
+  }, [wanted, go]);
 
   const goUp = useCallback(() => {
     if (path == null) return;

@@ -4145,6 +4145,7 @@ c2c_test_deep_bad: "4 KiB-এর পরীক্ষামূলক পাঠা�
 "cw_files_info_modified": "পরিবর্তিত",
 "cw_files_info_mode": "অনুমতি",
 "cw_files_truncated": "প্রথম 1 MiB দেখানো হচ্ছে।",
+"cw_files_err_into_itself": "কোনো ফোল্ডারকে তার নিজের ভেতরে বা তার কোনো সাবফোল্ডারে রাখা যায় না।",
 };
 
 export default bn;

@@ -4152,6 +4152,7 @@ c2c_test_deep_bad: "4 KiB'lik test gönderimi ulaşmadı: {detail}",
 "cw_files_info_modified": "Değiştirilme",
 "cw_files_info_mode": "İzinler",
 "cw_files_truncated": "İlk 1 MiB gösteriliyor.",
+"cw_files_err_into_itself": "Bir klasör kendi içine veya alt klasörlerinden birine taşınamaz.",
 };
 
 export default tr;

@@ -4095,6 +4095,7 @@ c2c_test_deep_bad: "4 KiB 測試傳送未抵達：{detail}",
 "cw_files_info_modified": "修改時間",
 "cw_files_info_mode": "權限",
 "cw_files_truncated": "只顯示前 1 MiB。",
+"cw_files_err_into_itself": "無法將資料夾放進它自己或它的子資料夾。",
 };
 
 export default zh_TW;

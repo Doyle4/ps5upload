@@ -14,7 +14,7 @@ import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { ActionsSheet } from "./ActionsSheet";
 import { DirList } from "./DirList";
 import { filesErrorText, FilesView, upFrom, viewKind, type FilesViewProps } from "./Files";
-import { renameEntry } from "./move";
+import { IntoItselfError, renameEntry } from "./move";
 import { TextPrompt } from "./TextPrompt";
 import type { DirState, Entry } from "./useDir";
 
@@ -205,5 +205,14 @@ describe("Files", () => {
     expect(filesErrorText(new ApiError(403, "forbidden"))).toBe(t("cw_files_err_denied"));
     expect(filesErrorText(new ApiError(409, "exists"))).toBe(t("cw_files_err_exists"));
     expect(filesErrorText(new ApiError(401, "token"))).toBeNull();
+    expect(filesErrorText(new IntoItselfError("/data/a"))).toBe(t("cw_files_err_into_itself"));
+  });
+
+  it("409_shows_exists_only_for_an_exist_code", () => {
+    expect(filesErrorText(new ApiError(409, "the destination already exists"))).toBe(t("cw_files_err_exists"));
+    expect(filesErrorText(new ApiError(409, "busy"))).toBe(t("cw_home_err_busy"));
+    expect(filesErrorText(new ApiError(409, "job_in_progress"))).toBe(
+      t("cw_home_err_failed", { code: "job_in_progress" }),
+    );
   });
 });

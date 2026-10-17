@@ -4095,6 +4095,7 @@ c2c_test_deep_bad: "L’invio di prova di 4 KiB non è arrivato: {detail}",
 "cw_files_info_modified": "Modificato",
 "cw_files_info_mode": "Permessi",
 "cw_files_truncated": "Viene mostrato il primo MiB.",
+"cw_files_err_into_itself": "Una cartella non può finire dentro sé stessa o una sua sottocartella.",
 };
 
 export default it;

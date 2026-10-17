@@ -4101,6 +4101,7 @@ c2c_test_deep_bad: "4 KiB 测试发送未到达：{detail}",
 "cw_files_info_modified": "修改时间",
 "cw_files_info_mode": "权限",
 "cw_files_truncated": "仅显示前 1 MiB。",
+"cw_files_err_into_itself": "不能把文件夹放进它自身或它的子文件夹。",
 };
 
 export default zh_CN;

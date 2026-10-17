@@ -4161,6 +4161,7 @@ c2c_test_deep_bad: "4 KiB का परीक्षण नहीं पहुँ
 "cw_files_info_modified": "बदला गया",
 "cw_files_info_mode": "अनुमतियाँ",
 "cw_files_truncated": "पहला 1 MiB दिखाया जा रहा है।",
+"cw_files_err_into_itself": "फ़ोल्डर को उसी के अंदर या उसके किसी सब-फ़ोल्डर में नहीं रखा जा सकता।",
 };
 
 export default hi;

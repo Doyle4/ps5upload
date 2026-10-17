@@ -4164,6 +4164,7 @@ c2c_test_deep_bad: "4 KiB 테스트 전송이 도착하지 않았습니다: {det
 "cw_files_info_modified": "수정한 날짜",
 "cw_files_info_mode": "권한",
 "cw_files_truncated": "처음 1 MiB를 표시합니다.",
+"cw_files_err_into_itself": "폴더를 자기 자신이나 그 하위 폴더 안에 넣을 수 없습니다.",
 };
 
 export default ko;

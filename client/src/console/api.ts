@@ -64,7 +64,7 @@ function token(): Promise<string> {
 }
 
 /** POST `body` as JSON to `route`; the Response when it is 2xx, else the ApiError. */
-async function post(route: string, body?: object): Promise<Response> {
+async function post(route: string, body?: object, signal?: AbortSignal): Promise<Response> {
   const tok = await token();
   let res: Response;
   try {
@@ -74,6 +74,7 @@ async function post(route: string, body?: object): Promise<Response> {
       cache: "no-store",
       headers: { "Content-Type": "application/json", [TOKEN_HEADER]: tok },
       body: JSON.stringify(body ?? {}),
+      signal,
     });
   } catch {
     throw new ApiError(0, "offline");
@@ -99,8 +100,8 @@ export async function call<T>(route: string, body?: object): Promise<T> {
   return (await res.json().catch(() => null)) as T;
 }
 
-/** POST `body` as JSON to `route` and return the raw reply (/api/fs/read's bytes). */
-export async function callBlob(route: string, body?: object): Promise<Blob> {
-  const res = await post(route, body);
+/** POST `body` as JSON to `route` and return the raw reply (/api/fs/read's bytes). `signal` aborts it. */
+export async function callBlob(route: string, body?: object, signal?: AbortSignal): Promise<Blob> {
+  const res = await post(route, body, signal);
   return res.blob();
 }

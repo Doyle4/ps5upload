@@ -4162,6 +4162,7 @@ c2c_test_deep_bad: "O envio de teste de 4 KiB não chegou: {detail}",
 "cw_files_info_modified": "Modificado",
 "cw_files_info_mode": "Permissões",
 "cw_files_truncated": "Mostrando o primeiro 1 MiB.",
+"cw_files_err_into_itself": "Uma pasta não pode ir para dentro de si mesma ou de uma subpasta.",
 };
 
 export default pt_BR;

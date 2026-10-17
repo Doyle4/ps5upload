@@ -4154,6 +4154,7 @@ c2c_test_deep_bad: "การส่งทดสอบ 4 KiB ไปไม่ถ�
 "cw_files_info_modified": "แก้ไขเมื่อ",
 "cw_files_info_mode": "สิทธิ์",
 "cw_files_truncated": "แสดง 1 MiB แรก",
+"cw_files_err_into_itself": "ไม่สามารถใส่โฟลเดอร์ไว้ในตัวเองหรือโฟลเดอร์ย่อยของมันได้",
 };
 
 export default th;

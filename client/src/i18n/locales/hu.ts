@@ -4460,6 +4460,7 @@ c2c_test_deep_bad: "A 4 KiB-os tesztküldés nem érkezett meg: {detail}",
 "cw_files_info_modified": "Módosítva",
 "cw_files_info_mode": "Jogosultságok",
 "cw_files_truncated": "Az első 1 MiB látható.",
+"cw_files_err_into_itself": "Mappa nem kerülhet önmagába vagy egy almappájába.",
 };
 
 export default hu;

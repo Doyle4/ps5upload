@@ -4163,6 +4163,7 @@ c2c_test_deep_bad: "L’envoi test de 4 Kio n’est pas arrivé : {detail}",
 "cw_files_info_modified": "Modifié",
 "cw_files_info_mode": "Autorisations",
 "cw_files_truncated": "Affichage du premier Mio.",
+"cw_files_err_into_itself": "Un dossier ne peut pas aller dans lui-même ni dans l'un de ses sous-dossiers.",
 };
 
 export default fr;

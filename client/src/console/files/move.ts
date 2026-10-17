@@ -29,6 +29,21 @@ export function baseName(path: string): string {
   return p.slice(p.lastIndexOf("/") + 1);
 }
 
+/** A folder cannot be copied or moved into itself or one of its subfolders. */
+export class IntoItselfError extends Error {
+  constructor(item: string) {
+    super(`into_itself: ${item}`);
+    this.name = "IntoItselfError";
+  }
+}
+
+/** `destDir` is `item` or inside it (checked on the page, before any request). */
+export function isInside(destDir: string, item: string): boolean {
+  const d = destDir.replace(/\/+$/, "") || "/";
+  const i = item.replace(/\/+$/, "") || "/";
+  return d === i || d.startsWith(i === "/" ? "/" : `${i}/`);
+}
+
 export interface Failure {
   item: string;
   error: unknown;
@@ -75,6 +90,7 @@ async function startCopy(src: string, dest: string, move: boolean): Promise<stri
  */
 export async function moveItems(items: string[], destDir: string, onProgress?: Progress): Promise<BatchResult> {
   return each(items, onProgress, async (item, r) => {
+    if (isInside(destDir, item)) throw new IntoItselfError(item);
     if (parentPath(item) === destDir.replace(/\/+$/, "")) return; // already there
     const to = joinPath(destDir, baseName(item));
     try {
@@ -89,6 +105,7 @@ export async function moveItems(items: string[], destDir: string, onProgress?: P
 
 export async function copyItems(items: string[], destDir: string, onProgress?: Progress): Promise<BatchResult> {
   return each(items, onProgress, async (item, r) => {
+    if (isInside(destDir, item)) throw new IntoItselfError(item);
     r.started.push(await startCopy(item, joinPath(destDir, baseName(item)), false));
   });
 }

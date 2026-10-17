@@ -4166,6 +4166,7 @@ c2c_test_deep_bad: "4 KiB のテスト送信が届きませんでした: {detail
 "cw_files_info_modified": "更新日時",
 "cw_files_info_mode": "アクセス権",
 "cw_files_truncated": "先頭 1 MiB を表示しています。",
+"cw_files_err_into_itself": "フォルダーを自分自身やそのサブフォルダーの中には入れられません。",
 };
 
 export default ja;

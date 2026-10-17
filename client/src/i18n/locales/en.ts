@@ -4468,6 +4468,7 @@ c2c_test_deep_bad: "The 4 KiB test send did not arrive: {detail}",
 "cw_files_info_modified": "Modified",
 "cw_files_info_mode": "Permissions",
 "cw_files_truncated": "Showing the first 1 MiB.",
+"cw_files_err_into_itself": "A folder can't go into itself or one of its folders.",
 };
 
 export default en;

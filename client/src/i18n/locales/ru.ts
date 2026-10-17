@@ -4095,6 +4095,7 @@ c2c_test_deep_bad: "Тестовая отправка 4 КиБ не дошла: 
 "cw_files_info_modified": "Изменён",
 "cw_files_info_mode": "Права доступа",
 "cw_files_truncated": "Показан первый 1 МиБ.",
+"cw_files_err_into_itself": "Папку нельзя поместить в саму себя или в её подпапку.",
 };
 
 export default ru;

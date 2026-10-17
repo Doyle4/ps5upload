@@ -4154,6 +4154,7 @@ c2c_test_deep_bad: "Kiriman uji 4 KiB tidak tiba: {detail}",
 "cw_files_info_modified": "Diubah",
 "cw_files_info_mode": "Izin",
 "cw_files_truncated": "Menampilkan 1 MiB pertama.",
+"cw_files_err_into_itself": "Folder tidak bisa dimasukkan ke dirinya sendiri atau subfoldernya.",
 };
 
 export default id;

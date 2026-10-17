@@ -6,7 +6,7 @@ vi.mock("../api", async (importOriginal) => {
 });
 
 import { ApiError, call } from "../api";
-import { baseName, copyItems, deleteItems, joinPath, moveItems, parentPath, renameEntry } from "./move";
+import { baseName, copyItems, deleteItems, IntoItselfError, isInside, joinPath, moveItems, parentPath, renameEntry } from "./move";
 
 const mockCall = vi.mocked(call);
 
@@ -87,6 +87,23 @@ describe("moveItems", () => {
       [2, 3],
       [3, 3],
     ]);
+  });
+});
+
+describe("into itself", () => {
+  it("copy_or_move_into_itself_is_refused_before_any_request", async () => {
+    expect(isInside("/data/a", "/data/a")).toBe(true);
+    expect(isInside("/data/a/b/c", "/data/a")).toBe(true);
+    expect(isInside("/data/ab", "/data/a")).toBe(false);
+    expect(isInside("/data", "/data/a")).toBe(false);
+    mockCall.mockResolvedValue({ job: "ab".repeat(16) } as never);
+    const m = await moveItems(["/data/a", "/data/x"], "/data/a/sub");
+    const c = await copyItems(["/data/a"], "/data/a");
+    expect(m.failed.map((f) => f.item)).toEqual(["/data/a"]);
+    expect(m.failed[0].error).toBeInstanceOf(IntoItselfError);
+    expect(c.failed[0].error).toBeInstanceOf(IntoItselfError);
+    // Only the other item was sent; nothing for /data/a.
+    expect(mockCall.mock.calls).toEqual([["/api/fs/rename", { from: "/data/x", to: "/data/a/sub/x" }]]);
   });
 });
 

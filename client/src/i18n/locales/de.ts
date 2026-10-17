@@ -4153,6 +4153,7 @@ c2c_test_deep_bad: "Die 4-KiB-Testsendung ist nicht angekommen: {detail}",
 "cw_files_info_modified": "Geändert",
 "cw_files_info_mode": "Berechtigungen",
 "cw_files_truncated": "Die ersten 1 MiB werden angezeigt.",
+"cw_files_err_into_itself": "Ein Ordner kann nicht in sich selbst oder einen seiner Unterordner.",
 };
 
 export default de;

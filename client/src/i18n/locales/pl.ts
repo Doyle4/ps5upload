@@ -4400,6 +4400,7 @@ c2c_test_deep_bad: "Testowa wysyłka 4 KiB nie dotarła: {detail}",
 "cw_files_info_modified": "Zmodyfikowano",
 "cw_files_info_mode": "Uprawnienia",
 "cw_files_truncated": "Pokazano pierwszy 1 MiB.",
+"cw_files_err_into_itself": "Folderu nie można umieścić w nim samym ani w jego podfolderze.",
 };
 
 export default pl;
