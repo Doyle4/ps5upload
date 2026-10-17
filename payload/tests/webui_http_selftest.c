@@ -148,6 +148,20 @@ static void head_has_connection_close(void) {
     CHECK(n > 0 && strstr(out, "404 Not Found") != NULL);
     CHECK(strstr(out, "X-Foo: bar\r\n") != NULL);
 
+    CHECK(strstr(out, "Cache-Control: no-store\r\n") != NULL);
+
+    /* An own Cache-Control line replaces no-store (first line or a later one). */
+    n = webui_http_head(out, sizeof out, 200, "application/json", 9,
+                        "Content-Encoding: gzip\r\nCache-Control: public, max-age=31536000, immutable\r\n");
+    CHECK(n > 0 && strstr(out, "no-store") == NULL);
+    CHECK(strstr(out, "Cache-Control: public, max-age=31536000, immutable\r\n") != NULL);
+    CHECK(strstr(out, "Content-Encoding: gzip\r\n") != NULL);
+    n = webui_http_head(out, sizeof out, 200, "application/json", 9, "Cache-Control: max-age=5\r\n");
+    CHECK(n > 0 && strstr(out, "no-store") == NULL && strstr(out, "Cache-Control: max-age=5\r\n") != NULL);
+    /* "Cache-Control" inside another header's value is not a Cache-Control line. */
+    n = webui_http_head(out, sizeof out, 200, "text/plain", 0, "X-Note: Cache-Control: nope\r\n");
+    CHECK(n > 0 && strstr(out, "Cache-Control: no-store\r\n") != NULL);
+
     CHECK(webui_http_head(out, 20, 200, "text/plain", 1, NULL) == -1);
     CHECK(webui_http_head(out, sizeof out, 200, NULL, 1, NULL) > 0);
 }

@@ -29,6 +29,7 @@
 #include "webui_page.h"
 #include "webui_server.h"
 #include "webui_settings.h"
+#include "webui_strings.h"
 #include "webui_tile.h"
 
 #define API_OUT_MAX (256u * 1024u)   /* an AVA1 reply's ceiling (the server's RPC_OUT_MAX) */
@@ -953,18 +954,33 @@ static const struct {
  * nosniff, final CRLF) is under 200 bytes, so the extra lines get at most 300. */
 _Static_assert(sizeof(PAGE_HEADERS) <= 300, "PAGE_HEADERS must fit webui_send_ex's 512-byte head");
 
-/* GET / and GET /api/token: the server checked Host/Origin but no token (is_api is 0 for both).
- * Neither reaches a helper method, so they stay outside the in-flight RPC gate. The token goes
- * out as JSON with no CORS headers: another site's page cannot read the reply, and loaded through
- * a <script> tag it executes nothing. Never serve it as JavaScript. */
+/* One language's strings (webui_strings.h): gzip'd JSON, cached for a year. The page asks with
+ * ?v=<hash of the strings> (the query is not read here), so every build is a new URL. */
+#define STRINGS_HEADERS                                       \
+    "Content-Encoding: gzip\r\n"                              \
+    "Cache-Control: public, max-age=31536000, immutable\r\n"
+_Static_assert(sizeof(STRINGS_HEADERS) <= 300, "STRINGS_HEADERS must fit webui_send_ex's 512-byte head");
+
+#define STRINGS_PREFIX "/strings/"
+
+/* GET /, GET /api/token and GET /strings/<lang>.json: the server checked Host/Origin but no token
+ * (is_api is 0 for all three). None reaches a helper method, so they stay outside the in-flight RPC
+ * gate. The token goes out as JSON with no CORS headers: another site's page cannot read the reply,
+ * and loaded through a <script> tag it executes nothing. Never serve it as JavaScript. A strings
+ * path names one of the embedded languages exactly (webui_strings_find) or answers 404. */
 static int serve_static(const webui_req_t *r, int fd) {
     int page = strcmp(r->path, "/") == 0;
-    if (!page && strcmp(r->path, "/api/token") != 0) return 0;
+    int strings = strncmp(r->path, STRINGS_PREFIX, sizeof STRINGS_PREFIX - 1) == 0;
+    if (!page && !strings && strcmp(r->path, "/api/token") != 0) return 0;
     if (strcmp(r->method, "GET") != 0) {
         webui_send_json(fd, 405, "{\"error\":\"method_not_allowed\"}");
         return 1;
     }
-    if (page) {
+    if (strings) {
+        const webui_strings_entry_t *e = webui_strings_find(webui_strings_table, webui_strings_count, r->path);
+        if (!e) webui_send_json(fd, 404, "{\"error\":\"not_found\"}");
+        else webui_send_ex(fd, 200, "application/json", e->data, e->len, STRINGS_HEADERS);
+    } else if (page) {
         webui_send_ex(fd, 200, "text/html; charset=utf-8", webui_page_gz, webui_page_gz_len, PAGE_HEADERS);
     } else {
         char tok[65], json[96];

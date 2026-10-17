@@ -10,8 +10,10 @@
  * appends the page's controller-input measurements to WEBUI_INPUTLOG_PATH (webui_inputlog.h),
  * bodies over WEBUI_INPUTLOG_BODY_MAX answer 413, calls closer than 500 ms apart 429.
  *
- * Two GET routes sit outside the table: GET / serves the embedded page (webui_page.h) and
- * GET /api/token answers {"token":"<hex>"}, both after the server's Host/Origin check only. */
+ * Three GET routes sit outside the table: GET / serves the embedded page (webui_page.h),
+ * GET /api/token answers {"token":"<hex>"} and GET /strings/<lang>.json one language's embedded
+ * strings (webui_strings.h; an id not in that table answers 404), all after the server's
+ * Host/Origin check only. */
 #ifndef PS5UPLOAD_WEBUI_API_H
 #define PS5UPLOAD_WEBUI_API_H
 

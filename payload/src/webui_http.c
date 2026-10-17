@@ -190,19 +190,22 @@ static const char *status_text(int status) {
 
 int webui_http_head(char *out, size_t cap, int status, const char *content_type,
                     size_t body_len, const char *extra_headers) {
-    int n;
+    int n, own_cache;
     size_t used;
     if (!out || cap == 0) return -1;
+    /* no-store unless the extra headers carry their own Cache-Control line (the strings files). */
+    own_cache = extra_headers && (strncmp(extra_headers, "Cache-Control:", 14) == 0 ||
+                                  strstr(extra_headers, "\r\nCache-Control:") != NULL);
     n = snprintf(out, cap,
                  "HTTP/1.1 %d %s\r\n"
                  "Content-Type: %s\r\n"
                  "Content-Length: %lu\r\n"
                  "Connection: close\r\n"
-                 "Cache-Control: no-store\r\n"
+                 "%s"
                  "X-Content-Type-Options: nosniff\r\n",
                  status, status_text(status),
                  content_type ? content_type : "application/octet-stream",
-                 (unsigned long)body_len);
+                 (unsigned long)body_len, own_cache ? "" : "Cache-Control: no-store\r\n");
     if (n < 0 || (size_t)n >= cap) return -1;
     used = (size_t)n;
     if (extra_headers && *extra_headers) {

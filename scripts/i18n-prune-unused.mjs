@@ -183,7 +183,7 @@ function loadEnKeys() {
 /** The console web page (client/src/console/) passes its `cw_*` keys around in
  *  tables (`labelKey: "cw_nav_home"`, hint labels) and resolves them with
  *  `t(labelKey)`, so in that tree any quoted `cw_*` literal counts as a use. Its
- *  generated strings.gen.json is not scanned (only .ts/.tsx are). */
+ *  generated locales/<code>.json files are not scanned (only .ts/.tsx are). */
 const CONSOLE_ROOT = path.join(SRC_ROOT, "console") + path.sep;
 function extractConsoleKeys(file, content) {
   const keys = new Set();

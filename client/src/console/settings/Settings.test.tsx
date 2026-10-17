@@ -1,6 +1,7 @@
 import { isValidElement, type ReactElement, type ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { chooseLanguage, getLanguage, storedLanguage, t } from "../strings";
+import de from "../locales/de.json";
+import { _setStringsLoaderForTests, chooseLanguage, getLanguage, storedLanguage, stringsReady, t } from "../strings";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { lanToggleStep, SettingsView, waitTileApplied, type SettingsViewProps, type WebSettings } from "./Settings";
 
@@ -34,6 +35,8 @@ const base = (over: Partial<SettingsViewProps> = {}): SettingsViewProps => ({
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+  _setStringsLoaderForTests(null);
   chooseLanguage("");
 });
 
@@ -90,7 +93,9 @@ describe("settings", () => {
     expect(hidden).toBeUndefined();
   });
 
-  it("language_choice_persists_and_survives_storage_errors", () => {
+  it("language_choice_persists_and_survives_storage_errors", async () => {
+    _setStringsLoaderForTests((code) => (code === "de" ? Promise.resolve(de) : Promise.reject(new Error("offline"))));
+    vi.spyOn(console, "warn").mockImplementation(() => {});
     const store = new Map<string, string>();
     vi.stubGlobal("localStorage", {
       getItem: (k: string) => store.get(k) ?? null,
@@ -100,6 +105,8 @@ describe("settings", () => {
     chooseLanguage("de");
     expect(getLanguage()).toBe("de");
     expect(storedLanguage()).toBe("de");
+    await stringsReady();
+    expect(t("cw_nav_settings")).toBe(de.cw_nav_settings);
     expect(t("cw_nav_settings")).not.toBe("Settings");
     chooseLanguage("");
     expect(storedLanguage()).toBe("");

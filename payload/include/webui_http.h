@@ -34,7 +34,8 @@ enum {
 int webui_http_parse(const char *buf, size_t len, webui_req_t *out);
 
 /* Write "HTTP/1.1 <status>" + headers + blank line. extra_headers, if given,
- * is zero or more complete "Name: value\r\n" lines. Returns bytes written
+ * is zero or more complete "Name: value\r\n" lines; when one of them is a
+ * Cache-Control line it replaces the default "Cache-Control: no-store". Returns bytes written
  * (excluding NUL) or -1 if it does not fit. */
 int webui_http_head(char *out, size_t cap, int status, const char *content_type,
                     size_t body_len, const char *extra_headers);

@@ -9,10 +9,14 @@
  * - The PC app's theme tokens (dark, light, peach, OLED, high contrast) come from src/index.css itself (pcTokens),
  *   not a copy, so the page follows the app's colours.
  * - Size budget: the build FAILS over 640 KiB raw or 220 KiB gzip. Ruling R19 raised the gzip
- *   cap from 150 KiB: 21 inlined locales of console strings (the Controls screen, tips and help
- *   added ~60 keys each) compress poorly across scripts; the ELF embeds the gzip, still small.
+ *   cap from 150 KiB when all 21 locales were inlined; since then only English is (consoleStrings).
+ * - Strings: every other locale is emitted next to the page as strings/<code>.json (minified, cw_*
+ *   keys only); payload/Makefile gzips each into the ELF (build/webui_strings.c) and the helper
+ *   serves them at GET /strings/<code>.json. The page fetches them with ?v=<hash of these files>
+ *   (__CW_STRINGS_V__), so the helper's immutable caching never mixes builds.
  */
-import { readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { gzipSync } from "node:zlib";
 import { defineConfig, type Plugin } from "vite";
@@ -107,6 +111,41 @@ function pcTokens(): Plugin {
   };
 }
 
+const LOCALES_DIR = fileURLToPath(new URL("./src/console/locales", import.meta.url));
+
+/** Every committed locale but English (inlined), minified: { code: json text }. */
+function otherLocales(): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const f of readdirSync(LOCALES_DIR).filter((n) => n.endsWith(".json")).sort()) {
+    const code = f.slice(0, -".json".length);
+    if (code === "en") continue;
+    if (!/^[a-z]{2}(-[A-Z]{2})?$/.test(code)) throw new Error(`consoleStrings: locale file name ${f} is not <ll> or <ll>-<RR>`);
+    out[code] = JSON.stringify(JSON.parse(readFileSync(`${LOCALES_DIR}/${f}`, "utf8")));
+  }
+  return out;
+}
+
+/** Defines __CW_STRINGS_V__ and emits strings/<code>.json for every locale but English. */
+function consoleStrings(): Plugin {
+  const files = otherLocales();
+  const hash = createHash("sha256");
+  for (const [code, json] of Object.entries(files)) hash.update(`${code}\0${json}\0`);
+  const version = hash.digest("hex").slice(0, 12);
+  return {
+    name: "ps5upload-console-strings",
+    config: () => ({ define: { __CW_STRINGS_V__: JSON.stringify(version) } }),
+    generateBundle() {
+      if (Object.keys(files).length === 0) this.error("consoleStrings: no locales besides English in src/console/locales");
+      let gz = 0;
+      for (const [code, json] of Object.entries(files)) {
+        this.emitFile({ type: "asset", fileName: `strings/${code}.json`, source: json });
+        gz += gzipSync(json, { level: 9 }).length;
+      }
+      this.info(`console strings: ${Object.keys(files).length} locales, ${(gz / 1024).toFixed(1)} KiB gzip together, v=${version}`);
+    },
+  };
+}
+
 /** Move every emitted script and stylesheet into index.html, then enforce the budget. */
 function singleFile(): Plugin {
   return {
@@ -133,7 +172,8 @@ function singleFile(): Plugin {
           delete bundle[name];
         }
       }
-      const left = Object.keys(bundle).filter((n) => n !== "index.html");
+      // consoleStrings' strings/<code>.json stay separate files (the helper serves them).
+      const left = Object.keys(bundle).filter((n) => n !== "index.html" && !/^strings\/[^/]+\.json$/.test(n));
       if (left.length) return this.error(`singleFile: files left outside index.html: ${left.join(", ")}`);
       html.source = page;
 
@@ -156,7 +196,7 @@ export default defineConfig({
   root: fileURLToPath(new URL("./src/console", import.meta.url)),
   base: "./",
   publicDir: false,
-  plugins: [react(), pcTokens(), singleFile()],
+  plugins: [react(), pcTokens(), consoleStrings(), singleFile()],
   clearScreen: false,
   build: {
     outDir: fileURLToPath(new URL("./dist-console", import.meta.url)),

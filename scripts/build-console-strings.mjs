@@ -1,13 +1,15 @@
 #!/usr/bin/env node
 /*
  * The console web page's translations: every `cw_*` key from all 21 locale
- * files under client/src/i18n/locales/, written to
- * client/src/console/strings.gen.json as { "<locale>": { "cw_…": "…" } }.
+ * files under client/src/i18n/locales/, written one file per locale to
+ * client/src/console/locales/<locale>.json as { "cw_…": "…" }.
  *
- * The page (client/src/console/strings.ts) imports that JSON instead of the
- * PC app's locale modules, so it ships only its own strings. `npm run
- * build:console` runs this first; the file is committed so typecheck and
- * tests work without a build, and strings.test.ts fails when it is stale.
+ * The page (client/src/console/strings.ts) embeds only en.json; the build
+ * (vite.console.config.ts, consoleStrings) emits every other locale as
+ * dist-console/strings/<locale>.json, which payload/Makefile gzips into the
+ * helper and the page fetches from GET /strings/<locale>.json. `npm run
+ * build:console` runs this first; the files are committed so typecheck and
+ * tests work without a build, and strings.test.ts fails when they are stale.
  *
  * Locale files are read the way scripts/i18n-coverage.mjs reads them: the
  * `const <id>: Translations = { … }` literal evaluated in an isolated vm
@@ -24,7 +26,7 @@ import { fileURLToPath } from "node:url";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const LOCALES_DIR = path.join(repoRoot, "client/src/i18n/locales");
-const OUT_PATH = path.join(repoRoot, "client/src/console/strings.gen.json");
+const OUT_DIR = path.join(repoRoot, "client/src/console/locales");
 const PREFIX = "cw_";
 
 function loadLocale(fp) {
@@ -57,20 +59,33 @@ export function extractConsoleStrings() {
   return out;
 }
 
+/** { "<locale>.json": file text } for every locale, as committed under OUT_DIR. */
+export function consoleStringFiles() {
+  const out = {};
+  for (const [code, map] of Object.entries(extractConsoleStrings())) {
+    out[`${code}.json`] = `${JSON.stringify(map, null, 2)}\n`;
+  }
+  return out;
+}
+
 function main() {
-  const text = `${JSON.stringify(extractConsoleStrings(), null, 2)}\n`;
-  const old = fs.existsSync(OUT_PATH) ? fs.readFileSync(OUT_PATH, "utf8") : null;
+  const want = consoleStringFiles();
+  const have = fs.existsSync(OUT_DIR) ? fs.readdirSync(OUT_DIR).filter((f) => f.endsWith(".json")) : [];
+  const stale = Object.keys(want).filter((f) => !have.includes(f) || fs.readFileSync(path.join(OUT_DIR, f), "utf8") !== want[f]);
+  const extra = have.filter((f) => !(f in want));
   if (process.argv.includes("--check")) {
-    if (old !== text) {
-      console.error(`${path.relative(repoRoot, OUT_PATH)} is stale: run node scripts/build-console-strings.mjs`);
+    if (stale.length || extra.length) {
+      console.error(`${path.relative(repoRoot, OUT_DIR)} is stale (${[...stale, ...extra].join(", ")}): run node scripts/build-console-strings.mjs`);
       process.exit(1);
     }
     return;
   }
-  // Rewrite only on a change, so the payload's make rule does not see a new mtime for nothing.
-  if (old !== text) fs.writeFileSync(OUT_PATH, text);
-  const n = Object.keys(JSON.parse(text).en).length;
-  console.log(`console strings: ${n} keys × ${Object.keys(JSON.parse(text)).length} locales`);
+  // Rewrite only what changed, so the payload's make rule does not see a new mtime for nothing.
+  fs.mkdirSync(OUT_DIR, { recursive: true });
+  for (const f of stale) fs.writeFileSync(path.join(OUT_DIR, f), want[f]);
+  for (const f of extra) fs.unlinkSync(path.join(OUT_DIR, f));
+  const n = Object.keys(JSON.parse(want["en.json"])).length;
+  console.log(`console strings: ${n} keys × ${Object.keys(want).length} locales`);
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) main();

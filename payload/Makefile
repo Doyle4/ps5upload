@@ -170,6 +170,10 @@ WEBUI_TILE_ICON_C := build/webui_tile_icon.c
 # node_modules (`npm ci` in client/). Rebuilt when the page's sources, the locale files (its
 # strings), the PC app's tokens (src/index.css) or the build config change.
 WEBUI_PAGE_C := build/webui_page.c
+# The same build writes client/dist-console/strings/<lang>.json (every language but English, which
+# is inside the page); scripts/embed-console-strings.mjs gzips each into build/webui_strings.c
+# (include/webui_strings.h), served at GET /strings/<lang>.json.
+WEBUI_STRINGS_C := build/webui_strings.c
 CLIENT_DIR := ../client
 WEBUI_PAGE_DEPS := $(shell find $(CLIENT_DIR)/src/console -type f ! -name '*.test.ts' 2>/dev/null) \
         $(wildcard $(CLIENT_DIR)/src/i18n/locales/*.ts) $(CLIENT_DIR)/src/index.css \
@@ -186,7 +190,8 @@ SRCS := src/main.c src/runtime.c src/shell_builtin.c src/takeover.c src/takeover
         src/tmdb.c src/fw_spoof.c src/focus_probe.c \
         src/content_db.c src/mgmt_rpc.c src/fs_jobs.c src/net_probe.c src/net_ports.c src/mgmt_fs.c src/path_policy.c \
         src/webui_http.c src/webui_auth.c src/webui_server.c src/webui_codec.c src/webui_api.c \
-        src/webui_settings.c src/webui_inputlog.c src/webui_tile.c $(WEBUI_TILE_ICON_C) $(WEBUI_PAGE_C) \
+        src/webui_settings.c src/webui_inputlog.c src/webui_tile.c src/webui_strings.c $(WEBUI_TILE_ICON_C) \
+        $(WEBUI_PAGE_C) $(WEBUI_STRINGS_C) \
         third_party/tiny_aes/aes.c \
         $(BLAKE3_SRCS)
 
@@ -244,6 +249,11 @@ $(WEBUI_PAGE_C): $(WEBUI_PAGE_DEPS) Makefile
 	mv build/webui_page.gz.tmp build/webui_page.gz
 	(cd build && xxd -i webui_page.gz) > $@.tmp && mv $@.tmp $@
 
+# Written from the dist-console/strings the page rule's build just produced.
+$(WEBUI_STRINGS_C): $(WEBUI_PAGE_C) ../scripts/embed-console-strings.mjs Makefile
+	@mkdir -p $(dir $@)
+	node ../scripts/embed-console-strings.mjs $(CLIENT_DIR)/dist-console/strings $@
+
 # Gzipped copy for the Tauri bundle resource. linuxdeploy (Linux
 # AppImage bundler) walks every ELF in the AppDir and tries to
 # resolve its .so deps via `patchelf --print-needed`. The PS5
@@ -258,7 +268,7 @@ $(ELF).gz: $(ELF)
 clean:
 	rm -f $(ELF) $(ELF).gz $(SQLITE_OBJ) $(MONO_OBJ)
 	rm -rf build/ava1 $(SDK_CRT_BUILD)
-	rm -f $(WEBUI_TILE_ICON_C) $(WEBUI_PAGE_C) build/webui_page.gz
+	rm -f $(WEBUI_TILE_ICON_C) $(WEBUI_PAGE_C) $(WEBUI_STRINGS_C) build/webui_page.gz
 
 send: $(ELF)
 	@echo "Sending $(ELF) to $(PS5_HOST):$(PS5_PORT) ..."
