@@ -4491,6 +4491,12 @@ c2c_test_deep_bad: "A 4 KiB-os tesztküldés nem érkezett meg: {detail}",
 "cw_settings_display": "Megjelenítés",
 "cw_settings_fullscreen": "Teljes képernyő",
 "cw_settings_fullscreen_note": "Elrejti a böngésző sávjait, hogy az oldal kitöltse a tévét. A következő gombnyomástól érvényes.",
+"cw_settings_theme": "Téma",
+"cw_theme_dark": "Sötét",
+"cw_theme_light": "Világos",
+"cw_theme_oled": "OLED",
+"cw_theme_peach": "Barack",
+"cw_settings_contrast": "Magas kontraszt",
 };
 
 export default hu;

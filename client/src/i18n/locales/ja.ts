@@ -4197,6 +4197,12 @@ c2c_test_deep_bad: "4 KiB のテスト送信が届きませんでした: {detail
 "cw_settings_display": "表示",
 "cw_settings_fullscreen": "全画面",
 "cw_settings_fullscreen_note": "ブラウザーのバーを隠して、ページをテレビ全体に表示します。次にボタンを押したときに有効になります。",
+"cw_settings_theme": "テーマ",
+"cw_theme_dark": "ダーク",
+"cw_theme_light": "ライト",
+"cw_theme_oled": "OLED",
+"cw_theme_peach": "ピーチ",
+"cw_settings_contrast": "ハイコントラスト",
 };
 
 export default ja;

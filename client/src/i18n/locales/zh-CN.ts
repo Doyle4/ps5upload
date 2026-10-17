@@ -4132,6 +4132,12 @@ c2c_test_deep_bad: "4 KiB 测试发送未到达：{detail}",
 "cw_settings_display": "显示",
 "cw_settings_fullscreen": "全屏",
 "cw_settings_fullscreen_note": "隐藏浏览器的工具栏，让页面占满电视。在你下次按键时生效。",
+"cw_settings_theme": "主题",
+"cw_theme_dark": "深色",
+"cw_theme_light": "浅色",
+"cw_theme_oled": "OLED",
+"cw_theme_peach": "蜜桃",
+"cw_settings_contrast": "高对比度",
 };
 
 export default zh_CN;

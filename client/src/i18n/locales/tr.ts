@@ -4183,6 +4183,12 @@ c2c_test_deep_bad: "4 KiB'lik test gönderimi ulaşmadı: {detail}",
 "cw_settings_display": "Ekran",
 "cw_settings_fullscreen": "Tam ekran",
 "cw_settings_fullscreen_note": "Sayfanın tüm TV'yi doldurması için tarayıcı çubuklarını gizler. Bir sonraki tuşa basışınızda etkinleşir.",
+"cw_settings_theme": "Tema",
+"cw_theme_dark": "Koyu",
+"cw_theme_light": "Açık",
+"cw_theme_oled": "OLED",
+"cw_theme_peach": "Şeftali",
+"cw_settings_contrast": "Yüksek kontrast",
 };
 
 export default tr;

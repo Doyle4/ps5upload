@@ -113,4 +113,19 @@ describe("settings", () => {
     expect(getLanguage()).toBe("fr");
     expect(storedLanguage()).toBe("");
   });
+
+  it("theme_row_changes_the_theme_and_contrast_switch_toggles", () => {
+    const onTheme = vi.fn();
+    const onToggleContrast = vi.fn();
+    const els = elements(SettingsView(base({ theme: "dark", contrast: false, onTheme, onToggleContrast })));
+    const choices = els.filter((e) => e.props["data-theme-choice"] !== undefined);
+    expect(choices.map((e) => e.props["data-theme-choice"])).toEqual(["dark", "light", "oled", "peach"]);
+    expect(choices.map((e) => e.props["aria-pressed"])).toEqual([true, false, false, false]);
+    (choices[3].props.onClick as () => void)();
+    expect(onTheme).toHaveBeenCalledWith("peach");
+    const sw = els.find((e) => e.props.action === "contrast");
+    expect(sw?.props.on).toBe(false);
+    (sw?.props.onClick as () => void)();
+    expect(onToggleContrast).toHaveBeenCalled();
+  });
 });

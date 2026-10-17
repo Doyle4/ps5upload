@@ -4431,6 +4431,12 @@ c2c_test_deep_bad: "Testowa wysyłka 4 KiB nie dotarła: {detail}",
 "cw_settings_display": "Ekran",
 "cw_settings_fullscreen": "Pełny ekran",
 "cw_settings_fullscreen_note": "Ukrywa paski przeglądarki, aby strona wypełniała cały telewizor. Działa od następnego naciśnięcia przycisku.",
+"cw_settings_theme": "Motyw",
+"cw_theme_dark": "Ciemny",
+"cw_theme_light": "Jasny",
+"cw_theme_oled": "OLED",
+"cw_theme_peach": "Brzoskwinia",
+"cw_settings_contrast": "Wysoki kontrast",
 };
 
 export default pl;

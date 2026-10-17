@@ -4,6 +4,7 @@ import { fullscreenState, setFullscreenPref, watchFullscreen } from "../fullscre
 import { onNavAction } from "../nav";
 import { LANGUAGE_NAMES } from "../languages";
 import { chooseLanguage, LANGUAGES, storedLanguage, t } from "../strings";
+import { getContrast, getTheme, setContrast, setTheme, THEMES, type Theme } from "../theme";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
 
 /** /api/settings (payload/src/webui_api.c send_settings). */
@@ -75,6 +76,11 @@ export interface SettingsViewProps {
    *  or refused (the switch is hidden). */
   fullscreen?: boolean | null;
   onToggleFullscreen?: () => void;
+  /** The page's theme and high-contrast switch (the Display section). */
+  theme?: Theme;
+  contrast?: boolean;
+  onTheme?: (theme: Theme) => void;
+  onToggleContrast?: () => void;
 }
 
 function Switch({
@@ -148,9 +154,37 @@ export function SettingsView(p: SettingsViewProps) {
         )}
       </section>
 
-      {typeof p.fullscreen === "boolean" ? (
-        <section className="cw-home-section">
-          <h2 className="cw-h2">{t("cw_settings_display")}</h2>
+      <section className="cw-home-section">
+        <h2 className="cw-h2">{t("cw_settings_display")}</h2>
+        {p.theme ? (
+          <div className="cw-setting">
+            <p className="cw-dim cw-setting-note">{t("cw_settings_theme")}</p>
+            <div className="cw-quick" role="group" aria-label={t("cw_settings_theme")}>
+              {THEMES.map((th) => (
+                <button
+                  key={th}
+                  type="button"
+                  className="cw-focusable cw-button"
+                  data-theme-choice={th}
+                  aria-pressed={p.theme === th}
+                  onClick={() => p.onTheme?.(th)}
+                >
+                  <span>{t(`cw_theme_${th}`)}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
+        {typeof p.contrast === "boolean" ? (
+          <Switch
+            action="contrast"
+            label={t("cw_settings_contrast")}
+            on={p.contrast}
+            disabled={false}
+            onClick={() => p.onToggleContrast?.()}
+          />
+        ) : null}
+        {typeof p.fullscreen === "boolean" ? (
           <Switch
             action="fullscreen"
             label={t("cw_settings_fullscreen")}
@@ -159,8 +193,8 @@ export function SettingsView(p: SettingsViewProps) {
             onClick={() => p.onToggleFullscreen?.()}
             note={t("cw_settings_fullscreen_note")}
           />
-        </section>
-      ) : null}
+        ) : null}
+      </section>
 
       <section className="cw-home-section">
         <h2 className="cw-h2">{t("cw_settings_language")}</h2>
@@ -214,6 +248,8 @@ export function Settings() {
   // The switch shows the real state: entered, left (the browser's own way too) or refused.
   useEffect(() => watchFullscreen(setFs), []);
   const fullscreen = fs.supported ? fs.on : null;
+  const [theme, setThemeState] = useState<Theme>(getTheme);
+  const [contrast, setContrastState] = useState(getContrast);
   /** Bumped by Create (refresh) to read /api/settings again. */
   const [tick, setTick] = useState(0);
 
@@ -303,6 +339,16 @@ export function Settings() {
       onLanguage={(code) => {
         chooseLanguage(code);
         setLanguageState(code);
+      }}
+      theme={theme}
+      contrast={contrast}
+      onTheme={(next) => {
+        setTheme(next);
+        setThemeState(next);
+      }}
+      onToggleContrast={() => {
+        setContrast(!contrast);
+        setContrastState(!contrast);
       }}
       fullscreen={fullscreen}
       onToggleFullscreen={() => {

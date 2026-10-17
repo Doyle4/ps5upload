@@ -4178,6 +4178,12 @@ c2c_test_deep_bad: "Lượt gửi thử 4 KiB không tới: {detail}",
 "cw_settings_display": "Hiển thị",
 "cw_settings_fullscreen": "Toàn màn hình",
 "cw_settings_fullscreen_note": "Ẩn các thanh của trình duyệt để trang lấp đầy TV. Có hiệu lực ở lần bấm nút tiếp theo.",
+"cw_settings_theme": "Giao diện",
+"cw_theme_dark": "Tối",
+"cw_theme_light": "Sáng",
+"cw_theme_oled": "OLED",
+"cw_theme_peach": "Đào",
+"cw_settings_contrast": "Tương phản cao",
 };
 
 export default vi;

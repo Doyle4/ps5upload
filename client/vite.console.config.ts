@@ -6,7 +6,7 @@
  *
  * - Target safari13 like the PC app (the PS5 browser is WebKit). BigInt cannot
  *   be down-levelled and is rejected by the client lint rule.
- * - The PC app's dark-theme tokens come from src/index.css itself (pcTokens),
+ * - The PC app's theme tokens (dark, light, peach, OLED, high contrast) come from src/index.css itself (pcTokens),
  *   not a copy, so the page follows the app's colours.
  * - Size budget: the build FAILS over 640 KiB raw or 150 KiB gzip.
  */
@@ -31,9 +31,45 @@ function blockBody(css: string, open: number): string {
 }
 
 /**
+ * Every top-level `:root…` rule of index.css that is the dark default or a
+ * theme / contrast variant (`[data-theme=…]`, `[data-contrast=…]`, and their
+ * combinations), in source order, so later rules keep winning as in the app.
+ * Comments are stripped first; @media rules and the other `:root[data-…]`
+ * switches (motion, transparency, dyslexia) are left out.
+ */
+function themeRules(css: string): string[] {
+  const src = css.replace(/\/\*[\s\S]*?\*\//g, "");
+  const out: string[] = [];
+  let depth = 0;
+  let start = 0;
+  let open = -1;
+  for (let i = 0; i < src.length; i++) {
+    const c = src[i];
+    if (c === "{") {
+      if (depth === 0) open = i;
+      depth++;
+    } else if (c === "}") {
+      depth--;
+      if (depth === 0) {
+        const sel = src.slice(start, open).trim();
+        const isRoot = sel === ":root";
+        const isVariant = /^:root(\[[^\]]+\]|:is\([^)]*\))+$/.test(sel) && /\[data-(theme|contrast)=/.test(sel) && !/data-(transparency|motion|dyslexia)/.test(sel);
+        if (isRoot || isVariant) out.push(`${sel} ${src.slice(open, i + 1)}`);
+        start = i + 1;
+      }
+    } else if (c === ";" && depth === 0) {
+      start = i + 1; // an @import line
+    }
+  }
+  if (depth !== 0) throw new Error("pcTokens: unbalanced braces in src/index.css");
+  return out;
+}
+
+/**
  * virtual:pc-tokens.css = the PC app's font stacks (its Tailwind @theme block)
- * and its dark :root token block, read from src/index.css at build time.
- * Importing index.css itself would pull in Tailwind and every app rule.
+ * and all of its theme token blocks (dark :root, light, peach, OLED, high
+ * contrast), read from src/index.css at build time. Importing index.css
+ * itself would pull in Tailwind and every app rule.
  */
 function pcTokens(): Plugin {
   const file = fileURLToPath(new URL("./src/index.css", import.meta.url));
@@ -47,11 +83,13 @@ function pcTokens(): Plugin {
       this.addWatchFile(file);
       const css = readFileSync(file, "utf8");
       const theme = css.indexOf("@theme {");
-      const dark = css.indexOf(":root {");
-      if (theme < 0 || dark < 0) this.error("pcTokens: @theme or :root block not found in src/index.css");
+      if (theme < 0) this.error("pcTokens: @theme block not found in src/index.css");
+      const rules = themeRules(css);
+      for (const need of ['[data-theme="light"]', '[data-theme="peach"]', '[data-theme="oled"]', '[data-contrast="high"]']) {
+        if (!rules.some((r) => r.includes(need))) this.error(`pcTokens: no ${need} block in src/index.css`);
+      }
       const themeBody = blockBody(css, css.indexOf("{", theme));
-      const darkBody = blockBody(css, css.indexOf("{", dark));
-      return `:root {${themeBody}}\n:root {${darkBody}}\n`;
+      return `:root {${themeBody}}\n${rules.join("\n")}\n`;
     },
   };
 }

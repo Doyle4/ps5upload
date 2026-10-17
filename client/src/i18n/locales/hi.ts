@@ -4192,6 +4192,12 @@ c2c_test_deep_bad: "4 KiB का परीक्षण नहीं पहुँ
 "cw_settings_display": "डिस्प्ले",
 "cw_settings_fullscreen": "फ़ुल स्क्रीन",
 "cw_settings_fullscreen_note": "ब्राउज़र की पट्टियाँ छिपाता है ताकि पेज पूरे टीवी पर दिखे। अगली बार बटन दबाने पर लागू होता है।",
+"cw_settings_theme": "थीम",
+"cw_theme_dark": "गहरा",
+"cw_theme_light": "हल्का",
+"cw_theme_oled": "OLED",
+"cw_theme_peach": "पीच",
+"cw_settings_contrast": "उच्च कंट्रास्ट",
 };
 
 export default hi;

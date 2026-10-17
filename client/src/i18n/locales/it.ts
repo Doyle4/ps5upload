@@ -4126,6 +4126,12 @@ c2c_test_deep_bad: "L’invio di prova di 4 KiB non è arrivato: {detail}",
 "cw_settings_display": "Schermo",
 "cw_settings_fullscreen": "Schermo intero",
 "cw_settings_fullscreen_note": "Nasconde le barre del browser così la pagina riempie la TV. Si applica alla prossima pressione di un tasto.",
+"cw_settings_theme": "Tema",
+"cw_theme_dark": "Scuro",
+"cw_theme_light": "Chiaro",
+"cw_theme_oled": "OLED",
+"cw_theme_peach": "Pesca",
+"cw_settings_contrast": "Contrasto elevato",
 };
 
 export default it;

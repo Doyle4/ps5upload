@@ -4176,6 +4176,12 @@ c2c_test_deep_bad: "لم يصل الإرسال التجريبي بحجم 4 KiB: 
 "cw_settings_display": "العرض",
 "cw_settings_fullscreen": "ملء الشاشة",
 "cw_settings_fullscreen_note": "يخفي أشرطة المتصفح لتملأ الصفحة شاشة التلفاز. يسري عند ضغطتك التالية على زر.",
+"cw_settings_theme": "المظهر",
+"cw_theme_dark": "داكن",
+"cw_theme_light": "فاتح",
+"cw_theme_oled": "OLED",
+"cw_theme_peach": "خوخي",
+"cw_settings_contrast": "تباين عالٍ",
 };
 
 export default ar;

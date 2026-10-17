@@ -4499,6 +4499,12 @@ c2c_test_deep_bad: "The 4 KiB test send did not arrive: {detail}",
 "cw_settings_display": "Display",
 "cw_settings_fullscreen": "Full screen",
 "cw_settings_fullscreen_note": "Hides the browser's bars so the page fills the TV. Takes effect on your next button press.",
+"cw_settings_theme": "Theme",
+"cw_theme_dark": "Dark",
+"cw_theme_light": "Light",
+"cw_theme_oled": "OLED",
+"cw_theme_peach": "Peach",
+"cw_settings_contrast": "High contrast",
 };
 
 export default en;

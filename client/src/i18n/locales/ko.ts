@@ -4195,6 +4195,12 @@ c2c_test_deep_bad: "4 KiB 테스트 전송이 도착하지 않았습니다: {det
 "cw_settings_display": "화면",
 "cw_settings_fullscreen": "전체 화면",
 "cw_settings_fullscreen_note": "브라우저 막대를 숨겨 페이지가 TV 화면을 가득 채웁니다. 다음에 버튼을 누를 때 적용됩니다.",
+"cw_settings_theme": "테마",
+"cw_theme_dark": "다크",
+"cw_theme_light": "라이트",
+"cw_theme_oled": "OLED",
+"cw_theme_peach": "피치",
+"cw_settings_contrast": "고대비",
 };
 
 export default ko;

@@ -4126,6 +4126,12 @@ c2c_test_deep_bad: "Тестовая отправка 4 КиБ не дошла: 
 "cw_settings_display": "Экран",
 "cw_settings_fullscreen": "Полный экран",
 "cw_settings_fullscreen_note": "Скрывает панели браузера, чтобы страница заполняла весь телевизор. Срабатывает при следующем нажатии кнопки.",
+"cw_settings_theme": "Тема",
+"cw_theme_dark": "Тёмная",
+"cw_theme_light": "Светлая",
+"cw_theme_oled": "OLED",
+"cw_theme_peach": "Персик",
+"cw_settings_contrast": "Высокая контрастность",
 };
 
 export default ru;

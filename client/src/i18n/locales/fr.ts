@@ -4194,6 +4194,12 @@ c2c_test_deep_bad: "L’envoi test de 4 Kio n’est pas arrivé : {detail}",
 "cw_settings_display": "Affichage",
 "cw_settings_fullscreen": "Plein écran",
 "cw_settings_fullscreen_note": "Masque les barres du navigateur pour que la page remplisse la TV. Prend effet à votre prochaine pression de touche.",
+"cw_settings_theme": "Thème",
+"cw_theme_dark": "Sombre",
+"cw_theme_light": "Clair",
+"cw_theme_oled": "OLED",
+"cw_theme_peach": "Pêche",
+"cw_settings_contrast": "Contraste élevé",
 };
 
 export default fr;

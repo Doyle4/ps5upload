@@ -4185,6 +4185,12 @@ c2c_test_deep_bad: "การส่งทดสอบ 4 KiB ไปไม่ถ�
 "cw_settings_display": "การแสดงผล",
 "cw_settings_fullscreen": "เต็มจอ",
 "cw_settings_fullscreen_note": "ซ่อนแถบของเบราว์เซอร์เพื่อให้หน้าเต็มจอทีวี มีผลเมื่อคุณกดปุ่มครั้งถัดไป",
+"cw_settings_theme": "ธีม",
+"cw_theme_dark": "เข้ม",
+"cw_theme_light": "สว่าง",
+"cw_theme_oled": "OLED",
+"cw_theme_peach": "พีช",
+"cw_settings_contrast": "คอนทราสต์สูง",
 };
 
 export default th;

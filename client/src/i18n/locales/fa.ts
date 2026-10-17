@@ -4477,6 +4477,12 @@ c2c_test_deep_bad: "ارسال آزمایشی ۴ KiB نرسید: {detail}",
 "cw_settings_display": "نمایش",
 "cw_settings_fullscreen": "تمام‌صفحه",
 "cw_settings_fullscreen_note": "نوارهای مرورگر را پنهان می‌کند تا صفحه کل تلویزیون را پر کند. با فشار بعدی دکمه اعمال می‌شود.",
+"cw_settings_theme": "تم",
+"cw_theme_dark": "تیره",
+"cw_theme_light": "روشن",
+"cw_theme_oled": "OLED",
+"cw_theme_peach": "هلویی",
+"cw_settings_contrast": "کنتراست بالا",
 };
 
 export default fa;

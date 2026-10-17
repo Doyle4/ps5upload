@@ -4184,6 +4184,12 @@ c2c_test_deep_bad: "Die 4-KiB-Testsendung ist nicht angekommen: {detail}",
 "cw_settings_display": "Anzeige",
 "cw_settings_fullscreen": "Vollbild",
 "cw_settings_fullscreen_note": "Blendet die Leisten des Browsers aus, damit die Seite den ganzen Fernseher füllt. Gilt ab dem nächsten Tastendruck.",
+"cw_settings_theme": "Design",
+"cw_theme_dark": "Dunkel",
+"cw_theme_light": "Hell",
+"cw_theme_oled": "OLED",
+"cw_theme_peach": "Pfirsich",
+"cw_settings_contrast": "Hoher Kontrast",
 };
 
 export default de;

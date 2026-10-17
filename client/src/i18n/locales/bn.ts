@@ -4176,6 +4176,12 @@ c2c_test_deep_bad: "4 KiB-এর পরীক্ষামূলক পাঠা�
 "cw_settings_display": "ডিসপ্লে",
 "cw_settings_fullscreen": "ফুল স্ক্রিন",
 "cw_settings_fullscreen_note": "ব্রাউজারের বারগুলো লুকিয়ে রাখে যাতে পেজটি পুরো টিভি জুড়ে থাকে। পরের বার বোতাম চাপলে কার্যকর হয়।",
+"cw_settings_theme": "থিম",
+"cw_theme_dark": "অন্ধকার",
+"cw_theme_light": "হালকা",
+"cw_theme_oled": "OLED",
+"cw_theme_peach": "পিচ",
+"cw_settings_contrast": "উচ্চ কনট্রাস্ট",
 };
 
 export default bn;

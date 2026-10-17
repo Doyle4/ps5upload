@@ -4126,6 +4126,12 @@ c2c_test_deep_bad: "4 KiB 測試傳送未抵達：{detail}",
 "cw_settings_display": "顯示",
 "cw_settings_fullscreen": "全螢幕",
 "cw_settings_fullscreen_note": "隱藏瀏覽器的工具列，讓頁面佔滿電視。在你下次按鍵時生效。",
+"cw_settings_theme": "佈景主題",
+"cw_theme_dark": "深色",
+"cw_theme_light": "淺色",
+"cw_theme_oled": "OLED",
+"cw_theme_peach": "蜜桃",
+"cw_settings_contrast": "高對比",
 };
 
 export default zh_TW;

@@ -4185,6 +4185,12 @@ c2c_test_deep_bad: "Kiriman uji 4 KiB tidak tiba: {detail}",
 "cw_settings_display": "Tampilan",
 "cw_settings_fullscreen": "Layar penuh",
 "cw_settings_fullscreen_note": "Menyembunyikan bilah browser agar halaman memenuhi TV. Berlaku saat Anda menekan tombol berikutnya.",
+"cw_settings_theme": "Tema",
+"cw_theme_dark": "Gelap",
+"cw_theme_light": "Terang",
+"cw_theme_oled": "OLED",
+"cw_theme_peach": "Peach",
+"cw_settings_contrast": "Kontras tinggi",
 };
 
 export default id;
