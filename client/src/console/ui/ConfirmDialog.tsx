@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
-import { focusElement, onNavAction, type NavAction } from "../nav";
+import { onNavAction, type NavAction } from "../nav";
 import { t } from "../strings";
+import { useModalFocus } from "./restoreFocus";
 
 /**
  * The dialog's controller handling: ○ is "no". Every other action is swallowed
@@ -18,7 +19,7 @@ export function dialogNavHandler(onCancel: () => void): (action: NavAction) => b
  * "Are you sure?" for anything that cannot be undone: close a game, cancel a
  * task, rest mode, restart, delete. A nav modal: the D-pad stays inside it,
  * focus starts on the safe choice (listed first), ○ closes it, and focus goes
- * back where it was when it closes.
+ * back where it was when it closes (restoreFocus: a neighbour if that is gone).
  */
 export function ConfirmDialog({
   title,
@@ -45,13 +46,9 @@ export function ConfirmDialog({
   const root = useRef<HTMLDivElement>(null);
   const safe = useRef<HTMLButtonElement>(null);
 
-  useEffect(() => {
-    const before = document.activeElement as HTMLElement | null;
-    if (safe.current) focusElement(safe.current);
-    return () => {
-      if (before && before !== document.body && before.isConnected) focusElement(before);
-    };
-  }, []);
+  // Focus starts on the safe choice; on close it goes back to the opener, or to
+  // the row now in its place when the opener is gone (a deleted row).
+  useModalFocus(safe);
 
   useEffect(() => onNavAction(dialogNavHandler(onCancel), () => root.current), [onCancel]);
 

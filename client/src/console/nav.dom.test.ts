@@ -109,6 +109,25 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+describe("handler order", () => {
+  it("a fallback handler runs after handlers registered later than it", () => {
+    const seen: string[] = [];
+    // App registers its ○ as a fallback; a section (Files: ○ = up one folder)
+    // registered before it still runs first.
+    offs.push(onNavAction(() => {
+      seen.push("section");
+      return true;
+    }));
+    offs.push(onNavAction(() => {
+      seen.push("app");
+      return true;
+    }, undefined, { fallback: true }));
+    railHome.focus();
+    dispatchNav("back");
+    expect(seen).toEqual(["section"]);
+  });
+});
+
 describe("modal scope", () => {
   it("back, prevSection and nextSection outside the modal do not run while it is open", () => {
     body.add(modal);

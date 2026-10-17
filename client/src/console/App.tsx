@@ -90,7 +90,7 @@ export function App({ inputMap }: { inputMap: InputMap }) {
           return true;
         }
         return false;
-      }),
+      }, undefined, { fallback: true }),
     [active, show],
   );
 

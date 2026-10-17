@@ -63,8 +63,8 @@ function token(): Promise<string> {
   return tokenPromise;
 }
 
-/** POST `body` as JSON to `route` and return the parsed JSON reply. */
-export async function call<T>(route: string, body?: object): Promise<T> {
+/** POST `body` as JSON to `route`; the Response when it is 2xx, else the ApiError. */
+async function post(route: string, body?: object): Promise<Response> {
   const tok = await token();
   let res: Response;
   try {
@@ -78,17 +78,29 @@ export async function call<T>(route: string, body?: object): Promise<T> {
   } catch {
     throw new ApiError(0, "offline");
   }
-  const json: unknown = await res.json().catch(() => null);
   if (res.status === 401) {
     for (const fn of Array.from(expiredListeners)) fn();
     throw new ApiError(401, "token");
   }
   if (!res.ok) {
+    const json: unknown = await res.json().catch(() => null);
     const code =
       json && typeof (json as { error?: unknown }).error === "string"
         ? (json as { error: string }).error
         : `http_${res.status}`;
     throw new ApiError(res.status, code);
   }
-  return json as T;
+  return res;
+}
+
+/** POST `body` as JSON to `route` and return the parsed JSON reply. */
+export async function call<T>(route: string, body?: object): Promise<T> {
+  const res = await post(route, body);
+  return (await res.json().catch(() => null)) as T;
+}
+
+/** POST `body` as JSON to `route` and return the raw reply (/api/fs/read's bytes). */
+export async function callBlob(route: string, body?: object): Promise<Blob> {
+  const res = await post(route, body);
+  return res.blob();
 }

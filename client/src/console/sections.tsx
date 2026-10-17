@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { Folder, House, Settings, type LucideIcon } from "lucide-react";
+import { Files } from "./files/Files";
 import { Home } from "./home/Home";
 import type { ConsoleStatus } from "./shell/TopBar";
 import { t } from "./strings";
@@ -36,9 +37,8 @@ function Placeholder({ labelKey }: { labelKey: string }) {
   return <h1 className="cw-h1">{t(labelKey)}</h1>;
 }
 
-// Tasks 9–10 replace these renders with the Files and Settings screens. Files
-// sets acceptsParams once it opens at ctx.params.path: until then Home hides
-// Browse USB.
+// Task 10 replaces Settings' render. Files opens at ctx.params.path
+// (acceptsParams), so Home shows Browse USB.
 export const SECTIONS: Section[] = [
   {
     id: "home",
@@ -50,7 +50,8 @@ export const SECTIONS: Section[] = [
     id: "files",
     icon: Folder,
     labelKey: "cw_nav_files",
-    render: () => <Placeholder labelKey="cw_nav_files" />,
+    render: (ctx) => <Files ctx={ctx} />,
+    acceptsParams: true,
   },
   {
     id: "settings",

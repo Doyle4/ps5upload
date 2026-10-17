@@ -243,10 +243,15 @@ const handlers: Registered[] = [];
  * skipped, so the page behind a dialog never reacts to ○, L1/R1 or △. A modal
  * (confirm dialog, actions sheet, path picker) registers its own handlers with
  * `scope` = a ref to its root. With no modal open every handler runs.
+ *
+ * `fallback`: run after every other handler, whenever it was registered. App's
+ * ○ (content → rail → Home) is one, so a section's own ○ (Files: up one
+ * folder) wins even though App re-registers after the section mounts.
  */
-export function onNavAction(fn: NavHandler, scope?: NavScope): () => void {
+export function onNavAction(fn: NavHandler, scope?: NavScope, opts?: { fallback?: boolean }): () => void {
   const entry: Registered = { fn, scope };
-  handlers.unshift(entry);
+  if (opts?.fallback) handlers.push(entry);
+  else handlers.unshift(entry);
   return () => {
     const i = handlers.indexOf(entry);
     if (i >= 0) handlers.splice(i, 1);
@@ -259,7 +264,7 @@ export function topModal(): HTMLElement | null {
   return modals.length ? modals[modals.length - 1] : null;
 }
 
-const FOCUSABLE =
+export const FOCUSABLE =
   'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 /** Focusable, visible elements, inside the topmost [data-nav-modal] when one is open. */
