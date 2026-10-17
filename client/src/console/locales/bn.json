@@ -143,6 +143,7 @@
   "cw_files_status_size_dirs": "{size}, ফোল্ডার গণনা হয়নি",
   "cw_files_tasks": "চলমান কাজ: {n}",
   "cw_files_too_large": "প্রিভিউ করার জন্য খুব বড়।",
+  "cw_files_tools": "ফোল্ডারের টুল",
   "cw_files_truncated": "প্রথম 1 MiB দেখানো হচ্ছে।",
   "cw_files_unmount": "আনমাউন্ট করুন",
   "cw_files_unmount_body": "এই ইমেজ থেকে চলা গেম বন্ধ হয়ে যাবে, এবং ইমেজটি আবার মাউন্ট না হওয়া পর্যন্ত এর ফাইলগুলো থাকবে না।",

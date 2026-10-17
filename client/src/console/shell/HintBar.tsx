@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import type { InputMap } from "../nav";
 import { barHints, type ScreenId } from "../help/hints";
 import { t } from "../strings";
@@ -23,6 +24,13 @@ export function Glyphs({ glyphs }: { glyphs: string[] }) {
  */
 export function HintBar({ map, screen }: { map: InputMap; screen: ScreenId }) {
   const hints = barHints(map, screen);
+  // The focused toolbar button's name (icon-only buttons carry it in data-tip).
+  const [tip, setTip] = useState("");
+  useEffect(() => {
+    const onIn = (e: Event) => setTip((e.target as Element | null)?.closest?.("[data-tip]")?.getAttribute("data-tip") ?? "");
+    document.addEventListener("focusin", onIn);
+    return () => document.removeEventListener("focusin", onIn);
+  }, []);
   if (!hints.length) return null;
   return (
     <footer className="cw-hints" aria-label={t("cw_hints_label")} data-screen={screen}>
@@ -32,6 +40,11 @@ export function HintBar({ map, screen }: { map: InputMap; screen: ScreenId }) {
           {t(h.labelKey)}
         </span>
       ))}
+      {tip ? (
+        <span className="cw-hint-tip" aria-hidden>
+          {tip}
+        </span>
+      ) : null}
     </footer>
   );
 }

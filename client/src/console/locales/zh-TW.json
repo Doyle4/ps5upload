@@ -143,6 +143,7 @@
   "cw_files_status_size_dirs": "{size}，不含資料夾",
   "cw_files_tasks": "執行中的工作：{n}",
   "cw_files_too_large": "檔案太大，無法預覽。",
+  "cw_files_tools": "資料夾工具",
   "cw_files_truncated": "只顯示前 1 MiB。",
   "cw_files_unmount": "卸載",
   "cw_files_unmount_body": "從此映像檔執行的遊戲會停止，在映像檔重新掛載之前其檔案將無法使用。",

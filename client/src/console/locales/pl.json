@@ -143,6 +143,7 @@
   "cw_files_status_size_dirs": "{size}, foldery nie wliczone",
   "cw_files_tasks": "Trwające zadania: {n}",
   "cw_files_too_large": "Za duży, by pokazać podgląd.",
+  "cw_files_tools": "Narzędzia folderu",
   "cw_files_truncated": "Pokazano pierwszy 1 MiB.",
   "cw_files_unmount": "Odmontuj",
   "cw_files_unmount_body": "Gra uruchomiona z tego obrazu zatrzyma się, a jej pliki znikną, dopóki obraz nie zostanie ponownie zamontowany.",

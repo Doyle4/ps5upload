@@ -143,6 +143,7 @@
   "cw_files_status_size_dirs": "{size}、フォルダは含まず",
   "cw_files_tasks": "実行中のタスク: {n}",
   "cw_files_too_large": "大きすぎてプレビューできません。",
+  "cw_files_tools": "フォルダのツール",
   "cw_files_truncated": "先頭 1 MiB を表示しています。",
   "cw_files_unmount": "マウント解除",
   "cw_files_unmount_body": "このイメージから起動しているゲームは停止し、イメージを再びマウントするまでそのファイルは使えなくなります。",

@@ -143,6 +143,7 @@
   "cw_files_status_size_dirs": "{size}, cartelle escluse",
   "cw_files_tasks": "Attività in corso: {n}",
   "cw_files_too_large": "Troppo grande per l'anteprima.",
+  "cw_files_tools": "Strumenti della cartella",
   "cw_files_truncated": "Viene mostrato il primo MiB.",
   "cw_files_unmount": "Smonta",
   "cw_files_unmount_body": "Un gioco avviato da questa immagine si fermerà, e i suoi file non ci saranno finché l'immagine non verrà montata di nuovo.",

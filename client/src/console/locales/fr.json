@@ -143,6 +143,7 @@
   "cw_files_status_size_dirs": "{size}, dossiers non comptés",
   "cw_files_tasks": "Tâches en cours : {n}",
   "cw_files_too_large": "Trop volumineux pour l'aperçu.",
+  "cw_files_tools": "Outils du dossier",
   "cw_files_truncated": "Affichage du premier Mio.",
   "cw_files_unmount": "Démonter",
   "cw_files_unmount_body": "Un jeu lancé depuis cette image s'arrêtera, et ses fichiers seront absents jusqu'à ce que l'image soit de nouveau montée.",

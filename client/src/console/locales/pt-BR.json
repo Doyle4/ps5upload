@@ -143,6 +143,7 @@
   "cw_files_status_size_dirs": "{size}, pastas não contadas",
   "cw_files_tasks": "Tarefas em andamento: {n}",
   "cw_files_too_large": "Grande demais para visualizar.",
+  "cw_files_tools": "Ferramentas da pasta",
   "cw_files_truncated": "Mostrando o primeiro 1 MiB.",
   "cw_files_unmount": "Desmontar",
   "cw_files_unmount_body": "Um jogo rodando a partir desta imagem vai parar, e os arquivos dele somem até a imagem ser montada de novo.",

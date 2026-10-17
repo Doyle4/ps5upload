@@ -143,6 +143,7 @@
   "cw_files_status_size_dirs": "{size}, klasörler sayılmadı",
   "cw_files_tasks": "Çalışan görevler: {n}",
   "cw_files_too_large": "Önizleme için çok büyük.",
+  "cw_files_tools": "Klasör araçları",
   "cw_files_truncated": "İlk 1 MiB gösteriliyor.",
   "cw_files_unmount": "Bağlantıyı kes",
   "cw_files_unmount_body": "Bu imajdan çalışan bir oyun durur ve imaj yeniden bağlanana kadar dosyaları erişilemez olur.",

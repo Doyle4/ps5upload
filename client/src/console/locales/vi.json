@@ -143,6 +143,7 @@
   "cw_files_status_size_dirs": "{size}, chưa tính thư mục",
   "cw_files_tasks": "Tác vụ đang chạy: {n}",
   "cw_files_too_large": "Quá lớn để xem trước.",
+  "cw_files_tools": "Công cụ thư mục",
   "cw_files_truncated": "Đang hiện 1 MiB đầu tiên.",
   "cw_files_unmount": "Tháo gắn",
   "cw_files_unmount_body": "Trò chơi đang chạy từ ảnh đĩa này sẽ dừng, và các tệp của nó sẽ không còn cho đến khi ảnh đĩa được gắn lại.",

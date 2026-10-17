@@ -143,6 +143,7 @@
   "cw_files_status_size_dirs": "{size}، بدون احتساب المجلدات",
   "cw_files_tasks": "المهام الجارية: {n}",
   "cw_files_too_large": "كبير جدًا للمعاينة.",
+  "cw_files_tools": "أدوات المجلد",
   "cw_files_truncated": "يُعرض أول 1 MiB فقط.",
   "cw_files_unmount": "إلغاء التركيب",
   "cw_files_unmount_body": "ستتوقف اللعبة التي تعمل من هذه الصورة، وستغيب ملفاتها حتى يُعاد تركيب الصورة.",

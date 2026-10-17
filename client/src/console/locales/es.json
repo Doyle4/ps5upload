@@ -143,6 +143,7 @@
   "cw_files_status_size_dirs": "{size}, sin contar carpetas",
   "cw_files_tasks": "Tareas en curso: {n}",
   "cw_files_too_large": "Demasiado grande para la vista previa.",
+  "cw_files_tools": "Herramientas de la carpeta",
   "cw_files_truncated": "Se muestra el primer 1 MiB.",
   "cw_files_unmount": "Desmontar",
   "cw_files_unmount_body": "Un juego que se ejecute desde esta imagen se detendrá, y sus archivos no estarán disponibles hasta que se vuelva a montar la imagen.",

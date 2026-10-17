@@ -4149,6 +4149,7 @@ c2c_test_deep_bad: "4 KiB のテスト送信が届きませんでした: {detail
 "cw_files_status_selected": "{n} 件選択 ({size})",
 "cw_files_status_size_dirs": "{size}、フォルダは含まず",
 "cw_files_none_match": "絞り込みに一致するものがありません。",
+"cw_files_tools": "フォルダのツール",
 "cw_files_selected": "{n} 件選択中",
 "cw_files_items": "{n} 件",
 "cw_files_free": "空き {free}",

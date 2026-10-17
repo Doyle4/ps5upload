@@ -143,6 +143,7 @@
   "cw_files_status_size_dirs": "{size}，不含文件夹",
   "cw_files_tasks": "运行中的任务：{n}",
   "cw_files_too_large": "文件太大，无法预览。",
+  "cw_files_tools": "文件夹工具",
   "cw_files_truncated": "仅显示前 1 MiB。",
   "cw_files_unmount": "卸载",
   "cw_files_unmount_body": "从此镜像运行的游戏会停止，在镜像重新挂载之前其文件将不可用。",

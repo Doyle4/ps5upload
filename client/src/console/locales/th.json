@@ -143,6 +143,7 @@
   "cw_files_status_size_dirs": "{size} ไม่นับโฟลเดอร์",
   "cw_files_tasks": "งานที่กำลังทำ: {n}",
   "cw_files_too_large": "ใหญ่เกินกว่าจะแสดงตัวอย่าง",
+  "cw_files_tools": "เครื่องมือโฟลเดอร์",
   "cw_files_truncated": "แสดง 1 MiB แรก",
   "cw_files_unmount": "ยกเลิกการเมานต์",
   "cw_files_unmount_body": "เกมที่รันจากอิมเมจนี้จะหยุดทำงาน และไฟล์ของเกมจะหายไปจนกว่าจะเมานต์อิมเมจอีกครั้ง",

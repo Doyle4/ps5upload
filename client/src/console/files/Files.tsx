@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowDownUp,
   CheckCheck,
+  ChevronsDown,
+  Ellipsis,
   Filter,
   FilterX,
   FolderPlus,
@@ -9,8 +11,10 @@ import {
   ListX,
   RotateCw,
   Square,
+  SquareCheck,
   Star,
   TextCursorInput,
+  type LucideIcon,
 } from "lucide-react";
 import { formatBytes } from "../../lib/format";
 import { ApiError, call } from "../api";
@@ -21,10 +25,8 @@ import { useBackLevel } from "../backHistory";
 import { onNavAction, topModal } from "../nav";
 import type { SectionContext } from "../sections";
 import { t } from "../strings";
-import { ActionsButton } from "../ui/ActionsButton";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { anchorOf, focusLost, restoreFocus, type FocusAnchor } from "../ui/restoreFocus";
-import { SelectToggle } from "../ui/SelectToggle";
 import { ActionsSheet, type SheetAction } from "./ActionsSheet";
 import { DirList, ROW_WINDOW, viewKind } from "./DirList";
 import { canEject, DriveList, isImage, isSystemVolume, placeLabel } from "./DriveList";
@@ -455,28 +457,42 @@ function TasksLine({ tasks }: { tasks: Job[] }) {
   );
 }
 
-/** ☆ / ★: pin the folder shown (it then shows under Pinned in the drive list), or unpin it. */
-function PinButton({
-  path,
-  pinned,
-  onPin,
-  onUnpin,
+/**
+ * One toolbar button: an icon, named by aria-label; its name shows next to it
+ * while it has focus (CSS) and in the hint bar (data-tip).
+ */
+function ToolButton({
+  icon: Icon,
+  label,
+  action,
+  onClick,
+  pressed,
+  disabled,
+  className,
 }: {
-  path: string;
-  pinned: boolean;
-  onPin: (path: string) => void;
-  onUnpin: (path: string) => void;
+  icon: LucideIcon;
+  label: string;
+  action: string;
+  onClick: () => void;
+  pressed?: boolean;
+  disabled?: boolean;
+  className?: string;
 }) {
   return (
     <button
       type="button"
-      className={`cw-focusable cw-button cw-pin${pinned ? " is-pinned" : ""}`}
-      data-action="pin"
-      aria-pressed={pinned}
-      onClick={() => (pinned ? onUnpin(path) : onPin(path))}
+      className={`cw-focusable cw-tool${className ? ` ${className}` : ""}`}
+      data-action={action}
+      data-tip={label}
+      aria-label={label}
+      aria-pressed={pressed}
+      disabled={disabled}
+      onClick={onClick}
     >
-      <Star aria-hidden />
-      <span>{t(pinned ? "cw_files_pinned_on" : "cw_files_pin")}</span>
+      <Icon aria-hidden />
+      <span className="cw-tool-label" aria-hidden>
+        {label}
+      </span>
     </button>
   );
 }
@@ -498,6 +514,16 @@ export function FilesView(p: FilesViewProps) {
   const view = p.view ?? DEFAULT_VIEW;
   const capped = p.dir.more && p.dir.entries.length >= LOAD_ALL_CAP;
   const st = p.status;
+  const pinned = p.path != null && p.prefs ? isPinned(p.prefs, p.path) : false;
+  const loadAllButton = (
+    <ToolButton
+      icon={ChevronsDown}
+      label={t("cw_files_load_all")}
+      action="load-all"
+      disabled={p.dir.loading || capped}
+      onClick={() => p.onLoadAll?.()}
+    />
+  );
   return (
     <div className="cw-files-screen">
       <h1 className="cw-h1">{t("cw_nav_files")}</h1>
@@ -539,123 +565,97 @@ export function FilesView(p: FilesViewProps) {
         />
       ) : (
         <>
-          <PathBar key={p.path} path={p.path} volumes={p.volumes ?? []} onOpen={p.onOpen} onUp={p.onUp} />
-          <div className="cw-toolbar">
-            {p.prefs && p.onPin && p.onUnpin ? (
-              <PinButton path={p.path} pinned={isPinned(p.prefs, p.path)} onPin={p.onPin} onUnpin={p.onUnpin} />
-            ) : null}
-            {p.onGoTo ? (
-              <button
-                type="button"
-                className="cw-focusable cw-button"
-                data-action="goto"
-                onClick={() => p.onAsk({ kind: "goto" })}
-              >
-                <TextCursorInput aria-hidden />
-                <span>{t("cw_files_goto")}</span>
-              </button>
-            ) : null}
-            <button
-              type="button"
-              className="cw-focusable cw-button"
-              data-action="mkdir"
-              onClick={() => p.onAsk({ kind: "mkdir" })}
-            >
-              <FolderPlus aria-hidden />
-              <span>{t("cw_files_new_folder")}</span>
-            </button>
-            <SelectToggle on={p.selecting} onToggle={p.onToggleSelecting} />
-            {p.selecting && p.selected.length ? (
-              <>
-                <span className="cw-tag">{t("cw_files_selected", { n: p.selected.length })}</span>
-                <ActionsButton onPress={() => p.onAsk({ kind: "sheet", names: p.selected })} />
-              </>
-            ) : null}
-            {vol ? (
-              <span className="cw-dim cw-toolbar-free">{t("cw_files_free", { free: formatBytes(vol.free_bytes) })}</span>
-            ) : null}
-          </div>
-          {p.onView ? (
-            <div className="cw-toolbar cw-listbar">
-              <button
-                type="button"
-                className="cw-focusable cw-button"
-                data-action="sortview"
-                onClick={() => p.onAsk({ kind: "viewmenu" })}
-              >
-                <ArrowDownUp aria-hidden />
-                <span>{t("cw_files_sort_view")}</span>
-              </button>
-              <button
-                type="button"
-                className="cw-focusable cw-button"
-                data-action="filter"
-                aria-pressed={view.filter !== ""}
-                onClick={() => p.onAsk({ kind: "filter" })}
-              >
-                <Filter aria-hidden />
-                <span>{view.filter ? t("cw_files_filter_active", { q: view.filter }) : t("cw_files_filter")}</span>
-              </button>
-              {view.filter ? (
-                <button
-                  type="button"
-                  className="cw-focusable cw-icon-button"
-                  data-action="filter-clear"
-                  aria-label={t("cw_files_filter_clear")}
-                  title={t("cw_files_filter_clear")}
-                  onClick={() => p.onView?.({ filter: "" })}
-                >
-                  <FilterX aria-hidden />
-                </button>
-              ) : null}
-              {p.dir.more && p.onLoadAll ? (
-                <button
-                  type="button"
-                  className="cw-focusable cw-button"
-                  data-action="load-all"
-                  disabled={p.dir.loading || capped}
-                  onClick={p.onLoadAll}
-                >
-                  <span>{p.dir.loading ? t("cw_home_loading") : t("cw_files_load_all")}</span>
-                </button>
-              ) : null}
+          <div className="cw-toolbar-one">
+            <PathBar key={p.path} path={p.path} volumes={p.volumes ?? []} onOpen={p.onOpen} onUp={p.onUp} />
+            <div className="cw-tools" role="toolbar" aria-label={t("cw_files_tools")}>
               {p.selecting ? (
                 <>
-                  <button
-                    type="button"
-                    className="cw-focusable cw-button"
-                    data-action="select-all"
-                    onClick={p.onSelectAll}
-                  >
-                    <CheckCheck aria-hidden />
-                    <span>{t("cw_files_select_all")}</span>
-                  </button>
-                  <button
-                    type="button"
-                    className="cw-focusable cw-button"
-                    data-action="select-none"
-                    onClick={p.onSelectNone}
-                  >
-                    <ListX aria-hidden />
-                    <span>{t("cw_files_select_none")}</span>
-                  </button>
-                  <button
-                    type="button"
-                    className="cw-focusable cw-button"
-                    data-action="select-invert"
-                    onClick={p.onSelectInvert}
-                  >
-                    <ListChecks aria-hidden />
-                    <span>{t("cw_files_select_invert")}</span>
-                  </button>
+                  <ToolButton icon={CheckCheck} label={t("cw_files_select_all")} action="select-all" onClick={() => p.onSelectAll?.()} />
+                  <ToolButton icon={ListX} label={t("cw_files_select_none")} action="select-none" onClick={() => p.onSelectNone?.()} />
+                  <ToolButton icon={ListChecks} label={t("cw_files_select_invert")} action="select-invert" onClick={() => p.onSelectInvert?.()} />
+                  {p.selected.length ? (
+                    <ToolButton
+                      icon={Ellipsis}
+                      label={t("cw_actions")}
+                      action="selection-actions"
+                      onClick={() => p.onAsk({ kind: "sheet", names: p.selected })}
+                    />
+                  ) : null}
+                  {p.dir.more && p.onLoadAll ? loadAllButton : null}
+                  <ToolButton
+                    icon={SquareCheck}
+                    label={t("cw_select")}
+                    action="select"
+                    pressed
+                    onClick={p.onToggleSelecting}
+                  />
                 </>
-              ) : null}
+              ) : (
+                <>
+                  {p.prefs && p.onPin && p.onUnpin ? (
+                    <ToolButton
+                      icon={Star}
+                      label={t(pinned ? "cw_files_pinned_on" : "cw_files_pin")}
+                      action="pin"
+                      pressed={pinned}
+                      className={pinned ? "is-pinned" : undefined}
+                      onClick={() => (pinned ? p.onUnpin?.(p.path as string) : p.onPin?.(p.path as string))}
+                    />
+                  ) : null}
+                  {p.onGoTo ? (
+                    <ToolButton
+                      icon={TextCursorInput}
+                      label={t("cw_files_goto")}
+                      action="goto"
+                      onClick={() => p.onAsk({ kind: "goto" })}
+                    />
+                  ) : null}
+                  <ToolButton
+                    icon={FolderPlus}
+                    label={t("cw_files_new_folder")}
+                    action="mkdir"
+                    onClick={() => p.onAsk({ kind: "mkdir" })}
+                  />
+                  <ToolButton icon={SquareCheck} label={t("cw_select")} action="select" onClick={p.onToggleSelecting} />
+                  {p.onView ? (
+                    <>
+                      <ToolButton
+                        icon={ArrowDownUp}
+                        label={t("cw_files_sort_view")}
+                        action="sortview"
+                        onClick={() => p.onAsk({ kind: "viewmenu" })}
+                      />
+                      <ToolButton
+                        icon={Filter}
+                        label={view.filter ? t("cw_files_filter_active", { q: view.filter }) : t("cw_files_filter")}
+                        action="filter"
+                        pressed={view.filter !== ""}
+                        onClick={() => p.onAsk({ kind: "filter" })}
+                      />
+                      {view.filter ? (
+                        <ToolButton
+                          icon={FilterX}
+                          label={t("cw_files_filter_clear")}
+                          action="filter-clear"
+                          onClick={() => p.onView?.({ filter: "" })}
+                        />
+                      ) : null}
+                      {p.dir.more && p.onLoadAll ? loadAllButton : null}
+                    </>
+                  ) : null}
+                </>
+              )}
             </div>
-          ) : null}
+          </div>
           {st && p.dir.loaded ? (
             <p className="cw-dim cw-status" role="status" data-status="">
-              {statusText(st)}
-              {capped ? ` · ${t("cw_files_capped", { n: p.dir.entries.length })}` : ""}
+              {[
+                statusText(st),
+                capped ? t("cw_files_capped", { n: p.dir.entries.length }) : null,
+                vol ? t("cw_files_free", { free: formatBytes(vol.free_bytes) }) : null,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
             </p>
           ) : null}
 

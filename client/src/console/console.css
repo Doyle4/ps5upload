@@ -1213,3 +1213,91 @@ button {
   height: 1.2rem;
   margin-right: 0.7rem;
 }
+
+/* ---- Files: one toolbar row, more rows on screen ---- */
+.cw-files-screen .cw-h1 {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+.cw-toolbar-one {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 0.2rem;
+}
+.cw-toolbar-one .cw-pathbar {
+  flex: 1;
+  margin: 0 0.8rem 0 0;
+}
+.cw-tools {
+  flex: none;
+  display: flex;
+  align-items: center;
+}
+.cw-tool {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.6rem;
+  height: 2.4rem;
+  margin-left: 0.3rem;
+  color: inherit;
+  background: var(--color-surface-3);
+}
+.cw-tool svg {
+  width: 1.3rem;
+  height: 1.3rem;
+}
+.cw-tool[aria-pressed="true"] {
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+}
+.cw-tool.is-pinned svg {
+  fill: currentColor;
+}
+.cw-tool:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.cw-tool-label {
+  display: none;
+  position: absolute;
+  top: calc(100% + 0.25rem);
+  right: 0;
+  z-index: 5;
+  padding: 0.25rem 0.6rem;
+  border-radius: var(--radius-control);
+  background: var(--color-surface-3);
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
+  font-size: 0.9rem;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.cw-tool:focus .cw-tool-label {
+  display: block;
+}
+.cw-files-screen .cw-status {
+  margin: 0 0 0.4rem;
+}
+.cw-files-screen .cw-file {
+  margin-bottom: 0.2rem;
+}
+.cw-files-screen .cw-file-main {
+  padding: 0.3rem 0.9rem;
+}
+.cw-files-screen .cw-file .cw-icon-button {
+  width: 2rem;
+  height: 2rem;
+}
+.cw-hint-tip {
+  margin-left: auto;
+  color: var(--color-text);
+  font-weight: 600;
+}

@@ -277,8 +277,11 @@ describe("Files listing controls", () => {
         )}
       </>,
     );
-    expect(html).toContain('data-action="sortview"');
     expect(html).toContain('data-action="select-all"');
+    expect(html).not.toContain('data-action="sortview"'); // the selection bar replaces the right side
+    const plain = renderToStaticMarkup(<>{FilesView(props({ onView: vi.fn(), onGoTo: vi.fn(), prefs: { favorites: [], recent: [], last: null }, onPin: vi.fn(), onUnpin: vi.fn() }))}</>);
+    for (const a of ["pin", "goto", "mkdir", "select", "sortview", "filter"]) expect(plain).toContain(`data-action="${a}"`);
+    expect(plain).toContain('data-tip="Sort and view"');
     expect(html).toContain("700 items · 1 selected (10 B)");
     expect(html).toContain('data-action="more-rows"');
     expect(html.match(/data-entry="/g)).toHaveLength(300);

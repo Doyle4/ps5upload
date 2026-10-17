@@ -143,6 +143,7 @@
   "cw_files_status_size_dirs": "{size}, folder tidak dihitung",
   "cw_files_tasks": "Tugas berjalan: {n}",
   "cw_files_too_large": "Terlalu besar untuk pratinjau.",
+  "cw_files_tools": "Alat folder",
   "cw_files_truncated": "Menampilkan 1 MiB pertama.",
   "cw_files_unmount": "Lepas",
   "cw_files_unmount_body": "Game yang berjalan dari image ini akan berhenti, dan filenya hilang sampai image dipasang lagi.",

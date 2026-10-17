@@ -4137,6 +4137,7 @@ c2c_test_deep_bad: "การส่งทดสอบ 4 KiB ไปไม่ถ�
 "cw_files_status_selected": "เลือกแล้ว {n} ({size})",
 "cw_files_status_size_dirs": "{size} ไม่นับโฟลเดอร์",
 "cw_files_none_match": "ไม่มีรายการที่ตรงกับตัวกรอง",
+"cw_files_tools": "เครื่องมือโฟลเดอร์",
 "cw_files_selected": "เลือกแล้ว {n}",
 "cw_files_items": "{n} รายการ",
 "cw_files_free": "ว่าง {free}",
