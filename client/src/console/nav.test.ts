@@ -139,6 +139,25 @@ describe("default input map", () => {
     expect(bindingForKey(DEFAULT_INPUT_MAP, "Unidentified", 27)?.action).toBe("back");
     expect(bindingForKey(DEFAULT_INPUT_MAP, "x", 88)).toBeNull();
   });
+
+  it("R18: unverified seeded keys are inert, the always-live set is not", () => {
+    for (const k of ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Enter", "Escape", "Backspace"]) {
+      expect(bindingForKey(DEFAULT_INPUT_MAP, k, 0), k).not.toBeNull();
+    }
+    for (const [k, code] of [["F5", 116], ["Home", 36], ["PageUp", 33], ["PageDown", 34], ["ContextMenu", 93], ["F1", 112], ["F11", 122]] as const) {
+      expect(bindingForKey(DEFAULT_INPUT_MAP, k, code), k).toBeNull();
+      expect(bindingForKey(DEFAULT_INPUT_MAP, "Unidentified", code), `${k} by keyCode`).toBeNull();
+    }
+    // Once measured, the entry acts.
+    const map = DEFAULT_INPUT_MAP.map((b) => (b.button === "create" ? { ...b, verified: true } : b));
+    expect(bindingForKey(map, "F5", 116)?.action).toBe("refresh");
+  });
+
+  it("R18: unverified gamepad buttons outside the old set are inert", () => {
+    const b: boolean[] = new Array(17).fill(false);
+    b[6] = b[7] = b[8] = b[9] = b[10] = b[11] = true;
+    expect(createPadReader(DEFAULT_INPUT_MAP)(b, 0)).toEqual([]);
+  });
 });
 
 describe("hint bar entries", () => {

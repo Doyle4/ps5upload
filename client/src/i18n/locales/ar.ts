@@ -4037,7 +4037,6 @@ c2c_test_deep_bad: "لم يصل الإرسال التجريبي بحجم 4 KiB: 
 "cw_hint_open": "فتح",
 "cw_hint_back": "رجوع",
 "cw_hint_switch_section": "تبديل القسم",
-"cw_hint_filter": "تصفية",
 "cw_actions": "إجراءات",
 "cw_select": "تحديد",
 "cw_reload_title": "أُعيد تشغيل مساعد PS5Upload",

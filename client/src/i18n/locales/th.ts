@@ -4046,7 +4046,6 @@ c2c_test_deep_bad: "การส่งทดสอบ 4 KiB ไปไม่ถ�
 "cw_hint_open": "เปิด",
 "cw_hint_back": "กลับ",
 "cw_hint_switch_section": "สลับส่วน",
-"cw_hint_filter": "ตัวกรอง",
 "cw_actions": "การทำงาน",
 "cw_select": "เลือก",
 "cw_reload_title": "ตัวช่วย PS5Upload เริ่มใหม่แล้ว",

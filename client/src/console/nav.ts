@@ -153,11 +153,30 @@ function isNavAction(a: ButtonAction): a is NavAction {
   return ACTIONS_THE_PAGE_RUNS.has(a);
 }
 
-/** The binding a keydown belongs to: by `key`, else by `keyCode` (a key the browser does not name). */
+/*
+ * Ruling R18: a binding acts only once measured (verified). Until then only the
+ * keys the page always handled stay live: the arrows, Enter, Escape and
+ * Backspace (and their keyCodes). Every other seeded key (F5, Home, PageUp, ...)
+ * is inert: not matched, its default never prevented, so it keeps doing what
+ * the browser does with it. The entries stay in the table for the Controls
+ * screen and the measurement pass.
+ */
+const ALWAYS_LIVE_KEYS: ReadonlySet<string> = new Set(["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Enter", "Escape", "Backspace"]);
+const ALWAYS_LIVE_KEYCODES: ReadonlySet<number> = new Set([38, 40, 37, 39, 13, 27, 8]);
+/** Gamepad buttons the page always handled (✕ ○ □ △ L1 R1 and the D-pad). */
+const ALWAYS_LIVE_PADS: ReadonlySet<number> = new Set([0, 1, 2, 3, 4, 5, 12, 13, 14, 15]);
+
+/** The binding a keydown belongs to: by `key`, else by `keyCode` (a key the browser does not name). Inert entries never match. */
 export function bindingForKey(map: InputMap, key: string, keyCode: number): InputBinding | null {
-  for (const b of map) if (isNavAction(b.action) && b.keys.includes(key)) return b;
+  for (const b of map) {
+    if (isNavAction(b.action) && b.keys.includes(key) && (b.verified || ALWAYS_LIVE_KEYS.has(key))) return b;
+  }
   if (key.length === 1) return null; // a printable key is text, never a button
-  if (keyCode) for (const b of map) if (isNavAction(b.action) && b.keyCodes.includes(keyCode)) return b;
+  if (keyCode) {
+    for (const b of map) {
+      if (isNavAction(b.action) && b.keyCodes.includes(keyCode) && (b.verified || ALWAYS_LIVE_KEYCODES.has(keyCode))) return b;
+    }
+  }
   return null;
 }
 
@@ -257,7 +276,9 @@ const DIRECTIONS: ReadonlySet<NavAction> = new Set(["up", "down", "left", "right
 export function createPadReader(map: InputMap): (pressed: boolean[], now: number) => NavAction[] {
   const downSince = new Map<number, number>();
   const lastFire = new Map<number, number>();
-  const padded = map.filter((b) => b.pad !== undefined && isNavAction(b.action));
+  const padded = map.filter(
+    (b) => b.pad !== undefined && isNavAction(b.action) && (b.verified || ALWAYS_LIVE_PADS.has(b.pad)),
+  );
   return (pressed, now) => {
     const out: NavAction[] = [];
     for (const binding of padded) {
@@ -559,6 +580,8 @@ function act(action: NavAction): void {
 
 /** Pointer movement smaller than this (px) after a key move is stick drift or a scroll re-send, not the user. */
 export const POINTER_SLOP_PX = 6;
+/** A field typed into this recently keeps focus against hover. */
+export const TYPING_HOLD_MS = 1500;
 
 /** Focus `el` because the pointer is over it: no scroll (the pointer is already there). */
 function focusFromPointer(el: HTMLElement): void {
@@ -573,6 +596,9 @@ function hoverTarget(target: EventTarget | null): HTMLElement | null {
   if (!t || typeof t.closest !== "function") return null;
   const el = t.closest<HTMLElement>(FOCUSABLE);
   if (!el || el.closest("[inert], [aria-hidden='true']")) return null;
+  // A text field takes focus only from a click/✕ or a key: hovering one would put the ring on it
+  // (and may raise the PS5's on-screen keyboard) while the pointer moves on.
+  if (isTextField(el)) return null;
   const modal = topModal();
   if (modal && !modal.contains(el)) return null;
   return el;
@@ -583,9 +609,11 @@ function hoverTarget(target: EventTarget | null): HTMLElement | null {
  * function is called.
  *
  * Keyboard: keydown (one a control handled itself is left alone), matched by
- * key then keyCode (bindingForKey).
+ * key then keyCode (bindingForKey); unverified bindings outside the always-live
+ * set are inert (ruling R18).
  *
- * Pointer: a mousemove over a control focuses it (hover = focus). After a key
+ * Pointer: a mousemove over a control focuses it (hover = focus); text fields
+ * excepted, and a field typed into in the last TYPING_HOLD_MS keeps focus. After a key
  * moved focus the pointer is "parked": it stays where it was, so moves within
  * POINTER_SLOP_PX of that spot are ignored (stick drift, the browser re-sending
  * the spot after a scroll), and a pointer click there, which would land on
@@ -604,7 +632,10 @@ export function installNavigation(map: InputMap): () => void {
     ptr.ay = ptr.y;
   };
 
+  let typedAt = -Infinity;
+
   const onKey = (e: KeyboardEvent) => {
+    if (isTextField(e.target as Element | null)) typedAt = performance.now();
     if (e.altKey || e.ctrlKey || e.metaKey || e.defaultPrevented) return;
     const binding = bindingForKey(map, e.key, e.keyCode);
     if (!binding || !isNavAction(binding.action)) return;
@@ -612,7 +643,13 @@ export function installNavigation(map: InputMap): () => void {
     const typing = isTextField(e.target as Element | null);
     if (
       typing &&
-      (action === "left" || action === "right" || action === "confirm" || action === "top" || e.key === "Backspace")
+      (action === "left" ||
+        action === "right" ||
+        action === "confirm" ||
+        action === "top" ||
+        action === "pageUp" ||
+        action === "pageDown" ||
+        e.key === "Backspace")
     ) {
       return;
     }
@@ -641,7 +678,8 @@ export function installNavigation(map: InputMap): () => void {
     ptr.y = y;
     const el = hoverTarget(e.target);
     if (!el || el === document.activeElement) return;
-    if (isTextField(document.activeElement)) return; // never pull focus out of a field being typed into
+    // Never pull focus out of a field while it is being typed into.
+    if (isTextField(document.activeElement) && performance.now() - typedAt < TYPING_HOLD_MS) return;
     focusFromPointer(el);
   };
 

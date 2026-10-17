@@ -47,11 +47,11 @@ class FakeEl {
     if (sel === "[data-nav-modal]") return this.descendants().filter((e) => "data-nav-modal" in e.attrs);
     if (sel === "[data-nav-region]") return this.descendants().filter((e) => "data-nav-region" in e.attrs);
     if (sel === '[data-nav-region="rail"]') return this.descendants().filter((e) => e.attrs["data-nav-region"] === "rail");
-    return this.descendants().filter((e) => e.tagName === "BUTTON"); // the FOCUSABLE selector
+    return this.descendants().filter((e) => e.tagName === "BUTTON" || e.tagName === "INPUT"); // the FOCUSABLE selector
   }
   closest(sel: string): FakeEl | null {
     if (sel === FOCUSABLE) {
-      if (this.tagName === "BUTTON") return this;
+      if (this.tagName === "BUTTON" || this.tagName === "INPUT") return this;
       return this.parent ? this.parent.closest(sel) : null;
     }
     if (sel !== "[data-nav-region]") return null; // nothing is inert or aria-hidden in these fixtures
@@ -69,6 +69,7 @@ class FakeEl {
     return { left, top, width, height, right: left + width, bottom: top + height, x: left, y: top } as DOMRect;
   }
   focusOpts: unknown = undefined;
+  type = "text";
   scrollTop = 0;
   focus(opts?: unknown): void {
     this.focusOpts = opts;
@@ -502,6 +503,77 @@ describe("pointer = focus (the PS5 browser's left stick drives a pointer)", () =
     const click = w.fire("click", { target: railFiles, clientX: 50, clientY: 180, detail: 1, isTrusted: true });
     expect(click.preventDefault).not.toHaveBeenCalled();
     expect(railFiles.clicks).toBe(0); // the native click runs, not ours
+  });
+
+  it("hovering a text field never focuses it (the ring would stay on it, ✕ clicks elsewhere)", () => {
+    const w = fakeWindow();
+    offs.push(installNavigation(DEFAULT_INPUT_MAP));
+    const field = new FakeEl("name", {}, { left: 300, top: 100, width: 300, height: 40 }, "INPUT");
+    const ok = btn("ok", 300, 200);
+    body.add(field, ok);
+    railHome.focus();
+    w.move(field, 350, 120);
+    expect(fakeDoc.activeElement).toBe(railHome);
+    w.move(ok, 350, 220);
+    expect(fakeDoc.activeElement).toBe(ok);
+  });
+
+  it("a field typed into keeps focus against hover for a moment, then hover moves on", () => {
+    const w = fakeWindow();
+    let now = 1000;
+    vi.spyOn(performance, "now").mockImplementation(() => now);
+    offs.push(installNavigation(DEFAULT_INPUT_MAP));
+    const field = new FakeEl("name", {}, { left: 300, top: 100, width: 300, height: 40 }, "INPUT");
+    const ok = btn("ok", 300, 200);
+    body.add(field, ok);
+    field.focus(); // by ✕ or a key
+    w.fire("keydown", { key: "a", keyCode: 65, target: field });
+    now = 1500;
+    w.move(ok, 350, 220);
+    expect(fakeDoc.activeElement).toBe(field);
+    now = 3000;
+    w.move(ok, 360, 230);
+    expect(fakeDoc.activeElement).toBe(ok);
+  });
+
+  it("a focused field nobody typed into lets hover move on", () => {
+    const w = fakeWindow();
+    offs.push(installNavigation(DEFAULT_INPUT_MAP));
+    const field = new FakeEl("name", {}, { left: 300, top: 100, width: 300, height: 40 }, "INPUT");
+    const ok = btn("ok", 300, 200);
+    body.add(field, ok);
+    field.focus();
+    w.move(ok, 350, 220);
+    expect(fakeDoc.activeElement).toBe(ok);
+  });
+
+  it("R18: unverified keys (F5, Home, PageUp/PageDown, ContextMenu) keep their browser default", () => {
+    const w = fakeWindow();
+    offs.push(installNavigation(DEFAULT_INPUT_MAP));
+    const seen: string[] = [];
+    offs.push(onNavAction((a) => {
+      seen.push(a);
+      return true;
+    }));
+    railHome.focus();
+    for (const [k, code] of [["F5", 116], ["Home", 36], ["PageUp", 33], ["PageDown", 34], ["ContextMenu", 93], ["F1", 112]] as const) {
+      const ev = w.key(k, code);
+      expect(ev.preventDefault, k).not.toHaveBeenCalled();
+    }
+    expect(seen).toEqual([]);
+    expect(fakeDoc.activeElement).toBe(railHome);
+  });
+
+  it("verified PageDown is left to a text field", () => {
+    const w = fakeWindow();
+    const map = DEFAULT_INPUT_MAP.map((b) => (b.button === "r2" ? { ...b, verified: true } : b));
+    offs.push(installNavigation(map));
+    const field = new FakeEl("name", {}, { left: 300, top: 100, width: 300, height: 40 }, "INPUT");
+    body.add(field);
+    field.focus();
+    const ev = w.key("PageDown", 34);
+    expect(ev.preventDefault).not.toHaveBeenCalled();
+    expect(fakeDoc.activeElement).toBe(field);
   });
 
   it("keys are matched by keyCode when the browser names the key Unidentified", () => {

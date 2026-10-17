@@ -3987,7 +3987,6 @@ c2c_test_deep_bad: "Тестовая отправка 4 КиБ не дошла: 
 "cw_hint_open": "Открыть",
 "cw_hint_back": "Назад",
 "cw_hint_switch_section": "Сменить раздел",
-"cw_hint_filter": "Фильтр",
 "cw_actions": "Действия",
 "cw_select": "Выбрать",
 "cw_reload_title": "Помощник PS5Upload перезапустился",

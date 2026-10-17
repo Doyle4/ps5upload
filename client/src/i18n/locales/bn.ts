@@ -4037,7 +4037,6 @@ c2c_test_deep_bad: "4 KiB-এর পরীক্ষামূলক পাঠা�
 "cw_hint_open": "খুলুন",
 "cw_hint_back": "পিছনে",
 "cw_hint_switch_section": "বিভাগ বদলান",
-"cw_hint_filter": "ফিল্টার",
 "cw_actions": "কাজ",
 "cw_select": "বাছাই করুন",
 "cw_reload_title": "PS5Upload সাহায্যকারী আবার চালু হয়েছে",

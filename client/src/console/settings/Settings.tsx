@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiError, call, isOffline } from "../api";
-import { fullscreenPref, fullscreenSupported, setFullscreenPref } from "../fullscreen";
+import { fullscreenState, setFullscreenPref, watchFullscreen } from "../fullscreen";
 import { onNavAction } from "../nav";
 import { LANGUAGE_NAMES } from "../languages";
 import { chooseLanguage, LANGUAGES, storedLanguage, t } from "../strings";
@@ -71,7 +71,8 @@ export interface SettingsViewProps {
   onDismissLan: () => void;
   onToggleTile: () => void;
   onLanguage: (code: string) => void;
-  /** The Full screen switch: on/off, or null where the browser cannot (the switch is hidden). */
+  /** The Full screen switch: whether the page is full screen now, or null where the browser cannot
+   *  or refused (the switch is hidden). */
   fullscreen?: boolean | null;
   onToggleFullscreen?: () => void;
 }
@@ -209,7 +210,10 @@ export function Settings() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [language, setLanguageState] = useState(storedLanguage);
-  const [fullscreen, setFullscreen] = useState<boolean | null>(() => (fullscreenSupported() ? fullscreenPref() : null));
+  const [fs, setFs] = useState(fullscreenState);
+  // The switch shows the real state: entered, left (the browser's own way too) or refused.
+  useEffect(() => watchFullscreen(setFs), []);
+  const fullscreen = fs.supported ? fs.on : null;
   /** Bumped by Create (refresh) to read /api/settings again. */
   const [tick, setTick] = useState(0);
 
@@ -302,9 +306,7 @@ export function Settings() {
       }}
       fullscreen={fullscreen}
       onToggleFullscreen={() => {
-        if (fullscreen === null) return;
-        setFullscreenPref(!fullscreen);
-        setFullscreen(!fullscreen);
+        if (fullscreen !== null) setFullscreenPref(!fullscreen);
       }}
     />
   );

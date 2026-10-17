@@ -4058,7 +4058,6 @@ c2c_test_deep_bad: "4 KiB のテスト送信が届きませんでした: {detail
 "cw_hint_open": "開く",
 "cw_hint_back": "戻る",
 "cw_hint_switch_section": "セクションを切り替え",
-"cw_hint_filter": "絞り込み",
 "cw_actions": "操作",
 "cw_select": "選択",
 "cw_reload_title": "PS5Upload のヘルパーが再起動しました",

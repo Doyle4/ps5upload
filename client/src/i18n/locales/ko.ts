@@ -4056,7 +4056,6 @@ c2c_test_deep_bad: "4 KiB 테스트 전송이 도착하지 않았습니다: {det
 "cw_hint_open": "열기",
 "cw_hint_back": "뒤로",
 "cw_hint_switch_section": "섹션 전환",
-"cw_hint_filter": "필터",
 "cw_actions": "작업",
 "cw_select": "선택",
 "cw_reload_title": "PS5Upload 헬퍼가 다시 시작되었습니다",

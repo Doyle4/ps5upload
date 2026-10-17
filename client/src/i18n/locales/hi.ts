@@ -4053,7 +4053,6 @@ c2c_test_deep_bad: "4 KiB का परीक्षण नहीं पहुँ
 "cw_hint_open": "खोलें",
 "cw_hint_back": "वापस",
 "cw_hint_switch_section": "अनुभाग बदलें",
-"cw_hint_filter": "फ़िल्टर",
 "cw_actions": "कार्य",
 "cw_select": "चुनें",
 "cw_reload_title": "PS5Upload हेल्पर फिर से शुरू हुआ",
