@@ -22,6 +22,7 @@ import { usePayloadPlaylistsStore } from "../state/payloadPlaylists";
 import { log } from "../state/logs";
 import { playlistResendsOurHelper } from "../lib/playlistOps";
 import { useAutoSaveBackup } from "./useAutoSaveBackup";
+import { useConsoleHandoff } from "./useConsoleHandoff";
 import {
   autoRunStillLoaded,
   bootEpochMs,
@@ -1387,6 +1388,7 @@ function AndroidLocalNetworkBanner() {
 export default function AppShell() {
   useStatusPolling();
   useAutoSaveBackup();
+  useConsoleHandoff();
   useAutoRedeployDownHelpers();
   useMovedConsoleWatch();
   useUpdateCheckOnMount();

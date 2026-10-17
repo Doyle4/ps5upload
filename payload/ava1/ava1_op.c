@@ -460,6 +460,10 @@ int ava1_jobs_list_all(const uint8_t me[32], uint8_t *out, size_t cap, size_t *o
     return list_jobs(NULL, out, cap, out_len);
 }
 
+int ava1_jobs_upload_roots(char (*roots)[AVA1_MAX_PATH + 1], unsigned max) {
+    return ava1_data_upload_roots(roots, max);
+}
+
 typedef struct {
     const uint8_t *me;
     uint8_t id[AVA1_MAX_JOBS][16];

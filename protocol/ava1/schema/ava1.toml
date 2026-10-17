@@ -1084,6 +1084,22 @@ name = "METHOD_NET_PORTS"
 ty = "u16"
 value = 147
 [[const]]
+name = "METHOD_FILES_PREFS_GET"
+ty = "u16"
+value = 148
+[[const]]
+name = "METHOD_FILES_PREFS_SET"
+ty = "u16"
+value = 149
+[[const]]
+name = "METHOD_FILES_HANDOFF_PUT"
+ty = "u16"
+value = 150
+[[const]]
+name = "METHOD_FILES_HANDOFF_TAKE"
+ty = "u16"
+value = 151
+[[const]]
 name = "JOB_OP_DELETE"
 ty = "u8"
 value = 1

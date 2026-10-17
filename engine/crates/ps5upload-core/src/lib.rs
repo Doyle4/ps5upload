@@ -5,6 +5,7 @@ pub mod backport_pack;
 pub mod backup;
 pub mod cheats;
 pub mod cleanup;
+pub mod console_files;
 pub mod ddp;
 pub mod diagnostics;
 pub mod download;

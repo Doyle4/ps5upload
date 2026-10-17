@@ -22,6 +22,7 @@
 #include "ava1_server.h"
 #include "ava1_wire.h"
 #include "config.h"
+#include "files_handoff.h"
 #include "files_prefs.h"
 #include "fs_jobs.h"
 #include "path_policy.h"
@@ -43,6 +44,8 @@
 #define API_READ_MAX (1024u * 1024u) /* /api/fs/read's longest answer */
 #define API_LIST_MAX 256u            /* fs.list entries per call (the helper's own ceiling) */
 #define API_CAUSE_MAX 200u
+#define API_UPLOAD_ROOTS 8u           /* running uploads named in /api/jobs "uploading" */
+#define API_UPLOADS_JSON (API_UPLOAD_ROOTS * (6u * API_PATH + 3u) + 32u)
 
 /* The console page's identity: the owner of the jobs it starts (constraints: fixed value). */
 static const uint8_t k_console_id[32] = "ps5upload-console-webui";
@@ -699,6 +702,20 @@ static int is_mine(const uint8_t id[16], void *ctx) {
     return ava1_jobs_owner_is(id, k_console_id);
 }
 
+/* "uploading": the destinations of running uploads (a PC's), for the Files badge. Left out when
+ * the list cannot be read (the jobs answer stands on its own). */
+static void add_uploads(char *json, size_t cap) {
+    char (*roots)[AVA1_MAX_PATH + 1] = malloc(API_UPLOAD_ROOTS * sizeof *roots);
+    const char *ptrs[API_UPLOAD_ROOTS];
+    size_t len = strlen(json);
+    int n, i;
+    if (!roots) return;
+    n = ava1_jobs_upload_roots(roots, API_UPLOAD_ROOTS);
+    for (i = 0; i < n; i++) ptrs[i] = roots[i];
+    if (len && json[len - 1] == '}') (void)files_uploads_json(ptrs, n, json + len - 1, cap - (len - 1));
+    free(roots);
+}
+
 static void r_jobs(const char *b, size_t n, uint8_t *out, int fd) {
     size_t ol = 0;
     char *json;
@@ -710,7 +727,7 @@ static void r_jobs(const char *b, size_t n, uint8_t *out, int fd) {
         send_status_error(fd, st, NULL, 0);
         return;
     }
-    json = malloc(API_JOBS_JSON);
+    json = malloc(API_JOBS_JSON + API_UPLOADS_JSON);
     if (!json) {
         send_error(fd, 500, "out_of_memory", 13);
         return;
@@ -722,6 +739,7 @@ static void r_jobs(const char *b, size_t n, uint8_t *out, int fd) {
          * a second open page still sees them) instead of letting each hold one of the 32 job slots
          * every owner shares for the full park age. A paired PC's jobs are left alone. */
         ava1_jobs_release_seen(k_console_id);
+        add_uploads(json, API_JOBS_JSON + API_UPLOADS_JSON);
         send_json(fd, 200, json, strlen(json));
     }
     free(json);
@@ -901,6 +919,42 @@ static void r_files_prefs_set(const char *b, size_t n, uint8_t *out, int fd) {
     len = files_prefs_update(FILES_PREFS_PATH, o, path, (char *)out, API_OUT_MAX);
     if (len < 0) send_prefs_error(fd, len);
     else send_json(fd, 200, (const char *)out, (size_t)len);
+}
+
+/* ---- Show on TV / Show on PC (files_handoff.c) ---- */
+
+/* {"for":"console"} -> {"path":"..","age_ms":N} (the PC asked the TV to open it), or {}. */
+static void r_files_handoff_take(const char *b, size_t n, uint8_t *out, int fd) {
+    char side[16];
+    int len;
+    if (n > FILES_HANDOFF_REQ_MAX) {
+        send_error(fd, 413, "too_large", 9);
+        return;
+    }
+    if (webui_json_str(b, n, "for", side, sizeof side) != 1 || files_handoff_side(side) != FILES_HANDOFF_TO_CONSOLE) {
+        send_bad(fd, "bad_side");
+        return;
+    }
+    len = files_handoff_take_json(FILES_HANDOFF_TO_CONSOLE, files_handoff_now_ms(), (char *)out, API_OUT_MAX);
+    if (len < 0) send_error(fd, 500, "internal", 8);
+    else send_json(fd, 200, (const char *)out, (size_t)len);
+}
+
+/* {"to":"pc","path":".."} -> {}: the PC app's File System opens it (it polls). */
+static void r_files_handoff_put(const char *b, size_t n, uint8_t *out, int fd) {
+    char side[16], path[API_PATH];
+    (void)out;
+    if (n > FILES_HANDOFF_REQ_MAX) {
+        send_error(fd, 413, "too_large", 9);
+        return;
+    }
+    if (webui_json_str(b, n, "to", side, sizeof side) != 1 || files_handoff_side(side) != FILES_HANDOFF_TO_PC) {
+        send_bad(fd, "bad_side");
+        return;
+    }
+    if (need_path(fd, b, n, "path", path, sizeof path) != 0) return;
+    if (files_handoff_put(FILES_HANDOFF_TO_PC, path, files_handoff_now_ms()) != 0) send_bad(fd, "bad_path");
+    else send_json(fd, 200, "{}", 2);
 }
 
 /* ---- settings ---- */
@@ -1193,6 +1247,8 @@ static const struct {
     { "/api/volumes/unmount", r_volumes_unmount },
     { "/api/files/prefs", r_files_prefs },
     { "/api/files/prefs/set", r_files_prefs_set },
+    { "/api/files/handoff/take", r_files_handoff_take },
+    { "/api/files/handoff/put", r_files_handoff_put },
     { "/api/fs/list", r_fs_list },
     { "/api/fs/stat", r_fs_stat },
     { "/api/fs/mkdir", r_fs_mkdir },

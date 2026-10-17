@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { t } from "../strings";
 import { Modal } from "../ui/Modal";
+import { SHOW_ON_PC_ITEM } from "./handoff";
 
 export type SheetAction =
   | "open"
@@ -35,6 +36,7 @@ export type SheetAction =
   | "unpin"
   | "verify"
   | "unpack"
+  | "showpc"
   | "fixperm"
   | "delete";
 
@@ -53,6 +55,7 @@ const ITEMS: Record<SheetAction, { icon: LucideIcon; key: string }> = {
   unpin: { icon: StarOff, key: "cw_files_unpin" },
   verify: { icon: FileCheck, key: "cw_files_verify" },
   unpack: { icon: FileArchive, key: "cw_files_unpack" },
+  showpc: SHOW_ON_PC_ITEM,
   fixperm: { icon: ShieldCheck, key: "cw_files_fixperm" },
   delete: { icon: Trash2, key: "cw_files_delete" },
 };

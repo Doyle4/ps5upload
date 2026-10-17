@@ -117,6 +117,8 @@ import { usePkgLibrary } from "../../state/pkgLibrary";
 import { isRemovableMount } from "../../lib/mountPaths";
 import { useRecentPathsStore } from "../../state/recentPaths";
 import { RecentPathsDropdown } from "./RecentPathsDropdown";
+import { showOnConsoleItems, useConsolePins } from "./useConsolePins";
+import { useToast } from "../../state/toasts";
 import { useUploadSettingsStore } from "../../state/uploadSettings";
 import {
   useFsClipboardStore,
@@ -1460,6 +1462,9 @@ export default function FileSystemScreen() {
   );
   // "Send to another console…" (#433): the items waiting for a console and folder.
   const [sendItems, setSendItems] = useState<SendItem[] | null>(null);
+  // The console's own Files page: its pinned folders, and "Show on console".
+  const consolePins = useConsolePins(host, payloadStatus === "up");
+  const { toast } = useToast();
   const otherConsoles = useRosterStore(
     (s) => s.profiles.filter((p) => hostOf(p.host) !== hostOf(host)).length,
   );
@@ -2480,6 +2485,7 @@ export default function FileSystemScreen() {
               label: tr("fs_menu_copy", undefined, "Copy"),
               run: () => stageClipboard("copy", [menuEntry]),
             },
+            ...showOnConsoleItems(consolePins, joinPath(path, menuEntry.name), tr, toast),
             ...(menuEntry.kind === "dir" && clipboard.items.length > 0
               ? [
                   {
@@ -2561,6 +2567,7 @@ export default function FileSystemScreen() {
                   },
                 ]
               : []),
+            ...showOnConsoleItems(consolePins, path, tr, toast),
             {
               icon: RefreshCw,
               label: tr("fs_refresh", "Refresh"),
@@ -2802,7 +2809,30 @@ export default function FileSystemScreen() {
               </>
             )}
           </div>
-          <RecentPathsDropdown onPick={(p) => setPath(p)} currentPath={path} />
+          <RecentPathsDropdown
+            onPick={(p) => setPath(p)}
+            currentPath={path}
+            onOpen={consolePins.refresh}
+            console={
+              consolePins.pins
+                ? {
+                    pins: consolePins.pins,
+                    pinned: consolePins.isPinned(path),
+                    onTogglePin: () =>
+                      void consolePins.toggle(path).catch((e: unknown) =>
+                        toast({
+                          tone: "warn",
+                          message: tr(
+                            "fs_console_pin_failed",
+                            { error: e instanceof Error ? e.message : String(e) },
+                            `Couldn't change the console's pinned folders: ${e instanceof Error ? e.message : String(e)}`,
+                          ),
+                        }),
+                      ),
+                  }
+                : undefined
+            }
+          />
         </div>
 
         {/* Clipboard banner: non-empty clipboard shows what's staged and
