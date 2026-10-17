@@ -2,7 +2,7 @@ import { isValidElement, type ReactElement, type ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { chooseLanguage, getLanguage, storedLanguage, t } from "../strings";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
-import { lanToggleStep, SettingsView, type SettingsViewProps } from "./Settings";
+import { lanToggleStep, SettingsView, waitTileApplied, type SettingsViewProps, type WebSettings } from "./Settings";
 
 function elements(node: ReactNode): ReactElement<Record<string, unknown>>[] {
   const out: ReactElement<Record<string, unknown>>[] = [];
@@ -58,6 +58,26 @@ describe("settings", () => {
     const lan = elements(SettingsView(idle)).find((e) => e.props.action === "lan");
     (lan?.props.onClick as () => void)();
     expect(idle.onToggleLan).toHaveBeenCalledTimes(1);
+  });
+
+  it("tile_switch_waits_for_the_real_result", async () => {
+    const at = (over: Partial<WebSettings>): WebSettings => ({ lan: false, tile: false, version: "7.1.0", ...over });
+    const reads = [at({ tile_busy: true }), at({ tile_busy: false, tile_failed: true })];
+    const read = vi.fn(async () => reads.shift()!);
+    const sleep = vi.fn(async () => undefined);
+    // The reply to the switch says "still working": re-read until it is done; the failure comes back.
+    const done = await waitTileApplied(at({ tile_busy: true }), read, sleep);
+    expect(read).toHaveBeenCalledTimes(2);
+    expect(done?.tile_failed).toBe(true);
+    // Already applied: no re-read.
+    const read2 = vi.fn();
+    expect(await waitTileApplied(at({ tile_busy: false }), read2, sleep)).toMatchObject({ tile_busy: false });
+    expect(read2).not.toHaveBeenCalled();
+    // A helper that never finishes: gives up after the limit, failed reads are retried.
+    const stuck = vi.fn<() => Promise<WebSettings>>().mockRejectedValueOnce(new Error("x")).mockResolvedValue(at({ tile_busy: true }));
+    const last = await waitTileApplied(at({ tile_busy: true }), stuck, sleep, 5000, 1000);
+    expect(stuck).toHaveBeenCalledTimes(5);
+    expect(last?.tile_busy).toBe(true);
   });
 
   it("language_choice_persists_and_survives_storage_errors", () => {

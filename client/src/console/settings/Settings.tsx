@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiError, call, isOffline } from "../api";
 import { LANGUAGE_NAMES } from "../languages";
 import { chooseLanguage, LANGUAGES, storedLanguage, t } from "../strings";
@@ -8,7 +8,39 @@ import { ConfirmDialog } from "../ui/ConfirmDialog";
 export interface WebSettings {
   lan: boolean;
   tile: boolean;
+  /** The helper is still adding or removing the tile (Sony calls take seconds). */
+  tile_busy?: boolean;
+  /** The last add/remove failed: the tile is not as `tile` says. */
+  tile_failed?: boolean;
   version: string;
+}
+
+/** How often, and how long at most, Settings re-reads after a tile switch. */
+export const TILE_POLL_MS = 1000;
+export const TILE_WAIT_MS = 60_000;
+
+/**
+ * After a tile switch: re-read /api/settings until the helper has applied it
+ * (tile_busy false) or `maxMs` passed. Resolves to the last answer read.
+ */
+export async function waitTileApplied(
+  first: WebSettings,
+  read: () => Promise<WebSettings>,
+  sleep: (ms: number) => Promise<void>,
+  maxMs = TILE_WAIT_MS,
+  stepMs = TILE_POLL_MS,
+): Promise<WebSettings> {
+  let last: WebSettings = first;
+  // (an older helper sends no tile_busy: nothing to wait for)
+  for (let waited = 0; last.tile_busy === true && waited < maxMs; waited += stepMs) {
+    await sleep(stepMs);
+    try {
+      last = await read();
+    } catch {
+      // keep the last answer; try again
+    }
+  }
+  return last;
 }
 
 /** Turning LAN access on asks first (it opens the page to the network); turning it off just does it. */
@@ -174,12 +206,37 @@ export function Settings() {
     };
   }, []);
 
+  const live = useRef(true);
+  useEffect(
+    () => () => {
+      live.current = false;
+    },
+    [],
+  );
+
   const save = useCallback((change: Partial<Pick<WebSettings, "lan" | "tile">>) => {
     setBusy(true);
     setError(null);
     call<WebSettings>("/api/settings/set", change)
-      .then(setSettings, (e: unknown) => setError(settingsErrorText(e)))
+      .then(
+        async (s) => {
+          setSettings(s);
+          if (change.tile === undefined) return;
+          // The tile is added or removed after the reply: wait for the real result (the switch stays
+          // disabled meanwhile) and say so when it did not work.
+          const done = await waitTileApplied(
+            s,
+            () => call<WebSettings>("/api/settings"),
+            (ms) => new Promise((res) => setTimeout(res, ms)),
+          );
+          if (!live.current) return;
+          setSettings(done);
+          if (done.tile_failed) setError(t(done.tile ? "cw_settings_err_tile_add" : "cw_settings_err_tile_remove"));
+        },
+        (e: unknown) => setError(settingsErrorText(e)),
+      )
       .finally(() => {
+        if (!live.current) return;
         setBusy(false);
         setAskLan(false);
       });

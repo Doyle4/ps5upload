@@ -8,8 +8,10 @@
  * Likewise rename's `to` is the full new path. So every item goes to
  * <destDir>/<its name>.
  *
- * One request at a time: JOB_COPY walks the source before it answers, on one of
- * the helper's four web workers, so a batch is sent item by item.
+ * One item at a time: JOB_COPY walks the source before it answers, on one of
+ * the helper's four web workers, and the helper's job table (32 jobs, shared
+ * with every paired PC) must not fill with one batch. So an item's request is
+ * sent only after the previous item's job has left "running" (waitJob).
  */
 import { ApiError, call } from "../api";
 
@@ -54,32 +56,68 @@ export interface BatchResult {
   started: string[];
   /** Items moved at once by rename (same drive). */
   moved: string[];
+  /** Requests the helper refused (nothing started for these). */
   failed: Failure[];
+  /** Items whose job started and then ended failed. */
+  jobFailed: string[];
+  /** Items never sent: the batch was stopped (or the token went away) first. */
+  skipped: string[];
 }
 
-type Progress = (done: number, total: number) => void;
+/** How a started job was left: its end state, gone from the list, or "left" (the batch stopped while it ran on). */
+export type JobEnd = "done" | "failed" | "gone" | "left";
+
+type Progress = (at: number, total: number) => void;
+
+export interface BatchOptions {
+  /** Item `at` (1-based) of `total` is being sent. */
+  onProgress?: Progress;
+  /** Resolves once job `id` is no longer running; without it the next item goes at once. */
+  waitJob?: (id: string) => Promise<JobEnd>;
+  /** Checked before each item: true stops the batch (the rest are skipped, nothing is cancelled). */
+  stopped?: () => boolean;
+}
 
 async function each(
   items: string[],
-  onProgress: Progress | undefined,
-  one: (item: string, r: BatchResult) => Promise<void>,
+  opts: BatchOptions | undefined,
+  one: (item: string, r: BatchResult) => Promise<string | void>,
 ): Promise<BatchResult> {
-  const r: BatchResult = { started: [], moved: [], failed: [] };
+  const r: BatchResult = { started: [], moved: [], failed: [], jobFailed: [], skipped: [] };
   for (let i = 0; i < items.length; i++) {
-    onProgress?.(i + 1, items.length);
+    if (opts?.stopped?.()) {
+      r.skipped = items.slice(i);
+      break;
+    }
+    opts?.onProgress?.(i + 1, items.length);
+    let job: string | void;
     try {
-      await one(items[i], r);
+      job = await one(items[i], r);
     } catch (error) {
       r.failed.push({ item: items[i], error });
       // The token is gone: every other request would 401 too.
-      if (error instanceof ApiError && error.status === 401) break;
+      if (error instanceof ApiError && error.status === 401) {
+        r.skipped = items.slice(i + 1);
+        break;
+      }
+      continue;
+    }
+    if (!job || !opts?.waitJob) continue;
+    try {
+      if ((await opts.waitJob(job)) === "failed") r.jobFailed.push(items[i]);
+    } catch (error) {
+      // The waiter gives up only when the token is gone (401).
+      r.failed.push({ item: items[i], error });
+      r.skipped = items.slice(i + 1);
+      break;
     }
   }
   return r;
 }
 
-async function startCopy(src: string, dest: string, move: boolean): Promise<string> {
+async function startCopy(src: string, dest: string, move: boolean, r: BatchResult): Promise<string> {
   const { job } = await call<{ job: string }>("/api/fs/copy", { src, dest, move });
+  r.started.push(job);
   return job;
 }
 
@@ -88,8 +126,8 @@ async function startCopy(src: string, dest: string, move: boolean): Promise<stri
  * helper refuses the rename (409 cross_mount, a cross-mount rename() panics the
  * kernel) and a copy job with move set does it instead.
  */
-export async function moveItems(items: string[], destDir: string, onProgress?: Progress): Promise<BatchResult> {
-  return each(items, onProgress, async (item, r) => {
+export async function moveItems(items: string[], destDir: string, opts?: BatchOptions): Promise<BatchResult> {
+  return each(items, opts, async (item, r) => {
     if (isInside(destDir, item)) throw new IntoItselfError(item);
     if (parentPath(item) === destDir.replace(/\/+$/, "")) return; // already there
     const to = joinPath(destDir, baseName(item));
@@ -98,22 +136,23 @@ export async function moveItems(items: string[], destDir: string, onProgress?: P
       r.moved.push(item);
     } catch (e) {
       if (!(e instanceof ApiError && e.code === "cross_mount")) throw e;
-      r.started.push(await startCopy(item, to, true));
+      return startCopy(item, to, true, r);
     }
   });
 }
 
-export async function copyItems(items: string[], destDir: string, onProgress?: Progress): Promise<BatchResult> {
-  return each(items, onProgress, async (item, r) => {
+export async function copyItems(items: string[], destDir: string, opts?: BatchOptions): Promise<BatchResult> {
+  return each(items, opts, async (item, r) => {
     if (isInside(destDir, item)) throw new IntoItselfError(item);
-    r.started.push(await startCopy(item, joinPath(destDir, baseName(item)), false));
+    return startCopy(item, joinPath(destDir, baseName(item)), false, r);
   });
 }
 
-export async function deleteItems(items: string[], onProgress?: Progress): Promise<BatchResult> {
-  return each(items, onProgress, async (item, r) => {
+export async function deleteItems(items: string[], opts?: BatchOptions): Promise<BatchResult> {
+  return each(items, opts, async (item, r) => {
     const { job } = await call<{ job: string }>("/api/fs/delete", { path: item });
     r.started.push(job);
+    return job;
   });
 }
 

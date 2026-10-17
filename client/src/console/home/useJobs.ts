@@ -39,7 +39,8 @@ export function visibleJobs(jobs: Job[]): Job[] {
   return running.concat(jobs.filter((j) => j.state !== "running" && j.mine));
 }
 
-async function fetchJobs(): Promise<Job[]> {
+/** One read of /api/jobs. */
+export async function fetchJobs(): Promise<Job[]> {
   const r = await call<{ jobs?: unknown }>("/api/jobs");
   return Array.isArray(r?.jobs) ? (r.jobs as Job[]) : [];
 }

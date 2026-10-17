@@ -13,7 +13,7 @@ import { t } from "../strings";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { ActionsSheet } from "./ActionsSheet";
 import { DirList } from "./DirList";
-import { filesErrorText, FilesView, upFrom, viewKind, type FilesViewProps } from "./Files";
+import { batchMessage, filesErrorText, FilesView, upFrom, viewKind, type FilesViewProps } from "./Files";
 import { IntoItselfError, renameEntry } from "./move";
 import { TextPrompt } from "./TextPrompt";
 import type { DirState, Entry } from "./useDir";
@@ -166,12 +166,32 @@ describe("Files", () => {
     expect(upFrom(null, vols)).toBeNull();
   });
 
-  it("copy and move are off while a copy or move request runs", () => {
-    const p = props({ ask: { kind: "sheet", names: ["a.txt"] }, busy: { op: "copy", done: 1, total: 3 } });
+  it("copy and move are off while a batch runs; it shows which item and a Stop", () => {
+    const onStopBatch = vi.fn();
+    const p = props({
+      ask: { kind: "sheet", names: ["a.txt"] },
+      busy: { op: "copy", at: 3, total: 40, stopping: false },
+      onStopBatch,
+    });
     const sheet = elements(FilesView(p)).find((e) => e.type === ActionsSheet)!;
     expect(sheet.props.busy).toBe(true);
     const html = renderToStaticMarkup(<FilesView {...p} />);
-    expect(html).toContain(t("cw_files_starting", { done: 1, total: 3 }));
+    expect(html).toContain(t("cw_files_batch_copy", { at: 3, total: 40 }));
+    const stop = elements(FilesView(p)).find((e) => e.props["data-action"] === "stop-batch")!;
+    (stop.props.onClick as () => void)();
+    expect(onStopBatch).toHaveBeenCalled();
+    // Once stopping, no second Stop.
+    const stopping = props({ busy: { op: "delete", at: 2, total: 5, stopping: true }, onStopBatch });
+    expect(renderToStaticMarkup(<FilesView {...stopping} />)).toContain(t("cw_files_batch_stopping"));
+    expect(elements(FilesView(stopping)).some((e) => e.props["data-action"] === "stop-batch")).toBe(false);
+  });
+
+  it("a finished batch says what failed, what a stop left out, else done", () => {
+    const r = { started: [], moved: [], failed: [], jobFailed: [], skipped: [] };
+    expect(batchMessage(r)).toEqual({ tone: "info", text: t("cw_files_done") });
+    expect(batchMessage({ ...r, jobFailed: ["/a"] })?.text).toBe(t("cw_files_batch_failed", { n: 1 }));
+    expect(batchMessage({ ...r, skipped: ["/a", "/b"] })?.text).toBe(t("cw_files_batch_stopped", { n: 2 }));
+    expect(batchMessage({ ...r, failed: [{ item: "/a", error: new ApiError(403, "x") }] })?.tone).toBe("error");
   });
 
   it("only images and text open in the viewer", () => {

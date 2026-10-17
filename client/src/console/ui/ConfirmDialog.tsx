@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { onNavAction, type NavAction } from "../nav";
 import { t } from "../strings";
+import { useBackLevel } from "../backHistory";
 import { useModalFocus } from "./restoreFocus";
 
 /**
@@ -28,6 +29,7 @@ export function ConfirmDialog({
   cancelLabel,
   danger,
   busy,
+  error,
   onConfirm,
   onCancel,
 }: {
@@ -40,6 +42,8 @@ export function ConfirmDialog({
   danger?: boolean;
   /** The action is running: a second ✕ does nothing. */
   busy?: boolean;
+  /** Why the last try did not work, shown inside the dialog (it stays open to try again). */
+  error?: string | null;
   onConfirm: () => void;
   onCancel: () => void;
 }) {
@@ -49,6 +53,8 @@ export function ConfirmDialog({
   // Focus starts on the safe choice; on close it goes back to the opener, or to
   // the row now in its place when the opener is gone (a deleted row).
   useModalFocus(safe);
+  // Open: the browser's Back (○) is "no".
+  useBackLevel(true);
 
   useEffect(() => onNavAction(dialogNavHandler(onCancel), () => root.current), [onCancel]);
 
@@ -66,6 +72,11 @@ export function ConfirmDialog({
       >
         <h2 id="cw-dialog-title">{title}</h2>
         {body ? <p id="cw-dialog-body">{body}</p> : null}
+        {error ? (
+          <p className="cw-field-error" role="alert">
+            {error}
+          </p>
+        ) : null}
         <div className="cw-dialog-buttons">
           <button ref={safe} type="button" className="cw-focusable cw-button" data-nav-default onClick={onCancel}>
             <span>{cancelLabel ?? t("cw_dialog_cancel")}</span>

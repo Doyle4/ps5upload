@@ -77,6 +77,11 @@ export function errorText(err: unknown): string | null {
   });
 }
 
+/** A failure the dialog keeps open for (try again in a moment): 409 (busy) or 503 (stopping). */
+export function keepsDialogOpen(err: unknown): boolean {
+  return err instanceof ApiError && (err.status === 409 || err.status === 503);
+}
+
 /** Do what was confirmed. Resolves to a line to show (the power actions), throws the ApiError. */
 export async function runAsk(ask: Ask, deps: { cancel: (id: string) => Promise<void> }): Promise<string | null> {
   switch (ask.kind) {
@@ -144,6 +149,8 @@ export interface HomeViewProps {
   jobsError: boolean;
   ask: Ask | null;
   busy: boolean;
+  /** The confirmed action failed in a way worth retrying (409 busy, 503): shown in the dialog. */
+  askError?: string | null;
   message: Message | null;
   onAsk: (ask: Ask) => void;
   onConfirm: () => void;
@@ -159,26 +166,40 @@ export function VolumeCard({ v, onOpen }: { v: Volume; onOpen: ((path: string) =
   const used = v.total_bytes > 0 ? Math.max(0, Math.min(100, 100 - (v.free_bytes / v.total_bytes) * 100)) : 0;
   const Icon = isUsbStick(v) || isUsbExt(v) ? Usb : HardDrive;
   return (
-    <li
-      className="cw-focusable cw-volume"
-      tabIndex={0}
-      data-volume={v.path}
-      onClick={onOpen ? () => onOpen(v.path) : undefined}
-    >
-      <div className="cw-volume-head">
-        <Icon aria-hidden />
-        <span className="cw-volume-name">{volumeLabel(v)}</span>
-        {!v.writable ? <span className="cw-tag">{t("cw_home_vol_readonly")}</span> : null}
-      </div>
-      <div className="cw-dim cw-mono">{v.path}</div>
-      <div className="cw-bar" aria-hidden>
-        <div className={`cw-bar-fill${used >= 90 ? " is-warn" : ""}`} style={{ width: `${used}%` }} />
-      </div>
-      <div className="cw-volume-free">
-        {t("cw_home_free_of", {
-          free: formatBytes(v.free_bytes),
-          total: formatBytes(v.total_bytes),
-        })}
+    <li className="cw-volume-item">
+      <div
+        className="cw-focusable cw-volume"
+        tabIndex={0}
+        role={onOpen ? "button" : undefined}
+        data-volume={v.path}
+        onClick={onOpen ? () => onOpen(v.path) : undefined}
+        onKeyDown={
+          onOpen
+            ? (e) => {
+                // A real button's keys (the nav layer leaves a handled key alone: no double open).
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  onOpen(v.path);
+                }
+              }
+            : undefined
+        }
+      >
+        <div className="cw-volume-head">
+          <Icon aria-hidden />
+          <span className="cw-volume-name">{volumeLabel(v)}</span>
+          {!v.writable ? <span className="cw-tag">{t("cw_home_vol_readonly")}</span> : null}
+        </div>
+        <div className="cw-dim cw-mono">{v.path}</div>
+        <div className="cw-bar" aria-hidden>
+          <div className={`cw-bar-fill${used >= 90 ? " is-warn" : ""}`} style={{ width: `${used}%` }} />
+        </div>
+        <div className="cw-volume-free">
+          {t("cw_home_free_of", {
+            free: formatBytes(v.free_bytes),
+            total: formatBytes(v.total_bytes),
+          })}
+        </div>
       </div>
     </li>
   );
@@ -301,6 +322,7 @@ export function HomeView(p: HomeViewProps) {
           cancelLabel={copy.cancel}
           danger={copy.danger}
           busy={p.busy}
+          error={p.askError}
           onConfirm={p.onConfirm}
           onCancel={p.onDismiss}
         />
@@ -348,6 +370,7 @@ export function Home({ ctx }: { ctx: SectionContext }) {
   const { volumes, error: volumesError } = useVolumes();
   const [ask, setAsk] = useState<Ask | null>(null);
   const [busy, setBusy] = useState(false);
+  const [askError, setAskError] = useState<string | null>(null);
   const [message, setMessage] = useState<Message | null>(null);
   const { refreshStatus, openSection, canOpen } = ctx;
 
@@ -360,25 +383,32 @@ export function Home({ ctx }: { ctx: SectionContext }) {
   const onConfirm = useCallback(() => {
     if (!ask || busy) return;
     setBusy(true);
-    runAsk(ask, { cancel })
-      .then(
-        (notice) => {
-          setMessage(notice ? { tone: "info", text: notice } : null);
-          if (ask.kind === "close") refreshStatus();
-        },
-        (e: unknown) => {
-          const text = errorText(e);
-          setMessage(text ? { tone: "error", text } : null);
-        },
-      )
-      .finally(() => {
+    setAskError(null);
+    runAsk(ask, { cancel }).then(
+      (notice) => {
+        setMessage(notice ? { tone: "info", text: notice } : null);
+        if (ask.kind === "close") refreshStatus();
         setBusy(false);
         setAsk(null);
-      });
+      },
+      (e: unknown) => {
+        const text = errorText(e);
+        setBusy(false);
+        if (text && keepsDialogOpen(e)) {
+          // Busy or stopping: say so where the user is looking; ✕ tries again, ○ gives up.
+          setAskError(text);
+          return;
+        }
+        setMessage(text ? { tone: "error", text } : null);
+        setAsk(null);
+      },
+    );
   }, [ask, busy, cancel, refreshStatus]);
 
   const onDismiss = useCallback(() => {
-    if (!busy) setAsk(null);
+    if (busy) return;
+    setAsk(null);
+    setAskError(null);
   }, [busy]);
 
   const usb = volumes ? firstUsbVolume(volumes) : null;
@@ -395,9 +425,11 @@ export function Home({ ctx }: { ctx: SectionContext }) {
       jobsError={jobsError != null}
       ask={ask}
       busy={busy}
+      askError={askError}
       message={message}
       onAsk={(a) => {
         setMessage(null);
+        setAskError(null);
         setAsk(a);
       }}
       onConfirm={onConfirm}

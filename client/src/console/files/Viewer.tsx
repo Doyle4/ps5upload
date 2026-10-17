@@ -27,6 +27,16 @@ export async function readUpTo(path: string, max: number, signal?: AbortSignal):
   return parts.length === 1 ? parts[0] : new Blob(parts);
 }
 
+/**
+ * An image the viewer will not show: larger than IMAGE_MAX by its listed size,
+ * or (size unknown) the read stopped at the cap — showing those bytes would be
+ * a cut-off picture.
+ */
+export function imageTooLarge(size: number | undefined, read: number | null): boolean {
+  if (size != null) return size > IMAGE_MAX;
+  return read != null && read >= IMAGE_MAX;
+}
+
 /** A text chunk the D-pad steps through: this many lines or characters at most. */
 const CHUNK_LINES = 30;
 const CHUNK_CHARS = 3000;
@@ -58,6 +68,7 @@ type Loaded =
   | { kind: "image"; url: string; size: number }
   | { kind: "text"; chunks: string[]; size: number }
   | { kind: "error" }
+  | { kind: "too_large" }
   | null;
 
 /**
@@ -70,11 +81,14 @@ export function Viewer({
   path,
   name,
   kind,
+  size,
   onClose,
 }: {
   path: string;
   name: string;
   kind: "image" | "text";
+  /** The file's size from the folder listing, when known. */
+  size?: number;
   onClose: () => void;
 }) {
   const [loaded, setLoaded] = useState<Loaded>(null);
@@ -83,10 +97,18 @@ export function Viewer({
     let live = true;
     let url: string | null = null;
     const stop = new AbortController();
+    if (kind === "image" && imageTooLarge(size, null)) {
+      setLoaded({ kind: "too_large" }); // nothing read: it would not be shown
+      return;
+    }
     readUpTo(path, kind === "image" ? IMAGE_MAX : VIEW_MAX, stop.signal).then(
       async (blob) => {
         if (!live) return;
         if (kind === "image") {
+          if (imageTooLarge(size, blob.size)) {
+            setLoaded({ kind: "too_large" });
+            return;
+          }
           const ext = name.slice(name.lastIndexOf(".") + 1).toLowerCase();
           url = URL.createObjectURL(new Blob([blob], { type: ext === "png" ? "image/png" : "image/jpeg" }));
           setLoaded({ kind: "image", url, size: blob.size });
@@ -106,7 +128,7 @@ export function Viewer({
       stop.abort();
       if (url) URL.revokeObjectURL(url);
     };
-  }, [path, name, kind]);
+  }, [path, name, kind, size]);
 
   return (
     <Modal label={name} className="cw-viewer" onBack={onClose}>
@@ -119,6 +141,7 @@ export function Viewer({
       <div className="cw-viewer-body">
         {loaded == null ? <p className="cw-dim">{t("cw_home_loading")}</p> : null}
         {loaded?.kind === "error" ? <p className="cw-field-error">{t("cw_files_err_read")}</p> : null}
+        {loaded?.kind === "too_large" ? <p className="cw-dim">{t("cw_files_too_large")}</p> : null}
         {loaded?.kind === "image" ? (
           <img className="cw-focusable" tabIndex={0} src={loaded.url} alt={name} />
         ) : null}

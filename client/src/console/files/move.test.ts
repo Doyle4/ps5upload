@@ -80,7 +80,7 @@ describe("moveItems", () => {
       throw new ApiError(409, "cross_mount");
     });
     const progress = vi.fn();
-    await moveItems(["/a/1", "/a/2", "/a/3"], "/b", progress);
+    await moveItems(["/a/1", "/a/2", "/a/3"], "/b", { onProgress: progress });
     expect(most).toBe(1);
     expect(progress.mock.calls).toEqual([
       [1, 3],
@@ -129,5 +129,76 @@ describe("copy, delete, rename", () => {
     mockCall.mockResolvedValue({} as never);
     await renameEntry("/data", "old", "new");
     expect(mockCall).toHaveBeenCalledWith("/api/fs/rename", { from: "/data/old", to: "/data/new" });
+  });
+});
+
+describe("one job at a time", () => {
+  it("batch_waits_for_each_job_before_the_next", async () => {
+    const events: string[] = [];
+    let n = 0;
+    mockCall.mockImplementation(async (_route: string, body?: object) => {
+      events.push(`start ${(body as { path: string }).path}`);
+      return { job: `j${++n}` } as never;
+    });
+    const waitJob = vi.fn(async (id: string) => {
+      events.push(`wait ${id}`);
+      await new Promise((res) => setTimeout(res, 1));
+      events.push(`ended ${id}`);
+      return id === "j2" ? ("failed" as const) : ("done" as const);
+    });
+    const r = await deleteItems(["/d/a", "/d/b", "/d/c"], { waitJob });
+    // Never two jobs at once: the next item is sent only after the previous job ended.
+    expect(events).toEqual([
+      "start /d/a",
+      "wait j1",
+      "ended j1",
+      "start /d/b",
+      "wait j2",
+      "ended j2",
+      "start /d/c",
+      "wait j3",
+      "ended j3",
+    ]);
+    expect(r.started).toEqual(["j1", "j2", "j3"]);
+    expect(r.jobFailed).toEqual(["/d/b"]);
+    expect(r.skipped).toEqual([]);
+  });
+
+  it("a rename needs no wait; a cross-drive move waits for its job", async () => {
+    mockCall.mockImplementation(async (route: string, body?: object) => {
+      if (route === "/api/fs/rename" && (body as { from: string }).from === "/mnt/usb0/x") throw new ApiError(409, "cross_mount");
+      return (route === "/api/fs/copy" ? { job: "c1" } : {}) as never;
+    });
+    const waitJob = vi.fn(async () => "done" as const);
+    const r = await moveItems(["/data/a", "/mnt/usb0/x"], "/data/dst", { waitJob });
+    expect(waitJob.mock.calls).toEqual([["c1"]]);
+    expect(r.moved).toEqual(["/data/a"]);
+    expect(r.started).toEqual(["c1"]);
+  });
+
+  it("stop_sends_no_further_item", async () => {
+    let stop = false;
+    mockCall.mockResolvedValue({ job: "ab".repeat(16) } as never);
+    const r = await copyItems(["/a/1", "/a/2", "/a/3"], "/b", {
+      waitJob: async () => {
+        stop = true; // Stop pressed while the first copy runs
+        return "done";
+      },
+      stopped: () => stop,
+    });
+    expect(mockCall).toHaveBeenCalledTimes(1);
+    expect(r.skipped).toEqual(["/a/2", "/a/3"]);
+  });
+
+  it("a 401 while waiting ends the batch", async () => {
+    mockCall.mockResolvedValue({ job: "ab".repeat(16) } as never);
+    const r = await copyItems(["/a/1", "/a/2"], "/b", {
+      waitJob: async () => {
+        throw new ApiError(401, "token");
+      },
+    });
+    expect(mockCall).toHaveBeenCalledTimes(1);
+    expect(r.failed.map((f) => f.item)).toEqual(["/a/1"]);
+    expect(r.skipped).toEqual(["/a/2"]);
   });
 });

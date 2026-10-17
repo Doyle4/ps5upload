@@ -6,7 +6,7 @@ vi.mock("../api", async (importOriginal) => {
 });
 
 import { callBlob } from "../api";
-import { IMAGE_MAX, readUpTo, VIEW_MAX } from "./Viewer";
+import { IMAGE_MAX, imageTooLarge, readUpTo, VIEW_MAX } from "./Viewer";
 
 const mockBlob = vi.mocked(callBlob);
 
@@ -34,6 +34,14 @@ describe("Viewer reads", () => {
     const b = await readUpTo("/data/a.png", IMAGE_MAX);
     expect(b.size).toBe(VIEW_MAX + 10);
     expect(mockBlob.mock.calls.map((c) => (c[1] as { offset: number }).offset)).toEqual([0, VIEW_MAX]);
+  });
+
+  it("an image over 16 MiB is too large to preview (not a cut-off picture)", () => {
+    expect(imageTooLarge(IMAGE_MAX + 1, null)).toBe(true); // from the listing: nothing is read
+    expect(imageTooLarge(IMAGE_MAX, null)).toBe(false);
+    expect(imageTooLarge(IMAGE_MAX, IMAGE_MAX)).toBe(false); // exactly the cap, whole
+    expect(imageTooLarge(undefined, IMAGE_MAX)).toBe(true); // size unknown: the read hit the cap
+    expect(imageTooLarge(undefined, IMAGE_MAX - 1)).toBe(false);
   });
 
   it("text stops at 1 MiB", async () => {

@@ -453,7 +453,12 @@ button {
   grid-gap: 0.8rem;
   gap: 0.8rem;
 }
+.cw-volume-item {
+  display: flex;
+}
 .cw-volume {
+  flex: 1 1 auto;
+  min-width: 0;
   padding: 0.7rem 0.9rem;
   border-radius: var(--radius-card);
   background: var(--color-surface);

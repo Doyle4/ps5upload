@@ -1,5 +1,6 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import { onNavAction } from "../nav";
+import { useBackLevel } from "../backHistory";
 import { useModalFocus } from "./restoreFocus";
 
 /**
@@ -24,6 +25,8 @@ export function Modal({
 }) {
   const root = useRef<HTMLDivElement>(null);
   useModalFocus(root);
+  // Open: the browser's Back (○) closes it (or steps back inside it).
+  useBackLevel(true);
   useEffect(
     () =>
       onNavAction(

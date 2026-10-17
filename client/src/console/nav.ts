@@ -14,6 +14,7 @@
  * `verified` flag per entry. The HintBar shows only verified entries, and every
  * action has an on-screen control as well, so nothing depends on a shortcut.
  */
+import { requestBack } from "./backHistory";
 
 export type Direction = "up" | "down" | "left" | "right";
 export type NavAction =
@@ -407,13 +408,24 @@ function isTextField(el: Element | null): boolean {
 }
 
 /**
+ * One input's action. Back goes through browser history (backHistory.ts): the
+ * PS5 browser's own ○ is history back, so Escape, Backspace and a gamepad ○
+ * take that same path and every back runs from popstate.
+ */
+function act(action: NavAction): void {
+  if (action === "back") requestBack(() => dispatchNav("back"));
+  else dispatchNav(action);
+}
+
+/**
  * Listen for the keys and gamepad buttons in `map` until the returned function
- * is called. Keyboard: keydown. Gamepad: polled once per animation frame.
+ * is called. Keyboard: keydown (one a control handled itself is left alone).
+ * Gamepad: polled once per animation frame.
  */
 export function installNavigation(map: InputMap): () => void {
   const echo = createEchoGuard();
   const onKey = (e: KeyboardEvent) => {
-    if (e.altKey || e.ctrlKey || e.metaKey) return;
+    if (e.altKey || e.ctrlKey || e.metaKey || e.defaultPrevented) return;
     const binding = map.keys[e.key];
     if (!binding) return;
     const typing = isTextField(e.target as Element | null);
@@ -422,7 +434,7 @@ export function installNavigation(map: InputMap): () => void {
     }
     e.preventDefault();
     if (isDirection(binding.action) && !echo.keyAllowed(binding.action, performance.now())) return;
-    dispatchNav(binding.action);
+    act(binding.action);
   };
   window.addEventListener("keydown", onKey);
 
@@ -445,7 +457,7 @@ export function installNavigation(map: InputMap): () => void {
       const pressed = pad.buttons.map((btn) => btn.pressed);
       for (const action of read(pressed, now)) {
         if (isDirection(action)) echo.padFired(action, now);
-        dispatchNav(action);
+        act(action);
       }
     }
     frame = requestAnimationFrame(poll);

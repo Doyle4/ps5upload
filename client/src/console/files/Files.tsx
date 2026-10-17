@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowUp, FolderPlus, RotateCw } from "lucide-react";
+import { ArrowUp, FolderPlus, RotateCw, Square } from "lucide-react";
 import { formatBytes } from "../../lib/format";
 import { ApiError, call } from "../api";
 import { errorText, type Message, type Volume } from "../home/Home";
 import { useJobs, type Job } from "../home/useJobs";
 import { jobPercent } from "../home/TaskRow";
+import { useBackLevel } from "../backHistory";
 import { onNavAction, topModal } from "../nav";
 import type { SectionContext } from "../sections";
 import { t } from "../strings";
@@ -26,8 +27,10 @@ import {
   upFrom,
   volumeOf,
   IntoItselfError,
+  type BatchOptions,
   type BatchResult,
 } from "./move";
+import { currentBatch, startBatch, stopBatch, useBatch, waitJob, type BatchProgress } from "./batch";
 import { PathPicker } from "./PathPicker";
 import { TextPrompt } from "./TextPrompt";
 import { useDir, type DirState, type Entry } from "./useDir";
@@ -48,11 +51,18 @@ export type FilesAsk =
   | { kind: "info"; name: string }
   | { kind: "view"; name: string; type: "image" | "text" };
 
-/** A copy/move/delete batch whose requests are being sent (one at a time). */
-export interface Busy {
-  op: "copy" | "move" | "delete";
-  done: number;
-  total: number;
+/** The copy/move/delete batch running now (one item at a time, see batch.ts). */
+export type Busy = BatchProgress;
+
+/** The line a finished batch leaves: what failed, what a stop left out, else "Done." */
+export function batchMessage(r: BatchResult): Message | null {
+  if (r.failed.length) {
+    const why = filesErrorText(r.failed[0].error);
+    return why ? { tone: "error", text: t("cw_files_some_failed", { n: r.failed.length, reason: why }) } : null;
+  }
+  if (r.jobFailed.length) return { tone: "error", text: t("cw_files_batch_failed", { n: r.jobFailed.length }) };
+  if (r.skipped.length) return { tone: "info", text: t("cw_files_batch_stopped", { n: r.skipped.length }) };
+  return { tone: "info", text: t("cw_files_done") };
 }
 
 /** A failed call as a short line; null for a 401 (the reload banner says it). */
@@ -81,6 +91,8 @@ export interface FilesViewProps {
   message: Message | null;
   /** Running jobs this page started (copies, moves, deletes). */
   tasks: Job[];
+  /** Stop the running batch before its next item. */
+  onStopBatch?: () => void;
   onOpen: (path: string | null) => void;
   onUp: () => void;
   onEntry: (e: Entry) => void;
@@ -96,8 +108,14 @@ export interface FilesViewProps {
   onPicked: (op: "copy" | "move", names: string[], destDir: string) => void;
 }
 
-function busyText(b: Busy | null): string | null {
-  return b ? t("cw_files_starting", { done: b.done, total: b.total }) : null;
+/** "Copying 3 of 40" (item `at` is being sent or is running), or "Stopping…". */
+export function busyText(b: Busy | null): string | null {
+  if (!b) return null;
+  if (b.stopping) return t("cw_files_batch_stopping");
+  const at = Math.max(1, b.at);
+  if (b.op === "copy") return t("cw_files_batch_copy", { at, total: b.total });
+  if (b.op === "move") return t("cw_files_batch_move", { at, total: b.total });
+  return t("cw_files_batch_delete", { at, total: b.total });
 }
 
 /** What the sheet offers for `names` (one entry, or the selection). */
@@ -195,7 +213,15 @@ function askView(p: FilesViewProps) {
     case "info":
       return <InfoDialog dir={path} name={a.name} path={joinPath(path, a.name)} onClose={p.onDismiss} />;
     case "view":
-      return <Viewer path={joinPath(path, a.name)} name={a.name} kind={a.type} onClose={p.onDismiss} />;
+      return (
+        <Viewer
+          path={joinPath(path, a.name)}
+          name={a.name}
+          kind={a.type}
+          size={p.dir.entries.find((e) => e.name === a.name)?.size}
+          onClose={p.onDismiss}
+        />
+      );
   }
 }
 
@@ -229,6 +255,17 @@ export function FilesView(p: FilesViewProps) {
       {status ? (
         <div className="cw-msg" role="status">
           {status}
+          {p.onStopBatch && p.busy && !p.busy.stopping && p.busy.total > 1 ? (
+            <button
+              type="button"
+              className="cw-focusable cw-button cw-msg-action"
+              data-action="stop-batch"
+              onClick={p.onStopBatch}
+            >
+              <Square aria-hidden />
+              <span>{t("cw_files_batch_stop")}</span>
+            </button>
+          ) : null}
         </div>
       ) : null}
       <TasksLine tasks={p.tasks} />
@@ -350,11 +387,11 @@ export function Files({ ctx }: { ctx: SectionContext }) {
   const [selecting, setSelecting] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
   const [ask, setAsk] = useState<FilesAsk | null>(null);
-  const [busy, setBusy] = useState<Busy | null>(null);
+  const busy = useBatch();
   const [message, setMessage] = useState<Message | null>(null);
-  /** Jobs this page started and is waiting on. */
-  const [mine, setMine] = useState<string[]>([]);
   const root = useRef<HTMLDivElement>(null);
+  /** False once Files unmounts: a batch that ends later reports to no one (it ran to the end anyway). */
+  const mounted = useRef(true);
   /** Where focus was last in the list (to put it back when that row goes). */
   const lastAnchor = useRef<FocusAnchor | null>(null);
   /** After the next load, focus this row ("" = the first one), then forget it. */
@@ -362,7 +399,15 @@ export function Files({ ctx }: { ctx: SectionContext }) {
   /** "Show more" had focus when it read the next page: the row count before it. */
   const afterMore = useRef<number | null>(null);
   const { refresh } = dir;
+  // Inside a folder, the browser's Back (○) goes up one level.
+  useBackLevel(path != null);
 
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (!message) return;
@@ -432,26 +477,17 @@ export function Files({ ctx }: { ctx: SectionContext }) {
     loadMore();
   }, [loadMore, dir.entries.length]);
 
-  // Refresh when a job started here ends; say so if it failed.
+  // Each item of a batch ends before the next starts: show the folder as it is now.
+  const batchAt = busy?.at ?? 0;
   useEffect(() => {
-    if (!mine.length) return;
-    const ended = jobs.filter((j) => mine.includes(j.job) && j.state !== "running");
-    if (!ended.length) return;
-    setMine((m) => m.filter((id) => !ended.some((j) => j.job === id)));
-    if (ended.some((j) => j.state === "failed")) setMessage({ tone: "error", text: t("cw_files_task_failed") });
-    refresh();
-  }, [jobs, mine, refresh]);
-  const tasks = jobs.filter((j) => j.state === "running" && mine.includes(j.job));
+    if (batchAt > 1) refresh();
+  }, [batchAt, refresh]);
+  // The page's own jobs still running (a batch's current item, or one a stopped batch left running).
+  const tasks = jobs.filter((j) => j.state === "running" && j.mine);
 
   const report = useCallback(
     (r: BatchResult) => {
-      if (r.started.length) setMine((m) => m.concat(r.started));
-      if (r.failed.length) {
-        const why = filesErrorText(r.failed[0].error);
-        if (why) setMessage({ tone: "error", text: t("cw_files_some_failed", { n: r.failed.length, reason: why }) });
-      } else {
-        setMessage({ tone: "info", text: t(r.started.length ? "cw_files_started" : "cw_files_done") });
-      }
+      setMessage(batchMessage(r));
       refresh();
     },
     [refresh],
@@ -468,32 +504,37 @@ export function Files({ ctx }: { ctx: SectionContext }) {
   );
 
   const runBatch = useCallback(
-    (op: Busy["op"], names: string[], work: (items: string[], prog: (d: number, n: number) => void) => Promise<BatchResult>) => {
-      if (path == null || busy) return;
+    (op: Busy["op"], names: string[], work: (items: string[], opts: BatchOptions) => Promise<BatchResult>) => {
+      if (path == null || currentBatch()) return;
       const items = names.map((n) => joinPath(path, n));
-      setBusy({ op, done: 0, total: items.length });
+      // The dialog closes at once: the batch runs on (one item at a time) with its progress and Stop
+      // in the status line, here and when Files is opened again.
+      setAsk(null);
       setMessage(null);
-      work(items, (done, total) => setBusy({ op, done, total }))
-        .then(report)
-        .finally(() => {
-          setBusy(null);
-          setAsk(null);
-          setSelecting(false);
-          setSelected([]);
-        });
+      setSelecting(false);
+      setSelected([]);
+      const run = startBatch(op, items.length, (ctl) =>
+        work(items, { onProgress: ctl.onProgress, stopped: ctl.stopped, waitJob: (id) => waitJob(id, ctl.stopped) }),
+      );
+      run?.then(
+        (r) => {
+          if (mounted.current) report(r);
+        },
+        () => undefined,
+      );
     },
-    [path, busy, report],
+    [path, report],
   );
 
   const onConfirmDelete = useCallback(
-    (names: string[]) => runBatch("delete", names, (items, prog) => deleteItems(items, prog)),
+    (names: string[]) => runBatch("delete", names, (items, opts) => deleteItems(items, opts)),
     [runBatch],
   );
 
   const onPicked = useCallback(
     (op: "copy" | "move", names: string[], destDir: string) => {
       setAsk(null);
-      runBatch(op, names, (items, prog) => (op === "copy" ? copyItems : moveItems)(items, destDir, prog));
+      runBatch(op, names, (items, opts) => (op === "copy" ? copyItems : moveItems)(items, destDir, opts));
     },
     [runBatch],
   );
@@ -576,8 +617,8 @@ export function Files({ ctx }: { ctx: SectionContext }) {
   );
 
   const onDismiss = useCallback(() => {
-    if (!busy) setAsk(null);
-  }, [busy]);
+    setAsk(null);
+  }, []);
 
   return (
     <div
@@ -598,6 +639,7 @@ export function Files({ ctx }: { ctx: SectionContext }) {
         busy={busy}
         message={message}
         tasks={tasks}
+        onStopBatch={stopBatch}
         onOpen={(p) => go(p)}
         onUp={goUp}
         onEntry={onEntry}

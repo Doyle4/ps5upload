@@ -13,6 +13,7 @@ import { ConfirmDialog, dialogNavHandler } from "../ui/ConfirmDialog";
 import {
   errorText,
   firstUsbVolume,
+  keepsDialogOpen,
   HomeView,
   runAsk,
   VolumeCard,
@@ -217,11 +218,40 @@ describe("Home", () => {
       HomeView(viewProps({ volumes: [vol("/data", "x"), vol("/mnt/usb0", "/dev/da0s1")], onOpenDrive: open })),
     ).filter((e) => e.type === VolumeCard);
     expect(cards).toHaveLength(2);
-    // ✕ clicks the focused card (nav.ts confirm): the card's li carries the onClick.
-    const li = VolumeCard(cards[1].props as Parameters<typeof VolumeCard>[0]) as ReactElement<Record<string, unknown>>;
-    expect(li.props["data-volume"]).toBe("/mnt/usb0");
-    (li.props.onClick as () => void)();
+    // ✕ clicks the focused card (nav.ts confirm): the card (a role=button inside the li) carries the onClick.
+    const card = elements(VolumeCard(cards[1].props as Parameters<typeof VolumeCard>[0])).find(
+      (e) => e.props["data-volume"] === "/mnt/usb0",
+    )!;
+    expect(card.props.role).toBe("button");
+    expect(card.props.tabIndex).toBe(0);
+    (card.props.onClick as () => void)();
     expect(open).toHaveBeenCalledWith("/mnt/usb0");
+    // Enter and Space work like a button's (and are marked handled, so nav.ts does not click it again).
+    for (const key of ["Enter", " "]) {
+      const ev = { key, preventDefault: vi.fn() };
+      (card.props.onKeyDown as (e: typeof ev) => void)(ev);
+      expect(ev.preventDefault).toHaveBeenCalled();
+    }
+    expect(open).toHaveBeenCalledTimes(3);
+    // Without Files to open, a card is only shown: no button role.
+    const plain = elements(VolumeCard({ v: vol("/data", "x"), onOpen: null })).find((e) => e.props["data-volume"])!;
+    expect(plain.props.role).toBeUndefined();
+  });
+
+  it("a 409 or 503 keeps the dialog open with the error inside it", () => {
+    expect(keepsDialogOpen(new ApiError(409, "busy"))).toBe(true);
+    expect(keepsDialogOpen(new ApiError(503, "stopping"))).toBe(true);
+    expect(keepsDialogOpen(new ApiError(500, "io_error"))).toBe(false);
+    expect(keepsDialogOpen(new ApiError(401, "token"))).toBe(false);
+    const dialog = elements(
+      HomeView(viewProps({ ask: { kind: "power", action: "rest" }, askError: t("cw_home_err_busy") })),
+    ).find((e) => e.type === ConfirmDialog)!;
+    expect(dialog.props.error).toBe(t("cw_home_err_busy"));
+    const html = renderToStaticMarkup(
+      <ConfirmDialog title="x" confirmLabel="y" error={t("cw_home_err_busy")} onConfirm={vi.fn()} onCancel={vi.fn()} />,
+    );
+    expect(html).toContain(t("cw_home_err_busy"));
+    expect(html).toContain('role="alert"');
   });
 
   it("errors become short translated messages", () => {

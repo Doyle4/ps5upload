@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { call, isOffline, onTokenExpired } from "./api";
+import { useBackLevel } from "./backHistory";
 import { focusElement, onNavAction, type InputMap } from "./nav";
 import { SECTIONS, type SectionContext, type SectionParams } from "./sections";
 import { HintBar } from "./shell/HintBar";
 import { Rail } from "./shell/Rail";
 import { ReloadBanner } from "./shell/ReloadBanner";
 import { TopBar, type ConsoleStatus } from "./shell/TopBar";
+import { pollWhileVisible } from "./ui/visiblePoll";
 import { t } from "./strings";
 
 /** The console chip refreshes this often (the temperature moves). */
@@ -32,6 +34,9 @@ export function App({ inputMap }: { inputMap: InputMap }) {
     setParams(p);
   }, []);
 
+  // Away from Home, the browser's Back (○) comes back towards it (rail, then Home).
+  useBackLevel(active !== SECTIONS[0].id);
+
   useEffect(() => onTokenExpired(() => setExpired(true)), []);
 
   // The console chip. Stops once the token is gone: every call would 401.
@@ -50,11 +55,11 @@ export function App({ inputMap }: { inputMap: InputMap }) {
         },
       );
     };
-    load();
-    const timer = window.setInterval(load, STATUS_POLL_MS);
+    // Not while the page is hidden (the browser in the background): no reason to wake the helper.
+    const stop = pollWhileVisible(load, STATUS_POLL_MS);
     return () => {
       live = false;
-      window.clearInterval(timer);
+      stop();
     };
   }, [expired, statusTick]);
 
