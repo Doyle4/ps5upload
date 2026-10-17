@@ -1,8 +1,8 @@
-import { Copy, Eye, FolderInput, FolderPlus, Info, PencilLine, Trash2, type LucideIcon } from "lucide-react";
+import { Copy, Eye, FolderInput, FolderPlus, Info, PencilLine, ShieldCheck, Trash2, type LucideIcon } from "lucide-react";
 import { t } from "../strings";
 import { Modal } from "../ui/Modal";
 
-export type SheetAction = "view" | "copy" | "move" | "rename" | "mkdir" | "info" | "delete";
+export type SheetAction = "view" | "copy" | "move" | "rename" | "mkdir" | "info" | "fixperm" | "delete";
 
 const ITEMS: Record<SheetAction, { icon: LucideIcon; key: string }> = {
   view: { icon: Eye, key: "cw_files_view" },
@@ -11,11 +11,12 @@ const ITEMS: Record<SheetAction, { icon: LucideIcon; key: string }> = {
   rename: { icon: PencilLine, key: "cw_files_rename" },
   mkdir: { icon: FolderPlus, key: "cw_files_new_folder" },
   info: { icon: Info, key: "cw_files_info" },
+  fixperm: { icon: ShieldCheck, key: "cw_files_fixperm" },
   delete: { icon: Trash2, key: "cw_files_delete" },
 };
 
 /** The ones a running copy/move/delete request holds back (one batch at a time). */
-const HELD: ReadonlySet<SheetAction> = new Set(["copy", "move", "delete"]);
+const HELD: ReadonlySet<SheetAction> = new Set(["copy", "move", "fixperm", "delete"]);
 
 /**
  * △ / "⋯": what can be done with one item or the selection, as a list of

@@ -20,6 +20,7 @@ import { InfoDialog } from "./InfoDialog";
 import {
   copyItems,
   deleteItems,
+  fixPermItems,
   joinPath,
   moveItems,
   baseName,
@@ -45,6 +46,7 @@ const MESSAGE_MS = 8_000;
 export type FilesAsk =
   | { kind: "sheet"; names: string[] }
   | { kind: "delete"; names: string[] }
+  | { kind: "fixperm"; names: string[] }
   | { kind: "rename"; name: string }
   | { kind: "mkdir" }
   | { kind: "pick"; op: "copy" | "move"; names: string[] }
@@ -55,14 +57,14 @@ export type FilesAsk =
 export type Busy = BatchProgress;
 
 /** The line a finished batch leaves: what failed, what a stop left out, else "Done." */
-export function batchMessage(r: BatchResult): Message | null {
+export function batchMessage(r: BatchResult, op?: Busy["op"]): Message | null {
   if (r.failed.length) {
     const why = filesErrorText(r.failed[0].error);
     return why ? { tone: "error", text: t("cw_files_some_failed", { n: r.failed.length, reason: why }) } : null;
   }
   if (r.jobFailed.length) return { tone: "error", text: t("cw_files_batch_failed", { n: r.jobFailed.length }) };
   if (r.skipped.length) return { tone: "info", text: t("cw_files_batch_stopped", { n: r.skipped.length }) };
-  return { tone: "info", text: t("cw_files_done") };
+  return { tone: "info", text: t(op === "chmod" ? "cw_files_fixperm_done" : "cw_files_done") };
 }
 
 /** A failed call as a short line; null for a 401 (the reload banner says it). */
@@ -105,6 +107,7 @@ export interface FilesViewProps {
   onAsk: (ask: FilesAsk) => void;
   onDismiss: () => void;
   onConfirmDelete: (names: string[]) => void;
+  onConfirmFixPerm: (names: string[]) => void;
   onRename: (name: string, newName: string) => void;
   onMkdir: (name: string) => void;
   onPicked: (op: "copy" | "move", names: string[], destDir: string) => void;
@@ -117,16 +120,17 @@ export function busyText(b: Busy | null): string | null {
   const at = Math.max(1, b.at);
   if (b.op === "copy") return t("cw_files_batch_copy", { at, total: b.total });
   if (b.op === "move") return t("cw_files_batch_move", { at, total: b.total });
+  if (b.op === "chmod") return t("cw_files_fixperm_batch", { at, total: b.total });
   return t("cw_files_batch_delete", { at, total: b.total });
 }
 
 /** What the sheet offers for `names` (one entry, or the selection). */
 function sheetActions(names: string[], entries: Entry[]): SheetAction[] {
-  if (names.length !== 1) return ["copy", "move", "delete"];
+  if (names.length !== 1) return ["copy", "move", "fixperm", "delete"];
   const e = entries.find((x) => x.name === names[0]);
   const out: SheetAction[] = [];
   if (e && e.kind !== "dir" && viewKind(e.name)) out.push("view");
-  out.push("copy", "move", "rename", "mkdir", "info", "delete");
+  out.push("copy", "move", "rename", "mkdir", "info", "fixperm", "delete");
   return out;
 }
 
@@ -165,6 +169,8 @@ function askView(p: FilesViewProps) {
                 return p.onAsk({ kind: "mkdir" });
               case "info":
                 return p.onAsk({ kind: "info", name });
+              case "fixperm":
+                return p.onAsk({ kind: "fixperm", names: a.names });
               case "delete":
                 return p.onAsk({ kind: "delete", names: a.names });
             }
@@ -188,6 +194,17 @@ function askView(p: FilesViewProps) {
         />
       );
     }
+    case "fixperm":
+      return (
+        <ConfirmDialog
+          title={a.names.length === 1 ? `${t("cw_files_fixperm")}: ${a.names[0]}` : t("cw_files_fixperm")}
+          body={busyText(p.busy) ?? t("cw_files_fixperm_body")}
+          confirmLabel={t("cw_files_fixperm")}
+          busy={p.busy != null}
+          onConfirm={() => p.onConfirmFixPerm(a.names)}
+          onCancel={p.onDismiss}
+        />
+      );
     case "rename":
       return (
         <TextPrompt
@@ -493,8 +510,8 @@ export function Files({ ctx }: { ctx: SectionContext }) {
   const tasks = jobs.filter((j) => j.state === "running" && j.mine);
 
   const report = useCallback(
-    (r: BatchResult) => {
-      setMessage(batchMessage(r));
+    (r: BatchResult, op?: Busy["op"]) => {
+      setMessage(batchMessage(r, op));
       refresh();
     },
     [refresh],
@@ -525,7 +542,7 @@ export function Files({ ctx }: { ctx: SectionContext }) {
       );
       run?.then(
         (r) => {
-          if (mounted.current) report(r);
+          if (mounted.current) report(r, op);
         },
         () => undefined,
       );
@@ -535,6 +552,11 @@ export function Files({ ctx }: { ctx: SectionContext }) {
 
   const onConfirmDelete = useCallback(
     (names: string[]) => runBatch("delete", names, (items, opts) => deleteItems(items, opts)),
+    [runBatch],
+  );
+
+  const onConfirmFixPerm = useCallback(
+    (names: string[]) => runBatch("chmod", names, (items, opts) => fixPermItems(items, opts)),
     [runBatch],
   );
 
@@ -666,6 +688,7 @@ export function Files({ ctx }: { ctx: SectionContext }) {
         }}
         onDismiss={onDismiss}
         onConfirmDelete={onConfirmDelete}
+        onConfirmFixPerm={onConfirmFixPerm}
         onRename={onRename}
         onMkdir={onMkdir}
         onPicked={onPicked}

@@ -156,6 +156,15 @@ export async function deleteItems(items: string[], opts?: BatchOptions): Promise
   });
 }
 
+/** Fix permissions (chmod 777, the helper fixes the mode): one job per item. */
+export async function fixPermItems(items: string[], opts?: BatchOptions): Promise<BatchResult> {
+  return each(items, opts, async (item, r) => {
+    const { job } = await call<{ job: string }>("/api/fs/chmod", { path: item });
+    r.started.push(job);
+    return job;
+  });
+}
+
 /** Rename `name` in `dir` to `newName` (the helper never overwrites: 409 when taken). */
 export async function renameEntry(dir: string, name: string, newName: string): Promise<void> {
   await call("/api/fs/rename", { from: joinPath(dir, name), to: joinPath(dir, newName) });

@@ -518,7 +518,8 @@ static void r_fs_copy(const char *b, size_t n, uint8_t *out, int fd) {
     else send_job(fd, q.job_id);
 }
 
-static void r_fs_delete(const char *b, size_t n, uint8_t *out, int fd) {
+/* A one-path job (delete, chmod): op's args are {"path":...} plus `tail` (e.g. ,"mode":"0777"). */
+static void run_path_job(const char *b, size_t n, uint8_t *out, int fd, int op, const char *tail) {
     char path[API_PATH], *args;
     uint8_t *req;
     size_t args_cap = 6 * API_PATH + 16, at, ol;
@@ -537,12 +538,11 @@ static void r_fs_delete(const char *b, size_t n, uint8_t *out, int fd) {
     /* {"path":...}: fs_jobs.c's op_delete reads it with fsj_json_str (\" \\ \uXXXX understood) */
     at = (size_t)snprintf(args, args_cap, "{\"path\":\"");
     at += webui_json_escape(args + at, args_cap - at, path, strlen(path));
-    if (at + 3 > args_cap) at = args_cap - 3; /* escape returns the full length (cannot trigger: 6x fits) */
-    memcpy(args + at, "\"}", 3);
-    at += 2;
+    if (at + 40 > args_cap) at = args_cap - 40; /* escape returns the full length (cannot trigger: 6x fits) */
+    at += (size_t)snprintf(args + at, args_cap - at, "\"%s}", tail);
     memset(&q, 0, sizeof q);
     arc4random_buf(q.job_id, sizeof q.job_id);
-    q.op = (uint8_t)AVA1_JOB_OP_DELETE;
+    q.op = (uint8_t)op;
     q.args = (const uint8_t *)args;
     q.args_len = (uint32_t)at;
     ava1_w_init(&w, req, args_cap + 64);
@@ -557,6 +557,15 @@ static void r_fs_delete(const char *b, size_t n, uint8_t *out, int fd) {
     free(req);
     if (st != AVA1_STATUS_OK) send_status_error(fd, st, out, ol);
     else send_job(fd, q.job_id);
+}
+
+static void r_fs_delete(const char *b, size_t n, uint8_t *out, int fd) {
+    run_path_job(b, n, out, fd, AVA1_JOB_OP_DELETE, "");
+}
+
+/* Fix permissions: the PC app's recursive chmod, fixed to 0777 (the page never picks a mode). */
+static void r_fs_chmod(const char *b, size_t n, uint8_t *out, int fd) {
+    run_path_job(b, n, out, fd, AVA1_JOB_OP_CHMOD_R, ",\"mode\":\"0777\"");
 }
 
 static int is_mine(const uint8_t id[16], void *ctx) {
@@ -918,6 +927,7 @@ static const struct {
     { "/api/fs/read", r_fs_read },
     { "/api/fs/copy", r_fs_copy },
     { "/api/fs/delete", r_fs_delete },
+    { "/api/fs/chmod", r_fs_chmod },
     { "/api/jobs", r_jobs },
     { "/api/jobs/cancel", r_jobs_cancel },
     { "/api/app/close", r_app_close },

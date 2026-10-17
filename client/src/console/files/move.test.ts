@@ -6,7 +6,7 @@ vi.mock("../api", async (importOriginal) => {
 });
 
 import { ApiError, call } from "../api";
-import { baseName, copyItems, deleteItems, IntoItselfError, isInside, joinPath, moveItems, parentPath, renameEntry } from "./move";
+import { baseName, copyItems, deleteItems, fixPermItems, IntoItselfError, isInside, joinPath, moveItems, parentPath, renameEntry } from "./move";
 
 const mockCall = vi.mocked(call);
 
@@ -123,6 +123,27 @@ describe("copy, delete, rename", () => {
       ["/api/fs/delete", { path: "/data/b" }],
     ]);
     expect(r.started).toHaveLength(2);
+  });
+
+  it("fix permissions sends only the path (the helper fixes the mode), one job at a time", async () => {
+    const events: string[] = [];
+    let n = 0;
+    mockCall.mockImplementation(async (route: string, body?: object) => {
+      events.push(`start ${route} ${JSON.stringify(body)}`);
+      return { job: `j${++n}` } as never;
+    });
+    const waitJob = vi.fn(async (id: string) => {
+      events.push(`wait ${id}`);
+      return "done" as const;
+    });
+    const r = await fixPermItems(["/data/a", "/data/b"], { waitJob });
+    expect(events).toEqual([
+      'start /api/fs/chmod {"path":"/data/a"}',
+      "wait j1",
+      'start /api/fs/chmod {"path":"/data/b"}',
+      "wait j2",
+    ]);
+    expect(r.started).toEqual(["j1", "j2"]);
   });
 
   it("rename keeps the folder and changes the name", async () => {

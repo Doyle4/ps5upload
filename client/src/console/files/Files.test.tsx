@@ -76,6 +76,7 @@ function props(over: Partial<FilesViewProps> = {}): FilesViewProps {
     onAsk: vi.fn(),
     onDismiss: vi.fn(),
     onConfirmDelete: vi.fn(),
+    onConfirmFixPerm: vi.fn(),
     onRename: vi.fn(),
     onMkdir: vi.fn(),
     onPicked: vi.fn(),
@@ -114,6 +115,26 @@ describe("Files", () => {
     const d1 = elements(FilesView(one)).find((e) => e.type === ConfirmDialog)!;
     expect(d1.props.title).toBe(t("cw_files_del_one", { name: CJK }));
     expect(d1.props.title).toContain(CJK);
+  });
+
+  it("fix_permissions_is_offered_asks_then_reports_done", () => {
+    for (const names of [["b"], ["a.txt", "b", "c"]]) {
+      const p = props({ ask: { kind: "sheet", names } });
+      const sheet = elements(FilesView(p)).find((e) => e.type === ActionsSheet)!;
+      expect(sheet.props.actions).toContain("fixperm");
+      (sheet.props.onChoose as (a: string) => void)("fixperm");
+      expect(p.onAsk).toHaveBeenCalledWith({ kind: "fixperm", names });
+      expect(mockCall).not.toHaveBeenCalled();
+    }
+    const q = props({ ask: { kind: "fixperm", names: ["b", "c"] } });
+    const d = elements(FilesView(q)).find((e) => e.type === ConfirmDialog)!;
+    expect(d.props.body).toBe(t("cw_files_fixperm_body"));
+    expect(d.props.danger).toBeUndefined();
+    (d.props.onConfirm as () => void)();
+    expect(q.onConfirmFixPerm).toHaveBeenCalledWith(["b", "c"]);
+    expect(batchMessage({ started: [], moved: [], failed: [], jobFailed: [], skipped: [] } as never, "chmod")?.text).toBe(
+      t("cw_files_fixperm_done"),
+    );
   });
 
   it("unicode_names_render_and_round_trip", async () => {
