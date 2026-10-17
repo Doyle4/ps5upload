@@ -890,6 +890,11 @@ test-payload: payload
 		-o /tmp/ps5upload-webui-http-selftest \
 		$(PAYLOAD_DIR)/tests/webui_http_selftest.c
 	@/tmp/ps5upload-webui-http-selftest
+	@echo "Running webui auth self-test (host build)..."
+	@cc -O2 -Wall -Wextra -Werror -I$(PAYLOAD_DIR)/include \
+		-o /tmp/ps5upload-webui-auth-selftest \
+		$(PAYLOAD_DIR)/tests/webui_auth_selftest.c $(PAYLOAD_DIR)/src/webui_auth.c
+	@/tmp/ps5upload-webui-auth-selftest
 	@echo "Running cheat title list self-test (host build)..."
 	@cc -O2 -Wall -Wextra -Werror -I$(PAYLOAD_DIR)/include \
 		-o /tmp/ps5upload-cheats-list-selftest \
