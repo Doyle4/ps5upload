@@ -800,6 +800,107 @@ static void cheats_toggle_errors(void) {
     CHECK(strcmp(webui_cheats_toggle_error("busy", 4), "toggle_failed") == 0);
 }
 
+static int hide_secret(const char *path, void *ctx) {
+    (void)ctx;
+    return strncmp(path, "/data/secret", 12) == 0;
+}
+
+static void index_codec(void) {
+    static char out[4096];
+    const char *roots[] = { "/data", "/mnt/ext0", "/mnt/usb0" };
+    const char *bad[] = { "/data", "/a\"b" };
+    char long_root[300];
+    const char *j;
+    /* roots and queries: nothing the handlers' quote-to-quote scan would misread */
+    CHECK(webui_index_root_ok("/data"));
+    CHECK(webui_index_root_ok("/mnt/usb0/Spiele \xc3\xa4"));
+    CHECK(!webui_index_root_ok("data"));
+    CHECK(!webui_index_root_ok(""));
+    CHECK(!webui_index_root_ok("/a\"b"));
+    CHECK(!webui_index_root_ok("/a\\b"));
+    CHECK(!webui_index_root_ok("/a\nb"));
+    memset(long_root, 'a', sizeof long_root);
+    long_root[0] = '/';
+    long_root[256] = '\0';
+    CHECK(!webui_index_root_ok(long_root)); /* 256 bytes: the handler keeps < 256 */
+    long_root[255] = '\0';
+    CHECK(webui_index_root_ok(long_root));
+    CHECK(webui_index_query_ok("*.pkg"));
+    CHECK(webui_index_query_ok("eboot"));
+    CHECK(!webui_index_query_ok(""));
+    CHECK(!webui_index_query_ok("a\"b"));
+    CHECK(!webui_index_query_ok("a\\b"));
+    CHECK(!webui_index_query_ok("a\tb"));
+    /* runs of '*' collapse to one */
+    {
+        char q[32];
+        strcpy(q, "**a***b*?**");
+        webui_index_collapse_stars(q);
+        CHECK(strcmp(q, "*a*b*?*") == 0);
+        strcpy(q, "abc");
+        webui_index_collapse_stars(q);
+        CHECK(strcmp(q, "abc") == 0);
+    }
+    /* INDEX_START's body */
+    CHECK(webui_index_start_body(out, sizeof out, roots, 3) > 0);
+    CHECK(strcmp(out, "{\"roots\":[\"/data\",\"/mnt/ext0\",\"/mnt/usb0\"]}") == 0);
+    CHECK(json_valid(out));
+    CHECK(webui_index_start_body(out, sizeof out, bad, 2) == -1 && out[0] == '\0');
+    CHECK(webui_index_start_body(out, sizeof out, roots, 0) == -1);
+    CHECK(webui_index_start_body(out, sizeof out, roots, 9) == -1);
+    CHECK(webui_index_start_body(out, 20, roots, 3) == -1 && out[0] == '\0');
+    /* status: the helper's reply plus what the page knows */
+    j = "{\"phase\":\"building\",\"files\":1234,\"truncated\":false,\"started_at\":1700000000,\"completed_at\":0}";
+    CHECK(webui_index_status_to_json(j, strlen(j), roots, 2, 0, out, sizeof out) == 0);
+    CHECK(strcmp(out, "{\"phase\":\"building\",\"files\":1234,\"truncated\":false,\"cancelled\":false,"
+                      "\"roots\":[\"/data\",\"/mnt/ext0\"]}") == 0);
+    j = "{\"phase\":\"ready\",\"files\":200000,\"truncated\":true,\"started_at\":1,\"completed_at\":2}";
+    CHECK(webui_index_status_to_json(j, strlen(j), NULL, 0, 1, out, sizeof out) == 0);
+    CHECK(strcmp(out, "{\"phase\":\"ready\",\"files\":200000,\"truncated\":true,\"cancelled\":true,\"roots\":null}") == 0);
+    j = "{\"phase\":\"weird\",\"files\":1}";
+    CHECK(webui_index_status_to_json(j, strlen(j), NULL, 0, 0, out, sizeof out) == -1);
+    CHECK(webui_index_status_to_json("nope", 4, NULL, 0, 0, out, sizeof out) == -1);
+    j = "{\"phase\":\"idle\",\"files\":0,\"truncated\":false,\"started_at\":0,\"completed_at\":0}";
+    CHECK(webui_index_status_to_json(j, strlen(j), roots, 3, 0, out, 30) == -1 && out[0] == '\0');
+    /* search results: escaped paths, scope, hidden paths, the helper's limit */
+    j = "{\"results\":[{\"path\":\"/data/games/A \\\"x\\\".pkg\",\"size\":10},"
+        "{\"path\":\"/data/secret/key.pkg\",\"size\":2},"
+        "{\"path\":\"/data/gamesX/b.pkg\",\"size\":3},"
+        "{\"path\":\"/mnt/usb0/c.pkg\",\"size\":4}]}";
+    CHECK(webui_index_results_to_json(j, strlen(j), NULL, 100, 200, hide_secret, NULL, out, sizeof out) == 3);
+    CHECK(json_valid(out));
+    CHECK(strcmp(out, "{\"results\":[{\"path\":\"/data/games/A \\\"x\\\".pkg\",\"size\":10},"
+                      "{\"path\":\"/data/gamesX/b.pkg\",\"size\":3},{\"path\":\"/mnt/usb0/c.pkg\",\"size\":4}],"
+                      "\"truncated\":false}") == 0);
+    /* under a folder: "/data/games" is not "/data/gamesX" */
+    CHECK(webui_index_results_to_json(j, strlen(j), "/data/games/", 100, 200, hide_secret, NULL, out, sizeof out) == 1);
+    CHECK(strstr(out, "A \\\"x\\\".pkg") && !strstr(out, "gamesX"));
+    CHECK(webui_index_results_to_json(j, strlen(j), "/", 100, 200, NULL, NULL, out, sizeof out) == 4);
+    /* the page's own maximum, and the helper's limit reached: both say there may be more */
+    CHECK(webui_index_results_to_json(j, strlen(j), NULL, 2, 200, NULL, NULL, out, sizeof out) == 2);
+    CHECK(strstr(out, "\"truncated\":true}") != NULL);
+    CHECK(webui_index_results_to_json(j, strlen(j), NULL, 100, 4, NULL, NULL, out, sizeof out) == 4);
+    CHECK(strstr(out, "\"truncated\":true}") != NULL);
+    /* the helper's own truncated flag */
+    j = "{\"results\":[{\"path\":\"/data/a\",\"size\":1}],\"truncated\":true}";
+    CHECK(webui_index_results_to_json(j, strlen(j), NULL, 100, 200, NULL, NULL, out, sizeof out) == 1);
+    CHECK(strstr(out, "\"truncated\":true}") != NULL);
+    /* a cut reply keeps the whole entries */
+    j = "{\"results\":[{\"path\":\"/data/a\",\"size\":1},{\"path\":\"/data/b";
+    CHECK(webui_index_results_to_json(j, strlen(j), NULL, 100, 200, NULL, NULL, out, sizeof out) == 1);
+    CHECK(json_valid(out) && strstr(out, "\"truncated\":true}"));
+    /* an entry without a usable path or size is left out; an empty list is fine */
+    j = "{\"results\":[{\"path\":\"rel\",\"size\":1},{\"path\":\"/x\"},{\"size\":3}]}";
+    CHECK(webui_index_results_to_json(j, strlen(j), NULL, 100, 200, NULL, NULL, out, sizeof out) == 0);
+    CHECK(strcmp(out, "{\"results\":[],\"truncated\":false}") == 0);
+    CHECK(webui_index_results_to_json("{\"err\":\"oom\"}", 13, NULL, 100, 200, NULL, NULL, out, sizeof out) == -1);
+    /* a small output keeps what fits and says so */
+    j = "{\"results\":[{\"path\":\"/data/aaaaaaaaaaaaaaaaaaaa\",\"size\":1},{\"path\":\"/data/bbbbbbbbbbbbbbbbbbbb\",\"size\":2}]}";
+    CHECK(webui_index_results_to_json(j, strlen(j), NULL, 100, 200, NULL, NULL, out, 90) == 1);
+    CHECK(json_valid(out) && strstr(out, "aaaa") && !strstr(out, "bbbb") && strstr(out, "\"truncated\":true}"));
+    CHECK(webui_index_results_to_json(j, strlen(j), NULL, 100, 200, NULL, NULL, out, 20) == -1);
+}
+
 int main(void) {
     unicode_path_round_trips();
     array_span();
@@ -824,6 +925,7 @@ int main(void) {
     cheats_status();
     cheats_mods();
     cheats_toggle_errors();
+    index_codec();
     if (failures) {
         fprintf(stderr, "webui_codec_selftest: %d failure(s)\n", failures);
         return 1;

@@ -894,3 +894,179 @@ const char *webui_unmount_refusal(const char *p, int game_running) {
         return "system_volume";
     return game_running ? "game_running" : NULL;
 }
+
+/* ---- search index ---- */
+
+/* 1-255 bytes with no '"', '\\' or control character (the index handlers scan quote to quote). */
+static int index_text_ok(const char *s) {
+    size_t i, n;
+    if (!s) return 0;
+    n = strlen(s);
+    if (n == 0 || n >= WEBUI_INDEX_ROOT_CAP) return 0;
+    for (i = 0; i < n; i++) {
+        unsigned char c = (unsigned char)s[i];
+        if (c < 0x20 || c == 0x7f || c == '"' || c == '\\') return 0;
+    }
+    return 1;
+}
+
+int webui_index_root_ok(const char *p) { return index_text_ok(p) && p[0] == '/'; }
+
+int webui_index_query_ok(const char *q) { return index_text_ok(q); }
+
+void webui_index_collapse_stars(char *q) {
+    char *w = q;
+    const char *r = q;
+    if (!q) return;
+    for (; *r; r++) {
+        if (*r == '*' && w > q && w[-1] == '*') continue;
+        *w++ = *r;
+    }
+    *w = '\0';
+}
+
+int webui_index_start_body(char *out, size_t cap, const char *const *roots, int n) {
+    size_t at = 0;
+    int i;
+    if (!out || !cap) return -1;
+    out[0] = '\0';
+    if (!roots || n < 1 || n > WEBUI_INDEX_ROOTS_MAX) return -1;
+    for (i = 0; i < n; i++)
+        if (!webui_index_root_ok(roots[i])) return -1;
+    if (cap < 12) return -1;
+    memcpy(out, "{\"roots\":[", 10);
+    at = 10;
+    for (i = 0; i < n; i++) {
+        size_t l = strlen(roots[i]);
+        /* `,"<root>"` then `]}` and the NUL */
+        if (at + l + 3 + 3 > cap) {
+            out[0] = '\0';
+            return -1;
+        }
+        if (i) out[at++] = ',';
+        out[at++] = '"';
+        memcpy(out + at, roots[i], l);
+        at += l;
+        out[at++] = '"';
+    }
+    out[at++] = ']';
+    out[at++] = '}';
+    out[at] = '\0';
+    return (int)at;
+}
+
+int webui_index_status_to_json(const char *text, size_t n, const char *const *roots, int nroots, int cancelled,
+                               char *out, size_t cap) {
+    char phase[16];
+    uint64_t files = 0;
+    int truncated = 0, i;
+    jw_t w;
+    char num[48];
+    if (cap) out[0] = '\0';
+    if (!text || webui_json_str(text, n, "phase", phase, sizeof phase) != 1) return -1;
+    if (strcmp(phase, "idle") != 0 && strcmp(phase, "building") != 0 && strcmp(phase, "ready") != 0) return -1;
+    if (webui_json_u64(text, n, "files", &files) != 1) files = 0;
+    if (webui_json_bool(text, n, "truncated", &truncated) != 1) truncated = 0;
+    memset(&w, 0, sizeof w);
+    w.out = out;
+    w.cap = cap;
+    put(&w, "{\"phase\":\"", 10);
+    put(&w, phase, strlen(phase));
+    snprintf(num, sizeof num, "\",\"files\":%llu", (unsigned long long)files);
+    put(&w, num, strlen(num));
+    put(&w, truncated ? ",\"truncated\":true" : ",\"truncated\":false", truncated ? 17 : 18);
+    put(&w, cancelled ? ",\"cancelled\":true" : ",\"cancelled\":false", cancelled ? 17 : 18);
+    if (!roots) {
+        put(&w, ",\"roots\":null}", 14);
+    } else {
+        put(&w, ",\"roots\":[", 10);
+        for (i = 0; i < nroots; i++) {
+            if (i) put(&w, ",", 1);
+            put(&w, "\"", 1);
+            esc(&w, roots[i], strlen(roots[i]));
+            put(&w, "\"", 1);
+        }
+        put(&w, "]}", 2);
+    }
+    if (w.full) {
+        if (cap) out[0] = '\0';
+        return -1;
+    }
+    out[w.wrote] = '\0';
+    return 0;
+}
+
+/* `path` is `under` or below it ("/" and NULL: everything). */
+static int path_under(const char *path, const char *under) {
+    size_t l;
+    if (!under || !under[0] || strcmp(under, "/") == 0) return 1;
+    l = strlen(under);
+    while (l > 1 && under[l - 1] == '/') l--;
+    return strncmp(path, under, l) == 0 && (path[l] == '\0' || path[l] == '/');
+}
+
+#define INDEX_RESULTS_TAIL 24 /* `],"truncated":false}` + NUL */
+
+int webui_index_results_to_json(const char *text, size_t n, const char *under, size_t max, size_t asked,
+                                int (*hide)(const char *path, void *ctx), void *ctx, char *out, size_t cap) {
+    const char *e = text + n, *p, *q;
+    char path[1024 + 8];
+    size_t pos, seen = 0;
+    int written = 0, truncated = 0, said = 0;
+    if (cap) out[0] = '\0';
+    if (!text) return -1;
+    p = top_value(text, n, "results");
+    if (!p || *p != '[') return -1;
+    if (cap < 12 + INDEX_RESULTS_TAIL) return -1;
+    if (webui_json_bool(text, n, "truncated", &said) == 1 && said) truncated = 1;
+    memcpy(out, "{\"results\":[", 12);
+    pos = 12;
+    q = p + 1;
+    for (;;) {
+        const char *el, *end;
+        size_t l;
+        uint64_t size;
+        q = ws(q, e);
+        if (q >= e) {
+            truncated = 1;
+            break;
+        }
+        if (*q == ']') break;
+        el = q;
+        end = skip_val(q, e);
+        if (!end) {
+            truncated = 1;
+            break;
+        }
+        l = (size_t)(end - el);
+        seen++;
+        if (*el == '{' && webui_json_str(el, l, "path", path, sizeof path) == 1 && path[0] == '/' &&
+            webui_json_u64(el, l, "size", &size) == 1 && path_under(path, under) && !(hide && hide(path, ctx))) {
+            jw_t w;
+            char tail[40];
+            int tl;
+            if ((size_t)written >= max) {
+                truncated = 1;
+                break;
+            }
+            memset(&w, 0, sizeof w);
+            w.out = out + pos;
+            w.cap = cap - pos - INDEX_RESULTS_TAIL + 1;
+            put(&w, written ? ",{\"path\":\"" : "{\"path\":\"", written ? 10 : 9);
+            esc(&w, path, strlen(path));
+            tl = snprintf(tail, sizeof tail, "\",\"size\":%llu}", (unsigned long long)size);
+            put(&w, tail, (size_t)tl);
+            if (w.full) {
+                truncated = 1;
+                break;
+            }
+            pos += w.wrote;
+            written++;
+        }
+        q = ws(end, e);
+        if (q < e && *q == ',') q++;
+    }
+    if (asked && seen >= asked) truncated = 1;
+    snprintf(out + pos, cap - pos, "],\"truncated\":%s}", truncated ? "true" : "false");
+    return written;
+}

@@ -65,6 +65,7 @@
 #include "proc_identity.h"
 #include "smp_meta.h"
 #include "blake3.h"
+#include "index_glob.h"
 #include "mgmt_rpc.h"
 #include "mgmt_fs.h"
 #include "path_policy.h"
@@ -6044,39 +6045,6 @@ static void *index_thread_fn(void *arg) {
     return NULL;
 }
 
-/* Tiny glob match: `*` matches any sequence, `?` matches one char.
- * Both are case-insensitive. Recursive — fine for typical patterns
- * with one or two wildcards; bounded by call depth (max 16).
- * Returns 1 on match, 0 on miss. */
-static int glob_match(const char *pat, const char *str, int depth) {
-    if (depth > 16) return 0;
-    while (*pat) {
-        if (*pat == '*') {
-            pat++;
-            if (!*pat) return 1;
-            while (*str) {
-                if (glob_match(pat, str, depth + 1)) return 1;
-                str++;
-            }
-            return 0;
-        }
-        if (*pat == '?') {
-            if (!*str) return 0;
-            pat++;
-            str++;
-            continue;
-        }
-        char a = *pat;
-        char b = *str;
-        if (a >= 'A' && a <= 'Z') a += 32;
-        if (b >= 'A' && b <= 'Z') b += 32;
-        if (a != b) return 0;
-        pat++;
-        str++;
-    }
-    return *str == '\0';
-}
-
 static int handle_index_start(runtime_state_t *state, const char *body, uint64_t body_len) {
     if (!state) return -1;
     pthread_mutex_lock(&g_index_lock);
@@ -6163,8 +6131,10 @@ static int handle_index_status(runtime_state_t *state) {
 
 static int handle_search_index(runtime_state_t *state, const char *body, uint64_t body_len) {
     if (!state) return -1;
-    /* Parse `{"query":"...","size_min":N,"size_max":N,"limit":N}`. */
+    /* Parse `{"query":"...","under":"/dir","size_min":N,"size_max":N,"limit":N}` (under optional). */
     char qbuf[256] = {0};
+    char ubuf[1024] = {0};
+    size_t ulen;
     long long size_min = 0;
     long long size_max = 0;
     int limit = 200;
@@ -6182,6 +6152,21 @@ static int handle_search_index(runtime_state_t *state, const char *body, uint64_
                 if (e && (size_t)(e - p) < sizeof(qbuf)) {
                     memcpy(qbuf, p, (size_t)(e - p));
                     qbuf[e - p] = '\0';
+                }
+            }
+        }
+        /* Optional "under":"/folder" (the console page's This folder; the engine never sends it):
+         * only paths below it count, so the limit applies after the filter. */
+        p = strstr(tmp, "\"under\"");
+        if (p) {
+            p = strchr(p, ':');
+            if (p) p = strchr(p, '"');
+            if (p) {
+                p++;
+                const char *e = strchr(p, '"');
+                if (e && (size_t)(e - p) < sizeof(ubuf)) {
+                    memcpy(ubuf, p, (size_t)(e - p));
+                    ubuf[e - p] = '\0';
                 }
             }
         }
@@ -6203,6 +6188,9 @@ static int handle_search_index(runtime_state_t *state, const char *body, uint64_
     }
     if (limit <= 0 || limit > 5000) limit = 200;
     if (!qbuf[0]) strcpy(qbuf, "*");
+    ulen = strlen(ubuf);
+    while (ulen > 1 && ubuf[ulen - 1] == '/') ubuf[--ulen] = '\0';
+    if (ulen == 1) ulen = 0; /* "/" is everything */
 
     char *resp = malloc(256 * 1024);
     if (!resp) {
@@ -6221,7 +6209,8 @@ static int handle_search_index(runtime_state_t *state, const char *body, uint64_
         if (!path) continue;
         const char *base = strrchr(path, '/');
         base = base ? base + 1 : path;
-        if (!glob_match(qbuf, base, 0)) continue;
+        if (ulen && (strncmp(path, ubuf, ulen) != 0 || (path[ulen] != '/' && path[ulen] != '\0'))) continue;
+        if (!index_glob_match(qbuf, base)) continue;
         long long sz = g_index_entries[i].size;
         if (size_min > 0 && sz < size_min) continue;
         if (size_max > 0 && sz > size_max) continue;

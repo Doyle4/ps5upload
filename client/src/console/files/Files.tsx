@@ -6,12 +6,14 @@ import {
   ClipboardPaste,
   ClipboardX,
   Ellipsis,
+  ChartBar,
   Filter,
   FilterX,
   FolderPlus,
   ListChecks,
   ListX,
   RotateCw,
+  Search,
   Square,
   SquareCheck,
   Star,
@@ -77,7 +79,11 @@ import { isPinned, usePrefs, type FilesPrefs } from "./prefs";
 import { TextPrompt } from "./TextPrompt";
 import { ViewMenu } from "./ViewMenu";
 import { useDir, type DirState, type Entry } from "./useDir";
-import { Viewer } from "./Viewer";
+import { Viewer, type ViewKind } from "./Viewer";
+import { GameBanner } from "./viewer/GameBanner";
+import { sceSysName } from "./viewer/gameFolder";
+import { SearchDialog } from "./search/SearchDialog";
+import { UsageDialog } from "./usage/UsageDialog";
 
 export { upFrom, viewKind };
 
@@ -98,7 +104,10 @@ export type FilesAsk =
   | { kind: "mkdir" }
   | { kind: "pick"; op: "copy" | "move"; names: string[] }
   | { kind: "info"; name: string }
-  | { kind: "view"; name: string; type: "image" | "text" }
+  | { kind: "view"; name: string; type: ViewKind }
+  /** Search by name (the helper's index) and Disk usage: Files tools over the folder shown. */
+  | { kind: "search" }
+  | { kind: "usage" }
   /** A pinned or recent folder's menu (the drive list). */
   | { kind: "place"; path: string }
   /** Eject a USB drive; `force` after the helper said it is still in use. */
@@ -250,6 +259,8 @@ export interface FilesViewProps {
   onUnpack?: (name: string, outName: string | null) => void;
   onMkdir: (name: string) => void;
   onPicked: (op: "copy" | "move", names: string[], destDir: string) => void;
+  /** Open `dir` in Files with `name` focused (a search result); null name: the folder itself. */
+  onReveal?: (dir: string, name: string | null) => void;
 }
 
 /** "Copying 3 of 40" (item `at` is being sent or is running), or "Stopping…". */
@@ -283,7 +294,7 @@ export function sheetActions(names: string[], entries: Entry[], pinned: boolean 
   if (e && e.kind !== "dir" && viewKind(e.name)) out.push("view");
   out.push("clipcopy", "cut", "copy", "move", "rename", "bulkrename", "mkdir", "info");
   if (e && e.kind === "dir" && pinned != null) out.push(pinned ? "unpin" : "pin");
-  if (e && e.kind === "file") out.push("verify");
+  if (e && e.kind === "file") out.push("verify", "hex");
   if (e && e.kind === "file" && isFfpfsc(e.name)) out.push("unpack");
   if (canShowOnPc()) out.push("showpc");
   out.push("fixperm", "delete");
@@ -504,6 +515,8 @@ function askView(p: FilesViewProps) {
                 return p.onAsk({ kind: "bulkrename", names: a.names });
               case "verify":
                 return p.onAsk({ kind: "verify", name });
+              case "hex":
+                return p.onAsk({ kind: "view", name, type: "hex" });
               case "unpack":
                 return p.onAsk({ kind: "unpack", name });
               case "mkdir":
@@ -609,9 +622,22 @@ function askView(p: FilesViewProps) {
           name={a.name}
           kind={a.type}
           size={p.dir.entries.find((e) => e.name === a.name)?.size}
+          images={a.type === "image" ? (p.shown ?? p.dir.entries).filter((e) => e.kind !== "dir" && viewKind(e.name) === "image").map((e) => e.name) : undefined}
+          onOpenImage={(name) => p.onAsk({ kind: "view", name, type: "image" })}
           onClose={p.onDismiss}
         />
       );
+    case "search":
+      return (
+        <SearchDialog
+          folder={path}
+          volumes={p.volumes ?? []}
+          onReveal={(dir, name) => p.onReveal?.(dir, name)}
+          onClose={p.onDismiss}
+        />
+      );
+    case "usage":
+      return <UsageDialog folder={path} volumes={p.volumes ?? []} onOpen={(dir) => p.onReveal?.(dir, null)} onClose={p.onDismiss} />;
     default:
       return null;
   }
@@ -709,6 +735,7 @@ export function FilesView(p: FilesViewProps) {
   const capped = p.dir.more && p.dir.entries.length >= LOAD_ALL_CAP;
   const st = p.status;
   const pinned = p.path != null && p.prefs ? isPinned(p.prefs, p.path) : false;
+  const sceSys = p.path != null ? sceSysName(p.dir.entries) : null;
   const loadAllButton = (
     <ToolButton
       icon={ChevronsDown}
@@ -819,6 +846,12 @@ export function FilesView(p: FilesViewProps) {
                     onClick={() => p.onAsk({ kind: "mkdir" })}
                   />
                   <ToolButton icon={SquareCheck} label={t("cw_select")} action="select" onClick={p.onToggleSelecting} />
+                  {p.onReveal ? (
+                    <>
+                      <ToolButton icon={Search} label={t("cw_files_search")} action="search" onClick={() => p.onAsk({ kind: "search" })} />
+                      <ToolButton icon={ChartBar} label={t("cw_files_usage")} action="usage" onClick={() => p.onAsk({ kind: "usage" })} />
+                    </>
+                  ) : null}
                   {p.onView ? (
                     <>
                       <ToolButton
@@ -887,6 +920,7 @@ export function FilesView(p: FilesViewProps) {
               {t("cw_files_empty")} {t("cw_files_empty_next")}
             </p>
           ) : null}
+          {p.dir.loaded && sceSys ? <GameBanner key={p.path} folder={p.path} sceSys={sceSys} /> : null}
           <DirList
             entries={shown}
             limit={p.rowLimit}
@@ -1531,6 +1565,15 @@ export function Files({ ctx }: { ctx: SectionContext }) {
     [go],
   );
 
+  /** A search result or a disk usage row: open its folder with it focused. */
+  const onReveal = useCallback(
+    (dir: string, name: string | null) => {
+      setAsk(null);
+      go(dir, name ?? "");
+    },
+    [go],
+  );
+
   return (
     <div
       ref={root}
@@ -1606,6 +1649,7 @@ export function Files({ ctx }: { ctx: SectionContext }) {
         onUnpack={onUnpack}
         onMkdir={onMkdir}
         onPicked={onPicked}
+        onReveal={onReveal}
       />
     </div>
   );
