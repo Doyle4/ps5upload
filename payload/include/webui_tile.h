@@ -65,6 +65,10 @@ int webui_tile_remove(void);
  * applies the LATEST request and repeats while new ones arrive, so ensure and remove never run
  * at the same time and a fast on/off/on ends in the last state asked for. Failures are logged. */
 void webui_tile_request(int tile, uint16_t port);
+
+/* What the page shows after a tile switch: *busy 1 while the worker still applies a request,
+ * *failed 1 when the last ensure/remove it applied failed (the tile is not in the state asked for). */
+void webui_tile_state(int *busy, int *failed);
 #endif
 
 #endif

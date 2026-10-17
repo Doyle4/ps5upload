@@ -8,6 +8,7 @@
 #include "webui_api.h"
 
 #include <pthread.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -52,7 +53,9 @@ static void send_error(int fd, int http, const char *token, size_t len) {
     if (len > API_CAUSE_MAX) len = API_CAUSE_MAX;
     at = (size_t)snprintf(buf, sizeof buf, "{\"error\":\"");
     at += webui_json_escape(buf + at, sizeof buf - at, token, len);
-    if (at + 3 > sizeof buf) at = sizeof buf - 3; /* cannot happen: 6 bytes per input byte at most */
+    /* escape returns the full length: clamp before any `sizeof buf - at` (cannot trigger: 6 bytes
+     * per input byte at most, and the buffer holds that) */
+    if (at + 3 > sizeof buf) at = sizeof buf - 3;
     memcpy(buf + at, "\"}", 3);
     send_json(fd, http, buf, at + 2);
 }
@@ -195,18 +198,37 @@ static const char *kind_name(uint8_t k) {
 
 typedef void (*api_fn)(const char *b, size_t n, uint8_t *out, int fd);
 
+/* snprintf and webui_json_escape return the length they WANTED to write: after a truncation *at
+ * would point past the buffer and `cap - *at` would wrap. Keep it on the NUL instead. */
+static void clamp_at(size_t *at, size_t cap) {
+    if (cap && *at > cap - 1) *at = cap - 1;
+}
+
+/* Appends printf output to buf at *at, never past cap (a truncated append is cut short). */
+static void put_fmt(char *buf, size_t cap, size_t *at, const char *fmt, ...) __attribute__((format(printf, 4, 5)));
+static void put_fmt(char *buf, size_t cap, size_t *at, const char *fmt, ...) {
+    va_list ap;
+    int k;
+    clamp_at(at, cap);
+    if (*at + 1 >= cap) return;
+    va_start(ap, fmt);
+    k = vsnprintf(buf + *at, cap - *at, fmt, ap);
+    va_end(ap);
+    if (k > 0) *at += (size_t)k;
+    clamp_at(at, cap);
+}
+
 /* Appends `"key":"<escaped s>"` or `"key":null` (s NULL) to buf at *at. */
 static void put_str(char *buf, size_t cap, size_t *at, const char *key, const char *s) {
-    if (*at >= cap) return;
     if (!s) {
-        *at += (size_t)snprintf(buf + *at, cap - *at, "\"%s\":null", key);
+        put_fmt(buf, cap, at, "\"%s\":null", key);
         return;
     }
-    *at += (size_t)snprintf(buf + *at, cap - *at, "\"%s\":\"", key);
-    if (*at >= cap) return;
+    put_fmt(buf, cap, at, "\"%s\":\"", key);
+    if (*at + 1 >= cap) return;
     *at += webui_json_escape(buf + *at, cap - *at, s, strlen(s));
-    if (*at >= cap) return;
-    *at += (size_t)snprintf(buf + *at, cap - *at, "\"");
+    clamp_at(at, cap);
+    put_fmt(buf, cap, at, "\"");
 }
 
 /* NODE_STATUS + HW_INFO (model) + HW_TEMPS + PROC_FOCUS. Each call is in-process and bounded by
@@ -248,22 +270,23 @@ static void r_status(const char *b, size_t n, uint8_t *out, int fd) {
     {
         char *j = (char *)out;
         size_t cap = API_OUT_MAX;
-        at = (size_t)snprintf(j, cap, "{");
+        at = 0;
+        put_fmt(j, cap, &at, "{");
         put_str(j, cap, &at, "version", have_ver ? version : NULL);
-        at += (size_t)snprintf(j + at, cap - at, ",");
+        put_fmt(j, cap, &at, ",");
         put_str(j, cap, &at, "firmware", have_ver ? firmware : NULL);
-        at += (size_t)snprintf(j + at, cap - at, ",");
+        put_fmt(j, cap, &at, ",");
         put_str(j, cap, &at, "model", have_model ? model : NULL);
-        if (have_temp) at += (size_t)snprintf(j + at, cap - at, ",\"temp_c\":%ld,\"running\":", temp);
-        else at += (size_t)snprintf(j + at, cap - at, ",\"temp_c\":null,\"running\":");
+        if (have_temp) put_fmt(j, cap, &at, ",\"temp_c\":%ld,\"running\":", temp);
+        else put_fmt(j, cap, &at, ",\"temp_c\":null,\"running\":");
         if (running) {
-            at += (size_t)snprintf(j + at, cap - at, "{");
+            put_fmt(j, cap, &at, "{");
             put_str(j, cap, &at, "title_id", title);
-            at += (size_t)snprintf(j + at, cap - at, ",\"app_id\":%lu,\"name\":null}", (unsigned long)app_id);
+            put_fmt(j, cap, &at, ",\"app_id\":%lu,\"name\":null}", (unsigned long)app_id);
         } else {
-            at += (size_t)snprintf(j + at, cap - at, "null");
+            put_fmt(j, cap, &at, "null");
         }
-        at += (size_t)snprintf(j + at, cap - at, "}");
+        put_fmt(j, cap, &at, "}");
         send_json(fd, 200, j, at);
     }
 }
@@ -512,6 +535,7 @@ static void r_fs_delete(const char *b, size_t n, uint8_t *out, int fd) {
     /* {"path":...}: fs_jobs.c's op_delete reads it with fsj_json_str (\" \\ \uXXXX understood) */
     at = (size_t)snprintf(args, args_cap, "{\"path\":\"");
     at += webui_json_escape(args + at, args_cap - at, path, strlen(path));
+    if (at + 3 > args_cap) at = args_cap - 3; /* escape returns the full length (cannot trigger: 6x fits) */
     memcpy(args + at, "\"}", 3);
     at += 2;
     memset(&q, 0, sizeof q);
@@ -554,8 +578,15 @@ static void r_jobs(const char *b, size_t n, uint8_t *out, int fd) {
         send_error(fd, 500, "out_of_memory", 13);
         return;
     }
-    if (webui_jobs_to_json(out, ol, is_mine, NULL, json, API_JOBS_JSON) < 0) send_error(fd, 500, "bad_jobs_reply", 14);
-    else send_json(fd, 200, json, strlen(json));
+    if (webui_jobs_to_json(out, ol, is_mine, NULL, json, API_JOBS_JSON) < 0) {
+        send_error(fd, 500, "bad_jobs_reply", 14);
+    } else {
+        /* The page has now seen how its finished jobs ended: release them (after a short grace, so
+         * a second open page still sees them) instead of letting each hold one of the 32 job slots
+         * every owner shares for the full park age. A paired PC's jobs are left alone. */
+        ava1_jobs_release_seen(k_console_id);
+        send_json(fd, 200, json, strlen(json));
+    }
     free(json);
 }
 
@@ -633,10 +664,17 @@ void webui_api_settings_init(const webui_settings_t *s) {
     pthread_mutex_unlock(&g_set_mu);
 }
 
+/* tile_busy / tile_failed: the tile switch is applied on the tile thread after this reply (Sony calls
+ * take seconds), so the page re-reads /api/settings until tile_busy is false and then says so when
+ * the last ensure/remove failed (webui_tile_state). */
 static void send_settings(int fd, const webui_settings_t *s) {
-    char json[160];
-    int k = snprintf(json, sizeof json, "{\"lan\":%s,\"tile\":%s,\"version\":\"%s\"}", s->lan ? "true" : "false",
-                     s->tile ? "true" : "false", PS5UPLOAD2_VERSION);
+    char json[200];
+    int busy, failed, k;
+    webui_tile_state(&busy, &failed);
+    k = snprintf(json, sizeof json,
+                 "{\"lan\":%s,\"tile\":%s,\"tile_busy\":%s,\"tile_failed\":%s,\"version\":\"%s\"}",
+                 s->lan ? "true" : "false", s->tile ? "true" : "false", busy ? "true" : "false",
+                 failed ? "true" : "false", PS5UPLOAD2_VERSION);
     send_json(fd, 200, json, (size_t)k);
 }
 
@@ -710,11 +748,29 @@ static void r_settings_set(const char *b, size_t n, uint8_t *out, int fd) {
     }
     g_set = s;
     pthread_mutex_unlock(&g_set_mu);
-    send_settings(fd, &s); /* written in full (or the deadline passed) before anything below runs */
-    if (s.lan != old.lan) spawn_lan_apply();
     /* tile:true is applied even when unchanged: it retries an ensure that failed (and costs one statfs
-     * plus three file compares when the tile is already in place). A remove only on a change. */
+     * plus three file compares when the tile is already in place). A remove only on a change. Requested
+     * before the reply (it only starts the tile thread), so the reply already says tile_busy. */
     if (has_tile && (s.tile || s.tile != old.tile)) webui_tile_request(s.tile, WEBUI_PORT);
+    send_settings(fd, &s); /* written in full (or the deadline passed) before the rebind below runs */
+    if (s.lan != old.lan) spawn_lan_apply();
+}
+
+int webui_api_tile_off(void) {
+    webui_settings_t s;
+    int rc = 0;
+    pthread_mutex_lock(&g_set_mu);
+    s = g_set;
+    s.tile = 0;
+    if (g_set.tile && webui_settings_save(WEBUI_SETTINGS_PATH, &s) != 0) {
+        fprintf(stderr, "webui: cannot save tile:false after a PC removed the tile\n");
+        rc = -1;
+    } else {
+        g_set = s;
+    }
+    pthread_mutex_unlock(&g_set_mu);
+    webui_tile_request(0, WEBUI_PORT);
+    return rc;
 }
 
 /* The allowlist: nothing else is reachable. */

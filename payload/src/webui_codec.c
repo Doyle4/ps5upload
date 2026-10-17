@@ -6,6 +6,7 @@
 
 #include "ava1_gen.h"
 #include "ava1_wire.h"
+#include "config.h"
 
 /* ---- a bounded JSON scanner (never reads past `e`, never recurses) ---- */
 
@@ -544,6 +545,20 @@ int webui_kv_int(const char *text, size_t n, const char *key, long *out) {
     return 1;
 }
 
+int webui_is_game_title_id(const char *tid) {
+    /* PS5 (PPSA, and PCSx/PLxS... for older regional ranges), PS4 (CUSA, PCJS/PLJS Japan, PCAS/PLAS
+     * Asia, PCKS/PLKS Korea, ECAS/ELAS Asia) and the PS Vita/PS3-era PCSA..PCSH ranges. */
+    static const char *const k_prefixes[] = { "PPSA", "CUSA", "PCJS", "PCAS", "PLJS", "PLAS", "ECAS", "ELAS", "PCKS",
+                                              "PLKS", "PCSA", "PCSB", "PCSC", "PCSD", "PCSE", "PCSF", "PCSG", "PCSH" };
+    size_t i;
+    if (!tid || strlen(tid) != 9 || strcmp(tid, WEBUI_TILE_TITLE_ID) == 0) return 0;
+    for (i = 4; i < 9; i++)
+        if (tid[i] < '0' || tid[i] > '9') return 0;
+    for (i = 0; i < sizeof k_prefixes / sizeof k_prefixes[0]; i++)
+        if (memcmp(tid, k_prefixes[i], 4) == 0) return 1;
+    return 0;
+}
+
 int webui_focus_running(const char *json, size_t n, char *title_id, size_t cap, uint32_t *app_id) {
     const char *e = json + n, *p = top_value(json, n, "apps");
     long long focus = -1, big = -1;
@@ -552,7 +567,8 @@ int webui_focus_running(const char *json, size_t n, char *title_id, size_t cap, 
     if (!p || *p != '[') return -1;
     (void)json_i64(json, n, "focus_app_id", &focus);
     (void)json_i64(json, n, "big_app_id", &big);
-    /* pass 0: the app on screen (focus flag, else big app); pass 1: the first game at all */
+    /* pass 0: the app on screen (focus flag, else big app); pass 1: the first GAME (never the tile,
+     * the browser or a homebrew app: Close would kill it) */
     for (pass = 0; pass < 2; pass++) {
         long long want = pass == 0 ? (focus > 0 ? focus : big) : -1;
         const char *q = p + 1;
@@ -568,7 +584,9 @@ int webui_focus_running(const char *json, size_t n, char *title_id, size_t cap, 
             end = skip_val(q, e);
             if (!end) return -1;
             if (*el == '{' && webui_json_str(el, (size_t)(end - el), "title_id", tid, sizeof tid) == 1 && tid[0] &&
-                strncmp(tid, "NPXS", 4) != 0 && webui_json_u64(el, (size_t)(end - el), "app_id", &aid) == 1 &&
+                strncmp(tid, "NPXS", 4) != 0 && strcmp(tid, WEBUI_TILE_TITLE_ID) != 0 &&
+                (pass == 0 || webui_is_game_title_id(tid)) &&
+                webui_json_u64(el, (size_t)(end - el), "app_id", &aid) == 1 &&
                 (pass == 1 || (long long)aid == want) && strlen(tid) < cap) {
                 memcpy(title_id, tid, strlen(tid) + 1);
                 *app_id = (uint32_t)aid;

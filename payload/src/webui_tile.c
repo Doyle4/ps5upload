@@ -282,6 +282,7 @@ static unsigned g_req_gen;
 static int g_req_tile;
 static uint16_t g_req_port;
 static int g_worker_running;
+static int g_last_failed; /* the last ensure/remove the worker applied returned -1 */
 
 static void *tile_worker(void *arg) {
     unsigned done = 0;
@@ -294,14 +295,21 @@ static void *tile_worker(void *arg) {
         uint16_t port = g_req_port;
         if (done == gen) break;
         pthread_mutex_unlock(&g_req_mu);
-        if (tile) (void)webui_tile_ensure(port);
-        else (void)webui_tile_remove();
+        int rc = tile ? webui_tile_ensure(port) : webui_tile_remove();
         done = gen;
         pthread_mutex_lock(&g_req_mu);
+        g_last_failed = rc != 0;
     }
     g_worker_running = 0;
     pthread_mutex_unlock(&g_req_mu);
     return NULL;
+}
+
+void webui_tile_state(int *busy, int *failed) {
+    pthread_mutex_lock(&g_req_mu);
+    *busy = g_worker_running;
+    *failed = g_last_failed;
+    pthread_mutex_unlock(&g_req_mu);
 }
 
 void webui_tile_request(int tile, uint16_t port) {

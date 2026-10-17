@@ -493,6 +493,38 @@ static void focus_running(void) {
     CHECK(webui_focus_running("nope", 4, tid, sizeof tid, &app) == -1);
 }
 
+/* The fallback (nothing game-like on screen) names only a game: never the page's own tile, the
+ * browser or a homebrew app, which Close would kill. The focused app never names the tile either. */
+static void focus_running_fallback_games_only(void) {
+    char tid[16];
+    uint32_t app = 0;
+    const char *j = "{\"apps\":[{\"title_id\":\"PSUP00001\",\"app_id\":3},{\"title_id\":\"FAKE10101\",\"app_id\":4},"
+                    "{\"title_id\":\"PLDM00001\",\"app_id\":5},{\"title_id\":\"WKAL00001\",\"app_id\":6},"
+                    "{\"title_id\":\"PPSA01650\",\"app_id\":7}],\"focus_app_id\":-1,\"big_app_id\":0}";
+    CHECK(webui_focus_running(j, strlen(j), tid, sizeof tid, &app) == 1);
+    CHECK(strcmp(tid, "PPSA01650") == 0 && app == 7);
+    /* only non-games run: nothing to close */
+    j = "{\"apps\":[{\"title_id\":\"PSUP00001\",\"app_id\":3},{\"title_id\":\"FAKE10101\",\"app_id\":4}],"
+        "\"focus_app_id\":-1}";
+    CHECK(webui_focus_running(j, strlen(j), tid, sizeof tid, &app) == 0);
+    /* the tile focused (the browser it opened owns the screen): not "running", the game behind it is */
+    j = "{\"apps\":[{\"title_id\":\"PSUP00001\",\"app_id\":3},{\"title_id\":\"CUSA07842\",\"app_id\":9}],"
+        "\"focus_app_id\":3}";
+    CHECK(webui_focus_running(j, strlen(j), tid, sizeof tid, &app) == 1);
+    CHECK(strcmp(tid, "CUSA07842") == 0 && app == 9);
+    /* a focused homebrew app is still what is on screen (the user sees it; pass 0 keeps it) */
+    j = "{\"apps\":[{\"title_id\":\"FAKE10101\",\"app_id\":4},{\"title_id\":\"PPSA01650\",\"app_id\":7}],"
+        "\"focus_app_id\":4}";
+    CHECK(webui_focus_running(j, strlen(j), tid, sizeof tid, &app) == 1);
+    CHECK(strcmp(tid, "FAKE10101") == 0 && app == 4);
+    CHECK(webui_is_game_title_id("PPSA01650") && webui_is_game_title_id("CUSA07842") &&
+          webui_is_game_title_id("PLJS00001") && webui_is_game_title_id("PCSH00001"));
+    CHECK(!webui_is_game_title_id("PSUP00001") && !webui_is_game_title_id("NPXS40087") &&
+          !webui_is_game_title_id("FAKE10101") && !webui_is_game_title_id("PPSA0165") &&
+          !webui_is_game_title_id("PPSA0165X") && !webui_is_game_title_id("PPSA016500") &&
+          !webui_is_game_title_id(""));
+}
+
 int main(void) {
     unicode_path_round_trips();
     surrogate_pair_decodes();
@@ -506,6 +538,7 @@ int main(void) {
     mime_types();
     kv_lines();
     focus_running();
+    focus_running_fallback_games_only();
     if (failures) {
         fprintf(stderr, "webui_codec_selftest: %d failure(s)\n", failures);
         return 1;

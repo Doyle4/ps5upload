@@ -21,6 +21,13 @@
  * /api/settings answers them and /api/settings/set changes them. Call once, before webui_start. */
 void webui_api_settings_init(const webui_settings_t *s);
 
+/* A paired PC unregistered the tile (APP_UNREGISTER of WEBUI_TILE_TITLE_ID): the same as Settings ->
+ * tile off. Saves tile:false to WEBUI_SETTINGS_PATH (so the next start does not register it again)
+ * and asks the tile thread to remove it (webui_tile_request(0): unregister, then the tile folder and
+ * the staged /user/app copy are deleted). Returns at once; 0, or -1 when the save failed (the
+ * removal is requested either way). */
+int webui_api_tile_off(void);
+
 int webui_api_route(const webui_req_t *r, const uint8_t *body, size_t body_len, int fd);
 
 #endif

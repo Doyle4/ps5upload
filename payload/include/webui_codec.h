@@ -67,11 +67,17 @@ const char *webui_mime_for(const char *path);
 int webui_kv_str(const char *text, size_t n, const char *key, char *out, size_t cap);
 int webui_kv_int(const char *text, size_t n, const char *key, long *out);
 
+/* 1 when `tid` is a game's title id: four letters of a game prefix (PPSA, CUSA, PCJS, PLJS, ...:
+ * Sony's disc and digital game ranges for every region) and five digits. Homebrew (FAKE..., PLDM...,
+ * WKAL...), system apps (NPXS...) and the page's own tile (WEBUI_TILE_TITLE_ID) are not games. */
+int webui_is_game_title_id(const char *tid);
+
 /* From a PROC_FOCUS reply ({"apps":[{"title_id":..,"app_id":..},...],"focus_app_id":N,
- * "big_app_id":N,...}): the running game. Candidates are the apps whose title id is set and is
- * not a system app (NPXS...); the one that owns the screen (focus_app_id, else big_app_id) wins,
- * else the first candidate. Returns 1 with title_id / *app_id set, 0 when no game runs, -1 when
- * the reply does not parse. */
+ * "big_app_id":N,...}): what Home shows as running (and may close). First the app that owns the
+ * screen (focus_app_id, else big_app_id) when its title id is set, not a system app (NPXS...) and
+ * not the page's own tile; else the first app whose title id is a game's (webui_is_game_title_id),
+ * so the fallback never names the browser, the tile or a homebrew app. Returns 1 with title_id /
+ * *app_id set, 0 when no game runs, -1 when the reply does not parse. */
 int webui_focus_running(const char *json, size_t n, char *title_id, size_t cap, uint32_t *app_id);
 
 #endif

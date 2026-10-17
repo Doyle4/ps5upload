@@ -31,6 +31,7 @@
 #include <fnmatch.h>
 #include <regex.h>
 #include "config.h"
+#include "webui_api.h"
 #include "runtime.h"
 #include "sandbox_unmount.h"
 #include "instance_verdict.h"
@@ -3471,6 +3472,15 @@ static int handle_app_unregister(runtime_state_t *state, const char *request_bod
     }
     if (title_id[0] == '\0') {
         return mgmt_reply(MGMT_FRAME_ERROR, "unregister_title_id_missing", 27);
+    }
+    if (strcmp(title_id, WEBUI_TILE_TITLE_ID) == 0) {
+        /* The helper's own home-screen tile: a PC removing it means "tile off", as in the page's
+         * Settings. Saved, so the next helper start does not register it again; the tile thread
+         * unregisters it and deletes its folders (webui_tile_remove). */
+        static const char ack[] = "{\"sony_uninstall_rc\":0,\"tile_off\":true}";
+        (void)webui_api_tile_off();
+        pop_notification("PS5Upload tile removed");
+        return mgmt_reply(MGMT_FRAME_APP_UNREGISTER_ACK, ack, (uint64_t)(sizeof ack - 1));
     }
     unsigned sony_rc = 0u;
     if (unregister_title(title_id, &err, &sony_rc) != 0) {

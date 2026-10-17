@@ -28,6 +28,7 @@
 #include <sys/sysctl.h>
 
 #include "authid.h"
+#include "config.h"
 #include "register.h"
 #include "sony_api_lock.h"
 #include "proc_list.h"
@@ -1116,6 +1117,9 @@ int list_registered_titles_json(char *out_json,
     while ((entry = readdir(dir)) != NULL) {
         const char *tid = entry->d_name;
         if (!looks_like_title_id(tid)) continue;
+        /* The helper's own home-screen tile (webui_tile.c) is not a game: the PC app's library must
+         * not list it (or offer to uninstall it as one). */
+        if (strcmp(tid, WEBUI_TILE_TITLE_ID) == 0) continue;
 
         char lnk[REG_MAX_PATH];
         char lnk_img[REG_MAX_PATH];
