@@ -145,4 +145,38 @@ const char *webui_cheats_toggle_error(const char *cause, size_t n);
  * unmount, so a running game is never asked about: it would lose its image (ruling R20). */
 const char *webui_unmount_refusal(const char *p, int game_running);
 
+/* ---- search index (INDEX_START / INDEX_STATUS / INDEX_SEARCH / INDEX_CANCEL, runtime.c) ----
+ * The handlers read their bodies with a quote-to-quote scan (no JSON unescaping), so every string the
+ * page sends is checked to hold no '"', no '\\' and no control character before it is put in one. */
+
+/* The roots INDEX_START takes: at most 8, each under 256 bytes (the handler's own limits). */
+#define WEBUI_INDEX_ROOTS_MAX 8
+#define WEBUI_INDEX_ROOT_CAP 256
+
+/* 1 when `p` can be an index root: starts with '/', 1-255 bytes, no '"', '\\' or control character. */
+int webui_index_root_ok(const char *p);
+/* 1 when `q` can be a name pattern: 1-255 bytes, no '"', '\\' or control character. */
+int webui_index_query_ok(const char *q);
+
+/* INDEX_START's body {"roots":["/a","/b"]} for `n` roots (each webui_index_root_ok, 1 <= n <= 8).
+ * Returns the length, or -1 (a bad root, a bad count, or it does not fit; out is then ""). */
+int webui_index_start_body(char *out, size_t cap, const char *const *roots, int n);
+
+/* An INDEX_STATUS reply ({"phase":"idle"|"building"|"ready","files":N,"truncated":bool,"started_at":N,
+ * "completed_at":N}) as
+ *   {"phase":"..","files":N,"truncated":bool,"cancelled":bool,"roots":["..",..]|null}
+ * `roots` (NULL: null) are the roots the page started this index with, `cancelled` that the page stopped
+ * it (the helper itself does not say). 0, or -1 (no usable phase, or it does not fit). */
+int webui_index_status_to_json(const char *text, size_t n, const char *const *roots, int nroots, int cancelled,
+                               char *out, size_t cap);
+
+/* An INDEX_SEARCH reply ({"results":[{"path":"..","size":N},..](,"truncated":true)}) as
+ *   {"results":[{"path":"..","size":N},..],"truncated":bool}
+ * keeping only paths under `under` (NULL: all; "/" all) that `hide` (may be NULL) does not hide, at
+ * most `max` of them. "truncated" is set when the helper said so, when it answered `asked` results
+ * (its limit: there may be more), when a result was dropped for `max`, or when `out` is full. Returns
+ * the number written, or -1 (no results array, or not even the empty list fits). */
+int webui_index_results_to_json(const char *text, size_t n, const char *under, size_t max, size_t asked,
+                                int (*hide)(const char *path, void *ctx), void *ctx, char *out, size_t cap);
+
 #endif

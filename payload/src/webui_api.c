@@ -1081,6 +1081,198 @@ static void r_cheats_toggle(const char *b, size_t n, uint8_t *out, int fd) {
     }
 }
 
+/* ---- search: the helper's file index (INDEX_START / STATUS / SEARCH / CANCEL, runtime.c) ----
+ *
+ * One index for the whole helper (its own thread walks the roots: at most 200,000 files and 32 MiB of
+ * paths, ten folders deep, dot names skipped; INDEX_CANCEL stops it between folders). The helper does
+ * not say which roots an index covers or that it was stopped: the page's last start is remembered here
+ * (by the started_at INDEX_STATUS gives it) so /api/index/status can tell the page whether the index
+ * it finds is the one it asked for. The AVA1 trust store's files are never answered. */
+
+#define API_INDEX_RESULTS_MAX 500u           /* results one search answers */
+#define API_INDEX_ASK_ALL 500u               /* INDEX_SEARCH limit for a search of every root */
+#define API_INDEX_ASK_UNDER 5000u            /* for one folder: the helper's own maximum, filtered here */
+#define API_INDEX_JSON (256u * 1024u)        /* 500 results with long, escaped paths fit easily */
+#define API_INDEX_STATUS_JSON (WEBUI_INDEX_ROOTS_MAX * (6u * WEBUI_INDEX_ROOT_CAP + 3u) + 160u) /* 8 roots, escaped */
+
+static pthread_mutex_t g_idx_mu = PTHREAD_MUTEX_INITIALIZER;
+static char g_idx_roots[WEBUI_INDEX_ROOTS_MAX][WEBUI_INDEX_ROOT_CAP];
+static int g_idx_nroots = 0;
+static uint64_t g_idx_started_at = 0; /* 0: no index the page started */
+static int g_idx_cancelled = 0;
+
+static int hide_protected(const char *path, void *ctx) {
+    (void)ctx;
+    return path_in_protected(path);
+}
+
+/* INDEX_STATUS's reply text, and its started_at (0 when absent). */
+static int index_status_text(uint8_t *out, const uint8_t **t, size_t *tl, uint64_t *started_at) {
+    size_t ol;
+    int st = call_text(AVA1_METHOD_INDEX_STATUS, NULL, 0, out, &ol, t, tl);
+    if (st != AVA1_STATUS_OK) return st;
+    if (webui_json_u64((const char *)*t, *tl, "started_at", started_at) != 1) *started_at = 0;
+    return AVA1_STATUS_OK;
+}
+
+/* {roots:["/data",..]} (1-8 roots): a new index, replacing the one there. 409 busy while one is built. */
+static void r_index_start(const char *b, size_t n, uint8_t *out, int fd) {
+    char roots[WEBUI_INDEX_ROOTS_MAX][WEBUI_INDEX_ROOT_CAP], body[WEBUI_INDEX_ROOTS_MAX * (WEBUI_INDEX_ROOT_CAP + 3) + 16];
+    char err[64];
+    const char *ptrs[WEBUI_INDEX_ROOTS_MAX];
+    const char *arr;
+    const uint8_t *t;
+    size_t alen, pos = 0, ol, tl;
+    uint64_t started_at = 0;
+    int nroots = 0, rc, len, st, started = 0;
+    if (webui_json_array(b, n, "roots", &arr, &alen) != 1) {
+        send_bad(fd, "bad_roots");
+        return;
+    }
+    for (;;) {
+        char root[WEBUI_INDEX_ROOT_CAP + 1];
+        rc = webui_json_array_str(arr, alen, &pos, root, sizeof root);
+        if (rc == 0) break;
+        if (rc < 0 || nroots >= WEBUI_INDEX_ROOTS_MAX || !webui_index_root_ok(root)) {
+            send_bad(fd, "bad_roots");
+            return;
+        }
+        if (path_in_protected(root)) {
+            send_error(fd, 403, "path_not_allowed", 16);
+            return;
+        }
+        memcpy(roots[nroots], root, strlen(root) + 1);
+        ptrs[nroots] = roots[nroots];
+        nroots++;
+    }
+    len = nroots ? webui_index_start_body(body, sizeof body, ptrs, nroots) : -1;
+    if (len <= 0) {
+        send_bad(fd, "bad_roots");
+        return;
+    }
+    st = call_text(AVA1_METHOD_INDEX_START, body, (size_t)len, out, &ol, &t, &tl);
+    if (st != AVA1_STATUS_OK) {
+        send_status_error(fd, st, out, ol);
+        return;
+    }
+    if (webui_json_bool((const char *)t, tl, "started", &started) != 1 || !started) {
+        if (webui_json_str((const char *)t, tl, "err", err, sizeof err) != 1 || !err[0]) snprintf(err, sizeof err, "index_failed");
+        if (strcmp(err, "already_building") == 0) send_error(fd, 409, "busy", 4);
+        else send_error(fd, 500, err, strlen(err));
+        return;
+    }
+    /* the index just started is this one: remember what it covers */
+    if (index_status_text(out, &t, &tl, &started_at) != AVA1_STATUS_OK) started_at = 0;
+    pthread_mutex_lock(&g_idx_mu);
+    memcpy(g_idx_roots, roots, sizeof roots);
+    g_idx_nroots = nroots;
+    g_idx_started_at = started_at;
+    g_idx_cancelled = 0;
+    pthread_mutex_unlock(&g_idx_mu);
+    send_json(fd, 200, "{\"started\":true}", 16);
+}
+
+/* {} -> {"phase","files","truncated","cancelled","roots"|null}: roots null when the index there is not
+ * one the page started (never built, or another client's). */
+static void r_index_status(const char *b, size_t n, uint8_t *out, int fd) {
+    const char *ptrs[WEBUI_INDEX_ROOTS_MAX];
+    char roots[WEBUI_INDEX_ROOTS_MAX][WEBUI_INDEX_ROOT_CAP];
+    char *json;
+    const uint8_t *t;
+    size_t tl;
+    uint64_t started_at = 0;
+    int st, i, nroots = 0, cancelled = 0, ours = 0;
+    (void)b;
+    (void)n;
+    st = index_status_text(out, &t, &tl, &started_at);
+    if (st != AVA1_STATUS_OK) {
+        send_status_error(fd, st, NULL, 0);
+        return;
+    }
+    pthread_mutex_lock(&g_idx_mu);
+    if (g_idx_started_at != 0 && g_idx_started_at == started_at) {
+        ours = 1;
+        nroots = g_idx_nroots;
+        cancelled = g_idx_cancelled;
+        memcpy(roots, g_idx_roots, sizeof roots);
+    }
+    pthread_mutex_unlock(&g_idx_mu);
+    for (i = 0; i < nroots; i++) ptrs[i] = roots[i];
+    json = malloc(API_INDEX_STATUS_JSON);
+    if (!json) {
+        send_error(fd, 500, "out_of_memory", 13);
+        return;
+    }
+    if (webui_index_status_to_json((const char *)t, tl, ours ? ptrs : NULL, nroots, cancelled, json, API_INDEX_STATUS_JSON) != 0)
+        send_error(fd, 500, "bad_index_reply", 15);
+    else
+        send_json(fd, 200, json, strlen(json));
+    free(json);
+}
+
+/* {query, under?}: files whose NAME matches `query` (the helper's glob: * and ?, ASCII case-insensitive,
+ * the whole name), under the folder `under` when given. -> {"results":[{"path","size"}],"truncated"}. */
+static void r_index_search(const char *b, size_t n, uint8_t *out, int fd) {
+    char query[WEBUI_INDEX_ROOT_CAP + 1], under[API_PATH], body[WEBUI_INDEX_ROOT_CAP + 64], *json;
+    const uint8_t *t;
+    size_t ol, tl;
+    unsigned ask;
+    int rc, st, k;
+    if (webui_json_str(b, n, "query", query, sizeof query) != 1 || !webui_index_query_ok(query)) {
+        send_bad(fd, "bad_query");
+        return;
+    }
+    rc = webui_json_str(b, n, "under", under, sizeof under);
+    if (rc < 0 || (rc == 1 && under[0] != '/')) {
+        send_bad(fd, "bad_under");
+        return;
+    }
+    if (rc == 0) under[0] = '\0';
+    ask = under[0] ? API_INDEX_ASK_UNDER : API_INDEX_ASK_ALL;
+    k = snprintf(body, sizeof body, "{\"query\":\"%s\",\"limit\":%u}", query, ask); /* checked: no quote, no backslash */
+    if (k <= 0 || (size_t)k >= sizeof body) {
+        send_bad(fd, "bad_query");
+        return;
+    }
+    st = call_text(AVA1_METHOD_INDEX_SEARCH, body, (size_t)k, out, &ol, &t, &tl);
+    if (st != AVA1_STATUS_OK) {
+        send_status_error(fd, st, out, ol);
+        return;
+    }
+    json = malloc(API_INDEX_JSON);
+    if (!json) {
+        send_error(fd, 500, "out_of_memory", 13);
+        return;
+    }
+    if (webui_index_results_to_json((const char *)t, tl, under[0] ? under : NULL, API_INDEX_RESULTS_MAX, ask,
+                                    hide_protected, NULL, json, API_INDEX_JSON) < 0)
+        send_error(fd, 500, "bad_index_reply", 15);
+    else
+        send_json(fd, 200, json, strlen(json));
+    free(json);
+}
+
+/* {} -> {}: the build stops before its next folder (what it found stays searchable, marked cancelled). */
+static void r_index_cancel(const char *b, size_t n, uint8_t *out, int fd) {
+    const uint8_t *t;
+    size_t ol, tl;
+    uint64_t started_at = 0;
+    int st;
+    (void)b;
+    (void)n;
+    st = call_text(AVA1_METHOD_INDEX_CANCEL, NULL, 0, out, &ol, &t, &tl);
+    if (st != AVA1_STATUS_OK) {
+        send_status_error(fd, st, out, ol);
+        return;
+    }
+    if (index_status_text(out, &t, &tl, &started_at) == AVA1_STATUS_OK) {
+        pthread_mutex_lock(&g_idx_mu);
+        if (g_idx_started_at != 0 && g_idx_started_at == started_at) g_idx_cancelled = 1;
+        pthread_mutex_unlock(&g_idx_mu);
+    }
+    send_json(fd, 200, "{}", 2);
+}
+
 /* ---- input log ---- */
 
 /* One append at a time (the file is a ring rewritten in place), and a rate gate: a page that
@@ -1166,6 +1358,10 @@ static const struct {
     { "/api/cheats/status", r_cheats_status },
     { "/api/cheats/list", r_cheats_list },
     { "/api/cheats/toggle", r_cheats_toggle },
+    { "/api/index/start", r_index_start },
+    { "/api/index/status", r_index_status },
+    { "/api/index/search", r_index_search },
+    { "/api/index/cancel", r_index_cancel },
 };
 
 /* The page's own headers: only same-origin fetches, inline script/style (the page is one file),

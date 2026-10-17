@@ -6,12 +6,14 @@ import {
   ClipboardPaste,
   ClipboardX,
   Ellipsis,
+  ChartBar,
   Filter,
   FilterX,
   FolderPlus,
   ListChecks,
   ListX,
   RotateCw,
+  Search,
   Square,
   SquareCheck,
   Star,
@@ -79,6 +81,8 @@ import { useDir, type DirState, type Entry } from "./useDir";
 import { Viewer, type ViewKind } from "./Viewer";
 import { GameBanner } from "./viewer/GameBanner";
 import { sceSysName } from "./viewer/gameFolder";
+import { SearchDialog } from "./search/SearchDialog";
+import { UsageDialog } from "./usage/UsageDialog";
 
 export { upFrom, viewKind };
 
@@ -100,6 +104,9 @@ export type FilesAsk =
   | { kind: "pick"; op: "copy" | "move"; names: string[] }
   | { kind: "info"; name: string }
   | { kind: "view"; name: string; type: ViewKind }
+  /** Search by name (the helper's index) and Disk usage: Files tools over the folder shown. */
+  | { kind: "search" }
+  | { kind: "usage" }
   /** A pinned or recent folder's menu (the drive list). */
   | { kind: "place"; path: string }
   /** Eject a USB drive; `force` after the helper said it is still in use. */
@@ -247,6 +254,8 @@ export interface FilesViewProps {
   onUnpack?: (name: string, outName: string | null) => void;
   onMkdir: (name: string) => void;
   onPicked: (op: "copy" | "move", names: string[], destDir: string) => void;
+  /** Open `dir` in Files with `name` focused (a search result); null name: the folder itself. */
+  onReveal?: (dir: string, name: string | null) => void;
 }
 
 /** "Copying 3 of 40" (item `at` is being sent or is running), or "Stopping…". */
@@ -577,6 +586,17 @@ function askView(p: FilesViewProps) {
           onClose={p.onDismiss}
         />
       );
+    case "search":
+      return (
+        <SearchDialog
+          folder={path}
+          volumes={p.volumes ?? []}
+          onReveal={(dir, name) => p.onReveal?.(dir, name)}
+          onClose={p.onDismiss}
+        />
+      );
+    case "usage":
+      return <UsageDialog folder={path} volumes={p.volumes ?? []} onOpen={(dir) => p.onReveal?.(dir, null)} onClose={p.onDismiss} />;
     default:
       return null;
   }
@@ -785,6 +805,12 @@ export function FilesView(p: FilesViewProps) {
                     onClick={() => p.onAsk({ kind: "mkdir" })}
                   />
                   <ToolButton icon={SquareCheck} label={t("cw_select")} action="select" onClick={p.onToggleSelecting} />
+                  {p.onReveal ? (
+                    <>
+                      <ToolButton icon={Search} label={t("cw_files_search")} action="search" onClick={() => p.onAsk({ kind: "search" })} />
+                      <ToolButton icon={ChartBar} label={t("cw_files_usage")} action="usage" onClick={() => p.onAsk({ kind: "usage" })} />
+                    </>
+                  ) : null}
                   {p.onView ? (
                     <>
                       <ToolButton
@@ -1493,6 +1519,15 @@ export function Files({ ctx }: { ctx: SectionContext }) {
     [go],
   );
 
+  /** A search result or a disk usage row: open its folder with it focused. */
+  const onReveal = useCallback(
+    (dir: string, name: string | null) => {
+      setAsk(null);
+      go(dir, name ?? "");
+    },
+    [go],
+  );
+
   return (
     <div
       ref={root}
@@ -1563,6 +1598,7 @@ export function Files({ ctx }: { ctx: SectionContext }) {
         onUnpack={onUnpack}
         onMkdir={onMkdir}
         onPicked={onPicked}
+        onReveal={onReveal}
       />
     </div>
   );
