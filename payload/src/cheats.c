@@ -26,6 +26,7 @@
 #include <ps5/kernel.h>
 
 #include <ctype.h>
+#include <stddef.h>
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -371,9 +372,20 @@ static void invalidate_rg_cache(void) {
  * path, which works on the same consoles. The user report: every Wolverine cheat crashed the
  * console with ps5upload, while CheatRunner worked.
  *
- * mdbg (the debugger syscall) is the fallback for firmwares where the page walk is not
- * available; on FW 13.60 its write fails and its reads of code pages return filler, which is
- * why it is not the first choice. Every write is read back through the same physical path. */
+ * Which path, by firmware (the same split CheatRunner uses):
+ *   - FW <= 8.20: mdbg (the debugger syscall). It writes copy-on-write, so the change stays
+ *     private to the game.
+ *   - FW >  8.20: the physical page. mdbg's write fails there (measured on 13.60), so there is
+ *     no fallback: a failed physical write is a failed write. A physical write changes the page
+ *     for EVERY process that maps it, so it is only allowed inside the game's own code: its
+ *     eboot (dynlib handle 0) or a module loaded from its /app0. A Section, module_name or
+ *     absolute address that lands in a system library is refused. */
+
+static int use_mdbg(void) {
+    static int fw = 0;
+    if (!fw) fw = (int)(kernel_get_fw_version() >> 16);
+    return fw <= 0x820;
+}
 
 static int phys_copy(pid_t pid, intptr_t addr, void *buf, size_t len, int write) {
     if (!KERNEL_ADDRESS_DMAP_BASE) return -1;
@@ -397,30 +409,88 @@ static int phys_copy(pid_t pid, intptr_t addr, void *buf, size_t len, int write)
     return 0;
 }
 
-static int game_mem_read(pid_t pid, intptr_t addr, uint8_t *out, size_t len) {
-    if (len == 0) return 0;
-    if (!cheat_addr_ok(addr, (int)len)) return -1;
-    if (phys_copy(pid, addr, out, len, 0) == 0) return 0;
+static int mdbg_copy(pid_t pid, intptr_t addr, void *buf, size_t len, int write) {
     /* mdbg swaps this process's authid, so it runs inside the shared swap-window lock. */
     pthread_mutex_lock(&kernel_rw_lock);
-    int rc = mdbg_copyout(pid, addr, out, len);
+    int rc = write ? mdbg_copyin(pid, buf, addr, len) : mdbg_copyout(pid, addr, buf, len);
     pthread_mutex_unlock(&kernel_rw_lock);
     return rc == 0 ? 0 : -1;
 }
 
-/* Returns 0 when the bytes were written and read back equal. */
-static int game_mem_write(pid_t pid, intptr_t addr, const uint8_t *data, size_t len) {
+static int game_mem_read(pid_t pid, intptr_t addr, uint8_t *out, size_t len) {
+    if (len == 0) return 0;
+    if (!cheat_addr_ok(addr, (int)len)) return -1;
+    if (use_mdbg()) return mdbg_copy(pid, addr, out, len, 0);
+    if (phys_copy(pid, addr, out, len, 0) == 0) return 0;
+    return mdbg_copy(pid, addr, out, len, 0); /* a read changes nothing */
+}
+
+/* The first fields of the kernel's dynlib object (third_party/sdk-crt/kernel.h dynlib_obj_t). */
+typedef struct {
+    uint64_t next;
+    uint64_t path;
+    uint64_t unknown0[2];
+    uint32_t refcount;
+    uint64_t handle;
+    uint64_t mapbase;
+    uint64_t mapsize;
+} dynlib_head_t;
+_Static_assert(offsetof(dynlib_head_t, handle) == 0x28, "dynlib_obj_t.handle");
+_Static_assert(offsetof(dynlib_head_t, mapbase) == 0x30, "dynlib_obj_t.mapbase");
+
+/* 1 when [addr, addr+len) lies inside one module of the game that belongs to the game itself:
+ * the eboot (handle 0) or a module whose path is under its app0. */
+static int range_in_game_module(pid_t pid, intptr_t addr, size_t len, char *why, size_t why_cap) {
+    int ok = 0;
+    char path[256] = "";
+    pthread_mutex_lock(&kernel_rw_lock);
+    unsigned long kproc = (unsigned long)kernel_get_proc(pid);
+    unsigned long obj = 0;
+    if (kproc && kernel_copyout(kproc + 0x3e8, &obj, sizeof(obj)) == 0) {
+        /* The list head holds the first object's address; each object starts with `next`. */
+        for (int guard = 0; guard < 1024; guard++) {
+            if (kernel_copyout(obj, &obj, sizeof(obj)) != 0 || !obj) break;
+            dynlib_head_t h;
+            if (kernel_copyout(obj, &h, sizeof(h)) != 0) break;
+            uint64_t a = (uint64_t)addr;
+            if (a >= h.mapbase && a + len <= h.mapbase + h.mapsize) {
+                path[0] = '\0';
+                if (h.path) (void)kernel_copyout(h.path, path, sizeof(path) - 1);
+                path[sizeof(path) - 1] = '\0';
+                ok = (h.handle == 0) || strstr(path, "/app0/") != NULL;
+                if (why && !ok) snprintf(why, why_cap, "%s", path[0] ? path : "a system module");
+                break;
+            }
+        }
+    }
+    pthread_mutex_unlock(&kernel_rw_lock);
+    if (why && !ok && !why[0]) snprintf(why, why_cap, "no module of the game");
+    return ok;
+}
+
+typedef struct {
+    pid_t pid;
+} game_mem_ctx_t;
+
+/* cheat_mem_ops_t.write: 0 when the bytes were written and read back equal. */
+static int game_mem_write(void *opaque, intptr_t addr, const uint8_t *data, size_t len) {
+    pid_t pid = ((game_mem_ctx_t *)opaque)->pid;
     if (len == 0) return 0;
     if (!cheat_addr_ok(addr, (int)len) || len > CHEAT_PLAN_MAX_BYTES) return -1;
-    if (phys_copy(pid, addr, (void *)data, len, 1) != 0) {
-        pthread_mutex_lock(&kernel_rw_lock);
-        int rc = mdbg_copyin(pid, data, addr, len);
-        pthread_mutex_unlock(&kernel_rw_lock);
-        if (rc != 0) return -1;
-    }
     uint8_t back[CHEAT_PLAN_MAX_BYTES];
-    if (game_mem_read(pid, addr, back, len) != 0) return -2;
+    if (use_mdbg()) {
+        if (mdbg_copy(pid, addr, (void *)data, len, 1) != 0) return -1;
+        if (mdbg_copy(pid, addr, back, len, 0) != 0) return -2;
+    } else {
+        if (phys_copy(pid, addr, (void *)data, len, 1) != 0) return -1;
+        if (phys_copy(pid, addr, back, len, 0) != 0) return -2;
+    }
     return memcmp(back, data, len) == 0 ? 0 : -3;
+}
+
+static int game_alive(void *opaque) {
+    pid_t pid = ((game_mem_ctx_t *)opaque)->pid;
+    return !(kill(pid, 0) != 0 && errno == ESRCH);
 }
 
 /* ── Module base resolution ──────────────────────────────────────── */
@@ -1020,18 +1090,34 @@ static void state_path(const char *title_id, char *out, size_t cap) {
 }
 
 /* The sidecar is {"<flat index>":true,...}: one flat index across every cheat file of the
- * title, in find_cheat_files() order — the same numbering the mod list and toggles use. */
-static int state_read(const char *title_id, char *buf, size_t cap) {
+ * title, in find_cheat_files() order — the same numbering the mod list and toggles use.
+ * Every key fits: 1024 mods at most (64 per file x 16 files), about 11 KiB. */
+#define STATE_FILE_MAX (64 * 1024)
+
+/* The whole sidecar as a NUL-terminated heap string ("" when there is none), or NULL when it
+ * exists but cannot be read in full. Caller frees. */
+static char *state_read(const char *title_id) {
     char path[MAX_CHEAT_FILEPATH];
     state_path(title_id, path, sizeof(path));
-    buf[0] = '\0';
     int fd = open(path, O_RDONLY);
-    if (fd < 0) return -1;
-    ssize_t rd = read(fd, buf, cap - 1);
+    if (fd < 0) return errno == ENOENT ? strdup("") : NULL;
+    struct stat st;
+    if (fstat(fd, &st) != 0 || st.st_size < 0 || st.st_size > STATE_FILE_MAX) {
+        close(fd);
+        return NULL;
+    }
+    size_t size = (size_t)st.st_size;
+    char *buf = (char *)malloc(size + 1);
+    if (!buf) { close(fd); return NULL; }
+    size_t got = 0;
+    while (got < size) {
+        ssize_t rd = read(fd, buf + got, size - got);
+        if (rd <= 0) break;
+        got += (size_t)rd;
+    }
     close(fd);
-    if (rd <= 0) { buf[0] = '\0'; return -1; }
-    buf[rd] = '\0';
-    return 0;
+    buf[got] = '\0';
+    return buf;
 }
 
 static int state_has(const char *buf, int flat) {
@@ -1047,28 +1133,30 @@ static int state_has(const char *buf, int flat) {
 /* Load enabled state from sidecar into one file's mods, whose first mod has flat index
  * `flat_base`. */
 static void cheats_load_state(const char *title_id, cheat_file_t *cf, int flat_base) {
-    char buf[4096];
-    if (state_read(title_id, buf, sizeof(buf)) != 0) return;
+    char *buf = state_read(title_id);
+    if (!buf) return;
     for (int i = 0; i < cf->mod_count; i++)
         if (state_has(buf, flat_base + i)) cf->mods[i].enabled = 1;
+    free(buf);
 }
 
 /* Record one mod's state, keeping every other mod's. (This used to rewrite the file from the
  * one cheat file being toggled with per-file indices, so a toggle in a title's second file
- * marked the first file's mods instead, and the watcher re-applied those on the next launch.) */
-static void state_set(const char *title_id, int flat, int on) {
-    char buf[4096];
-    if (state_read(title_id, buf, sizeof(buf)) != 0) buf[0] = '\0';
+ * marked the first file's mods instead, and the watcher re-applied those on the next launch.)
+ * Call with g_apply_lock held. Returns 0 on success; a sidecar it cannot read is left alone
+ * rather than rewritten without its other keys. */
+static int state_set(const char *title_id, int flat, int on) {
+    char *buf = state_read(title_id);
+    if (!buf) return -1;
 
     char path[MAX_CHEAT_FILEPATH];
     state_path(title_id, path, sizeof(path));
     char tmp[MAX_CHEAT_FILEPATH + 8];
     snprintf(tmp, sizeof(tmp), "%s.tmp", path);
     FILE *f = fopen(tmp, "w");
-    if (!f) return;
+    if (!f) { free(buf); return -1; }
     fprintf(f, "{");
     int first = 1;
-    /* Keys are small: one per mod of the title (MAX_MODS_PER_FILE x 16 files at most). */
     for (int i = 0; i < MAX_MODS_PER_FILE * 16; i++) {
         int en = (i == flat) ? on : state_has(buf, i);
         if (!en) continue;
@@ -1076,28 +1164,20 @@ static void state_set(const char *title_id, int flat, int on) {
         first = 0;
     }
     fprintf(f, "}");
-    if (fclose(f) == 0) {
-        rename(tmp, path);
-    } else {
+    free(buf);
+    if (fclose(f) != 0) {
         unlink(tmp);
+        return -1;
     }
+    return rename(tmp, path) == 0 ? 0 : -1;
 }
 
 /* ── Core: apply a single mod ────────────────────────────────────── */
 
-/* Apply or remove one cheat, all of its locations or none of them.
- *
- *   1. Resolve and parse every location and read what it holds now. A location that holds
- *      neither the cheat's bytes nor the original bytes means a different game build (or a
- *      clashing cheat), and the whole cheat is refused before anything is written.
- *   2. Write in cheat_plan_order(): caves before the jumps into them when turning on, the
- *      reverse when turning off. The game is not stopped, so this order is what keeps it from
- *      running a jump whose target is still padding.
- *   3. If a write fails, put back what was already written, newest first.
- *
- * Returns 0 when the cheat is in the asked-for state (including "it already was"). */
-static int apply_mod_locked(pid_t pid, intptr_t base, cheat_mod_t *mod,
-                            int turn_on, char *err, size_t err_cap) {
+/* Parse a mod's locations and work out their addresses (no memory access). Returns the number
+ * of locations, or -1 with err set. */
+static int resolve_mod_locs(pid_t pid, intptr_t base, const cheat_mod_t *mod, cheat_loc_t *locs,
+                            char *err, size_t err_cap) {
     if (mod->incomplete) {
         if (err) snprintf(err, err_cap,
                           "cheat has more locations than the engine can hold; not applied");
@@ -1113,50 +1193,34 @@ static int apply_mod_locked(pid_t pid, intptr_t base, cheat_mod_t *mod,
         if (err) snprintf(err, err_cap, "the game's code is not loaded yet; try again");
         return -1;
     }
-
-    /* "button" type always writes "on" regardless of turn_on */
-    int write_on = (strcmp(mod->type, "button") == 0) ? 1 : turn_on;
-
     int n = mod->mem_count;
-    cheat_loc_t *locs = (cheat_loc_t *)calloc((size_t)n, sizeof(cheat_loc_t));
-    if (!locs) {
-        if (err) snprintf(err, err_cap, "out of memory");
-        return -1;
-    }
-    int rc = 0;
-
-    for (int i = 0; i < n && rc == 0; i++) {
-        mem_entry_t *e = &mod->mem[i];
+    for (int i = 0; i < n; i++) {
+        const mem_entry_t *e = &mod->mem[i];
         cheat_loc_t *l = &locs[i];
         uint64_t off = 0;
         if (cheat_parse_offset(e->offset_str, &off) != 0) {
             if (err) snprintf(err, err_cap, "location %d: bad offset \"%s\"", i + 1, e->offset_str);
-            rc = -1;
-            break;
+            return -1;
         }
         if (strlen(e->on_str) + 1 >= sizeof(e->on_str) ||
             strlen(e->off_str) + 1 >= sizeof(e->off_str)) {
             if (err) snprintf(err, err_cap, "location %d: value too long for the engine", i + 1);
-            rc = -1;
-            break;
+            return -1;
         }
         int on_len = cheat_parse_hex(e->on_str, l->on, CHEAT_PLAN_MAX_BYTES);
         int off_len = cheat_parse_hex(e->off_str, l->off, CHEAT_PLAN_MAX_BYTES);
         if (on_len <= 0 || off_len <= 0) {
             if (err) snprintf(err, err_cap,
                               "location %d: needs both its cheat and original bytes", i + 1);
-            rc = -1;
-            break;
+            return -1;
         }
         if (on_len != off_len) {
             if (err) snprintf(err, err_cap,
                               "location %d: cheat and original bytes differ in length (%d vs %d)",
                               i + 1, on_len, off_len);
-            rc = -1;
-            break;
+            return -1;
         }
         l->len = on_len;
-
         if (e->absolute) {
             l->addr = (intptr_t)off;
         } else if (e->section > 0) {
@@ -1164,56 +1228,68 @@ static int apply_mod_locked(pid_t pid, intptr_t base, cheat_mod_t *mod,
             if (sec_base <= 0) {
                 if (err) snprintf(err, err_cap, "location %d: module %d is not loaded",
                                   i + 1, e->section);
-                rc = -1;
-                break;
+                return -1;
             }
             l->addr = (intptr_t)((uint64_t)sec_base + off);
         } else {
             l->addr = (intptr_t)((uint64_t)base + off);
         }
+        if (!cheat_addr_ok(l->addr, l->len)) {
+            if (err) snprintf(err, err_cap, "location %d: address 0x%lx is not a game address",
+                              i + 1, (unsigned long)l->addr);
+            return -1;
+        }
+    }
+    return n;
+}
 
+/* Apply or remove one cheat, all of its locations or none of them (cheat_plan_apply does the
+ * checking, ordering and rollback). `keep` lists the locations of the title's other enabled
+ * cheats, so turning this one off leaves a code cave they share alone.
+ *
+ * The game is held with SIGSTOP while the writes land (not ptrace: no attach, no protection
+ * change), so no thread runs an instruction half overwritten. SIGCONT follows on every path.
+ *
+ * Returns 0 when the cheat is in the asked-for state (including "it already was"). */
+static int apply_mod_locked(pid_t pid, intptr_t base, cheat_mod_t *mod, int turn_on,
+                            const cheat_range_t *keep, int n_keep, char *err, size_t err_cap) {
+    /* "button" type always writes "on" regardless of turn_on */
+    int write_on = (strcmp(mod->type, "button") == 0) ? 1 : turn_on;
+
+    cheat_loc_t *locs = (cheat_loc_t *)calloc(MAX_MEM_ENTRIES, sizeof(cheat_loc_t));
+    if (!locs) {
+        if (err) snprintf(err, err_cap, "out of memory");
+        return -1;
+    }
+    int n = resolve_mod_locs(pid, base, mod, locs, err, err_cap);
+    int rc = n > 0 ? 0 : -1;
+
+    for (int i = 0; i < n && rc == 0; i++) {
+        cheat_loc_t *l = &locs[i];
+        if (!use_mdbg()) {
+            char why[160] = "";
+            if (!range_in_game_module(pid, l->addr, (size_t)l->len, why, sizeof(why))) {
+                if (err) snprintf(err, err_cap,
+                                  "location %d (0x%lx) is outside the game's own code (%s); "
+                                  "not written",
+                                  i + 1, (unsigned long)l->addr, why);
+                rc = -1;
+                break;
+            }
+        }
         if (game_mem_read(pid, l->addr, l->cur, (size_t)l->len) != 0) {
             if (err) snprintf(err, err_cap, "location %d (0x%lx) cannot be read",
                               i + 1, (unsigned long)l->addr);
             rc = -1;
-            break;
-        }
-        if (cheat_loc_state(l) == CHEAT_LOC_MISMATCH) {
-            if (err) snprintf(err, err_cap,
-                              "cheat does not match this game build "
-                              "(location %d at 0x%lx holds other bytes); nothing was written",
-                              i + 1, (unsigned long)l->addr);
-            rc = -1;
-            break;
         }
     }
 
-    int order[MAX_MEM_ENTRIES];
-    int written[MAX_MEM_ENTRIES];
-    int n_written = 0;
     if (rc == 0) {
-        cheat_plan_order(locs, n, write_on, order);
-        for (int k = 0; k < n; k++) {
-            cheat_loc_t *l = &locs[order[k]];
-            const uint8_t *want = write_on ? l->on : l->off;
-            if (memcmp(l->cur, want, (size_t)l->len) == 0) continue; /* already there */
-            int wrc = game_mem_write(pid, l->addr, want, (size_t)l->len);
-            if (wrc != 0) {
-                if (err) snprintf(err, err_cap, "write failed at 0x%lx (rc=%d)%s",
-                                  (unsigned long)l->addr, wrc,
-                                  n_written ? "; earlier writes were undone" : "");
-                rc = -1;
-                break;
-            }
-            written[n_written++] = order[k];
-        }
-    }
-
-    if (rc != 0) {
-        for (int k = n_written - 1; k >= 0; k--) {
-            cheat_loc_t *l = &locs[written[k]];
-            (void)game_mem_write(pid, l->addr, l->cur, (size_t)l->len);
-        }
+        game_mem_ctx_t ctx = { .pid = pid };
+        cheat_mem_ops_t ops = { .ctx = &ctx, .write = game_mem_write, .alive = game_alive };
+        int stopped = (kill(pid, SIGSTOP) == 0);
+        rc = cheat_plan_apply(locs, n, write_on, keep, n_keep, &ops, err, err_cap);
+        if (stopped) (void)kill(pid, SIGCONT);
     }
 
     free(locs);
@@ -1221,13 +1297,14 @@ static int apply_mod_locked(pid_t pid, intptr_t base, cheat_mod_t *mod,
 }
 
 /* One apply at a time: the PC app, the console page and the watcher can all ask at once, and
- * two applies of overlapping cheats must not interleave their reads and writes. */
+ * two applies of overlapping cheats must not interleave their reads and writes. The toggle
+ * state file is written under the same lock. */
 static pthread_mutex_t g_apply_lock = PTHREAD_MUTEX_INITIALIZER;
 
 static int apply_mod(pid_t pid, intptr_t base, cheat_mod_t *mod,
                      int turn_on, char *err, size_t err_cap) {
     pthread_mutex_lock(&g_apply_lock);
-    int rc = apply_mod_locked(pid, base, mod, turn_on, err, err_cap);
+    int rc = apply_mod_locked(pid, base, mod, turn_on, NULL, 0, err, err_cap);
     pthread_mutex_unlock(&g_apply_lock);
     return rc;
 }
@@ -1526,6 +1603,36 @@ int cheats_list_mods(const char *title_id, char *buf, size_t cap,
     return 0;
 }
 
+#define KEEP_RANGES_MAX 1024
+
+/* Every location of the title's enabled cheats other than `skip_flat`, as byte ranges. */
+static int collect_enabled_ranges(pid_t pid, intptr_t base, const char *title_id, int skip_flat,
+                                  cheat_range_t *out, int max) {
+    found_file_t files[16];
+    int n = find_cheat_files(title_id, files, 16, 0);
+    cheat_file_t *cf = (cheat_file_t *)malloc(sizeof(cheat_file_t));
+    cheat_loc_t *locs = (cheat_loc_t *)calloc(MAX_MEM_ENTRIES, sizeof(cheat_loc_t));
+    int count = 0, flat = 0;
+    for (int fi = 0; cf && locs && fi < n; fi++) {
+        if (load_cheat_file(files[fi].path, files[fi].format, cf) != 0) continue;
+        cheats_load_state(title_id, cf, flat);
+        for (int mi = 0; mi < cf->mod_count; mi++, flat++) {
+            if (flat == skip_flat || !cf->mods[mi].enabled) continue;
+            intptr_t mb = base;
+            if (cf->mods[mi].module_name[0]) mb = resolve_module_base(pid, cf->mods[mi].module_name);
+            int nl = resolve_mod_locs(pid, mb, &cf->mods[mi], locs, NULL, 0);
+            for (int k = 0; k < nl && count < max; k++) {
+                out[count].addr = locs[k].addr;
+                out[count].len = locs[k].len;
+                count++;
+            }
+        }
+    }
+    free(locs);
+    free(cf);
+    return count;
+}
+
 /* Toggle a mod by flat index. */
 int cheats_toggle(const char *title_id, int mod_index, int turn_on,
                   char *err, size_t err_cap) {
@@ -1624,14 +1731,28 @@ int cheats_toggle(const char *title_id, int mod_index, int turn_on,
         return -1;
     }
 
-    int rc = apply_mod(pid, mod_base, mod, turn_on, err, err_cap);
+    /* Turning off: the title's other enabled cheats may share a code cave with this one, and
+     * restoring the cave's padding would leave their jumps running into int3. */
+    cheat_range_t *keep = NULL;
+    int n_keep = 0;
+    if (!turn_on) {
+        keep = (cheat_range_t *)calloc(KEEP_RANGES_MAX, sizeof(cheat_range_t));
+        if (keep) n_keep = collect_enabled_ranges(pid, base, title_id, mod_index, keep, KEEP_RANGES_MAX);
+    }
+
+    pthread_mutex_lock(&g_apply_lock);
+    int rc = apply_mod_locked(pid, mod_base, mod, turn_on, keep, n_keep, err, err_cap);
+    if (rc == 0 && strcmp(mod->type, "button") != 0) {
+        /* Update persisted state (only for checkbox type) */
+        mod->enabled = turn_on;
+        if (state_set(title_id, mod_index, turn_on) != 0)
+            fprintf(stderr, "[cheats] could not record %s #%d as %s\n", title_id, mod_index,
+                    turn_on ? "on" : "off");
+    }
+    pthread_mutex_unlock(&g_apply_lock);
+    free(keep);
 
     if (rc == 0) {
-        /* Update persisted state (only for checkbox type) */
-        if (strcmp(mod->type, "button") != 0) {
-            mod->enabled = turn_on;
-            state_set(title_id, mod_index, turn_on);
-        }
 
         /* Confirm on the console.
          *

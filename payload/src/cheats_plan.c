@@ -3,6 +3,7 @@
 #include "cheats_plan.h"
 
 #include <errno.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -92,4 +93,80 @@ int cheat_addr_ok(intptr_t addr, int len) {
     uint64_t a = (uint64_t)addr;
     uint64_t end = a + (uint64_t)len;
     return a >= 0x10000ULL && end > a && end <= 0x800000000000ULL;
+}
+
+static int overlaps(intptr_t a, int alen, intptr_t b, int blen) {
+    return a < b + (intptr_t)blen && b < a + (intptr_t)alen;
+}
+
+int cheat_plan_apply(cheat_loc_t *locs, int n, int turn_on,
+                     const cheat_range_t *keep, int n_keep,
+                     const cheat_mem_ops_t *ops, char *err, size_t err_cap) {
+    if (err && err_cap) err[0] = '\0';
+    if (n <= 0 || n > CHEAT_PLAN_MAX_LOCS) {
+        if (err) snprintf(err, err_cap, "cheat has no usable locations");
+        return -1;
+    }
+
+    for (int i = 0; i < n; i++) {
+        cheat_loc_t *l = &locs[i];
+        l->keep = 0;
+        if (!turn_on && cheat_loc_is_cave(l)) {
+            for (int k = 0; k < n_keep; k++)
+                if (overlaps(l->addr, l->len, keep[k].addr, keep[k].len)) { l->keep = 1; break; }
+        }
+        if (l->keep) continue;
+        if (cheat_loc_state(l) == CHEAT_LOC_MISMATCH) {
+            if (err) snprintf(err, err_cap,
+                              "cheat does not match this game build "
+                              "(location %d at 0x%lx holds other bytes); nothing was written",
+                              i + 1, (unsigned long)l->addr);
+            return -1;
+        }
+    }
+
+    int order[CHEAT_PLAN_MAX_LOCS];
+    int done[CHEAT_PLAN_MAX_LOCS];
+    int n_done = 0;
+    cheat_plan_order(locs, n, turn_on, order);
+
+    int failed = -1, why = 0;
+    for (int k = 0; k < n; k++) {
+        cheat_loc_t *l = &locs[order[k]];
+        if (l->keep) continue;
+        const uint8_t *want = turn_on ? l->on : l->off;
+        if (memcmp(l->cur, want, (size_t)l->len) == 0) continue; /* already there */
+        if (!ops->alive(ops->ctx)) { why = -100; failed = -2; break; }
+        int wrc = ops->write(ops->ctx, l->addr, want, (size_t)l->len);
+        if (wrc != 0) { failed = order[k]; why = wrc; break; }
+        done[n_done++] = order[k];
+    }
+    if (failed == -1) return 0;
+
+    if (failed == -2) {
+        /* The game exited mid-apply: nothing left to put back. */
+        if (err) snprintf(err, err_cap, "no game is currently running");
+        return -1;
+    }
+
+    /* The failing location may be half written (a split write that failed on its second page,
+     * or a read-back mismatch): put it back too, then the earlier ones, newest first. */
+    int undo_fail = 0;
+    if (ops->write(ops->ctx, locs[failed].addr, locs[failed].cur, (size_t)locs[failed].len) != 0)
+        undo_fail++;
+    for (int k = n_done - 1; k >= 0; k--) {
+        cheat_loc_t *l = &locs[done[k]];
+        if (ops->write(ops->ctx, l->addr, l->cur, (size_t)l->len) != 0) undo_fail++;
+    }
+    if (err) {
+        if (undo_fail)
+            snprintf(err, err_cap,
+                     "write failed at 0x%lx (rc=%d); %d of %d location(s) could not be put back "
+                     "- restart the game",
+                     (unsigned long)locs[failed].addr, why, undo_fail, n_done + 1);
+        else
+            snprintf(err, err_cap, "write failed at 0x%lx (rc=%d); the game was left as it was",
+                     (unsigned long)locs[failed].addr, why);
+    }
+    return -1;
 }

@@ -161,12 +161,175 @@ static void test_addr_ok(void) {
     CHECK(!cheat_addr_ok(0x400000, 0));
 }
 
+
+/* ── A fake game memory for cheat_plan_apply ───────────────────────── */
+
+#define MOCK_BASE 0x400000
+#define MOCK_SIZE 0x8000
+#define MOCK_PAGE 0x1000
+
+typedef struct {
+    uint8_t mem[MOCK_SIZE];
+    int calls;        /* write calls so far */
+    int fail_call;    /* this call (1-based) fails; 0 = never */
+    int fail_from;    /* this call and every later one fails; 0 = never */
+    int split_fail;   /* the failing call writes its first page, then fails */
+    int alive_until;  /* alive() turns 0 after this many write calls; 0 = always alive */
+} mock_t;
+
+static int mock_write(void *opaque, intptr_t addr, const uint8_t *data, size_t len) {
+    mock_t *m = (mock_t *)opaque;
+    m->calls++;
+    int fail = (m->fail_call && m->calls == m->fail_call) || (m->fail_from && m->calls >= m->fail_from);
+    size_t off = (size_t)(addr - MOCK_BASE);
+    if (off + len > MOCK_SIZE) return -1;
+    size_t done = 0;
+    while (done < len) { /* page by page, like the physical-page path */
+        size_t page_end = ((off + done) / MOCK_PAGE + 1) * MOCK_PAGE;
+        size_t chunk = page_end - (off + done);
+        if (chunk > len - done) chunk = len - done;
+        if (fail && (!m->split_fail || done > 0)) return -1;
+        memcpy(m->mem + off + done, data + done, chunk);
+        done += chunk;
+    }
+    return fail ? -1 : 0;
+}
+
+static int mock_alive(void *opaque) {
+    mock_t *m = (mock_t *)opaque;
+    return !m->alive_until || m->calls < m->alive_until;
+}
+
+/* A synthetic hook-and-cave cheat in the fake memory: 3 caves (int3 padding), 2 hooks, and one
+ * cave that straddles the page boundary at 0x402000. */
+static const raw_t SYN[] = {
+    {"0100", "4C8B184D8B5B30E9E4060000", "CCCCCCCCCCCCCCCCCCCCCCCC"},
+    {"5000", "E97880FEFF", "8B4808EB02"},
+    {"1FF8", "450FB65370E9F6050000AABBCCDD", "CCCCCCCCCCCCCCCCCCCCCCCCCCCC"}, /* crosses 0x2000 */
+    {"5100", "E9588FFEFF", "8B4808EB02"},
+    {"0200", "C3", "CC"},
+};
+#define N_SYN ((int)(sizeof SYN / sizeof SYN[0]))
+
+static void mock_boot(mock_t *m, cheat_loc_t *locs) {
+    memset(m, 0, sizeof *m);
+    memset(m->mem, 0x90, sizeof m->mem);
+    build(SYN, N_SYN, MOCK_BASE, locs);
+    for (int i = 0; i < N_SYN; i++)
+        memcpy(m->mem + (locs[i].addr - MOCK_BASE), locs[i].off, (size_t)locs[i].len);
+}
+
+static void mock_read_cur(const mock_t *m, cheat_loc_t *locs, int n) {
+    for (int i = 0; i < n; i++)
+        memcpy(locs[i].cur, m->mem + (locs[i].addr - MOCK_BASE), (size_t)locs[i].len);
+}
+
+static int all_in_state(const mock_t *m, const cheat_loc_t *locs, int n, int on) {
+    for (int i = 0; i < n; i++)
+        if (memcmp(m->mem + (locs[i].addr - MOCK_BASE), on ? locs[i].on : locs[i].off,
+                   (size_t)locs[i].len) != 0)
+            return 0;
+    return 1;
+}
+
+static void test_apply_mock(void) {
+    static mock_t m, snap;
+    cheat_loc_t locs[N_SYN];
+    cheat_mem_ops_t ops = {&m, mock_write, mock_alive};
+    char err[256];
+
+    /* On, then off. */
+    mock_boot(&m, locs);
+    mock_read_cur(&m, locs, N_SYN);
+    CHECK(cheat_plan_apply(locs, N_SYN, 1, NULL, 0, &ops, err, sizeof err) == 0);
+    CHECK(all_in_state(&m, locs, N_SYN, 1));
+    mock_read_cur(&m, locs, N_SYN);
+    CHECK(cheat_plan_apply(locs, N_SYN, 0, NULL, 0, &ops, err, sizeof err) == 0);
+    CHECK(all_in_state(&m, locs, N_SYN, 0));
+
+    /* The Nth write fails, for every N: everything is put back, including what was half done. */
+    for (int nth = 1; nth <= N_SYN; nth++) {
+        for (int split = 0; split <= 1; split++) {
+            mock_boot(&m, locs);
+            snap = m;
+            m.fail_call = nth;
+            m.split_fail = split;
+            mock_read_cur(&m, locs, N_SYN);
+            CHECK(cheat_plan_apply(locs, N_SYN, 1, NULL, 0, &ops, err, sizeof err) != 0);
+            CHECK(memcmp(m.mem, snap.mem, MOCK_SIZE) == 0);
+            CHECK(strstr(err, "left as it was") != NULL);
+        }
+    }
+
+    /* The page-straddling cave fails on its second page: torn, then restored. Caves go first in
+     * file order, so it is the 2nd write. */
+    mock_boot(&m, locs);
+    snap = m;
+    m.fail_call = 2;
+    m.split_fail = 1;
+    mock_read_cur(&m, locs, N_SYN);
+    CHECK(cheat_plan_apply(locs, N_SYN, 1, NULL, 0, &ops, err, sizeof err) != 0);
+    CHECK(memcmp(m.mem, snap.mem, MOCK_SIZE) == 0);
+
+    /* Same while turning off. */
+    mock_boot(&m, locs);
+    mock_read_cur(&m, locs, N_SYN);
+    CHECK(cheat_plan_apply(locs, N_SYN, 1, NULL, 0, &ops, err, sizeof err) == 0);
+    snap = m;
+    m.calls = 0;
+    m.fail_call = 4;
+    m.split_fail = 1;
+    mock_read_cur(&m, locs, N_SYN);
+    CHECK(cheat_plan_apply(locs, N_SYN, 0, NULL, 0, &ops, err, sizeof err) != 0);
+    CHECK(memcmp(m.mem, snap.mem, MOCK_SIZE) == 0);
+
+    /* The undo itself fails: said so, not "left as it was". */
+    mock_boot(&m, locs);
+    m.fail_from = 3;
+    mock_read_cur(&m, locs, N_SYN);
+    CHECK(cheat_plan_apply(locs, N_SYN, 1, NULL, 0, &ops, err, sizeof err) != 0);
+    CHECK(strstr(err, "could not be put back") != NULL);
+
+    /* A mismatch anywhere: nothing written at all. */
+    mock_boot(&m, locs);
+    m.mem[locs[3].addr - MOCK_BASE] = 0x00;
+    snap = m;
+    mock_read_cur(&m, locs, N_SYN);
+    CHECK(cheat_plan_apply(locs, N_SYN, 1, NULL, 0, &ops, err, sizeof err) != 0);
+    CHECK(m.calls == 0 && memcmp(m.mem, snap.mem, MOCK_SIZE) == 0);
+
+    /* The game exits mid-apply: stops writing. */
+    mock_boot(&m, locs);
+    m.alive_until = 2;
+    mock_read_cur(&m, locs, N_SYN);
+    CHECK(cheat_plan_apply(locs, N_SYN, 1, NULL, 0, &ops, err, sizeof err) != 0);
+    CHECK(m.calls == 2);
+    CHECK(strstr(err, "no game") != NULL);
+
+    /* Turning off with another enabled cheat sharing the first cave: that cave keeps its code,
+     * everything else goes back. Even when the other cheat's bytes differ from ours there. */
+    mock_boot(&m, locs);
+    mock_read_cur(&m, locs, N_SYN);
+    CHECK(cheat_plan_apply(locs, N_SYN, 1, NULL, 0, &ops, err, sizeof err) == 0);
+    m.mem[locs[0].addr - MOCK_BASE + 2] = 0x77; /* the other cheat's version of the cave */
+    uint8_t cave_before[32];
+    memcpy(cave_before, m.mem + (locs[0].addr - MOCK_BASE), (size_t)locs[0].len);
+    cheat_range_t keep[1] = {{locs[0].addr + 4, 2}};
+    mock_read_cur(&m, locs, N_SYN);
+    CHECK(cheat_plan_apply(locs, N_SYN, 0, keep, 1, &ops, err, sizeof err) == 0);
+    CHECK(memcmp(m.mem + (locs[0].addr - MOCK_BASE), cave_before, (size_t)locs[0].len) == 0);
+    CHECK(all_in_state(&m, locs + 1, N_SYN - 1, 0));
+    /* A hook overlapping `keep` is still restored (only caves are shared). */
+    CHECK(locs[1].keep == 0);
+}
+
 int main(void) {
     test_parse();
     test_state();
     test_order_max_resources();
     test_order_mc4_zero_cave();
     test_addr_ok();
+    test_apply_mock();
     if (failures) {
         fprintf(stderr, "cheats_plan_selftest: %d failure(s)\n", failures);
         return 1;
