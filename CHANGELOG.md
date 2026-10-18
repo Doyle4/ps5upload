@@ -4,6 +4,21 @@ What's new in ps5upload, written for humans.
 
 ---
 
+## 7.1.5
+
+- **Uploading many small files no longer gets stuck (#475).** Picking hundreds of files in Files
+  (for example a Switch firmware folder) stopped after about 30 files with "the console is busy"
+  and never recovered. The console now lets go of each finished upload, so every file goes
+  through: a 240-file, 347 MB folder uploaded in about 2 minutes 20 seconds in testing.
+- **PS5Upload Files is now PS5Upload Minion.** Same page and tile, new name; the tile on the
+  home screen picks up the new name the next time the helper starts.
+- **Payload catalog fixes.** websrv's newest release showed an error instead of the release,
+  because its release notes are empty. A payload whose GitHub page has been taken down (such as
+  Ghostpad) now says so plainly and keeps offering the version saved in the app. How long ago a
+  release was saved reads like "saved 3 days ago" instead of a count of seconds.
+
+---
+
 ## 7.1.4
 
 - **Cheats no longer crash the console.** Switching a cheat on or off could crash the game or the
