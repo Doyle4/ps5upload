@@ -24,6 +24,7 @@
   "cw_cheats_find_none": "لم ينشر أحد شفرات لهذه اللعبة بعد.",
   "cw_cheats_find_offline": "لا يستطيع جهاز PS5 هذا الوصول إلى GitHub. احصل على الشفرات من تطبيق PS5Upload على حاسوبك، أو اسمح بـ raw.githubusercontent.com في إعدادات DNS.",
   "cw_cheats_find_partial": "تعذّر الوصول إلى بعض مصادر الشفرات، لذا قد تكون القائمة ناقصة.",
+  "cw_cheats_find_replaced": "تم استبدال {name} على الجهاز. شفراته موجودة الآن في القائمة.",
   "cw_cheats_find_retry": "إعادة المحاولة",
   "cw_cheats_find_saved": "أصبح {name} على الجهاز. شفراته موجودة الآن في القائمة.",
   "cw_cheats_find_title": "شفرات {title} على الإنترنت",

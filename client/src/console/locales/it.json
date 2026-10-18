@@ -24,6 +24,7 @@
   "cw_cheats_find_none": "Nessuno ha ancora pubblicato cheat per questo gioco.",
   "cw_cheats_find_offline": "Questa PS5 non riesce a raggiungere GitHub. Ottieni i cheat dall'app PS5Upload sul tuo PC oppure consenti raw.githubusercontent.com nelle impostazioni DNS.",
   "cw_cheats_find_partial": "Alcune fonti di cheat non sono raggiungibili, quindi l'elenco potrebbe essere incompleto.",
+  "cw_cheats_find_replaced": "{name} è stato sostituito sulla console. I suoi cheat ora sono nell'elenco.",
   "cw_cheats_find_retry": "Riprova",
   "cw_cheats_find_saved": "{name} è sulla console. I suoi cheat ora sono nell'elenco.",
   "cw_cheats_find_title": "Cheat online per {title}",

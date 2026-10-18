@@ -4278,6 +4278,7 @@ c2c_test_deep_bad: "Тестовая отправка 4 КиБ не дошла: 
 "cw_cheats_find_partial": "Некоторые источники читов недоступны, поэтому список может быть неполным.",
 "cw_cheats_find_downloading": "Загрузка…",
 "cw_cheats_find_downloaded": "Загружено",
+"cw_cheats_find_replaced": "{name} заменён на консоли. Его читы уже в списке.",
 "cw_cheats_find_saved": "{name} теперь на консоли. Его читы уже в списке.",
 "cw_cheats_find_err_download": "Не удалось скачать {name} ({code}).",
 "cw_cheats_find_err_store": "Не удалось сохранить {name} на консоли ({code}).",

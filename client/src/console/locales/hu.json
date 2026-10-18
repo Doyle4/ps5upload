@@ -24,6 +24,7 @@
   "cw_cheats_find_none": "Ehhez a játékhoz még senki sem tett közzé csalásokat.",
   "cw_cheats_find_offline": "Ez a PS5 nem éri el a GitHubot. Szerezz csalásokat a PC-n futó PS5Upload alkalmazásban, vagy engedélyezd a raw.githubusercontent.com címet a DNS-beállításokban.",
   "cw_cheats_find_partial": "Néhány csalásforrás nem érhető el, ezért a lista hiányos lehet.",
+  "cw_cheats_find_replaced": "A(z) {name} le lett cserélve a konzolon. A csalásai most már a listában vannak.",
   "cw_cheats_find_retry": "Újra",
   "cw_cheats_find_saved": "A(z) {name} a konzolon van. A csalásai most már a listában vannak.",
   "cw_cheats_find_title": "Online csalások ehhez: {title}",

@@ -4337,6 +4337,7 @@ c2c_test_deep_bad: "การส่งทดสอบ 4 KiB ไปไม่ถ�
 "cw_cheats_find_partial": "เข้าถึงแหล่งสูตรโกงบางแห่งไม่ได้ รายการจึงอาจไม่ครบ",
 "cw_cheats_find_downloading": "กำลังดาวน์โหลด…",
 "cw_cheats_find_downloaded": "ดาวน์โหลดแล้ว",
+"cw_cheats_find_replaced": "แทนที่ {name} บนเครื่องแล้ว สูตรโกงของมันอยู่ในรายการแล้ว",
 "cw_cheats_find_saved": "{name} อยู่บนเครื่องแล้ว สูตรโกงของมันอยู่ในรายการแล้ว",
 "cw_cheats_find_err_download": "ดาวน์โหลด {name} ไม่ได้ ({code})",
 "cw_cheats_find_err_store": "บันทึก {name} ลงเครื่องไม่ได้ ({code})",

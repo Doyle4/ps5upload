@@ -24,6 +24,7 @@
   "cw_cheats_find_none": "還沒有人發布此遊戲的金手指。",
   "cw_cheats_find_offline": "這台 PS5 無法連線到 GitHub。請在電腦上的 PS5Upload 應用程式中取得金手指，或在 DNS 設定中允許 raw.githubusercontent.com。",
   "cw_cheats_find_partial": "部分金手指來源無法連線，清單可能不完整。",
+  "cw_cheats_find_replaced": "已取代主機上的 {name}。它的金手指現在已在清單中。",
   "cw_cheats_find_retry": "重試",
   "cw_cheats_find_saved": "{name} 已儲存到主機。它的金手指現在已在清單中。",
   "cw_cheats_find_title": "{title} 的線上金手指",

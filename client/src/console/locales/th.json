@@ -24,6 +24,7 @@
   "cw_cheats_find_none": "ยังไม่มีใครเผยแพร่สูตรโกงสำหรับเกมนี้",
   "cw_cheats_find_offline": "PS5 เครื่องนี้เชื่อมต่อ GitHub ไม่ได้ รับสูตรโกงจากแอป PS5Upload บนพีซีของคุณ หรืออนุญาต raw.githubusercontent.com ในการตั้งค่า DNS",
   "cw_cheats_find_partial": "เข้าถึงแหล่งสูตรโกงบางแห่งไม่ได้ รายการจึงอาจไม่ครบ",
+  "cw_cheats_find_replaced": "แทนที่ {name} บนเครื่องแล้ว สูตรโกงของมันอยู่ในรายการแล้ว",
   "cw_cheats_find_retry": "ลองอีกครั้ง",
   "cw_cheats_find_saved": "{name} อยู่บนเครื่องแล้ว สูตรโกงของมันอยู่ในรายการแล้ว",
   "cw_cheats_find_title": "สูตรโกงออนไลน์สำหรับ {title}",

@@ -5,6 +5,7 @@ import {
   contentUrls,
   downloadCheat,
   entriesFor,
+  fetchLimited,
   formatFromIndex,
   parseCheatFilename,
   parseIndexLine,
@@ -280,5 +281,62 @@ describe("downloading a file", () => {
     const urls = contentUrls(MIX, entry.filename);
     const { f } = net({ [urls[0]]: new ArrayBuffer(CHEAT_FILE_MAX + 1) });
     await expect(downloadCheat(entry, f)).rejects.toMatchObject({ message: "too_large" });
+  });
+  it("never_fetches_a_name_the_helper_would_refuse", async () => {
+    const { f, calls } = net({});
+    await expect(downloadCheat({ ...entry, filename: "CUSA1 copy.shn" }, f)).rejects.toMatchObject({ message: "bad_name" });
+    expect(calls).toEqual([]);
+  });
+  it("a_stalled_body_times_out_instead_of_hanging", async () => {
+    const urls = contentUrls(MIX, entry.filename);
+    const f: FetchLike = async (url) =>
+      url === urls[0]
+        ? new Response(new ReadableStream({ start: (c) => c.enqueue(new Uint8Array([1, 2])) }), { status: 200 })
+        : new Response("404", { status: 404 });
+    const err = await downloadCheat(entry, f, 50).catch((e: unknown) => e);
+    expect(err).toMatchObject({ network: true, message: "cut_off" });
+  });
+});
+
+describe("bounded reads (fetchLimited)", () => {
+  const chunked = (sizes: number[]) => {
+    let pulled = 0;
+    const body = new ReadableStream<Uint8Array>({
+      pull(c) {
+        if (pulled >= sizes.length) return c.close();
+        c.enqueue(new Uint8Array(sizes[pulled++]));
+      },
+    });
+    return { body, pulled: () => pulled };
+  };
+  it("stops reading past the limit", async () => {
+    const big = chunked([600, 600, 600, 600, 600]);
+    const f: FetchLike = async () => new Response(big.body, { status: 200 });
+    await expect(fetchLimited(f, "u", 1000, 1000)).rejects.toMatchObject({ message: "too_large", network: false });
+    expect(big.pulled()).toBeLessThan(5);
+  });
+  it("reads a body in chunks", async () => {
+    const f: FetchLike = async () => new Response(chunked([3, 4]).body, { status: 200 });
+    const r = await fetchLimited(f, "u", 1000, 7);
+    expect(r.ok && r.body.byteLength).toBe(7);
+  });
+  it("refuses a declared length over the limit without reading", async () => {
+    const f: FetchLike = async () => new Response("x".repeat(10), { status: 200, headers: { "Content-Length": "5000" } });
+    await expect(fetchLimited(f, "u", 1000, 100)).rejects.toMatchObject({ message: "too_large" });
+  });
+  it("falls back to arrayBuffer without a body stream", async () => {
+    const res = { ok: true, status: 200, headers: new Headers(), body: null, arrayBuffer: async () => new ArrayBuffer(9) } as unknown as Response;
+    const r = await fetchLimited(async () => res, "u", 1000, 10);
+    expect(r.ok && r.body.byteLength).toBe(9);
+    const big = { ...res, arrayBuffer: async () => new ArrayBuffer(11) } as unknown as Response;
+    await expect(fetchLimited(async () => big, "u", 1000, 10)).rejects.toMatchObject({ message: "too_large" });
+  });
+  it("an_http_error_is_not_ok", async () => {
+    const r = await fetchLimited(async () => new Response("no", { status: 403 }), "u", 1000, 10);
+    expect(r).toEqual({ ok: false, status: 403 });
+  });
+  it("a_reply_that_never_comes_times_out", async () => {
+    const r = fetchLimited(() => new Promise<Response>(() => {}), "u", 30, 10);
+    await expect(r).rejects.toMatchObject({ network: true });
   });
 });

@@ -24,6 +24,7 @@
   "cw_cheats_find_none": "Для этой игры пока никто не опубликовал читы.",
   "cw_cheats_find_offline": "Эта PS5 не может подключиться к GitHub. Возьмите читы в приложении PS5Upload на ПК или разрешите raw.githubusercontent.com в настройках DNS.",
   "cw_cheats_find_partial": "Некоторые источники читов недоступны, поэтому список может быть неполным.",
+  "cw_cheats_find_replaced": "{name} заменён на консоли. Его читы уже в списке.",
   "cw_cheats_find_retry": "Повторить",
   "cw_cheats_find_saved": "{name} теперь на консоли. Его читы уже в списке.",
   "cw_cheats_find_title": "Читы в сети для {title}",

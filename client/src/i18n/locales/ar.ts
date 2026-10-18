@@ -4328,6 +4328,7 @@ c2c_test_deep_bad: "لم يصل الإرسال التجريبي بحجم 4 KiB: 
 "cw_cheats_find_partial": "تعذّر الوصول إلى بعض مصادر الشفرات، لذا قد تكون القائمة ناقصة.",
 "cw_cheats_find_downloading": "جارٍ التنزيل…",
 "cw_cheats_find_downloaded": "تم التنزيل",
+"cw_cheats_find_replaced": "تم استبدال {name} على الجهاز. شفراته موجودة الآن في القائمة.",
 "cw_cheats_find_saved": "أصبح {name} على الجهاز. شفراته موجودة الآن في القائمة.",
 "cw_cheats_find_err_download": "تعذّر تنزيل {name} ({code}).",
 "cw_cheats_find_err_store": "تعذّر حفظ {name} على الجهاز ({code}).",

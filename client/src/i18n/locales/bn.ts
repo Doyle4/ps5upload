@@ -4328,6 +4328,7 @@ c2c_test_deep_bad: "4 KiB-এর পরীক্ষামূলক পাঠা�
 "cw_cheats_find_partial": "কিছু চিট উৎসে পৌঁছানো যায়নি, তাই তালিকাটি অসম্পূর্ণ হতে পারে।",
 "cw_cheats_find_downloading": "ডাউনলোড হচ্ছে…",
 "cw_cheats_find_downloaded": "ডাউনলোড হয়েছে",
+"cw_cheats_find_replaced": "কনসোলে {name} প্রতিস্থাপন করা হয়েছে। এর চিটগুলো এখন তালিকায় আছে।",
 "cw_cheats_find_saved": "{name} কনসোলে আছে। এর চিটগুলো এখন তালিকায় আছে।",
 "cw_cheats_find_err_download": "{name} ডাউনলোড করা যায়নি ({code})।",
 "cw_cheats_find_err_store": "{name} কনসোলে সংরক্ষণ করা যায়নি ({code})।",

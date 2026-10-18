@@ -24,6 +24,7 @@
   "cw_cheats_find_none": "इस गेम के लिए अभी तक किसी ने चीट प्रकाशित नहीं किए हैं।",
   "cw_cheats_find_offline": "यह PS5 GitHub तक नहीं पहुँच पा रहा। अपने PC पर PS5Upload ऐप से चीट लें, या अपनी DNS सेटिंग में raw.githubusercontent.com को अनुमति दें।",
   "cw_cheats_find_partial": "कुछ चीट स्रोतों तक नहीं पहुँचा जा सका, इसलिए सूची अधूरी हो सकती है।",
+  "cw_cheats_find_replaced": "कंसोल पर {name} को बदल दिया गया। इसके चीट अब सूची में हैं।",
   "cw_cheats_find_retry": "फिर कोशिश करें",
   "cw_cheats_find_saved": "{name} कंसोल पर है। इसके चीट अब सूची में हैं।",
   "cw_cheats_find_title": "{title} के ऑनलाइन चीट",

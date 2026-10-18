@@ -9,7 +9,7 @@ vi.mock("../api", async (importOriginal) => {
 import { ApiError, call } from "../api";
 import { SECTIONS } from "../sections";
 import { t } from "../strings";
-import { CheatsView, focusedCheatIndex, type CheatsViewProps } from "./Cheats";
+import { CheatsView, finderClosesFor, focusedCheatIndex, type CheatsViewProps } from "./Cheats";
 import {
   cheatsPhase,
   createCheatsController,
@@ -310,5 +310,13 @@ describe("cheats section", () => {
     const root2 = { contains: () => true } as unknown as Element;
     expect(focusedCheatIndex(root2, notACheat)).toBeNull();
     expect(focusedCheatIndex(null, row)).toBeNull();
+  });
+
+  it("the_finder_closes_only_when_its_game_is_confirmed_gone", () => {
+    expect(finderClosesFor(GAME, GAME, 0)).toBe(false);
+    expect(finderClosesFor(GAME, "CUSA00001", 0)).toBe(true);
+    // one empty status read is not enough (a transient answer); two in a row are
+    expect(finderClosesFor(GAME, null, 1)).toBe(false);
+    expect(finderClosesFor(GAME, null, 2)).toBe(true);
   });
 });

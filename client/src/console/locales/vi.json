@@ -24,6 +24,7 @@
   "cw_cheats_find_none": "Chưa ai đăng cheat cho trò chơi này.",
   "cw_cheats_find_offline": "PS5 này không kết nối được GitHub. Hãy lấy cheat bằng ứng dụng PS5Upload trên PC, hoặc cho phép raw.githubusercontent.com trong cài đặt DNS.",
   "cw_cheats_find_partial": "Không truy cập được một số nguồn cheat, nên danh sách có thể chưa đầy đủ.",
+  "cw_cheats_find_replaced": "{name} đã được thay thế trên máy. Các cheat của nó giờ đã ở trong danh sách.",
   "cw_cheats_find_retry": "Thử lại",
   "cw_cheats_find_saved": "{name} đã có trên máy. Các cheat của nó giờ đã ở trong danh sách.",
   "cw_cheats_find_title": "Cheat trực tuyến cho {title}",

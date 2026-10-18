@@ -4347,6 +4347,7 @@ c2c_test_deep_bad: "4 KiB 테스트 전송이 도착하지 않았습니다: {det
 "cw_cheats_find_partial": "일부 치트 출처에 연결할 수 없어 목록이 불완전할 수 있습니다.",
 "cw_cheats_find_downloading": "다운로드 중…",
 "cw_cheats_find_downloaded": "다운로드됨",
+"cw_cheats_find_replaced": "콘솔의 {name}을(를) 교체했습니다. 이제 치트가 목록에 있습니다.",
 "cw_cheats_find_saved": "{name}이(가) 콘솔에 저장되었습니다. 이제 치트가 목록에 있습니다.",
 "cw_cheats_find_err_download": "{name}을(를) 다운로드할 수 없습니다 ({code}).",
 "cw_cheats_find_err_store": "{name}을(를) 콘솔에 저장할 수 없습니다 ({code}).",

@@ -4,7 +4,7 @@ import { useAppCover } from "../home/Home";
 import { onNavAction } from "../nav";
 import { t } from "../strings";
 import { pollWhileVisible } from "../ui/visiblePoll";
-import { createFinder, FINDER_CLOSED, type Finder, type FinderState } from "./finder";
+import { createFinder, FINDER_CLOSED, savedText, type Finder, type FinderState } from "./finder";
 import { FindCheats } from "./FindCheats";
 import {
   cheatsPhase,
@@ -182,6 +182,13 @@ export function CheatsView(p: CheatsViewProps) {
   );
 }
 
+/** Does a finder open for `finderTitle` close, with `running` the game the last status read reported
+ * (null: none) and `noGameReads` the status reads in a row that reported none? */
+export function finderClosesFor(finderTitle: string, running: string | null, noGameReads: number): boolean {
+  if (running) return running !== finderTitle;
+  return noGameReads >= 2;
+}
+
 /** □ on a focused cheat inside `root`: that cheat's index, or null. */
 export function focusedCheatIndex(root: Element | null, active: Element | null): number | null {
   if (!root || !active || !root.contains(active)) return null;
@@ -200,11 +207,14 @@ export function Cheats() {
   const finder = useRef<Finder | null>(null);
   const [notice, setNotice] = useState<{ title: string; text: string } | null>(null);
 
-  // The finder: a stored file closes it, and the game's cheats are read again (they show at once).
+  // The finder: a stored file is read at once (the game's cheats again) and closes the finder that
+  // asked for it, never one opened since (another game, or opened again).
   useEffect(() => {
-    finder.current = createFinder(setFinderState, (entry, title) => {
-      setNotice({ title, text: t("cw_cheats_find_saved", { name: entry.filename }) });
-      finder.current?.close();
+    finder.current = createFinder(setFinderState, ({ entry, title, replaced, current }) => {
+      const running = ctl.current?.get().status?.game?.title_id ?? null;
+      if (running !== title) return;
+      setNotice({ title, text: savedText(entry.filename, replaced) });
+      if (current) finder.current?.close();
       void ctl.current?.loadList();
     });
     return () => {
@@ -257,10 +267,20 @@ export function Cheats() {
   );
 
   const titleId = state.status?.game?.title_id ?? null;
-  // The game went away (or another started): its finder and notice go with it.
+  // The finder goes when its game is confirmed gone: another game reported running, or no game on two
+  // status reads in a row. A status not read yet (or a failed read, which keeps the last one) or a
+  // single empty read keeps it open.
+  const noGameReads = useRef(0);
+  const status = state.status;
   useEffect(() => {
-    if (finderState.kind !== "closed" && finderState.title !== titleId) finder.current?.close();
-  }, [titleId, finderState]);
+    if (!status) return;
+    noGameReads.current = status.game ? 0 : noGameReads.current + 1;
+  }, [status]);
+  useEffect(() => {
+    if (finderState.kind === "closed" || !status) return;
+    const now = status.game?.title_id ?? null;
+    if (finderClosesFor(finderState.title, now, noGameReads.current)) finder.current?.close();
+  }, [status, finderState]);
   const loadedCover = useAppCover(titleId);
   const [coverFailed, setCoverFailed] = useState<string | null>(null);
   const cover = loadedCover && coverFailed !== loadedCover ? loadedCover : null;

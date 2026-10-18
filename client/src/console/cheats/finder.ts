@@ -87,13 +87,27 @@ export function storeRoute(entry: CheatEntry): string {
   return `/api/cheats/store?format=${storeFormat(entry.filename)}&name=${encodeURIComponent(entry.filename)}`;
 }
 
+/** A file the helper stored: for which game, whether it replaced one of the same name, and whether
+ * the finder that asked is still the open one (`current`: only then may the section close it). */
+export interface StoredFile {
+  entry: CheatEntry;
+  title: string;
+  replaced: boolean;
+  current: boolean;
+}
+
+/** The saved line: "replaced" when a file of that name was already on the console. */
+export function savedText(name: string, replaced: boolean): string {
+  return t(replaced ? "cw_cheats_find_replaced" : "cw_cheats_find_saved", { name });
+}
+
 /**
  * The finder's state machine. `onStored` runs after a file is on the console (the section reads
- * the game's cheats again and closes the finder).
+ * the game's cheats again, and closes the finder when it is still the one that asked).
  */
 export function createFinder(
   onChange: (s: FinderState) => void,
-  onStored: (entry: CheatEntry, title: string) => void,
+  onStored: (stored: StoredFile) => void,
   deps: FinderDeps = {},
 ): Finder {
   let s: FinderState = FINDER_CLOSED;
@@ -143,9 +157,11 @@ export function createFinder(
       const title = s.title;
       set({ ...s, busy: entry.filename, message: null });
       const still = () => mine === seq && s.kind === "list";
+      let replaced: boolean;
       try {
         const bytes = await downloadCheat(entry, deps.fetch);
-        await callRaw<unknown>(storeRoute(entry), new Blob([bytes], { type: "application/octet-stream" }));
+        const r = await callRaw<{ replaced?: unknown } | null>(storeRoute(entry), new Blob([bytes], { type: "application/octet-stream" }));
+        replaced = r?.replaced === true;
       } catch (e) {
         if (still() && s.kind === "list") {
           const text = downloadErrorText(e, entry.filename);
@@ -158,10 +174,10 @@ export function createFinder(
           ...s,
           busy: null,
           done: s.done.includes(entry.filename) ? s.done : [...s.done, entry.filename],
-          message: { tone: "info", text: t("cw_cheats_find_saved", { name: entry.filename }) },
+          message: { tone: "info", text: savedText(entry.filename, replaced) },
         });
       }
-      onStored(entry, title);
+      onStored({ entry, title, replaced, current: still() });
     },
     get: () => s,
   };

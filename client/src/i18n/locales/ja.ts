@@ -4349,6 +4349,7 @@ c2c_test_deep_bad: "4 KiB のテスト送信が届きませんでした: {detail
 "cw_cheats_find_partial": "一部のチート配布元に接続できなかったため、リストが不完全な可能性があります。",
 "cw_cheats_find_downloading": "ダウンロード中…",
 "cw_cheats_find_downloaded": "ダウンロード済み",
+"cw_cheats_find_replaced": "本体の {name} を置き換えました。チートがリストに表示されています。",
 "cw_cheats_find_saved": "{name} を本体に保存しました。チートがリストに表示されています。",
 "cw_cheats_find_err_download": "{name} をダウンロードできませんでした ({code})。",
 "cw_cheats_find_err_store": "{name} を本体に保存できませんでした ({code})。",

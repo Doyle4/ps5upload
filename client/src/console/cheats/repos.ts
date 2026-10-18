@@ -210,26 +210,93 @@ export class RepoError extends Error {
   }
 }
 
-async function fetchWithTimeout(f: FetchLike, url: string, timeoutMs: number): Promise<Response> {
+/** The longest index or tree reply read (the git tree is ~2 MB today). */
+export const LISTING_MAX = 16 * 1024 * 1024;
+
+/** A whole GET (headers and body) that must finish within `timeoutMs`. */
+export type Fetched = { ok: true; body: ArrayBuffer } | { ok: false; status: number };
+
+/**
+ * GET `url` with one deadline for the reply AND its body (a body that stalls cannot hang the
+ * caller), reading the body in chunks and giving up past `max` bytes (RepoError "too_large").
+ * Nothing answering (or the deadline) is RepoError(network); an HTTP error is { ok: false }.
+ */
+export async function fetchLimited(f: FetchLike, url: string, timeoutMs: number, max: number): Promise<Fetched> {
   const stop = typeof AbortController === "function" ? new AbortController() : null;
-  const timer = setTimeout(() => stop?.abort(), timeoutMs);
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      stop?.abort();
+      reject(new RepoError(true, `timed out ${url}`));
+    }, timeoutMs);
+  });
+  // Every await below races the deadline: a fetch that ignores its signal still cannot hang us.
+  const within = <T,>(p: Promise<T>): Promise<T> => Promise.race([p, deadline]);
+  deadline.catch(() => {});
+  let res: Response;
   try {
-    return await f(url, { method: "GET", cache: "no-store", credentials: "omit", signal: stop?.signal });
-  } catch {
-    throw new RepoError(true, `unreachable ${url}`);
+    try {
+      res = await within(f(url, { method: "GET", cache: "no-store", credentials: "omit", signal: stop?.signal }));
+    } catch (e) {
+      throw e instanceof RepoError ? e : new RepoError(true, `unreachable ${url}`);
+    }
+    if (!res.ok) {
+      void res.body?.cancel().catch(() => {});
+      return { ok: false, status: res.status };
+    }
+    const tooLarge = () => {
+      stop?.abort();
+      return new RepoError(false, "too_large");
+    };
+    const len = Number(res.headers.get("Content-Length"));
+    if (Number.isFinite(len) && len > max) {
+      void res.body?.cancel().catch(() => {});
+      throw tooLarge();
+    }
+    const reader = res.body && typeof res.body.getReader === "function" ? res.body.getReader() : null;
+    if (!reader) {
+      let buf: ArrayBuffer;
+      try {
+        buf = await within(res.arrayBuffer());
+      } catch (e) {
+        throw e instanceof RepoError ? e : new RepoError(true, `cut off ${url}`);
+      }
+      if (buf.byteLength > max) throw tooLarge();
+      return { ok: true, body: buf };
+    }
+    const chunks: Uint8Array[] = [];
+    let total = 0;
+    try {
+      for (;;) {
+        const { done, value } = await within(reader.read());
+        if (done) break;
+        total += value.byteLength;
+        if (total > max) {
+          void reader.cancel().catch(() => {});
+          throw tooLarge();
+        }
+        chunks.push(value);
+      }
+    } catch (e) {
+      void reader.cancel().catch(() => {});
+      throw e instanceof RepoError ? e : new RepoError(true, `cut off ${url}`);
+    }
+    const out = new Uint8Array(total);
+    let at = 0;
+    for (const c of chunks) {
+      out.set(c, at);
+      at += c.byteLength;
+    }
+    return { ok: true, body: out.buffer };
   } finally {
     clearTimeout(timer);
   }
 }
 
 async function fetchText(f: FetchLike, url: string, timeoutMs: number): Promise<string> {
-  const res = await fetchWithTimeout(f, url, timeoutMs);
-  if (!res.ok) throw new RepoError(false, `http_${res.status}`);
-  try {
-    return await res.text();
-  } catch {
-    throw new RepoError(true, `cut off ${url}`);
-  }
+  const r = await fetchLimited(f, url, timeoutMs, LISTING_MAX);
+  if (!r.ok) throw new RepoError(false, `http_${r.status}`);
+  return new TextDecoder().decode(r.body);
 }
 
 /** One repo's listing: its index files (any that answers counts), or its git tree. */
@@ -343,33 +410,28 @@ export const CHEAT_FILE_MAX = 4 * 1024 * 1024;
 
 /**
  * One cheat file's bytes from its repo: the content URLs in order (contentUrls), the first that
- * answers 2xx. RepoError(network) when nothing answered; "too_large" over CHEAT_FILE_MAX;
- * "not_found" when every URL answered an error.
+ * answers 2xx, read within the timeout and never past CHEAT_FILE_MAX. RepoError(network) when
+ * nothing answered or the body stalled; "too_large"; "not_found" when every URL answered an error;
+ * "bad_name" for a name the helper would refuse (never fetched).
  */
 export async function downloadCheat(entry: CheatEntry, f: FetchLike = (u, i) => fetch(u, i), timeoutMs = REPO_TIMEOUT_MS): Promise<ArrayBuffer> {
+  if (!storableName(entry.filename)) throw new RepoError(false, "bad_name");
   const repo = CHEAT_REPOS.find((r) => r.id === entry.repoId);
   if (!repo) throw new RepoError(false, "unknown_repo");
   let answered = false;
   for (const url of contentUrls(repo, entry.filename)) {
-    let res: Response;
+    let r: Fetched;
     try {
-      res = await fetchWithTimeout(f, url, timeoutMs);
-    } catch {
-      continue;
+      r = await fetchLimited(f, url, timeoutMs, CHEAT_FILE_MAX);
+    } catch (e) {
+      // Nothing answered at this URL: try the next. A stalled or oversized body ends the download.
+      if (e instanceof RepoError && e.network && /^unreachable /.test(e.message)) continue;
+      throw e instanceof RepoError && e.network ? new RepoError(true, "cut_off") : e;
     }
     answered = true;
-    if (!res.ok) continue;
-    const len = Number(res.headers.get("Content-Length"));
-    if (Number.isFinite(len) && len > CHEAT_FILE_MAX) throw new RepoError(false, "too_large");
-    let buf: ArrayBuffer;
-    try {
-      buf = await res.arrayBuffer();
-    } catch {
-      throw new RepoError(true, "cut_off");
-    }
-    if (buf.byteLength > CHEAT_FILE_MAX) throw new RepoError(false, "too_large");
-    if (buf.byteLength === 0) throw new RepoError(false, "empty");
-    return buf;
+    if (!r.ok) continue;
+    if (r.body.byteLength === 0) throw new RepoError(false, "empty");
+    return r.body;
   }
   throw new RepoError(!answered, answered ? "not_found" : "unreachable");
 }

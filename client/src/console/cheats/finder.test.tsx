@@ -8,7 +8,7 @@ vi.mock("../api", async (importOriginal) => {
 
 import { ApiError, call, callRaw } from "../api";
 import { t } from "../strings";
-import { createFinder, downloadErrorText, FINDER_CLOSED, storeRoute, type FinderState } from "./finder";
+import { createFinder, downloadErrorText, FINDER_CLOSED, storeRoute, type FinderState, type StoredFile } from "./finder";
 import { FindCheats } from "./FindCheats";
 import { CHEAT_REPOS, contentUrls, parseCheatFilename, RepoError, storeFormat, type CheatEntry, type FetchLike, type RepoIndex } from "./repos";
 
@@ -35,7 +35,7 @@ const INDEX: RepoIndex = {
 };
 
 /** The helper: /api/cheats/version answers `version`; /api/cheats/store records what it got. */
-function helper(opts: { version?: string | null; versionFails?: boolean; storeError?: ApiError } = {}) {
+function helper(opts: { version?: string | null; versionFails?: boolean; storeError?: ApiError; replaced?: boolean } = {}) {
   const stored: { route: string; body: string }[] = [];
   mockCall.mockImplementation(async (route: string) => {
     if (route === "/api/cheats/version") {
@@ -47,7 +47,7 @@ function helper(opts: { version?: string | null; versionFails?: boolean; storeEr
   mockRaw.mockImplementation(async (route: string, body: Blob) => {
     if (opts.storeError) throw opts.storeError;
     stored.push({ route, body: await body.text() });
-    return { ok: true } as never;
+    return { ok: true, replaced: opts.replaced === true } as never;
   });
   return stored;
 }
@@ -63,9 +63,13 @@ function github(files: Record<string, string>, down = false): FetchLike {
 function finder(opts: { index?: RepoIndex | Error; fetch?: FetchLike } = {}) {
   const states: FinderState[] = [];
   const stored: [CheatEntry, string][] = [];
+  const full: StoredFile[] = [];
   const f = createFinder(
     (s) => states.push(s),
-    (e, title) => stored.push([e, title]),
+    (x) => {
+      stored.push([x.entry, x.title]);
+      full.push(x);
+    },
     {
       index: async () => {
         if (opts.index instanceof Error) throw opts.index;
@@ -74,7 +78,7 @@ function finder(opts: { index?: RepoIndex | Error; fetch?: FetchLike } = {}) {
       fetch: opts.fetch ?? github({}),
     },
   );
-  return { f, states, stored };
+  return { f, states, stored, full };
 }
 
 const render = (state: FinderState) =>
@@ -253,5 +257,37 @@ describe("find cheats", () => {
     const { f } = finder({ index: new Error("boom") });
     await f.open(GAME);
     expect(f.get().kind).toBe("offline");
+  });
+
+  it("a_file_already_there_says_replaced", async () => {
+    helper({ replaced: true });
+    const e = INDEX.entries[0];
+    const { f, full } = finder({ fetch: github({ [contentUrls(CHEAT_REPOS[0], e.filename)[0]]: "{}" }) });
+    await f.open(GAME);
+    await f.download(e);
+    const s = f.get();
+    expect(s.kind === "list" && s.message?.text).toBe(t("cw_cheats_find_replaced", { name: e.filename }));
+    expect(t("cw_cheats_find_replaced", { name: "x" })).toBe("x was replaced on the console. Its cheats are in the list now.");
+    expect(full[0]).toMatchObject({ replaced: true, current: true, title: GAME });
+  });
+
+  it("a_download_finishing_after_the_finder_was_reopened_is_not_current", async () => {
+    helper();
+    let release: () => void = () => {};
+    const gate = new Promise<void>((r) => (release = r));
+    const slow: FetchLike = async () => {
+      await gate;
+      return new Response("x", { status: 200 });
+    };
+    const { f, full } = finder({ fetch: slow });
+    await f.open(GAME);
+    const p = f.download(INDEX.entries[0]);
+    f.close();
+    await f.open("CUSA99999");
+    release();
+    await p;
+    expect(full).toHaveLength(1);
+    expect(full[0]).toMatchObject({ title: GAME, current: false });
+    expect(f.get()).toMatchObject({ kind: "list", title: "CUSA99999" });
   });
 });

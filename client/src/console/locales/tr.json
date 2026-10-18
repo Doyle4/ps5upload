@@ -24,6 +24,7 @@
   "cw_cheats_find_none": "Bu oyun için henüz kimse hile yayımlamadı.",
   "cw_cheats_find_offline": "Bu PS5 GitHub'a ulaşamıyor. Hileleri bilgisayarınızdaki PS5Upload uygulamasından alın veya DNS ayarlarınızda raw.githubusercontent.com adresine izin verin.",
   "cw_cheats_find_partial": "Bazı hile kaynaklarına ulaşılamadı, bu yüzden liste eksik olabilir.",
+  "cw_cheats_find_replaced": "{name} konsolda değiştirildi. Hileleri artık listede.",
   "cw_cheats_find_retry": "Tekrar dene",
   "cw_cheats_find_saved": "{name} konsolda. Hileleri artık listede.",
   "cw_cheats_find_title": "{title} için çevrimiçi hileler",

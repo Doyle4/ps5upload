@@ -24,6 +24,7 @@
   "cw_cheats_find_none": "Nikt jeszcze nie opublikował kodów dla tej gry.",
   "cw_cheats_find_offline": "Ta konsola PS5 nie może połączyć się z GitHubem. Pobierz kody w aplikacji PS5Upload na komputerze albo zezwól na raw.githubusercontent.com w ustawieniach DNS.",
   "cw_cheats_find_partial": "Niektóre źródła kodów są nieosiągalne, więc lista może być niepełna.",
+  "cw_cheats_find_replaced": "{name} został zastąpiony na konsoli. Jego kody są teraz na liście.",
   "cw_cheats_find_retry": "Spróbuj ponownie",
   "cw_cheats_find_saved": "{name} jest już na konsoli. Jego kody są teraz na liście.",
   "cw_cheats_find_title": "Kody online dla {title}",

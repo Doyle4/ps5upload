@@ -4344,6 +4344,7 @@ c2c_test_deep_bad: "4 KiB का परीक्षण नहीं पहुँ
 "cw_cheats_find_partial": "कुछ चीट स्रोतों तक नहीं पहुँचा जा सका, इसलिए सूची अधूरी हो सकती है।",
 "cw_cheats_find_downloading": "डाउनलोड हो रहा है…",
 "cw_cheats_find_downloaded": "डाउनलोड हो गया",
+"cw_cheats_find_replaced": "कंसोल पर {name} को बदल दिया गया। इसके चीट अब सूची में हैं।",
 "cw_cheats_find_saved": "{name} कंसोल पर है। इसके चीट अब सूची में हैं।",
 "cw_cheats_find_err_download": "{name} डाउनलोड नहीं हो सका ({code})।",
 "cw_cheats_find_err_store": "{name} कंसोल पर सहेजा नहीं जा सका ({code})।",

@@ -24,6 +24,7 @@
   "cw_cheats_find_none": "아직 이 게임의 치트를 공개한 사람이 없습니다.",
   "cw_cheats_find_offline": "이 PS5에서 GitHub에 연결할 수 없습니다. PC의 PS5Upload 앱에서 치트를 받거나 DNS 설정에서 raw.githubusercontent.com을 허용하세요.",
   "cw_cheats_find_partial": "일부 치트 출처에 연결할 수 없어 목록이 불완전할 수 있습니다.",
+  "cw_cheats_find_replaced": "콘솔의 {name}을(를) 교체했습니다. 이제 치트가 목록에 있습니다.",
   "cw_cheats_find_retry": "다시 시도",
   "cw_cheats_find_saved": "{name}이(가) 콘솔에 저장되었습니다. 이제 치트가 목록에 있습니다.",
   "cw_cheats_find_title": "{title}의 온라인 치트",

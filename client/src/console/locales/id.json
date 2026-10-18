@@ -24,6 +24,7 @@
   "cw_cheats_find_none": "Belum ada yang menerbitkan cheat untuk game ini.",
   "cw_cheats_find_offline": "PS5 ini tidak bisa menjangkau GitHub. Dapatkan cheat di aplikasi PS5Upload di PC Anda, atau izinkan raw.githubusercontent.com di pengaturan DNS Anda.",
   "cw_cheats_find_partial": "Beberapa sumber cheat tidak dapat dijangkau, jadi daftarnya mungkin tidak lengkap.",
+  "cw_cheats_find_replaced": "{name} sudah diganti di konsol. Cheat-nya kini ada di daftar.",
   "cw_cheats_find_retry": "Coba lagi",
   "cw_cheats_find_saved": "{name} sudah ada di konsol. Cheat-nya kini ada di daftar.",
   "cw_cheats_find_title": "Cheat online untuk {title}",

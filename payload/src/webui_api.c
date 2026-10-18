@@ -1824,14 +1824,15 @@ static pthread_mutex_t g_cheat_mu = PTHREAD_MUTEX_INITIALIZER;
  * the raw bytes as the body (1..WEBUI_CHEAT_FILE_MAX). Stored as WEBUI_CHEATS_ROOT/<format>/<name>
  * (folders made when missing) through a same-folder temp + rename, replacing a file of that name. The
  * cheat engine reads its folders on every list, so the game's cheats show on the next read. Answers
- * {"ok":true,"format":..,"name":..,"size":N}. */
+ * {"ok":true,"format":..,"name":..,"size":N,"replaced":bool} (replaced: a file of that name was there). */
 static void s_cheats_store(const webui_req_t *r, const uint8_t *pre, size_t pre_len, int fd) {
     char fmt[WEBUI_CHEAT_FMT_CAP], name[WEBUI_CHEAT_NAME_MAX + 1], target[API_PATH], dir[API_PATH], json[256];
     const char *bad;
     uint8_t *buf;
     uint64_t total = r->content_length;
     uint64_t left = total > pre_len ? total - pre_len : 0;
-    int rc;
+    struct stat old;
+    int rc, replaced;
     bad = webui_cheat_store_query(r->query, fmt, name);
     if (bad) {
         drain_then(fd, left);
@@ -1862,6 +1863,7 @@ static void s_cheats_store(const webui_req_t *r, const uint8_t *pre, size_t pre_
         return;
     }
     if (folder_of(target, dir, sizeof dir) == 0) (void)wf_sweep_stale(dir, time(NULL), WF_STALE_PART_S);
+    replaced = lstat(target, &old) == 0 && S_ISREG(old.st_mode); /* stores are serialized (g_cheat_mu) */
     rc = wf_receive_file(fd, pre, pre_len, total, target, 1, 0777, WF_IDLE_MS, NULL, buf, CHEAT_STORE_BUF);
     free(buf);
     pthread_mutex_unlock(&g_cheat_mu);
@@ -1869,8 +1871,8 @@ static void s_cheats_store(const webui_req_t *r, const uint8_t *pre, size_t pre_
         send_wf(fd, rc);
         return;
     }
-    rc = snprintf(json, sizeof json, "{\"ok\":true,\"format\":\"%s\",\"name\":\"%s\",\"size\":%llu}", fmt, name,
-                  (unsigned long long)total); /* both checked: [A-Za-z0-9._-] only */
+    rc = snprintf(json, sizeof json, "{\"ok\":true,\"format\":\"%s\",\"name\":\"%s\",\"size\":%llu,\"replaced\":%s}", fmt,
+                  name, (unsigned long long)total, replaced ? "true" : "false"); /* both checked: [A-Za-z0-9._-] only */
     send_json(fd, 200, json, (size_t)rc);
 }
 

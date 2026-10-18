@@ -24,6 +24,7 @@
   "cw_cheats_find_none": "هنوز کسی برای این بازی چیتی منتشر نکرده است.",
   "cw_cheats_find_offline": "این PS5 به GitHub دسترسی ندارد. چیت‌ها را از برنامه PS5Upload روی رایانه‌تان بگیرید، یا raw.githubusercontent.com را در تنظیمات DNS مجاز کنید.",
   "cw_cheats_find_partial": "به برخی منابع چیت دسترسی نبود، پس ممکن است فهرست کامل نباشد.",
+  "cw_cheats_find_replaced": "{name} روی کنسول جایگزین شد. چیت‌هایش اکنون در فهرست هستند.",
   "cw_cheats_find_retry": "تلاش دوباره",
   "cw_cheats_find_saved": "{name} روی کنسول است. چیت‌هایش اکنون در فهرست هستند.",
   "cw_cheats_find_title": "چیت‌های آنلاین برای {title}",

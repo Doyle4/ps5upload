@@ -24,6 +24,7 @@
   "cw_cheats_find_none": "このゲームのチートはまだ誰も公開していません。",
   "cw_cheats_find_offline": "この PS5 から GitHub に接続できません。PC の PS5Upload アプリでチートを入手するか、DNS 設定で raw.githubusercontent.com を許可してください。",
   "cw_cheats_find_partial": "一部のチート配布元に接続できなかったため、リストが不完全な可能性があります。",
+  "cw_cheats_find_replaced": "本体の {name} を置き換えました。チートがリストに表示されています。",
   "cw_cheats_find_retry": "再試行",
   "cw_cheats_find_saved": "{name} を本体に保存しました。チートがリストに表示されています。",
   "cw_cheats_find_title": "{title} のオンラインチート",
