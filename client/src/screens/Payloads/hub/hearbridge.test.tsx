@@ -47,6 +47,10 @@ describe("HearBridge card", () => {
     expect(hbSummaryParts(waiting, tr)).toEqual(["Waiting for a headset", "Muted"]);
   });
 
+  it("has its own line while the first status read is out", () => {
+    expect(renderToStaticMarkup(<HbSummary view={null} />)).toContain("Reading HearBridge");
+  });
+
   it("says HearBridge didn't answer instead of failing", () => {
     expect(renderToStaticMarkup(<HbSummary view={{ present: false, error: "x" }} />)).toContain(
       "HearBridge didn&#x27;t answer",

@@ -25,13 +25,15 @@ import { log } from "../../../state/logs";
  *  counts as its page being open on the console side only for the volume re-query, so
  *  keep it unhurried. */
 const POLL_MS = 5000;
+/** …and this often while the card is collapsed. */
+const POLL_SLOW_MS = 15_000;
 /** HearBridge's scan runs about 12 s (its own page says so). */
 const SCAN_MS = 13_000;
 
 export const HB_DEFAULT_PORT = 8090;
 
 /** HearBridge's status on `host`, kept fresh while `active`. `null` until first read. */
-export function useHearBridge(host: string, active: boolean) {
+export function useHearBridge(host: string, active: boolean, fast = false) {
   const visible = useDocumentVisible();
   const [view, setView] = useState<HbOverview | null>(null);
   const gen = useRef(0);
@@ -49,7 +51,7 @@ export function useHearBridge(host: string, active: boolean) {
       if (g === gen.current) setView({ present: false, error: e instanceof Error ? e.message : String(e) });
     }
   }, [host]);
-  usePoll(refresh, POLL_MS, { host, enabled: active && visible && !!host.trim() });
+  usePoll(refresh, fast ? POLL_MS : POLL_SLOW_MS, { host, enabled: active && visible && !!host.trim() });
   /** Use the status HearBridge sent back with a change, so the panel doesn't wait a poll. */
   const apply = useCallback((s: HbStatus | null) => {
     if (!s) return;
@@ -61,7 +63,7 @@ export function useHearBridge(host: string, active: boolean) {
 /** The card's one-line summary: state, headset, battery, link, latency, codec, volume, game. */
 export function HbSummary({ view }: { view: HbOverview | null }) {
   const tr = useTr();
-  if (!view) return <>{tr("hub_checking", undefined, "Checking what is on this PS5…")}</>;
+  if (!view) return <>{tr("hb_checking", undefined, "Reading HearBridge's status…")}</>;
   if (!view.present) return <>{tr("hb_no_answer", undefined, "HearBridge didn't answer")}</>;
   return <>{hbSummaryParts(view.status, tr).join(" · ")}</>;
 }
@@ -146,15 +148,18 @@ export function HearBridgePanel({
     if (present) void loadSaved();
   }, [present, loadSaved]);
 
-  const run = async (a: HbAction) => {
+  /** Make one change; false when HearBridge didn't take it (the error is shown). */
+  const run = async (a: HbAction): Promise<boolean> => {
     setBusy(true);
     setError(null);
     try {
       apply(await hbAct(host, a));
       log.info("hearbridge", `${a.action} on ${host}`);
       await refresh();
+      return true;
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
+      return false;
     } finally {
       setBusy(false);
     }
@@ -175,7 +180,10 @@ export function HearBridgePanel({
     }
     setScanning(true);
     setScanned(null);
-    await run({ action: "scan" });
+    if (!(await run({ action: "scan" }))) {
+      setScanning(false);
+      return;
+    }
     window.setTimeout(() => {
       hbScanned(host)
         .then(setScanned)

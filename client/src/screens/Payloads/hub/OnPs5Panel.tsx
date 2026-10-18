@@ -30,7 +30,7 @@ import { mgmtAddr, withPort } from "../../../lib/addr";
 import { openExternalUrl } from "../../../lib/openExternalUrl";
 import { compareVersions } from "../../../lib/semver";
 import { isTauriEnv } from "../../../lib/tauriEnv";
-import { usePoll } from "../../../lib/usePoll";
+import { usePoll, useTransferBusy } from "../../../lib/usePoll";
 import { useDocumentVisible } from "../../../lib/visibility";
 import { useConnectionStore } from "../../../state/connection";
 import { useTr } from "../../../state/lang";
@@ -127,6 +127,10 @@ function OnPs5Body() {
   const [latest, setLatest] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
   const { confirm, dialog } = useConfirm();
+  // Bumped after an Update, so the integrations' summaries read their version again.
+  const [summaryRev, setSummaryRev] = useState(0);
+  // The catalogue has been read (or failed): markers are checked once, against the full list.
+  const [catalogDone, setCatalogDone] = useState(!native);
 
   useEffect(() => {
     if (!native) return;
@@ -135,7 +139,10 @@ function OnPs5Body() {
       .then((c) => {
         if (!cancelled) setCatalog(c);
       })
-      .catch((e) => log.warn("payloads", `catalogue: ${String(e)}`));
+      .catch((e) => log.warn("payloads", `catalogue: ${String(e)}`))
+      .finally(() => {
+        if (!cancelled) setCatalogDone(true);
+      });
     return () => {
       cancelled = true;
     };
@@ -175,14 +182,17 @@ function OnPs5Body() {
   }, [addr, online]);
   usePoll(refreshProcs, REFRESH_MS, { host: addr, enabled: online && windowVisible });
 
+  // Marker checks list folders on the console: like the pollers, they stand aside while a
+  // transfer to this console runs, and catch up when it ends.
+  const transferring = useTransferBusy(addr);
   const refreshMarkers = useCallback(async () => {
-    if (!online) return;
+    if (!online || !catalogDone || transferring) return;
     const gen = genRef.current;
     const found = await findMarkers(addr, entries);
     if (gen !== genRef.current) return;
     setMarkers(found);
     setMarkersLoaded(true);
-  }, [addr, entries, online]);
+  }, [addr, entries, online, catalogDone, transferring]);
   useEffect(() => {
     void refreshMarkers();
   }, [refreshMarkers]);
@@ -192,7 +202,9 @@ function OnPs5Body() {
   const hbWanted =
     openId === "hearbridge" ||
     detectHubCards({ entries, processes: procs, markers }).some((c) => c.integration === "hearbridge");
-  const hb = useHearBridge(host, online && hbWanted);
+  // Every status read lets HearBridge re-query the headset volume, so read slowly unless
+  // its Manage panel is open.
+  const hb = useHearBridge(host, online && hbWanted, openId === "hearbridge");
   const hbPresent = hb.view?.present === true;
   const cards = useMemo(
     () =>
@@ -342,6 +354,8 @@ function OnPs5Body() {
         withConsolePrefix(host, tr("hub_updated", { name: card.name, version: rel.tag }, `Sent ${card.name} ${rel.tag}`)),
       );
       setReports((prev) => ({ ...prev, [card.id]: { ...prev[card.id], version: null } }));
+      setSummaryRev((n) => n + 1);
+      if (card.integration === "hearbridge") void hb.refresh();
     } catch (e) {
       pushNotification(
         "error",
@@ -439,7 +453,13 @@ function OnPs5Body() {
                     ? () => <HbSummary view={hb.view} />
                     : c.integration
                       ? (fallback) => (
-                          <Summary id={c.integration!} host={host} onReport={report} fallback={fallback} />
+                          <Summary
+                            key={summaryRev}
+                            id={c.integration!}
+                            host={host}
+                            onReport={report}
+                            fallback={fallback}
+                          />
                         )
                       : null
                 }
