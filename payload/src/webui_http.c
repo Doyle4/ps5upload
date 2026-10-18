@@ -77,9 +77,13 @@ static int copy_value(char *dst, size_t cap, const char *v, size_t n) {
 }
 
 int webui_http_parse(const char *buf, size_t len, webui_req_t *out) {
+    return webui_http_parse_cap(buf, len, out, WEBUI_BODY_CAP);
+}
+
+int webui_http_parse_cap(const char *buf, size_t len, webui_req_t *out, uint64_t body_cap) {
     const char *end = buf + len, *p, *eol, *term = NULL;
     size_t scan, i;
-    int rc, have_cl = 0, have_host = 0, have_origin = 0, have_token = 0;
+    int rc, have_cl = 0, have_host = 0, have_origin = 0, have_token = 0, have_range = 0;
 
     memset(out, 0, sizeof *out);
 
@@ -141,6 +145,10 @@ int webui_http_parse(const char *buf, size_t len, webui_req_t *out) {
             if (have_token) return WEBUI_PARSE_BAD;
             have_token = 1;
             rc = copy_value(out->token, sizeof out->token, v, (size_t)(ve - v));
+        } else if (name_is(p, nlen, "range")) {
+            if (have_range) return WEBUI_PARSE_BAD;
+            have_range = 1;
+            rc = copy_value(out->range, sizeof out->range, v, (size_t)(ve - v));
         } else if (name_is(p, nlen, "transfer-encoding")) {
             return WEBUI_PARSE_BAD;
         } else if (name_is(p, nlen, "content-length")) {
@@ -151,13 +159,13 @@ int webui_http_parse(const char *buf, size_t len, webui_req_t *out) {
             for (d = v; d < ve; d++) {
                 if (*d < '0' || *d > '9') return WEBUI_PARSE_BAD;
                 n = n * 10 + (uint64_t)(*d - '0');
-                if (n > WEBUI_BODY_CAP) {
+                if (n > body_cap) {
                     /* keep validating digits so garbage is BAD, not TOO_BIG */
-                    n = (uint64_t)WEBUI_BODY_CAP + 1;
+                    n = body_cap + 1;
                 }
             }
-            if (n > WEBUI_BODY_CAP) return WEBUI_PARSE_TOO_BIG;
-            out->content_length = (uint32_t)n;
+            if (n > body_cap) return WEBUI_PARSE_TOO_BIG;
+            out->content_length = n;
             rc = WEBUI_PARSE_OK;
         } else {
             rc = WEBUI_PARSE_OK;
@@ -172,6 +180,7 @@ static const char *status_text(int status) {
     switch (status) {
     case 200: return "OK";
     case 204: return "No Content";
+    case 206: return "Partial Content";
     case 400: return "Bad Request";
     case 401: return "Unauthorized";
     case 403: return "Forbidden";
@@ -179,11 +188,14 @@ static const char *status_text(int status) {
     case 405: return "Method Not Allowed";
     case 408: return "Request Timeout";
     case 413: return "Payload Too Large";
+    case 409: return "Conflict";
     case 414: return "URI Too Long";
+    case 416: return "Range Not Satisfiable";
     case 429: return "Too Many Requests";
     case 431: return "Request Header Fields Too Large";
     case 500: return "Internal Server Error";
     case 503: return "Service Unavailable";
+    case 507: return "Insufficient Storage";
     default:  return "Unknown";
     }
 }

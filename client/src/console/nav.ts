@@ -586,6 +586,22 @@ function isTextField(el: Element | null): boolean {
 }
 
 /**
+ * A multi-line text box keeps ↑ / ↓ while the caret has a line to move to (the
+ * text editor on a PC or phone keyboard); on its first line ↑, and on its last
+ * line ↓, move focus out as usual, so the D-pad still reaches Save.
+ */
+export function textareaKeepsKey(
+  el: { tagName: string; value?: string; selectionStart?: number | null; selectionEnd?: number | null } | null,
+  action: NavAction,
+): boolean {
+  if (!el || el.tagName !== "TEXTAREA" || (action !== "up" && action !== "down")) return false;
+  const v = el.value ?? "";
+  const at = action === "up" ? (el.selectionStart ?? 0) : (el.selectionEnd ?? v.length);
+  if (action === "up") return at > 0 && v.lastIndexOf("\n", at - 1) >= 0;
+  return v.indexOf("\n", at) >= 0;
+}
+
+/**
  * One input's action. Back goes through browser history (backHistory.ts): the
  * PS5 browser's own ○ is history back, so Escape, Backspace and a gamepad ○
  * take that same path and every back runs from popstate.
@@ -666,7 +682,8 @@ export function installNavigation(map: InputMap): () => void {
         action === "top" ||
         action === "pageUp" ||
         action === "pageDown" ||
-        e.key === "Backspace")
+        e.key === "Backspace" ||
+        textareaKeepsKey(e.target as HTMLTextAreaElement, action))
     ) {
       return;
     }

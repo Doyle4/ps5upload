@@ -36,4 +36,9 @@ int webui_api_tile_off(void);
 
 int webui_api_route(const webui_req_t *r, const uint8_t *body, size_t body_len, int fd);
 
+/* The streamed route (webui_server.h webui_stream_fn): POST /api/fs/save-text (a text file of up to
+ * 1 MiB: one JSON line, '\n', the text). It reaches no helper method. */
+int webui_api_stream_for(const webui_req_t *r);
+int webui_api_stream(const webui_req_t *r, const uint8_t *pre, size_t pre_len, int fd);
+
 #endif

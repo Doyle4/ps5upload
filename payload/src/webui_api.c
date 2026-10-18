@@ -12,8 +12,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <fcntl.h>
 #include <sys/stat.h>
 #include <time.h>
+#include <unistd.h>
 
 #include "ava1_data.h"
 #include "ava1_gen.h"
@@ -29,6 +31,7 @@
 #include "proc_identity.h"
 #include "ps5_firmware.h"
 #include "webui_codec.h"
+#include "webui_files.h"
 #include "webui_inputlog.h"
 #include "webui_offline.h"
 #include "webui_page.h"
@@ -354,7 +357,7 @@ static void r_fs_list(const char *b, size_t n, uint8_t *out, int fd) {
 }
 
 static void r_fs_stat(const char *b, size_t n, uint8_t *out, int fd) {
-    char path[API_PATH], req[API_PATH + 16], json[256];
+    char path[API_PATH], req[API_PATH + 16], json[320];
     ava1_fs_path_t q;
     ava1_fs_stat_t s;
     struct stat ls;
@@ -396,10 +399,12 @@ static void r_fs_stat(const char *b, size_t n, uint8_t *out, int fd) {
      * FS_STAT above (which follows links): a symlink to the destination is the destination, so a
      * paste of that link into it is seen as "into itself". The path is the one FS_STAT accepted. */
     if (stat(path, &ls) == 0)
+        /* mtime_ns: the text editor's save precondition (webui_files.h) catches a same-second change too */
         k = snprintf(json, sizeof json,
-                     "{\"kind\":\"%s\",\"size\":%llu,\"mtime\":%llu,\"mode\":%lu,\"dev\":\"%llu\",\"ino\":\"%llu\"}",
+                     "{\"kind\":\"%s\",\"size\":%llu,\"mtime\":%llu,\"mode\":%lu,\"dev\":\"%llu\",\"ino\":\"%llu\","
+                     "\"mtime_ns\":%lu}",
                      kind_name(s.kind), (unsigned long long)s.size, (unsigned long long)s.mtime, (unsigned long)s.mode,
-                     (unsigned long long)ls.st_dev, (unsigned long long)ls.st_ino);
+                     (unsigned long long)ls.st_dev, (unsigned long long)ls.st_ino, (unsigned long)wf_mtime_ns(&ls));
     else
         k = snprintf(json, sizeof json, "{\"kind\":\"%s\",\"size\":%llu,\"mtime\":%llu,\"mode\":%lu}", kind_name(s.kind),
                      (unsigned long long)s.size, (unsigned long long)s.mtime, (unsigned long)s.mode);
@@ -659,9 +664,70 @@ static void r_fs_delete(const char *b, size_t n, uint8_t *out, int fd) {
     run_path_job(b, n, out, fd, AVA1_JOB_OP_DELETE, "");
 }
 
-/* Fix permissions: the PC app's recursive chmod, fixed to 0777 (the page never picks a mode). */
+/* "mode" as the page sends it: octal text of 1-4 digits, at most 0777 (no setuid/setgid/sticky from the
+ * page). 1 and *mode set, 0 absent, -1 bad. */
+static int opt_mode(const char *b, size_t n, unsigned *mode) {
+    char m[8];
+    size_t i;
+    unsigned v = 0;
+    int rc = webui_json_str(b, n, "mode", m, sizeof m);
+    if (rc == 0) return 0;
+    if (rc < 0 || !m[0] || strlen(m) > 4) return -1;
+    for (i = 0; m[i]; i++) {
+        if (m[i] < '0' || m[i] > '7') return -1;
+        v = v * 8 + (unsigned)(m[i] - '0');
+    }
+    if (v > 0777) return -1;
+    *mode = v;
+    return 1;
+}
+
+/* Permissions. Without "mode": Fix permissions, the PC app's recursive chmod to 0777 (a job). With
+ * "mode" ("0755"): that mode, on the item alone (FS_CHMOD, answered at once with {}) or, with
+ * "recursive":true, on everything below it too (the CHMOD_R job, as Fix permissions runs). */
 static void r_fs_chmod(const char *b, size_t n, uint8_t *out, int fd) {
-    run_path_job(b, n, out, fd, AVA1_JOB_OP_CHMOD_R, ",\"mode\":\"0777\"");
+    char path[API_PATH], tail[32], req[API_PATH + 32];
+    unsigned mode = 0777;
+    int has_mode, recursive = 1, rc;
+    has_mode = opt_mode(b, n, &mode);
+    if (has_mode < 0) {
+        send_bad(fd, "bad_mode");
+        return;
+    }
+    if (!has_mode) {
+        run_path_job(b, n, out, fd, AVA1_JOB_OP_CHMOD_R, ",\"mode\":\"0777\"");
+        return;
+    }
+    rc = webui_json_bool(b, n, "recursive", &recursive);
+    if (rc < 0) {
+        send_bad(fd, "bad_recursive");
+        return;
+    }
+    if (rc == 0) recursive = 0; /* a mode applies to the item alone unless asked */
+    if (need_path(fd, b, n, "path", path, sizeof path) != 0) return;
+    if (recursive) {
+        snprintf(tail, sizeof tail, ",\"mode\":\"%04o\"", mode);
+        start_path_job(fd, out, AVA1_JOB_OP_CHMOD_R, path, NULL, tail);
+        return;
+    }
+    {
+        ava1_fs_chmod_t q;
+        ava1_w_t w;
+        size_t ol;
+        int st;
+        memset(&q, 0, sizeof q);
+        q.path = (const uint8_t *)path;
+        q.path_len = (uint16_t)strlen(path);
+        q.mode = mode;
+        ava1_w_init(&w, (uint8_t *)req, sizeof req);
+        if (ava1_fs_chmod_encode(&q, &w) != 0) {
+            send_bad(fd, "bad_path");
+            return;
+        }
+        st = call(AVA1_METHOD_FS_CHMOD, (const uint8_t *)req, w.len, out, &ol);
+        if (st != AVA1_STATUS_OK) send_status_error(fd, st, out, ol);
+        else send_json(fd, 200, "{}", 2);
+    }
 }
 
 /* Verify: BLAKE3 (HASH) and CRC32 of one file, each a job; the result is read with /api/jobs/status. */
@@ -1403,6 +1469,121 @@ static void r_index_cancel(const char *b, size_t n, uint8_t *out, int fd) {
     send_json(fd, 200, "{}", 2);
 }
 
+/* ---- Files: text save (webui_files.c does the I/O) ----
+ *
+ * It reaches no helper method: it works on the file system directly, under the helper's own policy
+ * (ava1_data_cfg: may_write, the trust store never). Its body (up to 1 MiB) is read by the route itself
+ * (webui_api_stream), with an idle timeout instead of the 5 s connection deadline; one at a time. */
+
+#define XFER_TEXT_HEAD 8192u      /* a text save's first line (its JSON) at most */
+#define XFER_TEXT_TOTAL_MS 60000u /* a text save's whole body within this */
+#define XFER_IDLE_TEXT_MS 10000u
+
+static long long mono_ms(void);
+
+static int policy_write(const char *p) {
+    const ava1_data_cfg_t *cfg = ava1_data_cfg();
+    return !path_in_protected(p) && cfg && cfg->may_write && cfg->may_write(p);
+}
+
+static void send_wf(int fd, int e) {
+    const char *tok = wf_error_token(e);
+    send_error(fd, wf_error_http(e), tok, strlen(tok));
+}
+
+static pthread_mutex_t g_text_mu = PTHREAD_MUTEX_INITIALIZER;
+
+/* A text save (stream): the body is one line of JSON {path, create?, mtime?, size?}, '\n', then the text
+ * (at most WF_TEXT_MAX bytes, no NUL). Without create, mtime and size are the file as the editor read it:
+ * a file changed since answers 409 changed. Answers {"mtime","size"} of the saved file. */
+static void s_save_text(const webui_req_t *r, const uint8_t *pre, size_t pre_len, int fd) {
+    char path[API_PATH], json[128];
+    uint8_t *body;
+    const uint8_t *nl;
+    size_t got, head_len;
+    uint64_t total = r->content_length, mt = 0, sz = 0;
+    uint32_t mns = 0;
+    long long until = mono_ms() + XFER_TEXT_TOTAL_MS;
+    wf_text_pre_t pc;
+    int create = 0, rc;
+    if (total > WF_TEXT_MAX + XFER_TEXT_HEAD) {
+        send_error(fd, 413, "too_large", 9);
+        return;
+    }
+    if (pthread_mutex_trylock(&g_text_mu) != 0) {
+        send_error(fd, 409, "busy", 4);
+        return;
+    }
+    body = malloc(total ? (size_t)total : 1);
+    if (!body) {
+        pthread_mutex_unlock(&g_text_mu);
+        send_error(fd, 500, "out_of_memory", 13);
+        return;
+    }
+    got = pre_len > total ? (size_t)total : pre_len;
+    memcpy(body, pre, got);
+    while (got < total && mono_ms() < until) {
+        ssize_t k = wf_recv(fd, body + got, (size_t)total - got, XFER_IDLE_TEXT_MS, NULL);
+        if (k <= 0) break;
+        got += (size_t)k;
+    }
+    if (got < total) {
+        free(body);
+        pthread_mutex_unlock(&g_text_mu);
+        send_error(fd, 400, "incomplete", 10);
+        return;
+    }
+    nl = memchr(body, '\n', got < XFER_TEXT_HEAD ? got : XFER_TEXT_HEAD);
+    if (!nl) {
+        free(body);
+        pthread_mutex_unlock(&g_text_mu);
+        send_bad(fd, "bad_request");
+        return;
+    }
+    head_len = (size_t)(nl - body);
+    memset(&pc, 0, sizeof pc);
+    rc = need_path(fd, (const char *)body, head_len, "path", path, sizeof path);
+    if (rc == 0 && webui_json_bool((const char *)body, head_len, "create", &create) < 0) {
+        send_bad(fd, "bad_create");
+        rc = -1;
+    }
+    if (rc == 0 && !create &&
+        (webui_json_u64((const char *)body, head_len, "mtime", &pc.mtime) != 1 ||
+         webui_json_u64((const char *)body, head_len, "size", &pc.size) != 1)) {
+        send_bad(fd, "bad_precondition");
+        rc = -1;
+    }
+    if (rc == 0 && !create) {
+        uint64_t ns = 0;
+        int r2 = webui_json_u64((const char *)body, head_len, "mtime_ns", &ns);
+        if (r2 < 0 || ns >= 1000000000ull) {
+            send_bad(fd, "bad_precondition");
+            rc = -1;
+        } else if (r2 == 1) {
+            pc.have_ns = 1;
+            pc.mtime_ns = (uint32_t)ns;
+        }
+    }
+    if (rc == 0 && !policy_write(path)) {
+        send_error(fd, 403, "path_not_allowed", 16);
+        rc = -1;
+    }
+    if (rc == 0) {
+        pc.create = create;
+        pc.check = !create;
+        rc = wf_text_save(path, nl + 1, got - head_len - 1, &pc, &mt, &sz, &mns);
+        if (rc != WF_OK) {
+            send_wf(fd, rc);
+        } else {
+            snprintf(json, sizeof json, "{\"mtime\":%llu,\"size\":%llu,\"mtime_ns\":%lu}", (unsigned long long)mt,
+                     (unsigned long long)sz, (unsigned long)mns);
+            send_json(fd, 200, json, strlen(json));
+        }
+    }
+    free(body);
+    pthread_mutex_unlock(&g_text_mu);
+}
+
 /* ---- input log ---- */
 
 /* One append at a time (the file is a ring rewritten in place), and a rate gate: a page that
@@ -1560,6 +1741,35 @@ static int serve_static(const webui_req_t *r, int fd) {
         send_json(fd, 200, json, (size_t)n);
     }
     return 1;
+}
+
+/* The streamed routes (their bodies are read by the route: webui_server.h webui_stream_fn), POST only.
+ * Part of the allowlist like k_routes. */
+static const struct {
+    const char *path;
+    void (*fn)(const webui_req_t *r, const uint8_t *pre, size_t pre_len, int fd);
+} k_streams[] = {
+    { "/api/fs/save-text", s_save_text },
+};
+
+int webui_api_stream_for(const webui_req_t *r) {
+    size_t i;
+    if (strcmp(r->method, "POST") != 0) return 0;
+    for (i = 0; i < sizeof k_streams / sizeof k_streams[0]; i++)
+        if (strcmp(r->path, k_streams[i].path) == 0) return 1;
+    return 0;
+}
+
+int webui_api_stream(const webui_req_t *r, const uint8_t *pre, size_t pre_len, int fd) {
+    size_t i;
+    for (i = 0; i < sizeof k_streams / sizeof k_streams[0]; i++) {
+        if (strcmp(r->path, k_streams[i].path) == 0) {
+            k_streams[i].fn(r, pre, pre_len, fd);
+            return 0;
+        }
+    }
+    webui_send_json(fd, 404, "{\"error\":\"not_found\"}");
+    return 0;
 }
 
 int webui_api_route(const webui_req_t *r, const uint8_t *body, size_t body_len, int fd) {

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Binary, ChevronLeft, ChevronRight, FileText } from "lucide-react";
+import { Binary, ChevronLeft, ChevronRight, FileText, PencilLine } from "lucide-react";
 import { callBlob } from "../api";
 import { t } from "../strings";
 import { NAV_ARROW_EVENT } from "../nav";
@@ -10,6 +10,8 @@ import { gameFacts, isParamJsonPath, paramJsonText, type GameInfo } from "./view
 import { imageNeighbours } from "./viewer/images";
 import { isJsonName, prettyJson, toRows, type Row } from "./viewer/text";
 import { TextView } from "./viewer/TextView";
+import { EDITOR_CANCEL, TextEditor } from "./viewer/TextEditor";
+import { decodeEditable, stampOf, type FileStamp } from "./transfer";
 
 /** The most the viewer reads (the helper's /api/fs/read cap). */
 export const VIEW_MAX = 1024 * 1024;
@@ -71,11 +73,24 @@ export function textModel(path: string, name: string, text: string): TextModel {
 
 type Loaded =
   | { kind: "image"; url: string; size: number }
-  | { kind: "text"; model: TextModel; size: number }
+  | { kind: "text"; model: TextModel; size: number; edit: Editable | null }
   | { kind: "hex"; bytes: Uint8Array }
   | { kind: "error" }
   | { kind: "too_large" }
   | null;
+
+/** A text file the editor can open: read whole (up to 1 MiB), valid UTF-8, no NUL; as it was then. */
+interface Editable {
+  text: string;
+  stamp: FileStamp;
+}
+
+/** The editable form of a text file just read, or null (cut at the cap, not UTF-8, binary, or changed while read). */
+export function editableOf(buf: ArrayBuffer, stamp: FileStamp | null): Editable | null {
+  if (!stamp || buf.byteLength !== stamp.size || buf.byteLength > VIEW_MAX) return null;
+  const text = decodeEditable(buf);
+  return text == null ? null : { text, stamp };
+}
 
 /** sce_sys/param.json's summary above its text. */
 export function GameSummary({ info }: { info: GameInfo }) {
@@ -105,6 +120,8 @@ export function Viewer({
   size,
   images,
   onOpenImage,
+  startEditing,
+  onSaved,
   onClose,
 }: {
   path: string;
@@ -115,9 +132,17 @@ export function Viewer({
   /** The folder's images in list order (an image's previous / next). */
   images?: string[];
   onOpenImage?: (name: string) => void;
+  /** Open straight in the editor (a new file). */
+  startEditing?: boolean;
+  /** A save went through (the folder's listing changed). */
+  onSaved?: () => void;
   onClose: () => void;
 }) {
   const [loaded, setLoaded] = useState<Loaded>(null);
+  const [editing, setEditing] = useState(!!startEditing);
+  const [saved, setSaved] = useState(false);
+  /** Bumped after a save: the file is read again. */
+  const [reload, setReload] = useState(0);
   /** A text file shown as hex instead (the head's toggle). */
   const [asHex, setAsHex] = useState(false);
   const mode: ViewKind = kind === "text" && asHex ? "hex" : kind;
@@ -146,8 +171,10 @@ export function Viewer({
       return;
     }
     const max = mode === "image" ? IMAGE_MAX : mode === "hex" ? HEX_MAX : VIEW_MAX;
-    readUpTo(path, max, stop.signal).then(
-      async (blob) => {
+    // A text file's stamp (mtime + size) is read first: a save is refused if the file changes after.
+    const stamp = mode === "text" ? stampOf(path).catch(() => null) : Promise.resolve(null);
+    stamp.then((st) => readUpTo(path, max, stop.signal).then((blob) => ({ blob, st }))).then(
+      async ({ blob, st }) => {
         if (!live) return;
         if (mode === "image") {
           if (imageTooLarge(size, blob.size)) {
@@ -168,7 +195,7 @@ export function Viewer({
           return;
         }
         const text = new TextDecoder("utf-8", { fatal: false }).decode(buf);
-        setLoaded({ kind: "text", model: textModel(path, name, text), size: blob.size });
+        setLoaded({ kind: "text", model: textModel(path, name, text), size: blob.size, edit: editableOf(buf, st) });
       },
       () => {
         if (!live) return;
@@ -180,7 +207,7 @@ export function Viewer({
       live = false;
       stop.abort();
     };
-  }, [path, name, mode, size, showUrl]);
+  }, [path, name, mode, size, showUrl, reload]);
 
   // ← / → (D-pad or keys) on the picture itself: previous / next image. The nav layer hands
   // left/right on a [data-nav-arrows] element to it as a NAV_ARROW_EVENT instead of moving focus.
@@ -197,8 +224,17 @@ export function Viewer({
     return () => img.removeEventListener(NAV_ARROW_EVENT, onArrow);
   }, [prevImage, nextImage, onOpenImage, loadedImage]);
 
+  const edit = loaded?.kind === "text" ? loaded.edit : null;
+  const inEditor = editing && mode === "text" && edit != null;
+  // ○ in the editor is its Cancel (unsaved changes are asked about); else it closes the viewer.
+  const onBack = useCallback(() => {
+    const cancel = inEditor ? document.querySelector<HTMLButtonElement>(EDITOR_CANCEL) : null;
+    if (cancel) cancel.click();
+    else onClose();
+  }, [inEditor, onClose]);
+
   return (
-    <Modal label={name} className="cw-viewer" onBack={onClose}>
+    <Modal label={name} className={`cw-viewer${inEditor ? " is-editing" : ""}`} onBack={onBack}>
       <div className="cw-viewer-head">
         <h2 className="cw-file-name">{name}</h2>
         {nb && nb.total > 1 ? (
@@ -206,7 +242,26 @@ export function Viewer({
             {t("cw_files_vw_image_at", { at: nb.at + 1, n: nb.total })}
           </span>
         ) : null}
-        {kind === "text" ? (
+        {saved && !inEditor ? (
+          <span className="cw-dim" role="status" data-saved="">
+            {t("cw_files_edit_saved")}
+          </span>
+        ) : null}
+        {mode === "text" && edit && !inEditor ? (
+          <button
+            type="button"
+            className="cw-focusable cw-button"
+            data-action="edit"
+            onClick={() => {
+              setSaved(false);
+              setEditing(true);
+            }}
+          >
+            <PencilLine aria-hidden />
+            <span>{t("cw_files_edit")}</span>
+          </button>
+        ) : null}
+        {kind === "text" && !inEditor ? (
           <button
             type="button"
             className="cw-focusable cw-button"
@@ -218,7 +273,13 @@ export function Viewer({
             <span>{t(asHex ? "cw_files_vw_as_text" : "cw_files_vw_as_hex")}</span>
           </button>
         ) : null}
-        <button type="button" className="cw-focusable cw-button" data-nav-default="" data-action="viewer-close" onClick={onClose}>
+        <button
+          type="button"
+          className="cw-focusable cw-button"
+          data-nav-default={inEditor ? undefined : ""}
+          data-action="viewer-close"
+          onClick={onClose}
+        >
           <span>{t("cw_files_close")}</span>
         </button>
       </div>
@@ -263,7 +324,27 @@ export function Viewer({
             <ChevronRight aria-hidden />
           </button>
         ) : null}
-        {loaded?.kind === "text" ? (
+        {loaded?.kind === "text" && inEditor && edit ? (
+          <TextEditor
+            key={`${path}:${reload}`}
+            path={path}
+            text={edit.text}
+            stamp={edit.stamp}
+            onClose={() => setEditing(false)}
+            onSaved={() => {
+              setEditing(false);
+              setSaved(true);
+              setReload((n) => n + 1);
+              onSaved?.();
+            }}
+          />
+        ) : null}
+        {loaded?.kind === "text" && editing && !edit ? (
+          <p className="cw-msg is-info" data-edit-refused="">
+            {t(loaded.size >= VIEW_MAX ? "cw_files_edit_too_large" : "cw_files_edit_not_text")}
+          </p>
+        ) : null}
+        {loaded?.kind === "text" && !inEditor ? (
           <>
             {loaded.model.game ? <GameSummary info={loaded.model.game} /> : null}
             {loaded.size >= VIEW_MAX ? <p className="cw-dim">{t("cw_files_truncated")}</p> : null}

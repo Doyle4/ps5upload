@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Calculator, Square } from "lucide-react";
+import { Calculator, ShieldCheck, Square } from "lucide-react";
 import { formatBytes } from "../../lib/format";
 import { call } from "../api";
 import { getLanguage, t } from "../strings";
@@ -8,6 +8,8 @@ import { Modal } from "../ui/Modal";
 import { refocusIfLost } from "../ui/restoreFocus";
 import { startFolderSize, SIZE_MAX_ENTRIES, SIZE_MAX_MS, type SizeCount, type SizeResult } from "./folderSize";
 import { LIST_PAGE } from "./useDir";
+import { modeLetters, modeText } from "./permissions";
+import { PermissionsDialog } from "./PermissionsDialog";
 
 interface Stat {
   kind: string;
@@ -124,8 +126,23 @@ function FolderSize({ path }: { path: string }) {
  * entries it holds (the first page's count; "256+" when there are more), with
  * "Calculate folder size" walking the whole tree (bounded, cancellable).
  */
-export function InfoDialog({ dir, name, path, onClose }: { dir: string; name: string; path: string; onClose: () => void }) {
+export function InfoDialog({
+  dir,
+  name,
+  path,
+  fsType,
+  onClose,
+}: {
+  dir: string;
+  name: string;
+  path: string;
+  /** The drive's file system (exFAT/FAT keep no permissions: the editor says so). */
+  fsType?: string | null;
+  onClose: () => void;
+}) {
   const [info, setInfo] = useState<Info>(null);
+  const [editing, setEditing] = useState(false);
+  const [statTick, setStatTick] = useState(0);
   useEffect(() => {
     let live = true;
     (async () => {
@@ -143,7 +160,7 @@ export function InfoDialog({ dir, name, path, onClose }: { dir: string; name: st
     return () => {
       live = false;
     };
-  }, [path]);
+  }, [path, statTick]);
 
   const rows: [string, string][] = [[t("cw_files_info_where"), dir]];
   if (info && "stat" in info) {
@@ -152,7 +169,24 @@ export function InfoDialog({ dir, name, path, onClose }: { dir: string; name: st
     if (s.kind === "dir") rows.push([t("cw_files_info_items"), info.items ?? "—"]);
     else rows.push([t("cw_files_info_size"), formatBytes(s.size)]);
     if (s.mtime > 0) rows.push([t("cw_files_info_modified"), new Date(s.mtime * 1000).toLocaleString(getLanguage())]);
-    rows.push([t("cw_files_info_mode"), (s.mode & 0o7777).toString(8).padStart(4, "0")]);
+    rows.push([t("cw_files_info_mode"), `${modeText(s.mode)} ${modeLetters(s.mode)}`]);
+  }
+  const stat = info && "stat" in info ? info.stat : null;
+  if (editing && stat) {
+    return (
+      <PermissionsDialog
+        name={name}
+        path={path}
+        mode={stat.mode}
+        dir={stat.kind === "dir"}
+        fsType={fsType}
+        onDone={() => {
+          setEditing(false);
+          setStatTick((n) => n + 1);
+        }}
+        onCancel={() => setEditing(false)}
+      />
+    );
   }
 
   return (
@@ -170,6 +204,12 @@ export function InfoDialog({ dir, name, path, onClose }: { dir: string; name: st
       {info == null ? <p className="cw-dim">{t("cw_home_loading")}</p> : null}
       {info && "error" in info ? <p className="cw-field-error">{t("cw_files_err_read")}</p> : null}
       <div className="cw-dialog-buttons">
+        {stat && stat.kind !== "link" ? (
+          <button type="button" className="cw-focusable cw-button" data-action="permissions" onClick={() => setEditing(true)}>
+            <ShieldCheck aria-hidden />
+            <span>{t("cw_files_perm_open")}</span>
+          </button>
+        ) : null}
         <button type="button" className="cw-focusable cw-button" data-nav-default="" onClick={onClose}>
           <span>{t("cw_files_close")}</span>
         </button>

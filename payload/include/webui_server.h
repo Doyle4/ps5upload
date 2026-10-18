@@ -19,10 +19,22 @@
  * answer 404 and wrong methods 405. The return value is ignored. */
 typedef int (*webui_route_fn)(const webui_req_t *r, const uint8_t *body, size_t body_len, int fd);
 
+/* A streamed request (an upload, a text save over 64 KiB): its body may be up to
+ * WEBUI_STREAM_BODY_MAX and is NOT read by the server. After the Host/Origin/token checks passed,
+ * the handler gets the body bytes that arrived with the headers (`pre`, `pre_len`) and reads the
+ * remaining content_length - pre_len itself, with its own idle timeout (the 5 s connection deadline
+ * covers the request line and headers only). It must write a complete response. */
+typedef int (*webui_stream_fn)(const webui_req_t *r, const uint8_t *pre, size_t pre_len, int fd);
+
+#define WEBUI_STREAM_BODY_MAX (1ull << 42) /* 4 TiB: larger than any file a console drive holds */
+
 typedef struct {
     uint16_t port;
     int lan;              /* 0: bind 127.0.0.1; 1: bind 0.0.0.0 */
     webui_route_fn route;
+    /* Optional (NULL: nothing is streamed). 1 = this request (by method + path) is a streamed one. */
+    int (*stream_for)(const webui_req_t *r);
+    webui_stream_fn stream;
 } webui_cfg_t;
 
 /* New token, bind, start the threads. Returns 0, or -1 when already running or

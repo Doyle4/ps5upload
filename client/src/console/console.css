@@ -1533,3 +1533,67 @@ button {
   color: var(--color-muted);
   font-size: 1.4rem;
 }
+
+/* A phone over the LAN (PS5Upload Files opened from another device): nothing pushes the page sideways.
+ * The folder's tools wrap under the path, the rail and rows tighten, long names and the status chip
+ * cut with an ellipsis, and dialogs (the viewer and its editor too) fit the screen. */
+@media (max-width: 40rem) {
+  .cw-brand {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .cw-chip {
+    min-width: 0;
+    max-width: 40vw;
+    margin-left: 0.5rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .cw-rail {
+    width: 4.6rem;
+    padding: 0.5rem 0.25rem;
+  }
+  .cw-rail-item {
+    font-size: 0.72rem;
+  }
+  .cw-content {
+    padding: 0.6rem 0.6rem 1rem;
+  }
+  .cw-toolbar-one {
+    flex-wrap: wrap;
+  }
+  .cw-toolbar-one .cw-pathbar {
+    flex: 1 1 100%;
+    min-width: 0;
+    margin: 0 0 0.3rem;
+  }
+  .cw-tools {
+    flex: 1 1 100%;
+    flex-wrap: wrap;
+  }
+  .cw-crumb-button {
+    max-width: 40vw;
+  }
+  .cw-file-main {
+    padding: 0.5rem 0.6rem;
+  }
+  .cw-file-icon {
+    margin-right: 0.5rem;
+  }
+  .cw-file-meta {
+    min-width: 0;
+    margin-left: 0.5rem;
+  }
+  .cw-dialog {
+    max-width: calc(100vw - 1rem);
+    max-height: calc(100% - 1rem);
+    overflow-y: auto;
+  }
+  .cw-viewer {
+    width: calc(100vw - 1rem);
+    height: calc(100% - 1rem);
+    padding: 0.8rem;
+  }
+}

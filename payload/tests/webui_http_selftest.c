@@ -93,6 +93,19 @@ static void body_over_64k_too_big(void) {
                     &r) == WEBUI_PARSE_TOO_BIG);
 }
 
+/* The streamed routes' ceiling: a large Content-Length parses (the server decides by path), the
+ * Range header is kept, a second Range is refused like any duplicate that matters. */
+static void stream_cap_and_range(void) {
+    webui_req_t r;
+    const char *big = "POST /api/upload/data HTTP/1.1\r\nContent-Length: 1073741824\r\n\r\n";
+    CHECK(webui_http_parse_cap(big, strlen(big), &r, 1ull << 42) == WEBUI_PARSE_OK);
+    CHECK(r.content_length == 1073741824ull);
+    CHECK(webui_http_parse(big, strlen(big), &r) == WEBUI_PARSE_TOO_BIG);
+    CHECK(parse_str("GET /dl/x HTTP/1.1\r\nRange: bytes=10-\r\n\r\n", &r) == WEBUI_PARSE_OK);
+    CHECK(strcmp(r.range, "bytes=10-") == 0);
+    CHECK(parse_str("GET /dl/x HTTP/1.1\r\nRange: bytes=1-2\r\nrange: bytes=3-4\r\n\r\n", &r) == WEBUI_PARSE_BAD);
+}
+
 static void chunked_is_bad(void) {
     webui_req_t r;
     CHECK(parse_str("POST /a HTTP/1.1\r\nTransfer-Encoding: chunked\r\n\r\n", &r)
@@ -221,6 +234,7 @@ int main(void) {
     long_path_too_big();
     body_over_64k_too_big();
     chunked_is_bad();
+    stream_cap_and_range();
     header_names_case_insensitive();
     malformed_is_bad();
     head_has_connection_close();

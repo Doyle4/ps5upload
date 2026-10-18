@@ -34,6 +34,27 @@ static int stub_route(const webui_req_t *r, const uint8_t *body, size_t body_len
     return 0;
 }
 
+/* Streamed route: reads the rest of the body itself (with its own timeout), answers {"n":<bytes>}. */
+static int stream_for(const webui_req_t *r) { return strcmp(r->path, "/api/stream") == 0; }
+
+static int stream_route(const webui_req_t *r, const uint8_t *pre, size_t pre_len, int fd) {
+    static char buf[65536];
+    char json[64];
+    uint64_t got = pre_len;
+    (void)pre;
+    while (got < r->content_length) {
+        struct pollfd p = { fd, POLLIN, 0 };
+        ssize_t n;
+        if (poll(&p, 1, 10000) <= 0) break;
+        n = recv(fd, buf, sizeof buf, 0);
+        if (n <= 0) break;
+        got += (uint64_t)n;
+    }
+    snprintf(json, sizeof json, "{\"n\":%llu}", (unsigned long long)got);
+    webui_send_json(fd, 200, json);
+    return 0;
+}
+
 static double now_s(void) {
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
@@ -113,9 +134,12 @@ static int request(const char *path, const char *token, char *resp, size_t cap) 
 
 static int start_server(void) {
     webui_cfg_t c;
+    memset(&c, 0, sizeof c);
     c.port = g_port;
     c.lan = 0;
     c.route = stub_route;
+    c.stream_for = stream_for;
+    c.stream = stream_route;
     return webui_start(&c);
 }
 
@@ -172,6 +196,53 @@ static void too_big_413(void) {
     if (read_all(s, resp, sizeof resp, 7000) > 0) (void)sscanf(resp, "HTTP/1.1 %d", &status);
     close(s);
     CHECK(status == 413);
+}
+
+/* A streamed route takes a body far over the 64 KiB cap, and past the 5 s header deadline when the
+ * client sends slowly; without the token it is refused before any body byte is read. A request that
+ * is not streamed still gets 413 for the same length (too_big_413). */
+static void streamed_body(void) {
+    static char chunk[65536];
+    char req[512], resp[2048];
+    const size_t total = 16u * sizeof chunk;
+    size_t sent = 0;
+    int s, n, status = -1;
+    memset(chunk, 'x', sizeof chunk);
+    s = dial();
+    CHECK(s >= 0);
+    if (s < 0) return;
+    n = snprintf(req, sizeof req,
+                 "POST /api/stream HTTP/1.1\r\nHost: 127.0.0.1:%u\r\nX-PS5U-Token: %s\r\nContent-Length: %zu\r\n\r\n",
+                 (unsigned)g_port, webui_token(), total);
+    CHECK(send(s, req, (size_t)n, 0) == n);
+    while (sent < total / 2) {
+        ssize_t w = send(s, chunk, sizeof chunk, 0);
+        if (w <= 0) break;
+        sent += (size_t)w;
+    }
+    sleep_ms(6000); /* past the connection's 5 s deadline */
+    while (sent < total) {
+        size_t k = total - sent < sizeof chunk ? total - sent : sizeof chunk;
+        ssize_t w = send(s, chunk, k, 0);
+        if (w <= 0) break;
+        sent += (size_t)w;
+    }
+    if (read_all(s, resp, sizeof resp, 7000) > 0) (void)sscanf(resp, "HTTP/1.1 %d", &status);
+    close(s);
+    CHECK(status == 200);
+    snprintf(req, sizeof req, "{\"n\":%zu}", total);
+    CHECK(strstr(resp, req) != NULL);
+
+    s = dial();
+    CHECK(s >= 0);
+    if (s < 0) return;
+    n = snprintf(req, sizeof req, "POST /api/stream HTTP/1.1\r\nHost: 127.0.0.1:%u\r\nContent-Length: %zu\r\n\r\n",
+                 (unsigned)g_port, total);
+    CHECK(send(s, req, (size_t)n, 0) == n);
+    status = -1;
+    if (read_all(s, resp, sizeof resp, 7000) > 0) (void)sscanf(resp, "HTTP/1.1 %d", &status);
+    close(s);
+    CHECK(status == 401);
 }
 
 /* 4 idle connections occupy every worker; a 5th request is still served
@@ -332,6 +403,7 @@ int main(void) {
     bad_host_403();
     garbage_400();
     too_big_413();
+    streamed_body();
     silent_client_dropped_and_next_served();
     half_request_dropped_within_timeout();
     queue_overflow_closes_not_blocks();

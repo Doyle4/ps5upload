@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bindingForKey, createPadReader, DEFAULT_INPUT_MAP, hintEntries, nextFocus, type InputMap } from "./nav";
+import { bindingForKey, createPadReader, DEFAULT_INPUT_MAP, hintEntries, nextFocus, textareaKeepsKey, type InputMap } from "./nav";
 
 // Vitest runs in node here (no jsdom): rects are plain objects and the
 // "elements" are tagged stand-ins, which is all nextFocus looks at.
@@ -171,5 +171,19 @@ describe("hint bar entries", () => {
     const all = DEFAULT_INPUT_MAP.map((b) => ({ ...b, verified: true }));
     const glyphs = hintEntries(all).map((h) => h.glyph);
     for (const g of ["PS", "MUTE", "LS", "RS"]) expect(glyphs).not.toContain(g);
+  });
+});
+
+describe("text editor keys", () => {
+  const box = (value: string, at: number) => ({ tagName: "TEXTAREA", value, selectionStart: at, selectionEnd: at });
+  it("keeps up/down inside a multi-line box until the first/last line", () => {
+    expect(textareaKeepsKey(box("a\nb\nc", 0), "up")).toBe(false);
+    expect(textareaKeepsKey(box("\nb", 0), "up")).toBe(false);
+    expect(textareaKeepsKey(box("a\nb\nc", 2), "up")).toBe(true);
+    expect(textareaKeepsKey(box("a\nb\nc", 2), "down")).toBe(true);
+    expect(textareaKeepsKey(box("a\nb\nc", 4), "down")).toBe(false);
+    expect(textareaKeepsKey(box("one line", 3), "down")).toBe(false);
+    expect(textareaKeepsKey({ tagName: "INPUT", value: "a\nb", selectionStart: 2, selectionEnd: 2 }, "up")).toBe(false);
+    expect(textareaKeepsKey(box("a\nb", 2), "left")).toBe(false);
   });
 });

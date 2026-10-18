@@ -190,3 +190,66 @@
 .cw-gb-facts {
   font-size: 0.85rem;
 }
+
+/* ---- the text editor (Edit) ---- */
+.cw-editor {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.cw-editor-box {
+  flex: 1 1 auto;
+  min-height: 8rem;
+  margin: 0 0 0.5rem;
+  resize: none;
+  font-family: var(--font-mono, monospace);
+  font-size: 0.85rem;
+  line-height: 1.4;
+  white-space: pre;
+  overflow: auto;
+  tab-size: 4;
+}
+.cw-editor > .cw-msg,
+.cw-editor > p {
+  flex: none;
+  margin: 0 0 0.5rem;
+}
+.cw-editor > .cw-dialog-buttons {
+  flex: none;
+}
+
+/* ---- permissions ---- */
+.cw-perm-grid {
+  border-collapse: collapse;
+  margin: 0.4rem 0 0.8rem;
+}
+.cw-perm-grid th {
+  padding: 0.2rem 0.8rem 0.2rem 0;
+  font-weight: normal;
+  text-align: left;
+  color: var(--color-muted);
+}
+.cw-perm-grid thead th {
+  text-align: center;
+}
+.cw-perm-grid td {
+  padding: 0.2rem 0.3rem;
+  text-align: center;
+}
+.cw-perm-bit {
+  min-width: 3.2rem;
+  justify-content: center;
+}
+.cw-perm-bit[aria-pressed="false"] {
+  opacity: 0.6;
+}
+.cw-perm-value {
+  margin: 0 0 0.8rem;
+}
+
+@media (max-width: 40rem) {
+  .cw-perm-bit {
+    min-width: 2.6rem;
+  }
+}

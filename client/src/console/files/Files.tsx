@@ -7,6 +7,7 @@ import {
   ClipboardX,
   Ellipsis,
   ChartBar,
+  FilePlus,
   Filter,
   FilterX,
   FolderPlus,
@@ -85,6 +86,7 @@ import { GameBanner } from "./viewer/GameBanner";
 import { sceSysName } from "./viewer/gameFolder";
 import { SearchDialog } from "./search/SearchDialog";
 import { UsageDialog } from "./usage/UsageDialog";
+import { createFile, TEXT_SAVE_MAX } from "./transfer";
 
 export { upFrom, viewKind };
 
@@ -103,9 +105,12 @@ export type FilesAsk =
   /** Decompress a .ffpfsc next to it. */
   | { kind: "unpack"; name: string }
   | { kind: "mkdir" }
+  /** A new, empty file (then opened in the editor). */
+  | { kind: "newfile" }
   | { kind: "pick"; op: "copy" | "move"; names: string[] }
   | { kind: "info"; name: string }
-  | { kind: "view"; name: string; type: ViewKind }
+  /** `edit`: straight into the text editor. */
+  | { kind: "view"; name: string; type: ViewKind; edit?: boolean }
   /** Search by name (the helper's index) and Disk usage: Files tools over the folder shown. */
   | { kind: "search" }
   | { kind: "usage" }
@@ -277,6 +282,8 @@ export interface FilesViewProps {
   onPicked: (op: "copy" | "move", names: string[], destDir: string) => void;
   /** Open `dir` in Files with `name` focused (a search result); null name: the folder itself. */
   onReveal?: (dir: string, name: string | null) => void;
+  /** Create an empty file named so in the folder shown (then it opens in the editor). */
+  onNewFile?: (name: string) => void;
 }
 
 /** "Copying 3 of 40" (item `at` is being sent or is running), or "Stopping…". */
@@ -308,7 +315,9 @@ export function sheetActions(names: string[], entries: Entry[], pinned: boolean 
   const e = entries.find((x) => x.name === names[0]);
   const out: SheetAction[] = [];
   if (e && e.kind !== "dir" && viewKind(e.name)) out.push("view");
-  out.push("clipcopy", "cut", "copy", "move", "rename", "bulkrename", "mkdir", "info");
+  // Any small file opens in the text editor (a .cfg, .conf, .sh…); a binary one says it cannot.
+  if (e && e.kind === "file" && (e.size ?? 0) <= TEXT_SAVE_MAX) out.push("edit");
+  out.push("clipcopy", "cut", "copy", "move", "rename", "bulkrename", "mkdir", "newfile", "info");
   if (e && e.kind === "dir" && pinned != null) out.push(pinned ? "unpin" : "pin");
   if (e && e.kind === "file") out.push("verify", "hex");
   if (e && e.kind === "file" && isFfpfsc(e.name)) out.push("unpack");
@@ -537,6 +546,10 @@ function askView(p: FilesViewProps) {
                 return p.onAsk({ kind: "unpack", name });
               case "mkdir":
                 return p.onAsk({ kind: "mkdir" });
+              case "newfile":
+                return p.onAsk({ kind: "newfile" });
+              case "edit":
+                return p.onAsk({ kind: "view", name, type: "text", edit: true });
               case "info":
                 return p.onAsk({ kind: "info", name });
               case "pin":
@@ -600,6 +613,8 @@ function askView(p: FilesViewProps) {
       return (
         <TextPrompt title={t("cw_files_new_folder")} initial="" onSubmit={p.onMkdir} onCancel={p.onDismiss} />
       );
+    case "newfile":
+      return <TextPrompt title={t("cw_files_new_file")} initial="" onSubmit={(v) => p.onNewFile?.(v)} onCancel={p.onDismiss} />;
     case "bulkrename":
       return (
         <BulkRenameDialog
@@ -634,7 +649,15 @@ function askView(p: FilesViewProps) {
         />
       );
     case "info":
-      return <InfoDialog dir={path} name={a.name} path={joinPath(path, a.name)} onClose={p.onDismiss} />;
+      return (
+        <InfoDialog
+          dir={path}
+          name={a.name}
+          path={joinPath(path, a.name)}
+          fsType={p.volumes ? (volumeOf(path, p.volumes)?.fs_type ?? null) : null}
+          onClose={p.onDismiss}
+        />
+      );
     case "view":
       return (
         <Viewer
@@ -644,6 +667,8 @@ function askView(p: FilesViewProps) {
           size={p.dir.entries.find((e) => e.name === a.name)?.size}
           images={a.type === "image" ? (p.shown ?? p.dir.entries).filter((e) => e.kind !== "dir" && viewKind(e.name) === "image").map((e) => e.name) : undefined}
           onOpenImage={(name) => p.onAsk({ kind: "view", name, type: "image" })}
+          startEditing={a.edit}
+          onSaved={() => p.onRetry?.()}
           onClose={p.onDismiss}
         />
       );
@@ -865,6 +890,7 @@ export function FilesView(p: FilesViewProps) {
                     action="mkdir"
                     onClick={() => p.onAsk({ kind: "mkdir" })}
                   />
+                  <ToolButton icon={FilePlus} label={t("cw_files_new_file")} action="newfile" onClick={() => p.onAsk({ kind: "newfile" })} />
                   <ToolButton icon={SquareCheck} label={t("cw_select")} action="select" onClick={p.onToggleSelecting} />
                   {p.onReveal ? (
                     <>
@@ -1408,6 +1434,25 @@ export function Files({ ctx }: { ctx: SectionContext }) {
     [path, refresh],
   );
 
+  const onNewFile = useCallback(
+    (name: string) => {
+      setAsk(null);
+      if (path == null) return;
+      createFile(joinPath(path, name)).then(
+        () => {
+          focusName.current = name;
+          refresh();
+          setAsk({ kind: "view", name, type: "text", edit: true });
+        },
+        (e: unknown) => {
+          const text = filesErrorText(e);
+          if (text) setMessage({ tone: "error", text });
+        },
+      );
+    },
+    [path, refresh],
+  );
+
   const onToggleItem = useCallback((name: string) => {
     setSelected((s) => (s.includes(name) ? s.filter((x) => x !== name) : s.concat(name)));
   }, []);
@@ -1687,6 +1732,7 @@ export function Files({ ctx }: { ctx: SectionContext }) {
         onBulkRename={onBulkRename}
         onUnpack={onUnpack}
         onMkdir={onMkdir}
+        onNewFile={onNewFile}
         onPicked={onPicked}
         onReveal={onReveal}
       />

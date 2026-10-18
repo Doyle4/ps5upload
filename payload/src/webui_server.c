@@ -77,6 +77,8 @@ typedef struct srv {
 
     uint16_t port;
     webui_route_fn route;
+    int (*stream_for)(const webui_req_t *r);
+    webui_stream_fn stream;
     int lan;
     int rebind_req;                 /* accept thread: close and rebind with ->lan */
     int bound;
@@ -305,10 +307,10 @@ void webui_send_json(int fd, int status, const char *json) {
 
 /* ---- one connection ----------------------------------------------------- */
 
-enum { RD_OK = 0, RD_DROP = -1 };
+enum { RD_OK = 0, RD_DROP = -1, RD_STREAM = 1 };
 
-/* Read one request within the deadline. Returns RD_OK, RD_DROP (silent close),
- * or an HTTP status (400/413) to answer with. */
+/* Read one request within the deadline. Returns RD_OK, RD_STREAM (the headers are in; the body is
+ * the stream handler's to read), RD_DROP (silent close), or an HTTP status (400/413) to answer with. */
 static int read_request(srv_t *s, int fd, uint64_t deadline, char *buf, webui_req_t *req,
                         size_t *got_out) {
     size_t got = 0, need = 0;
@@ -319,10 +321,14 @@ static int read_request(srv_t *s, int fd, uint64_t deadline, char *buf, webui_re
         ssize_t n;
         int r, wait;
         if (got > 0 && !parsed) {
-            r = webui_http_parse(buf, got, req);
+            r = webui_http_parse_cap(buf, got, req, s->stream ? WEBUI_STREAM_BODY_MAX : WEBUI_BODY_CAP);
             if (r == WEBUI_PARSE_BAD) return 400;
             if (r == WEBUI_PARSE_TOO_BIG) return 413;
             if (r == WEBUI_PARSE_OK) {
+                if (s->stream && s->stream_for && s->stream_for(req)) {
+                    *got_out = got;
+                    return RD_STREAM;
+                }
                 if (req->content_length > WEBUI_BODY_CAP) return 413;
                 parsed = 1;
                 need = req->header_len + req->content_length;
@@ -428,8 +434,15 @@ static void serve(srv_t *s, int idx, conn_t c) {
         webui_send_json(c.fd, 403, "{\"error\":\"forbidden\"}");
         return;
     }
+    if (rd == RD_STREAM) {
+        /* The bytes past the headers that came in the same reads (never more than the body). */
+        size_t pre = got > req.header_len ? got - req.header_len : 0;
+        if (pre > req.content_length) pre = (size_t)req.content_length;
+        (void)s->stream(&req, (const uint8_t *)buf + req.header_len, pre, c.fd);
+        return;
+    }
     if (s->route)
-        (void)s->route(&req, (const uint8_t *)buf + req.header_len, req.content_length, c.fd);
+        (void)s->route(&req, (const uint8_t *)buf + req.header_len, (size_t)req.content_length, c.fd);
     else
         webui_send_json(c.fd, 404, "{\"error\":\"not_found\"}");
 }
@@ -721,6 +734,8 @@ int webui_start(const webui_cfg_t *cfg) {
     s->refs = 1;
     s->port = cfg->port;
     s->route = cfg->route;
+    s->stream_for = cfg->stream_for;
+    s->stream = cfg->stream;
     s->lan = cfg->lan ? 1 : 0;
     webui_token_new(s->token);
     if (s->lan) {

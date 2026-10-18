@@ -921,6 +921,12 @@ test-payload: payload
 		$(PAYLOAD_DIR)/ava1/gen/ava1_gen.c $(PAYLOAD_DIR)/ava1/ava1_wire.c
 	@/tmp/ps5upload-webui-codec-selftest
 	@echo "✓ Unicode, quoted and very large folders survive the web UI's JSON both ways"
+	@echo "Running webui file transfer self-test (host build)..."
+	@cc -O2 -Wall -Wextra -Werror -pthread -I$(PAYLOAD_DIR)/include \
+		-o /tmp/ps5upload-webui-files-selftest \
+		$(PAYLOAD_DIR)/tests/webui_files_selftest.c $(PAYLOAD_DIR)/src/webui_files.c
+	@/tmp/ps5upload-webui-files-selftest
+	@echo "✓ text saves and uploads go through a same-folder temp + rename; a cut-off upload leaves no file; folders stream as a valid .tar"
 	@echo "Running file index name-match self-test (host build)..."
 	@cc -O2 -Wall -Wextra -Werror -I$(PAYLOAD_DIR)/include \
 		-o /tmp/ps5upload-index-glob-selftest $(PAYLOAD_DIR)/tests/index_glob_selftest.c

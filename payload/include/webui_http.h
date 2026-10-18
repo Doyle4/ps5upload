@@ -9,6 +9,7 @@
 #define WEBUI_HEADER_CAP   8192u    /* request line + headers, incl. blank line */
 #define WEBUI_BODY_CAP     65536u   /* max Content-Length */
 #define WEBUI_PATH_CAP     1024u    /* max path (and query) length */
+#define WEBUI_RANGE_CAP    96u      /* a Range header value, NUL included */
 
 typedef struct {
     char method[8];
@@ -17,7 +18,8 @@ typedef struct {
     char host[128];
     char origin[256];
     char token[65];
-    uint32_t content_length;
+    char range[96];     /* the Range header ("" when absent); only streamed downloads read it */
+    uint64_t content_length;
     size_t header_len;  /* bytes up to and including the blank line */
 } webui_req_t;
 
@@ -32,6 +34,10 @@ enum {
  * repeatedly on a growing buffer: MORE means "headers not complete yet and
  * still within the cap". Body bytes after header_len are not consumed. */
 int webui_http_parse(const char *buf, size_t len, webui_req_t *out);
+/* The same with another Content-Length ceiling: the server parses with the streamed routes' ceiling
+ * (WEBUI_STREAM_BODY_MAX) and answers 413 itself when a request that is not streamed declares more
+ * than WEBUI_BODY_CAP. */
+int webui_http_parse_cap(const char *buf, size_t len, webui_req_t *out, uint64_t body_cap);
 
 /* Write "HTTP/1.1 <status>" + headers + blank line. extra_headers, if given,
  * is zero or more complete "Name: value\r\n" lines; when one of them is a
