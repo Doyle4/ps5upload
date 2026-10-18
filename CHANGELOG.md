@@ -4,6 +4,37 @@ What's new in ps5upload, written for humans.
 
 ---
 
+## 7.1.3
+
+- **Payloads: one place for what's on your PS5.** The Payloads screen now has three tabs:
+  Catalog, Send and **On your PS5**. On your PS5 shows a card for each payload that is running
+  or installed on the console, with its status, Open (for payloads with a web page), Update when a
+  newer release is out, and Stop. **Manage** opens that payload's tools in the card:
+  ShadowMount+ mounts, the nanoDNS editor, Payload Manager and HearBridge. Old links to the
+  separate tabs still work.
+- **HearBridge in the catalog and on your PS5.** HearBridge plays the PS5's audio on ordinary
+  Bluetooth headphones or speakers. Its card shows the connected headset, battery, link quality,
+  latency, volume and the game's profile; Manage sets volume and mute, reconnects, switches
+  between saved headsets, scans for new ones, turns night mode on or off, sets latency, and stops
+  it. Pairing, EQ and everything else open in HearBridge's own page.
+- **Processes & ports.** The Processes screen now has a Ports tab next to it, showing which ports
+  are open on the console and what usually listens there (HearBridge and PS5Upload Files
+  included).
+- **PS5Upload Files: permissions, new files and text editing.** Info → Permissions sets read,
+  write and execute for owner, group and others (or the number, like 755), for a folder's
+  contents too; drives that don't keep permissions (exFAT, FAT) say so. Create a new file, and
+  edit text files up to 1 MiB with the on-screen keyboard. Saving never leaves a half-written
+  file, keeps the file's permissions and line endings, and warns when the file changed since
+  you opened it.
+- **PS5Upload Files: upload and download from your phone or computer.** When you open the page
+  from another device (Settings → Allow other devices), Files has **Upload here** to send files
+  and folders to the console and **Download** for a file, or a whole folder as one .tar file.
+  The usual Skip / Replace / Keep both choices apply, a cancelled upload leaves nothing behind,
+  and a stalled connection is let go so the page stays responsive. On a home network this
+  moved about 75 MB/s up and 110 MB/s down.
+
+---
+
 ## 7.1.2
 
 - **Save data on a shared PS5 shows whose save is whose.** Each save is labelled with its
