@@ -4,6 +4,14 @@ What's new in ps5upload, written for humans.
 
 ---
 
+## 7.1.1
+
+- **The app scrolls again on macOS Big Sur.** On Big Sur's older built-in web engine the app
+  window lost its fixed height, so no screen could scroll, and the side bar's rows lost their
+  left padding. The app's styles now carry the older forms that engine understands.
+
+---
+
 ## 7.1.0
 
 - **PS5Upload Files: manage your files from the couch.** A new PS5Upload Files tile on the
