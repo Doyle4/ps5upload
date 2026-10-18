@@ -1,5 +1,5 @@
 /**
- * "PS5Upload Files was updated": the page shown is older than the helper's.
+ * "PS5Upload Minion was updated": the page shown is older than the helper's.
  * That happens when the browser served its offline copy (the appcache serves
  * its copy first and fetches the new page behind it: "updateready"), or when
  * the helper was updated under an open page. Either way the page offers a

@@ -25,7 +25,7 @@ size_t webui_tile_param_json(char *out, size_t cap, uint16_t port) {
     int k = snprintf(out, cap,
                      "{\"applicationCategoryType\":66048,\"titleId\":\"%s\","
                      "\"deeplinkUri\":\"http://127.0.0.1:%u/\","
-                     "\"localizedParameters\":{\"defaultLanguage\":\"en-US\",\"en-US\":{\"titleName\":\"PS5Upload Files\"}}}",
+                     "\"localizedParameters\":{\"defaultLanguage\":\"en-US\",\"en-US\":{\"titleName\":\"PS5Upload Minion\"}}}",
                      WEBUI_TILE_TITLE_ID, (unsigned)port);
     return k < 0 ? 0 : (size_t)k;
 }

@@ -138,7 +138,7 @@ function ActionRow({ setting, label, note, onClick }: { setting: string; label: 
 /**
  * Settings without state: everything comes in through props (tests render it directly).
  * Order: Theme · Language · Full screen · Controls · Show tips again · Allow other devices ·
- * Show PS5Upload Files on the home screen · About (each row carries data-setting).
+ * Show PS5Upload Minion on the home screen · About (each row carries data-setting).
  */
 export function SettingsView(p: SettingsViewProps) {
   const s = p.settings;

@@ -515,7 +515,7 @@ static hw_temps_cache_t g_temps_cache = {0};
  *     first read of every console. Inline on the mgmt worker (which the
  *     Sony runtime set up) is the only path that reads cleanly. The
  *     desktop app reads live sensors only on an explicit "Read sensors"
- *     click. The console page (PS5Upload Files) is the one unattended
+ *     click. The console page (PS5Upload Minion) is the one unattended
  *     reader: its status polls HW_TEMPS every 10 s, inline on a web
  *     worker thread (webui_server.c, 512 KiB stack). That worker is also
  *     a pthread we spawned, and it read cleanly for whole sessions on

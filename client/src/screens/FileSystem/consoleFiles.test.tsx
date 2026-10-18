@@ -154,7 +154,7 @@ describe("Show on console", () => {
     expect(showOnConsole).toHaveBeenCalledWith("/data/homebrew/Game");
     expect(toast.mock.calls[0][0]).toMatchObject({
       tone: "success",
-      message: "Sent to the PS5 — it opens in PS5Upload Files",
+      message: "Sent to the PS5 — it opens in PS5Upload Minion",
     });
   });
 

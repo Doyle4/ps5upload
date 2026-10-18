@@ -30,7 +30,7 @@ describe("offline screen", () => {
     expect(html).toContain(esc(t("cw_offline_retry")));
     expect(html).toContain(esc(t("cw_offline_close")));
     expect(html).toContain("data-nav-modal"); // the D-pad stays on its buttons
-    expect(t("cw_offline_title")).toBe("PS5Upload Files isn't running");
+    expect(t("cw_offline_title")).toBe("PS5Upload Minion isn't running");
     expect(t("cw_offline_body")).toMatch(/PS5Upload app on your PC or from your payload loader/);
   });
 });

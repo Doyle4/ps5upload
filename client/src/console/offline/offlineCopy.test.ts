@@ -113,7 +113,7 @@ describe("offline copy: service worker", () => {
 
 describe("offline copy: appcache and registration", () => {
   it("the manifest caches the page only and names the build", () => {
-    expect(appcacheManifest("abc123")).toBe("CACHE MANIFEST\n# PS5Upload Files abc123\n\nNETWORK:\n*\n");
+    expect(appcacheManifest("abc123")).toBe("CACHE MANIFEST\n# PS5Upload Minion abc123\n\nNETWORK:\n*\n");
   });
 
   function fakeWindow(secure: boolean) {

@@ -836,14 +836,14 @@ pub fn known_port_name(port: u16, proto: &str) -> Option<&'static str> {
         5353 if !tcp => "mDNS",
         8080 if tcp => "websrv",
         8090 if tcp => "HearBridge",
-        9180 if tcp => "PS5Upload Files",
+        9180 if tcp => "PS5Upload Minion",
         12800 if tcp => "DPI installer bridge",
         _ => return None,
     })
 }
 
 /// Whether a well-known port serves a web page (Payload Manager's UI, websrv, HearBridge,
-/// the helper's PS5Upload Files page).
+/// the helper's PS5Upload Minion page).
 pub fn known_port_is_web(port: u16) -> bool {
     port == crate::payload_manager::PAYLOAD_MANAGER_PORT || matches!(port, 8080 | 8090 | 9180)
 }
