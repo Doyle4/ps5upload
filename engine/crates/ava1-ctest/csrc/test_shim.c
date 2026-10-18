@@ -2469,6 +2469,92 @@ int ava1_test_reap_rules(const char *jobs_dir) {
     return rc;
 }
 
+/* #475: an upload that ended on a session still running leaves the table on its own. Marks a listed
+ * job as a concluded upload (what ava1_apply_fail does once its JobDone is out), ended `ago_ms` ago. */
+static void conclude(uint8_t tag, uint64_t ago_ms) {
+    uint8_t id[16];
+    ava1_job_t *j;
+    memset(id, tag, 16);
+    if (!(j = ava1_job_find(id))) return;
+    j->kind = AVA1_JOB_UPLOAD;
+    __atomic_store_n(&j->finished, 1, __ATOMIC_RELEASE);
+    __atomic_store_n(&j->concluded_ms, (ava1_mono_ms() - ago_ms) | 1u, __ATOMIC_RELEASE);
+    ava1_job_put(j);
+}
+
+/* 0, or the step that failed. A full table of uploads attached to one live session: the ended ones
+ * make room for the next JobOpen (the one that ended longest ago and nobody holds goes first), the
+ * ones still running or still settling never do, and the reaper lets an ended one go 10 s after its
+ * end although its session never let go of it. */
+int ava1_test_ended_transfers(const char *jobs_dir) {
+    static const uint8_t SID[16] = { 0xe1 };
+    ava1_data_cfg_t dc;
+    ava1_job_t *j, *held = NULL;
+    uint8_t id[16];
+    int rc = 0, t;
+    memset(&dc, 0, sizeof dc);
+    snprintf(dc.jobs_dir, sizeof dc.jobs_dir, "%s", jobs_dir);
+    if (ava1_data_start(&dc) != 0) return -100;
+    /* 32 running uploads on one session: the table is full and nothing may be evicted */
+    for (t = 0; t < AVA1_MAX_JOBS && !rc; t++) {
+        if (!(j = mk((uint8_t)(0x40 + t), SID))) rc = -1;
+        else {
+            j->kind = AVA1_JOB_UPLOAD;
+            ava1_job_put(j);
+        }
+    }
+    if (!rc && (j = mk(0x70, SID)) != NULL) {
+        ava1_job_put(j);
+        rc = -2; /* a full table of running jobs took another */
+    }
+    if (!rc) {
+        /* 0x40 ended longest ago but a reader holds it; 0x41 ended next; 0x42 ended but still settles */
+        conclude(0x40, 5000);
+        conclude(0x41, 4000);
+        conclude(0x42, 6000);
+        memset(id, 0x42, 16);
+        if ((j = ava1_job_find(id)) != NULL) {
+            __atomic_store_n(&j->unswept_n, 1, __ATOMIC_RELAXED);
+            ava1_job_put(j);
+        }
+        memset(id, 0x40, 16);
+        held = ava1_job_find(id);
+        if (!(j = mk(0x71, SID))) rc = -3; /* 0x41 makes room */
+        else ava1_job_put(j);
+        if (!rc && listed(0x41)) rc = -4;
+        if (!rc && (!listed(0x40) || !listed(0x42))) rc = -5;
+        if (held) ava1_job_put(held);
+        if (!rc && !(j = mk(0x72, SID))) rc = -6; /* now 0x40 makes room */
+        else if (!rc) ava1_job_put(j);
+        if (!rc && listed(0x40)) rc = -7;
+        if (!rc && (j = mk(0x73, SID)) != NULL) { /* only the settling 0x42 has ended: still full */
+            ava1_job_put(j);
+            rc = -8;
+        }
+    }
+    if (!rc) {
+        /* the reaper: an ended upload still attached goes 10 s after its end, not before; a running one stays */
+        conclude(0x43, 0);
+        ava1_job_reap(ava1_mono_ms() + 5000u);
+        if (!listed(0x43)) rc = -9;
+        ava1_job_reap(ava1_mono_ms() + 11000u);
+        if (!rc && listed(0x43)) rc = -10;
+        if (!rc && (!listed(0x44) || !listed(0x42))) rc = -11;
+        /* a copy is read by job id after it ends: never taken this way */
+        memset(id, 0x45, 16);
+        if (!rc && (j = ava1_job_find(id)) != NULL) {
+            j->kind = AVA1_JOB_COPY;
+            __atomic_store_n(&j->concluded_ms, ava1_mono_ms() | 1u, __ATOMIC_RELEASE);
+            ava1_job_put(j);
+            ava1_job_reap(ava1_mono_ms() + 11000u);
+            if (!listed(0x45)) rc = -12;
+        }
+    }
+    ava1_job_free_all();
+    ava1_data_stop();
+    return rc;
+}
+
 /* N3: a job a cancel unlisted, still referenced by the caller and one other holder. */
 int ava1_test_retire_unlisted(void) {
     ava1_data_cfg_t dc;

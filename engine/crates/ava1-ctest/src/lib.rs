@@ -460,6 +460,7 @@ pub mod ffi {
         pub fn ava1_test_data_delays(open_ms: u32, map_ms: u32);
         pub fn ava1_test_job_attached(id: *const u8) -> c_int;
         pub fn ava1_test_reap_rules(jobs_dir: *const c_char) -> c_int;
+        pub fn ava1_test_ended_transfers(jobs_dir: *const c_char) -> c_int;
         pub fn ava1_test_retire_unlisted() -> c_int;
         pub fn ava1_test_job_counts(id: *const u8, out: *mut u64) -> c_int;
         pub fn ava1_test_data_knob(name: *const c_char, v: u32) -> c_int;
@@ -1069,6 +1070,14 @@ pub fn c_reap_rules(jobs: &Path) -> i32 {
     let _lock = C_SERVER.lock().unwrap_or_else(|e| e.into_inner());
     let j = CString::new(jobs.to_str().unwrap()).unwrap();
     unsafe { ffi::ava1_test_reap_rules(j.as_ptr()) }
+}
+
+/// Ended uploads on a live session leave the job table (#475), checked in C on a private data
+/// layer (0 = all hold, else the step that failed). Holds the C server lock.
+pub fn c_ended_transfers(jobs: &Path) -> i32 {
+    let _lock = C_SERVER.lock().unwrap_or_else(|e| e.into_inner());
+    let j = CString::new(jobs.to_str().unwrap()).unwrap();
+    unsafe { ffi::ava1_test_ended_transfers(j.as_ptr()) }
 }
 
 extern "C" {
