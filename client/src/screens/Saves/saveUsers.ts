@@ -55,7 +55,9 @@ export function safeName(name: string): string {
   return visible
     .replace(/[\\/:*?"<>|]/g, "_")
     .replace(/^[.\s]+|[.\s]+$/g, "")
-    .slice(0, 40);
+    .replace(/\s+/g, " ")
+    .slice(0, 40)
+    .trim();
 }
 
 /** This user's backup folder name under `<base>/<title_id>/`. */
@@ -64,10 +66,16 @@ export function usbUserDir(id: number, name: string | null): string {
   return safe ? `${safe}-${userHex(id)}` : userHex(id);
 }
 
-/** The default .zip name for a backup on this computer. */
-export function backupZipName(titleId: string, name: string | null, stamp?: string): string {
+/** The default .zip name for a backup on this computer: `PPSA01234-Game Name-User[-stamp].zip`. */
+export function backupZipName(
+  titleId: string,
+  name: string | null,
+  stamp?: string,
+  gameName?: string | null,
+): string {
   const who = name ? safeName(name) : "";
-  return [titleId, who, stamp].filter(Boolean).join("-") + ".zip";
+  const game = gameName ? safeName(gameName.replace(/[™®©]/g, "")).slice(0, 60).trim() : "";
+  return [titleId, game, who, stamp].filter(Boolean).join("-") + ".zip";
 }
 
 const TIMESTAMP = /^\d{4}-\d{2}-\d{2}_\d{6}$/;

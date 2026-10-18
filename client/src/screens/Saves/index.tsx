@@ -71,6 +71,7 @@ import { startTransferDownload } from "../../api/ps5";
 import { formatBytes } from "../../lib/format";
 import { iconTitleId } from "../../lib/titleId";
 import { useTitleInfo } from "../../lib/useTitleInfo";
+import { fetchTitleInfo } from "../../lib/titleDetails";
 import { mgmtAddr } from "../../lib/addr";
 import { useStaleHostGuard } from "../../lib/staleHostGuard";
 import { save as saveDialog } from "@tauri-apps/plugin-dialog";
@@ -297,10 +298,19 @@ export default function SavesScreen() {
       // it stayed empty while the zip went to Downloads (#451, "0 byte zip"). There the backup
       // goes straight to Downloads, dated so a second backup does not replace the first.
       const android = isAndroid();
+      // The game's name goes in too when it is known (usually cached by the group header);
+      // never hold the dialog up for it.
+      const gameName = await Promise.race([
+        fetchTitleInfo(iconTitleId(entry.title_id) ?? entry.title_id)
+          .then((i) => i?.title ?? null)
+          .catch(() => null),
+        new Promise<null>((r) => setTimeout(() => r(null), 1500)),
+      ]);
       const destZipName = backupZipName(
         entry.title_id,
         ownerName(entry),
         android ? backupStamp(new Date()) : undefined,
+        gameName,
       );
       const destZip = android
         ? ""

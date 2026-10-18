@@ -55,6 +55,8 @@ describe("backup names", () => {
     expect(usbUserDir(0x22, null)).toBe("00000022");
     expect(backupZipName("PPSA1", "Alice")).toBe("PPSA1-Alice.zip");
     expect(backupZipName("PPSA1", null, "20261018-1200")).toBe("PPSA1-20261018-1200.zip");
+    expect(backupZipName("PPSA1", "Alice", undefined, "Marvel's Wolverine™")).toBe("PPSA1-Marvel's Wolverine-Alice.zip");
+    expect(backupZipName("PPSA1", "Alice", "20261018-1200", 'A: "B"/C')).toBe("PPSA1-A_ _B__C-Alice-20261018-1200.zip");
   });
 });
 
