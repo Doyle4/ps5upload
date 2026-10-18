@@ -155,7 +155,7 @@ int path_resolve_allowed(const char *p, int (*lexical_ok)(const char *)) {
 
 int path_tree_op_refused(const char *p) { return path_in_protected(p) || path_contains_protected(p); }
 
-void path_protected_forms(char lex[PATH_MAX], char canon[PATH_MAX]) {
+void path_protected_forms(char *lex, char *canon) {
     lex_normalize(g_protected, lex, PATH_MAX);
     canonical_of(g_protected, canon, PATH_MAX);
 }
