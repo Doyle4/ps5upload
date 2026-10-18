@@ -438,34 +438,60 @@ typedef struct {
 _Static_assert(offsetof(dynlib_head_t, handle) == 0x28, "dynlib_obj_t.handle");
 _Static_assert(offsetof(dynlib_head_t, mapbase) == 0x30, "dynlib_obj_t.mapbase");
 
-/* 1 when [addr, addr+len) lies inside one module of the game that belongs to the game itself:
- * the eboot (handle 0) or a module whose path is under its app0. */
-static int range_in_game_module(pid_t pid, intptr_t addr, size_t len, char *why, size_t why_cap) {
-    int ok = 0;
+/* Where a physical write (FW > 8.20) may go.
+ *
+ * A physical write lands in the page every process mapping it shares, so a range inside a
+ * loaded module must be inside one of the GAME's modules: its eboot (handle 0) or a module
+ * whose path is under its /app0. A Section, module_name or absolute address that lands in a
+ * system library (/system/..., /system_ex/...) is refused.
+ *
+ * A range in no module at all (heap, flexible/direct memory, the stack: what absolute and
+ * data cheats point at) is written like CheatRunner writes it: the only gates are a canonical
+ * user address (cheat_addr_ok) and a page that is present and readable through the same
+ * page-table walk. CheatRunner does not inspect the vm_map entry for those either, on purpose:
+ * walking vm_map entries (kernel_get_vmem_protection) panicked the kernel on PS4-BC games and on
+ * PS5 games with special vmem entry types, so we do not either.
+ *
+ * Returns 1 when the write may go ahead; 0 with `why` set when it may not. */
+static int phys_write_allowed(pid_t pid, intptr_t addr, size_t len, char *why, size_t why_cap) {
+    int verdict = 1; /* no module overlaps: allowed (see above) */
+    int walked = 0;
     char path[256] = "";
+    uint64_t a = (uint64_t)addr, e = a + len;
     pthread_mutex_lock(&kernel_rw_lock);
     unsigned long kproc = (unsigned long)kernel_get_proc(pid);
     unsigned long obj = 0;
     if (kproc && kernel_copyout(kproc + 0x3e8, &obj, sizeof(obj)) == 0) {
+        walked = 1;
         /* The list head holds the first object's address; each object starts with `next`. */
         for (int guard = 0; guard < 1024; guard++) {
-            if (kernel_copyout(obj, &obj, sizeof(obj)) != 0 || !obj) break;
+            if (kernel_copyout(obj, &obj, sizeof(obj)) != 0) { walked = 0; break; }
+            if (!obj) break;
             dynlib_head_t h;
-            if (kernel_copyout(obj, &h, sizeof(h)) != 0) break;
-            uint64_t a = (uint64_t)addr;
-            if (a >= h.mapbase && a + len <= h.mapbase + h.mapsize) {
-                path[0] = '\0';
-                if (h.path) (void)kernel_copyout(h.path, path, sizeof(path) - 1);
-                path[sizeof(path) - 1] = '\0';
-                ok = (h.handle == 0) || strstr(path, "/app0/") != NULL;
-                if (why && !ok) snprintf(why, why_cap, "%s", path[0] ? path : "a system module");
-                break;
+            if (kernel_copyout(obj, &h, sizeof(h)) != 0) { walked = 0; break; }
+            uint64_t ms = h.mapbase, me = h.mapbase + h.mapsize;
+            if (!(a < me && ms < e)) continue; /* no overlap with this module */
+            path[0] = '\0';
+            if (h.path) (void)kernel_copyout(h.path, path, sizeof(path) - 1);
+            path[sizeof(path) - 1] = '\0';
+            int game_module = (h.handle == 0) || strstr(path, "/app0/") != NULL;
+            if (!game_module) {
+                if (why) snprintf(why, why_cap, "inside %s", path[0] ? path : "a system module");
+                verdict = 0;
+            } else if (!(a >= ms && e <= me)) {
+                if (why) snprintf(why, why_cap, "crosses the edge of %s",
+                                  path[0] ? path : "the game's module");
+                verdict = 0;
             }
+            break;
         }
     }
     pthread_mutex_unlock(&kernel_rw_lock);
-    if (why && !ok && !why[0]) snprintf(why, why_cap, "no module of the game");
-    return ok;
+    if (!walked) {
+        if (why) snprintf(why, why_cap, "the game's module list could not be read");
+        return 0;
+    }
+    return verdict;
 }
 
 typedef struct {
@@ -1116,6 +1142,10 @@ static char *state_read(const char *title_id) {
         got += (size_t)rd;
     }
     close(fd);
+    if (got < size) { /* a short read: never hand back a state with keys missing */
+        free(buf);
+        return NULL;
+    }
     buf[got] = '\0';
     return buf;
 }
@@ -1247,8 +1277,10 @@ static int resolve_mod_locs(pid_t pid, intptr_t base, const cheat_mod_t *mod, ch
  * checking, ordering and rollback). `keep` lists the locations of the title's other enabled
  * cheats, so turning this one off leaves a code cave they share alone.
  *
- * The game is held with SIGSTOP while the writes land (not ptrace: no attach, no protection
- * change), so no thread runs an instruction half overwritten. SIGCONT follows on every path.
+ * The game keeps running while the writes land, as with CheatRunner: stopping it (ptrace, or
+ * SIGSTOP, which also tells SceSysCore through SIGCHLD) froze games. What keeps a thread from
+ * running half a cheat is the write order: caves before the jumps into them when turning on,
+ * the jumps restored before their caves when turning off.
  *
  * Returns 0 when the cheat is in the asked-for state (including "it already was"). */
 static int apply_mod_locked(pid_t pid, intptr_t base, cheat_mod_t *mod, int turn_on,
@@ -1268,10 +1300,10 @@ static int apply_mod_locked(pid_t pid, intptr_t base, cheat_mod_t *mod, int turn
         cheat_loc_t *l = &locs[i];
         if (!use_mdbg()) {
             char why[160] = "";
-            if (!range_in_game_module(pid, l->addr, (size_t)l->len, why, sizeof(why))) {
+            if (!phys_write_allowed(pid, l->addr, (size_t)l->len, why, sizeof(why))) {
                 if (err) snprintf(err, err_cap,
-                                  "location %d (0x%lx) is outside the game's own code (%s); "
-                                  "not written",
+                                  "location %d (0x%lx) is not the game's own memory (%s); "
+                                  "nothing was written",
                                   i + 1, (unsigned long)l->addr, why);
                 rc = -1;
                 break;
@@ -1287,9 +1319,7 @@ static int apply_mod_locked(pid_t pid, intptr_t base, cheat_mod_t *mod, int turn
     if (rc == 0) {
         game_mem_ctx_t ctx = { .pid = pid };
         cheat_mem_ops_t ops = { .ctx = &ctx, .write = game_mem_write, .alive = game_alive };
-        int stopped = (kill(pid, SIGSTOP) == 0);
         rc = cheat_plan_apply(locs, n, write_on, keep, n_keep, &ops, err, err_cap);
-        if (stopped) (void)kill(pid, SIGCONT);
     }
 
     free(locs);
@@ -1605,31 +1635,42 @@ int cheats_list_mods(const char *title_id, char *buf, size_t cap,
 
 #define KEEP_RANGES_MAX 1024
 
-/* Every location of the title's enabled cheats other than `skip_flat`, as byte ranges. */
+/* Every location of the title's enabled cheats other than `skip_flat`, as byte ranges.
+ * Returns the count, or -1 when the list could not be made complete (out of memory, a cheat
+ * file or the state that cannot be read, an enabled cheat whose locations cannot be resolved,
+ * more ranges than fit): the caller then refuses, because a missing range could be a shared
+ * cave that would be wiped under another cheat's jump. Call with g_apply_lock held. */
 static int collect_enabled_ranges(pid_t pid, intptr_t base, const char *title_id, int skip_flat,
                                   cheat_range_t *out, int max) {
     found_file_t files[16];
     int n = find_cheat_files(title_id, files, 16, 0);
+    char *state = state_read(title_id);
     cheat_file_t *cf = (cheat_file_t *)malloc(sizeof(cheat_file_t));
     cheat_loc_t *locs = (cheat_loc_t *)calloc(MAX_MEM_ENTRIES, sizeof(cheat_loc_t));
-    int count = 0, flat = 0;
-    for (int fi = 0; cf && locs && fi < n; fi++) {
-        if (load_cheat_file(files[fi].path, files[fi].format, cf) != 0) continue;
-        cheats_load_state(title_id, cf, flat);
-        for (int mi = 0; mi < cf->mod_count; mi++, flat++) {
-            if (flat == skip_flat || !cf->mods[mi].enabled) continue;
-            intptr_t mb = base;
-            if (cf->mods[mi].module_name[0]) mb = resolve_module_base(pid, cf->mods[mi].module_name);
-            int nl = resolve_mod_locs(pid, mb, &cf->mods[mi], locs, NULL, 0);
-            for (int k = 0; k < nl && count < max; k++) {
-                out[count].addr = locs[k].addr;
-                out[count].len = locs[k].len;
-                count++;
+    int count = -1;
+    if (state && cf && locs) {
+        count = 0;
+        int flat = 0;
+        for (int fi = 0; fi < n && count >= 0; fi++) {
+            if (load_cheat_file(files[fi].path, files[fi].format, cf) != 0) { count = -1; break; }
+            for (int mi = 0; mi < cf->mod_count && count >= 0; mi++, flat++) {
+                if (flat == skip_flat || !state_has(state, flat)) continue;
+                intptr_t mb = base;
+                if (cf->mods[mi].module_name[0])
+                    mb = resolve_module_base(pid, cf->mods[mi].module_name);
+                int nl = resolve_mod_locs(pid, mb, &cf->mods[mi], locs, NULL, 0);
+                if (nl <= 0 || count + nl > max) { count = -1; break; }
+                for (int k = 0; k < nl; k++) {
+                    out[count].addr = locs[k].addr;
+                    out[count].len = locs[k].len;
+                    count++;
+                }
             }
         }
     }
     free(locs);
     free(cf);
+    free(state);
     return count;
 }
 
@@ -1735,13 +1776,21 @@ int cheats_toggle(const char *title_id, int mod_index, int turn_on,
      * restoring the cave's padding would leave their jumps running into int3. */
     cheat_range_t *keep = NULL;
     int n_keep = 0;
+    int rc = 0;
+    pthread_mutex_lock(&g_apply_lock);
     if (!turn_on) {
         keep = (cheat_range_t *)calloc(KEEP_RANGES_MAX, sizeof(cheat_range_t));
-        if (keep) n_keep = collect_enabled_ranges(pid, base, title_id, mod_index, keep, KEEP_RANGES_MAX);
+        n_keep = keep ? collect_enabled_ranges(pid, base, title_id, mod_index, keep,
+                                               KEEP_RANGES_MAX)
+                      : -1;
+        if (n_keep < 0) {
+            if (err) snprintf(err, err_cap,
+                              "could not check this title's other enabled cheats for shared "
+                              "code; nothing was written");
+            rc = -1;
+        }
     }
-
-    pthread_mutex_lock(&g_apply_lock);
-    int rc = apply_mod_locked(pid, mod_base, mod, turn_on, keep, n_keep, err, err_cap);
+    if (rc == 0) rc = apply_mod_locked(pid, mod_base, mod, turn_on, keep, n_keep, err, err_cap);
     if (rc == 0 && strcmp(mod->type, "button") != 0) {
         /* Update persisted state (only for checkbox type) */
         mod->enabled = turn_on;

@@ -314,13 +314,17 @@ static void test_apply_mock(void) {
     m.mem[locs[0].addr - MOCK_BASE + 2] = 0x77; /* the other cheat's version of the cave */
     uint8_t cave_before[32];
     memcpy(cave_before, m.mem + (locs[0].addr - MOCK_BASE), (size_t)locs[0].len);
-    cheat_range_t keep[1] = {{locs[0].addr + 4, 2}};
+    /* The second range overlaps the hook at locs[1]: only caves are shared, so the hook must
+     * still be restored. */
+    cheat_range_t keep[2] = {{locs[0].addr + 4, 2}, {locs[1].addr + 1, 2}};
+    CHECK(keep[1].addr < locs[1].addr + locs[1].len && locs[1].addr < keep[1].addr + keep[1].len);
     mock_read_cur(&m, locs, N_SYN);
-    CHECK(cheat_plan_apply(locs, N_SYN, 0, keep, 1, &ops, err, sizeof err) == 0);
+    CHECK(cheat_plan_apply(locs, N_SYN, 0, keep, 2, &ops, err, sizeof err) == 0);
     CHECK(memcmp(m.mem + (locs[0].addr - MOCK_BASE), cave_before, (size_t)locs[0].len) == 0);
-    CHECK(all_in_state(&m, locs + 1, N_SYN - 1, 0));
-    /* A hook overlapping `keep` is still restored (only caves are shared). */
+    CHECK(locs[0].keep == 1);
     CHECK(locs[1].keep == 0);
+    CHECK(memcmp(m.mem + (locs[1].addr - MOCK_BASE), locs[1].off, (size_t)locs[1].len) == 0);
+    CHECK(all_in_state(&m, locs + 1, N_SYN - 1, 0));
 }
 
 int main(void) {
