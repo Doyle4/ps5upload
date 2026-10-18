@@ -9,7 +9,7 @@ vi.mock("../api", async (importOriginal) => {
 import { ApiError, call } from "../api";
 import { SECTIONS } from "../sections";
 import { t } from "../strings";
-import { CheatsView, focusedCheatIndex, type CheatsViewProps } from "./Cheats";
+import { CheatsView, finderClosesFor, focusedCheatIndex, type CheatsViewProps } from "./Cheats";
 import {
   cheatsPhase,
   createCheatsController,
@@ -82,15 +82,35 @@ describe("cheats section", () => {
     expect(mockCall.mock.calls.map((x) => x[0])).toEqual(["/api/cheats/status"]);
   });
 
-  it("no_cheats_points_to_the_pc_app", async () => {
+  it("no_cheats_offers_find_and_the_pc_app", async () => {
     helper({ game: GAME, mods: [] });
     const c = createCheatsController(() => {});
     await c.loadStatus();
     expect(cheatsPhase(c.get())).toEqual({ kind: "none", title: GAME });
-    const html = view(c.get());
+    const html = view(c.get(), { onFind: () => {} });
+    expect(html).toContain(t("cw_cheats_none"));
+    expect(t("cw_cheats_none")).toBe("No cheats for this game yet.");
     expect(html).toContain(t("cw_cheats_none_next"));
-    expect(t("cw_cheats_none_next")).toBe("Add cheats for this game from the PS5Upload app on your PC.");
+    expect(t("cw_cheats_none_next")).toBe("Find cheats for it online, or add them from the PS5Upload app on your PC.");
     expect(html).toContain(GAME);
+    expect(html).toContain('data-action="cheats-find"');
+    expect(html).toContain(t("cw_cheats_find"));
+    expect(html).not.toContain(t("cw_cheats_find_more"));
+    // Without a finder (no game known) there is no Find button.
+    expect(view(c.get())).not.toContain('data-action="cheats-find"');
+  });
+
+  it("a_list_offers_find_more_and_shows_a_finished_download", async () => {
+    helper({ game: GAME, mods: [mod()] });
+    const c = createCheatsController(() => {});
+    await c.loadStatus();
+    const html = view(c.get(), { onFind: () => {}, notice: "saved it" });
+    expect(html).toContain(t("cw_cheats_find_more"));
+    expect(html).toContain("saved it");
+    // no game: no Find
+    expect(view({ ...EMPTY_STATE, status: { engine: false, game: null } }, { onFind: () => {} })).not.toContain(
+      'data-action="cheats-find"',
+    );
   });
 
   it("lists_the_running_games_cheats_as_switches", async () => {
@@ -290,5 +310,13 @@ describe("cheats section", () => {
     const root2 = { contains: () => true } as unknown as Element;
     expect(focusedCheatIndex(root2, notACheat)).toBeNull();
     expect(focusedCheatIndex(null, row)).toBeNull();
+  });
+
+  it("the_finder_closes_only_when_its_game_is_confirmed_gone", () => {
+    expect(finderClosesFor(GAME, GAME, 0)).toBe(false);
+    expect(finderClosesFor(GAME, "CUSA00001", 0)).toBe(true);
+    // one empty status read is not enough (a transient answer); two in a row are
+    expect(finderClosesFor(GAME, null, 1)).toBe(false);
+    expect(finderClosesFor(GAME, null, 2)).toBe(true);
   });
 });

@@ -32,6 +32,7 @@
 #include "path_policy.h"
 #include "proc_identity.h"
 #include "ps5_firmware.h"
+#include "webui_cheats_store.h"
 #include "webui_codec.h"
 #include "webui_files.h"
 #include "webui_inputlog.h"
@@ -1274,6 +1275,24 @@ static void r_cheats_toggle(const char *b, size_t n, uint8_t *out, int fd) {
     }
 }
 
+/* {title_id}: the game's installed version, read like the PC app reads it (APP_INFO_QUERY's
+ * CONTENT_VERSION, else APP_VER): {"version":"01.05"} or {"version":null} when appinfo.db does not
+ * say (the page then lists every version's cheats). Never an error for an unknown version. */
+static void r_cheats_version(const char *b, size_t n, uint8_t *out, int fd) {
+    char title[32], req[96], ver[32], json[64];
+    const uint8_t *t;
+    size_t ol, tl;
+    int st, k;
+    if (need_title(fd, b, n, title, sizeof title) != 0) return;
+    k = snprintf(req, sizeof req, "{\"title_id\":\"%s\",\"keys\":\"CONTENT_VERSION,APP_VER\"}", title);
+    st = call_text(AVA1_METHOD_APP_INFO_QUERY, req, (size_t)k, out, &ol, &t, &tl);
+    if (st == AVA1_STATUS_OK && webui_cheat_appinfo_version((const char *)t, tl, ver, sizeof ver) == 1)
+        k = snprintf(json, sizeof json, "{\"version\":\"%s\"}", ver); /* digits and dots only */
+    else
+        k = snprintf(json, sizeof json, "{\"version\":null}");
+    send_json(fd, 200, json, (size_t)k);
+}
+
 /* ---- search: the helper's file index (INDEX_START / STATUS / SEARCH / CANCEL, runtime.c) ----
  *
  * One index for the whole helper (its own thread walks the roots: at most 200,000 files and 32 MiB of
@@ -1797,6 +1816,66 @@ static void s_save_text(const webui_req_t *r, const uint8_t *pre, size_t pre_len
     pthread_mutex_unlock(&g_text_mu);
 }
 
+/* One cheat store at a time: two pages saving the same name would race their renames. */
+static pthread_mutex_t g_cheat_mu = PTHREAD_MUTEX_INITIALIZER;
+#define CHEAT_STORE_BUF (256u * 1024u)
+
+/* A cheat file the page downloaded from a community repo (stream): ?format=json|shn|mc4&name=<file>,
+ * the raw bytes as the body (1..WEBUI_CHEAT_FILE_MAX). Stored as WEBUI_CHEATS_ROOT/<format>/<name>
+ * (folders made when missing) through a same-folder temp + rename, replacing a file of that name. The
+ * cheat engine reads its folders on every list, so the game's cheats show on the next read. Answers
+ * {"ok":true,"format":..,"name":..,"size":N,"replaced":bool} (replaced: a file of that name was there). */
+static void s_cheats_store(const webui_req_t *r, const uint8_t *pre, size_t pre_len, int fd) {
+    char fmt[WEBUI_CHEAT_FMT_CAP], name[WEBUI_CHEAT_NAME_MAX + 1], target[API_PATH], dir[API_PATH], json[256];
+    const char *bad;
+    uint8_t *buf;
+    uint64_t total = r->content_length;
+    uint64_t left = total > pre_len ? total - pre_len : 0;
+    struct stat old;
+    int rc, replaced;
+    bad = webui_cheat_store_query(r->query, fmt, name);
+    if (bad) {
+        drain_then(fd, left);
+        send_bad(fd, bad);
+        return;
+    }
+    if (total == 0) {
+        send_bad(fd, "empty");
+        return;
+    }
+    if (total > WEBUI_CHEAT_FILE_MAX) {
+        drain_then(fd, left);
+        send_error(fd, 413, "too_large", 9);
+        return;
+    }
+    if (pthread_mutex_trylock(&g_cheat_mu) != 0) {
+        drain_then(fd, left);
+        send_error(fd, 409, "busy", 4);
+        return;
+    }
+    buf = malloc(CHEAT_STORE_BUF);
+    if (!buf || webui_cheat_target(WEBUI_CHEATS_ROOT, fmt, name, target, sizeof target) != 0) {
+        const char *why = buf ? "io_error" : "out_of_memory";
+        pthread_mutex_unlock(&g_cheat_mu);
+        free(buf);
+        drain_then(fd, left);
+        send_error(fd, 500, why, strlen(why));
+        return;
+    }
+    if (folder_of(target, dir, sizeof dir) == 0) (void)wf_sweep_stale(dir, time(NULL), WF_STALE_PART_S);
+    replaced = lstat(target, &old) == 0 && S_ISREG(old.st_mode); /* stores are serialized (g_cheat_mu) */
+    rc = wf_receive_file(fd, pre, pre_len, total, target, 1, 0777, WF_IDLE_MS, NULL, buf, CHEAT_STORE_BUF);
+    free(buf);
+    pthread_mutex_unlock(&g_cheat_mu);
+    if (rc != WF_OK) {
+        send_wf(fd, rc);
+        return;
+    }
+    rc = snprintf(json, sizeof json, "{\"ok\":true,\"format\":\"%s\",\"name\":\"%s\",\"size\":%llu,\"replaced\":%s}", fmt,
+                  name, (unsigned long long)total, replaced ? "true" : "false"); /* both checked: [A-Za-z0-9._-] only */
+    send_json(fd, 200, json, (size_t)rc);
+}
+
 /* A URL path segment: unreserved bytes as they are, the rest %XX. */
 static size_t url_segment(char *out, size_t cap, const char *s) {
     static const char hex[] = "0123456789ABCDEF";
@@ -2084,13 +2163,16 @@ static const struct {
     { "/api/cheats/status", r_cheats_status },
     { "/api/cheats/list", r_cheats_list },
     { "/api/cheats/toggle", r_cheats_toggle },
+    { "/api/cheats/version", r_cheats_version },
     { "/api/index/start", r_index_start },
     { "/api/index/status", r_index_status },
     { "/api/index/search", r_index_search },
     { "/api/index/cancel", r_index_cancel },
 };
 
-/* The page's own headers: only same-origin fetches, inline script/style (the page is one file),
+/* The page's own headers: same-origin fetches plus the two GitHub hosts the cheat finder reads
+ * (raw.githubusercontent.com for the repos' index and cheat files, api.github.com for the one repo
+ * listed through the git-trees API; both answer CORS-open, and only GET), inline script/style (the page is one file),
  * no-cache rather than no-store (revalidated on every visit, but storable: the appcache keeps it as
  * the offline copy; webui_offline.h),
  * data:/blob: images; nosniff is on every response already. Never framed (frame-ancestors plus
@@ -2099,7 +2181,8 @@ static const struct {
 #define PAGE_HEADERS                                                                       \
     "Content-Encoding: gzip\r\n"                                                          \
     "Cache-Control: no-cache\r\n"                                                         \
-    "Content-Security-Policy: default-src 'self' 'unsafe-inline' data: blob:; connect-src 'self'; " \
+    "Content-Security-Policy: default-src 'self' 'unsafe-inline' data: blob:; "                \
+    "connect-src 'self' https://raw.githubusercontent.com https://api.github.com; "        \
     "frame-ancestors 'none'\r\n"                                                          \
     "X-Frame-Options: DENY\r\n"
 /* webui_send_ex builds the head in 512 bytes and sends nothing when it does not fit: the fixed
@@ -2164,6 +2247,7 @@ static const struct {
 } k_streams[] = {
     { "/api/fs/save-text", s_save_text },
     { "/api/upload/data", s_upload_data },
+    { "/api/cheats/store", s_cheats_store },
 };
 
 int webui_api_stream_for(const webui_req_t *r) {
