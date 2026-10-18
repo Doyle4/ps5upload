@@ -99,6 +99,18 @@ describe("On your PS5 detection", () => {
     expect(forced.map((c) => [c.id, c.state])).toEqual([["hearbridge", "unknown"]]);
   });
 
+  it("counts an integration whose own API answered as running", () => {
+    const cards = detectHubCards({
+      entries: hubEntries(CATALOG),
+      processes: [],
+      markers: new Set(["/data/hearbridge/hearbridge.log"]),
+      answering: new Set(["hearbridge"]),
+    });
+    expect(cards.map((c) => [c.id, c.state, c.integration, c.webPort])).toEqual([
+      ["hearbridge", "running", "hearbridge", 8090],
+    ]);
+  });
+
   it("works without a catalogue (the browser build) for the integrations", () => {
     const cards = detectHubCards({ entries: hubEntries(null), processes: PHAT, markers: new Set() });
     expect(cards.map((c) => c.id)).toEqual([

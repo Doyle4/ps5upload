@@ -42,6 +42,8 @@ import NanoDnsScreen from "../../NanoDns";
 import SmpPanel from "../../Library/SmpPanel";
 import PayloadManagerPanel from "../PayloadManagerPanel";
 import { PmSummary, SmpSummary } from "./summaries";
+import { HbSummary, HearBridgePanel, useHearBridge } from "./hearbridge";
+import { hbAct } from "../../../api/hearbridge";
 import {
   detectHubCards,
   hubEntries,
@@ -185,16 +187,26 @@ function OnPs5Body() {
     void refreshMarkers();
   }, [refreshMarkers]);
 
+  // HearBridge's own API is read while its card is on screen (or a link opened it); an
+  // answer also counts as running, should its process go by another name.
+  const hbWanted =
+    openId === "hearbridge" ||
+    detectHubCards({ entries, processes: procs, markers }).some((c) => c.integration === "hearbridge");
+  const hb = useHearBridge(host, online && hbWanted);
+  const hbPresent = hb.view?.present === true;
   const cards = useMemo(
     () =>
       detectHubCards({
         entries,
         processes: procs,
         markers,
+        answering: hbPresent ? new Set(["hearbridge"]) : undefined,
         forceShow: openId,
       }),
-    [entries, procs, markers, openId],
+    [entries, procs, markers, openId, hbPresent],
   );
+  const hbVersion = hb.view?.present ? hb.view.status.version || null : null;
+  const hbPort = hb.view?.present ? hb.view.port : null;
 
   const report = useCallback((id: string, r: IntegrationReport) => {
     setReports((prev) => {
@@ -203,6 +215,9 @@ function OnPs5Body() {
       return { ...prev, [id]: r };
     });
   }, []);
+  useEffect(() => {
+    if (hbVersion || hbPort) report("hearbridge", { version: hbVersion, webPort: hbPort });
+  }, [hbVersion, hbPort, report]);
 
   // The newest stable release of each card whose running version is known, so the card
   // can offer an update. Desktop only (the catalogue's GitHub lookups live there).
@@ -228,6 +243,17 @@ function OnPs5Body() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [native, versionKey]);
 
+  // A link that opened a card (an old tab's URL, a notification) scrolls to it once.
+  const scrolledTo = useRef<string | null>(null);
+  const openShown = !!openId && cards.some((c) => c.id === openId);
+  useEffect(() => {
+    if (!openId || !openShown || scrolledTo.current === openId) return;
+    scrolledTo.current = openId;
+    document
+      .querySelector(`[data-card="${CSS.escape(openId)}"]`)
+      ?.scrollIntoView({ block: "start", behavior: "smooth" });
+  }, [openId, openShown]);
+
   const setOpen = (id: string | null) => {
     const next = new URLSearchParams(params);
     if (id) next.set("open", id);
@@ -236,6 +262,7 @@ function OnPs5Body() {
   };
 
   const stop = async (card: HubCard) => {
+    if (card.integration === "hearbridge" && hbPresent) return stopHearBridge();
     const p = card.processes[0];
     if (!p) return;
     const kind = killPrompt(p);
@@ -262,6 +289,32 @@ function OnPs5Body() {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(null);
+      await refreshProcs();
+    }
+  };
+
+  /** HearBridge has a clean stop of its own (it closes the headset link first). */
+  const stopHearBridge = async () => {
+    const ok = await confirm({
+      title: tr("hb_stop_title", undefined, "Stop HearBridge?"),
+      message: tr(
+        "hb_stop_body",
+        undefined,
+        "HearBridge closes and the headset disconnects. Send it again to start it.",
+      ),
+      confirmLabel: tr("hub_stop", undefined, "Stop"),
+      destructive: true,
+    });
+    if (!ok) return;
+    setBusy("hearbridge");
+    try {
+      await hbAct(host, { action: "stop" });
+      log.info("payloads", "stopped HearBridge");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(null);
+      await hb.refresh();
       await refreshProcs();
     }
   };
@@ -380,14 +433,23 @@ function OnPs5Body() {
                 onToggle={() => setOpen(openId === c.id ? null : c.id)}
                 onStop={() => void stop(c)}
                 onUpdate={(t) => void update(c, t)}
+                canStop={c.integration === "hearbridge" && hbPresent ? true : undefined}
                 summary={
-                  c.integration
-                    ? (fallback) => (
-                        <Summary id={c.integration!} host={host} onReport={report} fallback={fallback} />
-                      )
-                    : null
+                  c.integration === "hearbridge"
+                    ? () => <HbSummary view={hb.view} />
+                    : c.integration
+                      ? (fallback) => (
+                          <Summary id={c.integration!} host={host} onReport={report} fallback={fallback} />
+                        )
+                      : null
                 }
-                panel={c.integration ? <IntegrationPanel id={c.integration} host={host} /> : null}
+                panel={
+                  c.integration === "hearbridge" ? (
+                    <HearBridgePanel host={host} view={hb.view} apply={hb.apply} refresh={hb.refresh} />
+                  ) : c.integration ? (
+                    <IntegrationPanel id={c.integration} host={host} />
+                  ) : null
+                }
               />
             );
           })}
@@ -432,6 +494,7 @@ function HubCardView({
   webPort,
   newer,
   catalogued,
+  canStop: canStopOverride,
   busy,
   expanded,
   onToggle,
@@ -447,6 +510,8 @@ function HubCardView({
   newer: string | null;
   /** The catalogue was read, so "not in the catalogue" can be said (not in the web UI). */
   catalogued: boolean;
+  /** Overrides the process-based Stop (an integration with its own clean stop). */
+  canStop?: boolean;
   busy: boolean;
   expanded: boolean;
   onToggle: () => void;
@@ -459,7 +524,7 @@ function HubCardView({
   const running = card.state === "running";
   const link = running && webPort ? `http://${withPort(host.trim(), webPort)}/` : null;
   const proc = card.processes[0];
-  const canStop = running && !!proc && killPrompt(proc) !== null;
+  const canStop = canStopOverride ?? (running && !!proc && killPrompt(proc) !== null);
   const stateBadge =
     card.state === "running" ? (
       <Badge tone="good" dot>

@@ -51,6 +51,7 @@ mod folder_build;
 mod fpkg_api;
 mod fpkg_firmware;
 mod games_api;
+mod hearbridge_api;
 mod helper_mirror;
 mod helper_stop;
 mod icon_cache;
@@ -10701,6 +10702,10 @@ async fn run(cfg: EngineConfig) -> anyhow::Result<()> {
         .route("/api/ps5/pldmgr/delete", post(pldmgr_api::delete))
         .route("/api/ps5/pldmgr/autoload", post(pldmgr_api::autoload))
         .route("/api/ps5/pldmgr/store", post(pldmgr_api::store))
+        .route("/api/ps5/hearbridge/status", get(hearbridge_api::status))
+        .route("/api/ps5/hearbridge/saved", get(hearbridge_api::saved))
+        .route("/api/ps5/hearbridge/devices", get(hearbridge_api::devices))
+        .route("/api/ps5/hearbridge/action", post(hearbridge_api::action))
         .route("/api/ps5/elfldr/ensure", post(ps5_elfldr_ensure))
         .route("/api/ps5/process/kill", post(ps5_process_kill))
         .route("/api/ps5/power/control", post(ps5_power_control))
