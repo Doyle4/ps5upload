@@ -4,6 +4,25 @@ What's new in ps5upload, written for humans.
 
 ---
 
+## 7.1.4
+
+- **Cheats no longer crash the console.** Switching a cheat on or off could crash the game or the
+  whole console on newer firmware (seen with Marvel's Wolverine). Cheats are now written straight
+  into the game's memory, the way that works on these firmwares, instead of changing the game's
+  memory protection. A cheat now goes on completely or not at all: if any part can't be written,
+  the parts already written are put back. Cheats can only change the game itself, never the
+  system, and turning one cheat off no longer breaks another that shares code with it. Cheat
+  files too large to read are refused instead of being applied in part.
+- **Find and download cheats on the console.** In PS5Upload Files, Cheats has **Find cheats**:
+  it lists the cheat files for the running game from the same collections the PC app uses,
+  marks the one for your game's version, and downloads it straight to the console, where its
+  cheats show up at once. If the PS5 can't reach GitHub (for example when DNS blocking is on),
+  the page says so.
+- **Save backups are named after the game too.** A backup saved on your computer is now named
+  like `PPSA01234-Game Name-User.zip`.
+
+---
+
 ## 7.1.3
 
 - **Payloads: one place for what's on your PS5.** The Payloads screen now has three tabs:
