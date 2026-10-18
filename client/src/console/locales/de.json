@@ -113,6 +113,7 @@
   "cw_files_edit_binary": "Der Text enthält ein NUL-Byte und kann nicht als Text gespeichert werden.",
   "cw_files_edit_changed": "Diese Datei wurde auf der Konsole geändert, nachdem du sie geöffnet hast. Speichern ersetzt diese Änderung.",
   "cw_files_edit_discard": "Meine Änderungen verwerfen",
+  "cw_files_edit_eol_note": "Einige Zeilenumbrüche in dieser Datei sind ein einzelnes CR (altes Mac-Format). Beim Speichern werden sie zu den üblichen Zeilenumbrüchen der Datei.",
   "cw_files_edit_gone": "Die Datei ist nicht mehr da.",
   "cw_files_edit_keep": "Weiter bearbeiten",
   "cw_files_edit_label": "Dateitext",

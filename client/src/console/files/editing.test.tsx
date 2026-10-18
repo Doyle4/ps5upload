@@ -16,7 +16,7 @@ import { PermissionsDialog } from "./PermissionsDialog";
 import { UploadDialog, uploadSummaryText } from "./UploadDialog";
 import type { DirState, Entry } from "./useDir";
 import { editableOf, Viewer } from "./Viewer";
-import { saveErrorText, TextEditor } from "./viewer/TextEditor";
+import { editorText, lineEndings, saveErrorText, TextEditor } from "./viewer/TextEditor";
 
 function elements(node: ReactNode): ReactElement<Record<string, unknown>>[] {
   const out: ReactElement<Record<string, unknown>>[] = [];
@@ -103,6 +103,16 @@ describe("text editing", () => {
     expect(html).toContain("a=1\nb=2\n");
     expect(html).toMatch(/data-action="edit-save"[^>]*disabled=""/);
   });
+  it("saves with the file's dominant line ending and says when lone CRs will change", () => {
+    expect(lineEndings("a\r\nb\r\nc\n")).toEqual({ crlf: true, loneCr: false });
+    expect(lineEndings("a\nb\nc\r\n")).toEqual({ crlf: false, loneCr: false });
+    expect(lineEndings("a\rb\nc")).toEqual({ crlf: false, loneCr: true });
+    expect(editorText("a\r\nb\rc\n")).toBe("a\nb\nc\n");
+    const note = renderToStaticMarkup(<TextEditor path="/d/a" text={"a\rb"} stamp={{ mtime: 1, size: 3 }} onSaved={vi.fn()} onClose={vi.fn()} />);
+    expect(note).toContain("data-edit-eol");
+    const plain = renderToStaticMarkup(<TextEditor path="/d/a" text={"a\nb"} stamp={{ mtime: 1, size: 3 }} onSaved={vi.fn()} onClose={vi.fn()} />);
+    expect(plain).not.toContain("data-edit-eol");
+  });
   it("says why a save was refused", () => {
     expect(saveErrorText("binary")).toBe(t("cw_files_edit_binary"));
     expect(saveErrorText(new ApiError(413, "too_large"))).toBe(t("cw_files_edit_too_large"));
@@ -147,6 +157,7 @@ describe("upload and download (another device only)", () => {
     expect(up.props.fsNote).toBe(t("cw_files_perm_not_kept", { fs: "exfat" }));
     const html = renderToStaticMarkup(<UploadDialog dir="/data/x" free={400} onDone={vi.fn()} onClose={vi.fn()} />);
     expect(html).toContain('data-action="up-files"');
+    expect(html).toContain(`${t("cw_files_free", { free: "400 B" })} · ${t("cw_files_up_hint")}`);
   });
   it("sums up an upload", () => {
     const s = uploadSummaryText({ uploaded: ["a", "b"], skipped: ["c"], failed: [{ name: "d", error: new ApiError(507, "no_space") }], stopped: [] });

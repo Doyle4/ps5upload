@@ -4589,6 +4589,7 @@ c2c_test_deep_bad: "O envio de teste de 4 KiB não chegou: {detail}",
 "cw_files_up_stopped": "não enviados: {n}",
 "cw_files_up_failed": "{n} com falha: {reason}",
 "cw_files_up_no_space": "a unidade está cheia",
+"cw_files_edit_eol_note": "Algumas quebras de linha deste arquivo são um CR isolado (estilo Mac antigo). Ao salvar, elas viram as quebras de linha usuais do arquivo.",
 };
 
 export default pt_BR;

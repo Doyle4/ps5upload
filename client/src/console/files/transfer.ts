@@ -24,9 +24,27 @@ export interface FileStamp {
   mtime_ns?: number;
 }
 
-/** Is the page open on another device (a phone or PC over the LAN), not the console's own browser? */
-export function onOtherDevice(host: string = typeof location !== "undefined" ? location.hostname : ""): boolean {
-  return host !== "" && !onConsoleBrowser(host);
+/**
+ * Is the page open on another device (a phone or PC over the LAN), not the console's own browser? The
+ * console's browser can open the page by its LAN address too: `consoleAddr` (/api/settings "addr")
+ * counts as the console. Unknown (null) is not another device: nothing is offered until it is known.
+ */
+export function onOtherDevice(
+  consoleAddr: string | null,
+  host: string = typeof location !== "undefined" ? location.hostname : "",
+): boolean {
+  if (consoleAddr == null) return false;
+  return host !== "" && !onConsoleBrowser(host) && host !== consoleAddr;
+}
+
+/** onOtherDevice for this page: reads the console's LAN address once (false until it answers). */
+export async function loadOnOtherDevice(): Promise<boolean> {
+  try {
+    const s = await call<{ addr?: unknown }>("/api/settings");
+    return onOtherDevice(typeof s?.addr === "string" ? s.addr : "");
+  } catch {
+    return false;
+  }
 }
 
 /** The bytes a save writes: the editor's text (a file that used CRLF keeps CRLF), or why it cannot be saved. */

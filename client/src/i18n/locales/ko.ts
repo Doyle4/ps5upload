@@ -4591,6 +4591,7 @@ c2c_test_deep_bad: "4 KiB 테스트 전송이 도착하지 않았습니다: {det
 "cw_files_up_stopped": "보내지 않음: {n}",
 "cw_files_up_failed": "{n}개 실패: {reason}",
 "cw_files_up_no_space": "드라이브가 가득 찼습니다",
+"cw_files_edit_eol_note": "이 파일의 일부 줄바꿈은 단독 CR(옛 Mac 방식)입니다. 저장하면 이 파일에서 주로 쓰는 줄바꿈으로 바뀝니다.",
 };
 
 export default ko;

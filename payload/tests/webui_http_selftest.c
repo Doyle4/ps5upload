@@ -104,6 +104,15 @@ static void stream_cap_and_range(void) {
     CHECK(parse_str("GET /dl/x HTTP/1.1\r\nRange: bytes=10-\r\n\r\n", &r) == WEBUI_PARSE_OK);
     CHECK(strcmp(r.range, "bytes=10-") == 0);
     CHECK(parse_str("GET /dl/x HTTP/1.1\r\nRange: bytes=1-2\r\nrange: bytes=3-4\r\n\r\n", &r) == WEBUI_PARSE_BAD);
+    {
+        char req[400];
+        char longv[201];
+        memset(longv, '1', 200);
+        longv[200] = '\0';
+        snprintf(req, sizeof req, "GET /dl/x HTTP/1.1\r\nRange: bytes=%s-\r\n\r\n", longv);
+        CHECK(parse_str(req, &r) == WEBUI_PARSE_OK); /* too long: ignored, served whole */
+        CHECK(r.range[0] == '\0');
+    }
 }
 
 static void chunked_is_bad(void) {

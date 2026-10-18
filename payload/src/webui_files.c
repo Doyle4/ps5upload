@@ -19,6 +19,27 @@
 
 #define WF_SLICE_MS 200
 
+static uint64_t now_ms(void) {
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (uint64_t)ts.tv_sec * 1000u + (uint64_t)ts.tv_nsec / 1000000u;
+}
+
+int wf_rate_ok(wf_rate_t *r, uint64_t now, uint64_t n) {
+    uint64_t win = r->window_ms ? r->window_ms : WF_RATE_WINDOW_MS;
+    uint64_t min = r->min_bps ? r->min_bps : WF_RATE_MIN_BPS;
+    if (!r->start_ms) {
+        r->start_ms = now ? now : 1;
+        r->bytes = 0;
+    }
+    r->bytes += n;
+    if (now < r->start_ms || now - r->start_ms < win) return 1;
+    if (r->bytes * 1000u < min * (now - r->start_ms)) return 0;
+    r->start_ms = now;
+    r->bytes = 0;
+    return 1;
+}
+
 const char *wf_error_token(int e) {
     switch (e) {
     case WF_OK: return "ok";
@@ -79,7 +100,11 @@ ssize_t wf_recv(int fd, void *buf, size_t cap, unsigned idle_ms, const volatile 
     }
 }
 
-int wf_send_all(int fd, const void *p, size_t n, unsigned idle_ms) {
+static int send_rated(int fd, const void *p, size_t n, unsigned idle_ms, wf_rate_t *rate);
+
+int wf_send_all(int fd, const void *p, size_t n, unsigned idle_ms) { return send_rated(fd, p, n, idle_ms, NULL); }
+
+static int send_rated(int fd, const void *p, size_t n, unsigned idle_ms, wf_rate_t *rate) {
     const char *c = (const char *)p;
     unsigned waited = 0;
     while (n > 0) {
@@ -101,6 +126,7 @@ int wf_send_all(int fd, const void *p, size_t n, unsigned idle_ms) {
         w = send(fd, c, n, MSG_NOSIGNAL);
         if (w < 0 && (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK)) continue;
         if (w <= 0) return -1;
+        if (rate && !wf_rate_ok(rate, now_ms(), (uint64_t)w)) return -1;
         c += w;
         n -= (size_t)w;
         waited = 0;
@@ -137,6 +163,26 @@ int wf_temp_path(const char *target, char *out, size_t cap) {
     tag[16] = '\0';
     k = snprintf(out, cap, "%s/.ps5u-%s.part", strcmp(dir, "/") == 0 ? "" : dir, tag);
     return k > 0 && (size_t)k < cap ? 0 : -1;
+}
+
+int wf_sweep_stale(const char *dir, time_t now, unsigned max_age_s) {
+    char p[4200];
+    DIR *d = opendir(dir);
+    struct dirent *e;
+    unsigned seen = 0;
+    int removed = 0;
+    if (!d) return 0;
+    while ((e = readdir(d)) != NULL && seen++ < WF_SWEEP_MAX) {
+        struct stat st;
+        size_t nl = strlen(e->d_name);
+        if (nl < 11 || strncmp(e->d_name, ".ps5u-", 6) != 0 || strcmp(e->d_name + nl - 5, ".part") != 0) continue;
+        if (snprintf(p, sizeof p, "%s/%s", strcmp(dir, "/") == 0 ? "" : dir, e->d_name) >= (int)sizeof p) continue;
+        if (lstat(p, &st) != 0 || !S_ISREG(st.st_mode)) continue;
+        if (st.st_mtime > now || (uint64_t)(now - st.st_mtime) < max_age_s) continue;
+        if (unlink(p) == 0) removed++;
+    }
+    closedir(d);
+    return removed;
 }
 
 static int write_all(int fd, const uint8_t *p, size_t n) {
@@ -252,6 +298,8 @@ int wf_receive_file(int fd, const uint8_t *pre, size_t pre_len, uint64_t len, co
     uint64_t got = 0;
     size_t used = 0;
     int out, rc = WF_OK;
+    wf_rate_t rate;
+    memset(&rate, 0, sizeof rate);
     bulk_buffer(fd, SO_RCVBUF);
     if (pre_len > len) pre_len = (size_t)len;
     if (wf_temp_path(target, tmp, sizeof tmp) != 0) return WF_E_IO;
@@ -266,7 +314,7 @@ int wf_receive_file(int fd, const uint8_t *pre, size_t pre_len, uint64_t len, co
         ssize_t r;
         if ((uint64_t)want > len - got) want = (size_t)(len - got);
         r = wf_recv(fd, buf + used, want, idle_ms, cancel);
-        if (r <= 0) {
+        if (r <= 0 || !wf_rate_ok(&rate, now_ms(), (uint64_t)r)) {
             rc = cancel && *cancel ? WF_E_CANCELLED : WF_E_SHORT;
             break;
         }
@@ -374,6 +422,8 @@ size_t wf_disposition(char *out, size_t cap, const char *name) {
 
 int wf_send_file(int fd, int file_fd, uint64_t start, uint64_t len, unsigned idle_ms, uint8_t *buf, size_t cap) {
     uint64_t done = 0;
+    wf_rate_t rate;
+    memset(&rate, 0, sizeof rate);
     bulk_buffer(fd, SO_SNDBUF);
     while (done < len) {
         size_t want = cap;
@@ -382,7 +432,7 @@ int wf_send_file(int fd, int file_fd, uint64_t start, uint64_t len, unsigned idl
         r = pread(file_fd, buf, want, (off_t)(start + done));
         if (r < 0 && errno == EINTR) continue;
         if (r <= 0) return -1; /* shrank under us: the Content-Length promised more, so stop short */
-        if (wf_send_all(fd, buf, (size_t)r, idle_ms) != 0) return -1;
+        if (send_rated(fd, buf, (size_t)r, idle_ms, &rate) != 0) return -1;
         done += (uint64_t)r;
     }
     return 0;
@@ -523,7 +573,9 @@ typedef struct {
     unsigned idle;
     uint8_t *buf;
     size_t cap, used;
-    int (*skip)(const char *);
+    int (*skip)(const char *, void *);
+    void *skip_ctx;
+    wf_rate_t rate;
     dev_t dev;
     uint64_t sent;
     char path[WF_TAR_PATH_MAX + 256];
@@ -532,7 +584,7 @@ typedef struct {
 } tarw_t;
 
 static int tw_flush(tarw_t *w) {
-    if (w->used && wf_send_all(w->fd, w->buf, w->used, w->idle) != 0) return -1;
+    if (w->used && send_rated(w->fd, w->buf, w->used, w->idle, &w->rate) != 0) return -1;
     w->sent += w->used;
     w->used = 0;
     return 0;
@@ -616,7 +668,7 @@ static int tw_dir(tarw_t *w, int depth) {
         if (base + 1 + nl > WF_TAR_PATH_MAX) continue;
         w->path[base] = '/';
         memcpy(w->path + base + 1, e->d_name, nl + 1);
-        if (lstat(w->path, &st) != 0 || st.st_dev != w->dev || (w->skip && w->skip(w->path))) {
+        if (lstat(w->path, &st) != 0 || st.st_dev != w->dev || (w->skip && w->skip(w->path, w->skip_ctx))) {
             w->path[base] = '\0';
             continue;
         }
@@ -637,8 +689,8 @@ static int tw_dir(tarw_t *w, int depth) {
     return 0;
 }
 
-int wf_send_tar(int fd, const char *root, int (*skip)(const char *path), unsigned idle_ms, uint8_t *buf, size_t cap,
-                uint64_t *sent) {
+int wf_send_tar(int fd, const char *root, int (*skip)(const char *path, void *ctx), void *skip_ctx, unsigned idle_ms,
+                uint8_t *buf, size_t cap, uint64_t *sent) {
     static const uint8_t zeros[1024];
     tarw_t *w;
     struct stat st;
@@ -657,6 +709,7 @@ int wf_send_tar(int fd, const char *root, int (*skip)(const char *path), unsigne
     w->buf = buf;
     w->cap = cap;
     w->skip = skip;
+    w->skip_ctx = skip_ctx;
     w->dev = st.st_dev;
     memcpy(w->path, root, n);
     w->path[n] = '\0';

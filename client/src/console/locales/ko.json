@@ -113,6 +113,7 @@
   "cw_files_edit_binary": "텍스트에 NUL 바이트가 있어 텍스트로 저장할 수 없습니다.",
   "cw_files_edit_changed": "연 뒤에 이 파일이 콘솔에서 바뀌었습니다. 지금 저장하면 그 변경을 덮어씁니다.",
   "cw_files_edit_discard": "내 변경 취소",
+  "cw_files_edit_eol_note": "이 파일의 일부 줄바꿈은 단독 CR(옛 Mac 방식)입니다. 저장하면 이 파일에서 주로 쓰는 줄바꿈으로 바뀝니다.",
   "cw_files_edit_gone": "파일이 더 이상 없습니다.",
   "cw_files_edit_keep": "계속 편집",
   "cw_files_edit_label": "파일 내용",

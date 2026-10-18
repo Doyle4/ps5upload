@@ -113,6 +113,7 @@
   "cw_files_edit_binary": "The text has a NUL byte, so it cannot be saved as text.",
   "cw_files_edit_changed": "This file changed on the console after you opened it. Saving now replaces that change.",
   "cw_files_edit_discard": "Discard my changes",
+  "cw_files_edit_eol_note": "Some line breaks in this file are a lone CR (old Mac style). Saving turns them into the file's usual line breaks.",
   "cw_files_edit_gone": "The file is not there any more.",
   "cw_files_edit_keep": "Keep editing",
   "cw_files_edit_label": "File text",

@@ -4522,6 +4522,7 @@ c2c_test_deep_bad: "L’invio di prova di 4 KiB non è arrivato: {detail}",
 "cw_files_up_stopped": "non inviati: {n}",
 "cw_files_up_failed": "{n} non riusciti: {reason}",
 "cw_files_up_no_space": "l’unità è piena",
+"cw_files_edit_eol_note": "Alcuni a capo di questo file sono un CR isolato (vecchio stile Mac). Salvando diventano gli a capo abituali del file.",
 };
 
 export default it;

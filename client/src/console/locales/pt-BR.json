@@ -113,6 +113,7 @@
   "cw_files_edit_binary": "O texto tem um byte NUL, então não pode ser salvo como texto.",
   "cw_files_edit_changed": "Este arquivo mudou no console depois que você o abriu. Salvar agora substitui essa mudança.",
   "cw_files_edit_discard": "Descartar minhas mudanças",
+  "cw_files_edit_eol_note": "Algumas quebras de linha deste arquivo são um CR isolado (estilo Mac antigo). Ao salvar, elas viram as quebras de linha usuais do arquivo.",
   "cw_files_edit_gone": "O arquivo não está mais lá.",
   "cw_files_edit_keep": "Continuar editando",
   "cw_files_edit_label": "Texto do arquivo",

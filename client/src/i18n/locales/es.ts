@@ -4522,6 +4522,7 @@ c2c_test_deep_bad: "El envío de prueba de 4 KiB no llegó: {detail}",
 "cw_files_up_stopped": "no enviados: {n}",
 "cw_files_up_failed": "{n} con error: {reason}",
 "cw_files_up_no_space": "la unidad está llena",
+"cw_files_edit_eol_note": "Algunos saltos de línea de este archivo son un CR suelto (estilo Mac antiguo). Al guardar se convierten en los saltos de línea habituales del archivo.",
 };
 
 export default es;

@@ -4574,6 +4574,7 @@ c2c_test_deep_bad: "Lượt gửi thử 4 KiB không tới: {detail}",
 "cw_files_up_stopped": "chưa gửi: {n}",
 "cw_files_up_failed": "{n} lỗi: {reason}",
 "cw_files_up_no_space": "ổ đã đầy",
+"cw_files_edit_eol_note": "Một số dấu xuống dòng trong tệp này là CR đơn lẻ (kiểu Mac cũ). Khi lưu, chúng sẽ thành dấu xuống dòng thông thường của tệp.",
 };
 
 export default vi;

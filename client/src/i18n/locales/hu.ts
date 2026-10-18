@@ -4887,6 +4887,7 @@ c2c_test_deep_bad: "A 4 KiB-os tesztküldés nem érkezett meg: {detail}",
 "cw_files_up_stopped": "nem küldve: {n}",
 "cw_files_up_failed": "{n} sikertelen: {reason}",
 "cw_files_up_no_space": "a meghajtó megtelt",
+"cw_files_edit_eol_note": "A fájl néhány sortörése magányos CR (régi Mac-stílus). Mentéskor ezek a fájl szokásos sortöréseivé válnak.",
 };
 
 export default hu;

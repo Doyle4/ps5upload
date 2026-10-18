@@ -88,7 +88,7 @@ import { sceSysName } from "./viewer/gameFolder";
 import { SearchDialog } from "./search/SearchDialog";
 import { UsageDialog } from "./usage/UsageDialog";
 import { keepsPermissions } from "./permissions";
-import { createFile, downloadItem, onOtherDevice, TEXT_SAVE_MAX } from "./transfer";
+import { createFile, downloadItem, loadOnOtherDevice, TEXT_SAVE_MAX } from "./transfer";
 import { UploadDialog } from "./UploadDialog";
 
 export { upFrom, viewKind };
@@ -319,7 +319,7 @@ export function busyText(b: Busy | null): string | null {
  * What the sheet offers for `names` (one entry, or the selection), by type: a
  * folder can be pinned; a file can be verified; a .ffpfsc can be decompressed.
  */
-export function sheetActions(names: string[], entries: Entry[], pinned: boolean | null, remote: boolean = onOtherDevice()): SheetAction[] {
+export function sheetActions(names: string[], entries: Entry[], pinned: boolean | null, remote = false): SheetAction[] {
   if (names.length !== 1) return ["clipcopy", "cut", "copy", "move", "bulkrename", "fixperm", "delete"];
   const e = entries.find((x) => x.name === names[0]);
   const out: SheetAction[] = [];
@@ -525,7 +525,7 @@ function askView(p: FilesViewProps) {
       return (
         <ActionsSheet
           title={namesTitle(a.names)}
-          actions={sheetActions(a.names, p.dir.entries, pinnedOf(a.names[0]))}
+          actions={sheetActions(a.names, p.dir.entries, pinnedOf(a.names[0]), !!p.remote)}
           busy={p.busy != null}
           note={busyText(p.busy)}
           onClose={p.onDismiss}
@@ -1492,7 +1492,15 @@ export function Files({ ctx }: { ctx: SectionContext }) {
       },
     );
   }, []);
-  const remote = useMemo(() => onOtherDevice(), []);
+  // Upload and Download only away from the console (its own browser may use the LAN address too).
+  const [remote, setRemote] = useState(false);
+  useEffect(() => {
+    let live = true;
+    void loadOnOtherDevice().then((r) => live && setRemote(r));
+    return () => {
+      live = false;
+    };
+  }, []);
 
   const onToggleItem = useCallback((name: string) => {
     setSelected((s) => (s.includes(name) ? s.filter((x) => x !== name) : s.concat(name)));

@@ -4572,6 +4572,7 @@ c2c_test_deep_bad: "4 KiB-এর পরীক্ষামূলক পাঠা�
 "cw_files_up_stopped": "পাঠানো হয়নি: {n}",
 "cw_files_up_failed": "{n}টি ব্যর্থ: {reason}",
 "cw_files_up_no_space": "ড্রাইভ পূর্ণ",
+"cw_files_edit_eol_note": "এই ফাইলের কিছু লাইন ব্রেক একা একটি CR (পুরোনো Mac ধরন)। সংরক্ষণ করলে সেগুলো ফাইলের সাধারণ লাইন ব্রেকে বদলে যাবে।",
 };
 
 export default bn;

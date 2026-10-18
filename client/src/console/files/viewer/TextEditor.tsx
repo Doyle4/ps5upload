@@ -14,6 +14,32 @@ export function saveErrorText(e: unknown): string | null {
   return errorText(e);
 }
 
+/**
+ * How a file breaks its lines: saved with its dominant ending (CRLF when it has more CRLF than lone LF
+ * breaks), and whether it has lone CRs (old Mac style), which the editor turns into that ending: said
+ * before the first save, never silently.
+ */
+export function lineEndings(text: string): { crlf: boolean; loneCr: boolean } {
+  let crlf = 0;
+  let lf = 0;
+  let cr = 0;
+  for (let i = 0; i < text.length; i++) {
+    const c = text.charCodeAt(i);
+    if (c === 13) {
+      if (text.charCodeAt(i + 1) === 10) {
+        crlf++;
+        i++;
+      } else cr++;
+    } else if (c === 10) lf++;
+  }
+  return { crlf: crlf > lf, loneCr: cr > 0 };
+}
+
+/** The text as the box shows it: every break a "\n" (the box's own form). */
+export function editorText(text: string): string {
+  return text.replace(/\r\n?/g, "\n");
+}
+
 type Phase = { kind: "edit" } | { kind: "saving" } | { kind: "changed" } | { kind: "leaving" } | { kind: "error"; text: string };
 
 /**
@@ -38,8 +64,8 @@ export function TextEditor({
   /** Leave the editor without saving (asked first when there are changes). */
   onClose: () => void;
 }) {
-  const crlf = text.includes("\r\n");
-  const original = crlf ? text.replace(/\r\n/g, "\n") : text;
+  const { crlf, loneCr } = lineEndings(text);
+  const original = editorText(text);
   const [value, setValue] = useState(original);
   const [phase, setPhase] = useState<Phase>({ kind: "edit" });
   const box = useRef<HTMLTextAreaElement>(null);
@@ -90,6 +116,11 @@ export function TextEditor({
         readOnly={phase.kind === "saving"}
         onChange={(e) => setValue(e.target.value)}
       />
+      {loneCr ? (
+        <p className="cw-dim" data-edit-eol="">
+          {t("cw_files_edit_eol_note")}
+        </p>
+      ) : null}
       {phase.kind === "changed" ? (
         <div className="cw-msg is-error" role="alert" data-edit-changed="">
           {t("cw_files_edit_changed")}

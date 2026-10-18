@@ -4895,6 +4895,7 @@ c2c_test_deep_bad: "The 4 KiB test send did not arrive: {detail}",
 "cw_files_up_stopped": "not sent: {n}",
 "cw_files_up_failed": "{n} failed: {reason}",
 "cw_files_up_no_space": "the drive is full",
+"cw_files_edit_eol_note": "Some line breaks in this file are a lone CR (old Mac style). Saving turns them into the file's usual line breaks.",
 };
 
 export default en;

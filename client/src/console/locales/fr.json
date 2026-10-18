@@ -113,6 +113,7 @@
   "cw_files_edit_binary": "Le texte contient un octet NUL, il ne peut donc pas être enregistré comme texte.",
   "cw_files_edit_changed": "Ce fichier a changé sur la console après son ouverture. Enregistrer maintenant remplace cette modification.",
   "cw_files_edit_discard": "Abandonner mes modifications",
+  "cw_files_edit_eol_note": "Certains sauts de ligne de ce fichier sont un CR seul (ancien style Mac). L’enregistrement les remplace par les sauts de ligne habituels du fichier.",
   "cw_files_edit_gone": "Le fichier n’est plus là.",
   "cw_files_edit_keep": "Continuer à modifier",
   "cw_files_edit_label": "Texte du fichier",

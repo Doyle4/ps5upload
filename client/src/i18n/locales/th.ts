@@ -4581,6 +4581,7 @@ c2c_test_deep_bad: "การส่งทดสอบ 4 KiB ไปไม่ถ�
 "cw_files_up_stopped": "ไม่ได้ส่ง: {n}",
 "cw_files_up_failed": "ล้มเหลว {n}: {reason}",
 "cw_files_up_no_space": "ไดรฟ์เต็ม",
+"cw_files_edit_eol_note": "การขึ้นบรรทัดใหม่บางจุดในไฟล์นี้เป็น CR เดี่ยว (แบบ Mac รุ่นเก่า) การบันทึกจะเปลี่ยนให้เป็นการขึ้นบรรทัดใหม่ตามปกติของไฟล์",
 };
 
 export default th;

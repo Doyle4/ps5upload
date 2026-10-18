@@ -4522,6 +4522,7 @@ c2c_test_deep_bad: "4 KiB 測試傳送未抵達：{detail}",
 "cw_files_up_stopped": "未傳送：{n}",
 "cw_files_up_failed": "{n} 個失敗：{reason}",
 "cw_files_up_no_space": "磁碟機已滿",
+"cw_files_edit_eol_note": "此檔案中有些換行是單獨的 CR（舊 Mac 格式）。儲存時會改成此檔案常用的換行。",
 };
 
 export default zh_TW;

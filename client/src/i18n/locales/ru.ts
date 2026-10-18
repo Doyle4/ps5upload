@@ -4522,6 +4522,7 @@ c2c_test_deep_bad: "Тестовая отправка 4 КиБ не дошла: 
 "cw_files_up_stopped": "не отправлено: {n}",
 "cw_files_up_failed": "ошибок: {n} — {reason}",
 "cw_files_up_no_space": "диск заполнен",
+"cw_files_edit_eol_note": "Некоторые переводы строк в этом файле — одиночный CR (старый стиль Mac). При сохранении они станут обычными переводами строк этого файла.",
 };
 
 export default ru;

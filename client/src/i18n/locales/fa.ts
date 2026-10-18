@@ -4873,6 +4873,7 @@ c2c_test_deep_bad: "ارسال آزمایشی ۴ KiB نرسید: {detail}",
 "cw_files_up_stopped": "فرستاده‌نشده: {n}",
 "cw_files_up_failed": "{n} ناموفق: {reason}",
 "cw_files_up_no_space": "درایو پر است",
+"cw_files_edit_eol_note": "برخی از شکست‌های خط در این فایل یک CR تنها هستند (سبک قدیمی مک). ذخیره آن‌ها را به شکست خط معمول این فایل تبدیل می‌کند.",
 };
 
 export default fa;

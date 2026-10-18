@@ -113,6 +113,7 @@
   "cw_files_edit_binary": "A szövegben NUL bájt van, ezért nem menthető szövegként.",
   "cw_files_edit_changed": "Ez a fájl megváltozott a konzolon, miután megnyitottad. A mentés most felülírja ezt a változást.",
   "cw_files_edit_discard": "Módosításaim elvetése",
+  "cw_files_edit_eol_note": "A fájl néhány sortörése magányos CR (régi Mac-stílus). Mentéskor ezek a fájl szokásos sortöréseivé válnak.",
   "cw_files_edit_gone": "A fájl már nincs ott.",
   "cw_files_edit_keep": "Szerkesztés folytatása",
   "cw_files_edit_label": "A fájl szövege",

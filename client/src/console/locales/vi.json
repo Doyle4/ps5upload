@@ -113,6 +113,7 @@
   "cw_files_edit_binary": "Văn bản có byte NUL nên không thể lưu dạng văn bản.",
   "cw_files_edit_changed": "Tệp này đã thay đổi trên máy sau khi bạn mở. Lưu bây giờ sẽ thay thế thay đổi đó.",
   "cw_files_edit_discard": "Bỏ thay đổi của tôi",
+  "cw_files_edit_eol_note": "Một số dấu xuống dòng trong tệp này là CR đơn lẻ (kiểu Mac cũ). Khi lưu, chúng sẽ thành dấu xuống dòng thông thường của tệp.",
   "cw_files_edit_gone": "Tệp không còn ở đó.",
   "cw_files_edit_keep": "Tiếp tục sửa",
   "cw_files_edit_label": "Nội dung tệp",

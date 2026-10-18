@@ -4579,6 +4579,7 @@ c2c_test_deep_bad: "4 KiB'lik test gönderimi ulaşmadı: {detail}",
 "cw_files_up_stopped": "gönderilmedi: {n}",
 "cw_files_up_failed": "{n} başarısız: {reason}",
 "cw_files_up_no_space": "sürücü dolu",
+"cw_files_edit_eol_note": "Bu dosyadaki bazı satır sonları tek başına CR (eski Mac biçimi). Kaydetmek bunları dosyanın olağan satır sonlarına çevirir.",
 };
 
 export default tr;

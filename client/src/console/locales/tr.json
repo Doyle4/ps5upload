@@ -113,6 +113,7 @@
   "cw_files_edit_binary": "Metinde NUL baytı var, bu yüzden metin olarak kaydedilemez.",
   "cw_files_edit_changed": "Bu dosya siz açtıktan sonra konsolda değişti. Şimdi kaydetmek o değişikliğin yerine geçer.",
   "cw_files_edit_discard": "Değişikliklerimi at",
+  "cw_files_edit_eol_note": "Bu dosyadaki bazı satır sonları tek başına CR (eski Mac biçimi). Kaydetmek bunları dosyanın olağan satır sonlarına çevirir.",
   "cw_files_edit_gone": "Dosya artık orada değil.",
   "cw_files_edit_keep": "Düzenlemeye devam et",
   "cw_files_edit_label": "Dosya metni",

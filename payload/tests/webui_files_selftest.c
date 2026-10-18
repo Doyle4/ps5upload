@@ -304,7 +304,7 @@ static void *sink_main(void *arg) {
     return NULL;
 }
 
-static int skip_secret(const char *p) { return strstr(p, "/secret") != NULL; }
+static int skip_secret(const char *p, void *ctx) { return strstr(p, (const char *)ctx) != NULL; }
 
 static void test_tar_stream(void) {
     char tree[512], cmd[2048], p[1200], longdir[700], tarf[512], out[512];
@@ -352,7 +352,7 @@ static void test_tar_stream(void) {
     s.fd = sv[1];
     s.out = tarf;
     pthread_create(&t, NULL, sink_main, &s);
-    rc = wf_send_tar(sv[0], tree, skip_secret, 5000, buf, WF_IO_BUF, &sent);
+    rc = wf_send_tar(sv[0], tree, skip_secret, (void *)"/secret", 5000, buf, WF_IO_BUF, &sent);
     close(sv[0]);
     pthread_join(t, NULL);
     CHECK(rc == 0 && sent > 1536 * 1024 && sent % 512 == 0);
@@ -368,6 +368,59 @@ static void test_tar_stream(void) {
     CHECK(access(p, F_OK) != 0);
     free(buf);
     free(big);
+}
+
+static void test_rate(void) {
+    wf_rate_t r;
+    memset(&r, 0, sizeof r);
+    /* defaults: 1 KiB/s averaged over 60 s */
+    CHECK(wf_rate_ok(&r, 1000, 10) == 1);
+    CHECK(wf_rate_ok(&r, 30000, 100) == 1);        /* inside the window: never judged */
+    CHECK(wf_rate_ok(&r, 61000, 100) == 0);        /* 210 bytes in 60 s: dropped */
+    memset(&r, 0, sizeof r);
+    CHECK(wf_rate_ok(&r, 1000, 70 * 1024) == 1);
+    CHECK(wf_rate_ok(&r, 61000, 0) == 1);          /* 70 KiB in 60 s: kept, a new window starts */
+    CHECK(wf_rate_ok(&r, 100000, 0) == 1);
+    CHECK(wf_rate_ok(&r, 121000, 59 * 1024) == 0); /* the next window is judged on its own */
+    memset(&r, 0, sizeof r);
+    r.window_ms = 100;
+    r.min_bps = 1000;
+    CHECK(wf_rate_ok(&r, 5, 50) == 1);
+    CHECK(wf_rate_ok(&r, 110, 60) == 1); /* 110 bytes over 105 ms: above 1000 B/s */
+    memset(&r, 0, sizeof r);
+    r.window_ms = 100;
+    r.min_bps = 1000;
+    CHECK(wf_rate_ok(&r, 5, 10) == 1);
+    CHECK(wf_rate_ok(&r, 205, 10) == 0); /* 20 bytes over 200 ms */
+}
+
+static void test_sweep(void) {
+    char d[512], p[600];
+    struct timespec old[2];
+    time_t now = time(NULL);
+    snprintf(d, sizeof d, "%s/sweep", g_root);
+    mkdir(d, 0755);
+    snprintf(p, sizeof p, "%s/.ps5u-0011223344556677.part", d);
+    put_file(p, "old", 3);
+    old[0].tv_sec = old[1].tv_sec = now - 25 * 3600;
+    old[0].tv_nsec = old[1].tv_nsec = 0;
+    utimensat(AT_FDCWD, p, old, AT_SYMLINK_NOFOLLOW);
+    snprintf(p, sizeof p, "%s/.ps5u-8899aabbccddeeff.part", d);
+    put_file(p, "new", 3); /* an upload running now: kept */
+    snprintf(p, sizeof p, "%s/.ps5u-link.part", d);
+    symlink("/etc/hosts", p);
+    utimensat(AT_FDCWD, p, old, AT_SYMLINK_NOFOLLOW); /* old, but a link: never touched */
+    snprintf(p, sizeof p, "%s/keep.part", d);
+    put_file(p, "x", 1);
+    utimensat(AT_FDCWD, p, old, 0);
+    CHECK(wf_sweep_stale(d, now, WF_STALE_PART_S) == 1);
+    snprintf(p, sizeof p, "%s/.ps5u-0011223344556677.part", d);
+    CHECK(access(p, F_OK) != 0);
+    snprintf(p, sizeof p, "%s/.ps5u-8899aabbccddeeff.part", d);
+    CHECK(access(p, F_OK) == 0);
+    snprintf(p, sizeof p, "%s/.ps5u-link.part", d);
+    { struct stat st; CHECK(lstat(p, &st) == 0 && S_ISLNK(st.st_mode)); }
+    CHECK(wf_sweep_stale("/nonexistent-ps5u", now, 1) == 0);
 }
 
 int main(void) {
@@ -393,6 +446,8 @@ int main(void) {
     test_disposition();
     test_tar_header();
     test_tar_stream();
+    test_rate();
+    test_sweep();
     system(cmd);
     if (g_fail) return 1;
     printf("webui_files selftest: ok\n");

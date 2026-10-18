@@ -4581,6 +4581,7 @@ c2c_test_deep_bad: "Kiriman uji 4 KiB tidak tiba: {detail}",
 "cw_files_up_stopped": "tidak terkirim: {n}",
 "cw_files_up_failed": "{n} gagal: {reason}",
 "cw_files_up_no_space": "drive penuh",
+"cw_files_edit_eol_note": "Beberapa pemisah baris di file ini berupa CR tunggal (gaya Mac lama). Menyimpan akan mengubahnya menjadi pemisah baris yang biasa dipakai file ini.",
 };
 
 export default id;

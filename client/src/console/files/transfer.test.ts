@@ -9,6 +9,7 @@ import { ApiError, call, callRaw, sendWithProgress } from "../api";
 import {
   createFile,
   decodeEditable,
+  loadOnOtherDevice,
   downloadItem,
   encodeText,
   onOtherDevice,
@@ -36,10 +37,22 @@ async function blobText(b: Blob): Promise<string> {
 
 describe("where the page is open", () => {
   it("offers upload/download only away from the console", () => {
-    expect(onOtherDevice("192.168.1.20")).toBe(true);
-    expect(onOtherDevice("127.0.0.1")).toBe(false);
-    expect(onOtherDevice("localhost")).toBe(false);
-    expect(onOtherDevice("")).toBe(false);
+    expect(onOtherDevice("192.168.1.99", "192.168.1.20")).toBe(true);
+    expect(onOtherDevice("", "192.168.1.20")).toBe(true); // LAN access off: the address is ""
+    expect(onOtherDevice("192.168.1.99", "127.0.0.1")).toBe(false);
+    expect(onOtherDevice("192.168.1.99", "localhost")).toBe(false);
+    expect(onOtherDevice("192.168.1.99", "")).toBe(false);
+    // the console's own browser opened by its LAN address
+    expect(onOtherDevice("192.168.1.99", "192.168.1.99")).toBe(false);
+    // not known yet: nothing offered
+    expect(onOtherDevice(null, "192.168.1.20")).toBe(false);
+  });
+  it("reads the console's address from settings; a failed read offers nothing", async () => {
+    mCall.mockResolvedValueOnce({ addr: "192.168.1.99" });
+    expect(await loadOnOtherDevice()).toBe(false); // the test runner's host is not another device
+    expect(mCall).toHaveBeenCalledWith("/api/settings");
+    mCall.mockRejectedValueOnce(new ApiError(0, "offline"));
+    expect(await loadOnOtherDevice()).toBe(false);
   });
 });
 

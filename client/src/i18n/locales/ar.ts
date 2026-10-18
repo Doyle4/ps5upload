@@ -4572,6 +4572,7 @@ c2c_test_deep_bad: "لم يصل الإرسال التجريبي بحجم 4 KiB: 
 "cw_files_up_stopped": "لم يُرسل: {n}",
 "cw_files_up_failed": "فشل {n}: {reason}",
 "cw_files_up_no_space": "القرص ممتلئ",
+"cw_files_edit_eol_note": "بعض فواصل الأسطر في هذا الملف هي CR منفرد (نمط ماك القديم). عند الحفظ تتحول إلى فواصل الأسطر المعتادة في الملف.",
 };
 
 export default ar;

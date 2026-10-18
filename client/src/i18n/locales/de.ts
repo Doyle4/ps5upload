@@ -4580,6 +4580,7 @@ c2c_test_deep_bad: "Die 4-KiB-Testsendung ist nicht angekommen: {detail}",
 "cw_files_up_stopped": "nicht gesendet: {n}",
 "cw_files_up_failed": "{n} fehlgeschlagen: {reason}",
 "cw_files_up_no_space": "das Laufwerk ist voll",
+"cw_files_edit_eol_note": "Einige Zeilenumbrüche in dieser Datei sind ein einzelnes CR (altes Mac-Format). Beim Speichern werden sie zu den üblichen Zeilenumbrüchen der Datei.",
 };
 
 export default de;

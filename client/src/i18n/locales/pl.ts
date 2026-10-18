@@ -4827,6 +4827,7 @@ c2c_test_deep_bad: "Testowa wysyłka 4 KiB nie dotarła: {detail}",
 "cw_files_up_stopped": "niewysłane: {n}",
 "cw_files_up_failed": "nieudane ({n}): {reason}",
 "cw_files_up_no_space": "dysk jest pełny",
+"cw_files_edit_eol_note": "Niektóre końce wierszy w tym pliku to samotny znak CR (stary styl Mac). Zapisanie zamieni je na zwykłe końce wierszy tego pliku.",
 };
 
 export default pl;

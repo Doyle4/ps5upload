@@ -13,12 +13,17 @@
 #include <stdint.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <time.h>
 
 #define WF_TEXT_MAX (1024u * 1024u)  /* the longest text the editor saves */
 #define WF_IDLE_MS 20000u            /* a transfer that moves no byte this long is dropped */
 #define WF_IO_BUF (1024u * 1024u)    /* the heap buffer one transfer reads and writes through */
 #define WF_TAR_MAX_DEPTH 64          /* folders deeper than this are left out of a .tar */
 #define WF_TAR_PATH_MAX 4096u        /* an entry whose path is longer is left out */
+#define WF_RATE_WINDOW_MS 60000u    /* the throughput floor's window */
+#define WF_RATE_MIN_BPS 1024u        /* a transfer averaging less over a window is dropped */
+#define WF_STALE_PART_S (24u * 3600u) /* a leftover temporary file older than this is swept */
+#define WF_SWEEP_MAX 20000u          /* folder entries one sweep looks at, at most */
 #define WF_TAR_HEADER_MAX (512u + 2u * WF_TAR_PATH_MAX + 1024u + 512u) /* pax header + its data + the entry's */
 
 enum {
@@ -42,6 +47,17 @@ int wf_error_http(int e);
 
 /* ---- socket I/O with an idle timeout ---- */
 
+/* The throughput floor: a client that trickles a byte now and then never trips the idle timeout, so a
+ * transfer must also average WF_RATE_MIN_BPS over every WF_RATE_WINDOW_MS window (zeroed = defaults). */
+typedef struct {
+    uint64_t start_ms;  /* 0: not started */
+    uint64_t bytes;
+    uint32_t window_ms; /* 0 = WF_RATE_WINDOW_MS */
+    uint32_t min_bps;   /* 0 = WF_RATE_MIN_BPS */
+} wf_rate_t;
+/* Count `n` bytes moved at `now_ms`: 1 while the transfer keeps up, 0 when a window closed below the floor. */
+int wf_rate_ok(wf_rate_t *r, uint64_t now_ms, uint64_t n);
+
 /* Up to `cap` bytes: > 0 bytes read, 0 the peer closed, -1 an error, `idle_ms` without a byte, or
  * *cancel set (checked every 200 ms; may be NULL). */
 ssize_t wf_recv(int fd, void *buf, size_t cap, unsigned idle_ms, const volatile int *cancel);
@@ -49,6 +65,12 @@ ssize_t wf_recv(int fd, void *buf, size_t cap, unsigned idle_ms, const volatile 
 int wf_send_all(int fd, const void *p, size_t n, unsigned idle_ms);
 
 /* ---- temporary names ---- */
+
+/* Remove leftover temporary files (".ps5u-*.part", regular files only, judged by lstat: a link is never
+ * followed) older than `max_age_s` from `dir` itself (no subfolder), looking at WF_SWEEP_MAX entries at
+ * most. A crash or a power cut mid-upload leaves one; the next upload or save in that folder clears it.
+ * Returns how many were removed. */
+int wf_sweep_stale(const char *dir, time_t now, unsigned max_age_s);
 
 /* "<target's folder>/.ps5u-<16 hex>.part" (random): 0, or -1 when it does not fit `cap`. */
 int wf_temp_path(const char *target, char *out, size_t cap);
@@ -107,10 +129,11 @@ size_t wf_tar_header(uint8_t *out, size_t cap, const char *name, int is_dir, uin
 
 /* `root` (a folder) as a .tar stream on `fd`: its own name first, then everything below it on the same
  * device, depth first. Links, devices, other mounts, and paths `skip` refuses (may be NULL) are left
- * out, and so are entries that cannot be opened. A file that shrinks while it is read is padded with
+ * out, and so are entries that cannot be opened. `root` should be canonical (skip then sees canonical
+ * paths: nothing below it is reached through a link). A file that shrinks while it is read is padded with
  * zeros to the size its header gave. 0 when the archive was sent in full, -1 when the client went away
  * or the root cannot be read. `buf`/`cap` (>= 64 KiB) is the caller's heap buffer. */
-int wf_send_tar(int fd, const char *root, int (*skip)(const char *path), unsigned idle_ms, uint8_t *buf, size_t cap,
-                uint64_t *sent);
+int wf_send_tar(int fd, const char *root, int (*skip)(const char *path, void *ctx), void *skip_ctx, unsigned idle_ms,
+                uint8_t *buf, size_t cap, uint64_t *sent);
 
 #endif

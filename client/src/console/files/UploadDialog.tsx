@@ -162,7 +162,7 @@ export function UploadDialog({
             onChange={(e) => onPicked(e.currentTarget)}
           />
           <p className="cw-dim">
-            {free != null ? t("cw_files_free", { free: formatBytes(free) }) : null} {t("cw_files_up_hint")}
+            {[free != null ? t("cw_files_free", { free: formatBytes(free) }) : null, t("cw_files_up_hint")].filter(Boolean).join(" · ")}
           </p>
           {fsNote ? <p className="cw-dim">{fsNote}</p> : null}
         </>

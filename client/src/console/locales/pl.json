@@ -113,6 +113,7 @@
   "cw_files_edit_binary": "Tekst zawiera bajt NUL, więc nie można go zapisać jako tekstu.",
   "cw_files_edit_changed": "Ten plik zmienił się na konsoli po otwarciu. Zapisanie teraz zastąpi tę zmianę.",
   "cw_files_edit_discard": "Odrzuć moje zmiany",
+  "cw_files_edit_eol_note": "Niektóre końce wierszy w tym pliku to samotny znak CR (stary styl Mac). Zapisanie zamieni je na zwykłe końce wierszy tego pliku.",
   "cw_files_edit_gone": "Tego pliku już nie ma.",
   "cw_files_edit_keep": "Edytuj dalej",
   "cw_files_edit_label": "Tekst pliku",

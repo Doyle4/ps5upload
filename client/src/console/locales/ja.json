@@ -113,6 +113,7 @@
   "cw_files_edit_binary": "テキストに NUL バイトがあるため、テキストとして保存できません。",
   "cw_files_edit_changed": "開いた後にこのファイルがコンソール上で変更されました。今保存するとその変更は置き換えられます。",
   "cw_files_edit_discard": "自分の変更を破棄",
+  "cw_files_edit_eol_note": "このファイルの一部の改行は単独の CR（旧 Mac 形式）です。保存すると、このファイルで通常使われている改行に変わります。",
   "cw_files_edit_gone": "ファイルはもうありません。",
   "cw_files_edit_keep": "編集を続ける",
   "cw_files_edit_label": "ファイルの内容",

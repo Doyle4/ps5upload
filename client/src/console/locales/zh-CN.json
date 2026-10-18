@@ -113,6 +113,7 @@
   "cw_files_edit_binary": "文本中有 NUL 字节，无法作为文本保存。",
   "cw_files_edit_changed": "打开后此文件已在主机上被更改。现在保存将覆盖那次更改。",
   "cw_files_edit_discard": "放弃我的更改",
+  "cw_files_edit_eol_note": "此文件中有些换行是单独的 CR（旧 Mac 格式）。保存时会改成此文件常用的换行。",
   "cw_files_edit_gone": "文件已不存在。",
   "cw_files_edit_keep": "继续编辑",
   "cw_files_edit_label": "文件内容",

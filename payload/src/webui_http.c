@@ -148,7 +148,12 @@ int webui_http_parse_cap(const char *buf, size_t len, webui_req_t *out, uint64_t
         } else if (name_is(p, nlen, "range")) {
             if (have_range) return WEBUI_PARSE_BAD;
             have_range = 1;
-            rc = copy_value(out->range, sizeof out->range, v, (size_t)(ve - v));
+            /* longer than any range a browser sends: ignored (the whole file), never a 400 */
+            if ((size_t)(ve - v) < sizeof out->range) rc = copy_value(out->range, sizeof out->range, v, (size_t)(ve - v));
+            else {
+                out->range[0] = '\0';
+                rc = WEBUI_PARSE_OK;
+            }
         } else if (name_is(p, nlen, "transfer-encoding")) {
             return WEBUI_PARSE_BAD;
         } else if (name_is(p, nlen, "content-length")) {

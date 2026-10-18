@@ -4590,6 +4590,7 @@ c2c_test_deep_bad: "L’envoi test de 4 Kio n’est pas arrivé : {detail}",
 "cw_files_up_stopped": "non envoyés : {n}",
 "cw_files_up_failed": "{n} en échec : {reason}",
 "cw_files_up_no_space": "le lecteur est plein",
+"cw_files_edit_eol_note": "Certains sauts de ligne de ce fichier sont un CR seul (ancien style Mac). L’enregistrement les remplace par les sauts de ligne habituels du fichier.",
 };
 
 export default fr;

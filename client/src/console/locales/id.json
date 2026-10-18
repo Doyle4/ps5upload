@@ -113,6 +113,7 @@
   "cw_files_edit_binary": "Teks berisi byte NUL, jadi tidak bisa disimpan sebagai teks.",
   "cw_files_edit_changed": "File ini berubah di konsol setelah Anda membukanya. Menyimpan sekarang akan menggantikan perubahan itu.",
   "cw_files_edit_discard": "Buang perubahan saya",
+  "cw_files_edit_eol_note": "Beberapa pemisah baris di file ini berupa CR tunggal (gaya Mac lama). Menyimpan akan mengubahnya menjadi pemisah baris yang biasa dipakai file ini.",
   "cw_files_edit_gone": "File sudah tidak ada.",
   "cw_files_edit_keep": "Lanjut mengedit",
   "cw_files_edit_label": "Teks file",

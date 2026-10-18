@@ -4588,6 +4588,7 @@ c2c_test_deep_bad: "4 KiB का परीक्षण नहीं पहुँ
 "cw_files_up_stopped": "नहीं भेजी गईं: {n}",
 "cw_files_up_failed": "{n} विफल: {reason}",
 "cw_files_up_no_space": "ड्राइव भर गई है",
+"cw_files_edit_eol_note": "इस फ़ाइल के कुछ लाइन ब्रेक अकेले CR हैं (पुरानी Mac शैली)। सहेजने पर वे फ़ाइल के सामान्य लाइन ब्रेक बन जाएँगे।",
 };
 
 export default hi;

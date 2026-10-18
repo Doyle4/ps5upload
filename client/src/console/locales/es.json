@@ -113,6 +113,7 @@
   "cw_files_edit_binary": "El texto tiene un byte NUL, así que no se puede guardar como texto.",
   "cw_files_edit_changed": "Este archivo cambió en la consola después de abrirlo. Guardar ahora reemplaza ese cambio.",
   "cw_files_edit_discard": "Descartar mis cambios",
+  "cw_files_edit_eol_note": "Algunos saltos de línea de este archivo son un CR suelto (estilo Mac antiguo). Al guardar se convierten en los saltos de línea habituales del archivo.",
   "cw_files_edit_gone": "El archivo ya no está.",
   "cw_files_edit_keep": "Seguir editando",
   "cw_files_edit_label": "Texto del archivo",

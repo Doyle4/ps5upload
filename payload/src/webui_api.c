@@ -13,6 +13,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <fcntl.h>
+#include <limits.h>
 #include <sys/stat.h>
 #include <sys/statvfs.h>
 #include <time.h>
@@ -1476,8 +1477,10 @@ static void r_index_cancel(const char *b, size_t n, uint8_t *out, int fd) {
  * policy (ava1_data_cfg: may_write for anything written, may_read for anything sent, the trust store
  * never). Streamed bodies (an upload, a text save) are read by the route itself (webui_api_stream), with
  * an idle timeout instead of the 5 s connection deadline, so they hold a web worker only while bytes
- * move. At most ONE upload and ONE download run at a time (409 busy otherwise): with the four workers,
- * the page always keeps two for everything else. */
+ * move. At most ONE upload and ONE download run at a time (409 busy otherwise), and a text save (one at a
+ * time too) is refused 409 busy while both of those run: of the four workers, at least two stay free for
+ * everything else. Every transfer also has a throughput floor (webui_files.h wf_rate_t), so a client that
+ * trickles bytes cannot hold a worker forever either. */
 
 #define XFER_RESERVE_MS 30000LL   /* an upload begun but not sent is forgotten after this */
 #define XFER_TICKET_MS 60000LL    /* a download link works this long after it was made or last used */
@@ -1497,7 +1500,33 @@ static int policy_read(const char *p) {
     return !path_in_protected(p) && cfg && cfg->may_read && cfg->may_read(p, 0);
 }
 
-static int skip_protected(const char *p) { return path_in_protected(p); }
+/* The tar walk's filter: the trust store's forms, resolved once per archive (path_protected_forms);
+ * the walk's root is canonical and it follows no link, so each entry is a plain prefix test. */
+typedef struct {
+    char lex[PATH_MAX];
+    char canon[PATH_MAX];
+} protected_forms_t;
+
+static int skip_protected(const char *p, void *ctx) {
+    const protected_forms_t *f = (const protected_forms_t *)ctx;
+    return path_under_forms(p, f->lex, f->canon);
+}
+
+/* An answer to a client still sending its body: read off (and drop) a bounded part of it first, so the
+ * close that follows the answer is less likely to reset the connection before the page reads the code. */
+#define XFER_DRAIN_BYTES (64u * 1024u)
+#define XFER_DRAIN_MS 2000
+static void drain_then(int fd, uint64_t body_left) {
+    uint8_t sink[16384];
+    long long until = mono_ms() + XFER_DRAIN_MS;
+    uint64_t want = body_left < XFER_DRAIN_BYTES ? body_left : XFER_DRAIN_BYTES;
+    while (want > 0 && mono_ms() < until) {
+        ssize_t k = wf_recv(fd, sink, want < sizeof sink ? (size_t)want : sizeof sink,
+                            (unsigned)(until - mono_ms() > 0 ? until - mono_ms() : 1), NULL);
+        if (k <= 0) break;
+        want -= (uint64_t)k;
+    }
+}
 
 static void send_wf(int fd, int e) {
     const char *tok = wf_error_token(e);
@@ -1563,6 +1592,7 @@ static void r_upload_begin(const char *b, size_t n, uint8_t *out, int fd) {
         send_error(fd, 404, "no_folder", 9);
         return;
     }
+    (void)wf_sweep_stale(dir, time(NULL), WF_STALE_PART_S); /* temps a crash left behind */
     if (lstat(path, &st) == 0) {
         if (!S_ISREG(st.st_mode)) {
             send_error(fd, 409, "not_a_file", 10);
@@ -1623,18 +1653,22 @@ static void s_upload_data(const webui_req_t *r, const uint8_t *pre, size_t pre_l
     uint64_t size;
     int overwrite, rc;
     long long now = mono_ms();
+    uint64_t left = r->content_length > pre_len ? r->content_length - pre_len : 0;
     if (strncmp(r->query, "id=", 3) != 0 || webui_parse_hex16(r->query + 3, id) != 0) {
+        drain_then(fd, left);
         send_bad(fd, "bad_id");
         return;
     }
     pthread_mutex_lock(&g_xfer_mu);
     if (g_up.state != UP_RESERVED || memcmp(id, g_up.id, 16) != 0 || g_up.expires <= now) {
         pthread_mutex_unlock(&g_xfer_mu);
+        drain_then(fd, left);
         send_error(fd, 409, "not_begun", 9);
         return;
     }
     if (r->content_length != g_up.size) {
         pthread_mutex_unlock(&g_xfer_mu);
+        drain_then(fd, left);
         send_bad(fd, "bad_size");
         return;
     }
@@ -1676,12 +1710,20 @@ static void s_save_text(const webui_req_t *r, const uint8_t *pre, size_t pre_len
     wf_text_pre_t pc;
     int create = 0, rc;
     if (total > WF_TEXT_MAX + XFER_TEXT_HEAD) {
+        drain_then(fd, total - pre_len);
         send_error(fd, 413, "too_large", 9);
         return;
     }
-    if (pthread_mutex_trylock(&g_text_mu) != 0) {
-        send_error(fd, 409, "busy", 4);
-        return;
+    {
+        int both;
+        pthread_mutex_lock(&g_xfer_mu);
+        both = g_up.state == UP_RECEIVING && g_dl.state == DL_SENDING;
+        pthread_mutex_unlock(&g_xfer_mu);
+        if (both || pthread_mutex_trylock(&g_text_mu) != 0) {
+            drain_then(fd, total - pre_len);
+            send_error(fd, 409, "busy", 4);
+            return;
+        }
     }
     body = malloc(total ? (size_t)total : 1);
     if (!body) {
@@ -1738,6 +1780,8 @@ static void s_save_text(const webui_req_t *r, const uint8_t *pre, size_t pre_len
         rc = -1;
     }
     if (rc == 0) {
+        char dir[API_PATH];
+        if (folder_of(path, dir, sizeof dir) == 0) (void)wf_sweep_stale(dir, time(NULL), WF_STALE_PART_S);
         pc.create = create;
         pc.check = !create;
         rc = wf_text_save(path, nl + 1, got - head_len - 1, &pc, &mt, &sz, &mns);
@@ -1898,9 +1942,20 @@ static void serve_download(const webui_req_t *r, int fd) {
         webui_send_json(fd, 403, "{\"error\":\"path_not_allowed\"}");
     } else if (is_dir) {
         uint64_t sent = 0;
-        if (stat(path, &st) != 0 || !S_ISDIR(st.st_mode)) webui_send_json(fd, 404, "{\"error\":\"gone\"}");
-        else if (send_dl_head(fd, 200, "application/x-tar", -1, "", name) == 0)
-            (void)wf_send_tar(fd, path, skip_protected, WF_IDLE_MS, buf, WF_IO_BUF, &sent);
+        protected_forms_t *pf = malloc(sizeof *pf);
+        char *canon = malloc(PATH_MAX);
+        /* The walk starts from the canonical root (it follows no link below it), so the trust store's
+         * forms are resolved once here instead of a realpath per entry. */
+        if (!pf || !canon || !realpath(path, canon) || stat(canon, &st) != 0 || !S_ISDIR(st.st_mode) ||
+            path_tree_op_refused(canon)) {
+            webui_send_json(fd, 404, "{\"error\":\"gone\"}");
+        } else {
+            path_protected_forms(pf->lex, pf->canon);
+            if (send_dl_head(fd, 200, "application/x-tar", -1, "", name) == 0)
+                (void)wf_send_tar(fd, canon, skip_protected, pf, WF_IDLE_MS, buf, WF_IO_BUF, &sent);
+        }
+        free(pf);
+        free(canon);
     } else {
         uint64_t a = 0, z = 0;
         int rg;

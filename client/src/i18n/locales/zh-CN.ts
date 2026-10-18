@@ -4528,6 +4528,7 @@ c2c_test_deep_bad: "4 KiB 测试发送未到达：{detail}",
 "cw_files_up_stopped": "未发送：{n}",
 "cw_files_up_failed": "{n} 个失败：{reason}",
 "cw_files_up_no_space": "驱动器已满",
+"cw_files_edit_eol_note": "此文件中有些换行是单独的 CR（旧 Mac 格式）。保存时会改成此文件常用的换行。",
 };
 
 export default zh_CN;

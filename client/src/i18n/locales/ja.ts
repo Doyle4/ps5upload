@@ -4593,6 +4593,7 @@ c2c_test_deep_bad: "4 KiB のテスト送信が届きませんでした: {detail
 "cw_files_up_stopped": "未送信: {n}",
 "cw_files_up_failed": "{n} 件失敗: {reason}",
 "cw_files_up_no_space": "ドライブがいっぱいです",
+"cw_files_edit_eol_note": "このファイルの一部の改行は単独の CR（旧 Mac 形式）です。保存すると、このファイルで通常使われている改行に変わります。",
 };
 
 export default ja;

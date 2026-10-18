@@ -113,6 +113,7 @@
   "cw_files_edit_binary": "文字中有 NUL 位元組，無法以文字儲存。",
   "cw_files_edit_changed": "開啟後此檔案已在主機上變更。現在儲存會取代那次變更。",
   "cw_files_edit_discard": "捨棄我的變更",
+  "cw_files_edit_eol_note": "此檔案中有些換行是單獨的 CR（舊 Mac 格式）。儲存時會改成此檔案常用的換行。",
   "cw_files_edit_gone": "檔案已不存在。",
   "cw_files_edit_keep": "繼續編輯",
   "cw_files_edit_label": "檔案內容",
