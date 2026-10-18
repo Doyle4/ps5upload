@@ -41,6 +41,7 @@ import { recordPmStore } from "../../lib/pmUpdates";
 import { hostOf } from "../../lib/addr";
 import { useTr } from "../../state/lang";
 import UsbAutoloaderModal from "./UsbAutoloaderModal";
+import { payloadCardLink } from "./payloadTabs";
 
 /**
  * Catalog tab of the Payloads screen — curated catalogue of
@@ -339,11 +340,11 @@ export default function CatalogPanel() {
         withConsolePrefix(h, tr("payloads_pm_stored_title", { name: filename }, `Stored ${filename} in Payload Manager`)),
         {
           body: tr(
-            "payloads_pm_stored_body",
+            "payloads_pm_stored_body_v2",
             { folder: r.folder },
-            `It is in Payload Manager's "${r.folder}" folder. The Payload Manager tab launches it or loads it at boot.`,
+            `It is in Payload Manager's "${r.folder}" folder. Payload Manager on the On your PS5 tab launches it or loads it at boot.`,
           ),
-          link: "/payloads?tab=manager",
+          link: payloadCardLink("payload-manager"),
         },
       );
     } catch (e) {

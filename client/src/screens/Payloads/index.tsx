@@ -1,18 +1,19 @@
-import { Boxes, Globe, HardDrive, Network, Package, Rocket } from "lucide-react";
+import { Boxes, Gamepad2, Rocket } from "lucide-react";
+import { Navigate, useSearchParams } from "react-router";
 
 import TabbedShell, { type TabbedShellTab } from "../../layout/TabbedShell";
 import { useTr } from "../../state/lang";
 import CatalogPanel from "./CatalogPanel";
 import SendPanel from "./SendPanel";
-import PayloadManagerPanel from "./PayloadManagerPanel";
-import PortsPanel from "./PortsPanel";
-import NanoDnsScreen from "../NanoDns";
-import SmpPanel from "../Library/SmpPanel";
-import { ConnectionGate } from "../../components";
+import OnPs5Panel from "./hub/OnPs5Panel";
 import { useConnectionStore } from "../../state/connection";
-import { mgmtAddr } from "../../lib/addr";
 import { isTauriEnv } from "../../lib/tauriEnv";
-import { payloadTabsFor, type PayloadTabId } from "./payloadTabs";
+import {
+  defaultPayloadTab,
+  legacyPayloadsTarget,
+  payloadTabsFor,
+  type PayloadTabId,
+} from "./payloadTabs";
 
 /**
  * Payloads screen — URL-routed tabs:
@@ -20,24 +21,29 @@ import { payloadTabsFor, type PayloadTabId } from "./payloadTabs";
  *   - **catalog**: curated GitHub-released third-party homebrew.
  *   - **send**: arbitrary ELF/BIN/JS/LUA/JAR picker. Includes
  *     playlists and recent-sends history.
- *   - **shadowmount** / **nanodns**: those payloads' status and config on
- *     the console. The only two the browser build shows (payloadTabsFor).
+ *   - **ps5** ("On your PS5"): a card per payload running or installed on the
+ *     console; ShadowMount+, nanoDNS, Payload Manager and HearBridge open
+ *     their own panel from the card. The only tab the browser build shows.
  *
- * (Historically split across /payloads and the old /send-payload route;
- * merged under ?tab=send for a cleaner sidebar. Legacy redirects remain
- * for old bookmarks.)
- *
- * The shell (URL contract + tablist + a11y + keyboard nav + page
- * header) lives in `layout/TabbedShell`; this file is just tab
- * metadata and a panel switch.
+ * The integrations used to be tabs of their own; `?tab=manager|shadowmount|
+ * nanodns` now opens their card, and `?tab=ports` moved to Processes.
  */
 
 type TabId = PayloadTabId;
 
 export default function PayloadsScreen() {
   const tr = useTr();
-  const host = useConnectionStore((state) => state.host);
-  const available = payloadTabsFor(isTauriEnv());
+  const [params] = useSearchParams();
+  const host = useConnectionStore((s) => s.host);
+  const payloadStatus = useConnectionStore((s) => s.payloadStatus);
+  // "Connected" for picking the default tab: a console is set and not known to be down.
+  // (Waiting for "up" would flip a bare /payloads from Catalog to On your PS5 mid-look.)
+  const connected = !!host?.trim() && payloadStatus !== "down";
+  const native = isTauriEnv();
+  const legacy = legacyPayloadsTarget(params.get("tab"));
+  if (legacy) return <Navigate to={legacy} replace />;
+
+  const available = payloadTabsFor(native);
   const allTabs: ReadonlyArray<TabbedShellTab<TabId>> = [
     {
       id: "catalog",
@@ -62,47 +68,14 @@ export default function PayloadsScreen() {
       ),
     },
     {
-      id: "manager",
-      icon: Package,
-      key: "payloads_tab_manager",
-      fallback: "Payload Manager",
+      id: "ps5",
+      icon: Gamepad2,
+      key: "payloads_tab_ps5",
+      fallback: "On your PS5",
       description: tr(
-        "payloads_description_manager",
+        "payloads_description_ps5",
         undefined,
-        "The payloads kept on the PS5 by Payload Manager (itsPLK): launch or delete them, and choose which ones it loads at boot and in what order. Store a catalogue payload there from the Catalog tab.",
-      ),
-    },
-    {
-      id: "shadowmount",
-      icon: HardDrive,
-      key: "payloads_tab_shadowmount",
-      fallback: "ShadowMount+",
-      description: tr(
-        "payloads_description_shadowmount",
-        undefined,
-        "Inspect ShadowMount+ status, mounted game images, configuration, and diagnostics on the selected PS5.",
-      ),
-    },
-    {
-      id: "nanodns",
-      icon: Globe,
-      key: "payloads_tab_nanodns",
-      fallback: "nanoDNS",
-      description: tr(
-        "payloads_description_nanodns",
-        undefined,
-        "Configure the nanoDNS payload, verify its running version, and apply safe config migrations.",
-      ),
-    },
-    {
-      id: "ports",
-      icon: Network,
-      key: "payloads_tab_ports",
-      fallback: "Ports",
-      description: tr(
-        "payloads_description_ports",
-        undefined,
-        "The ports in use on the PS5 and what usually listens on each, so you can tell which payload is where. Open the ones with a web page in your browser.",
+        "The payloads running or installed on the selected PS5. Open a payload's web page, update it, stop it, or manage it.",
       ),
     },
   ];
@@ -110,28 +83,7 @@ export default function PayloadsScreen() {
 
   const renderPanel = (id: TabId) => {
     if (id === "send") return <SendPanel />;
-    if (id === "manager") {
-      return (
-        <ConnectionGate require="host">
-          <PayloadManagerPanel />
-        </ConnectionGate>
-      );
-    }
-    if (id === "nanodns") return <NanoDnsScreen />;
-    if (id === "ports") {
-      return (
-        <ConnectionGate require="payload">
-          <PortsPanel />
-        </ConnectionGate>
-      );
-    }
-    if (id === "shadowmount") {
-      return (
-        <ConnectionGate require="payload">
-          <SmpPanel mgmtAddr={host?.trim() ? mgmtAddr(host.trim()) : null} />
-        </ConnectionGate>
-      );
-    }
+    if (id === "ps5") return <OnPs5Panel />;
     return <CatalogPanel />;
   };
 
@@ -142,6 +94,7 @@ export default function PayloadsScreen() {
       titleKey="payloads"
       titleFallback="Payloads"
       tabs={tabs}
+      defaultTab={defaultPayloadTab(native, connected)}
       renderPanel={renderPanel}
     />
   );
