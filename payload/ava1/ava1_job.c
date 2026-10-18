@@ -71,8 +71,36 @@ ava1_job_t *ava1_job_find(const uint8_t id[16]) {
     return j;
 }
 
+/* An upload or download that ended and has nothing left to settle: what it still holds (its threads, its
+ * slot) serves only a late Status or a reopen, and a reopen replays its journal (an upload) or starts over (a
+ * download). A copy, an operation and a send to another console keep their own rules: their status is read
+ * by job id after they end. `concluded_ms` (set after `finished`, once the job's JobDone is out: its last commit
+ * and journal append are behind it) and `unswept_n` are read without j->mu, as in the reaper. */
+static int transfer_ended(const ava1_job_t *j) {
+    return (j->kind == AVA1_JOB_UPLOAD || j->kind == AVA1_JOB_DOWNLOAD) && !j->c2c &&
+           __atomic_load_n(&j->concluded_ms, __ATOMIC_ACQUIRE) && !__atomic_load_n(&j->unswept_n, __ATOMIC_RELAXED);
+}
+
+/* Caller holds T.mu, and the table is full: the ended transfer nobody else holds (only the table's
+ * reference) that ended longest ago, or -1. A session runs job after job (the Files screen sends a pick of
+ * files one job each, #475), so its ended jobs must make room for the next one rather than answer BUSY. */
+static int evictable_locked(void) {
+    int i, best = -1;
+    for (i = 0; i < AVA1_MAX_JOBS; i++) {
+        ava1_job_t *j = T.jobs[i];
+        if (!j || j->refs != 1 || !transfer_ended(j)) continue;
+        if (best < 0 || __atomic_load_n(&j->concluded_ms, __ATOMIC_ACQUIRE) <
+                            __atomic_load_n(&T.jobs[best]->concluded_ms, __ATOMIC_ACQUIRE))
+            best = i;
+    }
+    return best;
+}
+
+static void unlist(ava1_job_t *j);
+
 static ava1_job_t *create(const uint8_t id[16], const uint8_t owner[32], const uint8_t *sid) {
     ava1_job_t *j = calloc(1, sizeof *j);
+    ava1_job_t *evicted = NULL;
     int i, slot = -1;
     if (!j) return NULL;
     memcpy(j->id, id, 16);
@@ -100,6 +128,11 @@ static ava1_job_t *create(const uint8_t id[16], const uint8_t owner[32], const u
         }
         if (!T.jobs[i] && slot == -1) slot = i;
     }
+    if (slot == -1 && (i = evictable_locked()) >= 0) {
+        evicted = T.jobs[i];
+        unlist(evicted); /* its id stays retiring until the put below has destroyed it */
+        slot = i;
+    }
     if (slot >= 0)
         for (i = 0; i < (int)T.retiring_n; i++)
             if (memcmp(T.retiring[i], id, 16) == 0) {
@@ -112,6 +145,7 @@ static ava1_job_t *create(const uint8_t id[16], const uint8_t owner[32], const u
     if (slot >= 0 && T.retiring_n >= AVA1_MAX_JOBS) slot = -2;
     if (slot >= 0) T.jobs[slot] = j;
     pthread_mutex_unlock(&T.mu);
+    if (evicted) ava1_job_put(evicted); /* the table's reference, the last one: joins its idle threads */
     if (slot < 0) {
         pthread_mutex_destroy(&j->mu);
         pthread_mutex_destroy(&j->jnl_mu);
@@ -357,7 +391,18 @@ void ava1_job_reap(uint64_t now_ms) {
          * j->mu: that lock can be held across disk I/O, and waiting for it under T.mu would
          * stall every reader thread's job lookup. It only ever goes 0 -> 1, so a stale read
          * reaps later. */
-        if (!j || j->attached || j->parked_at_ms == 0) continue;
+        if (!j) continue;
+        if (j->attached) {
+            /* An upload or download ends on the session that ran it, and that session goes on to the
+             * next job: the ended one leaves the table 10 s after it ended, as if its session had let go
+             * of it (SPEC.md §11.7), not when the session ends (#475). */
+            if (transfer_ended(j) && now_ms > __atomic_load_n(&j->concluded_ms, __ATOMIC_ACQUIRE) + done_age) {
+                gone[n++] = j;
+                unlist(j);
+            }
+            continue;
+        }
+        if (j->parked_at_ms == 0) continue;
         fin = __atomic_load_n(&j->finished, __ATOMIC_ACQUIRE);
         /* Files still settling (durable-by-log) keep their job alive for the full park age: it owns the
          * sweep, and the engine polls its Status for `unswept`. */

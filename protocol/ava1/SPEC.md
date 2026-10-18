@@ -720,7 +720,10 @@ or `job.copy` whose root is, or lies inside or around, the root of another job t
 (and, for a move, its source) is answered `ERR_BUSY`; parked jobs count, because they can resume.
 When a session ends its jobs are parked, not ended: they stay listed, detached, for 10 minutes
 and then leave the table; their journal stays on disk (§14.3), so a later `JobOpen` resumes them.
-A finished upload or download leaves the table 10 s after its session lets go of it; a finished local job
+A finished upload or download leaves the table 10 s after it ended (its `JobDone` went out or came in), whether
+or not its session goes on: a session runs job after job, so the jobs it ended must not hold the table until it
+ends. A `JobOpen` that finds the table full takes the slot of the ended upload or download (with nothing left
+to settle) that ended longest ago instead of answering `ERR_BUSY` (a reopen of an upload replays its journal; a download starts over). A finished local job
 (`job.copy`) stays listed for the full park age so `job.status` can still answer. Either peer ends a
 job with `JobCancel{job_id, reason}`, where `reason` is the `ERR_*` code the ender wants reported
 (`ERR_CANCELLED` for a user's cancel, `ERR_IO` or `ERR_VERIFY` when a sender's source fails); the

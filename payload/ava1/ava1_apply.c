@@ -524,6 +524,7 @@ void ava1_apply_fail(ava1_job_t *j, uint16_t status, const char *what, int err, 
     }
     pthread_mutex_unlock(&j->mu);
     emit_done(j);
+    __atomic_store_n(&j->concluded_ms, ava1_mono_ms() | 1u, __ATOMIC_RELEASE); /* the table may now let it go (ava1_job.c) */
 }
 
 void ava1_apply_done_again(ava1_job_t *j) {
