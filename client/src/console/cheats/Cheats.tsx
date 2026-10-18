@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { Gamepad2, RefreshCw } from "lucide-react";
+import { Gamepad2, RefreshCw, Search } from "lucide-react";
 import { useAppCover } from "../home/Home";
 import { onNavAction } from "../nav";
 import { t } from "../strings";
 import { pollWhileVisible } from "../ui/visiblePoll";
+import { createFinder, FINDER_CLOSED, type Finder, type FinderState } from "./finder";
+import { FindCheats } from "./FindCheats";
 import {
   cheatsPhase,
   createCheatsController,
@@ -23,6 +25,10 @@ export interface CheatsViewProps {
   onCoverError?: () => void;
   onToggle: (mod: CheatMod) => void;
   onRefresh: () => void;
+  /** Find cheats online for the running game (absent: no Find button). */
+  onFind?: () => void;
+  /** A finished download, one line (shown until the section changes). */
+  notice?: string | null;
 }
 
 /**
@@ -66,13 +72,37 @@ function RefreshButton({ onRefresh }: { onRefresh: () => void }) {
   );
 }
 
-/** An empty state: what is true, what to do next, and Refresh. */
-function Empty({ title, next, onRefresh, tone }: { title: string; next?: string; onRefresh: () => void; tone?: "error" }) {
+function FindButton({ onFind, more }: { onFind: () => void; more?: boolean }) {
+  return (
+    <button type="button" className={`cw-focusable cw-button${more ? "" : " is-primary"}`} data-action="cheats-find" onClick={onFind}>
+      <Search aria-hidden />
+      <span>{t(more ? "cw_cheats_find_more" : "cw_cheats_find")}</span>
+    </button>
+  );
+}
+
+/** An empty state: what is true, what to do next, and Refresh (Find first when given). */
+function Empty({
+  title,
+  next,
+  onRefresh,
+  onFind,
+  tone,
+}: {
+  title: string;
+  next?: string;
+  onRefresh: () => void;
+  onFind?: () => void;
+  tone?: "error";
+}) {
   return (
     <div className={`cw-card cw-cheats-empty${tone === "error" ? " is-error" : ""}`} role={tone === "error" ? "alert" : "status"}>
       <p className="cw-cheats-empty-title">{title}</p>
       {next ? <p className="cw-dim">{next}</p> : null}
-      <RefreshButton onRefresh={onRefresh} />
+      <div className="cw-cheats-empty-buttons">
+        {onFind ? <FindButton onFind={onFind} /> : null}
+        <RefreshButton onRefresh={onRefresh} />
+      </div>
     </div>
   );
 }
@@ -98,7 +128,7 @@ export function CheatsView(p: CheatsViewProps) {
       body = <Empty title={t("cw_cheats_exited")} next={t("cw_cheats_exited_next")} onRefresh={p.onRefresh} />;
       break;
     case "none":
-      body = <Empty title={t("cw_cheats_none")} next={t("cw_cheats_none_next")} onRefresh={p.onRefresh} />;
+      body = <Empty title={t("cw_cheats_none")} next={t("cw_cheats_none_next")} onRefresh={p.onRefresh} onFind={p.onFind} />;
       break;
     case "list":
       body = (
@@ -131,8 +161,16 @@ export function CheatsView(p: CheatsViewProps) {
               {s.status && !s.status.engine ? t("cw_cheats_engine_off") : t("cw_cheats_how")}
             </div>
           </div>
-          <RefreshButton onRefresh={p.onRefresh} />
+          <div className="cw-cheats-game-buttons">
+            {phase.kind === "list" && p.onFind ? <FindButton onFind={p.onFind} more /> : null}
+            <RefreshButton onRefresh={p.onRefresh} />
+          </div>
         </section>
+      ) : null}
+      {p.notice ? (
+        <div className="cw-msg is-info" role="status">
+          {p.notice}
+        </div>
       ) : null}
       {s.message ? (
         <div className="cw-msg is-error" role="alert">
@@ -158,6 +196,22 @@ export function Cheats() {
   const [state, setState] = useState<CheatsState>(EMPTY_STATE);
   const ctl = useRef<CheatsController | null>(null);
   const root = useRef<HTMLDivElement>(null);
+  const [finderState, setFinderState] = useState<FinderState>(FINDER_CLOSED);
+  const finder = useRef<Finder | null>(null);
+  const [notice, setNotice] = useState<{ title: string; text: string } | null>(null);
+
+  // The finder: a stored file closes it, and the game's cheats are read again (they show at once).
+  useEffect(() => {
+    finder.current = createFinder(setFinderState, (entry, title) => {
+      setNotice({ title, text: t("cw_cheats_find_saved", { name: entry.filename }) });
+      finder.current?.close();
+      void ctl.current?.loadList();
+    });
+    return () => {
+      finder.current?.close();
+      finder.current = null;
+    };
+  }, []);
 
   // Opening the section reads at once; then the status every few seconds while the page shows.
   // Coming back to the page (it was hidden) reads the cheats again too: the PC may have changed them.
@@ -203,6 +257,10 @@ export function Cheats() {
   );
 
   const titleId = state.status?.game?.title_id ?? null;
+  // The game went away (or another started): its finder and notice go with it.
+  useEffect(() => {
+    if (finderState.kind !== "closed" && finderState.title !== titleId) finder.current?.close();
+  }, [titleId, finderState]);
   const loadedCover = useAppCover(titleId);
   const [coverFailed, setCoverFailed] = useState<string | null>(null);
   const cover = loadedCover && coverFailed !== loadedCover ? loadedCover : null;
@@ -215,6 +273,23 @@ export function Cheats() {
         onCoverError={() => setCoverFailed(loadedCover)}
         onToggle={(m) => void ctl.current?.toggle(m)}
         onRefresh={() => void ctl.current?.refresh()}
+        onFind={
+          titleId
+            ? () => {
+                setNotice(null);
+                void finder.current?.open(titleId);
+              }
+            : undefined
+        }
+        notice={notice && notice.title === titleId ? notice.text : null}
+      />
+      <FindCheats
+        state={finderState}
+        onDownload={(e) => void finder.current?.download(e)}
+        onRetry={() => {
+          if (finderState.kind !== "closed") void finder.current?.open(finderState.title);
+        }}
+        onClose={() => finder.current?.close()}
       />
     </div>
   );

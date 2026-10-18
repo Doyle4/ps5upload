@@ -960,6 +960,14 @@ test-payload: payload
 		$(PAYLOAD_DIR)/tests/webui_inputlog_selftest.c $(PAYLOAD_DIR)/src/webui_inputlog.c
 	@/tmp/ps5upload-webui-inputlog-selftest
 	@echo "✓ the controller input log takes only plain short lines and never grows past its 64 KiB ring"
+	@echo "Running webui cheat download store self-test (host build)..."
+	@cc -O2 -Wall -Wextra -Werror -pthread -I$(PAYLOAD_DIR)/include -I$(PAYLOAD_DIR)/ava1 -I$(PAYLOAD_DIR)/ava1/gen \
+		-o /tmp/ps5upload-webui-cheats-store-selftest \
+		$(PAYLOAD_DIR)/tests/webui_cheats_store_selftest.c $(PAYLOAD_DIR)/src/webui_cheats_store.c \
+		$(PAYLOAD_DIR)/src/webui_files.c $(PAYLOAD_DIR)/src/webui_codec.c \
+		$(PAYLOAD_DIR)/ava1/gen/ava1_gen.c $(PAYLOAD_DIR)/ava1/ava1_wire.c
+	@/tmp/ps5upload-webui-cheats-store-selftest
+	@echo "✓ a downloaded cheat is stored only under a plain name with its format's extension, through a same-folder temp + rename"
 	@echo "Running AVA1 in-flight RPC gate self-test (host build)..."
 	@cc -O2 -Wall -Wextra -Werror -pthread -I$(PAYLOAD_DIR)/ava1 \
 		-o /tmp/ps5upload-ava1-rpc-gate-selftest \
