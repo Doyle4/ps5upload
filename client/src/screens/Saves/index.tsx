@@ -1,7 +1,7 @@
 import { consoleAddr } from "../../lib/addr";
 import { isAndroid } from "../../lib/platform";
 import { backupStamp } from "./backupStamp";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 // useEffect is consumed inside SaveThumbnail below.
 import { useNavigate } from "react-router";
 import {
@@ -33,7 +33,20 @@ import {
   savesOpen,
   savesClose,
   type OpenSave,
+  profileInfo,
+  type ProfileUser,
 } from "../../api/ps5";
+import {
+  backupZipName,
+  defaultUserFilter,
+  filterSaves,
+  latestUsbBackup,
+  saveOwners,
+  usbUserDir,
+  userHex,
+  userName,
+  type UserFilter,
+} from "./saveUsers";
 import { beginTask, type TaskHandle } from "../../state/trackTask";
 import { localFs } from "../../api/localFs";
 import { useConnectionStore } from "../../state/connection";
@@ -49,6 +62,7 @@ import {
   OverflowMenu,
   Spinner,
   Modal,
+  Select,
 } from "../../components";
 // Direct import to avoid the barrel's circular-dep warning at build.
 import { useConfirm } from "../../components/ConfirmDialog";
@@ -158,7 +172,19 @@ export default function SavesScreen() {
     }
   };
   const guard = useStaleHostGuard();
-  const [saves, setSaves] = useState<SaveEntry[] | null>(null);
+  const [allSaves, setSaves] = useState<SaveEntry[] | null>(null);
+  // The console's local users (names) and whose saves are shown. On a shared console the
+  // screen starts on the user at the console, so backups and restores can't pick up someone
+  // else's save of the same game by mistake.
+  const [users, setUsers] = useState<ProfileUser[]>([]);
+  const [userFilter, setUserFilter] = useState<UserFilter>("all");
+  const filterChosen = useRef(false);
+  const saves = useMemo(
+    () => (allSaves ? filterSaves(allSaves, userFilter) : null),
+    [allSaves, userFilter],
+  );
+  const owners = useMemo(() => saveOwners(allSaves ?? [], users), [allSaves, users]);
+  const ownerName = useCallback((e: SaveEntry) => userName(e.user_id, users), [users]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Set of entry paths currently being backed up / restored. Used to
@@ -196,8 +222,17 @@ export default function SavesScreen() {
     setLoading(true);
     setError(null);
     try {
-      const r = await savesList(mgmtAddr(probe.host));
+      const [r, profile] = await Promise.all([
+        savesList(mgmtAddr(probe.host)),
+        // Names are a nicety: an older helper or a failed read just shows ids.
+        profileInfo(mgmtAddr(probe.host)).catch(() => null),
+      ]);
       if (probe.isStale()) return;
+      setUsers(profile?.users ?? []);
+      if (!filterChosen.current) {
+        filterChosen.current = true;
+        setUserFilter(defaultUserFilter(r.saves, profile?.uid ?? 0));
+      }
       setSaves(r.saves);
     } catch (e) {
       if (probe.isStale()) return;
@@ -219,6 +254,9 @@ export default function SavesScreen() {
   useEffect(() => {
     setSaves(null);
     setError(null);
+    setUsers([]);
+    setUserFilter("all");
+    filterChosen.current = false;
   }, [host]);
 
   useEffect(() => {
@@ -259,9 +297,11 @@ export default function SavesScreen() {
       // it stayed empty while the zip went to Downloads (#451, "0 byte zip"). There the backup
       // goes straight to Downloads, dated so a second backup does not replace the first.
       const android = isAndroid();
-      const destZipName = android
-        ? `${entry.title_id}-${backupStamp(new Date())}.zip`
-        : `${entry.title_id}.zip`;
+      const destZipName = backupZipName(
+        entry.title_id,
+        ownerName(entry),
+        android ? backupStamp(new Date()) : undefined,
+      );
       const destZip = android
         ? ""
         : await saveDialog({
@@ -494,7 +534,9 @@ export default function SavesScreen() {
       // 4) Size the zip (via the scratch dir listing) and confirm the USB
       // target has room for it. Best-effort: an unreadable size or an
       // unmatched volume just skips the check rather than blocking.
-      const remoteDir = `${base}/${entry.title_id}/${backupTimestamp()}`;
+      // One folder per user (`<name>-<uid hex>`), so a shared console's users never restore
+      // each other's backups of the same game (saveUsers.ts).
+      const remoteDir = `${base}/${entry.title_id}/${usbUserDir(entry.user_id, ownerName(entry))}/${backupTimestamp()}`;
       const remoteZip = `${remoteDir}/${zipName}`;
       const tempEntries = await localFs.listDir(tempDir).catch(() => []);
       const zipSize = tempEntries.find((e) => e.name === zipName)?.size ?? 0;
@@ -555,27 +597,27 @@ export default function SavesScreen() {
   }
 
   /**
-   * Finds the lexically-latest timestamped backup directory for a given
-   * title under `<base>/<title_id>/`. The backupTimestamp() format
-   * (YYYY-MM-DD_HHMMSS) is documented as lexically sortable, so the
-   * greatest string name == the newest backup — no mtime parsing needed.
-   *
-   * Returns null if the title dir is absent, unreadable, or has never
-   * been backed up (no subdirs).
+   * The newest USB backup of `entry`'s title for `entry`'s user, relative to
+   * `<base>/<title_id>/` (saveUsers.ts latestUsbBackup). Null when there is none.
    */
   async function resolveLatestUsbBackup(
     addr: string,
     base: string,
-    title_id: string,
+    entry: SaveEntry,
   ): Promise<string | null> {
+    const titleDir = `${base}/${entry.title_id}`;
+    const onlyUser = (allSaves ?? [])
+      .filter((s) => s.title_id === entry.title_id)
+      .every((s) => userHex(s.user_id) === userHex(entry.user_id));
     try {
-      const entries = await fsListDir(addr, `${base}/${title_id}`);
-      const dirs = entries
-        .filter((e) => e.kind === "dir")
-        .map((e) => e.name)
-        .sort()
-        .reverse();
-      return dirs[0] ?? null;
+      return await latestUsbBackup(
+        async (rel) => {
+          const list = await fsListDir(addr, rel ? `${titleDir}/${rel}` : titleDir).catch(() => []);
+          return list.filter((e) => e.kind === "dir").map((e) => e.name);
+        },
+        entry.user_id,
+        onlyUser,
+      );
     } catch {
       // Dir absent or unreadable — no backup has ever been written.
       return null;
@@ -627,10 +669,11 @@ export default function SavesScreen() {
       // Resolve the newest backup. Return "no-backup" rather than
       // throwing so the bulk handler can skip quietly without incrementing
       // the failure count.
-      const latest = await resolveLatestUsbBackup(addr, base, entry.title_id);
-      if (!latest) return "no-backup";
+      const latestRel = await resolveLatestUsbBackup(addr, base, entry);
+      if (!latestRel) return "no-backup";
+      const latest = latestRel.split("/").pop() ?? latestRel;
       const zipName = `${entry.title_id}.zip`;
-      const remoteZip = `${base}/${entry.title_id}/${latest}/${zipName}`;
+      const remoteZip = `${base}/${entry.title_id}/${latestRel}/${zipName}`;
       if (!opts?.skipConfirm) {
         const ok = await confirmDialog({
           title: tr(
@@ -1028,6 +1071,22 @@ export default function SavesScreen() {
               </ul>
             </Modal>
           )}
+          {owners.length > 1 && (
+            <div className="max-w-xs" data-testid="saves-user-filter">
+              <Select
+                label={tr("saves_user_filter", undefined, "Whose saves")}
+                value={userFilter}
+                onChange={(ev) => setUserFilter(ev.target.value)}
+                options={[
+                  { value: "all", label: tr("saves_user_all", undefined, "All users") },
+                  ...owners.map((o) => ({
+                    value: userHex(o.id),
+                    label: o.name ?? tr("saves_user_other", { id: userHex(o.id) }, "Other user ({id})"),
+                  })),
+                ]}
+              />
+            </div>
+          )}
           {grouped.map(({ title_id, entries }) => (
             <section
               key={title_id}
@@ -1053,7 +1112,9 @@ export default function SavesScreen() {
                         {e.path}
                       </code>
                       <div className="text-xs text-[var(--color-muted)]">
-                        {tr("saves_user", undefined, "user")} {e.user_id} ·{" "}
+                        {ownerName(e) ??
+                          tr("saves_user_other", { id: userHex(e.user_id) }, "Other user ({id})")}{" "}
+                        ·{" "}
                         {formatBytes(e.size)} ·{" "}
                         {formatDate(e.mtime * 1000, "date")}
                       </div>

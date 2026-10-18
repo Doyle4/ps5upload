@@ -4,6 +4,21 @@ What's new in ps5upload, written for humans.
 
 ---
 
+## 7.1.2
+
+- **Save data on a shared PS5 shows whose save is whose.** Each save is labelled with its
+  owner's name instead of a number, and the screen starts on the user who is signed in at the
+  console; "Whose saves" switches to another user or to everyone. Back up all and Restore all
+  act on the saves shown. A backup saved on your computer is named after the game and the user
+  (`PPSA01234-Alice.zip`).
+- **USB backups are kept per user.** Backups to a USB drive on the console now go into a folder
+  per user (`<game>/<name>-<user id>/<date>/`). Before, every user's backups of a game shared one
+  folder, so on a shared console "Restore all from USB" could put one user's latest backup into
+  another user's save. Backups made before this update are still used when only one user on the
+  console has a save of that game.
+
+---
+
 ## 7.1.1
 
 - **The app scrolls again on macOS Big Sur.** On Big Sur's older built-in web engine the app
