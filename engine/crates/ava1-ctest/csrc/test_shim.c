@@ -2533,6 +2533,32 @@ int ava1_test_ended_transfers(const char *jobs_dir) {
         }
     }
     if (!rc) {
+        /* durable-by-log: every file swept (unswept_n 0) but not yet settled (its last Status{unswept=0}
+         * and the segments' removal still to come): not evictable; once settled, it is */
+        memset(id, 0x46, 16);
+        if (!(j = ava1_job_find(id))) rc = -13;
+        else {
+            j->psegs = calloc(1, sizeof *j->psegs);
+            if (j->psegs) j->psegs[0].fd = -1;
+            j->npsegs = 1;
+            ava1_job_put(j);
+            conclude(0x46, 9000);
+            if ((j = mk(0x74, SID)) != NULL) {
+                ava1_job_put(j);
+                rc = -14;
+            } else if (!listed(0x46)) rc = -15;
+            ava1_job_reap(ava1_mono_ms() + 11000u);
+            if (!rc && !listed(0x46)) rc = -16; /* nor reaped */
+            if (!rc && (j = ava1_job_find(id)) != NULL) {
+                __atomic_store_n(&j->settled, 1, __ATOMIC_RELEASE);
+                ava1_job_put(j);
+                if (!(j = mk(0x74, SID))) rc = -17;
+                else ava1_job_put(j);
+                if (!rc && listed(0x46)) rc = -18;
+            }
+        }
+    }
+    if (!rc) {
         /* the reaper: an ended upload still attached goes 10 s after its end, not before; a running one stays */
         conclude(0x43, 0);
         ava1_job_reap(ava1_mono_ms() + 5000u);

@@ -18,7 +18,7 @@ static struct {
     /* Ids that left the table but whose destroy may still be running (threads joined,
      * journal closed): a create of the same id must not touch the job's directory until
      * the destroy finished. Cleared when the job's last reference is dropped. */
-    uint8_t retiring[AVA1_MAX_JOBS][16];
+    uint8_t retiring[2 * AVA1_MAX_JOBS][16];
     unsigned retiring_n;
 } T = { .mu = PTHREAD_MUTEX_INITIALIZER };
 
@@ -27,9 +27,10 @@ static void retiring_add(const uint8_t id[16]) {
     unsigned i;
     for (i = 0; i < T.retiring_n; i++)
         if (memcmp(T.retiring[i], id, 16) == 0) return;
-    /* Full: `create` refuses while the table is full (see there), so a new id cannot be
-     * unlisted here — this branch is unreachable by construction. */
-    if (T.retiring_n < AVA1_MAX_JOBS) memcpy(T.retiring[T.retiring_n++], id, 16);
+    /* Full: unreachable by construction. `create` lists a job only while fewer than
+     * AVA1_MAX_JOBS ids are retiring (an eviction included, see there), and at most
+     * AVA1_MAX_JOBS jobs are listed, so at most 2 * AVA1_MAX_JOBS - 1 ids ever retire at once. */
+    if (T.retiring_n < 2 * AVA1_MAX_JOBS) memcpy(T.retiring[T.retiring_n++], id, 16);
 }
 
 /* Caller holds T.mu. */
@@ -78,7 +79,10 @@ ava1_job_t *ava1_job_find(const uint8_t id[16]) {
  * and journal append are behind it) and `unswept_n` are read without j->mu, as in the reaper. */
 static int transfer_ended(const ava1_job_t *j) {
     return (j->kind == AVA1_JOB_UPLOAD || j->kind == AVA1_JOB_DOWNLOAD) && !j->c2c &&
-           __atomic_load_n(&j->concluded_ms, __ATOMIC_ACQUIRE) && !__atomic_load_n(&j->unswept_n, __ATOMIC_RELAXED);
+           __atomic_load_n(&j->concluded_ms, __ATOMIC_ACQUIRE) && !__atomic_load_n(&j->unswept_n, __ATOMIC_RELAXED) &&
+           /* durable-by-log: settled too, or its last Status{unswept=0} (which the sender waits for) and
+            * the pack segments' removal are still to come between unswept_n reaching 0 and `settled` */
+           (!__atomic_load_n(&j->npsegs, __ATOMIC_RELAXED) || __atomic_load_n(&j->settled, __ATOMIC_ACQUIRE));
 }
 
 /* Caller holds T.mu, and the table is full: the ended transfer nobody else holds (only the table's
@@ -128,24 +132,27 @@ static ava1_job_t *create(const uint8_t id[16], const uint8_t owner[32], const u
         }
         if (!T.jobs[i] && slot == -1) slot = i;
     }
-    if (slot == -1 && (i = evictable_locked()) >= 0) {
-        evicted = T.jobs[i];
-        unlist(evicted); /* its id stays retiring until the put below has destroyed it */
-        slot = i;
-    }
-    if (slot >= 0)
+    if (slot != -2)
         for (i = 0; i < (int)T.retiring_n; i++)
             if (memcmp(T.retiring[i], id, 16) == 0) {
                 slot = -2; /* the previous job of this id is still being destroyed */
                 break;
             }
-    /* The retiring table is full: this job's own unlist could not be recorded, and the
-     * reopen guard is only complete while every retiring id is listed — refuse rather
-     * than let a create whose destroy would silently lose the guard through. */
-    if (slot >= 0 && T.retiring_n >= AVA1_MAX_JOBS) slot = -2;
+    /* Too many ids retiring: refuse rather than let a create through whose own unlist the
+     * retiring list might not have room for (the reopen guard is only complete while every
+     * retiring id is listed). An eviction adds one, so it needs room for that one as well: a
+     * victim is only destroyed when the create it makes room for goes through. */
+    if (slot != -2 && T.retiring_n + (slot == -1) >= AVA1_MAX_JOBS) slot = -2;
+    if (slot == -1 && (i = evictable_locked()) >= 0) {
+        evicted = T.jobs[i];
+        unlist(evicted); /* its id stays retiring until its destroy below has run */
+        slot = i;
+    }
     if (slot >= 0) T.jobs[slot] = j;
     pthread_mutex_unlock(&T.mu);
-    if (evicted) ava1_job_put(evicted); /* the table's reference, the last one: joins its idle threads */
+    /* The table's reference, the last one: destroyed (its idle threads joined) on a thread of its
+     * own, so the JobOpen waiting here is not held up by it. */
+    if (evicted) ava1_job_put_nowait(evicted);
     if (slot < 0) {
         pthread_mutex_destroy(&j->mu);
         pthread_mutex_destroy(&j->jnl_mu);
