@@ -9,7 +9,7 @@ export interface ConsoleStatus {
   running: { title_id: string; app_id: number; name: string | null } | null;
 }
 
-const BRAND = "PS5Upload Files";
+const BRAND = "PS5Upload Minion";
 
 /** Logo, name, and the console chip: model · firmware · temperature. */
 export function TopBar({ status, chipFallback }: { status: ConsoleStatus | null; chipFallback: string | null }) {

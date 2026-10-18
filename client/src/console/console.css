@@ -1609,7 +1609,7 @@ button {
   font-size: 1.4rem;
 }
 
-/* A phone over the LAN (PS5Upload Files opened from another device): nothing pushes the page sideways.
+/* A phone over the LAN (PS5Upload Minion opened from another device): nothing pushes the page sideways.
  * The folder's tools wrap under the path, the rail and rows tighten, long names and the status chip
  * cut with an ellipsis, and dialogs (the viewer and its editor too) fit the screen. */
 @media (max-width: 40rem) {

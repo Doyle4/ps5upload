@@ -23,7 +23,7 @@
 import { markUpdateReady } from "./update";
 
 /** The service worker. `__CW_SW_V__` is replaced with the page's build hash. */
-export const SW_SOURCE = `/* PS5Upload Files: offline copy of the page (generated; see offlineCopy.ts) */
+export const SW_SOURCE = `/* PS5Upload Minion: offline copy of the page (generated; see offlineCopy.ts) */
 "use strict";
 var CACHE = "cw-page-__CW_SW_V__";
 function cacheable(url) {
@@ -76,7 +76,7 @@ self.addEventListener("fetch", function (e) {
 
 /** The appcache manifest: the page (its master entry) and nothing else; every other URL from the network. */
 export function appcacheManifest(version: string): string {
-  return `CACHE MANIFEST\n# PS5Upload Files ${version}\n\nNETWORK:\n*\n`;
+  return `CACHE MANIFEST\n# PS5Upload Minion ${version}\n\nNETWORK:\n*\n`;
 }
 
 export function serviceWorkerSource(version: string): string {

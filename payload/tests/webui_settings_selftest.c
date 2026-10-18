@@ -133,7 +133,7 @@ static void param_json_exact(void) {
     static const char want[] =
         "{\"applicationCategoryType\":66048,\"titleId\":\"PSUP00001\","
         "\"deeplinkUri\":\"http://127.0.0.1:9180/\","
-        "\"localizedParameters\":{\"defaultLanguage\":\"en-US\",\"en-US\":{\"titleName\":\"PS5Upload Files\"}}}";
+        "\"localizedParameters\":{\"defaultLanguage\":\"en-US\",\"en-US\":{\"titleName\":\"PS5Upload Minion\"}}}";
     char buf[512];
     size_t n = webui_tile_param_json(buf, sizeof buf, 9180);
     CHECK(n == sizeof want - 1);

@@ -98,7 +98,7 @@ export function showOnConsoleItems(
               message: tr(
                 "fs_show_on_console_sent",
                 undefined,
-                "Sent to the PS5 — it opens in PS5Upload Files",
+                "Sent to the PS5 — it opens in PS5Upload Minion",
               ),
             }),
           (e: unknown) =>
