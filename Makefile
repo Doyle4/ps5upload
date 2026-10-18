@@ -972,6 +972,12 @@ test-payload: payload
 		$(PAYLOAD_DIR)/tests/cheats_list_selftest.c
 	@/tmp/ps5upload-cheats-list-selftest
 	@echo "✓ a large or badly encoded cheat pack lists as valid, bounded JSON"
+	@echo "Running cheat apply-plan self-test (host build)..."
+	@cc -O2 -Wall -Wextra -Werror -I$(PAYLOAD_DIR)/include \
+		-o /tmp/ps5upload-cheats-plan-selftest \
+		$(PAYLOAD_DIR)/tests/cheats_plan_selftest.c
+	@/tmp/ps5upload-cheats-plan-selftest
+	@echo "✓ a cheat's code caves are written before the jumps into them, and removed after"
 	@echo "Checking per-console isolation..."
 	@./scripts/check-per-console-isolation.sh
 	@echo "✓ one console's data cannot be shown under another's name"
