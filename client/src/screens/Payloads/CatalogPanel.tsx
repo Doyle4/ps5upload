@@ -39,7 +39,7 @@ import { useConfirm } from "../../components/ConfirmDialog";
 import { pmOverview, pmStore } from "../../api/payloadManager";
 import { recordPmStore } from "../../lib/pmUpdates";
 import { hostOf } from "../../lib/addr";
-import { useTr } from "../../state/lang";
+import { useLangStore, useTr } from "../../state/lang";
 import UsbAutoloaderModal from "./UsbAutoloaderModal";
 import { payloadCardLink } from "./payloadTabs";
 
@@ -684,6 +684,7 @@ function PayloadCard({
   onRemove?: () => void;
 }) {
   const tr = useTr();
+  const lang = useLangStore((s) => s.lang);
   // Versions the picker offers (only those with a downloadable asset).
   const pickable = releaseList ? downloadableReleases(releaseList) : [];
   const selectedIsPrerelease = !!release?.prerelease;
@@ -905,9 +906,9 @@ function PayloadCard({
             {release.cached_age_secs > 0 && (
               <span>
                 {tr(
-                  "payloads_cached_ago",
-                  { age: release.cached_age_secs },
-                  `cached ${release.cached_age_secs}s ago`,
+                  "payloads_saved_when",
+                  { when: relativeAge(release.cached_age_secs, lang) },
+                  "saved {when}",
                 )}
               </span>
             )}
@@ -922,11 +923,17 @@ function PayloadCard({
             <div className="mt-2 flex items-start gap-1.5 rounded-[var(--radius-card)] border border-[var(--color-warn)] bg-[var(--color-surface)] p-3 text-xs text-[var(--color-warn)]">
               <AlertTriangle size={11} className="mt-0.5 shrink-0" />
               <span>
-                {tr(
-                  "payloads_refresh_error_banner",
-                  undefined,
-                  "Couldn't refresh from GitHub — showing cached snapshot. The latest tag on GitHub may be newer than what's shown here.",
-                )}{" "}
+                {/HTTP 404/.test(release.refresh_error)
+                  ? tr(
+                      "payloads_repo_gone",
+                      undefined,
+                      "This project's GitHub page can't be found any more (it may have been taken down). The last version saved here still works.",
+                    )
+                  : tr(
+                      "payloads_refresh_error_banner",
+                      undefined,
+                      "Couldn't refresh from GitHub — showing cached snapshot. The latest tag on GitHub may be newer than what's shown here.",
+                    )}{" "}
                 <span className="text-[var(--color-muted)]">
                   ({release.refresh_error})
                 </span>
@@ -960,4 +967,23 @@ function PayloadCard({
       )}
     </section>
   );
+}
+
+/** "57 days ago", "3 hours ago" … in the app's language (Intl, no strings of our own). */
+export function relativeAge(secs: number, lang: string): string {
+  const steps: Array<[Intl.RelativeTimeFormatUnit, number]> = [
+    ["day", 86400],
+    ["hour", 3600],
+    ["minute", 60],
+  ];
+  let rtf: Intl.RelativeTimeFormat;
+  try {
+    rtf = new Intl.RelativeTimeFormat(lang, { numeric: "auto" });
+  } catch {
+    rtf = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
+  }
+  for (const [unit, size] of steps) {
+    if (secs >= size) return rtf.format(-Math.floor(secs / size), unit);
+  }
+  return rtf.format(-Math.max(1, Math.floor(secs)), "second");
 }
