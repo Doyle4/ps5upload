@@ -4557,6 +4557,21 @@ c2c_test_deep_bad: "لم يصل الإرسال التجريبي بحجم 4 KiB: 
 "cw_files_edit_not_text": "هذا الملف ليس نصًا بترميز UTF-8، لذا لا يمكن تعديله هنا.",
 "cw_files_edit_gone": "الملف لم يعد موجودًا.",
 "cw_files_edit_no_space": "القرص ممتلئ.",
+"cw_files_download": "تنزيل",
+"cw_files_download_started": "جارٍ تنزيل {name}. يعرض متصفحك التقدّم.",
+"cw_files_up_title": "رفع إلى هنا",
+"cw_files_up_pick_files": "اختر ملفات",
+"cw_files_up_pick_folder": "اختر مجلدًا",
+"cw_files_up_hint": "تُرسل الملفات واحدًا تلو الآخر، ولا يظهر كل ملف إلا بعد اكتماله.",
+"cw_files_up_file": "الملف {at} من {n}:",
+"cw_files_up_cancel_file": "تخطَّ هذا الملف",
+"cw_files_up_stop": "إيقاف",
+"cw_files_up_more": "رفع المزيد",
+"cw_files_up_done": "تم الرفع: {n}",
+"cw_files_up_skipped": "تم التخطي: {n}",
+"cw_files_up_stopped": "لم يُرسل: {n}",
+"cw_files_up_failed": "فشل {n}: {reason}",
+"cw_files_up_no_space": "القرص ممتلئ",
 };
 
 export default ar;

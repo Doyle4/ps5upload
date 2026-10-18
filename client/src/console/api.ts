@@ -148,3 +148,51 @@ export async function callRaw<T>(route: string, body: Blob): Promise<T> {
   const res = await post(route, undefined, undefined, false, body);
   return (await res.json().catch(() => null)) as T;
 }
+
+/**
+ * POST `body` with XMLHttpRequest (fetch reports no upload progress): `onProgress(sent, total)` as the
+ * bytes leave, `signal` aborts it (ApiError 0 "aborted"). The parsed JSON reply.
+ */
+export async function sendWithProgress<T>(
+  route: string,
+  body: Blob,
+  onProgress?: (sent: number, total: number) => void,
+  signal?: AbortSignal,
+): Promise<T> {
+  const tok = await token();
+  return new Promise<T>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    const onAbort = () => xhr.abort();
+    const done = () => signal?.removeEventListener("abort", onAbort);
+    xhr.open("POST", route);
+    xhr.setRequestHeader(TOKEN_HEADER, tok);
+    xhr.setRequestHeader("Content-Type", "application/octet-stream");
+    xhr.upload.onprogress = (e) => onProgress?.(e.loaded, e.lengthComputable ? e.total : body.size);
+    xhr.onload = () => {
+      done();
+      let json: unknown;
+      try {
+        json = JSON.parse(xhr.responseText);
+      } catch {
+        json = null;
+      }
+      if (xhr.status === 401) reject(tokenExpired());
+      else if (xhr.status < 200 || xhr.status >= 300) reject(errorOf(xhr.status, json));
+      else resolve(json as T);
+    };
+    xhr.onerror = () => {
+      done();
+      reject(new ApiError(0, "offline"));
+    };
+    xhr.onabort = () => {
+      done();
+      reject(new ApiError(0, "aborted"));
+    };
+    if (signal?.aborted) {
+      reject(new ApiError(0, "aborted"));
+      return;
+    }
+    signal?.addEventListener("abort", onAbort);
+    xhr.send(body);
+  });
+}

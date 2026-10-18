@@ -4557,6 +4557,21 @@ c2c_test_deep_bad: "4 KiB-এর পরীক্ষামূলক পাঠা�
 "cw_files_edit_not_text": "এই ফাইলটি UTF-8 টেক্সট নয়, তাই এখানে সম্পাদনা করা যাবে না।",
 "cw_files_edit_gone": "ফাইলটি আর সেখানে নেই।",
 "cw_files_edit_no_space": "ড্রাইভ পূর্ণ।",
+"cw_files_download": "ডাউনলোড",
+"cw_files_download_started": "{name} ডাউনলোড হচ্ছে। অগ্রগতি আপনার ব্রাউজার দেখায়।",
+"cw_files_up_title": "এখানে আপলোড করুন",
+"cw_files_up_pick_files": "ফাইল বেছে নিন",
+"cw_files_up_pick_folder": "ফোল্ডার বেছে নিন",
+"cw_files_up_hint": "ফাইলগুলো একটি একটি করে পাঠানো হয়, আর প্রতিটি সম্পূর্ণ হলেই দেখা যায়।",
+"cw_files_up_file": "ফাইল {at} / {n}:",
+"cw_files_up_cancel_file": "এই ফাইলটি বাদ দিন",
+"cw_files_up_stop": "থামান",
+"cw_files_up_more": "আরও আপলোড করুন",
+"cw_files_up_done": "আপলোড হয়েছে: {n}",
+"cw_files_up_skipped": "বাদ দেওয়া: {n}",
+"cw_files_up_stopped": "পাঠানো হয়নি: {n}",
+"cw_files_up_failed": "{n}টি ব্যর্থ: {reason}",
+"cw_files_up_no_space": "ড্রাইভ পূর্ণ",
 };
 
 export default bn;

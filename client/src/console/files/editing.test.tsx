@@ -13,6 +13,7 @@ import { t } from "../strings";
 import { TextPrompt } from "./TextPrompt";
 import { FilesView, sheetActions, type FilesViewProps } from "./Files";
 import { PermissionsDialog } from "./PermissionsDialog";
+import { UploadDialog, uploadSummaryText } from "./UploadDialog";
 import type { DirState, Entry } from "./useDir";
 import { editableOf, Viewer } from "./Viewer";
 import { saveErrorText, TextEditor } from "./viewer/TextEditor";
@@ -79,9 +80,9 @@ describe("text editing", () => {
     expect(editableOf(new Uint8Array([0x41, 0xc3]).buffer, { mtime: 0, size: 2 })).toBeNull();
   });
   it("any small file offers Edit as text; New file is a folder action", () => {
-    expect(sheetActions(["app.conf"], ENTRIES, null)).toEqual(expect.arrayContaining(["edit", "newfile"]));
-    expect(sheetActions(["big.bin"], ENTRIES, null)).not.toContain("edit");
-    expect(sheetActions(["cfg"], ENTRIES, false)).not.toContain("edit");
+    expect(sheetActions(["app.conf"], ENTRIES, null, false)).toEqual(expect.arrayContaining(["edit", "newfile"]));
+    expect(sheetActions(["big.bin"], ENTRIES, null, false)).not.toContain("edit");
+    expect(sheetActions(["cfg"], ENTRIES, false, false)).not.toContain("edit");
     const onAsk = vi.fn();
     const sheet = elements(FilesView(props({ onAsk, ask: { kind: "sheet", names: ["app.conf"] } }))).find((e) => typeof e.props.onChoose === "function");
     (sheet!.props.onChoose as (a: string) => void)("edit");
@@ -123,5 +124,34 @@ describe("permissions editor", () => {
     const file = renderToStaticMarkup(<PermissionsDialog name="a" path="/mnt/usb0/a" mode={0o644} dir={false} fsType="exfat" onDone={vi.fn()} onCancel={vi.fn()} />);
     expect(file).not.toContain("perm-recursive");
     expect(file).toContain("data-perm-note");
+  });
+});
+
+describe("upload and download (another device only)", () => {
+  it("Upload here and Download show only when the page is open on a phone or PC", () => {
+    expect(actions(FilesView(props()))).not.toContain("upload");
+    expect(actions(FilesView(props({ remote: true })))).toContain("upload");
+    expect(sheetActions(["app.conf"], ENTRIES, null, true)).toContain("download");
+    expect(sheetActions(["cfg"], ENTRIES, false, true)).toContain("download");
+    expect(sheetActions(["app.conf"], ENTRIES, null, false)).not.toContain("download");
+    const onDownload = vi.fn();
+    const sheet = elements(FilesView(props({ remote: true, onDownload, ask: { kind: "sheet", names: ["cfg"] } }))).find(
+      (e) => typeof e.props.onChoose === "function",
+    );
+    (sheet!.props.onChoose as (a: string) => void)("download");
+    expect(onDownload).toHaveBeenCalledWith("/data/x/cfg");
+  });
+  it("the upload dialog says the drive's free space and an exFAT drive's note", () => {
+    const up = find(FilesView(props({ remote: true, volumes: [vol("/data", "exfat")], ask: { kind: "upload" } })), UploadDialog);
+    expect(up.props).toMatchObject({ dir: "/data/x", free: 400 });
+    expect(up.props.fsNote).toBe(t("cw_files_perm_not_kept", { fs: "exfat" }));
+    const html = renderToStaticMarkup(<UploadDialog dir="/data/x" free={400} onDone={vi.fn()} onClose={vi.fn()} />);
+    expect(html).toContain('data-action="up-files"');
+  });
+  it("sums up an upload", () => {
+    const s = uploadSummaryText({ uploaded: ["a", "b"], skipped: ["c"], failed: [{ name: "d", error: new ApiError(507, "no_space") }], stopped: [] });
+    expect(s).toBe(
+      [t("cw_files_up_done", { n: 2 }), t("cw_files_up_skipped", { n: 1 }), t("cw_files_up_failed", { n: 1, reason: t("cw_files_up_no_space") })].join(" · "),
+    );
   });
 });

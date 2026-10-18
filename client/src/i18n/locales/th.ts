@@ -4566,6 +4566,21 @@ c2c_test_deep_bad: "การส่งทดสอบ 4 KiB ไปไม่ถ�
 "cw_files_edit_not_text": "ไฟล์นี้ไม่ใช่ข้อความ UTF-8 จึงแก้ไขที่นี่ไม่ได้",
 "cw_files_edit_gone": "ไฟล์ไม่อยู่แล้ว",
 "cw_files_edit_no_space": "ไดรฟ์เต็ม",
+"cw_files_download": "ดาวน์โหลด",
+"cw_files_download_started": "กำลังดาวน์โหลด {name} เบราว์เซอร์จะแสดงความคืบหน้า",
+"cw_files_up_title": "อัปโหลดมาที่นี่",
+"cw_files_up_pick_files": "เลือกไฟล์",
+"cw_files_up_pick_folder": "เลือกโฟลเดอร์",
+"cw_files_up_hint": "ไฟล์จะถูกส่งทีละไฟล์ และแต่ละไฟล์จะปรากฏเมื่อส่งครบแล้วเท่านั้น",
+"cw_files_up_file": "ไฟล์ {at} จาก {n}:",
+"cw_files_up_cancel_file": "ข้ามไฟล์นี้",
+"cw_files_up_stop": "หยุด",
+"cw_files_up_more": "อัปโหลดเพิ่ม",
+"cw_files_up_done": "อัปโหลดแล้ว: {n}",
+"cw_files_up_skipped": "ข้าม: {n}",
+"cw_files_up_stopped": "ไม่ได้ส่ง: {n}",
+"cw_files_up_failed": "ล้มเหลว {n}: {reason}",
+"cw_files_up_no_space": "ไดรฟ์เต็ม",
 };
 
 export default th;

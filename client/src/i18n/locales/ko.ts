@@ -4576,6 +4576,21 @@ c2c_test_deep_bad: "4 KiB 테스트 전송이 도착하지 않았습니다: {det
 "cw_files_edit_not_text": "이 파일은 UTF-8 텍스트가 아니어서 여기서 편집할 수 없습니다.",
 "cw_files_edit_gone": "파일이 더 이상 없습니다.",
 "cw_files_edit_no_space": "드라이브가 가득 찼습니다.",
+"cw_files_download": "다운로드",
+"cw_files_download_started": "{name} 다운로드 중입니다. 진행 상황은 브라우저에 표시됩니다.",
+"cw_files_up_title": "여기에 업로드",
+"cw_files_up_pick_files": "파일 선택",
+"cw_files_up_pick_folder": "폴더 선택",
+"cw_files_up_hint": "파일은 하나씩 전송되며, 각 파일은 완료된 뒤에만 나타납니다.",
+"cw_files_up_file": "파일 {at}/{n}:",
+"cw_files_up_cancel_file": "이 파일 건너뛰기",
+"cw_files_up_stop": "중지",
+"cw_files_up_more": "더 업로드",
+"cw_files_up_done": "업로드됨: {n}",
+"cw_files_up_skipped": "건너뜀: {n}",
+"cw_files_up_stopped": "보내지 않음: {n}",
+"cw_files_up_failed": "{n}개 실패: {reason}",
+"cw_files_up_no_space": "드라이브가 가득 찼습니다",
 };
 
 export default ko;

@@ -2,23 +2,46 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../api", async (importOriginal) => {
   const real = await importOriginal<typeof import("../api")>();
-  return { ...real, call: vi.fn(), callRaw: vi.fn() };
+  return { ...real, call: vi.fn(), callRaw: vi.fn(), sendWithProgress: vi.fn() };
 });
 
-import { call, callRaw } from "../api";
-import { createFile, decodeEditable, encodeText, saveBody, saveText, TEXT_SAVE_MAX } from "./transfer";
+import { ApiError, call, callRaw, sendWithProgress } from "../api";
+import {
+  createFile,
+  decodeEditable,
+  downloadItem,
+  encodeText,
+  onOtherDevice,
+  saveBody,
+  saveText,
+  TEXT_SAVE_MAX,
+  uploadFile,
+  uploadFolders,
+  uploadItems,
+} from "./transfer";
 
 const mCall = vi.mocked(call);
 const mRaw = vi.mocked(callRaw);
+const mSend = vi.mocked(sendWithProgress);
 
 beforeEach(() => {
   mCall.mockReset();
   mRaw.mockReset();
+  mSend.mockReset();
 });
 
 async function blobText(b: Blob): Promise<string> {
   return new TextDecoder().decode(await new Response(b).arrayBuffer());
 }
+
+describe("where the page is open", () => {
+  it("offers upload/download only away from the console", () => {
+    expect(onOtherDevice("192.168.1.20")).toBe(true);
+    expect(onOtherDevice("127.0.0.1")).toBe(false);
+    expect(onOtherDevice("localhost")).toBe(false);
+    expect(onOtherDevice("")).toBe(false);
+  });
+});
 
 describe("text save", () => {
   it("keeps CRLF files CRLF and refuses NUL or more than 1 MiB", () => {
@@ -52,5 +75,64 @@ describe("text save", () => {
   });
   it("builds a body with a newline-free head", async () => {
     expect(await blobText(saveBody({ path: "/a\nb" }, new Uint8Array([0x41])))).toBe('{"path":"/a\\nb"}\nA');
+  });
+});
+
+describe("upload", () => {
+  const file = (name: string, rel = "") => {
+    const f = new File(["abc"], name);
+    if (rel) Object.defineProperty(f, "webkitRelativePath", { value: rel });
+    return f;
+  };
+  it("keeps a folder pick's relative paths and lists its folders parents first", () => {
+    const items = uploadItems([file("1.jpg", "Album/2024/1.jpg"), file("a.txt"), file("x", "Album/../x")]);
+    expect(items.map((i) => i.rel)).toEqual(["Album/2024/1.jpg", "a.txt", "Album/x"]);
+    expect(uploadFolders(items)).toEqual(["Album", "Album/2024"]);
+  });
+  it("begins, then streams the bytes with the id", async () => {
+    mCall.mockResolvedValueOnce({ id: "ab".repeat(16) });
+    mSend.mockResolvedValue({ size: 3 });
+    const f = file("a.txt");
+    await uploadFile("/data/a.txt", f, true);
+    expect(mCall).toHaveBeenCalledWith("/api/upload/begin", { path: "/data/a.txt", size: 3, overwrite: true });
+    expect(mSend.mock.calls[0][0]).toBe(`/api/upload/data?id=${"ab".repeat(16)}`);
+    expect(mSend.mock.calls[0][1]).toBe(f);
+  });
+  it("forgets the reservation when the send fails", async () => {
+    mCall.mockResolvedValueOnce({ id: "cd".repeat(16) }).mockResolvedValueOnce({});
+    mSend.mockRejectedValue(new ApiError(0, "aborted"));
+    await expect(uploadFile("/data/a.txt", file("a.txt"), false)).rejects.toMatchObject({ code: "aborted" });
+    expect(mCall).toHaveBeenLastCalledWith("/api/upload/cancel", { id: "cd".repeat(16) });
+  });
+  it("does not send when begin refuses (no space, exists)", async () => {
+    mCall.mockRejectedValueOnce(new ApiError(507, "no_space"));
+    await expect(uploadFile("/data/a.txt", file("a.txt"), false)).rejects.toMatchObject({ code: "no_space" });
+    expect(mSend).not.toHaveBeenCalled();
+  });
+});
+
+describe("download", () => {
+  it("clicks a download link from the helper", async () => {
+    mCall.mockResolvedValueOnce({ url: "/dl/0123/Games.tar", name: "Games.tar" });
+    const clicked: { href: string; download: string }[] = [];
+    const a = {
+      href: "",
+      download: "",
+      rel: "",
+      style: {} as Record<string, string>,
+      click() {
+        clicked.push({ href: this.href, download: this.download });
+      },
+      remove: vi.fn(),
+    };
+    const doc = { createElement: () => a, body: { appendChild: vi.fn() } } as unknown as Document;
+    expect(await downloadItem("/data/Games", doc)).toBe("Games.tar");
+    expect(mCall).toHaveBeenCalledWith("/api/download/begin", { path: "/data/Games" });
+    expect(clicked).toEqual([{ href: "/dl/0123/Games.tar", download: "Games.tar" }]);
+    expect(a.remove).toHaveBeenCalled();
+  });
+  it("refuses a link that is not the helper's", async () => {
+    mCall.mockResolvedValueOnce({ url: "https://elsewhere/x" });
+    await expect(downloadItem("/data/x", {} as Document)).rejects.toBeInstanceOf(ApiError);
   });
 });

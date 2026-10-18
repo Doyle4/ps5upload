@@ -4578,6 +4578,21 @@ c2c_test_deep_bad: "4 KiB のテスト送信が届きませんでした: {detail
 "cw_files_edit_not_text": "このファイルは UTF-8 テキストではないため、ここでは編集できません。",
 "cw_files_edit_gone": "ファイルはもうありません。",
 "cw_files_edit_no_space": "ドライブがいっぱいです。",
+"cw_files_download": "ダウンロード",
+"cw_files_download_started": "{name} をダウンロード中です。進行状況はブラウザーに表示されます。",
+"cw_files_up_title": "ここにアップロード",
+"cw_files_up_pick_files": "ファイルを選択",
+"cw_files_up_pick_folder": "フォルダーを選択",
+"cw_files_up_hint": "ファイルは 1 つずつ送られ、それぞれ完了してから表示されます。",
+"cw_files_up_file": "ファイル {at}/{n}:",
+"cw_files_up_cancel_file": "このファイルをスキップ",
+"cw_files_up_stop": "停止",
+"cw_files_up_more": "さらにアップロード",
+"cw_files_up_done": "アップロード済み: {n}",
+"cw_files_up_skipped": "スキップ: {n}",
+"cw_files_up_stopped": "未送信: {n}",
+"cw_files_up_failed": "{n} 件失敗: {reason}",
+"cw_files_up_no_space": "ドライブがいっぱいです",
 };
 
 export default ja;

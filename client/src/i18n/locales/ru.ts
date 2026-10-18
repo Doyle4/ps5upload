@@ -4507,6 +4507,21 @@ c2c_test_deep_bad: "Тестовая отправка 4 КиБ не дошла: 
 "cw_files_edit_not_text": "Этот файл не является текстом UTF-8, поэтому его нельзя изменить здесь.",
 "cw_files_edit_gone": "Файла больше нет.",
 "cw_files_edit_no_space": "Диск заполнен.",
+"cw_files_download": "Скачать",
+"cw_files_download_started": "Скачивается {name}. Ход загрузки показывает браузер.",
+"cw_files_up_title": "Загрузить сюда",
+"cw_files_up_pick_files": "Выбрать файлы",
+"cw_files_up_pick_folder": "Выбрать папку",
+"cw_files_up_hint": "Файлы отправляются по одному, и каждый появляется только целиком.",
+"cw_files_up_file": "Файл {at} из {n}:",
+"cw_files_up_cancel_file": "Пропустить этот файл",
+"cw_files_up_stop": "Остановить",
+"cw_files_up_more": "Загрузить ещё",
+"cw_files_up_done": "Загружено: {n}",
+"cw_files_up_skipped": "пропущено: {n}",
+"cw_files_up_stopped": "не отправлено: {n}",
+"cw_files_up_failed": "ошибок: {n} — {reason}",
+"cw_files_up_no_space": "диск заполнен",
 };
 
 export default ru;

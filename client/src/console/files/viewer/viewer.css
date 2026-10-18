@@ -248,6 +248,20 @@
   margin: 0 0 0.8rem;
 }
 
+/* ---- upload ---- */
+.cw-upload {
+  width: min(44rem, calc(100vw - 2rem));
+}
+.cw-upload-pick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin: 0.6rem 0;
+}
+.cw-upload-run p {
+  margin: 0.4rem 0;
+  word-break: break-all;
+}
 @media (max-width: 40rem) {
   .cw-perm-bit {
     min-width: 2.6rem;

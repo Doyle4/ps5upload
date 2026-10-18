@@ -4573,6 +4573,21 @@ c2c_test_deep_bad: "4 KiB का परीक्षण नहीं पहुँ
 "cw_files_edit_not_text": "यह फ़ाइल UTF-8 टेक्स्ट नहीं है, इसलिए यहाँ संपादित नहीं हो सकती।",
 "cw_files_edit_gone": "फ़ाइल अब वहाँ नहीं है।",
 "cw_files_edit_no_space": "ड्राइव भर गई है।",
+"cw_files_download": "डाउनलोड करें",
+"cw_files_download_started": "{name} डाउनलोड हो रहा है। प्रगति आपका ब्राउज़र दिखाता है।",
+"cw_files_up_title": "यहाँ अपलोड करें",
+"cw_files_up_pick_files": "फ़ाइलें चुनें",
+"cw_files_up_pick_folder": "फ़ोल्डर चुनें",
+"cw_files_up_hint": "फ़ाइलें एक-एक करके भेजी जाती हैं, और हर फ़ाइल पूरी होने पर ही दिखती है।",
+"cw_files_up_file": "फ़ाइल {at} / {n}:",
+"cw_files_up_cancel_file": "यह फ़ाइल छोड़ें",
+"cw_files_up_stop": "रोकें",
+"cw_files_up_more": "और अपलोड करें",
+"cw_files_up_done": "अपलोड हुईं: {n}",
+"cw_files_up_skipped": "छोड़ी गईं: {n}",
+"cw_files_up_stopped": "नहीं भेजी गईं: {n}",
+"cw_files_up_failed": "{n} विफल: {reason}",
+"cw_files_up_no_space": "ड्राइव भर गई है",
 };
 
 export default hi;

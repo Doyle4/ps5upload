@@ -14,6 +14,7 @@
 #include <string.h>
 #include <fcntl.h>
 #include <sys/stat.h>
+#include <sys/statvfs.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -1469,12 +1470,17 @@ static void r_index_cancel(const char *b, size_t n, uint8_t *out, int fd) {
     send_json(fd, 200, "{}", 2);
 }
 
-/* ---- Files: text save (webui_files.c does the I/O) ----
+/* ---- Files from another device: text save, upload, download (webui_files.c does the I/O) ----
  *
- * It reaches no helper method: it works on the file system directly, under the helper's own policy
- * (ava1_data_cfg: may_write, the trust store never). Its body (up to 1 MiB) is read by the route itself
- * (webui_api_stream), with an idle timeout instead of the 5 s connection deadline; one at a time. */
+ * None of these reaches a helper method: they work on the file system directly, under the helper's own
+ * policy (ava1_data_cfg: may_write for anything written, may_read for anything sent, the trust store
+ * never). Streamed bodies (an upload, a text save) are read by the route itself (webui_api_stream), with
+ * an idle timeout instead of the 5 s connection deadline, so they hold a web worker only while bytes
+ * move. At most ONE upload and ONE download run at a time (409 busy otherwise): with the four workers,
+ * the page always keeps two for everything else. */
 
+#define XFER_RESERVE_MS 30000LL   /* an upload begun but not sent is forgotten after this */
+#define XFER_TICKET_MS 60000LL    /* a download link works this long after it was made or last used */
 #define XFER_TEXT_HEAD 8192u      /* a text save's first line (its JSON) at most */
 #define XFER_TEXT_TOTAL_MS 60000u /* a text save's whole body within this */
 #define XFER_IDLE_TEXT_MS 10000u
@@ -1486,12 +1492,175 @@ static int policy_write(const char *p) {
     return !path_in_protected(p) && cfg && cfg->may_write && cfg->may_write(p);
 }
 
+static int policy_read(const char *p) {
+    const ava1_data_cfg_t *cfg = ava1_data_cfg();
+    return !path_in_protected(p) && cfg && cfg->may_read && cfg->may_read(p, 0);
+}
+
+static int skip_protected(const char *p) { return path_in_protected(p); }
+
 static void send_wf(int fd, int e) {
     const char *tok = wf_error_token(e);
     send_error(fd, wf_error_http(e), tok, strlen(tok));
 }
 
+static int folder_of(const char *path, char *out, size_t cap) {
+    const char *slash = strrchr(path, '/');
+    size_t n;
+    if (!slash) return -1;
+    n = slash == path ? 1 : (size_t)(slash - path);
+    if (n + 1 > cap) return -1;
+    memcpy(out, path, n);
+    out[n] = '\0';
+    return 0;
+}
+
+static pthread_mutex_t g_xfer_mu = PTHREAD_MUTEX_INITIALIZER;
+enum { UP_FREE = 0, UP_RESERVED, UP_RECEIVING };
+static struct {
+    int state;
+    uint8_t id[16];
+    char path[API_PATH];
+    uint64_t size;
+    int overwrite;
+    long long expires;
+    volatile int cancel;
+} g_up;
+enum { DL_NONE = 0, DL_READY, DL_SENDING };
+static struct {
+    int state;
+    uint8_t id[16];
+    char path[API_PATH];
+    int is_dir;
+    long long expires;
+} g_dl;
 static pthread_mutex_t g_text_mu = PTHREAD_MUTEX_INITIALIZER;
+
+/* {path, size, overwrite?} -> {"id":".."}: checks what the upload would do before any byte is sent. The
+ * file then comes as POST /api/upload/data?id=<id> (the raw bytes, Content-Length = size) within 30 s. */
+static void r_upload_begin(const char *b, size_t n, uint8_t *out, int fd) {
+    char path[API_PATH], dir[API_PATH], hex[33], json[64];
+    struct stat st;
+    struct statvfs vf;
+    uint64_t size;
+    int overwrite = 0;
+    long long now = mono_ms();
+    (void)out;
+    if (need_path(fd, b, n, "path", path, sizeof path) != 0) return;
+    if (webui_json_u64(b, n, "size", &size) != 1 || size > WEBUI_STREAM_BODY_MAX) {
+        send_bad(fd, "bad_size");
+        return;
+    }
+    if (webui_json_bool(b, n, "overwrite", &overwrite) < 0) {
+        send_bad(fd, "bad_overwrite");
+        return;
+    }
+    if (folder_of(path, dir, sizeof dir) != 0 || !policy_write(path)) {
+        send_error(fd, 403, "path_not_allowed", 16);
+        return;
+    }
+    if (stat(dir, &st) != 0 || !S_ISDIR(st.st_mode)) {
+        send_error(fd, 404, "no_folder", 9);
+        return;
+    }
+    if (lstat(path, &st) == 0) {
+        if (!S_ISREG(st.st_mode)) {
+            send_error(fd, 409, "not_a_file", 10);
+            return;
+        }
+        if (!overwrite) {
+            send_error(fd, 409, "exists", 6);
+            return;
+        }
+    }
+    /* The bytes go to a temporary file first: the whole size must be free even when it replaces one. */
+    if (statvfs(dir, &vf) == 0 && (uint64_t)vf.f_bavail * (uint64_t)vf.f_frsize < size) {
+        send_error(fd, 507, "no_space", 8);
+        return;
+    }
+    pthread_mutex_lock(&g_xfer_mu);
+    if (g_up.state == UP_RECEIVING || (g_up.state == UP_RESERVED && g_up.expires > now)) {
+        pthread_mutex_unlock(&g_xfer_mu);
+        send_error(fd, 409, "busy", 4);
+        return;
+    }
+    g_up.state = UP_RESERVED;
+    arc4random_buf(g_up.id, sizeof g_up.id);
+    memcpy(g_up.path, path, strlen(path) + 1);
+    g_up.size = size;
+    g_up.overwrite = overwrite;
+    g_up.expires = now + XFER_RESERVE_MS;
+    g_up.cancel = 0;
+    webui_hex16(g_up.id, hex);
+    pthread_mutex_unlock(&g_xfer_mu);
+    snprintf(json, sizeof json, "{\"id\":\"%s\"}", hex);
+    send_json(fd, 200, json, strlen(json));
+}
+
+/* {id}: an upload begun and not yet sent is forgotten; one being received stops (its temporary file
+ * is removed, the final name never appears). Unknown ids answer {} too. */
+static void r_upload_cancel(const char *b, size_t n, uint8_t *out, int fd) {
+    char hex[40];
+    uint8_t id[16];
+    (void)out;
+    if (webui_json_str(b, n, "id", hex, sizeof hex) != 1 || webui_parse_hex16(hex, id) != 0) {
+        send_bad(fd, "bad_id");
+        return;
+    }
+    pthread_mutex_lock(&g_xfer_mu);
+    if (memcmp(id, g_up.id, 16) == 0) {
+        if (g_up.state == UP_RESERVED) g_up.state = UP_FREE;
+        else if (g_up.state == UP_RECEIVING) g_up.cancel = 1;
+    }
+    pthread_mutex_unlock(&g_xfer_mu);
+    send_json(fd, 200, "{}", 2);
+}
+
+/* The upload's bytes (stream): ?id=<hex> from /api/upload/begin, Content-Length its size. */
+static void s_upload_data(const webui_req_t *r, const uint8_t *pre, size_t pre_len, int fd) {
+    uint8_t id[16], *buf;
+    char path[API_PATH], json[64];
+    uint64_t size;
+    int overwrite, rc;
+    long long now = mono_ms();
+    if (strncmp(r->query, "id=", 3) != 0 || webui_parse_hex16(r->query + 3, id) != 0) {
+        send_bad(fd, "bad_id");
+        return;
+    }
+    pthread_mutex_lock(&g_xfer_mu);
+    if (g_up.state != UP_RESERVED || memcmp(id, g_up.id, 16) != 0 || g_up.expires <= now) {
+        pthread_mutex_unlock(&g_xfer_mu);
+        send_error(fd, 409, "not_begun", 9);
+        return;
+    }
+    if (r->content_length != g_up.size) {
+        pthread_mutex_unlock(&g_xfer_mu);
+        send_bad(fd, "bad_size");
+        return;
+    }
+    g_up.state = UP_RECEIVING;
+    g_up.cancel = 0;
+    memcpy(path, g_up.path, sizeof path);
+    size = g_up.size;
+    overwrite = g_up.overwrite;
+    pthread_mutex_unlock(&g_xfer_mu);
+    buf = policy_write(path) ? malloc(WF_IO_BUF) : NULL;
+    if (!buf) rc = policy_write(path) ? WF_E_IO : -1;
+    else rc = wf_receive_file(fd, pre, pre_len, size, path, overwrite, 0777, WF_IDLE_MS, &g_up.cancel, buf, WF_IO_BUF);
+    free(buf);
+    pthread_mutex_lock(&g_xfer_mu);
+    g_up.state = UP_FREE;
+    memset(g_up.id, 0, sizeof g_up.id);
+    pthread_mutex_unlock(&g_xfer_mu);
+    if (rc == -1) {
+        send_error(fd, 403, "path_not_allowed", 16);
+    } else if (rc != WF_OK) {
+        send_wf(fd, rc);
+    } else {
+        snprintf(json, sizeof json, "{\"size\":%llu}", (unsigned long long)size);
+        send_json(fd, 200, json, strlen(json));
+    }
+}
 
 /* A text save (stream): the body is one line of JSON {path, create?, mtime?, size?}, '\n', then the text
  * (at most WF_TEXT_MAX bytes, no NUL). Without create, mtime and size are the file as the editor read it:
@@ -1584,6 +1753,192 @@ static void s_save_text(const webui_req_t *r, const uint8_t *pre, size_t pre_len
     pthread_mutex_unlock(&g_text_mu);
 }
 
+/* A URL path segment: unreserved bytes as they are, the rest %XX. */
+static size_t url_segment(char *out, size_t cap, const char *s) {
+    static const char hex[] = "0123456789ABCDEF";
+    size_t at = 0;
+    for (; *s; s++) {
+        unsigned char c = (unsigned char)*s;
+        int plain = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '.' ||
+                    c == '-' || c == '_' || c == '~';
+        if (at + 4 >= cap) return 0;
+        if (plain) out[at++] = (char)c;
+        else {
+            out[at++] = '%';
+            out[at++] = hex[c >> 4];
+            out[at++] = hex[c & 15];
+        }
+    }
+    out[at] = '\0';
+    return at;
+}
+
+/* {path} -> {"url":"/dl/<ticket>/<name>","name":"..","size":N|null}: a link the browser downloads with a
+ * plain navigation (it cannot carry the token header; the ticket stands in for it: random, for this item
+ * only, 60 s after it was made or last used). A file is sent with its length and Range; a folder as a
+ * .tar streamed as it is read (no size known ahead). */
+static void r_download_begin(const char *b, size_t n, uint8_t *out, int fd) {
+    char path[API_PATH], hex[33], name[300], *seg, *json;
+    const char *base;
+    struct stat st;
+    size_t at = 0, cap = 6u * 300u + 3u * 300u + 160u;
+    int is_dir;
+    long long now = mono_ms();
+    (void)out;
+    if (need_path(fd, b, n, "path", path, sizeof path) != 0) return;
+    if (!policy_read(path)) {
+        send_error(fd, 403, "path_not_allowed", 16);
+        return;
+    }
+    if (stat(path, &st) != 0) {
+        send_error(fd, 404, "gone", 4);
+        return;
+    }
+    is_dir = S_ISDIR(st.st_mode);
+    if (!is_dir && !S_ISREG(st.st_mode)) {
+        send_error(fd, 409, "not_a_file", 10);
+        return;
+    }
+    if (is_dir && path_tree_op_refused(path)) {
+        send_error(fd, 403, "path_not_allowed", 16);
+        return;
+    }
+    base = strrchr(path, '/');
+    base = base && base[1] ? base + 1 : "ps5";
+    if (snprintf(name, sizeof name, "%s%s", base, is_dir ? ".tar" : "") >= (int)sizeof name) {
+        send_bad(fd, "bad_path");
+        return;
+    }
+    pthread_mutex_lock(&g_xfer_mu);
+    if (g_dl.state == DL_SENDING) {
+        pthread_mutex_unlock(&g_xfer_mu);
+        send_error(fd, 409, "busy", 4);
+        return;
+    }
+    g_dl.state = DL_READY;
+    arc4random_buf(g_dl.id, sizeof g_dl.id);
+    memcpy(g_dl.path, path, strlen(path) + 1);
+    g_dl.is_dir = is_dir;
+    g_dl.expires = now + XFER_TICKET_MS;
+    webui_hex16(g_dl.id, hex);
+    pthread_mutex_unlock(&g_xfer_mu);
+    seg = malloc(3u * sizeof name + 1);
+    json = malloc(cap);
+    if (!seg || !json || !url_segment(seg, 3u * sizeof name + 1, name)) {
+        free(seg);
+        free(json);
+        send_error(fd, 500, "out_of_memory", 13);
+        return;
+    }
+    put_fmt(json, cap, &at, "{\"url\":\"/dl/%s/%s\",", hex, seg);
+    put_str(json, cap, &at, "name", name);
+    if (is_dir) put_fmt(json, cap, &at, ",\"size\":null}");
+    else put_fmt(json, cap, &at, ",\"size\":%llu}", (unsigned long long)st.st_size);
+    send_json(fd, 200, json, at);
+    free(seg);
+    free(json);
+}
+
+/* A download response head (no Content-Length when `len` is negative: a .tar ends when the connection
+ * does). */
+static int send_dl_head(int fd, int status, const char *ctype, long long len, const char *extra, const char *name) {
+    char head[2048], disp[1400], cl[48];
+    int k;
+    if (!wf_disposition(disp, sizeof disp, name)) disp[0] = '\0';
+    if (len >= 0) snprintf(cl, sizeof cl, "Content-Length: %lld\r\n", len);
+    else cl[0] = '\0';
+    k = snprintf(head, sizeof head,
+                 "HTTP/1.1 %d %s\r\nContent-Type: %s\r\n%s%s%sCache-Control: no-store\r\n"
+                 "X-Content-Type-Options: nosniff\r\nContent-Security-Policy: sandbox\r\nConnection: close\r\n\r\n",
+                 status, status == 206 ? "Partial Content" : status == 416 ? "Range Not Satisfiable" : "OK", ctype, cl,
+                 extra, disp);
+    if (k <= 0 || (size_t)k >= sizeof head) return -1;
+    return wf_send_all(fd, head, (size_t)k, WF_IDLE_MS);
+}
+
+/* GET /dl/<ticket>/<name>: the item /api/download/begin named. */
+static void serve_download(const webui_req_t *r, int fd) {
+    char path[API_PATH], hexs[33], name[300], extra[160];
+    const char *base;
+    uint8_t id[16], *buf = NULL;
+    struct stat st;
+    int is_dir, in = -1;
+    long long now = mono_ms();
+    if (strcmp(r->method, "GET") != 0) {
+        webui_send_json(fd, 405, "{\"error\":\"method_not_allowed\"}");
+        return;
+    }
+    if (strlen(r->path) < 4 + 32 || (r->path[4 + 32] != '/' && r->path[4 + 32] != '\0')) {
+        webui_send_json(fd, 404, "{\"error\":\"not_found\"}");
+        return;
+    }
+    memcpy(hexs, r->path + 4, 32);
+    hexs[32] = '\0';
+    if (webui_parse_hex16(hexs, id) != 0) {
+        webui_send_json(fd, 404, "{\"error\":\"not_found\"}");
+        return;
+    }
+    pthread_mutex_lock(&g_xfer_mu);
+    if (g_dl.state != DL_READY || memcmp(id, g_dl.id, 16) != 0 || g_dl.expires <= now) {
+        pthread_mutex_unlock(&g_xfer_mu);
+        webui_send_json(fd, g_dl.state == DL_SENDING && memcmp(id, g_dl.id, 16) == 0 ? 409 : 404,
+                        "{\"error\":\"link_expired\"}");
+        return;
+    }
+    g_dl.state = DL_SENDING;
+    memcpy(path, g_dl.path, sizeof path);
+    is_dir = g_dl.is_dir;
+    pthread_mutex_unlock(&g_xfer_mu);
+
+    base = strrchr(path, '/');
+    base = base && base[1] ? base + 1 : "ps5";
+    snprintf(name, sizeof name, "%s%s", base, is_dir ? ".tar" : "");
+    buf = policy_read(path) ? malloc(WF_IO_BUF) : NULL;
+    if (!buf) {
+        webui_send_json(fd, 403, "{\"error\":\"path_not_allowed\"}");
+    } else if (is_dir) {
+        uint64_t sent = 0;
+        if (stat(path, &st) != 0 || !S_ISDIR(st.st_mode)) webui_send_json(fd, 404, "{\"error\":\"gone\"}");
+        else if (send_dl_head(fd, 200, "application/x-tar", -1, "", name) == 0)
+            (void)wf_send_tar(fd, path, skip_protected, WF_IDLE_MS, buf, WF_IO_BUF, &sent);
+    } else {
+        uint64_t a = 0, z = 0;
+        int rg;
+        in = open(path, O_RDONLY | O_NONBLOCK);
+        if (in < 0 || fstat(in, &st) != 0 || !S_ISREG(st.st_mode)) {
+            webui_send_json(fd, 404, "{\"error\":\"gone\"}");
+        } else {
+            rg = wf_parse_range(r->range, (uint64_t)st.st_size, &a, &z);
+            if (rg < 0) {
+                snprintf(extra, sizeof extra, "Content-Range: bytes */%llu\r\n", (unsigned long long)st.st_size);
+                (void)send_dl_head(fd, 416, "application/octet-stream", 0, extra, name);
+            } else {
+                if (rg == 0) {
+                    a = 0;
+                    z = st.st_size ? (uint64_t)st.st_size - 1 : 0;
+                    snprintf(extra, sizeof extra, "Accept-Ranges: bytes\r\n");
+                } else {
+                    snprintf(extra, sizeof extra, "Accept-Ranges: bytes\r\nContent-Range: bytes %llu-%llu/%llu\r\n",
+                             (unsigned long long)a, (unsigned long long)z, (unsigned long long)st.st_size);
+                }
+                {
+                    uint64_t len = st.st_size ? z - a + 1 : 0;
+                    if (send_dl_head(fd, rg ? 206 : 200, "application/octet-stream", (long long)len, extra, name) == 0)
+                        (void)wf_send_file(fd, in, a, len, WF_IDLE_MS, buf, WF_IO_BUF);
+                }
+            }
+        }
+        if (in >= 0) close(in);
+    }
+    free(buf);
+    pthread_mutex_lock(&g_xfer_mu);
+    if (g_dl.state == DL_SENDING && memcmp(id, g_dl.id, 16) == 0) {
+        g_dl.state = DL_READY; /* a resume (Range) may follow */
+        g_dl.expires = mono_ms() + XFER_TICKET_MS;
+    }
+    pthread_mutex_unlock(&g_xfer_mu);
+}
+
 /* ---- input log ---- */
 
 /* One append at a time (the file is a ring rewritten in place), and a rate gate: a page that
@@ -1661,6 +2016,9 @@ static const struct {
     { "/api/fs/crc32", r_fs_crc32 },
     { "/api/fs/unpack", r_fs_unpack },
     { "/api/fs/unpack/info", r_fs_unpack_info },
+    { "/api/upload/begin", r_upload_begin },
+    { "/api/upload/cancel", r_upload_cancel },
+    { "/api/download/begin", r_download_begin },
     { "/api/jobs", r_jobs },
     { "/api/jobs/status", r_jobs_status },
     { "/api/jobs/cancel", r_jobs_cancel },
@@ -1750,6 +2108,7 @@ static const struct {
     void (*fn)(const webui_req_t *r, const uint8_t *pre, size_t pre_len, int fd);
 } k_streams[] = {
     { "/api/fs/save-text", s_save_text },
+    { "/api/upload/data", s_upload_data },
 };
 
 int webui_api_stream_for(const webui_req_t *r) {
@@ -1776,6 +2135,12 @@ int webui_api_route(const webui_req_t *r, const uint8_t *body, size_t body_len, 
     size_t i;
     uint8_t *out;
     if (serve_static(r, fd)) return 0;
+    /* A download link (/api/download/begin): Host/Origin were checked; the ticket stands in for the
+     * token a plain navigation cannot send. Outside the RPC gate: it reaches no helper method. */
+    if (strncmp(r->path, "/dl/", 4) == 0) {
+        serve_download(r, fd);
+        return 0;
+    }
     for (i = 0; i < sizeof k_routes / sizeof k_routes[0]; i++)
         if (strcmp(r->path, k_routes[i].path) == 0) break;
     if (i == sizeof k_routes / sizeof k_routes[0]) {
