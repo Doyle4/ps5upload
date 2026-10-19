@@ -4,6 +4,22 @@ What's new in ps5upload, written for humans.
 
 ---
 
+## 7.1.6
+
+- **Uninstall tells you whether the game is really gone (#476).** Uninstall used to say
+  "Unregistered" whatever the console answered, and then quietly showed the game again if the
+  console had kept it. The helper now checks that the game has actually left the console. If the
+  PS5 refused, you see an error with its code, and a game that is still installed stays in the
+  list with a note instead of disappearing and coming back.
+- **Organize packages finds packages that sit loose in a collection folder.** A .pkg placed
+  directly in a collection folder (not in a subfolder) was skipped, and with only loose packages
+  Organize said no folder held any. They are now organized into the same Platform › Game ID -
+  Title layout inside that folder.
+- **The server folder browser opens in front.** In Collection → Folders, "Add a folder on …"
+  opened its folder browser behind the dialog.
+
+---
+
 ## 7.1.5
 
 - **Uploading many small files no longer gets stuck (#475).** Picking hundreds of files in Files
