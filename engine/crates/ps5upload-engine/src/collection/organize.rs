@@ -20,7 +20,7 @@ use serde::{Deserialize, Serialize};
 use unicode_normalization::UnicodeNormalization;
 
 use super::junk;
-use super::organize_fs::{OpError, Tree};
+use super::organize_fs::{path_string, OpError, Tree};
 use super::PkgInfo;
 
 pub const DUPLICATE_TAG: &str = " - DUPLICATE";
@@ -506,7 +506,7 @@ pub fn plan_files(
     files: Vec<PathBuf>,
     facts: &dyn Fn(&Path) -> Facts,
 ) -> Plan {
-    let cname = container.to_string_lossy().into_owned();
+    let cname = path_string(container);
     let mut out = Plan::default();
     let mut parsed: Vec<Facts> = Vec::new();
     for path in files {
@@ -678,29 +678,30 @@ pub fn plan_files(
     out
 }
 
-/// A plan whose package facts come from the Collection's index where it is current.
+/// A plan whose package facts come from the Collection's index where it is current. `roots`
+/// are (the root as a tree path, the root as the index keys it).
 pub fn plan_cached(
     tree: &dyn Tree,
     container: &Path,
     lib: Option<&super::Library>,
-    roots: &[PathBuf],
+    roots: &[(PathBuf, String)],
 ) -> Plan {
     let cached = |p: &Path, size: u64, mtime: i64| -> Option<PkgInfo> {
         let lib = lib?;
-        roots.iter().find_map(|root| {
+        roots.iter().find_map(|(root, key_root)| {
             let rel = p.strip_prefix(root).ok()?;
             let rel = rel
                 .components()
                 .map(|c| c.as_os_str().to_string_lossy().into_owned())
                 .collect::<Vec<_>>()
                 .join("/");
-            let c = lib.pkg_cache.get(&format!("{}|{rel}", root.display()))?;
+            let c = lib.pkg_cache.get(&format!("{key_root}|{rel}"))?;
             (c.size == size && c.mtime == mtime && c.v == super::IDENTIFY_VERSION)
                 .then(|| c.pkg.clone())
         })
     };
     // A root is planned for its loose packages only: its subfolders are containers of their own.
-    let files = if roots.iter().any(|r| r == container) {
+    let files = if roots.iter().any(|(r, _)| r == container) {
         scan_top(tree, container)
     } else {
         scan(tree, container)
@@ -711,7 +712,7 @@ pub fn plan_cached(
     if let Some(trouble) = tree.trouble() {
         // A folder the server would not list: its packages are missing from this preview.
         plan.skipped.push(Skipped {
-            container: container.to_string_lossy().into_owned(),
+            container: path_string(container),
             path: String::new(),
             reason: SKIP_UNREADABLE.into(),
             detail: trouble,
@@ -727,6 +728,10 @@ pub struct UndoLog {
     /// The saved server's name when the folder is on one, for the list of runs.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub server: String,
+    /// Which server the folder was on. Undo refuses when the saved connection (same id) now
+    /// points somewhere else. Logs from before it was recorded have none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub origin: Option<Origin>,
     pub created_at: String,
     pub moves: Vec<Move>,
     #[serde(default)]
@@ -740,6 +745,30 @@ pub struct UndoLog {
     /// Set once the run was undone, so it cannot be undone twice.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reverted_at: Option<String>,
+}
+
+/// A server folder's whereabouts, as the saved connection said when the run was made.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct Origin {
+    pub protocol: String,
+    /// Lowercase.
+    pub host: String,
+    pub port: u16,
+    /// The SMB share, lowercase ("" for other protocols).
+    #[serde(default)]
+    pub share: String,
+    /// The folder's server path.
+    pub path: String,
+}
+
+impl Origin {
+    /// The same server: protocol, host, port and share.
+    pub fn same_server(&self, other: &Origin) -> bool {
+        self.protocol == other.protocol
+            && self.host == other.host
+            && self.port == other.port
+            && self.share == other.share
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -895,11 +924,13 @@ pub fn apply(
     moves: Vec<Move>,
     log_path: &Path,
     server: &str,
+    origin: Option<Origin>,
 ) -> std::io::Result<UndoLog> {
     let mut log = UndoLog {
         version: 1,
-        container_root: container.to_string_lossy().into_owned(),
+        container_root: path_string(container),
         server: server.to_string(),
+        origin,
         created_at: now_iso(),
         moves: moves.clone(),
         completed: Vec::new(),
@@ -982,6 +1013,9 @@ pub type OpenTree = dyn Fn(&Path) -> Result<Box<dyn Tree>, String>;
 pub struct RevertResult {
     pub reverted: Vec<Move>,
     pub problems: Vec<FailedMove>,
+    /// Something the user should know about how it was undone.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub note: Option<String>,
 }
 
 /// Undoes a run from its log: only the moves that happened, newest first. `open` gives the
@@ -1395,7 +1429,7 @@ mod tests {
         let first = plan_with(&LocalTree, &c, &table(&t));
         assert_eq!(first.moves.len(), 1);
         let log_path = l.0.join("logs/run.json");
-        let log = apply(&LocalTree, &c, first.moves.clone(), &log_path, "").unwrap();
+        let log = apply(&LocalTree, &c, first.moves.clone(), &log_path, "", None).unwrap();
         assert_eq!(log.completed.len(), 1);
         assert!(c.join(&first.moves[0].to).is_file());
         // The emptied folders (only Finder's files left) are gone; other files stay.
@@ -1427,6 +1461,7 @@ mod tests {
             vec![mv("x.pkg", "../out.pkg"), mv("/etc/hosts", "y.pkg")],
             &l.0.join("log.json"),
             "",
+            None,
         )
         .unwrap();
         assert_eq!(log.failed.len(), 2);
@@ -1449,7 +1484,7 @@ mod tests {
         )];
         let p = plan_with(&LocalTree, &c, &table(&t));
         let log_path = l.0.join("log.json");
-        let log = apply(&LocalTree, &c, p.moves.clone(), &log_path, "").unwrap();
+        let log = apply(&LocalTree, &c, p.moves.clone(), &log_path, "", None).unwrap();
         assert_eq!(log.completed.len(), 1);
         // As if the engine died before the final write: the log knows only the plan.
         let mut stale = log.clone();
@@ -1479,7 +1514,7 @@ mod tests {
                 .unwrap(),
             99,
         );
-        let log = apply(&LocalTree, &c, p.moves, &l.0.join("log.json"), "").unwrap();
+        let log = apply(&LocalTree, &c, p.moves, &l.0.join("log.json"), "", None).unwrap();
         assert_eq!(log.failed.len(), 1);
         assert!(c.join("x.pkg").is_file());
     }

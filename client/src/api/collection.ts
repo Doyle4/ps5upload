@@ -336,7 +336,7 @@ export const collection = {
     }),
   organizeRuns: () => call<OrganizeRun[]>("/organize/runs"),
   organizeRevert: (id: string) =>
-    call<{ reverted: OrganizeMove[]; problems: unknown[] }>(
+    call<{ reverted: OrganizeMove[]; problems: unknown[]; note?: string }>(
       "/organize/revert",
       { method: "POST", body: JSON.stringify({ id }) },
     ),

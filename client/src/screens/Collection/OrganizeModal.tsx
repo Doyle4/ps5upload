@@ -118,6 +118,7 @@ export function OrganizeModal({
           "Undone: {n} restored, {problems} left where they are",
         ),
       );
+      if (r.note) pushNotification("info", r.note);
       await loadCollection();
       await refresh();
     } catch (e) {

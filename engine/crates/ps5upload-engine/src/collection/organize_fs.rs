@@ -196,7 +196,7 @@ impl RemoteTree {
 
     /// The tree for the server a `remote://` path is on, through the engine's pool.
     pub fn for_path(path: &str) -> Result<Self, String> {
-        let p = crate::remote::path::parse(path).map_err(|e| e.to_string())?;
+        let (id, _) = split_raw(path).ok_or_else(|| format!("not a server path: {path}"))?;
         let r = crate::remote::pool::global().map_err(|e| e.to_string())?;
         let handle = tokio::runtime::Handle::try_current()
             .map_err(|_| format!("{path}: no runtime to reach the server from"))?;
@@ -204,18 +204,19 @@ impl RemoteTree {
             handle,
             Arc::clone(&r.pool),
             Arc::clone(&r.store),
-            &p.connection_id,
+            &id,
         ))
     }
 
     /// The server path in a `remote://` path on this tree's connection.
     fn server(&self, p: &Path) -> Result<String, OpError> {
-        let s = p.to_string_lossy().replace('\\', "/");
-        let rp = crate::remote::path::parse(&s).map_err(|e| OpError::Other(e.to_string()))?;
-        if rp.connection_id != self.id {
+        let s = path_string(p);
+        let (id, path) =
+            split_raw(&s).ok_or_else(|| OpError::Other(format!("not a server path: {s}")))?;
+        if id != self.id {
             return Err(OpError::Other(format!("{s} is on another server")));
         }
-        Ok(rp.path)
+        Ok(path)
     }
 
     fn forget(&self) {
@@ -260,6 +261,11 @@ impl RemoteTree {
                 Some(c) => cursor = Some(c),
                 None => break,
             }
+        }
+        if cfg!(windows) {
+            // A path here is a `PathBuf`, whose separator on Windows is also `\`: a name with
+            // one in it could not be told from two names, so it is left out (never touched).
+            out.retain(|e| !e.name.contains('\\'));
         }
         self.cache
             .lock()
@@ -413,9 +419,57 @@ impl Tree for RemoteTree {
     }
 }
 
+/// A path as the organizer shows and stores it. On Windows a server path joined as a `PathBuf`
+/// has `\` separators, which go back to `/`; anywhere else it is left as it is (on a server a
+/// `\` is a name character).
+pub fn path_string(p: &Path) -> String {
+    let s = p.to_string_lossy().into_owned();
+    if cfg!(windows) && crate::remote::path::is_remote(&s) {
+        s.replace('\\', "/")
+    } else {
+        s
+    }
+}
+
+/// `remote://<connection><server path>` in the organizer's form: the server path with its
+/// names as the server gives them (never percent-decoded, so "a%20b.pkg" is that name).
+/// Returns (connection id, server path), or `None` for anything else or a `.`/`..` segment.
+pub fn split_raw(s: &str) -> Option<(String, String)> {
+    let rest = s.strip_prefix("remote://")?;
+    let (id, path) = rest.split_once('/').unwrap_or((rest, ""));
+    if id.is_empty()
+        || !id
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
+    {
+        return None;
+    }
+    let mut segs = Vec::new();
+    for seg in path.split('/') {
+        match seg {
+            "" => continue,
+            "." | ".." => return None,
+            s if s.contains('\0') => return None,
+            s => segs.push(s),
+        }
+    }
+    Some((id.to_string(), format!("/{}", segs.join("/"))))
+}
+
+/// A collection root (as the settings hold it) in the organizer's form: a server root's path
+/// decoded once into plain names.
+pub fn raw_root(root: &str) -> std::path::PathBuf {
+    if crate::remote::path::is_remote(root) {
+        if let Ok(p) = crate::remote::path::parse(root) {
+            return std::path::PathBuf::from(format!("remote://{}{}", p.connection_id, p.path));
+        }
+    }
+    std::path::PathBuf::from(root)
+}
+
 /// The tree a collection path is in: a server's for a `remote://` path, else this computer.
 pub fn tree_for(path: &Path) -> Result<Box<dyn Tree>, String> {
-    let s = path.to_string_lossy().replace('\\', "/");
+    let s = path_string(path);
     if crate::remote::path::is_remote(&s) {
         Ok(Box::new(RemoteTree::for_path(&s)?))
     } else {
@@ -548,7 +602,8 @@ mod tests {
                 .iter()
                 .all(|m| m.container == c.to_string_lossy() && m.to.starts_with("PS4/")));
             let log_path = s.logs.join("run.json");
-            let log = organize::apply(&tree, &c, plan.moves.clone(), &log_path, "NAS").unwrap();
+            let log =
+                organize::apply(&tree, &c, plan.moves.clone(), &log_path, "NAS", None).unwrap();
             assert_eq!(log.completed.len(), 2, "{:?}", log.failed);
             assert_eq!(log.server, "NAS");
             for m in &plan.moves {
@@ -599,7 +654,8 @@ mod tests {
             let to = format!("/g/{}", plan.moves[0].to);
             // Someone else's file lands at the destination after the preview.
             s.mem.add(&[(to.as_str(), b"theirs")]);
-            let log = organize::apply(&tree, &c, plan.moves, &s.logs.join("l.json"), "").unwrap();
+            let log =
+                organize::apply(&tree, &c, plan.moves, &s.logs.join("l.json"), "", None).unwrap();
             assert_eq!(log.completed.len(), 0);
             assert_eq!(log.failed[0].error, "destination appeared");
             assert_eq!(s.mem.bytes(&to).unwrap(), b"theirs");
@@ -652,7 +708,7 @@ mod tests {
             // title folder, then the rename happens but the server drops with its reply.
             s.mem.go_down_after_writes(5);
             let log_path = s.logs.join("down.json");
-            let log = organize::apply(&tree, &c, plan.moves.clone(), &log_path, "").unwrap();
+            let log = organize::apply(&tree, &c, plan.moves.clone(), &log_path, "", None).unwrap();
             assert_eq!(log.completed.len(), 1, "{log:?}");
             assert_eq!(log.failed.len(), 2);
             assert!(log.failed[0].uncertain, "{:?}", log.failed[0]);
@@ -715,13 +771,14 @@ mod tests {
                 },
             );
             let c = root.join("fpkg");
-            let plan = organize::plan_cached(&tree, &c, Some(&lib), std::slice::from_ref(&root));
+            let roots = [(root.clone(), root.display().to_string())];
+            let plan = organize::plan_cached(&tree, &c, Some(&lib), &roots);
             assert_eq!(plan.moves.len(), 1, "{:?}", plan.skipped);
             assert!(plan.moves[0].to.starts_with("PS4/CUSA03041 - RDR2/"));
             // A changed file is read again rather than trusted.
             s.mem.set_mtime("/games/fpkg/x.pkg", 1_700_000_001);
             let tree = s.tree();
-            let plan = organize::plan_cached(&tree, &c, Some(&lib), std::slice::from_ref(&root));
+            let plan = organize::plan_cached(&tree, &c, Some(&lib), &roots);
             assert!(plan.moves.is_empty());
         })
         .await;
@@ -737,7 +794,8 @@ mod tests {
             let tree = s.tree();
             let c = s.path("/g");
             let plan = organize::plan_with(&tree, &c, &|p| facts(&tree, p));
-            let log = organize::apply(&tree, &c, plan.moves, &s.logs.join("k.json"), "").unwrap();
+            let log =
+                organize::apply(&tree, &c, plan.moves, &s.logs.join("k.json"), "", None).unwrap();
             assert_eq!(log.completed.len(), 1);
             assert!(log.removed_dirs.is_empty());
             assert_eq!(log.kept_dirs, vec!["old".to_string()]);
@@ -745,6 +803,107 @@ mod tests {
                 .tree()
                 .list(&s.path("/g/old"))
                 .is_some_and(|v| v.is_empty()));
+        })
+        .await;
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn odd_server_names_are_renamed_as_themselves() {
+        let s = Arc::new(server(
+            "names",
+            &[
+                ("/g/rdr%20x.pkg", b"percent"),
+                ("/g/rdr x.pkg", b"space"),
+                ("/g/bb 100% .pkg", b"orange"),
+                ("/g/jak\\b.pkg", b"backslash"),
+            ],
+        ));
+        let s2 = Arc::clone(&s);
+        blocking(move || {
+            let s = s2;
+            let tree = s.tree();
+            let c = s.path("/g");
+            for (name, bytes) in [
+                ("rdr%20x.pkg", &b"percent"[..]),
+                ("rdr x.pkg", b"space"),
+                ("bb 100% .pkg", b"orange"),
+                ("jak\\b.pkg", b"backslash"),
+            ] {
+                let m = tree.meta(&c.join(name)).expect(name);
+                assert_eq!(m.size, bytes.len() as u64, "{name}");
+            }
+            let plan = organize::plan_with(&tree, &c, &|p| facts(&tree, p));
+            let froms: Vec<&str> = plan.moves.iter().map(|m| m.from.as_str()).collect();
+            for name in ["rdr%20x.pkg", "rdr x.pkg", "bb 100% .pkg", "jak\\b.pkg"] {
+                assert!(
+                    froms.contains(&name),
+                    "{name} not planned as itself: {froms:?}"
+                );
+            }
+            let log = organize::apply(
+                &tree,
+                &c,
+                plan.moves.clone(),
+                &s.logs.join("n.json"),
+                "",
+                None,
+            )
+            .unwrap();
+            assert_eq!(log.completed.len(), 4, "{:?}", log.failed);
+            for m in &plan.moves {
+                let want: &[u8] = match m.from.as_str() {
+                    "rdr%20x.pkg" => b"percent",
+                    "rdr x.pkg" => b"space",
+                    "bb 100% .pkg" => b"orange",
+                    _ => b"backslash",
+                };
+                assert_eq!(
+                    s.mem.bytes(&format!("/g/{}", m.to)).as_deref(),
+                    Some(want),
+                    "{}",
+                    m.from
+                );
+            }
+        })
+        .await;
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_name_taken_in_another_case_is_not_landed_on() {
+        let s = Arc::new(server("case", &[("/g/rdr.pkg", b"mine")]));
+        let s2 = Arc::clone(&s);
+        blocking(move || {
+            let s = s2;
+            let tree = s.tree();
+            let c = s.path("/g");
+            let first = organize::plan_with(&tree, &c, &|p| facts(&tree, p));
+            let to = first.moves[0].to.clone();
+            // The same name in another case, already there (a case-insensitive server's twin).
+            let shout = format!("/g/{}", to.to_uppercase());
+            s.mem.add(&[(shout.as_str(), b"theirs")]);
+            let tree = s.tree();
+            let plan = organize::plan_with(&tree, &c, &|p| facts(&tree, p));
+            assert_eq!(plan.moves.len(), 1);
+            assert_ne!(
+                plan.moves[0].to.to_lowercase(),
+                to.to_lowercase(),
+                "{plan:?}"
+            );
+            let log = organize::apply(
+                &tree,
+                &c,
+                plan.moves.clone(),
+                &s.logs.join("c.json"),
+                "",
+                None,
+            )
+            .unwrap();
+            assert_eq!(log.completed.len(), 1);
+            assert_eq!(s.mem.bytes(&shout).unwrap(), b"theirs");
+            assert_eq!(
+                s.mem.bytes(&format!("/g/{}", plan.moves[0].to)).unwrap(),
+                b"mine"
+            );
         })
         .await;
     }
