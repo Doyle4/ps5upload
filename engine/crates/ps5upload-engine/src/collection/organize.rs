@@ -334,7 +334,30 @@ pub fn scan(container: &Path) -> Vec<PathBuf> {
     found
 }
 
-/// The top-level folders of a collection root that hold packages, whatever they are called.
+/// The packages lying loose in a folder itself, not in its subfolders. A collection root is
+/// organized this way: its subfolders are containers of their own (planned separately), so a
+/// root plans only the packages at its top level.
+pub fn scan_top(dir: &Path) -> Vec<PathBuf> {
+    let Ok(rd) = std::fs::read_dir(dir) else {
+        return Vec::new();
+    };
+    let mut found: Vec<PathBuf> = rd
+        .flatten()
+        .filter(|e| {
+            let name = e.file_name().to_string_lossy().into_owned();
+            e.file_type().is_ok_and(|t| t.is_file())
+                && !name.starts_with('.')
+                && !junk::is_junk_name(&name)
+                && name.to_ascii_lowercase().ends_with(".pkg")
+        })
+        .map(|e| e.path())
+        .collect();
+    found.sort();
+    found
+}
+
+/// The top-level folders of a collection root that hold packages, whatever they are called,
+/// and the root itself when packages lie loose in it.
 pub fn containers(root: &Path) -> Vec<PathBuf> {
     let Ok(rd) = std::fs::read_dir(root) else {
         return Vec::new();
@@ -348,6 +371,9 @@ pub fn containers(root: &Path) -> Vec<PathBuf> {
         .map(|e| e.path())
         .filter(|p| !scan(p).is_empty())
         .collect();
+    if !scan_top(root).is_empty() {
+        out.push(root.to_path_buf());
+    }
     out.sort();
     out
 }
@@ -460,11 +486,17 @@ fn unique_names(
 }
 
 /// Pure: what organizing `container` would do. `facts` reads one package; nothing is touched.
+#[cfg(test)]
 pub fn plan_with(container: &Path, facts: &dyn Fn(&Path) -> Facts) -> Plan {
+    plan_files(container, scan(container), facts)
+}
+
+/// `plan_with` over the given packages of `container` (all of them, or a root's loose ones).
+pub fn plan_files(container: &Path, files: Vec<PathBuf>, facts: &dyn Fn(&Path) -> Facts) -> Plan {
     let cname = container.to_string_lossy().into_owned();
     let mut out = Plan::default();
     let mut parsed: Vec<Facts> = Vec::new();
-    for path in scan(container) {
+    for path in files {
         // Only part 0 of a split set carries a header: plan the set from it.
         let parts = split_siblings(&path);
         if parts.len() > 1 && parts[0] != path {
@@ -649,7 +681,13 @@ pub fn plan_cached(container: &Path, lib: Option<&super::Library>, roots: &[Path
                 .then(|| c.pkg.clone())
         })
     };
-    plan_with(container, &|p: &Path| read_facts_with(p, &cached))
+    // A root is planned for its loose packages only: its subfolders are containers of their own.
+    let files = if roots.iter().any(|r| r == container) {
+        scan_top(container)
+    } else {
+        scan(container)
+    };
+    plan_files(container, files, &|p: &Path| read_facts_with(p, &cached))
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1116,6 +1154,35 @@ mod tests {
             reasons,
             HashSet::from([SKIP_INCOMPLETE, SKIP_UNREADABLE, SKIP_NO_ID])
         );
+    }
+
+    #[test]
+    fn packages_loose_in_a_root_are_organized_too() {
+        let l = lib("loose");
+        let root = l.0.clone();
+        put(&root, "game.pkg", 10);
+        put(&root.join("fpkg"), "other.pkg", 10);
+        let found = containers(&root);
+        assert!(found.contains(&root), "{found:?}");
+        assert!(found.contains(&root.join("fpkg")), "{found:?}");
+        // The root plans only its loose package; the subfolder is a container of its own.
+        assert_eq!(scan_top(&root), vec![root.join("game.pkg")]);
+        let p = plan_files(
+            &root,
+            scan_top(&root),
+            &table(&[(
+                "game",
+                info(
+                    "Game",
+                    "PPSA03016",
+                    "UP9000-PPSA03016_00-GAME",
+                    "base",
+                    "1.00",
+                ),
+            )]),
+        );
+        assert_eq!(p.moves.len(), 1, "{:?}", p.moves);
+        assert!(p.moves[0].from == "game.pkg", "{:?}", p.moves[0]);
     }
 
     #[test]
