@@ -90,6 +90,13 @@ export function humanizePs5Error(
     return te("err_unmount_permission");
   }
 
+  // ─── Uninstall the PS5 refused (#476) ──────────────────────────────
+  {
+    const m = raw.match(/uninstall_refused:(0x[0-9a-f]{8}|unknown)/i);
+    if (m) return te("err_uninstall_refused", { code: m[1] });
+  }
+  if (/uninstall_unavailable/i.test(raw)) return te("err_uninstall_unavailable");
+
   // ─── Decompressing a .ffpfsc on the console (#453) ───────────────────
   if (/fs_unpack_no_space/i.test(raw)) return te("err_unpack_no_space");
   if (/fs_unpack_destination_exists/i.test(raw)) return te("err_unpack_exists");

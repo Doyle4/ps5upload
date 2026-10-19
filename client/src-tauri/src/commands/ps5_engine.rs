@@ -1860,9 +1860,8 @@ pub async fn ps5_app_register(req: AppRegisterReq) -> Result<JsonValue, String> 
     .await
 }
 
-/// Reverse of `app_register`. Succeeds when the nullfs at
-/// `/system_ex/app/<title_id>` is fully torn down, even if the Sony
-/// AppUninstall API isn't available on the firmware.
+/// Reverse of `app_register`, and a package's uninstall. The engine's reply
+/// says whether Sony refused and whether the title is still on the console.
 #[derive(serde::Deserialize)]
 pub struct AppUnregisterReq {
     pub addr: Option<String>,

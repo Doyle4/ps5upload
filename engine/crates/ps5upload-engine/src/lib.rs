@@ -2767,9 +2767,11 @@ async fn ps5_app_register(
     }
 }
 
-/// Reverse of `app_register`. Best-effort — succeeds even when the
-/// Sony AppUninstall API isn't available, as long as the nullfs
-/// teardown succeeded.
+/// Reverse of `app_register`, and the uninstall of a package install. A
+/// Sony refusal is an error (502) from a 7.1.6 helper; from an older one it is
+/// `sony_uninstall_refused` in an `ok` reply, which the client must check
+/// (#476). `still_present` says the title's folders were still there after
+/// Sony accepted (`null` from an older helper).
 #[derive(Debug, serde::Deserialize)]
 struct AppUnregisterReq {
     addr: Option<String>,
@@ -2805,13 +2807,28 @@ async fn ps5_app_unregister(
             // flattening both into a bare `ok: true`, which is what let a
             // 0x80B21B02 refusal masquerade as a successful uninstall while
             // the title stayed in Settings → Storage.
-            if outcome.sony_refused() {
+            if outcome.sony_refused() && !outcome.refusal_stands() {
+                crate::log_warn!(
+                    "app_unregister: {title_for_log} — sceAppInstUtilAppUninstall refused with \
+                     rc=0x{:08X}, but our registration is gone and the title is no longer listed \
+                     ({} ms)",
+                    outcome.sony_uninstall_rc,
+                    started.elapsed().as_millis()
+                );
+            } else if outcome.sony_refused() {
                 crate::log_warn!(
                     "app_unregister: {title_for_log} — our teardown ok in {} ms, but \
                      sceAppInstUtilAppUninstall REFUSED with rc=0x{:08X}; the title may \
                      remain in Settings → Storage",
                     started.elapsed().as_millis(),
                     outcome.sony_uninstall_rc
+                );
+            } else if outcome.still_present == Some(true) {
+                // WARN so a bug report carries it: the game is still listed (#476).
+                crate::log_warn!(
+                    "app_unregister: {title_for_log} — Sony accepted in {} ms, but the \
+                     title's folders are still on the console",
+                    started.elapsed().as_millis()
                 );
             } else {
                 crate::log_info!(
@@ -2823,8 +2840,9 @@ async fn ps5_app_unregister(
                 StatusCode::OK,
                 Json(serde_json::json!({
                     "ok": true,
-                    "sony_uninstall_refused": outcome.sony_refused(),
+                    "sony_uninstall_refused": outcome.refusal_stands(),
                     "sony_uninstall_rc": format!("0x{:08X}", outcome.sony_uninstall_rc),
+                    "still_present": outcome.still_present,
                 })),
             )
                 .into_response()

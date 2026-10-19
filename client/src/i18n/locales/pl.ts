@@ -1705,6 +1705,12 @@ installed_uninstall_confirm_pkg:
 // are substituted at runtime; keep them verbatim when translating.
 err_unmount_busy:
   "Nie można odmontować: gra znajdująca się w tym obrazie jest obecnie uruchomiona na PS5. Zamknij ją (Menu PS → zamknij grę) i spróbuj ponownie.",
+err_uninstall_refused:
+  "PS5 odmówiła odinstalowania tej gry ({code}), więc nadal jest zainstalowana. Uruchom PS5 ponownie i spróbuj jeszcze raz; jeśli nadal odmawia, usuń ją na PS5 w Ustawienia → Pamięć.",
+err_uninstall_unavailable:
+  "Oprogramowanie tej PS5 nie daje pomocnikowi możliwości odinstalowania, a gra nadal jest zainstalowana. Usuń ją na PS5 w Ustawienia → Pamięć.",
+installed_uninstall_still_present:
+  "PS5 przyjęła odinstalowanie, ale {name} nadal jest na konsoli. Usuwanie dużej gry może potrwać kilka minut: odśwież za chwilę. Jeśli zostanie, usuń ją na PS5 w Ustawienia → Pamięć.",
 err_unmount_permission:
   "Nie można odmontować: kernel odmówił dostępu (EACCES/EPERM). Payload mógł utracić uprawnienia roota — załaduj go ponownie przez Połączenie → Wyślij payload.",
 err_unpack_no_space: "Za mało wolnego miejsca na tym dysku na rozpakowany obraz. Potrzeba pełnego rozmiaru obrazu plus 1 GiB.",

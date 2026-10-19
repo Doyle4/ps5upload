@@ -1313,6 +1313,12 @@ installed_uninstall_confirm_pkg:
 // 런타임에 치환되므로 번역 시 그대로 유지하세요.
 err_unmount_busy:
   "마운트를 해제할 수 없습니다: 이 이미지 안의 게임이 현재 PS5에서 실행 중입니다. 게임을 종료한 뒤(PS Home → 게임 닫기) 다시 시도하세요.",
+err_uninstall_refused:
+  "PS5가 이 게임의 제거를 거부했습니다({code}). 게임은 아직 설치되어 있습니다. PS5를 다시 시작한 뒤 다시 시도하세요. 계속 거부되면 PS5의 설정 → 저장 공간에서 삭제하세요.",
+err_uninstall_unavailable:
+  "이 PS5의 펌웨어에는 도우미가 제거에 사용할 수 있는 기능이 없으며, 게임은 아직 설치되어 있습니다. PS5의 설정 → 저장 공간에서 삭제하세요.",
+installed_uninstall_still_present:
+  "PS5가 제거를 받아들였지만 {name}이(가) 아직 본체에 있습니다. 큰 게임은 제거에 몇 분이 걸릴 수 있으니 잠시 후 새로 고치세요. 그대로 남아 있으면 PS5의 설정 → 저장 공간에서 삭제하세요.",
 err_unmount_permission:
   "마운트를 해제할 수 없습니다: 커널이 EACCES/EPERM으로 거부했습니다. 페이로드가 root 권한을 잃었을 수 있습니다 — Connection → 페이로드 전송에서 다시 로드하세요.",
 err_unpack_no_space: "이 드라이브에 압축을 푼 이미지를 위한 여유 공간이 부족합니다. 이미지 전체 크기에 1 GiB가 더 필요합니다.",

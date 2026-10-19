@@ -1312,6 +1312,12 @@ installed_uninstall_confirm_pkg:
 // {placeholders} çalışma zamanında değiştirilir; çevirirken aynen koruyun.
 err_unmount_busy:
   "Bağlantı kaldırılamıyor: bu görüntünün içindeki oyun şu anda PS5'te çalışıyor. Çıkın (PS Home → oyunu kapatın) ve tekrar deneyin.",
+err_uninstall_refused:
+  "PS5 bu oyunu kaldırmayı reddetti ({code}), bu yüzden oyun hâlâ yüklü. PS5'i yeniden başlatıp tekrar deneyin; yine reddederse PS5'te Ayarlar → Depolama'dan silin.",
+err_uninstall_unavailable:
+  "Bu PS5'in yazılımı yardımcıya kaldırma için bir yol sunmuyor ve oyun hâlâ yüklü. PS5'te Ayarlar → Depolama'dan silin.",
+installed_uninstall_still_present:
+  "PS5 kaldırmayı kabul etti ama {name} hâlâ konsolda. Büyük bir oyunun kaldırılması birkaç dakika sürebilir: biraz sonra yenileyin. Kalırsa PS5'te Ayarlar → Depolama'dan silin.",
 err_unmount_permission:
   "Bağlantı kaldırılamıyor: çekirdek EACCES/EPERM ile reddetti. Payload root yetkilerini kaybetmiş olabilir — Connection → Send payload bölümünden yeniden yükleyin.",
 err_unpack_no_space: "Bu sürücüde açılmış kalıp için yeterli boş alan yok. Kalıbın tam boyutu artı 1 GiB gerekir.",

@@ -1898,6 +1898,12 @@ installed_uninstall_confirm_pkg:
 // futásidőben behelyettesítődnek; tartsd meg őket szó szerint fordításkor.
 err_unmount_busy:
   "Nem lehet leválasztani: az image belsejében lévő játék éppen fut a PS5-ön. Lépj ki belőle (PS Home → játék bezárása), és próbáld újra.",
+err_uninstall_refused:
+  "A PS5 megtagadta a játék eltávolítását ({code}), ezért az továbbra is telepítve van. Indítsd újra a PS5-öt, és próbáld újra; ha továbbra is megtagadja, töröld a PS5 Beállítások → Tárhely menüjében.",
+err_uninstall_unavailable:
+  "Ennek a PS5-nek a firmware-e nem ad módot a segédnek az eltávolításra, és a játék továbbra is telepítve van. Töröld a PS5 Beállítások → Tárhely menüjében.",
+installed_uninstall_still_present:
+  "A PS5 elfogadta az eltávolítást, de a(z) {name} még a konzolon van. Egy nagy játék eltávolítása néhány percig is tarthat: frissíts kicsit később. Ha megmarad, töröld a PS5 Beállítások → Tárhely menüjében.",
 err_unmount_permission:
   "Nem lehet leválasztani: a kernel EACCES/EPERM-mel elutasította. Lehet, hogy a payload elvesztette a root jogosultságokat — töltsd be újra a Connection → Send payload menüből.",
 err_unpack_no_space: "Nincs elég szabad hely ezen a meghajtón a kibontott képnek. A kép teljes mérete plusz 1 GiB kell.",

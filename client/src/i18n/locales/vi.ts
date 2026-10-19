@@ -1307,6 +1307,12 @@ installed_uninstall_confirm_pkg:
   "Thao tác này xóa tựa đã cài khỏi PS5. Bạn có thể cài lại sau từ gói.",
 err_unmount_busy:
   "Không thể tháo gắn kết: game bên trong ảnh đĩa này đang chạy trên PS5. Hãy thoát game (PS Home → đóng game) rồi thử lại.",
+err_uninstall_refused:
+  "PS5 đã từ chối gỡ cài đặt trò chơi này ({code}), nên trò chơi vẫn còn được cài. Hãy khởi động lại PS5 rồi thử lại; nếu vẫn bị từ chối, hãy xóa nó trong Cài đặt → Bộ nhớ trên PS5.",
+err_uninstall_unavailable:
+  "Firmware của PS5 này không cho trình trợ giúp cách nào để gỡ cài đặt, và trò chơi vẫn còn được cài. Hãy xóa nó trong Cài đặt → Bộ nhớ trên PS5.",
+installed_uninstall_still_present:
+  "PS5 đã chấp nhận gỡ cài đặt, nhưng {name} vẫn còn trên máy. Trò chơi lớn có thể mất vài phút để xóa: hãy làm mới sau giây lát. Nếu vẫn còn, hãy xóa nó trong Cài đặt → Bộ nhớ trên PS5.",
 err_unmount_permission:
   "Không thể tháo gắn kết: nhân (kernel) từ chối với EACCES/EPERM. Payload có thể đã mất quyền root — hãy tải lại từ Connection → Send payload.",
 err_unpack_no_space: "Ổ đĩa này không đủ dung lượng trống cho ảnh đã giải nén. Cần toàn bộ kích thước ảnh cộng thêm 1 GiB.",

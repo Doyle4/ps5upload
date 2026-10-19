@@ -249,16 +249,19 @@ int webui_tile_ensure(uint16_t port) {
 
 int webui_tile_remove(void) {
     const char *err = NULL;
-    unsigned sony_rc = 0;
+    unregister_outcome_t outcome;
     int rc = 0;
     pthread_mutex_lock(&g_op_mu);
     /* The nullfs must be gone before the folder under it is deleted: on an unregister failure the
      * folders stay (a tile pointing at nothing is worse than a tile that still works). */
-    if (unregister_title(WEBUI_TILE_TITLE_ID, &err, &sony_rc) != 0) {
+    if (unregister_title(WEBUI_TILE_TITLE_ID, &err, &outcome) != 0) {
         fprintf(stderr, "webui tile: unregister failed: %s; keeping %s\n", err ? err : "unknown", WEBUI_TILE_DIR);
         rc = -1;
     } else {
-        if (sony_rc) fprintf(stderr, "webui tile: Sony uninstall rc=0x%08x (the tile may linger)\n", sony_rc);
+        if (outcome.sony_rc) {
+            fprintf(stderr, "webui tile: Sony uninstall rc=0x%08x (the tile may linger)\n",
+                    (unsigned)outcome.sony_rc);
+        }
         /* unregister_title keeps the staged /user/app/PSUP00001 (sce_sys, icon, mount.lnk). On FW 13.x
          * register goes through AppInstallAll, which installs everything staged there: left behind,
          * the next folder-game register would bring back the tile the user removed. */

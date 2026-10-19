@@ -1203,10 +1203,22 @@ export default function InstalledAppsScreen() {
       setBusyId(t.titleId);
       setError(null);
       try {
-        await appUnregister(transferAddr(probe.host), t.titleId);
+        const res = await appUnregister(transferAddr(probe.host), t.titleId);
         audit("app_uninstall", withConsolePrefix(probe.host, t.titleName), { context: t.titleId });
         if (probe.isStale()) return;
-        setTitles((cur) => cur?.filter((x) => x.titleId !== t.titleId) ?? cur);
+        if (res.stillPresent) {
+          // #476: the PS5 accepted but the game is still there. Dropping it from the list
+          // only for the next refresh to bring it back is what looked like "it pops up again".
+          pushNotification("warning", withConsolePrefix(probe.host, t.titleName), {
+            body: tr(
+              "installed_uninstall_still_present",
+              { name: t.titleName },
+              `The PS5 accepted the uninstall, but ${t.titleName} is still on the console. A large game can take a few minutes to remove: refresh in a moment. If it stays, delete it from the PS5's Settings → Storage.`,
+            ),
+          });
+        } else {
+          setTitles((cur) => cur?.filter((x) => x.titleId !== t.titleId) ?? cur);
+        }
         void refresh();
       } catch (e) {
         if (probe.isStale()) return;
