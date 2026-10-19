@@ -100,8 +100,12 @@ import {
   startTransferDownload,
   startTransferDownloadZip,
   fetchVolumes,
+  generateTxIdHex,
+  pathKind,
   type Volume,
 } from "../../api/ps5";
+import { kindsOf, namesPreview, planFsUpload } from "../../state/fsUploadPlan";
+import { useConflictAsk } from "./ConflictAsk";
 import {
   loadFsLastPath,
   saveFsLastPath,
@@ -138,6 +142,7 @@ import { pollFsDownload } from "../../state/fsDownloadPoll";
 import { useElapsed } from "../../lib/useElapsed";
 import {
   cancelFsUpload,
+  FS_UPLOAD_BUSY,
   fsUploadForHost,
   runFsUpload,
   dismissFsUploadStopped,
@@ -482,6 +487,7 @@ export default function FileSystemScreen() {
   const { confirm: confirmDialog, dialog: confirmDialogNode } = useConfirm();
   const { alert: alertDialog, dialog: alertDialogNode } = useAlert();
   const { prompt: promptDialog, dialog: promptDialogNode } = usePrompt();
+  const { ask: askConflict, dialog: conflictDialogNode } = useConflictAsk(host);
   const elapsedMs = useElapsed(
     busyEntry !== null || bulkOp.op !== null || downloadOp.active,
   );
@@ -1208,7 +1214,7 @@ export default function FileSystemScreen() {
       ),
     });
     if (!picked || picked.length === 0) return;
-    await addPicked(picked);
+    await addPicked(picked, "file");
   };
 
   const addFolderHere = async () => {
@@ -1221,7 +1227,7 @@ export default function FileSystemScreen() {
       ),
     });
     if (typeof picked !== "string") return;
-    await addPicked([picked]);
+    await addPicked([picked], "folder");
   };
 
   // Files and folders dragged in from the computer's file manager land in this folder
@@ -1231,39 +1237,71 @@ export default function FileSystemScreen() {
     !loading && !!host?.trim() && busyEntry === null,
   );
 
-  /** Upload picked files (local or on a saved server) into this folder, asking first when
-   *  one would overwrite a file already here. */
-  const addPicked = async (picked: string[]) => {
-    // Merge by default, ask on collision. Adding files that don't exist here
-    // yet needs no ceremony; overwriting one the user may not have realised
-    // was already there does. The upload itself replaces the remote file, so
-    // this prompt is the only thing standing in front of it.
-    const existingNames = new Set((entries ?? []).map((e) => e.name));
-    const clashes = picked
-      .map((p) => p.split(/[/\\]/).pop() ?? p)
-      .filter((n) => existingNames.has(n));
-    if (clashes.length > 0) {
-      const shown = clashes.slice(0, 6).join(", ");
-      const more = clashes.length > 6 ? ` and ${clashes.length - 6} more` : "";
-      const ok = await confirmDialog({
-        title: tr(
-          "fs_add_files_conflict_title",
-          { count: clashes.length },
-          clashes.length === 1
-            ? `"${clashes[0]}" already exists here`
-            : `${clashes.length} files already exist here`,
+  /** Upload picked files and folders (local or on a saved server) into this folder.
+   *
+   *  Every name already here is settled first (Skip / Keep both / Replace, see
+   *  state/fsUploadPlan), against a fresh listing: the run that follows cannot stop to ask.
+   *  Two or more local files then go up as ONE job, a folder as its own job, all of it one
+   *  run (one task, one progress bar, one Cancel). `kind`: what the picker returned, when it
+   *  only returns one kind (a drop is asked about). */
+  const addPicked = async (picked: string[], kind?: "file" | "folder") => {
+    if (picked.length === 0) return;
+    setError(null);
+    // One run per console: say so now, before asking about any conflict.
+    if (fsUploadForHost(useFsUploadStore.getState(), host).active) {
+      setError(
+        tr(
+          "fs_upload_already_running",
+          undefined,
+          "A copy to this PS5 is already running. Wait for it to finish, or cancel it.",
         ),
-        message: tr(
-          "fs_add_files_conflict_body",
-          { names: shown + more },
-          `${shown}${more} will be overwritten. Everything else in this folder is left alone.\n\nIf this is inside a mounted game image, a bad file can stop the game booting, and there is no undo.`,
-        ),
-        confirmLabel: tr("fs_add_files_conflict_ok", undefined, "Overwrite"),
-        destructive: true,
-      });
-      if (!ok) return;
+      );
+      return;
     }
-    await runUpload(picked);
+    // The console can change while this waits on the listing or on the user: the plan is
+    // then for another console's folder, so it is dropped (an open question answers Cancel).
+    const probe = guard.capture();
+    const addr = consoleAddr(host);
+    const destDir = path;
+    const items = await kindsOf(picked, pathKind, kind);
+    let existing: Awaited<ReturnType<typeof fsListDir>>;
+    try {
+      existing = await fsListDir(addr, destDir);
+    } catch (e) {
+      // Never plan against a stale or empty listing: a name missed here would be overwritten
+      // without asking.
+      if (probe.isStale()) return;
+      const raw = e instanceof Error ? e.message : String(e);
+      setError(humanizePs5Error(raw) || raw);
+      return;
+    }
+    if (probe.isStale()) return;
+    const plan = await planFsUpload(items, existing, askConflict, generateTxIdHex);
+    if (probe.isStale() || !plan || plan.steps.length === 0) return;
+    const r = await runFsUpload(
+      { host, addr, destDir, srcPaths: [], steps: plan.steps },
+      {
+        ...fsUploadDeps,
+        onFailed: (raw) =>
+          pushNotification(
+            "error",
+            withConsolePrefix(
+              host,
+              tr("notif_fs_upload_failed", undefined, "Copy to PS5 failed"),
+            ),
+            { body: humanizePs5Error(raw) || raw },
+          ),
+      },
+    );
+    // Another run started while this one was being planned: the store refused it.
+    if (!r.ok && r.error === FS_UPLOAD_BUSY)
+      setError(
+        tr(
+          "fs_upload_already_running",
+          undefined,
+          "A copy to this PS5 is already running. Wait for it to finish, or cancel it.",
+        ),
+      );
   };
 
   /** Row action: overwrite one existing file with a local one. */
@@ -2578,6 +2616,7 @@ export default function FileSystemScreen() {
         />
       )}
       {confirmDialogNode}
+      {conflictDialogNode}
       {alertDialogNode}
       {promptDialogNode}
       <PageHeader
@@ -2600,7 +2639,7 @@ export default function FileSystemScreen() {
               )}
               disabled={loading || !host?.trim() || busyEntry !== null}
               onMainClick={() => void addFilesHere()}
-              onPick={(p) => void addPicked([p])}
+              onPick={(p) => void addPicked([p], "file")}
             />
             <Button
               variant="secondary"
@@ -3126,6 +3165,19 @@ export default function FileSystemScreen() {
             {uploadStopped.error && (
               <div className="mt-1 break-words text-xs text-[var(--color-muted)]">
                 {humanizePs5Error(uploadStopped.error) || uploadStopped.error}
+              </div>
+            )}
+            {/* A stopped multi-file job: the files not (known to be) in place yet. */}
+            {uploadStopped.notLanded && uploadStopped.notLanded.length > 0 && (
+              <div
+                className="mt-1 break-words text-xs text-[var(--color-muted)]"
+                data-testid="fs-upload-not-landed"
+              >
+                {tr(
+                  "fs_upload_not_landed",
+                  { names: namesPreview(uploadStopped.notLanded) },
+                  `Not on the PS5 yet: ${namesPreview(uploadStopped.notLanded)}`,
+                )}
               </div>
             )}
             <div className="mt-1 text-xs text-[var(--color-muted)]">

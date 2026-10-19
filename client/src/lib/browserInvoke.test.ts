@@ -273,6 +273,27 @@ describe("engine-backed commands the web UI depends on (#300)", () => {
     });
   });
 
+  it("sends transfer_file_list to the engine's file-list job, body unchanged", async () => {
+    // The Files screen's multi-file pick: one job for the set. The web UI must reach the same
+    // route the desktop shell proxies to, or a pick of thousands of files breaks there.
+    const calls = captureFetch({ job_id: "j2" });
+    const req = {
+      dest_root: "/data/x",
+      files: [
+        { src: "/srv/a.bin", dest: "/data/x/a.bin" },
+        { src: "/srv/b.bin", dest: "/data/x/b (2).bin" },
+      ],
+      addr: "192.168.1.50",
+      tx_id: "0123456789abcdef0123456789abcdef",
+      bandwidth_cap_mbps: null,
+    };
+    const r = await browserInvoke<{ job_id: string }>("transfer_file_list", { req });
+    expect(r.job_id).toBe("j2");
+    expect(calls[0].url).toBe(`${B}/api/transfer/file-list`);
+    expect(calls[0].init.method).toBe("POST");
+    expect(JSON.parse(calls[0].init.body as string)).toEqual(req);
+  });
+
   it("maps ffpkg_extract's camelCase args onto the engine's snake_case body", async () => {
     const calls = captureFetch({ ok: true });
     await browserInvoke("ffpkg_extract", {
