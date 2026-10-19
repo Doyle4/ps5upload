@@ -1527,19 +1527,39 @@ export async function appRegister(
   });
 }
 
-/** Reverse of `appRegister`: tears down the nullfs at
- *  `/system_ex/app/<titleId>`, removes tracking, calls Sony's
- *  AppUninstall when available. Best-effort — succeeds even when
- *  Sony's API isn't available on the running firmware as long as
- *  the unmount went through. */
+/** What an uninstall left behind. */
+export interface UnregisterResult {
+  /** The PS5 accepted the uninstall, but the title's folders were still there when the helper
+   *  looked (a large game can take minutes). Keep it listed and refresh. False from a helper
+   *  older than 7.1.6, which did not check. */
+  stillPresent: boolean;
+}
+
+/** Reverse of `appRegister` (tears down our nullfs at `/system_ex/app/<titleId>`), and the
+ *  uninstall of a package install: both end in Sony's AppUninstall.
+ *
+ *  Rejects when the PS5 refused (#476). A 7.1.6 helper reports that as an error; an older one
+ *  acknowledged it with `sony_uninstall_refused`, and the app used to drop the game from its
+ *  list until the next refresh brought it back. */
 export async function appUnregister(
   transferAddr: string,
   titleId: string,
-): Promise<void> {
+): Promise<UnregisterResult> {
   const addr = toMgmtAddr(transferAddr);
-  await invoke("ps5_app_unregister", {
+  const res = await invoke<{
+    ok?: boolean;
+    error?: string | null;
+    sony_uninstall_refused?: boolean;
+    sony_uninstall_rc?: string;
+    still_present?: boolean | null;
+  } | null>("ps5_app_unregister", {
     req: { addr, title_id: titleId },
   });
+  if (res) assertOk(res, "Uninstall");
+  if (res?.sony_uninstall_refused) {
+    throw new Error(`uninstall_refused:${res.sony_uninstall_rc ?? "unknown"}`);
+  }
+  return { stillPresent: res?.still_present === true };
 }
 
 // ─── Hardware monitoring ──────────────────────────────────────────────

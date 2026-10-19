@@ -1306,6 +1306,12 @@ installed_uninstall_confirm_pkg: "Esto elimina el título instalado de la PS5. P
 // Mensajes de error humanizados — generados por lib/humanizeError.ts. Los {placeholders}
 // se sustituyen en tiempo de ejecución; consérvalos tal cual al traducir.
 err_unmount_busy: "No se puede desmontar: el juego dentro de esta imagen se está ejecutando ahora mismo en la PS5. Ciérralo (PS Home → cerrar el juego) e inténtalo de nuevo.",
+err_uninstall_refused:
+  "La PS5 rechazó desinstalar este juego ({code}), así que sigue instalado. Reinicia la PS5 e inténtalo de nuevo; si lo sigue rechazando, bórralo desde Ajustes → Almacenamiento de la PS5.",
+err_uninstall_unavailable:
+  "El firmware de esta PS5 no ofrece al ayudante ninguna forma de desinstalar, y el juego sigue instalado. Bórralo desde Ajustes → Almacenamiento de la PS5.",
+installed_uninstall_still_present:
+  "La PS5 aceptó la desinstalación, pero {name} sigue en la consola. Un juego grande puede tardar unos minutos en eliminarse: actualiza en un momento. Si sigue ahí, bórralo desde Ajustes → Almacenamiento de la PS5.",
 err_unmount_permission: "No se puede desmontar: el kernel lo rechazó con EACCES/EPERM. El payload puede haber perdido las credenciales de root — recárgalo desde Connection → Send payload.",
 err_unpack_no_space: "No hay espacio libre suficiente en esta unidad para la imagen descomprimida. Necesita el tamaño completo de la imagen más 1 GiB.",
 err_unpack_exists: "Ya hay un archivo con el nombre de la imagen en esta carpeta. Muévelo o cámbiale el nombre primero.",

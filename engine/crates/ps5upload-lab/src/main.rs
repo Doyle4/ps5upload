@@ -891,6 +891,11 @@ fn do_unregister(addr: &str, title_id: &str) -> Result<()> {
              Settings > Storage)",
             outcome.sony_uninstall_rc
         );
+    } else if outcome.still_present == Some(true) {
+        println!(
+            "unregistered: {title_id} (the console accepted, but the title's folders \
+             are still there)"
+        );
     } else {
         println!("unregistered: {title_id}");
     }

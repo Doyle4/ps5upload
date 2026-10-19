@@ -30,6 +30,7 @@
 #include "authid.h"
 #include "config.h"
 #include "register.h"
+#include "unregister_outcome.h"
 #include "sony_api_lock.h"
 #include "proc_list.h"
 #include "shellui_rpc.h"
@@ -1452,10 +1453,27 @@ static void remove_our_appmeta(const char *title_id) {
     (void)rmdir(dir);
 }
 
+/* Whether anything the PC app lists as an installed title is still there for `title_id`. */
+static int title_still_present(const char *title_id) {
+    char paths[4][160];
+    int n = unregister_presence_paths(title_id, paths, 4);
+    for (int i = 0; i < n; i++) {
+        if (path_exists(paths[i])) return 1;
+    }
+    return 0;
+}
+
+/* Sony's uninstall removed every title on the Phat (FW 13.60) before it returned, but a large
+ * game took minutes on FW 9.60 (BGFT DeleteTask), so give it a bounded while. */
+#define UNREGISTER_SETTLE_POLLS 20
+#define UNREGISTER_SETTLE_STEP_US (500u * 1000u)
+
 int unregister_title(const char *title_id, const char **err_reason_out,
-                     unsigned *sony_rc_out) {
+                     unregister_outcome_t *out) {
     register_module_init();
-    if (sony_rc_out) *sony_rc_out = 0u;
+    unregister_outcome_t local = {0};
+    if (!out) out = &local;
+    memset(out, 0, sizeof(*out));
     if (!title_id || !is_safe_component(title_id)) {
         if (err_reason_out) *err_reason_out = "unregister_title_id_invalid";
         return -1;
@@ -1480,6 +1498,7 @@ int unregister_title(const char *title_id, const char **err_reason_out,
     snprintf(lnk,     sizeof(lnk),     "%s/%s/mount.lnk",     REG_APP_BASE, title_id);
     snprintf(lnk_img, sizeof(lnk_img), "%s/%s/mount_img.lnk", REG_APP_BASE, title_id);
     int ours = path_exists(lnk);
+    out->ours = ours;
 
     if (ours) {
         /* Nullfs unmount first. This is the teardown that matters most --
@@ -1533,6 +1552,8 @@ int unregister_title(const char *title_id, const char **err_reason_out,
         }
         int unrc = g_reg.app_uninstall(title_id, NULL, NULL);
         uninstall_rc = unrc;
+        out->api_called = 1;
+        out->sony_rc = (uint32_t)unrc;
         /* FW 13.x: a register through sceAppInstUtilAppInstallAll leaves two
          * install records (measured on a 13.60 Pro: install times 2.2 s
          * apart), and one uninstall removes one of them — the title leaves
@@ -1562,15 +1583,10 @@ int unregister_title(const char *title_id, const char **err_reason_out,
         usleep(SONY_API_POST_SLEEP_US);
         pthread_mutex_unlock(&sony_api_lock);
         if (unrc != 0) {
-            /* Report it to the caller as well as the log. The nullfs
-             * teardown above already removed our tile, so this is not
-             * fatal — but Sony refusing the uninstall means the title
-             * can survive in Settings -> Storage, and the caller must be
-             * able to say so instead of claiming success. */
-            if (sony_rc_out) *sony_rc_out = (unsigned)unrc;
+            /* The title can survive in Settings -> Storage: `out` carries the
+             * code so the caller reports a refusal instead of success (#476). */
             fprintf(stderr,
-                    "[register] sceAppInstUtilAppUninstall(%s) rc=0x%08X "
-                    "(non-fatal — tile may linger)\n",
+                    "[register] sceAppInstUtilAppUninstall(%s) rc=0x%08X (refused)\n",
                     title_id, (unsigned)unrc);
         }
     }
@@ -1579,6 +1595,18 @@ int unregister_title(const char *title_id, const char **err_reason_out,
      * appmeta folder as installed -- so an uninstalled folder game kept
      * showing up. Once Sony has confirmed the uninstall, remove it. */
     if (ours && uninstall_rc == 0) remove_our_appmeta(title_id);
+    /* A refusal is final; anything else is judged by what is left on the console. */
+    if (!(out->api_called && out->sony_rc != 0)) {
+        out->still_present = title_still_present(title_id);
+        for (int i = 0; out->still_present && out->api_called && i < UNREGISTER_SETTLE_POLLS; i++) {
+            usleep(UNREGISTER_SETTLE_STEP_US);
+            out->still_present = title_still_present(title_id);
+        }
+        if (out->still_present) {
+            fprintf(stderr, "[register] uninstall %s: still present after rc=0x%08X\n",
+                    title_id, (unsigned)out->sony_rc);
+        }
+    }
     return 0;
 }
 

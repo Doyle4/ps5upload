@@ -1312,6 +1312,12 @@ installed_uninstall_confirm_pkg: "这会从 PS5 移除已安装的标题。您�
 
 // Humanized error copy — surfaced by lib/humanizeError.ts.
 err_unmount_busy: "无法卸载：此镜像内的游戏当前正在 PS5 上运行。请退出它（PS 主页 → 关闭游戏）后重试。",
+err_uninstall_refused:
+  "PS5 拒绝卸载此游戏（{code}），游戏仍处于已安装状态。请重启 PS5 后再试；如果仍被拒绝，请在 PS5 的“设置 → 存储”中删除它。",
+err_uninstall_unavailable:
+  "这台 PS5 的固件没有提供可供助手卸载的功能，游戏仍处于已安装状态。请在 PS5 的“设置 → 存储”中删除它。",
+installed_uninstall_still_present:
+  "PS5 已接受卸载，但 {name} 仍在主机上。大型游戏可能需要几分钟才能删除：请稍后刷新。如果仍然存在，请在 PS5 的“设置 → 存储”中删除它。",
 err_unmount_permission: "无法卸载：内核以 EACCES/EPERM 拒绝。载荷可能已丢失 root 凭证 — 请通过 连接 → 发送 payload 重新加载它。",
 err_unpack_no_space: "此驱动器的可用空间不足以放下解压后的镜像。需要镜像的完整大小再加 1 GiB。",
 err_unpack_exists: "此文件夹中已有与镜像同名的文件。请先移走或重命名。",

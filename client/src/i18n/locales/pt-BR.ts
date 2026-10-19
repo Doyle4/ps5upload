@@ -1312,6 +1312,12 @@ installed_uninstall_confirm_pkg:
 // {placeholders} são substituídos em tempo de execução; mantenha-os literais.
 err_unmount_busy:
   "Não é possível desmontar: o jogo dentro desta imagem está em execução no PS5. Saia dele (PS Home → fechar o jogo) e tente novamente.",
+err_uninstall_refused:
+  "O PS5 recusou desinstalar este jogo ({code}), então ele continua instalado. Reinicie o PS5 e tente de novo; se ele continuar recusando, apague-o em Configurações → Armazenamento no PS5.",
+err_uninstall_unavailable:
+  "O firmware deste PS5 não dá ao helper nenhuma forma de desinstalar, e o jogo continua instalado. Apague-o em Configurações → Armazenamento no PS5.",
+installed_uninstall_still_present:
+  "O PS5 aceitou a desinstalação, mas {name} ainda está no console. Um jogo grande pode levar alguns minutos para ser removido: atualize daqui a pouco. Se continuar lá, apague-o em Configurações → Armazenamento no PS5.",
 err_unmount_permission:
   "Não é possível desmontar: o kernel recusou com EACCES/EPERM. O payload pode ter perdido as credenciais de root — recarregue-o em Connection → Send payload.",
 err_unpack_no_space: "Não há espaço livre suficiente nesta unidade para a imagem descompactada. É preciso o tamanho total da imagem mais 1 GiB.",

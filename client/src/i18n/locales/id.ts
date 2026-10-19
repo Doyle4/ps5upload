@@ -1312,6 +1312,12 @@ installed_uninstall_confirm_pkg:
 // {placeholder} disubstitusi saat runtime; pertahankan apa adanya saat menerjemahkan.
 err_unmount_busy:
   "Tidak dapat melepas: game di dalam image ini sedang berjalan di PS5. Keluar dari game (PS Home → tutup game) lalu coba lagi.",
+err_uninstall_refused:
+  "PS5 menolak mencopot pemasangan game ini ({code}), jadi game masih terpasang. Mulai ulang PS5 lalu coba lagi; jika masih ditolak, hapus dari Pengaturan → Penyimpanan di PS5.",
+err_uninstall_unavailable:
+  "Firmware PS5 ini tidak memberi helper cara untuk mencopot pemasangan, dan game masih terpasang. Hapus dari Pengaturan → Penyimpanan di PS5.",
+installed_uninstall_still_present:
+  "PS5 menerima pencopotan, tetapi {name} masih ada di konsol. Game besar bisa butuh beberapa menit untuk dihapus: segarkan sebentar lagi. Jika tetap ada, hapus dari Pengaturan → Penyimpanan di PS5.",
 err_unmount_permission:
   "Tidak dapat melepas: kernel menolak dengan EACCES/EPERM. Payload mungkin kehilangan kredensial root — muat ulang dari Connection → Send payload.",
 err_unpack_no_space: "Ruang kosong di drive ini tidak cukup untuk image hasil ekstrak. Dibutuhkan ukuran penuh image ditambah 1 GiB.",

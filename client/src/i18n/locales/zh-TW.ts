@@ -1306,6 +1306,12 @@ installed_uninstall_confirm_pkg: "這會從 PS5 移除已安裝的標題。您�
 
 // 人性化錯誤文案 — 由 lib/humanizeError.ts 顯示。{placeholders} 於執行階段替換。
 err_unmount_busy: "無法卸載:此映像內的遊戲目前正在 PS5 上執行。請結束它(PS Home → 關閉遊戲)後再試一次。",
+err_uninstall_refused:
+  "PS5 拒絕解除安裝此遊戲（{code}），遊戲仍為已安裝狀態。請重新啟動 PS5 後再試；若仍被拒絕，請在 PS5 的「設定 → 儲存空間」中刪除它。",
+err_uninstall_unavailable:
+  "這台 PS5 的韌體沒有提供小幫手可用的解除安裝功能，遊戲仍為已安裝狀態。請在 PS5 的「設定 → 儲存空間」中刪除它。",
+installed_uninstall_still_present:
+  "PS5 已接受解除安裝，但 {name} 仍在主機上。大型遊戲可能需要幾分鐘才能刪除：請稍後重新整理。若仍然存在，請在 PS5 的「設定 → 儲存空間」中刪除它。",
 err_unmount_permission: "無法卸載:核心以 EACCES/EPERM 拒絕。payload 可能已失去 root 憑證 — 請從「連線 → 傳送 payload」重新載入它。",
 err_unpack_no_space: "此磁碟的可用空間不足以放下解壓縮後的映像。需要映像的完整大小再加 1 GiB。",
 err_unpack_exists: "此資料夾中已有與映像同名的檔案。請先移走或重新命名。",

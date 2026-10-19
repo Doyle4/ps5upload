@@ -2110,6 +2110,8 @@ installed_uninstall_confirm_system:
   "{id} is a SYSTEM app. Removing it can destabilize the console and may require a reinstall to recover. Only continue if you know exactly what this package is.",
 installed_uninstall_confirm_registered:
   "This unmounts and removes the title from the home screen. Your source files/image on disk are not deleted.",
+installed_uninstall_still_present:
+  "The PS5 accepted the uninstall, but {name} is still on the console. A large game can take a few minutes to remove: refresh in a moment. If it stays, delete it from the PS5's Settings → Storage.",
 installed_uninstall_confirm_pkg:
   "This removes the installed title from the PS5. You can reinstall it later from the package.",
 
@@ -2117,6 +2119,10 @@ installed_uninstall_confirm_pkg:
 // are substituted at runtime; keep them verbatim when translating.
 err_unmount_busy:
   "Can't unmount: the game inside this image is currently running on the PS5. Exit it (PS Home → close the game) and try again.",
+err_uninstall_refused:
+  "The PS5 refused to uninstall this game ({code}), so it is still installed. Restart the PS5 and try again; if it still refuses, delete it from the PS5's Settings → Storage.",
+err_uninstall_unavailable:
+  "This PS5's firmware gives the helper no way to uninstall, and the game is still installed. Delete it from the PS5's Settings → Storage.",
 err_unmount_permission:
   "Can't unmount: kernel refused with EACCES/EPERM. The payload may have lost root credentials — reload it from Connection → Send payload.",
 err_unpack_no_space: "Not enough free space on this drive for the decompressed image. It needs the image's full size plus 1 GiB.",

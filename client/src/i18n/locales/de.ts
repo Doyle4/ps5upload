@@ -1313,6 +1313,12 @@ installed_uninstall_confirm_pkg:
 // werden zur Laufzeit ersetzt; beim Übersetzen unverändert lassen.
 err_unmount_busy:
   "Aushängen nicht möglich: Das Spiel in diesem Image läuft gerade auf der PS5. Beende es (PS Home → Spiel schließen) und versuche es erneut.",
+err_uninstall_refused:
+  "Die PS5 hat die Deinstallation dieses Spiels abgelehnt ({code}), es ist also weiterhin installiert. Starte die PS5 neu und versuche es erneut; lehnt sie weiter ab, lösche es auf der PS5 unter Einstellungen → Speicher.",
+err_uninstall_unavailable:
+  "Die Firmware dieser PS5 bietet dem Helfer keine Möglichkeit zur Deinstallation, und das Spiel ist weiterhin installiert. Lösche es auf der PS5 unter Einstellungen → Speicher.",
+installed_uninstall_still_present:
+  "Die PS5 hat die Deinstallation angenommen, aber {name} ist noch auf der Konsole. Ein großes Spiel kann einige Minuten zum Entfernen brauchen: aktualisiere gleich noch einmal. Bleibt es, lösche es auf der PS5 unter Einstellungen → Speicher.",
 err_unmount_permission:
   "Aushängen nicht möglich: Der Kernel hat mit EACCES/EPERM abgelehnt. Das Payload hat möglicherweise seine Root-Rechte verloren — lade es neu über Connection → Send payload.",
 err_unpack_no_space: "Nicht genug freier Speicher auf diesem Laufwerk für das entpackte Image. Es braucht die volle Größe des Images plus 1 GiB.",

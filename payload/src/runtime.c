@@ -3473,9 +3473,8 @@ static int handle_app_unregister(runtime_state_t *state, const char *request_bod
     /* Same gate-lifted rationale as APP_REGISTER above — relies on the
      * compile-time Sony-sprx linkage in the Makefile for proper sprx
      * init before main(). The underlying register.c::unregister_title
-     * runs under g_register_lock and degrades cleanly when Sony's
-     * sceAppInstUtilAppUnInstall is missing on a firmware (the nullfs
-     * teardown alone is enough to remove the XMB tile). */
+     * runs under g_register_lock; the reply below reports what Sony's
+     * sceAppInstUtilAppUnInstall and the console's folders say. */
     if (request_body) {
         extract_json_string_field(request_body, "title_id",
                                   title_id, sizeof(title_id));
@@ -3492,8 +3491,8 @@ static int handle_app_unregister(runtime_state_t *state, const char *request_bod
         pop_notification("PS5Upload tile removed");
         return mgmt_reply(MGMT_FRAME_APP_UNREGISTER_ACK, ack, (uint64_t)(sizeof ack - 1));
     }
-    unsigned sony_rc = 0u;
-    if (unregister_title(title_id, &err, &sony_rc) != 0) {
+    unregister_outcome_t outcome;
+    if (unregister_title(title_id, &err, &outcome) != 0) {
         const char *reason = err ? err : "unregister_failed";
         return mgmt_reply(MGMT_FRAME_ERROR, reason, (uint64_t)strlen(reason));
     }
@@ -3501,22 +3500,24 @@ static int handle_app_unregister(runtime_state_t *state, const char *request_bod
     state->command_count += 1;
     pthread_mutex_unlock(&state->state_mtx);
 
+    /* #476: the toast used to say "Unregistered" whatever Sony answered, and the app then
+     * listed the game again. It now says what happened, and a refusal is an ERROR frame so
+     * every engine version reports it instead of removing the game from its list. */
     {
         char toast[160];
-        snprintf(toast, sizeof(toast), "Unregistered %s", title_id);
+        unregister_toast(&outcome, title_id, toast, sizeof(toast));
         pop_notification(toast);
     }
-
-    /* Carry Sony's uninstall result back. An empty ACK used to mean
-     * "unregistered" unconditionally, so a refusal by
-     * sceAppInstUtilAppUninstall (e.g. 0x80B21B02 on a title whose
-     * content records are inconsistent) was invisible to the client. */
     {
-        char ack[96];
-        int alen = snprintf(ack, sizeof(ack),
-                            "{\"sony_uninstall_rc\":%u}", sony_rc);
-        if (alen < 0) alen = 0;
-        return mgmt_reply(MGMT_FRAME_APP_UNREGISTER_ACK, ack, (uint64_t)alen);
+        char reply[96];
+        size_t rlen = 0;
+        int ack = unregister_reply(&outcome, reply, sizeof(reply), &rlen);
+        if (ack < 0) {
+            static const char reason[] = "unregister_reply_failed";
+            return mgmt_reply(MGMT_FRAME_ERROR, reason, sizeof(reason) - 1);
+        }
+        return mgmt_reply(ack ? MGMT_FRAME_APP_UNREGISTER_ACK : MGMT_FRAME_ERROR, reply,
+                          (uint64_t)rlen);
     }
 }
 

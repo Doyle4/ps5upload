@@ -870,6 +870,11 @@ test-payload: payload
 	@cc -O2 -Wall -Wextra -Werror -o /tmp/ps5upload-app-info-selftest \
 		$(PAYLOAD_DIR)/tests/app_info_selftest.c
 	@/tmp/ps5upload-app-info-selftest
+	@echo "Running uninstall outcome self-test (host build)..."
+	@cc -O2 -Wall -Wextra -Werror -I$(PAYLOAD_DIR)/include \
+		-o /tmp/ps5upload-unregister-outcome-selftest \
+		$(PAYLOAD_DIR)/tests/unregister_outcome_selftest.c
+	@/tmp/ps5upload-unregister-outcome-selftest
 	@echo "Running metadata title-id normalizer self-test (host build)..."
 	@cc -O2 -Wall -Wextra -Werror -o /tmp/ps5upload-tmdb-id-selftest \
 		$(PAYLOAD_DIR)/tests/tmdb_id_selftest.c
