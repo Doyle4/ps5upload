@@ -55,6 +55,7 @@ fn map_err(host: &str, e: smb2::Error) -> RemoteError {
     match e.kind() {
         K::AuthRequired | K::SigningRequired | K::AccessDenied => RemoteError::Auth(msg),
         K::NotFound | K::NotADirectory => RemoteError::NotFound(msg),
+        K::AlreadyExists => RemoteError::Exists(msg),
         K::ConnectionLost | K::TimedOut => RemoteError::Unreachable(format!("{host}: {msg}")),
         _ => RemoteError::Io(msg),
     }
@@ -245,6 +246,46 @@ impl RemoteFs for SmbFs {
         out.sort_by(|a, b| a.0.cmp(&b.0));
         Ok(out)
     }
+
+    async fn create_dir(&self, path: &str) -> Result<(), RemoteError> {
+        let made = {
+            let mut s = self.session.lock().await;
+            let (client, tree) = &mut *s;
+            client.create_directory(tree, &share_path(path)).await
+        };
+        match made.map_err(|e| map_err(&self.host, e)) {
+            Err(RemoteError::Exists(m)) => match self.stat(path).await {
+                Ok(e) if e.is_dir => Ok(()),
+                _ => Err(RemoteError::Exists(m)),
+            },
+            other => other,
+        }
+    }
+
+    /// SMB2 SET_INFO FileRenameInformation with ReplaceIfExists = false (the crate's only
+    /// form): the server itself refuses a taken name with OBJECT_NAME_COLLISION.
+    async fn rename(&self, from: &str, to: &str) -> Result<(), RemoteError> {
+        let mut s = self.session.lock().await;
+        let (client, tree) = &mut *s;
+        client
+            .rename(tree, &share_path(from), &share_path(to))
+            .await
+            .map_err(|e| map_err(&self.host, e))
+    }
+
+    async fn remove_dir(&self, path: &str) -> Result<(), RemoteError> {
+        if share_path(path).is_empty() {
+            return Err(RemoteError::BadPath(
+                "the share itself cannot be removed".into(),
+            ));
+        }
+        let mut s = self.session.lock().await;
+        let (client, tree) = &mut *s;
+        client
+            .delete_directory(tree, &share_path(path))
+            .await
+            .map_err(|e| map_err(&self.host, e))
+    }
 }
 
 #[cfg(test)]
@@ -275,8 +316,18 @@ mod tests {
         let mut conn = crate::remote::store::conn("t", crate::remote::store::Protocol::Smb);
         conn.host = host.into();
         conn.port = port.parse().unwrap();
-        conn.user = String::new();
-        let fs = SmbFs::connect(&conn, &Secret::None).await.unwrap();
+        conn.user = std::env::var("PS5UPLOAD_SAMBA_USER").unwrap_or_default();
+        let secret = match std::env::var("PS5UPLOAD_SAMBA_PASS") {
+            Ok(password) => Secret::Password { password },
+            Err(_) => Secret::None,
+        };
+        let fs = SmbFs::connect(&conn, &secret).await.unwrap();
         crate::remote::contract::check(&fs, "/").await;
+        // A writable share with files `w/a` and `w/b` of different sizes. The share's folder must
+        // keep extended attributes: on a Docker Desktop bind mount Samba answers every rename
+        // with STATUS_NOT_SUPPORTED, so seed the files inside the container.
+        if fs.stat("/w/a").await.is_ok() {
+            crate::remote::contract::check_writes(&fs, "/w").await;
+        }
     }
 }

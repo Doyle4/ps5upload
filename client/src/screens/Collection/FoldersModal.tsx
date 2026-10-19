@@ -158,7 +158,7 @@ export function FoldersModal({
           ? tr(
               "collection.server_folders_hint",
               undefined,
-              "A folder on a saved server (SMB, FTP, SFTP) is read in place: nothing is copied to this computer, and its games install straight from the server. Move to Trash and Organize work on this computer's folders only.",
+              "A folder on a saved server (SMB, FTP, SFTP/WebDAV) is read in place: nothing is copied to this computer, and its games install straight from the server. Organize works there too, renaming on the server itself; Move to Trash works on this computer's folders only.",
             )
           : tr(
               "collection.no_servers_hint",

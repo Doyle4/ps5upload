@@ -3334,7 +3334,7 @@ upload_as_image_title: "অথবা একটি গেম ইমেজ হি�
 "collection.add_server_folder": "{name}-এ একটি ফোল্ডার যোগ করুন",
 "collection.no_servers_hint": "গেম NAS-এ? সংযোগে (SMB, FTP বা SFTP/WebDAV) সেটি সংরক্ষণ করুন, তারপর মাউন্ট না করেই এর ফোল্ডার এখানে যোগ করা যাবে।",
 "collection.pick_server_folder": "{name}-এ আপনার গেম থাকা ফোল্ডার",
-"collection.server_folders_hint": "সংরক্ষিত সার্ভারের (SMB, FTP, SFTP/WebDAV) ফোল্ডার জায়গাতেই পড়া হয়: এই কম্পিউটারে কিছু কপি হয় না, আর এর গেম সরাসরি সার্ভার থেকে ইনস্টল হয়। ট্র্যাশে সরান ও গোছান শুধু এই কম্পিউটারের ফোল্ডারে কাজ করে।",
+"collection.server_folders_hint": "সংরক্ষিত সার্ভারের (SMB, FTP, SFTP/WebDAV) ফোল্ডার জায়গাতেই পড়া হয়: এই কম্পিউটারে কিছু কপি হয় না, আর এর গেম সরাসরি সার্ভার থেকে ইনস্টল হয়। গোছান সেখানেও কাজ করে, সার্ভারেই নাম বদলে; ট্র্যাশে সরান শুধু এই কম্পিউটারের ফোল্ডারে কাজ করে।",
 bottleneck_source_v2: "উৎস পড়া",
 android_local_network_allow: "অনুমতি দিন",
 android_local_network_body: "আপনি অনুমতি না দেওয়া পর্যন্ত Android অ্যাপটিকে আপনার PS5-এ পৌঁছাতে দেয় না।",
