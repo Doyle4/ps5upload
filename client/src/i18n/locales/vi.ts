@@ -3336,7 +3336,7 @@ upload_as_image_title: "Hoặc gửi dưới dạng một tệp ảnh trò chơi
 "collection.add_server_folder": "Thêm thư mục trên {name}",
 "collection.no_servers_hint": "Trò chơi trên NAS? Lưu nó trong Kết nối (SMB, FTP hoặc SFTP/WebDAV), rồi có thể thêm thư mục của nó vào đây mà không cần gắn.",
 "collection.pick_server_folder": "Thư mục trên {name} chứa trò chơi của bạn",
-"collection.server_folders_hint": "Thư mục trên máy chủ đã lưu (SMB, FTP, SFTP/WebDAV) được đọc tại chỗ: không có gì được sao chép về máy tính này, và trò chơi được cài thẳng từ máy chủ. Chuyển vào Thùng rác và Sắp xếp chỉ áp dụng cho thư mục trên máy tính này.",
+"collection.server_folders_hint": "Thư mục trên máy chủ đã lưu (SMB, FTP, SFTP/WebDAV) được đọc tại chỗ: không có gì được sao chép về máy tính này, và trò chơi được cài thẳng từ máy chủ. Sắp xếp cũng dùng được ở đó, đổi tên ngay trên máy chủ; Chuyển vào Thùng rác chỉ áp dụng cho thư mục trên máy tính này.",
 bottleneck_source_v2: "đọc nguồn",
 android_local_network_allow: "Cho phép",
 android_local_network_body: "Android chặn ứng dụng kết nối tới PS5 cho tới khi bạn cho phép.",

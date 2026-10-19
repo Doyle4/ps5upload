@@ -14,6 +14,7 @@ use std::time::{Duration, Instant};
 use axum::{http::StatusCode, response::Response, Json};
 use serde::{Deserialize, Serialize};
 
+use crate::collection::organize_fs::{tree_for, Tree};
 use crate::collection::{junk, organize, store};
 use crate::collection_api::{err, library, settings};
 
@@ -295,26 +296,85 @@ fn pending_plans() -> &'static Mutex<HashMap<String, PendingPlan>> {
     P.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
-/// This computer's roots: the organizer renames files, which it does only here.
+/// Every collection root, on this computer or on a saved server (a `remote://` path).
 fn roots() -> Vec<PathBuf> {
     settings()
         .roots
         .iter()
-        .filter(|r| !crate::remote::path::is_remote(r))
+        .filter(|r| !r.trim().is_empty())
         .map(PathBuf::from)
         .collect()
 }
 
-/// Every collection folder holding packages, across the roots. The index already knows which
-/// top-level folders hold packages; walking the roots to find out reads every file of every
-/// game folder (measured: 189,000 files, a minute on an external drive) to learn nothing new.
-fn all_containers() -> Vec<PathBuf> {
+fn path_str(p: &FsPath) -> String {
+    p.to_string_lossy().replace('\\', "/")
+}
+
+/// The saved connection a path is on, if it is on one.
+fn connection_of(p: &FsPath) -> Option<String> {
+    let s = path_str(p);
+    crate::remote::path::is_remote(&s)
+        .then(|| crate::remote::path::parse(&s).ok().map(|r| r.connection_id))
+        .flatten()
+}
+
+/// The saved server's name for a `remote://` path ("" on this computer).
+fn server_name(p: &FsPath) -> String {
+    let Some(id) = connection_of(p) else {
+        return String::new();
+    };
+    crate::remote::pool::global()
+        .ok()
+        .and_then(|r| r.store.get(&id))
+        .map(|(c, _)| c.name)
+        .unwrap_or(id)
+}
+
+/// How a folder is shown: its path here, or "Server: /path" on a saved server.
+fn label(p: &FsPath) -> String {
+    let s = path_str(p);
+    match crate::remote::path::parse(&s) {
+        Ok(r) if crate::remote::path::is_remote(&s) => format!("{}: {}", server_name(p), r.path),
+        _ => s,
+    }
+}
+
+/// One [`Tree`] per place (this computer, or each server) for one request, so a server's
+/// folders are listed once however many containers share it.
+#[derive(Default)]
+struct Trees(HashMap<String, Result<Box<dyn Tree>, String>>);
+
+impl Trees {
+    fn get(&mut self, p: &FsPath) -> Result<&dyn Tree, String> {
+        let k = connection_of(p).unwrap_or_default();
+        self.0
+            .entry(k)
+            .or_insert_with(|| tree_for(p))
+            .as_ref()
+            .map(|t| t.as_ref())
+            .map_err(Clone::clone)
+    }
+}
+
+/// Every collection folder holding packages, across the roots, with what could not be
+/// reached. The index already knows which top-level folders hold packages; walking the roots
+/// to find out reads every file of every game folder (measured: 189,000 files, a minute on an
+/// external drive) to learn nothing new.
+fn all_containers(trees: &mut Trees) -> (Vec<PathBuf>, Vec<String>) {
     let roots = roots();
+    let mut problems = Vec::new();
     let Some(lib) = library() else {
-        return roots.iter().flat_map(|r| organize::containers(r)).collect();
+        let mut out = Vec::new();
+        for r in &roots {
+            match trees.get(r) {
+                Ok(t) => out.extend(organize::containers(t, r)),
+                Err(e) => problems.push(format!("{}: {e}", label(r))),
+            }
+        }
+        return (out, problems);
     };
     // A package lying loose in a root has no container: the root itself is its folder.
-    let mut out: Vec<PathBuf> = lib
+    let mut wanted: Vec<PathBuf> = lib
         .games
         .values()
         .flat_map(|g| g.locations.iter())
@@ -327,11 +387,26 @@ fn all_containers() -> Vec<PathBuf> {
                 FsPath::new(&l.root).join(&l.container)
             }
         })
-        .filter(|c| c.is_dir())
         .collect();
-    out.sort();
-    out.dedup();
-    out
+    wanted.sort();
+    wanted.dedup();
+    let mut out = Vec::new();
+    for c in wanted {
+        let here = trees.get(&c).and_then(|t| {
+            t.list(&c)
+                .map(|_| ())
+                .ok_or_else(|| t.trouble().unwrap_or_else(|| "not found".into()))
+        });
+        match here {
+            Ok(()) => out.push(c),
+            Err(e) if connection_of(&c).is_some() => {
+                problems.push(format!("{}: {e}", label(&c)));
+            }
+            // A local folder that is gone is simply not organized (the next scan drops it).
+            Err(_) => {}
+        }
+    }
+    (out, problems)
 }
 
 fn organize_dir() -> Option<PathBuf> {
@@ -342,6 +417,8 @@ fn organize_dir() -> Option<PathBuf> {
 pub struct PlanResponse {
     pub token: String,
     pub containers: Vec<String>,
+    /// How to show each container: its path, or "Server: /path" on a saved server.
+    pub labels: std::collections::BTreeMap<String, String>,
     pub moves: Vec<organize::Move>,
     pub skipped: Vec<organize::Skipped>,
     pub unsure_count: usize,
@@ -350,37 +427,50 @@ pub struct PlanResponse {
 
 /// POST /api/collection/organize/plan: what the organizer would do. Touches nothing.
 pub async fn post_organize_plan() -> Response {
-    // Off the async workers: it stats every package folder.
-    let containers = tokio::task::spawn_blocking(all_containers)
-        .await
-        .unwrap_or_default();
-    if containers.is_empty() {
-        return err(
-            StatusCode::BAD_REQUEST,
-            "no folder in the collection holds packages",
-        );
-    }
-    let plans = tokio::task::spawn_blocking({
-        let containers = containers.clone();
-        move || {
-            let lib = library();
-            let roots = roots();
-            containers
-                .iter()
-                .map(|c| organize::plan_cached(c, lib.as_deref(), &roots))
-                .collect::<Vec<_>>()
-        }
+    // Off the async workers: it lists every package folder, perhaps over the network.
+    let (containers, problems, plans) = tokio::task::spawn_blocking(|| {
+        let mut trees = Trees::default();
+        let (containers, problems) = all_containers(&mut trees);
+        let lib = library();
+        let roots = roots();
+        let plans = containers
+            .iter()
+            .map(|c| match trees.get(c) {
+                Ok(t) => organize::plan_cached(t, c, lib.as_deref(), &roots),
+                Err(_) => organize::Plan::default(),
+            })
+            .collect::<Vec<_>>();
+        (containers, problems, plans)
     })
     .await
     .unwrap_or_default();
+    if containers.is_empty() {
+        return err(
+            StatusCode::BAD_REQUEST,
+            if problems.is_empty() {
+                "no folder in the collection holds packages".to_string()
+            } else {
+                format!(
+                    "no folder with packages could be read: {}",
+                    problems.join("; ")
+                )
+            },
+        );
+    }
     let mut resp = PlanResponse {
         token: new_token(),
-        containers: containers
-            .iter()
-            .map(|c| c.to_string_lossy().into_owned())
-            .collect(),
+        containers: containers.iter().map(|c| path_str(c)).collect(),
+        labels: containers.iter().map(|c| (path_str(c), label(c))).collect(),
         moves: Vec::new(),
-        skipped: Vec::new(),
+        skipped: problems
+            .into_iter()
+            .map(|detail| organize::Skipped {
+                container: String::new(),
+                path: String::new(),
+                reason: organize::SKIP_UNREADABLE.into(),
+                detail,
+            })
+            .collect(),
         unsure_count: 0,
         total_bytes: 0,
     };
@@ -518,11 +608,10 @@ pub async fn post_organize_apply(Json(req): Json<OrganizeApplyReq>) -> Response 
             "no data folder for the undo log",
         );
     };
-    // Off the async workers: it stats every package folder.
-    let containers = tokio::task::spawn_blocking(all_containers)
-        .await
-        .unwrap_or_default();
+    // Off the async workers: it lists every package folder, perhaps over the network.
     let result = tokio::task::spawn_blocking(move || {
+        let mut trees = Trees::default();
+        let (containers, _) = all_containers(&mut trees);
         let lib = library();
         let roots = roots();
         let mut out = OrganizeApplyResult::default();
@@ -537,7 +626,14 @@ pub async fn post_organize_apply(Json(req): Json<OrganizeApplyReq>) -> Response 
                 out.dropped.extend(chosen.into_iter().map(|m| m.from));
                 continue;
             }
-            let plan = organize::plan_cached(&c, lib.as_deref(), &roots);
+            let tree = match trees.get(&c) {
+                Ok(t) => t,
+                Err(e) => {
+                    out.dropped.push(format!("{}: {e}", label(&c)));
+                    continue;
+                }
+            };
+            let plan = organize::plan_cached(tree, &c, lib.as_deref(), &roots);
             let live: HashMap<&str, &organize::Move> =
                 plan.moves.iter().map(|m| (m.from.as_str(), m)).collect();
             let mut picked = Vec::new();
@@ -567,7 +663,7 @@ pub async fn post_organize_apply(Json(req): Json<OrganizeApplyReq>) -> Response 
                 )),
                 &plan.unsure,
             );
-            match organize::apply(&c, picked, &log_path) {
+            match organize::apply(tree, &c, picked, &log_path, &server_name(&c)) {
                 Ok(log) => {
                     crate::engine_log::record(
                         "info",
@@ -609,6 +705,8 @@ pub async fn post_organize_apply(Json(req): Json<OrganizeApplyReq>) -> Response 
 pub struct RunSummary {
     pub id: String,
     pub container_root: String,
+    /// How to show the folder: its path, or "Server: /path" on a saved server.
+    pub label: String,
     pub created_at: String,
     pub moved: usize,
     pub failed: usize,
@@ -631,8 +729,31 @@ pub async fn get_organize_runs() -> Response {
             }
             let log: organize::UndoLog =
                 serde_json::from_slice(&std::fs::read(e.path()).ok()?).ok()?;
+            let root = FsPath::new(&log.container_root);
+            let shown = match (
+                connection_of(root),
+                crate::remote::path::parse(&log.container_root),
+            ) {
+                (Some(id), Ok(r)) => {
+                    // The server's name now; the one it had then, should it since be gone.
+                    let name = crate::remote::pool::global()
+                        .ok()
+                        .and_then(|g| g.store.get(&id))
+                        .map(|(c, _)| c.name)
+                        .unwrap_or_else(|| {
+                            if log.server.is_empty() {
+                                id.clone()
+                            } else {
+                                log.server.clone()
+                            }
+                        });
+                    format!("{name}: {}", r.path)
+                }
+                _ => log.container_root.clone(),
+            };
             Some(RunSummary {
                 id: name,
+                label: shown,
                 container_root: log.container_root,
                 created_at: log.created_at,
                 moved: log.completed.len(),
@@ -662,7 +783,7 @@ pub async fn post_organize_revert(Json(req): Json<RevertReq>) -> Response {
     let Some(path) = organize_dir().map(|d| d.join(&req.id)) else {
         return err(StatusCode::NOT_FOUND, "no such run");
     };
-    let res = tokio::task::spawn_blocking(move || organize::revert(&path))
+    let res = tokio::task::spawn_blocking(move || organize::revert(&path, &tree_for))
         .await
         .map_err(|e| std::io::Error::other(e.to_string()))
         .and_then(|r| r);

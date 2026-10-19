@@ -1160,8 +1160,9 @@ Yes. Save the server under **Connections** (SMB, FTP, FTPS or SFTP), then in **C
 Folders** press **Add a folder on <server>** and pick the folder. It is scanned where it is:
 packages, game folders and covers are read over the network, and nothing is copied to this
 computer. Its games install straight from the server, and **Convert…** reads them in place.
-Move to Trash, Organize, junk clean-up and Copy install link work on this computer's folders
-only. A mounted share also still works as an ordinary folder.
+**Organize packages** works there too, renaming on the server itself; Move to Trash, junk
+clean-up and Copy install link work on this computer's folders only. A mounted share also still
+works as an ordinary folder.
 
 **Q: Does it keep the computer awake or rescan all the time?**
 No. **Look for changes automatically** (in Folders) rescans only while the app is open, never
@@ -1198,6 +1199,11 @@ a second copy of the same release is filed beside it and marked `DUPLICATE`, spl
 (`_0`, `_1`, …) move together, and a package whose kind had to be inferred is marked `_UNSURE`.
 You see every move first and can untick any. Nothing is overwritten or deleted and files are
 only renamed, never copied. Every run can be undone from **Earlier runs** in the same window.
+A folder on a saved server (SMB, FTP, SFTP, WebDAV) is organized on the server: each move is a
+rename there, a package never moves to another server or folder, and a connection that drops
+stops the run where it is, with Undo still putting back whatever moved. FTP has no rename that
+refuses a taken name, so there the name is checked first; a file another program writes to that
+exact name in the instant between the check and the rename could be replaced.
 
 **Q: What are the junk files, and is cleaning them safe?**
 A Mac writes a hidden `._` file beside every file it copies to an exFAT drive (each one takes a

@@ -563,6 +563,66 @@ impl RemoteFs for FtpFs {
         out.sort_by(|a, b| a.0.cmp(&b.0));
         Ok(out)
     }
+
+    async fn create_dir(&self, path: &str) -> Result<(), RemoteError> {
+        let full = under(&self.home, path);
+        let made = {
+            let mut s = self.session.lock().await;
+            let host = self.host.as_str();
+            timed(host, "making a folder", async {
+                s.mkdir(full.as_str()).await.map_err(|e| map_err(host, e))
+            })
+            .await
+        };
+        match made {
+            Ok(()) => Ok(()),
+            // MKD answers 550 (or 521) for a name already taken; whether that is a folder
+            // (fine) or a file (not) only a look can tell.
+            Err(e @ (RemoteError::NotFound(_) | RemoteError::Io(_))) => match self.stat(path).await
+            {
+                Ok(st) if st.is_dir => Ok(()),
+                Ok(_) => Err(RemoteError::Exists(format!("{path} is a file"))),
+                Err(_) => Err(e),
+            },
+            Err(e) => Err(e),
+        }
+    }
+
+    /// RNFR/RNTO replaces an existing target on many servers (vsftpd and ProFTPD among them),
+    /// so the target is looked up first and a taken name refused. Something that appears at
+    /// `to` between that look and the RNTO (a few milliseconds) would still be replaced: FTP
+    /// has no rename that refuses on its own.
+    async fn rename(&self, from: &str, to: &str) -> Result<(), RemoteError> {
+        match self.stat(to).await {
+            Ok(_) => return Err(RemoteError::Exists(format!("{to} already exists"))),
+            Err(RemoteError::NotFound(_)) => {}
+            Err(e) => return Err(e),
+        }
+        let (src, dst) = (under(&self.home, from), under(&self.home, to));
+        let mut s = self.session.lock().await;
+        let host = self.host.as_str();
+        timed(host, "a rename", async {
+            s.rename(src.as_str(), dst.as_str())
+                .await
+                .map_err(|e| map_err(host, e))
+        })
+        .await
+    }
+
+    async fn remove_dir(&self, path: &str) -> Result<(), RemoteError> {
+        if path.trim_matches('/').is_empty() {
+            return Err(RemoteError::BadPath(
+                "the login folder cannot be removed".into(),
+            ));
+        }
+        let full = under(&self.home, path);
+        let mut s = self.session.lock().await;
+        let host = self.host.as_str();
+        timed(host, "removing a folder", async {
+            s.rmdir(full.as_str()).await.map_err(|e| map_err(host, e))
+        })
+        .await
+    }
 }
 
 #[cfg(test)]
@@ -651,6 +711,10 @@ mod tests {
         .await
         .unwrap();
         crate::remote::contract::check(&fs, "/").await;
+        // A writable folder `w/` holding files `a` and `b` of different sizes.
+        if fs.stat("/w/a").await.is_ok() {
+            crate::remote::contract::check_writes(&fs, "/w").await;
+        }
     }
 
     /// FTPS with a self-signed certificate (the delfer image with TLS_CERT/TLS_KEY), then

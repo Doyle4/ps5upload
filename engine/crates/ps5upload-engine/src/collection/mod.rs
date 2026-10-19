@@ -19,6 +19,7 @@ pub mod identify;
 pub mod junk;
 pub mod online;
 pub mod organize;
+pub mod organize_fs;
 pub mod scan;
 pub mod store;
 

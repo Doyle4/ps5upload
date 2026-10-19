@@ -268,6 +268,8 @@ pub fn scrub(e: RemoteError, secret: &Secret) -> RemoteError {
         RemoteError::Unreachable(m) => RemoteError::Unreachable(clean(m)),
         RemoteError::NotFound(m) => RemoteError::NotFound(clean(m)),
         RemoteError::Io(m) => RemoteError::Io(clean(m)),
+        RemoteError::Exists(m) => RemoteError::Exists(clean(m)),
+        RemoteError::Unsupported(m) => RemoteError::Unsupported(clean(m)),
         e @ RemoteError::HostKey { .. } => e,
     }
 }
@@ -336,6 +338,15 @@ pub(crate) mod testing {
             l: usize,
         ) -> Result<Vec<(String, crate::remote::Entry)>, RemoteError> {
             self.0.walk(p, l).await
+        }
+        async fn create_dir(&self, p: &str) -> Result<(), RemoteError> {
+            self.0.create_dir(p).await
+        }
+        async fn rename(&self, from: &str, to: &str) -> Result<(), RemoteError> {
+            self.0.rename(from, to).await
+        }
+        async fn remove_dir(&self, p: &str) -> Result<(), RemoteError> {
+            self.0.remove_dir(p).await
         }
     }
 

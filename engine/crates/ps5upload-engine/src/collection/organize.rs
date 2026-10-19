@@ -7,6 +7,11 @@
 //! the preview and the run come from the same code, and the run re-plans and drops any move
 //! that changed since the preview. Nothing is overwritten, nothing is deleted, and every move
 //! is a rename on one volume (never a copy). Each run writes its undo log before its first move.
+//!
+//! The folder can be on this computer or on a saved server: everything here goes through a
+//! [`Tree`], and a server's paths are its `remote://` paths. On a server a rename never moves
+//! between servers (a move stays inside its container), and a dropped connection stops the run
+//! where it is, with the log saying what happened so far.
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::{Path, PathBuf};
@@ -15,6 +20,7 @@ use serde::{Deserialize, Serialize};
 use unicode_normalization::UnicodeNormalization;
 
 use super::junk;
+use super::organize_fs::{OpError, Tree};
 use super::PkgInfo;
 
 pub const DUPLICATE_TAG: &str = " - DUPLICATE";
@@ -92,8 +98,17 @@ pub struct Plan {
 /// name decomposed while a package's param.json composes it; without this a title with a
 /// macron would look renamed on every run.
 fn key(p: &Path) -> String {
-    p.to_string_lossy().nfc().collect::<String>().to_lowercase()
+    p.components()
+        .map(|c| c.as_os_str().to_string_lossy().into_owned())
+        .collect::<Vec<_>>()
+        .join("/")
+        .nfc()
+        .collect::<String>()
+        .to_lowercase()
 }
+
+/// Deeper than any library arrangement; a bound for a walk over a server.
+const MAX_DEPTH: usize = 12;
 
 fn rel(container: &Path, p: &Path) -> String {
     p.strip_prefix(container)
@@ -279,7 +294,7 @@ fn split_part(name: &str) -> Option<(&str, u32)> {
 }
 
 /// Every part of a split set (`name_0.pkg`, `name_1.pkg`, …) in order, or just `[path]`.
-pub fn split_siblings(path: &Path) -> Vec<PathBuf> {
+pub fn split_siblings(tree: &dyn Tree, path: &Path) -> Vec<PathBuf> {
     let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
         return vec![path.to_path_buf()];
     };
@@ -287,14 +302,14 @@ pub fn split_siblings(path: &Path) -> Vec<PathBuf> {
         return vec![path.to_path_buf()];
     };
     let dir = path.parent().unwrap_or(Path::new("."));
-    let mut sibs: Vec<(u32, PathBuf)> = std::fs::read_dir(dir)
+    let mut sibs: Vec<(u32, PathBuf)> = tree
+        .list(dir)
+        .unwrap_or_default()
         .into_iter()
-        .flatten()
-        .flatten()
+        .filter(|e| e.is_file)
         .filter_map(|e| {
-            let n = e.file_name().to_string_lossy().into_owned();
-            let (s, k) = split_part(&n)?;
-            (s == stem && !junk::is_junk_name(&n)).then(|| (k, e.path()))
+            let (s, k) = split_part(&e.name)?;
+            (s == stem && !junk::is_junk_name(&e.name)).then(|| (k, dir.join(&e.name)))
         })
         .collect();
     sibs.sort_by_key(|(k, _)| *k);
@@ -306,27 +321,24 @@ pub fn split_siblings(path: &Path) -> Vec<PathBuf> {
 }
 
 /// Every package below a folder, Finder's sidecars and dot-folders ignored.
-pub fn scan(container: &Path) -> Vec<PathBuf> {
+pub fn scan(tree: &dyn Tree, container: &Path) -> Vec<PathBuf> {
     let mut found = Vec::new();
-    let mut stack = vec![container.to_path_buf()];
-    while let Some(dir) = stack.pop() {
-        let Ok(rd) = std::fs::read_dir(&dir) else {
+    let mut stack = vec![(container.to_path_buf(), 0usize)];
+    while let Some((dir, depth)) = stack.pop() {
+        let Some(mut entries) = tree.list(&dir) else {
             continue;
         };
-        let mut entries: Vec<_> = rd.flatten().collect();
-        entries.sort_by_key(|e| e.file_name());
+        entries.sort_by(|a, b| a.name.cmp(&b.name));
         for e in entries {
-            let name = e.file_name().to_string_lossy().into_owned();
-            let Ok(ft) = e.file_type() else { continue };
-            if ft.is_dir() {
-                if !name.starts_with('.') {
-                    stack.push(e.path());
+            if e.is_dir {
+                if !e.name.starts_with('.') && depth < MAX_DEPTH {
+                    stack.push((dir.join(&e.name), depth + 1));
                 }
-            } else if ft.is_file()
-                && !junk::is_junk_name(&name)
-                && name.to_ascii_lowercase().ends_with(".pkg")
+            } else if e.is_file
+                && !junk::is_junk_name(&e.name)
+                && e.name.to_ascii_lowercase().ends_with(".pkg")
             {
-                found.push(e.path());
+                found.push(dir.join(&e.name));
             }
         }
     }
@@ -337,20 +349,19 @@ pub fn scan(container: &Path) -> Vec<PathBuf> {
 /// The packages lying loose in a folder itself, not in its subfolders. A collection root is
 /// organized this way: its subfolders are containers of their own (planned separately), so a
 /// root plans only the packages at its top level.
-pub fn scan_top(dir: &Path) -> Vec<PathBuf> {
-    let Ok(rd) = std::fs::read_dir(dir) else {
+pub fn scan_top(tree: &dyn Tree, dir: &Path) -> Vec<PathBuf> {
+    let Some(entries) = tree.list(dir) else {
         return Vec::new();
     };
-    let mut found: Vec<PathBuf> = rd
-        .flatten()
+    let mut found: Vec<PathBuf> = entries
+        .into_iter()
         .filter(|e| {
-            let name = e.file_name().to_string_lossy().into_owned();
-            e.file_type().is_ok_and(|t| t.is_file())
-                && !name.starts_with('.')
-                && !junk::is_junk_name(&name)
-                && name.to_ascii_lowercase().ends_with(".pkg")
+            e.is_file
+                && !e.name.starts_with('.')
+                && !junk::is_junk_name(&e.name)
+                && e.name.to_ascii_lowercase().ends_with(".pkg")
         })
-        .map(|e| e.path())
+        .map(|e| dir.join(&e.name))
         .collect();
     found.sort();
     found
@@ -358,20 +369,17 @@ pub fn scan_top(dir: &Path) -> Vec<PathBuf> {
 
 /// The top-level folders of a collection root that hold packages, whatever they are called,
 /// and the root itself when packages lie loose in it.
-pub fn containers(root: &Path) -> Vec<PathBuf> {
-    let Ok(rd) = std::fs::read_dir(root) else {
+pub fn containers(tree: &dyn Tree, root: &Path) -> Vec<PathBuf> {
+    let Some(entries) = tree.list(root) else {
         return Vec::new();
     };
-    let mut out: Vec<PathBuf> = rd
-        .flatten()
-        .filter(|e| {
-            !e.file_name().to_string_lossy().starts_with('.')
-                && e.file_type().is_ok_and(|t| t.is_dir())
-        })
-        .map(|e| e.path())
-        .filter(|p| !scan(p).is_empty())
+    let mut out: Vec<PathBuf> = entries
+        .into_iter()
+        .filter(|e| !e.name.starts_with('.') && e.is_dir)
+        .map(|e| root.join(&e.name))
+        .filter(|p| !scan(tree, p).is_empty())
         .collect();
-    if !scan_top(root).is_empty() {
+    if !scan_top(tree, root).is_empty() {
         out.push(root.to_path_buf());
     }
     out.sort();
@@ -380,19 +388,18 @@ pub fn containers(root: &Path) -> Vec<PathBuf> {
 
 /// Reads a package's facts, taking them from `cached(path, size, mtime)` when it knows the
 /// file as it is now (the Collection's index), and from the file otherwise.
-pub fn read_facts_with(path: &Path, cached: &dyn Fn(&Path, u64, i64) -> Option<PkgInfo>) -> Facts {
-    let parts = split_siblings(path);
+/// On a server the index's facts save reading each package's header over the network.
+pub fn read_facts_with(
+    tree: &dyn Tree,
+    path: &Path,
+    cached: &dyn Fn(&Path, u64, i64) -> Option<PkgInfo>,
+) -> Facts {
+    let parts = split_siblings(tree, path);
     let size = parts
         .iter()
-        .map(|p| std::fs::metadata(p).map(|m| m.len()).unwrap_or(0))
+        .map(|p| tree.meta(p).map(|m| m.size).unwrap_or(0))
         .sum();
-    let first = std::fs::metadata(&parts[0]).ok();
-    let mtime = first
-        .as_ref()
-        .and_then(|m| m.modified().ok())
-        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
-        .map(|d| d.as_secs() as i64)
-        .unwrap_or(0);
+    let mtime = tree.meta(&parts[0]).map(|m| m.mtime).unwrap_or(0);
     let info = (parts.len() == 1)
         .then(|| cached(&parts[0], size, mtime))
         .flatten()
@@ -407,19 +414,20 @@ pub fn read_facts_with(path: &Path, cached: &dyn Fn(&Path, u64, i64) -> Option<P
 }
 
 /// Every file name in the folder that a move must not land on: everything that stays.
-fn taken_names(container: &Path, moving: &HashSet<String>) -> HashSet<String> {
+fn taken_names(tree: &dyn Tree, container: &Path, moving: &HashSet<String>) -> HashSet<String> {
     let mut taken = HashSet::new();
-    let mut stack = vec![container.to_path_buf()];
-    while let Some(dir) = stack.pop() {
-        for e in std::fs::read_dir(&dir).into_iter().flatten().flatten() {
-            let name = e.file_name().to_string_lossy().into_owned();
-            let Ok(ft) = e.file_type() else { continue };
-            if ft.is_dir() {
-                if !name.starts_with('.') {
-                    stack.push(e.path());
+    let mut stack = vec![(container.to_path_buf(), 0usize)];
+    while let Some((dir, depth)) = stack.pop() {
+        for e in tree.list(&dir).unwrap_or_default() {
+            let path = dir.join(&e.name);
+            if e.is_dir {
+                // A folder's name is taken too: no file may land on it.
+                taken.insert(key(&path));
+                if !e.name.starts_with('.') && depth < MAX_DEPTH {
+                    stack.push((path, depth + 1));
                 }
-            } else if !junk::is_junk_name(&name) {
-                let k = key(&e.path());
+            } else if !junk::is_junk_name(&e.name) {
+                let k = key(&path);
                 if !moving.contains(&k) {
                     taken.insert(k);
                 }
@@ -487,18 +495,23 @@ fn unique_names(
 
 /// Pure: what organizing `container` would do. `facts` reads one package; nothing is touched.
 #[cfg(test)]
-pub fn plan_with(container: &Path, facts: &dyn Fn(&Path) -> Facts) -> Plan {
-    plan_files(container, scan(container), facts)
+pub fn plan_with(tree: &dyn Tree, container: &Path, facts: &dyn Fn(&Path) -> Facts) -> Plan {
+    plan_files(tree, container, scan(tree, container), facts)
 }
 
 /// `plan_with` over the given packages of `container` (all of them, or a root's loose ones).
-pub fn plan_files(container: &Path, files: Vec<PathBuf>, facts: &dyn Fn(&Path) -> Facts) -> Plan {
+pub fn plan_files(
+    tree: &dyn Tree,
+    container: &Path,
+    files: Vec<PathBuf>,
+    facts: &dyn Fn(&Path) -> Facts,
+) -> Plan {
     let cname = container.to_string_lossy().into_owned();
     let mut out = Plan::default();
     let mut parsed: Vec<Facts> = Vec::new();
     for path in files {
         // Only part 0 of a split set carries a header: plan the set from it.
-        let parts = split_siblings(&path);
+        let parts = split_siblings(tree, &path);
         if parts.len() > 1 && parts[0] != path {
             continue;
         }
@@ -530,7 +543,7 @@ pub fn plan_files(container: &Path, files: Vec<PathBuf>, facts: &dyn Fn(&Path) -
         .iter()
         .flat_map(|f| f.parts.iter().map(|p| key(p)))
         .collect();
-    let mut taken = taken_names(container, &moving);
+    let mut taken = taken_names(tree, container, &moving);
 
     for (title_id, members) in groups {
         let title = group_title(&members);
@@ -649,7 +662,7 @@ pub fn plan_files(container: &Path, files: Vec<PathBuf>, facts: &dyn Fn(&Path) -
                     reason: f.info.kind_reason.clone(),
                     version: f.info.version.clone(),
                     region: f.info.region.clone(),
-                    size: std::fs::metadata(part).map(|m| m.len()).unwrap_or(0),
+                    size: tree.meta(part).map(|m| m.size).unwrap_or(0),
                     content_id: f.info.content_id.clone(),
                     part: (names.len() > 1).then(|| format!("{} of {}", i + 1, names.len())),
                     duplicate: duplicate_of.is_some(),
@@ -666,7 +679,12 @@ pub fn plan_files(container: &Path, files: Vec<PathBuf>, facts: &dyn Fn(&Path) -
 }
 
 /// A plan whose package facts come from the Collection's index where it is current.
-pub fn plan_cached(container: &Path, lib: Option<&super::Library>, roots: &[PathBuf]) -> Plan {
+pub fn plan_cached(
+    tree: &dyn Tree,
+    container: &Path,
+    lib: Option<&super::Library>,
+    roots: &[PathBuf],
+) -> Plan {
     let cached = |p: &Path, size: u64, mtime: i64| -> Option<PkgInfo> {
         let lib = lib?;
         roots.iter().find_map(|root| {
@@ -683,17 +701,32 @@ pub fn plan_cached(container: &Path, lib: Option<&super::Library>, roots: &[Path
     };
     // A root is planned for its loose packages only: its subfolders are containers of their own.
     let files = if roots.iter().any(|r| r == container) {
-        scan_top(container)
+        scan_top(tree, container)
     } else {
-        scan(container)
+        scan(tree, container)
     };
-    plan_files(container, files, &|p: &Path| read_facts_with(p, &cached))
+    let mut plan = plan_files(tree, container, files, &|p: &Path| {
+        read_facts_with(tree, p, &cached)
+    });
+    if let Some(trouble) = tree.trouble() {
+        // A folder the server would not list: its packages are missing from this preview.
+        plan.skipped.push(Skipped {
+            container: container.to_string_lossy().into_owned(),
+            path: String::new(),
+            reason: SKIP_UNREADABLE.into(),
+            detail: trouble,
+        });
+    }
+    plan
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UndoLog {
     pub version: u32,
     pub container_root: String,
+    /// The saved server's name when the folder is on one, for the list of runs.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub server: String,
     pub created_at: String,
     pub moves: Vec<Move>,
     #[serde(default)]
@@ -714,6 +747,19 @@ pub struct FailedMove {
     #[serde(flatten)]
     pub mv: Move,
     pub error: String,
+    /// The connection dropped during this move: it may have happened. Undo looks.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub uncertain: bool,
+}
+
+impl FailedMove {
+    fn new(mv: Move, error: impl Into<String>) -> Self {
+        Self {
+            mv,
+            error: error.into(),
+            uncertain: false,
+        }
+    }
 }
 
 fn now_iso() -> String {
@@ -758,19 +804,19 @@ fn write_log(path: &Path, log: &UndoLog) -> std::io::Result<()> {
 
 /// Removes a folder holding nothing but Finder's files. True when it is gone afterwards.
 /// Finder can rewrite `.DS_Store` the moment it notices a folder, so it retries briefly.
-fn try_remove_dir(dir: &Path) -> bool {
+fn try_remove_dir(tree: &dyn Tree, dir: &Path) -> bool {
     for _ in 0..3 {
-        let Ok(rd) = std::fs::read_dir(dir) else {
-            return !dir.exists();
+        let Some(entries) = tree.list(dir) else {
+            return tree.exists(dir) == Ok(false);
         };
-        let entries: Vec<PathBuf> = rd.flatten().map(|e| e.path()).collect();
-        if entries.iter().any(|p| !junk::is_removable_junk(p)) {
+        let entries: Vec<PathBuf> = entries.iter().map(|e| dir.join(&e.name)).collect();
+        if entries.iter().any(|p| !tree.is_removable_junk(p)) {
             return false;
         }
         for p in &entries {
-            let _ = std::fs::remove_file(p);
+            tree.remove_junk(p);
         }
-        if std::fs::remove_dir(dir).is_ok() || !dir.exists() {
+        if tree.remove_dir(dir).is_ok() || tree.exists(dir) == Ok(false) {
             return true;
         }
     }
@@ -779,20 +825,27 @@ fn try_remove_dir(dir: &Path) -> bool {
 
 /// Source folders the moves emptied, removed up to the container. Returns (removed, kept):
 /// kept names one that held only Finder's files and still could not be removed.
-fn prune_empty(container: &Path, started_in: &HashSet<PathBuf>) -> (Vec<String>, Vec<String>) {
+fn prune_empty(
+    tree: &dyn Tree,
+    container: &Path,
+    started_in: &HashSet<PathBuf>,
+) -> (Vec<String>, Vec<String>) {
     let (mut removed, mut kept) = (Vec::new(), Vec::new());
     let mut dirs: Vec<&PathBuf> = started_in.iter().collect();
     dirs.sort_by_key(|d| std::cmp::Reverse(d.as_os_str().len()));
     for start in dirs {
         let mut dir = start.clone();
         while dir != container && dir.starts_with(container) {
-            let Ok(rd) = std::fs::read_dir(&dir) else {
+            let Some(entries) = tree.list(&dir) else {
                 break;
             };
-            if rd.flatten().any(|e| !junk::is_removable_junk(&e.path())) {
+            if entries
+                .iter()
+                .any(|e| !tree.is_removable_junk(&dir.join(&e.name)))
+            {
                 break;
             }
-            if try_remove_dir(&dir) {
+            if try_remove_dir(tree, &dir) {
                 removed.push(rel(container, &dir));
             } else {
                 kept.push(rel(container, &dir));
@@ -807,14 +860,46 @@ fn prune_empty(container: &Path, started_in: &HashSet<PathBuf>) -> (Vec<String>,
     (removed, kept)
 }
 
+/// Makes `dir` and the folders above it, down from `container` (which exists). Folders known
+/// to exist are skipped, so a run of moves into one folder makes it once.
+fn make_dirs(
+    tree: &dyn Tree,
+    container: &Path,
+    dir: &Path,
+    known: &mut HashSet<PathBuf>,
+) -> Result<(), OpError> {
+    let Ok(below) = dir.strip_prefix(container) else {
+        return Err(OpError::Other("path leaves the folder".into()));
+    };
+    let mut at = container.to_path_buf();
+    for c in below.components() {
+        at.push(c);
+        if known.contains(&at) {
+            continue;
+        }
+        tree.create_dir(&at)?;
+        known.insert(at.clone());
+    }
+    Ok(())
+}
+
 /// How many moves run between rewrites of the log.
 const LOG_EVERY: usize = 16;
 
-/// Runs `moves` (all in `container`), the log written before the first one.
-pub fn apply(container: &Path, moves: Vec<Move>, log_path: &Path) -> std::io::Result<UndoLog> {
+/// Runs `moves` (all in `container`), the log written before the first one. A dropped
+/// connection (one a fresh sign-in did not cure) stops the run: the move in flight is logged as
+/// uncertain, the rest as not tried, and the log stays good for Undo.
+pub fn apply(
+    tree: &dyn Tree,
+    container: &Path,
+    moves: Vec<Move>,
+    log_path: &Path,
+    server: &str,
+) -> std::io::Result<UndoLog> {
     let mut log = UndoLog {
         version: 1,
         container_root: container.to_string_lossy().into_owned(),
+        server: server.to_string(),
         created_at: now_iso(),
         moves: moves.clone(),
         completed: Vec::new(),
@@ -825,40 +910,54 @@ pub fn apply(container: &Path, moves: Vec<Move>, log_path: &Path) -> std::io::Re
     };
     write_log(log_path, &log)?;
     let mut started_in = HashSet::new();
+    let mut made = HashSet::new();
+    let mut lost: Option<String> = None;
     for mv in moves {
-        if !contained(&mv.from) || !contained(&mv.to) {
-            log.failed.push(FailedMove {
+        if let Some(why) = &lost {
+            log.failed.push(FailedMove::new(
                 mv,
-                error: "path leaves the folder".into(),
-            });
+                format!("not tried: the server stopped answering ({why})"),
+            ));
+            continue;
+        }
+        if !contained(&mv.from) || !contained(&mv.to) {
+            log.failed
+                .push(FailedMove::new(mv, "path leaves the folder"));
             continue;
         }
         let src = container.join(&mv.from);
         let dst = container.join(&mv.to);
-        if dst.exists() {
-            log.failed.push(FailedMove {
-                mv,
-                error: "destination appeared".into(),
-            });
-            continue;
-        }
-        let res = dst
-            .parent()
-            .map_or(Ok(()), std::fs::create_dir_all)
-            // A rename, never a copy: a move across volumes fails instead of copying.
-            .and_then(|()| std::fs::rename(&src, &dst));
-        if let Err(e) = res {
-            log.failed.push(FailedMove {
-                mv,
-                error: e.to_string(),
-            });
-            continue;
+        let res = match tree.exists(&dst) {
+            Ok(true) => Err(OpError::Exists("destination appeared".into())),
+            Ok(false) => dst
+                .parent()
+                .map_or(Ok(()), |d| make_dirs(tree, container, d, &mut made))
+                .and_then(|()| tree.rename_new(&src, &dst)),
+            Err(e) => Err(e),
+        };
+        match res {
+            Ok(()) => {}
+            Err(OpError::Lost(e)) => {
+                lost = Some(e.clone());
+                log.failed.push(FailedMove {
+                    mv,
+                    error: format!("the server stopped answering during this move ({e})"),
+                    uncertain: true,
+                });
+                let _ = write_log(log_path, &log);
+                continue;
+            }
+            Err(OpError::Exists(_)) => {
+                log.failed.push(FailedMove::new(mv, "destination appeared"));
+                continue;
+            }
+            Err(OpError::Other(e)) => {
+                log.failed.push(FailedMove::new(mv, e));
+                continue;
+            }
         }
         if let (Some(dir), Some(name)) = (src.parent(), src.file_name()) {
-            let sidecar = dir.join(format!("._{}", name.to_string_lossy()));
-            if junk::is_sidecar(&sidecar) {
-                let _ = std::fs::remove_file(sidecar);
-            }
+            tree.remove_junk(&dir.join(format!("._{}", name.to_string_lossy())));
             started_in.insert(dir.to_path_buf());
         }
         log.completed.push(mv);
@@ -867,12 +966,17 @@ pub fn apply(container: &Path, moves: Vec<Move>, log_path: &Path) -> std::io::Re
             let _ = write_log(log_path, &log);
         }
     }
-    let (removed, kept) = prune_empty(container, &started_in);
-    log.removed_dirs = removed;
-    log.kept_dirs = kept;
+    if lost.is_none() {
+        let (removed, kept) = prune_empty(tree, container, &started_in);
+        log.removed_dirs = removed;
+        log.kept_dirs = kept;
+    }
     write_log(log_path, &log)?;
     Ok(log)
 }
+
+/// Gives the tree a path is in.
+pub type OpenTree = dyn Fn(&Path) -> Result<Box<dyn Tree>, String>;
 
 #[derive(Debug, Clone, Default, Serialize)]
 pub struct RevertResult {
@@ -880,8 +984,9 @@ pub struct RevertResult {
     pub problems: Vec<FailedMove>,
 }
 
-/// Undoes a run from its log: only the moves that happened, newest first.
-pub fn revert(log_path: &Path) -> std::io::Result<RevertResult> {
+/// Undoes a run from its log: only the moves that happened, newest first. `open` gives the
+/// tree the run's folder is in (this computer, or its server).
+pub fn revert(log_path: &Path, open: &OpenTree) -> std::io::Result<RevertResult> {
     let bytes = std::fs::read(log_path)?;
     let mut log: UndoLog = serde_json::from_slice(&bytes)
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
@@ -889,45 +994,80 @@ pub fn revert(log_path: &Path) -> std::io::Result<RevertResult> {
         return Err(std::io::Error::other("this run was already undone"));
     }
     let root = PathBuf::from(&log.container_root);
+    let tree = open(&root).map_err(std::io::Error::other)?;
+    let tree = tree.as_ref();
+    // The server must answer before anything is judged "gone".
+    if !tree
+        .exists(&root)
+        .map_err(|e| std::io::Error::other(e.to_string()))?
+    {
+        return Err(std::io::Error::other(format!(
+            "{} is not there any more",
+            log.container_root
+        )));
+    }
     let mut out = RevertResult::default();
-    // A run that died after its last log write left moves that happened but are not in
-    // `completed`; those whose file sits at the new name and not the old one are undone too.
+    let here = |p: &Path| tree.exists(p);
+    // A run that died after its last log write, or lost its server mid-move, left moves that
+    // may have happened but are not in `completed`; those whose file sits at the new name and
+    // not the old one are undone too.
     let mut done = log.completed.clone();
     for mv in &log.moves {
-        if done.contains(mv) || log.failed.iter().any(|f| &f.mv == mv) {
+        if done.contains(mv) || log.failed.iter().any(|f| &f.mv == mv && !f.uncertain) {
             continue;
         }
         if contained(&mv.from)
             && contained(&mv.to)
-            && root.join(&mv.to).exists()
-            && !root.join(&mv.from).exists()
+            && here(&root.join(&mv.to)) == Ok(true)
+            && here(&root.join(&mv.from)) == Ok(false)
         {
             done.push(mv.clone());
         }
     }
+    let mut made = HashSet::new();
+    let mut lost = None;
     for mv in done.iter().rev() {
         let src = root.join(&mv.to);
         let dst = root.join(&mv.from);
-        let problem = if !contained(&mv.from) || !contained(&mv.to) {
+        let problem = if let Some(why) = &lost {
+            Some(format!("not tried: the server stopped answering ({why})"))
+        } else if !contained(&mv.from) || !contained(&mv.to) {
             Some("path leaves the folder".to_string())
-        } else if !src.exists() {
-            Some("moved file is gone".to_string())
-        } else if dst.exists() {
-            Some("original name is taken".to_string())
         } else {
-            dst.parent()
-                .map_or(Ok(()), std::fs::create_dir_all)
-                .and_then(|()| std::fs::rename(&src, &dst))
-                .err()
-                .map(|e| e.to_string())
+            match (here(&src), here(&dst)) {
+                (Ok(false), _) => Some("moved file is gone".to_string()),
+                (_, Ok(true)) => Some("original name is taken".to_string()),
+                (Ok(true), Ok(false)) => dst
+                    .parent()
+                    .map_or(Ok(()), |d| make_dirs(tree, &root, d, &mut made))
+                    .and_then(|()| tree.rename_new(&src, &dst))
+                    .err()
+                    .map(|e| {
+                        if let OpError::Lost(m) = &e {
+                            lost = Some(m.clone());
+                        }
+                        e.to_string()
+                    }),
+                (Err(e), _) | (_, Err(e)) => {
+                    if let OpError::Lost(m) = &e {
+                        lost = Some(m.clone());
+                    }
+                    Some(e.to_string())
+                }
+            }
         };
         match problem {
-            Some(error) => out.problems.push(FailedMove {
-                mv: mv.clone(),
-                error,
-            }),
+            Some(error) => out.problems.push(FailedMove::new(mv.clone(), error)),
             None => out.reverted.push(mv.clone()),
         }
+    }
+    if let Some(why) = lost {
+        // Left undoable: the moves already put back now sit at their old names, so the next
+        // Undo skips them ("moved file is gone") and finishes the rest.
+        return Err(std::io::Error::other(format!(
+            "the server stopped answering part way ({} put back); undo again once it is back: {why}",
+            out.reverted.len()
+        )));
     }
     // Folders the run created and the undo emptied.
     let made: HashSet<PathBuf> = out
@@ -935,7 +1075,7 @@ pub fn revert(log_path: &Path) -> std::io::Result<RevertResult> {
         .iter()
         .filter_map(|m| root.join(&m.to).parent().map(Path::to_path_buf))
         .collect();
-    prune_empty(&root, &made);
+    prune_empty(tree, &root, &made);
     log.reverted_at = Some(now_iso());
     write_log(log_path, &log)?;
     Ok(out)
@@ -943,7 +1083,12 @@ pub fn revert(log_path: &Path) -> std::io::Result<RevertResult> {
 
 #[cfg(test)]
 mod tests {
+    use super::super::organize_fs::LocalTree;
     use super::*;
+
+    fn local(_: &Path) -> Result<Box<dyn Tree>, String> {
+        Ok(Box::new(LocalTree))
+    }
 
     struct Lib(PathBuf);
     impl Drop for Lib {
@@ -964,7 +1109,7 @@ mod tests {
     fn table<'a>(entries: &'a [(&'a str, PkgInfo)]) -> impl Fn(&Path) -> Facts + 'a {
         move |p: &Path| {
             let name = p.file_name().unwrap().to_string_lossy().into_owned();
-            let parts = split_siblings(p);
+            let parts = split_siblings(&LocalTree, p);
             let size = parts
                 .iter()
                 .map(|q| std::fs::metadata(q).map(|m| m.len()).unwrap_or(0))
@@ -1031,7 +1176,7 @@ mod tests {
                 ),
             ),
         ];
-        let p = plan_with(&c, &table(&t));
+        let p = plan_with(&LocalTree, &c, &table(&t));
         assert_eq!(p.moves.len(), 2);
         for m in &p.moves {
             assert!(m.to.starts_with("PS4/CUSA00900 - Bloodborne/"), "{}", m.to);
@@ -1071,7 +1216,7 @@ mod tests {
                 ),
             ),
         ];
-        let p = plan_with(&c, &table(&t));
+        let p = plan_with(&LocalTree, &c, &table(&t));
         for m in &p.moves {
             assert!(
                 m.to.starts_with("PS4/PPSA14251 - Mafia The Old Country/"),
@@ -1096,7 +1241,7 @@ mod tests {
             "1.32",
         );
         let t = [("one", i.clone()), ("two", i.clone()), ("three", i)];
-        let p = plan_with(&c, &table(&t));
+        let p = plan_with(&LocalTree, &c, &table(&t));
         assert_eq!(p.moves.len(), 3);
         assert_eq!(p.moves.iter().filter(|m| !m.duplicate).count(), 1);
         let tos: HashSet<&str> = p.moves.iter().map(|m| m.to.as_str()).collect();
@@ -1121,7 +1266,7 @@ mod tests {
             "patch",
             "1.32",
         );
-        let p = plan_with(&c, &table(&[("one", i.clone()), ("two", i)]));
+        let p = plan_with(&LocalTree, &c, &table(&[("one", i.clone()), ("two", i)]));
         assert_eq!(p.moves.len(), 2);
         assert!(p.moves.iter().all(|m| !m.duplicate));
         assert_ne!(p.moves[0].to, p.moves[1].to);
@@ -1145,6 +1290,7 @@ mod tests {
             ..PkgInfo::default()
         };
         let p = plan_with(
+            &LocalTree,
             &c,
             &table(&[("partial", partial), ("broken", broken), ("noid", noid)]),
         );
@@ -1162,14 +1308,15 @@ mod tests {
         let root = l.0.clone();
         put(&root, "game.pkg", 10);
         put(&root.join("fpkg"), "other.pkg", 10);
-        let found = containers(&root);
+        let found = containers(&LocalTree, &root);
         assert!(found.contains(&root), "{found:?}");
         assert!(found.contains(&root.join("fpkg")), "{found:?}");
         // The root plans only its loose package; the subfolder is a container of its own.
-        assert_eq!(scan_top(&root), vec![root.join("game.pkg")]);
+        assert_eq!(scan_top(&LocalTree, &root), vec![root.join("game.pkg")]);
         let p = plan_files(
+            &LocalTree,
             &root,
-            scan_top(&root),
+            scan_top(&LocalTree, &root),
             &table(&[(
                 "game",
                 info(
@@ -1198,7 +1345,7 @@ mod tests {
             "1.02",
         );
         i.kind_confident = false;
-        let p = plan_with(&c, &table(&[("u", i)]));
+        let p = plan_with(&LocalTree, &c, &table(&[("u", i)]));
         assert!(
             p.moves[0].to.ends_with("PATCH_UNSURE.pkg"),
             "{}",
@@ -1220,7 +1367,7 @@ mod tests {
             "base",
             "1.00",
         );
-        let p = plan_with(&c, &table(&[("Big", i)]));
+        let p = plan_with(&LocalTree, &c, &table(&[("Big", i)]));
         let names: Vec<&str> = p
             .moves
             .iter()
@@ -1245,25 +1392,25 @@ mod tests {
         let rdr2 = info("RDR2", "CUSA03041", "UP1004-CUSA03041_00-X", "base", "1.00");
         // Found by its old name before the move and its new one after.
         let t = [("x", rdr2.clone()), ("RDR2", rdr2)];
-        let first = plan_with(&c, &table(&t));
+        let first = plan_with(&LocalTree, &c, &table(&t));
         assert_eq!(first.moves.len(), 1);
         let log_path = l.0.join("logs/run.json");
-        let log = apply(&c, first.moves.clone(), &log_path).unwrap();
+        let log = apply(&LocalTree, &c, first.moves.clone(), &log_path, "").unwrap();
         assert_eq!(log.completed.len(), 1);
         assert!(c.join(&first.moves[0].to).is_file());
         // The emptied folders (only Finder's files left) are gone; other files stay.
         assert!(!c.join("loose").exists(), "{:?}", log.kept_dirs);
         assert!(c.join("Note.txt").is_file());
 
-        let again = plan_with(&c, &table(&t));
+        let again = plan_with(&LocalTree, &c, &table(&t));
         assert!(again.moves.is_empty());
         assert_eq!(again.skipped[0].reason, SKIP_IN_PLACE);
 
-        let undone = revert(&log_path).unwrap();
+        let undone = revert(&log_path, &local).unwrap();
         assert_eq!(undone.reverted.len(), 1);
         assert!(c.join("loose/inner/x.pkg").is_file());
         assert!(!c.join("PS4").exists());
-        assert!(revert(&log_path).is_err(), "a run is undone once");
+        assert!(revert(&log_path, &local).is_err(), "a run is undone once");
     }
 
     #[test]
@@ -1275,9 +1422,11 @@ mod tests {
             serde_json::from_value(serde_json::json!({ "from": from, "to": to })).unwrap()
         };
         let log = apply(
+            &LocalTree,
             &c,
             vec![mv("x.pkg", "../out.pkg"), mv("/etc/hosts", "y.pkg")],
             &l.0.join("log.json"),
+            "",
         )
         .unwrap();
         assert_eq!(log.failed.len(), 2);
@@ -1298,15 +1447,15 @@ mod tests {
             "x",
             info("RDR2", "CUSA03041", "UP1004-CUSA03041_00-X", "base", "1.00"),
         )];
-        let p = plan_with(&c, &table(&t));
+        let p = plan_with(&LocalTree, &c, &table(&t));
         let log_path = l.0.join("log.json");
-        let log = apply(&c, p.moves.clone(), &log_path).unwrap();
+        let log = apply(&LocalTree, &c, p.moves.clone(), &log_path, "").unwrap();
         assert_eq!(log.completed.len(), 1);
         // As if the engine died before the final write: the log knows only the plan.
         let mut stale = log.clone();
         stale.completed.clear();
         write_log(&log_path, &stale).unwrap();
-        let undone = revert(&log_path).unwrap();
+        let undone = revert(&log_path, &local).unwrap();
         assert_eq!(undone.reverted.len(), 1);
         assert!(c.join("x.pkg").is_file());
     }
@@ -1320,7 +1469,7 @@ mod tests {
             "x",
             info("RDR2", "CUSA03041", "UP1004-CUSA03041_00-X", "base", "1.00"),
         )];
-        let p = plan_with(&c, &table(&t));
+        let p = plan_with(&LocalTree, &c, &table(&t));
         put(
             &c.join(Path::new(&p.moves[0].to).parent().unwrap()),
             Path::new(&p.moves[0].to)
@@ -1330,7 +1479,7 @@ mod tests {
                 .unwrap(),
             99,
         );
-        let log = apply(&c, p.moves, &l.0.join("log.json")).unwrap();
+        let log = apply(&LocalTree, &c, p.moves, &l.0.join("log.json"), "").unwrap();
         assert_eq!(log.failed.len(), 1);
         assert!(c.join("x.pkg").is_file());
     }
@@ -1347,14 +1496,14 @@ mod tests {
             "base",
             "1.00",
         );
-        let p = plan_with(&c, &table(&[]));
+        let p = plan_with(&LocalTree, &c, &table(&[]));
         assert!(p.moves.is_empty());
         let name = format!("{} - PPSA00001 - v1.00 - US - BASE.pkg", title)
             .nfd()
             .collect::<String>();
         let folder = format!("PPSA00001 - {title}").nfd().collect::<String>();
         put(&c.join("PS4").join(&folder), &name, 10);
-        let p = plan_with(&c, &table(&[("Ghost", i)]));
+        let p = plan_with(&LocalTree, &c, &table(&[("Ghost", i)]));
         assert!(
             p.moves.is_empty(),
             "{:?}",
