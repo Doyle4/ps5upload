@@ -50,10 +50,16 @@ pub(crate) async fn check(fs: &dyn RemoteFs, root: &str) {
 }
 
 /// What every writable [`RemoteFs`] must do. `dir` holds two files `a` and `b` of different
-/// sizes (and nothing called `ps5u-new` or `ps5u-d1`/`ps5u-d2`); the tree is left as found.
+/// sizes; the tree is left as found, except that a backend which never removes folders
+/// (WebDAV: its DELETE is recursive) leaves the test's empty folders behind.
 pub(crate) async fn check_writes(fs: &dyn RemoteFs, dir: &str) {
-    let at = |n: &str| super::path::join(dir, n).unwrap();
-    let (a, b) = (at("a"), at("b"));
+    let run = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or(0);
+    let at = |n: &str| super::path::join(dir, &format!("{n}-{run}")).unwrap();
+    let file = |n: &str| super::path::join(dir, n).unwrap();
+    let (a, b) = (file("a"), file("b"));
     let size_a = fs.stat(&a).await.expect("stat a").size;
     let size_b = fs.stat(&b).await.expect("stat b").size;
     assert_ne!(size_a, size_b, "a and b must differ in size");
@@ -84,14 +90,20 @@ pub(crate) async fn check_writes(fs: &dyn RemoteFs, dir: &str) {
     fs.rename(&a, &moved).await.expect("rename into a folder");
     assert!(matches!(fs.stat(&a).await, Err(RemoteError::NotFound(_))));
     assert_eq!(fs.stat(&moved).await.expect("moved").size, size_a);
+    let full = fs.remove_dir(&new).await;
     assert!(
-        fs.remove_dir(&new).await.is_err(),
+        full.is_err(),
         "a folder with a file in it must not be removed"
     );
+    let removes = !matches!(full, Err(RemoteError::Unsupported(_)));
     assert_eq!(fs.stat(&moved).await.expect("still there").size, size_a);
     fs.rename(&moved, &a).await.expect("rename back");
-    fs.remove_dir(&new).await.expect("remove the empty folder");
-    assert!(matches!(fs.stat(&new).await, Err(RemoteError::NotFound(_))));
+    if removes {
+        fs.remove_dir(&new).await.expect("remove the empty folder");
+        assert!(matches!(fs.stat(&new).await, Err(RemoteError::NotFound(_))));
+    } else {
+        assert!(fs.stat(&new).await.expect("left in place").is_dir);
+    }
 
     // Into a folder that is not there: refused, the file untouched.
     let nowhere = format!("{}/x", at("ps5u-missing"));
@@ -105,5 +117,7 @@ pub(crate) async fn check_writes(fs: &dyn RemoteFs, dir: &str) {
     fs.rename(&d1, &d2).await.expect("rename a folder");
     assert!(fs.stat(&d2).await.expect("d2").is_dir);
     assert!(matches!(fs.stat(&d1).await, Err(RemoteError::NotFound(_))));
-    fs.remove_dir(&d2).await.expect("remove d2");
+    if removes {
+        fs.remove_dir(&d2).await.expect("remove d2");
+    }
 }

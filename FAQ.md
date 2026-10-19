@@ -1201,7 +1201,9 @@ You see every move first and can untick any. Nothing is overwritten or deleted a
 only renamed, never copied. Every run can be undone from **Earlier runs** in the same window.
 A folder on a saved server (SMB, FTP, SFTP, WebDAV) is organized on the server: each move is a
 rename there, a package never moves to another server or folder, and a connection that drops
-stops the run where it is, with Undo still putting back whatever moved. FTP has no rename that
+stops the run where it is, with Undo still putting back whatever moved. On WebDAV a folder the
+run emptied is left in place (empty), and the result lists it: a WebDAV delete of a folder takes
+everything in it, so ps5upload never deletes one there. FTP has no rename that
 refuses a taken name, so there the name is checked first; a file another program writes to that
 exact name in the instant between the check and the rename could be replaced.
 

@@ -726,4 +726,26 @@ mod tests {
         })
         .await;
     }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_server_that_never_removes_folders_keeps_the_emptied_ones_and_says_so() {
+        let s = Arc::new(server("keep", &[("/g/old/rdr.pkg", b"rdr2")]));
+        s.mem.never_remove_dirs();
+        let s2 = Arc::clone(&s);
+        blocking(move || {
+            let s = s2;
+            let tree = s.tree();
+            let c = s.path("/g");
+            let plan = organize::plan_with(&tree, &c, &|p| facts(&tree, p));
+            let log = organize::apply(&tree, &c, plan.moves, &s.logs.join("k.json"), "").unwrap();
+            assert_eq!(log.completed.len(), 1);
+            assert!(log.removed_dirs.is_empty());
+            assert_eq!(log.kept_dirs, vec!["old".to_string()]);
+            assert!(s
+                .tree()
+                .list(&s.path("/g/old"))
+                .is_some_and(|v| v.is_empty()));
+        })
+        .await;
+    }
 }

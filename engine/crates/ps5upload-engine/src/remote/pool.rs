@@ -253,11 +253,40 @@ pub(crate) fn is_transient(e: &RemoteError) -> bool {
     matches!(e, RemoteError::Io(_) | RemoteError::Unreachable(_))
 }
 
+/// `m` with `secret` replaced by "***". A secret of four characters or more goes wherever it
+/// appears. A shorter one only where it stands as a whole token (`user:pw@`, `password=pw`,
+/// quoted): replacing every "t" of a one-letter password turned "Connection" into "Connec***ion".
+pub(crate) fn redact(m: &str, secret: &str) -> String {
+    if secret.is_empty() {
+        return m.to_string();
+    }
+    if secret.chars().count() >= 4 {
+        return m.replace(secret, "***");
+    }
+    let word = |c: Option<char>| c.is_some_and(|c| c.is_alphanumeric() || c == '_');
+    let mut out = String::with_capacity(m.len());
+    let mut last = 0;
+    for (i, _) in m.match_indices(secret) {
+        if i < last {
+            continue;
+        }
+        let before = m[..i].chars().next_back();
+        let after = m[i + secret.len()..].chars().next();
+        if !word(before) && !word(after) {
+            out.push_str(&m[last..i]);
+            out.push_str("***");
+            last = i + secret.len();
+        }
+    }
+    out.push_str(&m[last..]);
+    out
+}
+
 /// Replace any secret the server echoed back in an error with "***".
 pub fn scrub(e: RemoteError, secret: &Secret) -> RemoteError {
     let clean = |mut m: String| {
         for s in secret.sensitive() {
-            m = m.replace(s, "***");
+            m = redact(&m, s);
         }
         m
     };
@@ -374,6 +403,30 @@ mod tests {
     use super::*;
     use crate::remote::store::conn;
     use crate::remote::MemFs;
+
+    #[test]
+    fn short_secrets_are_redacted_as_whole_tokens_only() {
+        let pw = |p: &str| Secret::Password { password: p.into() };
+        let e = scrub(
+            RemoteError::Io("Connection error: ftp://t:t@nas/ password=t 't'".into()),
+            &pw("t"),
+        );
+        assert_eq!(
+            e.to_string(),
+            "Connection error: ftp://***:***@nas/ password=*** '***'"
+        );
+        let e = scrub(
+            RemoteError::Auth("login hunter2x refused, bad pw hunter2x".into()),
+            &pw("hunter2x"),
+        );
+        assert_eq!(
+            e.to_string(),
+            "Sign-in failed: login *** refused, bad pw ***"
+        );
+        assert_eq!(redact("abcabc", "abc"), "abcabc");
+        assert_eq!(redact("x abc y", "abc"), "x *** y");
+        assert_eq!(redact("nothing here", ""), "nothing here");
+    }
 
     #[tokio::test]
     async fn reuses_a_session_and_drops_it_on_invalidate() {

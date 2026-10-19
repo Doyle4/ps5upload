@@ -677,7 +677,10 @@ pub async fn post_organize_apply(Json(req): Json<OrganizeApplyReq>) -> Response 
                     );
                     out.moved.extend(log.completed);
                     out.failed.extend(log.failed);
-                    out.kept_dirs.extend(log.kept_dirs);
+                    // Where each is: one name ("old") could be in several containers.
+                    let at = label(&c);
+                    out.kept_dirs
+                        .extend(log.kept_dirs.iter().map(|d| format!("{at}/{d}")));
                     out.logs.push(
                         log_path
                             .file_name()

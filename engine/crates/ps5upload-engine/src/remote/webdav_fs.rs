@@ -633,30 +633,13 @@ impl RemoteFs for WebdavFs {
         }
     }
 
-    /// DELETE removes a collection with everything in it, so the folder is listed first and
-    /// only an empty one is removed. A file that lands in it between the listing and the
-    /// DELETE (a moment) would go with it: WebDAV has no "remove if empty".
+    /// Never: DELETE on a collection removes it with everything in it, so even after a
+    /// listing showed it empty, a file landing in the moment before the DELETE would go too.
+    /// An emptied folder is left in place.
     async fn remove_dir(&self, path: &str) -> Result<(), RemoteError> {
-        let me = normal(path);
-        if me.is_empty() {
-            return Err(RemoteError::BadPath(
-                "the server root cannot be removed".into(),
-            ));
-        }
-        if !self.stat(&me).await?.is_dir {
-            return Err(RemoteError::NotFound(format!("{path} is not a folder")));
-        }
-        if !self.entries(&me).await?.is_empty() {
-            return Err(RemoteError::Io(format!("{path} is not empty")));
-        }
-        match self.send("DELETE", &format!("{me}/"), Vec::new()).await? {
-            200 | 202 | 204 => Ok(()),
-            404 => Err(RemoteError::NotFound(format!("{path} not found"))),
-            s => Err(RemoteError::Io(format!(
-                "{}: DELETE {path} returned HTTP {s}",
-                self.host
-            ))),
-        }
+        Err(RemoteError::Unsupported(format!(
+            "{path} left in place: WebDAV can only remove a folder with everything in it"
+        )))
     }
 }
 

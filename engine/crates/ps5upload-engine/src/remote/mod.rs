@@ -131,6 +131,8 @@ pub(crate) struct MemFs {
     /// and every call after it fails until [`MemFs::set_down`] brings the server back.
     down_after: Arc<AtomicUsize>,
     down: Arc<std::sync::atomic::AtomicBool>,
+    /// Removes no folder, as WebDAV (whose DELETE is recursive) never does.
+    keep_dirs: Arc<std::sync::atomic::AtomicBool>,
 }
 
 #[cfg(test)]
@@ -153,6 +155,7 @@ impl MemFs {
             lose_replies: Arc::default(),
             down_after: Arc::default(),
             down: Arc::default(),
+            keep_dirs: Arc::default(),
         }
     }
 
@@ -187,7 +190,13 @@ impl MemFs {
             lose_replies: Arc::clone(&self.lose_replies),
             down_after: Arc::clone(&self.down_after),
             down: Arc::clone(&self.down),
+            keep_dirs: Arc::clone(&self.keep_dirs),
         }
+    }
+
+    /// From now on folders are never removed (`remove_dir` is unsupported), as on WebDAV.
+    pub fn never_remove_dirs(&self) {
+        self.keep_dirs.store(true, Ordering::SeqCst);
     }
 
     /// The `n`-th write from now takes effect, loses its reply, and takes the server down.
@@ -522,6 +531,9 @@ impl RemoteFs for MemFs {
 
     async fn remove_dir(&self, path: &str) -> Result<(), RemoteError> {
         let p = normal(path);
+        if self.keep_dirs.load(Ordering::SeqCst) {
+            return Err(RemoteError::Unsupported(format!("{p} left in place")));
+        }
         self.write(|| {
             if p == "/" || !self.is_dir(&p) {
                 return Err(RemoteError::NotFound(format!("{p} is not a folder")));
