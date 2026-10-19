@@ -695,6 +695,10 @@ pub struct UnregisterOutcome {
     /// The helper found the title's folders still on the console after Sony
     /// accepted the uninstall (it may still be removing a large game).
     /// `None` from a helper older than 7.1.6, which did not check.
+    ///
+    /// `Some(false)` with a non-zero `sony_uninstall_rc` is our own folder
+    /// registration torn down although Sony refused: the title is no longer
+    /// listed, so it is not a failure ([`Self::refusal_stands`] is false).
     pub still_present: Option<bool>,
 }
 
@@ -703,6 +707,12 @@ impl UnregisterOutcome {
     /// rather than reporting a clean success.
     pub fn sony_refused(&self) -> bool {
         self.sony_uninstall_rc != 0
+    }
+
+    /// A refusal the caller must report: Sony refused and the helper did not
+    /// confirm the title is gone.
+    pub fn refusal_stands(&self) -> bool {
+        self.sony_refused() && self.still_present != Some(false)
     }
 
     /// Parse the APP_UNREGISTER ACK body. An empty or unparsable body (the
@@ -1395,6 +1405,18 @@ mod tests {
         let left = UnregisterOutcome::from_ack(br#"{"sony_uninstall_rc":0,"still_present":true}"#);
         assert_eq!(left.still_present, Some(true));
         assert!(!left.sony_refused());
+    }
+
+    /// #476 review: our folder registration was removed although Sony refused.
+    #[test]
+    fn a_refusal_for_a_title_that_is_gone_does_not_stand() {
+        let gone = UnregisterOutcome::from_ack(
+            br#"{"sony_uninstall_rc":2159155970,"still_present":false}"#,
+        );
+        assert!(gone.sony_refused());
+        assert!(!gone.refusal_stands());
+        let legacy = UnregisterOutcome::from_ack(br#"{"sony_uninstall_rc":2159155970}"#);
+        assert!(legacy.refusal_stands(), "an older helper did not check");
     }
 
     use super::*;

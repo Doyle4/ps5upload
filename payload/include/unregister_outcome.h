@@ -6,53 +6,94 @@
  * sceAppInstUtilAppUnInstall's return code alone cannot confirm a removal: on FW 13.60 it
  * returns 0 for a title id that was never installed (measured on the Phat, 2026-10-18), and a
  * refusal used to be reported as success anyway, with an "Unregistered" toast on the console
- * while the game stayed. So after the call the helper looks at what the PC app lists as
- * installed (the /user/appmeta folder, an app.pkg on internal or extended storage) and only
- * calls it done when those are gone.
+ * while the game stayed. So after the call the helper asks the question the PC app's installed
+ * list answers, and only calls the uninstall done when the title would no longer be listed.
  *
  * Header-only and libc-only so the host self-test can include it. */
 
+#include <dirent.h>
 #include <inttypes.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <string.h>
+#include <sys/stat.h>
+#include <unistd.h>
 
 typedef struct {
     int ours;          /* our nullfs registration (a mount.lnk tracker) was torn down */
     int api_called;    /* sceAppInstUtilAppUnInstall ran */
     uint32_t sony_rc;  /* its first return code (0 when it did not run) */
-    int still_present; /* the title's folders were still there after the wait */
+    int still_present; /* the PC app would still list the title after the wait */
 } unregister_outcome_t;
 
 typedef enum {
     UNREGISTER_DONE = 0,          /* gone */
-    UNREGISTER_STILL_PRESENT = 1, /* Sony accepted, the files are still there (may be removing) */
-    UNREGISTER_REFUSED = 2,       /* Sony returned an error */
+    UNREGISTER_STILL_PRESENT = 1, /* Sony accepted, the title is still listed (may be removing) */
+    UNREGISTER_REFUSED = 2,       /* Sony returned an error and the title is (or may be) there */
     UNREGISTER_UNAVAILABLE = 3,   /* no uninstall API, and the title is still there */
 } unregister_verdict_t;
 
+/* A refusal of a package uninstall is final. For our own folder registration the teardown
+ * that matters already happened (nullfs, trackers, appmeta), so a Sony refusal only counts
+ * when the title is still listed: Sony refuses some titles it barely knows, and reporting
+ * those as failures would keep an unregistered folder game on screen as "refused". */
 static inline unregister_verdict_t unregister_verdict(const unregister_outcome_t *o) {
-    if (o->api_called && o->sony_rc != 0) return UNREGISTER_REFUSED;
+    if (o->api_called && o->sony_rc != 0 && (!o->ours || o->still_present)) {
+        return UNREGISTER_REFUSED;
+    }
     if (!o->still_present) return UNREGISTER_DONE;
     return o->api_called ? UNREGISTER_STILL_PRESENT : UNREGISTER_UNAVAILABLE;
 }
 
-/* The places that make the PC app list a title as installed, for `title_id`. Writes up to
- * `max` paths of `cap` bytes each and returns how many it wrote. A path that does not fit is
- * skipped rather than truncated. */
-static inline int unregister_presence_paths(const char *title_id, char paths[][160], int max) {
-    static const char *const fmt[] = {
-        "/user/appmeta/%s",
-        "/user/app/%s/app.pkg",
-        "/mnt/ext0/user/app/%s/app.pkg",
-        "/mnt/ext1/user/app/%s/app.pkg",
-    };
-    int n = 0;
-    for (size_t i = 0; i < sizeof fmt / sizeof fmt[0] && n < max; i++) {
-        int w = snprintf(paths[n], 160, fmt[i], title_id);
-        if (w > 0 && w < 160) n++;
+/* What the console has for one title, in the terms of the engine's installed list
+ * (ps5_apps_installed in engine/crates/ps5upload-engine/src/lib.rs):
+ *   - every /user/appmeta/<id> folder is listed;
+ *   - an app.db row is listed when its app folder exists under /user/app, /mnt/ext0/user/app
+ *     or /mnt/ext1/user/app (UNREGISTER_APP_ROOTS below, the engine's roots exactly).
+ * When app.db could not be read the engine lists only the appmeta folders, and so does this. */
+typedef struct {
+    int appmeta_dir; /* /user/appmeta/<id> exists */
+    int app_dir;     /* <root>/<id> exists under one of the app roots */
+    int appdb_known; /* app.db answered */
+    int appdb_row;   /* app.db has a row for the title */
+} unregister_presence_t;
+
+static const char *const UNREGISTER_APP_ROOTS[] = {
+    "/user/app",
+    "/mnt/ext0/user/app",
+    "/mnt/ext1/user/app",
+};
+#define UNREGISTER_APPMETA_ROOT "/user/appmeta"
+
+static inline int unregister_still_listed(const unregister_presence_t *p) {
+    if (p->appmeta_dir) return 1;
+    return p->app_dir && p->appdb_known && p->appdb_row;
+}
+
+/* Remove what is under `dir`, then `dir`, at most `depth` folders deep. Uses lstat and never
+ * follows a link: a symlink is unlinked itself, a symlinked folder is not entered. Anything
+ * that is neither a file, a link nor a folder is left, and so are the folders holding it.
+ * Unlink and rmdir only: nothing is renamed, so nothing can cross a mount. */
+static inline void unregister_remove_tree(const char *dir, int depth) {
+    DIR *d = opendir(dir);
+    if (!d) return;
+    struct dirent *e;
+    while ((e = readdir(d)) != NULL) {
+        if (strcmp(e->d_name, ".") == 0 || strcmp(e->d_name, "..") == 0) continue;
+        char f[1024];
+        int n = snprintf(f, sizeof(f), "%s/%s", dir, e->d_name);
+        if (n <= 0 || (size_t)n >= sizeof(f)) continue;
+        struct stat st;
+        if (lstat(f, &st) != 0) continue;
+        if (S_ISREG(st.st_mode) || S_ISLNK(st.st_mode)) {
+            (void)unlink(f);
+        } else if (S_ISDIR(st.st_mode) && depth > 0) {
+            unregister_remove_tree(f, depth - 1);
+        }
     }
-    return n;
+    closedir(d);
+    (void)rmdir(dir);
 }
 
 /* The reply for `o`: 1 = ACK body, 0 = ERROR reason, -1 = did not fit. `*written` is its
@@ -64,7 +105,10 @@ static inline int unregister_reply(const unregister_outcome_t *o, char *body, si
     *written = 0;
     switch (unregister_verdict(o)) {
     case UNREGISTER_DONE:
-        n = snprintf(body, cap, "{\"sony_uninstall_rc\":0,\"still_present\":false}");
+        /* Sony's code rides along: for our folder registration it can be a refusal the
+         * teardown made moot, which the engine logs. */
+        n = snprintf(body, cap, "{\"sony_uninstall_rc\":%" PRIu32 ",\"still_present\":false}",
+                     o->api_called ? o->sony_rc : 0u);
         break;
     case UNREGISTER_STILL_PRESENT:
         n = snprintf(body, cap, "{\"sony_uninstall_rc\":0,\"still_present\":true}");

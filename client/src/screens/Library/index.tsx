@@ -2222,10 +2222,13 @@ function LibraryRowImpl({
     let okOutcome = true;
     let errMsg: string | null = null;
     try {
-      await appUnregister(consoleAddr(host), entry.titleId);
+      const { stillPresent } = await appUnregister(consoleAddr(host), entry.titleId);
       audit("library_unregister", withConsolePrefix(host, entry.name), { context: entry.titleId });
+      // #476: say so when the PS5 still lists the title, rather than claim the tile is gone.
       setMountNote(
-        `Unregistered ${entry.titleId}. The XMB tile is removed; the source files on disk were not touched.`,
+        stillPresent
+          ? `Unregistered ${entry.titleId}, but the PS5 still lists it. Refresh in a moment; if it stays, delete it from the PS5's Settings → Storage. The source files on disk were not touched.`
+          : `Unregistered ${entry.titleId}. The XMB tile is removed; the source files on disk were not touched.`,
       );
       onChanged();
     } catch (e) {

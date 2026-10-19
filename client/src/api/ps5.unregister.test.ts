@@ -50,6 +50,18 @@ describe("appUnregister results", () => {
     );
   });
 
+  it("accepts our folder registration removed although Sony refused", async () => {
+    mockedInvoke.mockResolvedValue({
+      ok: true,
+      sony_uninstall_refused: true,
+      sony_uninstall_rc: "0x80B21B02",
+      still_present: false,
+    });
+    await expect(appUnregister("192.0.2.8", "PPSA01234")).resolves.toEqual({
+      stillPresent: false,
+    });
+  });
+
   it("reports a title still on the console instead of claiming it is gone", async () => {
     mockedInvoke.mockResolvedValue({
       ok: true,

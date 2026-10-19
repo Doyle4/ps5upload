@@ -2807,7 +2807,15 @@ async fn ps5_app_unregister(
             // flattening both into a bare `ok: true`, which is what let a
             // 0x80B21B02 refusal masquerade as a successful uninstall while
             // the title stayed in Settings → Storage.
-            if outcome.sony_refused() {
+            if outcome.sony_refused() && !outcome.refusal_stands() {
+                crate::log_warn!(
+                    "app_unregister: {title_for_log} — sceAppInstUtilAppUninstall refused with \
+                     rc=0x{:08X}, but our registration is gone and the title is no longer listed \
+                     ({} ms)",
+                    outcome.sony_uninstall_rc,
+                    started.elapsed().as_millis()
+                );
+            } else if outcome.sony_refused() {
                 crate::log_warn!(
                     "app_unregister: {title_for_log} — our teardown ok in {} ms, but \
                      sceAppInstUtilAppUninstall REFUSED with rc=0x{:08X}; the title may \
@@ -2832,7 +2840,7 @@ async fn ps5_app_unregister(
                 StatusCode::OK,
                 Json(serde_json::json!({
                     "ok": true,
-                    "sony_uninstall_refused": outcome.sony_refused(),
+                    "sony_uninstall_refused": outcome.refusal_stands(),
                     "sony_uninstall_rc": format!("0x{:08X}", outcome.sony_uninstall_rc),
                     "still_present": outcome.still_present,
                 })),

@@ -1556,7 +1556,9 @@ export async function appUnregister(
     req: { addr, title_id: titleId },
   });
   if (res) assertOk(res, "Uninstall");
-  if (res?.sony_uninstall_refused) {
+  // A 7.1.6 helper that tore down our own folder registration reports Sony's refusal with
+  // still_present:false: the title is gone, so that is not a failure.
+  if (res?.sony_uninstall_refused && res.still_present !== false) {
     throw new Error(`uninstall_refused:${res.sony_uninstall_rc ?? "unknown"}`);
   }
   return { stillPresent: res?.still_present === true };

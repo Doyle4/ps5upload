@@ -1,7 +1,11 @@
 /* Host self-test for unregister_outcome.h (#476): what an uninstall reports. */
 #include <assert.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
+#include <sys/stat.h>
+#include <unistd.h>
 
 #include "unregister_outcome.h"
 
@@ -59,15 +63,75 @@ int main(void) {
     /* A reply that does not fit is refused, not truncated. */
     assert(reply(&done, body, 8) == -1);
 
-    /* The presence paths are the ones the PC app lists a title from. */
-    char paths[4][160];
-    int n = unregister_presence_paths("CUSA33878", paths, 4);
-    assert(n == 4);
-    assert(strcmp(paths[0], "/user/appmeta/CUSA33878") == 0);
-    assert(strcmp(paths[1], "/user/app/CUSA33878/app.pkg") == 0);
-    assert(strcmp(paths[2], "/mnt/ext0/user/app/CUSA33878/app.pkg") == 0);
-    assert(strcmp(paths[3], "/mnt/ext1/user/app/CUSA33878/app.pkg") == 0);
-    assert(unregister_presence_paths("CUSA33878", paths, 2) == 2);
+    /* Review fix: our folder registration whose teardown worked is done even when Sony
+     * refused, as long as the title is no longer listed; the code still rides along. */
+    unregister_outcome_t ours_refused_gone = {.ours = 1, .api_called = 1,
+                                              .sony_rc = 0x80B21B02u, .still_present = 0};
+    assert(unregister_verdict(&ours_refused_gone) == UNREGISTER_DONE);
+    assert(reply(&ours_refused_gone, body, sizeof body) == 1);
+    assert(strcmp(body, "{\"sony_uninstall_rc\":2159155970,\"still_present\":false}") == 0);
+    unregister_toast(&ours_refused_gone, "PPSA01234", toast, sizeof toast);
+    assert(strcmp(toast, "Unregistered PPSA01234") == 0);
+    /* ... but not when the title is really still listed. */
+    unregister_outcome_t ours_refused_left = ours_refused_gone;
+    ours_refused_left.still_present = 1;
+    assert(unregister_verdict(&ours_refused_left) == UNREGISTER_REFUSED);
+    assert(reply(&ours_refused_left, body, sizeof body) == 0);
+    /* A package refusal stays a refusal even if nothing is listed any more. */
+    unregister_outcome_t pkg_refused_gone = ours_refused_gone;
+    pkg_refused_gone.ours = 0;
+    assert(unregister_verdict(&pkg_refused_gone) == UNREGISTER_REFUSED);
+
+    /* Presence follows the engine's installed list. */
+    unregister_presence_t p = {0};
+    assert(!unregister_still_listed(&p));
+    p.appmeta_dir = 1; /* an appmeta folder, with or without subfolders, is listed */
+    assert(unregister_still_listed(&p));
+    p = (unregister_presence_t){.app_dir = 1, .appdb_known = 1, .appdb_row = 1};
+    assert(unregister_still_listed(&p)); /* a pkg install still in app.db */
+    /* Our folder registration keeps /user/app/<id>/sce_sys by design: without an app.db row
+     * the leftover folder is not a listed title (no false "still present"). */
+    p = (unregister_presence_t){.app_dir = 1, .appdb_known = 1, .appdb_row = 0};
+    assert(!unregister_still_listed(&p));
+    /* app.db unreadable: the engine lists appmeta folders only, so does this. */
+    p = (unregister_presence_t){.app_dir = 1, .appdb_known = 0};
+    assert(!unregister_still_listed(&p));
+    /* An app.db row without an app folder (a shell entry) is not listed either. */
+    p = (unregister_presence_t){.appdb_known = 1, .appdb_row = 1};
+    assert(!unregister_still_listed(&p));
+    /* The roots are the engine's. */
+    assert(sizeof UNREGISTER_APP_ROOTS / sizeof UNREGISTER_APP_ROOTS[0] == 3);
+    assert(strcmp(UNREGISTER_APP_ROOTS[0], "/user/app") == 0);
+    assert(strcmp(UNREGISTER_APP_ROOTS[1], "/mnt/ext0/user/app") == 0);
+    assert(strcmp(UNREGISTER_APP_ROOTS[2], "/mnt/ext1/user/app") == 0);
+
+    /* Review fix: an appmeta folder with a subfolder (changeinfo/) is removed whole, and a
+     * symlink inside it is removed without touching what it points at. */
+    {
+        char root[] = "/tmp/ps5u-unreg-XXXXXX";
+        assert(mkdtemp(root) != NULL);
+        char meta[256], sub[256], f1[256], f2[256], outside[256], keep[256], link[256];
+        snprintf(meta, sizeof meta, "%s/CUSA33878", root);
+        snprintf(sub, sizeof sub, "%s/changeinfo", meta);
+        snprintf(f1, sizeof f1, "%s/icon0.png", meta);
+        snprintf(f2, sizeof f2, "%s/changeinfo.xml", sub);
+        snprintf(outside, sizeof outside, "%s/outside", root);
+        snprintf(keep, sizeof keep, "%s/keep.txt", outside);
+        snprintf(link, sizeof link, "%s/link", meta);
+        assert(mkdir(meta, 0755) == 0 && mkdir(sub, 0755) == 0 && mkdir(outside, 0755) == 0);
+        FILE *fp;
+        assert((fp = fopen(f1, "w")) != NULL); fclose(fp);
+        assert((fp = fopen(f2, "w")) != NULL); fclose(fp);
+        assert((fp = fopen(keep, "w")) != NULL); fclose(fp);
+        assert(symlink(outside, link) == 0);
+        unregister_remove_tree(meta, 3);
+        struct stat st;
+        assert(lstat(meta, &st) != 0);  /* gone, subfolder and link included */
+        assert(stat(keep, &st) == 0);   /* the link's target is untouched */
+        unlink(keep);
+        rmdir(outside);
+        rmdir(root);
+    }
 
     puts("unregister outcome self-test passed");
     return 0;

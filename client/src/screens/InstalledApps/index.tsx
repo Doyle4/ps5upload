@@ -1185,7 +1185,7 @@ export default function InstalledAppsScreen() {
               { id: t.titleId },
               `${t.titleId} is a SYSTEM app. Removing it can destabilize the console and may require a reinstall to recover. Only continue if you know exactly what this package is.`,
             )
-          : kindOf(t) !== "installed"
+          : t.origin === "registered"
             ? tr(
                 "installed_uninstall_confirm_registered",
                 undefined,
