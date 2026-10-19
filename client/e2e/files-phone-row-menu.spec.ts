@@ -66,6 +66,7 @@ test("phone width: row names show, ⋮ opens the row's actions, the selection ba
   await expect(menu).toBeVisible();
   const items = menu.getByRole("menuitem");
   await expect(items.first()).toHaveText("Rename");
+  await expect(menu.getByRole("menuitem", { name: "Properties & permissions" })).toBeVisible();
   await expect(items.last()).toHaveText("Delete");
   await expect(menu.getByRole("menuitem", { name: "Install" })).toBeVisible();
   const box = await menu.boundingBox();

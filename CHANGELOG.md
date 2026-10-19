@@ -4,6 +4,15 @@ What's new in ps5upload, written for humans.
 
 ---
 
+## 7.1.10
+
+- **Keep Rename first in the Files menu.** Properties and permissions remain available just
+  below it, with Delete last. The phone menu now preserves its familiar action order.
+- **Reliable coverage checks.** Transfer speed thresholds run on normal builds; instrumented
+  coverage builds continue to check the transfers without comparing their speed.
+
+---
+
 ## 7.1.9
 
 - **File properties and custom permissions (#478).** In Files, open Properties to see a file or

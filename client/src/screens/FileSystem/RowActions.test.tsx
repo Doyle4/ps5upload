@@ -180,6 +180,16 @@ describe("buildRowActions: what a Files row offers", () => {
     expect(actions.map((a) => a.id)).toEqual(["rename", "delete"]);
   });
 
+  it("properties keeps Rename first in the browser menu and Delete last", () => {
+    const properties = vi.fn();
+    const c = { ...ctx(), desktopApp: false, properties };
+    const e = { name: "PS4", kind: "dir", size: 0 };
+    const actions = buildRowActions(e, c);
+    expect(actions.map((a) => a.id)).toEqual(["rename", "properties", "delete"]);
+    actions[1].run();
+    expect(properties).toHaveBeenCalledWith(e);
+  });
+
   it("a small file gets Preview; a running install shows on its own row only", () => {
     const c = { ...ctx(), installingPkgName: "a.pkg", pkgInstalling: true };
     const small = buildRowActions({ name: "readme.txt", kind: "file", size: 512 }, c);

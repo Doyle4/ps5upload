@@ -141,18 +141,18 @@ export function buildRowActions(e: RowEntry, ctx: RowActionsContext): RowAction[
       },
     );
   }
+  actions.push({
+    id: "rename",
+    icon: Pencil,
+    label: tr("fs_rename", undefined, "Rename"),
+    run: () => ctx.rename(e),
+  });
   if (ctx.properties) actions.push({
     id: "properties",
     icon: Info,
     label: tr("fs_properties", undefined, "Properties & permissions"),
     run: () => ctx.properties?.(e),
     disabled: !ctx.hasHost,
-  });
-  actions.push({
-    id: "rename",
-    icon: Pencil,
-    label: tr("fs_rename", undefined, "Rename"),
-    run: () => ctx.rename(e),
   });
   if (!isDir)
     actions.push({
