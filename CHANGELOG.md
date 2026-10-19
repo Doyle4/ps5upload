@@ -4,6 +4,20 @@ What's new in ps5upload, written for humans.
 
 ---
 
+## 7.1.7
+
+- **Organize packages works on your servers too.** Folders on a saved SMB, FTP, SFTP or WebDAV
+  server can now be organized like folders on this computer: the same preview, the same
+  Platform › Game ID - Title layout, renames only, nothing overwritten, and every run can be
+  undone. A dropped connection stops the run cleanly and it can still be undone once the server is
+  back. Undo refuses if the saved connection now points at a different server. On WebDAV, folders
+  a run empties are left in place.
+- **WebDAV servers that redirect folder addresses work again.** Opening a folder on such a server
+  (Apache, for example) failed with a sign-in error.
+- **Clearer connection errors.** A very short saved password no longer garbles error messages.
+
+---
+
 ## 7.1.6
 
 - **Uploading many files from Files is much faster.** Picking several files now sends them to the
