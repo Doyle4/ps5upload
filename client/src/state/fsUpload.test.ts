@@ -588,7 +588,7 @@ describe("runFsUpload", () => {
     it("an engine without the file-list route: the list goes file by file, names kept", async () => {
       const e = fakeEngine();
       e.deps.startList = async () => {
-        throw new Error("engine returned HTTP 404: Not Found");
+        throw new Error("engine HTTP 404 Not Found: (empty body)");
       };
       const r = await runSteps(e, [listStep(["a.bin", "b (2).bin"])]);
       expect(r.ok).toBe(true);
@@ -610,9 +610,10 @@ describe("runFsUpload", () => {
       const { listUnsupported } = await import("./fsUpload");
       expect(listUnsupported(new Error("engine HTTP 404 Not Found: (empty body)"))).toBe(true);
       expect(listUnsupported(new Error("engine HTTP 405"))).toBe(true);
+      expect(listUnsupported(new Error("engine HTTP 500: helper said 404"))).toBe(false);
       expect(listUnsupported(new Error("command transfer_file_list not found"))).toBe(true);
-      expect(listUnsupported(new Error("engine returned invalid JSON: expected value"))).toBe(true);
-      expect(listUnsupported(new Error("Unexpected token '<', \"<!doctype \"... is not valid JSON"))).toBe(true);
+      expect(listUnsupported(new Error("engine returned invalid JSON: expected value"))).toBe(false);
+      expect(listUnsupported(new Error("source not found (404 on the server)"))).toBe(false);
       expect(listUnsupported(new Error("engine HTTP 400: files list is empty"))).toBe(false);
       expect(listUnsupported(new Error("console unreachable"))).toBe(false);
     });

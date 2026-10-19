@@ -194,6 +194,50 @@ describe("planFsUpload", () => {
     expect(list?.kind === "list" && list.files.map((f) => f.name)).toEqual(["a.bin", "a (3).bin"]);
   });
 
+  it("a name that differs only in case or Unicode form is a conflict", async () => {
+    const a = answers({ choice: "keep", all: true });
+    const plan = await planFsUpload(
+      [file("/pc/README.TXT"), file("/pc/Cafe\u0301.bin"), file("/pc/new.bin")],
+      [there("readme.txt"), there("Caf\u00e9.bin"), there("readme (2).TXT")],
+      a.decide,
+      tx,
+    );
+    expect(a.asked.map((c) => c.name)).toEqual(["README.TXT"]);
+    const list = plan?.steps[0];
+    // Keep both skips "readme (2).TXT" too: free means free whatever the case.
+    expect(list?.kind === "list" && list.files.map((f) => f.name)).toEqual([
+      "README (3).TXT",
+      "Cafe\u0301 (2).bin",
+      "new.bin",
+    ]);
+  });
+
+  it("Replace of a case-only twin lands under the name that is there", async () => {
+    const plan = await planFsUpload(
+      [file("/pc/EBOOT.BIN")],
+      [there("eboot.bin", "file", 5)],
+      answers({ choice: "replace", all: false }).decide,
+      tx,
+    );
+    expect(plan?.steps).toEqual([{ kind: "one", src: "/pc/EBOOT.BIN", name: "eboot.bin" }]);
+  });
+
+  it("two picks differing only in case clash with each other", async () => {
+    const a = answers({ choice: "replace", all: false });
+    const plan = await planFsUpload(
+      [file("/pc/x/Data.bin"), file("/pc/y/data.BIN"), file("/pc/z.bin")],
+      [],
+      a.decide,
+      tx,
+    );
+    expect(a.asked.map((c) => c.name)).toEqual(["data.BIN"]);
+    const list = plan?.steps[0];
+    expect(list?.kind === "list" && list.files).toEqual([
+      { src: "/pc/y/data.BIN", name: "Data.bin" },
+      { src: "/pc/z.bin", name: "z.bin" },
+    ]);
+  });
+
   it("Cancel at a conflict sends nothing", async () => {
     const plan = await planFsUpload([file("/pc/a"), file("/pc/b")], [there("a")], answers(null).decide, tx);
     expect(plan).toBeNull();

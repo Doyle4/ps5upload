@@ -205,21 +205,21 @@ class JobFailed extends Error {
   }
 }
 
-/** The engine (or the desktop shell) does not know the file-list job: an engine without the
- *  route answers 404/405 or, behind the web UI's page fallback, an HTML page instead of JSON;
- *  a shell without the command says "command … not found". The list then goes file by file,
+/** The engine (or the desktop shell) does not know the file-list job: the engine answers
+ *  HTTP 404/405 for a route it lacks, the desktop shell "command … not found" for a command it
+ *  lacks. Only those: anything else (a source that cannot be read, a busy console) is a real
+ *  failure, never a reason to re-send the files one by one. The list then goes file by file,
  *  exactly as before. Every engine this app ships with has the route (since 5.35 at least), and
  *  the AVA1 job it runs is the same kind a folder upload runs (a manifest of files under one
  *  root, merged into the existing folder), so the helper on the console needs nothing newer:
- *  there is no helper version to detect. A real start error (a source that cannot be read)
- *  is not taken for a missing route. */
+ *  there is no helper version to detect. */
 export function listUnsupported(e: unknown): boolean {
   const msg = e instanceof Error ? e.message : String(e);
-  if (/source|no such file|permission/i.test(msg)) return false;
-  return /\b(404|405)\b|command .*not found|unknown command|BrowserUnsupported|invalid JSON|Unexpected token '?<|is not valid JSON/i.test(
-    msg,
-  );
+  return /^engine HTTP (404|405)\b|^command [\w-]+ not found$/i.test(msg.trim());
 }
+
+/** What `runFsUpload` answers when the console already has a run. */
+export const FS_UPLOAD_BUSY = "an upload is already running";
 
 export interface FsUploadRequest {
   host: string;
@@ -275,7 +275,7 @@ export async function runFsUpload(
   if (steps.length === 0) return { ok: true };
   const store = useFsUploadStore.getState();
   if (fsUploadForHost(store, host).active)
-    return { ok: false, error: "an upload is already running" };
+    return { ok: false, error: FS_UPLOAD_BUSY };
 
   const cancelled = () =>
     fsUploadForHost(useFsUploadStore.getState(), host).cancelRequested;
@@ -540,7 +540,14 @@ export async function runFsUpload(
   return { ok: !wasCancelled };
 }
 
-/** Uploads what a stopped run left, the failed step first. */
+/** Uploads what a stopped run left, the failed step first.
+ *
+ *  A stopped list is re-sent exactly as planned (same files, same names, same job id): that is
+ *  what lets the console's journal skip the files it already has. Its Keep both names are NOT
+ *  re-checked against the folder: the job's own partial files may already sit under them, and a
+ *  renamed entry would change the job's manifest, so the console would start the job over.
+ *  The window is small (a name taken by something else between the stop and the resume), and
+ *  what it costs is the same as a Replace of that name. */
 export async function resumeFsUpload(
   host: string,
   deps: FsUploadDeps,

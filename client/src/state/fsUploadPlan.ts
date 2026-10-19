@@ -90,6 +90,11 @@ export interface FsUploadPlan {
   skipped: string[];
 }
 
+/** How two names are compared for a conflict: Unicode NFC, lower case. */
+export function nameKey(name: string): string {
+  return name.normalize("NFC").toLowerCase();
+}
+
 /** Last part of a path, whichever separator the computer uses. */
 export function baseNameOf(p: string): string {
   const t = p.replace(/[\\/]+$/, "");
@@ -144,8 +149,13 @@ export async function planFsUpload(
   decide: (c: FsConflict) => Promise<FsConflictDecision | null>,
   newTxId: () => string,
 ): Promise<FsUploadPlan | null> {
+  // Names compare case- and Unicode-form-insensitively on every drive: the console's exFAT and
+  // FAT drives are case-insensitive (a.TXT lands on A.txt), a name picked on macOS can arrive
+  // decomposed (NFD), and a case-only twin on /data would be a confusing near-duplicate anyway.
+  // So "A.txt" here and "a.txt" picked is a conflict, and Keep both looks for a name that is
+  // free under the same rule.
   const there = new Map<string, FsExistingEntry>();
-  for (const e of existing) there.set(e.name, e);
+  for (const e of existing) there.set(nameKey(e.name), e);
   // Names this plan has given out so far (an item later in the pick must not land on them).
   const planned = new Map<string, Planned>();
   const order: Planned[] = [];
@@ -159,18 +169,19 @@ export async function planFsUpload(
   let pending = 0;
   for (const p of picked) {
     const n = baseNameOf(p.src);
-    if (there.has(n) || seen.has(n)) pending++;
-    seen.add(n);
+    const k = nameKey(n);
+    if (there.has(k) || seen.has(k)) pending++;
+    seen.add(k);
   }
 
   for (const p of picked) {
     const name = baseNameOf(p.src);
     const dir = p.kind === "folder";
     const item: Planned = { src: p.src, name, dir, listable: listable(p) };
-    const earlier = planned.get(name);
-    const onDisk = there.get(name);
+    const earlier = planned.get(nameKey(name));
+    const onDisk = there.get(nameKey(name));
     if (!earlier && !onDisk) {
-      planned.set(name, item);
+      planned.set(nameKey(name), item);
       order.push(item);
       continue;
     }
@@ -200,14 +211,16 @@ export async function planFsUpload(
       item.name = freeKeepBothName(
         name,
         dir,
-        (n) => there.has(n) || planned.has(n),
+        (n) => there.has(nameKey(n)) || planned.has(nameKey(n)),
       );
-      planned.set(item.name, item);
+      planned.set(nameKey(item.name), item);
       order.push(item);
       continue;
     }
-    // Replace.
+    // Replace. The item lands under the name that is there (its spelling), so it replaces that
+    // entry on a case-sensitive drive too instead of becoming a case-only twin of it.
     if (earlier) {
+      item.name = earlier.name;
       // Two picked items with one name: a file replaces the earlier file (it would have
       // overwritten it when they went one by one); folders both merge into the same folder.
       if (!dir) {
@@ -215,10 +228,11 @@ export async function planFsUpload(
         if (earlier.replacesSize !== undefined)
           item.replacesSize = earlier.replacesSize;
       }
-    } else if (onDisk && onDisk.kind === "file") {
-      item.replacesSize = onDisk.size;
+    } else if (onDisk) {
+      item.name = onDisk.name;
+      if (onDisk.kind === "file") item.replacesSize = onDisk.size;
     }
-    planned.set(name, item);
+    planned.set(nameKey(item.name), item);
     order.push(item);
   }
 
@@ -267,11 +281,11 @@ export function landedOfList(
 ): { landed: FsListFile[]; notLanded: FsListFile[] } {
   if (!listing) return { landed: [], notLanded: [...files] };
   const at = new Map<string, FsExistingEntry>();
-  for (const e of listing) at.set(e.name, e);
+  for (const e of listing) at.set(nameKey(e.name), e);
   const landed: FsListFile[] = [];
   const notLanded: FsListFile[] = [];
   for (const f of files) {
-    const e = at.get(f.name);
+    const e = at.get(nameKey(f.name));
     const want = sizes?.get(f.name);
     const ok =
       !!e &&

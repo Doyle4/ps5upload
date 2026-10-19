@@ -142,6 +142,7 @@ import { pollFsDownload } from "../../state/fsDownloadPoll";
 import { useElapsed } from "../../lib/useElapsed";
 import {
   cancelFsUpload,
+  FS_UPLOAD_BUSY,
   fsUploadForHost,
   runFsUpload,
   dismissFsUploadStopped,
@@ -486,7 +487,7 @@ export default function FileSystemScreen() {
   const { confirm: confirmDialog, dialog: confirmDialogNode } = useConfirm();
   const { alert: alertDialog, dialog: alertDialogNode } = useAlert();
   const { prompt: promptDialog, dialog: promptDialogNode } = usePrompt();
-  const { ask: askConflict, dialog: conflictDialogNode } = useConflictAsk();
+  const { ask: askConflict, dialog: conflictDialogNode } = useConflictAsk(host);
   const elapsedMs = useElapsed(
     busyEntry !== null || bulkOp.op !== null || downloadOp.active,
   );
@@ -1246,13 +1247,38 @@ export default function FileSystemScreen() {
   const addPicked = async (picked: string[], kind?: "file" | "folder") => {
     if (picked.length === 0) return;
     setError(null);
+    // One run per console: say so now, before asking about any conflict.
+    if (fsUploadForHost(useFsUploadStore.getState(), host).active) {
+      setError(
+        tr(
+          "fs_upload_already_running",
+          undefined,
+          "A copy to this PS5 is already running. Wait for it to finish, or cancel it.",
+        ),
+      );
+      return;
+    }
+    // The console can change while this waits on the listing or on the user: the plan is
+    // then for another console's folder, so it is dropped (an open question answers Cancel).
+    const probe = guard.capture();
     const addr = consoleAddr(host);
     const destDir = path;
     const items = await kindsOf(picked, pathKind, kind);
-    const existing = await fsListDir(addr, destDir).catch(() => entries ?? []);
+    let existing: Awaited<ReturnType<typeof fsListDir>>;
+    try {
+      existing = await fsListDir(addr, destDir);
+    } catch (e) {
+      // Never plan against a stale or empty listing: a name missed here would be overwritten
+      // without asking.
+      if (probe.isStale()) return;
+      const raw = e instanceof Error ? e.message : String(e);
+      setError(humanizePs5Error(raw) || raw);
+      return;
+    }
+    if (probe.isStale()) return;
     const plan = await planFsUpload(items, existing, askConflict, generateTxIdHex);
-    if (!plan || plan.steps.length === 0) return;
-    await runFsUpload(
+    if (probe.isStale() || !plan || plan.steps.length === 0) return;
+    const r = await runFsUpload(
       { host, addr, destDir, srcPaths: [], steps: plan.steps },
       {
         ...fsUploadDeps,
@@ -1267,6 +1293,15 @@ export default function FileSystemScreen() {
           ),
       },
     );
+    // Another run started while this one was being planned: the store refused it.
+    if (!r.ok && r.error === FS_UPLOAD_BUSY)
+      setError(
+        tr(
+          "fs_upload_already_running",
+          undefined,
+          "A copy to this PS5 is already running. Wait for it to finish, or cancel it.",
+        ),
+      );
   };
 
   /** Row action: overwrite one existing file with a local one. */

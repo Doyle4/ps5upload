@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState, type RefObject } from "react";
 import { AlertTriangle } from "lucide-react";
 
 import { Button } from "../../components";
@@ -15,47 +15,43 @@ import type {
  * or Replace (Merge for a folder into a folder), with "do the same for the other N" when more
  * conflicts follow. Asked BEFORE the upload starts (state/fsUploadPlan), so the answers travel
  * with the one job. Same imperative shape as `useConfirm`: `await ask(conflict)`; null = Cancel
- * (nothing is copied).
+ * (nothing is copied). Escape, a click on the scrim and Cancel all answer null.
  */
-export function useConflictAsk(): {
-  ask: (c: FsConflict) => Promise<FsConflictDecision | null>;
-  dialog: React.ReactNode;
-} {
+
+/** The answer for a button press: null (Cancel) stays null; "for all" only counts when later
+ *  conflicts exist. */
+export function conflictDecision(
+  choice: FsConflictChoice | null,
+  all: boolean,
+  left: number,
+): FsConflictDecision | null {
+  return choice ? { choice, all: all && left > 0 } : null;
+}
+
+export interface ConflictPanelProps {
+  conflict: FsConflict;
+  all: boolean;
+  onAll: (all: boolean) => void;
+  onSettle: (choice: FsConflictChoice | null) => void;
+  titleId?: string;
+  bodyId?: string;
+  panelRef?: RefObject<HTMLDivElement | null>;
+}
+
+/** The dialog itself, stateless (the hook below owns the state). Keep both always has the focus:
+ *  Enter must never overwrite or merge unasked. */
+export function ConflictPanel({
+  conflict,
+  all,
+  onAll,
+  onSettle,
+  titleId,
+  bodyId,
+  panelRef,
+}: ConflictPanelProps) {
   const tr = useTr();
-  const [pending, setPending] = useState<
-    (FsConflict & { resolve: (d: FsConflictDecision | null) => void }) | null
-  >(null);
-  const [all, setAll] = useState(false);
-  const titleId = useId();
-  const bodyId = useId();
-  const panelRef = useRef<HTMLDivElement | null>(null);
-
-  const ask = (c: FsConflict) =>
-    new Promise<FsConflictDecision | null>((resolve) => {
-      setAll(false);
-      setPending({ ...c, resolve });
-    });
-
-  const settle = (choice: FsConflictChoice | null) => {
-    if (!pending) return;
-    pending.resolve(choice ? { choice, all: all && pending.left > 0 } : null);
-    setPending(null);
-  };
-
-  useEffect(() => {
-    if (!pending) return;
-    return activateFocusTrap(() => panelRef.current, window, {
-      onEscape: (e) => {
-        e.preventDefault();
-        settle(null);
-      },
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pending]);
-
-  if (!pending) return { ask, dialog: null };
-  const folderMerge = pending.canReplace && pending.pickedDir;
-  const body = !pending.canReplace
+  const folderMerge = conflict.canReplace && conflict.pickedDir;
+  const body = !conflict.canReplace
     ? tr(
         "fs_conflict_body_mixed",
         undefined,
@@ -72,10 +68,11 @@ export function useConflictAsk(): {
           undefined,
           "Replace overwrites the file that is there, and that can't be undone. If this is inside a mounted game image, a bad file can stop the game booting.",
         );
-  const dialog = (
+  return (
     <div
       className="anim-scrim scrim fixed inset-0 z-[60] flex items-center justify-center p-4"
-      onClick={() => settle(null)}
+      onClick={() => onSettle(null)}
+      data-testid="fs-conflict-scrim"
     >
       <div
         ref={panelRef}
@@ -95,8 +92,8 @@ export function useConflictAsk(): {
           <span className="min-w-0 break-words">
             {tr(
               "fs_conflict_title",
-              { name: pending.name },
-              `"${pending.name}" is already here`,
+              { name: conflict.name },
+              `"${conflict.name}" is already here`,
             )}
           </span>
         </header>
@@ -106,42 +103,41 @@ export function useConflictAsk(): {
         >
           {body}
         </p>
-        {pending.left > 0 && (
+        {conflict.left > 0 && (
           <label className="mb-4 flex items-center gap-2 text-sm">
             <input
               type="checkbox"
               checked={all}
-              onChange={(e) => setAll(e.target.checked)}
+              onChange={(e) => onAll(e.target.checked)}
+              data-testid="fs-conflict-all"
             />
             {tr(
               "fs_conflict_apply_all",
-              { count: pending.left },
-              `Do the same for the other ${pending.left} conflicts`,
+              { count: conflict.left },
+              `Do the same for the other ${conflict.left} conflicts`,
             )}
           </label>
         )}
         <div className="flex flex-wrap items-center justify-end gap-2">
-          <Button variant="ghost" size="sm" onClick={() => settle(null)}>
+          <Button variant="ghost" size="sm" onClick={() => onSettle(null)}>
             {tr("cancel", undefined, "Cancel")}
           </Button>
-          <Button variant="secondary" size="sm" onClick={() => settle("skip")}>
+          <Button variant="secondary" size="sm" onClick={() => onSettle("skip")}>
             {tr("fs_conflict_skip", undefined, "Skip")}
           </Button>
           <Button
-            variant={folderMerge ? "secondary" : "primary"}
+            variant="primary"
             size="sm"
-            onClick={() => settle("keep")}
-            // The safe answer has the focus (Enter must never overwrite a file unasked).
-            autoFocus={!folderMerge}
+            onClick={() => onSettle("keep")}
+            autoFocus
           >
             {tr("fs_conflict_keep_both", undefined, "Keep both")}
           </Button>
-          {pending.canReplace && (
+          {conflict.canReplace && (
             <Button
-              variant={folderMerge ? "primary" : "danger"}
+              variant={folderMerge ? "secondary" : "danger"}
               size="sm"
-              onClick={() => settle("replace")}
-              autoFocus={folderMerge}
+              onClick={() => onSettle("replace")}
             >
               {folderMerge
                 ? tr("fs_conflict_merge", undefined, "Merge")
@@ -152,5 +148,72 @@ export function useConflictAsk(): {
       </div>
     </div>
   );
-  return { ask, dialog };
+}
+
+/** `resetKey` (the console): when it changes, or the screen goes away, a question still open is
+ *  answered Cancel, so the pick waiting on it is dropped instead of hanging. */
+export function useConflictAsk(resetKey?: string): {
+  ask: (c: FsConflict) => Promise<FsConflictDecision | null>;
+  dialog: React.ReactNode;
+} {
+  const [pending, setPending] = useState<
+    (FsConflict & { resolve: (d: FsConflictDecision | null) => void }) | null
+  >(null);
+  const [all, setAll] = useState(false);
+  const titleId = useId();
+  const bodyId = useId();
+  const panelRef = useRef<HTMLDivElement | null>(null);
+  // The open question, for the cleanup below (state is not readable there).
+  const pendingRef = useRef<typeof pending>(null);
+
+  useEffect(
+    () => () => {
+      pendingRef.current?.resolve(null);
+      pendingRef.current = null;
+      setPending(null);
+    },
+    [resetKey],
+  );
+
+  const ask = (c: FsConflict) =>
+    new Promise<FsConflictDecision | null>((resolve) => {
+      const next = { ...c, resolve };
+      pendingRef.current = next;
+      setAll(false);
+      setPending(next);
+    });
+
+  const settle = (choice: FsConflictChoice | null) => {
+    const p = pendingRef.current;
+    if (!p) return;
+    pendingRef.current = null;
+    p.resolve(conflictDecision(choice, all, p.left));
+    setPending(null);
+  };
+
+  useEffect(() => {
+    if (!pending) return;
+    return activateFocusTrap(() => panelRef.current, window, {
+      onEscape: (e) => {
+        e.preventDefault();
+        settle(null);
+      },
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pending]);
+
+  return {
+    ask,
+    dialog: pending ? (
+      <ConflictPanel
+        conflict={pending}
+        all={all}
+        onAll={setAll}
+        onSettle={settle}
+        titleId={titleId}
+        bodyId={bodyId}
+        panelRef={panelRef}
+      />
+    ) : null,
+  };
 }
