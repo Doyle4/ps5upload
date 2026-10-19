@@ -6,6 +6,14 @@ What's new in ps5upload, written for humans.
 
 ## 7.1.6
 
+- **Uploading many files from Files is much faster.** Picking several files now sends them to the
+  PS5 together instead of one at a time: 240 small files went from over 2 minutes to about 5
+  seconds, and 5,000 small files from 44 minutes to under 30 seconds. A pick shows as one task
+  with one Cancel, and a stopped upload resumes where it left off.
+- **Choose what happens when a name is taken.** Instead of one all-or-nothing Overwrite question,
+  each clash offers Skip, Keep both or Replace (Merge for a folder onto a folder), with "do the
+  same for the rest". Keep both is the default, so Enter never overwrites, and names that differ
+  only in upper and lower case count as the same name.
 - **Uninstall tells you whether the game is really gone (#476).** Uninstall used to say
   "Unregistered" whatever the console answered, and then quietly showed the game again if the
   console had kept it. The helper now checks that the game has actually left the console. If the
