@@ -1405,34 +1405,29 @@ content id or region**; or the jailbreak **lacks live kernel patches** (kstuff /
 official Docker images and an engine built from a full checkout include it; otherwise point
 `PS5UPLOAD_PAYLOAD_DIR` at a folder that holds `ps5upload-installer.elf`.
 
-**Q: Can I move a save from one PS5 to another?**
+**Q: Can I move a save between consoles, profiles or game regions?**
 
-Yes, and you don't need a USB stick for it. There's no one-click
-"send to my other console" button, but the two-step route works today:
+Saves backup and restore copies the existing encrypted save files. It does **not**
+re-sign saves, change their owning account, or convert title IDs/regions. A backup
+must match the target title and account, and the target environment must accept
+its encryption. Renaming a GTA V (or other game's) title folder does not convert it.
+Cross-console compatibility is not guaranteed, even with matching title IDs.
 
-1. On the source console, open **Saves**, find the title, and press
-   **Download**. You get a `.zip` on your PC.
-2. Switch to the other console in the roster sidebar, find the same
-   title in **Saves**, press **Restore**, and pick that `.zip`.
+Download a backup of the target save before trying a restore. The target must
+already list a save for that title: launch the game once to create it. Restore
+wipes the current save first, with no automatic rollback if an upload is interrupted.
 
-**Backup to USB** / **Restore from USB** does the same thing without the
-PC in the middle, if you'd rather carry a drive between the consoles.
-Either way there are "all titles" buttons at the top to move everything
-at once.
+PS4-format restore has unresolved reliability reports. Closing the game or
+restarting the console may help some cases, but is not a verified fix. If a restore
+still fails, include the title ID, game/app/helper versions, backup origin, whether
+the account and console match, and the exact error or a bug-report bundle.
 
-Two things to know before you do it:
+**Q: Where does an Android save backup go?**
 
-- **The target console must already list a save for that title.** Restore
-  writes into an existing save's folder; it can't conjure a save slot out
-  of nothing. So install the game on the second console and launch it once
-  — far enough for it to create its own save — then restore over it.
-- **Restore wipes the current save first, and there's no rollback.** If
-  the upload is interrupted partway, that save can be left empty. If the
-  save on the target console matters, download it first.
-
-For PS4-format saves, the emulator may not notice the new data right
-away; close and reopen the game, or restart the console, if it doesn't
-show up.
+The **Backup** button writes a dated `.zip` to Android's **Download** folder
+(`/storage/emulated/0/Download`). The success notification shows the full path.
+Open your phone's Files app → Downloads and look for the title ID/game name.
+**Save to USB** is a separate action using the configured PS5 USB backup path.
 
 **Q: Can I install a split package (`*.0`, `*.1`, …)?**
 Not through Install Package: it takes a single package file. Pick the single lead `.pkg`.

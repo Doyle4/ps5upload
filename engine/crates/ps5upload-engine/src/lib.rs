@@ -10839,6 +10839,15 @@ async fn run(cfg: EngineConfig) -> anyhow::Result<()> {
         )
         .route("/api/ps5/hw/fan-threshold", post(ps5_hw_set_fan_threshold))
         .route("/api/ps5/peripheral", post(ps5_peripheral))
+        .route(
+            "/api/ps5/cheats/import",
+            post(console_files_api::cheat_import_handler),
+        )
+        .route(
+            "/api/ps5/minion/tile",
+            post(console_files_api::minion_tile_handler),
+        )
+        .route("/api/ps5/fs/stat", post(console_files_api::stat_handler))
         .route("/api/ps5/fs/chmod", post(ps5_fs_chmod))
         .route("/api/ps5/fs/mkdir", post(ps5_fs_mkdir))
         .route("/api/ps5/fs/write-bytes", post(ps5_fs_write_bytes))

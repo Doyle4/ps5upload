@@ -1,3 +1,4 @@
+import { FileProperties } from "./FileProperties";
 import { consoleAddr, hostOf } from "../../lib/addr";
 import { trStatic } from "../../lib/trStatic";
 import { rememberDestination } from "../../lib/moveTo";
@@ -2411,6 +2412,18 @@ export default function FileSystemScreen() {
   }, [volumes, path]);
 
   // What the row actions (desktop buttons and the phone ⋮ menu) need.
+  const [properties, setProperties] = useState<{
+    host: string;
+    path: string;
+    fsType?: string;
+  } | null>(null);
+  const openProperties = (e: { name: string }) => {
+    if (host) setProperties({
+      host,
+      path: joinPath(path, e.name),
+      fsType: volumes?.find((v) => v.path === currentVolumePath)?.fs_type,
+    });
+  };
   const rowActionsCtx: RowActionsContext = {
     tr,
     desktopApp: isTauriEnv(),
@@ -2420,6 +2433,7 @@ export default function FileSystemScreen() {
     entryBusy: busyEntry !== null,
     pkgInstalling,
     installingPkgName,
+    properties: openProperties,
     viewable: viewableEntry,
     download: (e, asZip) => void runDownload(e, asZip),
     rename: (e) => {
@@ -2444,6 +2458,14 @@ export default function FileSystemScreen() {
 
   return (
     <div className="app-page">
+      {properties && (
+        <FileProperties
+          key={`${properties.host}:${properties.path}`}
+          {...properties}
+          onClose={() => setProperties(null)}
+          onChanged={() => void refresh()}
+        />
+      )}
       {dropActive && (
         <div
           className="pointer-events-none fixed inset-0 z-40 flex items-center justify-center bg-[var(--color-accent-soft)] ring-4 ring-inset ring-[var(--color-accent)]"
@@ -2514,8 +2536,8 @@ export default function FileSystemScreen() {
             },
             {
               icon: KeyRound,
-              label: tr("fs_chmod_777", undefined, "Set permissions (777)"),
-              run: () => void runChmod777([menuEntry]),
+              label: tr("fs_properties", undefined, "Properties & permissions"),
+              run: () => openProperties(menuEntry),
               disabled: chmodBusy,
             },
             {

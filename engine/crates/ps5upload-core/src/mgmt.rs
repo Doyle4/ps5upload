@@ -168,6 +168,7 @@ methods! {
     (FILES_PREFS_SET, 149, "FILES_PREFS_SET"),
     (FILES_HANDOFF_PUT, 150, "FILES_HANDOFF_PUT"),
     (FILES_HANDOFF_TAKE, 151, "FILES_HANDOFF_TAKE"),
+    (MINION_TILE, 152, "MINION_TILE"),
 }
 
 /// A management call the payload refused.

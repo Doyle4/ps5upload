@@ -1100,6 +1100,10 @@ name = "METHOD_FILES_HANDOFF_TAKE"
 ty = "u16"
 value = 151
 [[const]]
+name = "METHOD_MINION_TILE"
+ty = "u16"
+value = 152
+[[const]]
 name = "JOB_OP_DELETE"
 ty = "u8"
 value = 1

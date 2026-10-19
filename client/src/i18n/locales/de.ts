@@ -1960,7 +1960,7 @@ saves_open_failed: "Spielstand konnte nicht geöffnet werden: {error}",
 saves_opened: "Spielstand geöffnet",
 saves_opened_body: "Unter {path} in Dateien durchsuchen und bearbeiten. Danach unter Spielstände schließen.",
 saves_open_folder_hint: "Öffnet den Ordner dieses Spielstands im Dateisystem-Browser",
-saves_ps4_warning_body: "Sichern und Wiederherstellen von PS4-Altspielständen (etwa PS4-Spiele über Abwärtskompatibilität) funktioniert möglicherweise nicht zuverlässig — der PS4-Emulator hält Spielstanddaten intern im Cache, und ein reines Zurückkopieren löst nicht immer ein Neueinhängen aus. Erscheint ein wiederhergestellter PS4-Spielstand nicht im Spiel, schließe und öffne das Spiel erneut oder starte die Konsole neu. Bekannte Einschränkung, verfolgt in Issue #198.",
+saves_ps4_warning_body: "Die Zuverlässigkeit der PS4-Spielstandwiederherstellung ist noch ungeklärt. Ein Neustart ist keine bestätigte Lösung. Spielstände werden weder neu signiert noch auf andere Konten oder Titel-IDs übertragen. Zielspielstand zuerst sichern; Diagnosedetails siehe FAQ.",
 saves_ps4_warning_title: "Spielstände im PS4-Format:",
 saves_restore_usb: "Von USB wiederherstellen",
 saves_restore_usb_all: "Alle von USB wiederherstellen",
@@ -4675,6 +4675,19 @@ c2c_test_deep_bad: "Die 4-KiB-Testsendung ist nicht angekommen: {detail}",
 "cw_files_up_failed": "{n} fehlgeschlagen: {reason}",
 "cw_files_up_no_space": "das Laufwerk ist voll",
 "cw_files_edit_eol_note": "Einige Zeilenumbrüche in dieser Datei sind ein einzelnes CR (altes Mac-Format). Beim Speichern werden sie zu den üblichen Zeilenumbrüchen der Datei.",
+// File properties, paired Minion visibility and local JSON cheat import.
+"fs_properties": "Eigenschaften & Berechtigungen",
+"fs_properties_mode": "Berechtigungen (oktal, z. B. 0444 oder 0755)",
+"minion_tile_connect": "Verbinde dich mit dem Helfer, um Minion ein- oder auszublenden.",
+"minion_tile_update": "Aktualisiere den Helfer für diese Funktion.",
+"minion_tile_show": "Minion anzeigen / wiederherstellen",
+"minion_tile_hide": "Minion ausblenden",
+"cheats_import": "Lokalen JSON-Cheat importieren",
+"cheats_import_saved": "Mit deaktivierten Schaltern importiert: {path}",
+"cheats_import_hint": "JSON-Trainer bis 256 KiB verwenden. Der Dateiname muss die genaue Titel-ID und Spielversion enthalten, z. B. PPSA13197_01.000.json. Umbenennen macht Patches nicht kompatibel. SHN/MC4 zuerst in JSON umwandeln.",
+"cheats_import_state": "Zuerst die Cheat-Engine ausschalten. Vorhandene Cheats dieses Titels vor dem Import entfernen, um gespeicherte Schalter zu löschen. Dateien werden nie ersetzt. Importierte Schalter bleiben aus; nur für die passende Spielversion aktivieren.",
+"saves_android_destination": "Datierte ZIP-Backups liegen im Download-Ordner dieses Telefons (/storage/emulated/0/Download). Wiederherstellen kopiert verschlüsselte Dateien und ändert weder Konto noch Titel-ID.",
+
 };
 
 export default de;

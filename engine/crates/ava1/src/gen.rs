@@ -171,6 +171,7 @@ pub const METHOD_FILES_PREFS_GET: u16 = 148;
 pub const METHOD_FILES_PREFS_SET: u16 = 149;
 pub const METHOD_FILES_HANDOFF_PUT: u16 = 150;
 pub const METHOD_FILES_HANDOFF_TAKE: u16 = 151;
+pub const METHOD_MINION_TILE: u16 = 152;
 pub const JOB_OP_DELETE: u8 = 1;
 pub const JOB_OP_CHMOD_R: u8 = 2;
 pub const JOB_OP_HASH: u8 = 3;

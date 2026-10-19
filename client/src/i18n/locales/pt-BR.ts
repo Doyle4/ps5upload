@@ -1969,7 +1969,7 @@ saves_open_failed: "Não foi possível abrir o save: {error}",
 saves_opened: "Save aberto",
 saves_opened_body: "Navegue e edite em {path} pelo Arquivos. Feche em Saves quando terminar.",
 saves_open_folder_hint: "Abre a pasta deste save no navegador do sistema de arquivos",
-saves_ps4_warning_body: "o backup e a restauração de saves antigos de PS4 (como jogos de PS4 rodando por retrocompatibilidade) podem não funcionar de forma confiável — o emulador de PS4 mantém os dados em cache internamente e copiar os arquivos de volta nem sempre força uma remontagem. Se um save de PS4 restaurado não aparecer no jogo, tente fechar e reabrir o jogo, ou reiniciar o console. É uma limitação conhecida, acompanhada na issue #198.",
+saves_ps4_warning_body: "A restauração de saves PS4 tem problemas de confiabilidade não resolvidos. Reiniciar o jogo ou console não é uma solução verificada. Não há reassinatura nem mudança de conta ou ID do título. Faça backup do destino primeiro; consulte a FAQ para diagnóstico.",
 saves_ps4_warning_title: "Saves em formato PS4:",
 saves_restore_usb: "Restaurar do USB",
 saves_restore_usb_all: "Restaurar tudo do USB",
@@ -4684,6 +4684,19 @@ c2c_test_deep_bad: "O envio de teste de 4 KiB não chegou: {detail}",
 "cw_files_up_failed": "{n} com falha: {reason}",
 "cw_files_up_no_space": "a unidade está cheia",
 "cw_files_edit_eol_note": "Algumas quebras de linha deste arquivo são um CR isolado (estilo Mac antigo). Ao salvar, elas viram as quebras de linha usuais do arquivo.",
+// File properties, paired Minion visibility and local JSON cheat import.
+"fs_properties": "Propriedades e permissões",
+"fs_properties_mode": "Permissões (octal, ex.: 0444 ou 0755)",
+"minion_tile_connect": "Conecte ao auxiliar para alterar a visibilidade do Minion.",
+"minion_tile_update": "Atualize o auxiliar para usar este controle.",
+"minion_tile_show": "Mostrar / restaurar Minion",
+"minion_tile_hide": "Ocultar Minion",
+"cheats_import": "Importar cheat JSON local",
+"cheats_import_saved": "Importado com opções desligadas: {path}",
+"cheats_import_hint": "Use um trainer JSON de até 256 KiB, com o ID do título e a versão exatos no nome, ex.: PPSA13197_01.000.json. Renomear não torna os patches compatíveis. Converta SHN/MC4 para JSON antes.",
+"cheats_import_state": "Desligue primeiro o motor de cheats. Remova os cheats existentes deste título para limpar o estado salvo antes da importação. Arquivos nunca são substituídos. As opções importadas ficam desligadas; ative-as apenas na versão correspondente.",
+"saves_android_destination": "Os backups são ZIPs datados na pasta Download do telefone (/storage/emulated/0/Download). Restaurar copia arquivos criptografados sem alterar a conta ou o ID do título.",
+
 };
 
 export default pt_BR;

@@ -81,3 +81,73 @@ export function cleanConsolePath(p: string): string {
   const c = p.replace(/\/{2,}/g, "/");
   return c.length > 1 ? c.replace(/\/$/, "") : c;
 }
+
+export interface ConsolePathStat {
+  kind: string;
+  size: number;
+  mtime: number;
+  mode: number;
+  dev: number;
+}
+
+export async function fetchConsoleStat(
+  host: string,
+  path: string,
+): Promise<ConsolePathStat> {
+  const b = await post("/api/ps5/fs/stat", { addr: consoleAddr(host), path });
+  if (
+    typeof b.kind !== "string" ||
+    ![b.size, b.mtime, b.mode, b.dev].every(
+      (v) => typeof v === "number" && Number.isFinite(v),
+    )
+  )
+    throw new Error("Invalid file stat reply");
+  return b as unknown as ConsolePathStat;
+}
+
+export type MinionTileState =
+  | { supported: false }
+  | {
+      supported: true;
+      tile: boolean;
+      tile_busy: boolean;
+      tile_failed: boolean;
+    };
+export async function minionTile(
+  host: string,
+  tile?: boolean,
+): Promise<MinionTileState> {
+  const b = await post("/api/ps5/minion/tile", {
+    addr: consoleAddr(host),
+    ...(tile === undefined ? {} : { tile }),
+  });
+  if (b.supported === false) return { supported: false };
+  if (
+    b.supported !== true ||
+    typeof b.tile !== "boolean" ||
+    typeof b.tile_busy !== "boolean" ||
+    typeof b.tile_failed !== "boolean"
+  )
+    throw new Error("Invalid Minion settings reply");
+  return {
+    supported: true,
+    tile: b.tile,
+    tile_busy: b.tile_busy,
+    tile_failed: b.tile_failed,
+  };
+}
+
+export async function importLocalCheat(
+  host: string,
+  path: string,
+): Promise<{ path: string }> {
+  const b = await post("/api/ps5/cheats/import", {
+    addr: consoleAddr(host),
+    path,
+  });
+  if (b.ok !== true || typeof b.path !== "string")
+    throw new Error(
+      typeof b.error === "string" ? b.error : "Cheat import failed",
+    );
+  return { path: b.path };
+}

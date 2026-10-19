@@ -1959,7 +1959,7 @@ saves_open_failed: "Kayıt açılamadı: {error}",
 saves_opened: "Kayıt açık",
 saves_opened_body: "Dosyalar'da {path} altında gözat ve düzenle. Bitince Kayıt verileri'nden kapat.",
 saves_open_folder_hint: "Bu kaydın klasörünü Dosya Sistemi tarayıcısında açar",
-saves_ps4_warning_body: "PS4 eski kayıtlarının (geriye dönük uyumlulukla çalışan PS4 oyunları gibi) yedeklenmesi ve geri yüklenmesi güvenilir çalışmayabilir — PS4 öykünücüsü kayıt verisini içeride önbelleğe alır ve dosyaları konsola geri kopyalamak her zaman yeniden bağlamayı tetiklemez. Geri yüklenen bir PS4 kaydı oyunda görünmüyorsa oyunu kapatıp yeniden açmayı ya da konsolu yeniden başlatmayı deneyin. Bu bilinen bir kısıt olup #198 numaralı konuda izleniyor.",
+saves_ps4_warning_body: "PS4 kayıtlarını geri yüklemede çözülmemiş güvenilirlik sorunları var. Oyunu veya konsolu yeniden başlatmak doğrulanmış bir çözüm değildir. Kayıtlar yeniden imzalanmaz, hesap veya oyun kimliği değişmez. Önce hedefi yedekleyin; tanılama için SSS’ye bakın.",
 saves_ps4_warning_title: "PS4 biçimli kayıtlar:",
 saves_restore_usb: "USB'den geri yükle",
 saves_restore_usb_all: "Tümünü USB'den geri yükle",
@@ -4674,6 +4674,19 @@ c2c_test_deep_bad: "4 KiB'lik test gönderimi ulaşmadı: {detail}",
 "cw_files_up_failed": "{n} başarısız: {reason}",
 "cw_files_up_no_space": "sürücü dolu",
 "cw_files_edit_eol_note": "Bu dosyadaki bazı satır sonları tek başına CR (eski Mac biçimi). Kaydetmek bunları dosyanın olağan satır sonlarına çevirir.",
+// File properties, paired Minion visibility and local JSON cheat import.
+"fs_properties": "Özellikler ve izinler",
+"fs_properties_mode": "İzinler (sekizlik, ör. 0444 veya 0755)",
+"minion_tile_connect": "Minion görünürlüğünü değiştirmek için yardımcıya bağlanın.",
+"minion_tile_update": "Bu denetim için yardımcıyı güncelleyin.",
+"minion_tile_show": "Minion’u göster / geri yükle",
+"minion_tile_hide": "Minion’u gizle",
+"cheats_import": "Yerel JSON hilesi içe aktar",
+"cheats_import_saved": "Anahtarlar kapalı olarak içe aktarıldı: {path}",
+"cheats_import_hint": "En fazla 256 KiB boyutunda, adında tam oyun kimliği ve sürümü bulunan bir JSON trainer kullanın; ör. PPSA13197_01.000.json. Yeniden adlandırmak yamaları uyumlu yapmaz. Önce SHN/MC4 dosyalarını JSON’a dönüştürün.",
+"cheats_import_state": "Önce hile motorunu kapatın. Kayıtlı anahtar durumunu temizlemek için içe aktarmadan önce bu oyunun mevcut hilelerini kaldırın. Dosyaların üzerine yazılmaz. İçe aktarılan anahtarlar kapalı kalır; yalnızca eşleşen oyun sürümünde açın.",
+"saves_android_destination": "Yedekler telefonun Download klasöründe tarihli ZIP dosyalarıdır (/storage/emulated/0/Download). Geri yükleme şifreli dosyaları kopyalar; hesabı veya oyun kimliğini değiştirmez.",
+
 };
 
 export default tr;

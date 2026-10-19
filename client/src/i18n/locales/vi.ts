@@ -1954,7 +1954,7 @@ saves_open_failed: "Không mở được bản lưu: {error}",
 saves_opened: "Bản lưu đang mở",
 saves_opened_body: "Xem và chỉnh sửa tại {path} trong Tệp. Đóng từ Dữ liệu lưu khi xong.",
 saves_open_folder_hint: "Mở thư mục của dữ liệu lưu này trong trình duyệt Hệ thống tệp",
-saves_ps4_warning_body: "việc sao lưu và khôi phục dữ liệu lưu cũ của PS4 (như trò chơi PS4 chạy nhờ tương thích ngược) có thể không ổn định — trình giả lập PS4 lưu đệm dữ liệu bên trong, và việc chép tệp ngược về máy không phải lúc nào cũng kích hoạt gắn lại. Nếu dữ liệu lưu PS4 đã khôi phục không hiện trong trò chơi, hãy thử đóng rồi mở lại trò chơi, hoặc khởi động lại máy. Đây là hạn chế đã biết, được theo dõi ở issue #198.",
+saves_ps4_warning_body: "Khôi phục save PS4 vẫn có vấn đề về độ tin cậy chưa được giải quyết. Khởi động lại game hoặc máy không phải cách sửa đã xác minh. Không ký lại save hoặc đổi tài khoản hay ID tựa game. Sao lưu dữ liệu đích trước; xem FAQ để biết thông tin chẩn đoán.",
 saves_ps4_warning_title: "Dữ liệu lưu định dạng PS4:",
 saves_restore_usb: "Khôi phục từ USB",
 saves_restore_usb_all: "Khôi phục tất cả từ USB",
@@ -4669,6 +4669,19 @@ c2c_test_deep_bad: "Lượt gửi thử 4 KiB không tới: {detail}",
 "cw_files_up_failed": "{n} lỗi: {reason}",
 "cw_files_up_no_space": "ổ đã đầy",
 "cw_files_edit_eol_note": "Một số dấu xuống dòng trong tệp này là CR đơn lẻ (kiểu Mac cũ). Khi lưu, chúng sẽ thành dấu xuống dòng thông thường của tệp.",
+// File properties, paired Minion visibility and local JSON cheat import.
+"fs_properties": "Thuộc tính và quyền",
+"fs_properties_mode": "Quyền (bát phân, ví dụ 0444 hoặc 0755)",
+"minion_tile_connect": "Kết nối với trình trợ giúp để đổi trạng thái hiển thị Minion.",
+"minion_tile_update": "Cập nhật trình trợ giúp để dùng chức năng này.",
+"minion_tile_show": "Hiện / khôi phục Minion",
+"minion_tile_hide": "Ẩn Minion",
+"cheats_import": "Nhập cheat JSON cục bộ",
+"cheats_import_saved": "Đã nhập với các công tắc tắt: {path}",
+"cheats_import_hint": "Dùng trainer JSON tối đa 256 KiB, có đúng ID tựa game và phiên bản trong tên, ví dụ PPSA13197_01.000.json. Đổi tên không làm bản vá tương thích. Hãy chuyển SHN/MC4 sang JSON trước.",
+"cheats_import_state": "Tắt bộ máy cheat trước. Xóa cheat hiện có của tựa game này để xóa trạng thái công tắc đã lưu trước khi nhập. Không ghi đè tệp hiện có. Công tắc nhập vẫn tắt; chỉ bật cho đúng phiên bản game.",
+"saves_android_destination": "Bản sao lưu là ZIP có ngày trong thư mục Download của điện thoại (/storage/emulated/0/Download). Khôi phục chỉ sao chép tệp mã hóa, không đổi tài khoản hay ID tựa game.",
+
 };
 
 export default vi;

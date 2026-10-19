@@ -1902,7 +1902,7 @@ saves_open_failed: "No se pudo abrir la partida: {error}",
 saves_opened: "Partida abierta",
 saves_opened_body: "Explórala y edítala en {path} desde Archivos. Ciérrala desde Partidas guardadas al terminar.",
 saves_open_folder_hint: "Abre la carpeta de esta partida guardada en el explorador de archivos",
-saves_ps4_warning_body: "la copia y restauración de partidas antiguas de PS4 (como juegos de PS4 en retrocompatibilidad) puede no funcionar de forma fiable — el emulador de PS4 guarda los datos en caché internamente y una copia de archivos sin más no siempre fuerza un remontaje. Si una partida de PS4 restaurada no aparece en el juego, prueba a cerrarlo y abrirlo de nuevo, o a reiniciar la consola. Es una limitación conocida, seguida en la incidencia #198.",
+saves_ps4_warning_body: "Hay problemas de fiabilidad sin resolver al restaurar partidas PS4. Reiniciar el juego o la consola no es una solución verificada. No se vuelven a firmar partidas ni se cambia su cuenta o ID de título. Haz una copia del destino; consulta el diagnóstico en las preguntas frecuentes.",
 saves_ps4_warning_title: "Partidas en formato PS4:",
 saves_restore_usb: "Restaurar desde USB",
 saves_restore_usb_all: "Restaurar todo desde USB",
@@ -4617,6 +4617,19 @@ c2c_test_deep_bad: "El envío de prueba de 4 KiB no llegó: {detail}",
 "cw_files_up_failed": "{n} con error: {reason}",
 "cw_files_up_no_space": "la unidad está llena",
 "cw_files_edit_eol_note": "Algunos saltos de línea de este archivo son un CR suelto (estilo Mac antiguo). Al guardar se convierten en los saltos de línea habituales del archivo.",
+// File properties, paired Minion visibility and local JSON cheat import.
+"fs_properties": "Propiedades y permisos",
+"fs_properties_mode": "Permisos (octal, p. ej. 0444 o 0755)",
+"minion_tile_connect": "Conecta con el asistente para cambiar la visibilidad de Minion.",
+"minion_tile_update": "Actualiza el asistente para usar este control.",
+"minion_tile_show": "Mostrar / restaurar Minion",
+"minion_tile_hide": "Ocultar Minion",
+"cheats_import": "Importar truco JSON local",
+"cheats_import_saved": "Importado con interruptores desactivados: {path}",
+"cheats_import_hint": "Usa un entrenador JSON de hasta 256 KiB con el ID de título y la versión exactos en el nombre, p. ej. PPSA13197_01.000.json. Renombrarlo no hace compatibles los parches. Convierte SHN/MC4 a JSON primero.",
+"cheats_import_state": "Apaga el motor de trucos. Elimina los trucos existentes de este título para borrar su estado guardado antes de importar. Nunca se reemplazan archivos. Los trucos importados quedan apagados; actívalos solo con la versión correspondiente.",
+"saves_android_destination": "Las copias son ZIP con fecha en Descargas del teléfono (/storage/emulated/0/Download). Restaurar copia archivos cifrados; no cambia su cuenta ni ID de título.",
+
 };
 
 export default es;

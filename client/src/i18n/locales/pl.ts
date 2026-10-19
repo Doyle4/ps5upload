@@ -1146,7 +1146,7 @@ saves_error: "Nie udało się wyświetlić zapisów",
 saves_loading: "Odczytywanie zapisów…",
 saves_restore: "Przywróć",
 saves_ps4_warning_title: "Zapisy w formacie PS4:",
-saves_ps4_warning_body: "Tworzenie kopii i przywracanie starych zapisów PS4 (np. gier PS4 uruchamianych w trybie zgodności wstecznej) może nie działać niezawodnie — emulator PS4 przechowuje dane zapisu wewnętrznie, a surowe skopiowanie plików z powrotem na konsolę nie zawsze powoduje ponowne zamontowanie. Jeśli przywrócony zapis PS4 nie pojawi się w grze, spróbuj zamknąć i ponownie uruchomić grę albo zrestartować konsolę. To znane ograniczenie śledzone w issue #198.",
+saves_ps4_warning_body: "Przywracanie zapisów PS4 ma nierozwiązane problemy z niezawodnością. Restart gry lub konsoli nie jest potwierdzonym rozwiązaniem. Zapisy nie są podpisywane ponownie, a konto i ID tytułu nie zmieniają się. Najpierw wykonaj kopię celu; diagnostyka jest opisana w FAQ.",
 saves_restore_confirm_body: "Wybierz plik .zip, którego folder najwyższego poziomu ma identyfikator tytułu. Najpierw TO USUWA obecny zapis PS5, a potem przesyła kopię zapasową — jeśli przesył zostanie przerwany, zapis może pozostać pusty bez automatycznego przywracania. Najpierw wykonaj kopię istniejącego zapisu, jeśli ma to znaczenie.",
 saves_restore_confirm_label: "Przywróć",
 saves_restore_confirm_title: "Przywrócić {title} z kopii zapasowej .zip?",
@@ -4922,6 +4922,19 @@ c2c_test_deep_bad: "Testowa wysyłka 4 KiB nie dotarła: {detail}",
 "cw_files_up_failed": "nieudane ({n}): {reason}",
 "cw_files_up_no_space": "dysk jest pełny",
 "cw_files_edit_eol_note": "Niektóre końce wierszy w tym pliku to samotny znak CR (stary styl Mac). Zapisanie zamieni je na zwykłe końce wierszy tego pliku.",
+// File properties, paired Minion visibility and local JSON cheat import.
+"fs_properties": "Właściwości i uprawnienia",
+"fs_properties_mode": "Uprawnienia (ósemkowo, np. 0444 lub 0755)",
+"minion_tile_connect": "Połącz się z pomocnikiem, aby zmienić widoczność Minion.",
+"minion_tile_update": "Zaktualizuj pomocnika, aby użyć tej funkcji.",
+"minion_tile_show": "Pokaż / przywróć Minion",
+"minion_tile_hide": "Ukryj Minion",
+"cheats_import": "Importuj lokalny cheat JSON",
+"cheats_import_saved": "Zaimportowano z wyłączonymi przełącznikami: {path}",
+"cheats_import_hint": "Użyj trainera JSON do 256 KiB z dokładnym ID tytułu i wersją gry w nazwie, np. PPSA13197_01.000.json. Zmiana nazwy nie zapewnia zgodności poprawek. Najpierw przekonwertuj SHN/MC4 do JSON.",
+"cheats_import_state": "Najpierw wyłącz silnik cheatów. Przed importem usuń istniejące cheaty tego tytułu, aby wyczyścić zapisany stan przełączników. Pliki nie są zastępowane. Importowane przełączniki są wyłączone; włączaj je tylko dla pasującej wersji gry.",
+"saves_android_destination": "Kopie to datowane pliki ZIP w folderze Download telefonu (/storage/emulated/0/Download). Przywracanie kopiuje zaszyfrowane pliki bez zmiany konta lub ID tytułu.",
+
 };
 
 export default pl;

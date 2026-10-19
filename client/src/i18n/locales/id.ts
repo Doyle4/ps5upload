@@ -1961,7 +1961,7 @@ saves_open_failed: "Tidak bisa membuka save: {error}",
 saves_opened: "Save terbuka",
 saves_opened_body: "Telusuri dan sunting di {path} pada Berkas. Tutup dari Data save bila selesai.",
 saves_open_folder_hint: "Buka folder simpanan ini di penjelajah Sistem Berkas",
-saves_ps4_warning_body: "pencadangan dan pemulihan simpanan lawas PS4 (seperti gim PS4 yang berjalan lewat kompatibilitas mundur) mungkin tidak andal — emulator PS4 menyimpan data simpanan di cache internal, dan menyalin berkas kembali tidak selalu memicu pemasangan ulang. Jika simpanan PS4 yang dipulihkan tidak muncul di gim, coba tutup dan buka lagi gimnya, atau mulai ulang konsol. Ini keterbatasan yang diketahui dan dilacak di isu #198.",
+saves_ps4_warning_body: "Pemulihan save format PS4 masih memiliki masalah keandalan yang belum selesai. Memulai ulang game atau konsol bukan perbaikan terverifikasi. Save tidak ditandatangani ulang dan akun atau ID judul tidak diubah. Cadangkan tujuan dahulu; lihat FAQ untuk diagnostik.",
 saves_ps4_warning_title: "Simpanan format PS4:",
 saves_restore_usb: "Pulihkan dari USB",
 saves_restore_usb_all: "Pulihkan semua dari USB",
@@ -4676,6 +4676,19 @@ c2c_test_deep_bad: "Kiriman uji 4 KiB tidak tiba: {detail}",
 "cw_files_up_failed": "{n} gagal: {reason}",
 "cw_files_up_no_space": "drive penuh",
 "cw_files_edit_eol_note": "Beberapa pemisah baris di file ini berupa CR tunggal (gaya Mac lama). Menyimpan akan mengubahnya menjadi pemisah baris yang biasa dipakai file ini.",
+// File properties, paired Minion visibility and local JSON cheat import.
+"fs_properties": "Properti dan izin",
+"fs_properties_mode": "Izin (oktal, mis. 0444 atau 0755)",
+"minion_tile_connect": "Hubungkan ke helper untuk mengubah visibilitas Minion.",
+"minion_tile_update": "Perbarui helper untuk memakai kontrol ini.",
+"minion_tile_show": "Tampilkan / pulihkan Minion",
+"minion_tile_hide": "Sembunyikan Minion",
+"cheats_import": "Impor cheat JSON lokal",
+"cheats_import_saved": "Diimpor dengan sakelar mati: {path}",
+"cheats_import_hint": "Gunakan trainer JSON maksimal 256 KiB dengan ID judul dan versi game yang tepat pada nama, mis. PPSA13197_01.000.json. Mengganti nama tidak membuat patch kompatibel. Konversikan SHN/MC4 ke JSON dahulu.",
+"cheats_import_state": "Matikan mesin cheat dahulu. Hapus cheat yang ada untuk judul ini agar status sakelar tersimpan dibersihkan sebelum impor. File tidak pernah ditimpa. Sakelar impor tetap mati; aktifkan hanya untuk versi game yang cocok.",
+"saves_android_destination": "Cadangan berupa ZIP bertanggal di folder Download ponsel (/storage/emulated/0/Download). Pemulihan menyalin file terenkripsi tanpa mengubah akun atau ID judul.",
+
 };
 
 export default id;

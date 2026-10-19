@@ -1970,7 +1970,7 @@ saves_open_failed: "Impossible d'ouvrir la sauvegarde : {error}",
 saves_opened: "Sauvegarde ouverte",
 saves_opened_body: "Parcourez-la et modifiez-la sous {path} dans Fichiers. Fermez-la depuis Sauvegardes quand vous avez fini.",
 saves_open_folder_hint: "Ouvrir le dossier de cette sauvegarde dans l'explorateur de fichiers",
-saves_ps4_warning_body: "la sauvegarde et la restauration des sauvegardes PS4 (par ex. des jeux PS4 en rétrocompatibilité) peuvent être peu fiables — l'émulateur PS4 met les données en cache en interne et une simple copie de fichiers ne déclenche pas toujours un remontage. Si une sauvegarde PS4 restaurée n'apparaît pas dans le jeu, essayez de fermer puis rouvrir le jeu, ou de redémarrer la console. Limitation connue, suivie dans le ticket #198.",
+saves_ps4_warning_body: "La restauration des sauvegardes PS4 présente des problèmes de fiabilité non résolus. Redémarrer n’est pas une solution vérifiée. Les sauvegardes ne sont ni resignées ni adaptées à un autre compte ou identifiant de titre. Sauvegardez d’abord la cible ; consultez la FAQ pour le diagnostic.",
 saves_ps4_warning_title: "Sauvegardes au format PS4 :",
 saves_restore_usb: "Restaurer depuis l'USB",
 saves_restore_usb_all: "Tout restaurer depuis l'USB",
@@ -4685,6 +4685,19 @@ c2c_test_deep_bad: "L’envoi test de 4 Kio n’est pas arrivé : {detail}",
 "cw_files_up_failed": "{n} en échec : {reason}",
 "cw_files_up_no_space": "le lecteur est plein",
 "cw_files_edit_eol_note": "Certains sauts de ligne de ce fichier sont un CR seul (ancien style Mac). L’enregistrement les remplace par les sauts de ligne habituels du fichier.",
+// File properties, paired Minion visibility and local JSON cheat import.
+"fs_properties": "Propriétés et permissions",
+"fs_properties_mode": "Permissions (octal, ex. 0444 ou 0755)",
+"minion_tile_connect": "Connectez-vous à l’assistant pour modifier la visibilité de Minion.",
+"minion_tile_update": "Mettez l’assistant à jour pour utiliser ce réglage.",
+"minion_tile_show": "Afficher / restaurer Minion",
+"minion_tile_hide": "Masquer Minion",
+"cheats_import": "Importer un cheat JSON local",
+"cheats_import_saved": "Importé avec les options désactivées : {path}",
+"cheats_import_hint": "Utilisez un trainer JSON de 256 Kio maximum, nommé avec l’identifiant du titre et la version exacte, par ex. PPSA13197_01.000.json. Renommer ne rend pas les patchs compatibles. Convertissez d’abord SHN/MC4 en JSON.",
+"cheats_import_state": "Désactivez d’abord le moteur de cheats. Supprimez les cheats existants de ce titre pour effacer leurs options mémorisées avant l’import. Aucun fichier n’est remplacé. Les options importées restent désactivées ; activez-les uniquement pour la bonne version.",
+"saves_android_destination": "Les sauvegardes sont des ZIP datés dans Téléchargements du téléphone (/storage/emulated/0/Download). La restauration copie les fichiers chiffrés sans modifier leur compte ni l’identifiant du titre.",
+
 };
 
 export default fr;

@@ -1902,7 +1902,7 @@ saves_open_failed: "Impossibile aprire il salvataggio: {error}",
 saves_opened: "Salvataggio aperto",
 saves_opened_body: "Sfoglialo e modificalo in {path} da File. Chiudilo da Salvataggi quando hai finito.",
 saves_open_folder_hint: "Apre la cartella di questo salvataggio nel browser del file system",
-saves_ps4_warning_body: "il backup e il ripristino dei salvataggi PS4 legacy (come i giochi PS4 in retrocompatibilità) potrebbero non funzionare in modo affidabile — l'emulatore PS4 mette in cache i dati internamente e una semplice copia dei file non sempre attiva un rimontaggio. Se un salvataggio PS4 ripristinato non compare nel gioco, prova a chiudere e riaprire il gioco, o a riavviare la console. È una limitazione nota, tracciata nella issue #198.",
+saves_ps4_warning_body: "Il ripristino dei salvataggi PS4 ha problemi di affidabilità irrisolti. Riavviare gioco o console non è una soluzione verificata. Non vengono rifirmati salvataggi né modificati account o ID titolo. Esegui prima un backup della destinazione; consulta la FAQ per la diagnosi.",
 saves_ps4_warning_title: "Salvataggi in formato PS4:",
 saves_restore_usb: "Ripristina da USB",
 saves_restore_usb_all: "Ripristina tutto da USB",
@@ -4617,6 +4617,19 @@ c2c_test_deep_bad: "L’invio di prova di 4 KiB non è arrivato: {detail}",
 "cw_files_up_failed": "{n} non riusciti: {reason}",
 "cw_files_up_no_space": "l’unità è piena",
 "cw_files_edit_eol_note": "Alcuni a capo di questo file sono un CR isolato (vecchio stile Mac). Salvando diventano gli a capo abituali del file.",
+// File properties, paired Minion visibility and local JSON cheat import.
+"fs_properties": "Proprietà e permessi",
+"fs_properties_mode": "Permessi (ottale, es. 0444 o 0755)",
+"minion_tile_connect": "Collegati all’assistente per cambiare la visibilità di Minion.",
+"minion_tile_update": "Aggiorna l’assistente per usare questo controllo.",
+"minion_tile_show": "Mostra / ripristina Minion",
+"minion_tile_hide": "Nascondi Minion",
+"cheats_import": "Importa cheat JSON locale",
+"cheats_import_saved": "Importato con opzioni disattivate: {path}",
+"cheats_import_hint": "Usa un trainer JSON fino a 256 KiB, con ID titolo e versione esatti nel nome, es. PPSA13197_01.000.json. Rinominare non rende compatibili le patch. Converti prima SHN/MC4 in JSON.",
+"cheats_import_state": "Spegni prima il motore dei cheat. Rimuovi i cheat esistenti del titolo per cancellare lo stato salvato prima dell’importazione. I file non vengono mai sostituiti. Le opzioni importate restano disattivate; attivale solo per la versione corretta.",
+"saves_android_destination": "I backup sono ZIP datati nella cartella Download del telefono (/storage/emulated/0/Download). Il ripristino copia file cifrati senza cambiarne account o ID titolo.",
+
 };
 
 export default it;

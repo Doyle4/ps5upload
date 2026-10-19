@@ -1405,7 +1405,7 @@ saves_error: "Couldn't list saves",
 saves_loading: "Reading saves…",
 saves_restore: "Restore",
 saves_ps4_warning_title: "PS4-format saves:",
-saves_ps4_warning_body: "backup and restore of PS4 legacy saves (like PS4 games running via backward compatibility) may not work reliably — the PS4 emulator caches save data internally and a raw file copy back to the console doesn't always trigger a remount. If a restored PS4 save doesn't appear in-game, try closing and reopening the game, or restarting the console. This is a known limitation tracked in issue #198.",
+saves_ps4_warning_body: "PS4-format save restore has unresolved reliability reports. Restarting the game or console is not a verified fix. Restore does not re-sign saves or change their account or title ID. Back up the target save first; see the FAQ for diagnostic details.",
 saves_restore_confirm_body: "Pick a .zip whose top-level folder matches the title ID. This WIPES the current PS5 save first, then uploads the backup — if the upload is interrupted, the save can be left empty with no automatic rollback. Back up the existing save first if it matters.",
 saves_restore_confirm_label: "Restore",
 saves_restore_confirm_title: "Restore {title} from a .zip backup?",
@@ -4990,6 +4990,19 @@ c2c_test_deep_bad: "The 4 KiB test send did not arrive: {detail}",
 "cw_files_up_failed": "{n} failed: {reason}",
 "cw_files_up_no_space": "the drive is full",
 "cw_files_edit_eol_note": "Some line breaks in this file are a lone CR (old Mac style). Saving turns them into the file's usual line breaks.",
+// File properties, paired Minion visibility and local JSON cheat import.
+"fs_properties": "Properties & permissions",
+"fs_properties_mode": "Permissions (octal, e.g. 0444 or 0755)",
+"minion_tile_connect": "Connect to the helper to change Minion visibility.",
+"minion_tile_update": "Update the helper to use this control.",
+"minion_tile_show": "Show / restore Minion",
+"minion_tile_hide": "Hide Minion",
+"cheats_import": "Import local JSON cheat",
+"cheats_import_saved": "Imported with toggles off: {path}",
+"cheats_import_hint": "Use a JSON trainer up to 256 KiB, named for its exact title ID and game version (for example PPSA13197_01.000.json). Renaming does not make patches compatible. Convert SHN/MC4 to JSON first.",
+"cheats_import_state": "Turn off the cheat engine first. Remove existing cheats for this title to clear saved toggle state before import. Existing files are never replaced. Imported toggles stay off; enable them only for the matching game version.",
+"saves_android_destination": "Backups are dated ZIPs in this phone’s Download folder (/storage/emulated/0/Download). Restore copies encrypted files; it does not change their account or title ID.",
+
 };
 
 export default en;

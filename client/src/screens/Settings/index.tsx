@@ -1,3 +1,4 @@
+import { MinionSettings } from "./MinionSettings";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { writeClipboard } from "../../lib/clipboard";
 import { EMPTY_CORPUS, deleteFakelibSet, loadFakelibCorpus, type FakelibCorpus } from "../../state/fakelibCorpus";
@@ -508,6 +509,10 @@ export default function SettingsScreen() {
         <GroupHeading>
           {tr("settings_group_general", undefined, "General")}
         </GroupHeading>
+
+        <Section title={tr("cw_settings_app_name", undefined, "PS5Upload Minion")}>
+          <MinionSettings />
+        </Section>
 
         <Section title={tr("language", undefined, "Language")}>
           <Select

@@ -280,6 +280,8 @@
 #define MGMT_FRAME_FILES_HANDOFF_PUT_ACK 272u
 #define MGMT_FRAME_FILES_HANDOFF_TAKE 273u
 #define MGMT_FRAME_FILES_HANDOFF_TAKE_ACK 274u
+#define MGMT_FRAME_MINION_TILE 275u
+#define MGMT_FRAME_MINION_TILE_ACK 276u
 #define MGMT_FRAME_SDK_SCAN 214u
 #define MGMT_FRAME_SDK_SCAN_ACK 215u
 #define MGMT_FRAME_SDK_PATCH 216u
@@ -7888,6 +7890,15 @@ static int handle_files_handoff_put(runtime_state_t *state, const char *body, ui
 
 static int handle_files_handoff_take(runtime_state_t *state, const char *body, uint64_t body_len) {
     return files_method_reply(state, MGMT_FRAME_FILES_HANDOFF_TAKE_ACK, 3, body, body_len);
+}
+
+static int handle_minion_tile(runtime_state_t *state, const char *body, uint64_t body_len) {
+    char reply[256];
+    int n;
+    if (!state || body_len > 128) return -1;
+    n = webui_api_tile(body, (size_t)body_len, reply, sizeof reply);
+    if (n < 0) return -1;
+    return mgmt_reply(MGMT_FRAME_MINION_TILE_ACK, reply, (uint64_t)n);
 }
 
 /* ── Network round-trip ack ──────────────────────────────────────────── */

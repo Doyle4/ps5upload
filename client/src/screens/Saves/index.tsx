@@ -917,7 +917,9 @@ export default function SavesScreen() {
         count={saves?.length}
         loading={loading}
         description={
-          isTauriEnv()
+          isAndroid()
+            ? tr("saves_android_destination", undefined, "Backups are saved as dated ZIP files in this phone’s Download folder (/storage/emulated/0/Download). Restore copies encrypted files; it does not change the owning account or title ID.")
+            : isTauriEnv()
             ? tr(
                 "saves_description_v2",
                 undefined,
@@ -1031,7 +1033,7 @@ export default function SavesScreen() {
               {tr(
                 "saves_ps4_warning_body",
                 undefined,
-                "backup and restore of PS4 legacy saves (like PS4 games running via backward compatibility) may not work reliably — the PS4 emulator caches save data internally and a raw file copy back to the console doesn't always trigger a remount. If a restored PS4 save doesn't appear in-game, try closing and reopening the game, or restarting the console. This is a known limitation tracked in issue #198.",
+                "PS4-format save restore has unresolved reliability reports. Restarting the game or console is not a verified fix. Restore does not re-sign saves or change their account or title ID. Keep a backup of the target save before restoring; see the FAQ for diagnostic details.",
               )}
             </div>
           )}

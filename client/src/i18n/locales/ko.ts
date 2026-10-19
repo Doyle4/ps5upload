@@ -1971,7 +1971,7 @@ saves_open_failed: "세이브를 열 수 없습니다: {error}",
 saves_opened: "세이브 열림",
 saves_opened_body: "파일 화면의 {path}에서 보고 편집하세요. 끝나면 세이브 데이터 화면에서 닫으세요.",
 saves_open_folder_hint: "이 세이브의 폴더를 파일 시스템 브라우저에서 엽니다",
-saves_ps4_warning_body: "PS4 구형 세이브(하위 호환으로 실행되는 PS4 게임 등)의 백업과 복원은 안정적이지 않을 수 있습니다. PS4 에뮬레이터가 세이브 데이터를 내부에 캐시하므로 파일을 그대로 되돌려도 재마운트가 항상 일어나지는 않습니다. 복원한 PS4 세이브가 게임에 나타나지 않으면 게임을 닫았다 다시 열거나 콘솔을 재시작해 보세요. 알려진 제한이며 이슈 #198로 추적 중입니다.",
+saves_ps4_warning_body: "PS4 형식 저장 데이터 복원에는 해결되지 않은 안정성 문제가 있습니다. 게임이나 콘솔 재시작은 검증된 해결책이 아닙니다. 저장 데이터를 재서명하거나 계정 또는 타이틀 ID를 변경하지 않습니다. 대상 데이터를 먼저 백업하고 진단 방법은 FAQ를 확인하세요.",
 saves_ps4_warning_title: "PS4 형식 세이브:",
 saves_restore_usb: "USB에서 복원",
 saves_restore_usb_all: "전체를 USB에서 복원",
@@ -4686,6 +4686,19 @@ c2c_test_deep_bad: "4 KiB 테스트 전송이 도착하지 않았습니다: {det
 "cw_files_up_failed": "{n}개 실패: {reason}",
 "cw_files_up_no_space": "드라이브가 가득 찼습니다",
 "cw_files_edit_eol_note": "이 파일의 일부 줄바꿈은 단독 CR(옛 Mac 방식)입니다. 저장하면 이 파일에서 주로 쓰는 줄바꿈으로 바뀝니다.",
+// File properties, paired Minion visibility and local JSON cheat import.
+"fs_properties": "속성 및 권한",
+"fs_properties_mode": "권한 (8진수, 예: 0444 또는 0755)",
+"minion_tile_connect": "Minion 표시를 변경하려면 도우미에 연결하세요.",
+"minion_tile_update": "이 기능을 사용하려면 도우미를 업데이트하세요.",
+"minion_tile_show": "Minion 표시 / 복원",
+"minion_tile_hide": "Minion 숨기기",
+"cheats_import": "로컬 JSON 치트 가져오기",
+"cheats_import_saved": "스위치를 끈 상태로 가져옴: {path}",
+"cheats_import_hint": "정확한 타이틀 ID와 게임 버전이 파일명에 포함된 256 KiB 이하 JSON 트레이너를 사용하세요. 예: PPSA13197_01.000.json. 이름을 바꿔도 패치가 호환되지는 않습니다. SHN/MC4는 먼저 JSON으로 변환하세요.",
+"cheats_import_state": "치트 엔진을 먼저 끄세요. 가져오기 전에 해당 타이틀의 기존 치트를 삭제하여 저장된 스위치 상태를 지우세요. 기존 파일을 덮어쓰지 않습니다. 가져온 스위치는 꺼진 상태이며 일치하는 게임 버전에서만 직접 켜세요.",
+"saves_android_destination": "백업은 날짜가 붙은 ZIP으로 휴대폰 Download 폴더(/storage/emulated/0/Download)에 저장됩니다. 복원은 암호화된 파일을 복사하며 계정이나 타이틀 ID를 바꾸지 않습니다.",
+
 };
 
 export default ko;

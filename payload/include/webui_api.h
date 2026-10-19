@@ -34,6 +34,9 @@ void webui_api_settings_init(const webui_settings_t *s);
  * removal is requested either way). */
 int webui_api_tile_off(void);
 
+/* Paired-helper tile get/set; never changes LAN access. JSON reply length, or -1. */
+int webui_api_tile(const char *body, size_t len, char *out, size_t cap);
+
 int webui_api_route(const webui_req_t *r, const uint8_t *body, size_t body_len, int fd);
 
 /* The streamed routes (webui_server.h webui_stream_fn): POST /api/fs/save-text (a text file of up to

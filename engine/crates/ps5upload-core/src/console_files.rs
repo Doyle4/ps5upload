@@ -66,6 +66,28 @@ fn supported<T>(r: Result<T>) -> Result<Option<T>> {
     }
 }
 
+/// Get or update Minion's tile using the paired helper, independent of LAN web access.
+pub fn minion_tile(addr: &str, tile: Option<bool>) -> Result<serde_json::Value> {
+    let body = match tile {
+        Some(tile) => serde_json::json!({ "tile": tile }),
+        None => serde_json::json!({}),
+    };
+    match mgmt::call(addr, m::MINION_TILE, &serde_json::to_vec(&body)?) {
+        Err(e) if is_unsupported(&e) => Ok(serde_json::json!({"supported":false})),
+        Err(e) => Err(e),
+        Ok(b) => {
+            let mut v: serde_json::Value = serde_json::from_slice(&b)?;
+            anyhow::ensure!(
+                v.get("tile").and_then(|v| v.as_bool()).is_some(),
+                "Minion settings: {}",
+                v.get("err").unwrap_or(&v)
+            );
+            v["supported"] = true.into();
+            Ok(v)
+        }
+    }
+}
+
 /// Reads the prefs, keeping only absolute paths (the console page's own rule).
 fn parse_prefs(body: &[u8]) -> Result<FilesPrefs> {
     let mut p: FilesPrefs = serde_json::from_slice(body)?;
@@ -155,6 +177,28 @@ mod tests {
             reply,
             seen: Mutex::new(Vec::new()),
         })
+    }
+
+    #[test]
+    fn minion_tile_uses_paired_transport_and_preserves_lan() {
+        let f = fake(|_| Ok(br#"{"tile":true,"tile_busy":true,"tile_failed":false}"#.to_vec()));
+        let _g = mgmt::scoped_transport(f.clone());
+        let state = minion_tile("h", Some(true)).unwrap();
+        assert_eq!(state["supported"], true);
+        assert_eq!(state["tile_busy"], true);
+        assert_eq!(f.seen.lock().unwrap()[0], (152, r#"{"tile":true}"#.into()));
+    }
+
+    #[test]
+    fn minion_tile_detects_older_helpers_and_save_failures() {
+        let _g = mgmt::scoped_transport(fake(|_| Err(ERR_UNKNOWN_METHOD)));
+        assert_eq!(minion_tile("h", None).unwrap()["supported"], false);
+        drop(_g);
+        let _g =
+            mgmt::scoped_transport(fake(
+                |_| Ok(br#"{"ok":false,"err":"save_failed"}"#.to_vec()),
+            ));
+        assert!(minion_tile("h", Some(false)).is_err());
     }
 
     #[test]

@@ -143,6 +143,29 @@ pub(crate) async fn handoff_take_handler(
     answer(move || handoff_take(&addr, req.side)).await
 }
 
+/// File metadata for the desktop/browser properties dialog.
+pub(crate) async fn stat_handler(
+    State(state): State<AppState>,
+    Json(req): Json<StatReq>,
+) -> axum::response::Response {
+    if bad_path(&req.path) {
+        return json_err(StatusCode::BAD_REQUEST, "bad_path").into_response();
+    }
+    let addr = console_addr_or_default(req.addr, &state.default_ps5_addr);
+    answer(move || {
+        Ok(serde_json::to_value(ps5upload_core::fs_ops::fs_stat(
+            &addr, &req.path,
+        )?)?)
+    })
+    .await
+}
+
+#[derive(Deserialize)]
+pub(crate) struct StatReq {
+    addr: Option<String>,
+    path: String,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -233,4 +256,37 @@ mod tests {
         assert!(serde_json::from_str::<PrefsSetReq>(r#"{"op":"drop","path":"/"}"#).is_err());
         assert!(bad_path("data") && bad_path("") && !bad_path("/data/x"));
     }
+}
+
+#[derive(Deserialize)]
+pub(crate) struct MinionTileReq {
+    addr: Option<String>,
+    tile: Option<bool>,
+}
+
+pub(crate) async fn minion_tile_handler(
+    State(state): State<AppState>,
+    Json(req): Json<MinionTileReq>,
+) -> axum::response::Response {
+    let addr = console_addr_or_default(req.addr, &state.default_ps5_addr);
+    answer(move || cf::minion_tile(&addr, req.tile)).await
+}
+
+#[derive(Deserialize)]
+pub(crate) struct CheatImportReq {
+    addr: Option<String>,
+    path: String,
+}
+
+pub(crate) async fn cheat_import_handler(
+    State(state): State<AppState>,
+    Json(req): Json<CheatImportReq>,
+) -> axum::response::Response {
+    let addr = console_addr_or_default(req.addr, &state.default_ps5_addr);
+    answer(move || {
+        Ok(serde_json::to_value(
+            ps5upload_core::cheats::cheats_import_local(&addr, std::path::Path::new(&req.path))?,
+        )?)
+    })
+    .await
 }

@@ -1908,7 +1908,7 @@ saves_open_failed: "无法打开存档：{error}",
 saves_opened: "存档已打开",
 saves_opened_body: "在“文件”的 {path} 下浏览和编辑。完成后在“存档数据”中关闭。",
 saves_open_folder_hint: "在文件系统浏览器中打开此存档所在文件夹",
-saves_ps4_warning_body: "PS4 旧版存档（例如通过向下兼容运行的 PS4 游戏）的备份与恢复可能不稳定——PS4 模拟器会在内部缓存存档数据，直接把文件拷回主机并不总能触发重新挂载。若恢复后的 PS4 存档在游戏中未出现，可尝试关闭并重新打开游戏，或重启主机。这是已知限制，记录在问题 #198。",
+saves_ps4_warning_body: "PS4 格式存档恢复仍有未解决的可靠性问题，重启游戏或主机并非经过验证的修复。恢复不会重签存档，也不会更改账号或游戏 ID。请先备份目标存档；诊断信息见常见问题。",
 saves_ps4_warning_title: "PS4 格式存档：",
 saves_restore_usb: "从 USB 恢复",
 saves_restore_usb_all: "从 USB 全部恢复",
@@ -4623,6 +4623,19 @@ c2c_test_deep_bad: "4 KiB 测试发送未到达：{detail}",
 "cw_files_up_failed": "{n} 个失败：{reason}",
 "cw_files_up_no_space": "驱动器已满",
 "cw_files_edit_eol_note": "此文件中有些换行是单独的 CR（旧 Mac 格式）。保存时会改成此文件常用的换行。",
+// File properties, paired Minion visibility and local JSON cheat import.
+"fs_properties": "属性与权限",
+"fs_properties_mode": "权限（八进制，如 0444 或 0755）",
+"minion_tile_connect": "连接助手后即可调整 Minion 的显示状态。",
+"minion_tile_update": "请更新助手以使用此功能。",
+"minion_tile_show": "显示 / 恢复 Minion",
+"minion_tile_hide": "隐藏 Minion",
+"cheats_import": "导入本地 JSON 金手指",
+"cheats_import_saved": "已导入，开关保持关闭：{path}",
+"cheats_import_hint": "使用不超过 256 KiB 的 JSON 金手指，文件名须包含准确的游戏 ID 和版本，例如 PPSA13197_01.000.json。改名不会让补丁兼容。请先将 SHN/MC4 转换为 JSON。",
+"cheats_import_state": "请先关闭金手指引擎，并移除该游戏现有的金手指以清除已保存的开关状态，再导入。不会覆盖现有文件。导入的开关保持关闭，仅在游戏版本匹配时手动启用。",
+"saves_android_destination": "备份是带日期的 ZIP，保存在手机的 Download 文件夹（/storage/emulated/0/Download）。恢复只复制加密文件，不会更改所属账号或游戏 ID。",
+
 };
 
 export default zh_CN;

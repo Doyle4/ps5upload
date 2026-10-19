@@ -1145,13 +1145,36 @@ static void r_settings_set(const char *b, size_t n, uint8_t *out, int fd) {
         return;
     }
     g_set = s;
-    pthread_mutex_unlock(&g_set_mu);
-    /* tile:true is applied even when unchanged: it retries an ensure that failed (and costs one statfs
-     * plus three file compares when the tile is already in place). A remove only on a change. Requested
-     * before the reply (it only starts the tile thread), so the reply already says tile_busy. */
+    /* Keep tile requests in saved-setting order, including calls from the paired PC.
+     * tile:true also retries a failed ensure; removal runs only on a change. */
     if (has_tile && (s.tile || s.tile != old.tile)) webui_tile_request(s.tile, WEBUI_PORT);
+    pthread_mutex_unlock(&g_set_mu);
     send_settings(fd, &s); /* written in full (or the deadline passed) before the rebind below runs */
     if (s.lan != old.lan) spawn_lan_apply();
+}
+
+int webui_api_tile(const char *body, size_t len, char *out, size_t cap) {
+    webui_settings_t s;
+    int tile = 0, busy, failed, n;
+    int has = webui_json_bool(body, len, "tile", &tile);
+    if (has < 0) return snprintf(out, cap, "{\"ok\":false,\"err\":\"bad_tile\"}");
+    pthread_mutex_lock(&g_set_mu);
+    s = g_set;
+    if (has) {
+        s.tile = tile;
+        if (s.tile != g_set.tile && webui_settings_save(WEBUI_SETTINGS_PATH, &s) != 0) {
+            pthread_mutex_unlock(&g_set_mu);
+            return snprintf(out, cap, "{\"ok\":false,\"err\":\"save_failed\"}");
+        }
+        g_set = s;
+        /* Also retries an interrupted registration/removal with an unchanged setting. */
+        webui_tile_request(s.tile, WEBUI_PORT);
+    }
+    webui_tile_state(&busy, &failed);
+    n = snprintf(out, cap, "{\"tile\":%s,\"tile_busy\":%s,\"tile_failed\":%s}",
+        s.tile ? "true" : "false", busy ? "true" : "false", failed ? "true" : "false");
+    pthread_mutex_unlock(&g_set_mu);
+    return n < 0 || (size_t)n >= cap ? -1 : n;
 }
 
 int webui_api_tile_off(void) {
@@ -1167,8 +1190,8 @@ int webui_api_tile_off(void) {
         rc = -1;
     }
     g_set = s;
-    pthread_mutex_unlock(&g_set_mu);
     webui_tile_request(0, WEBUI_PORT);
+    pthread_mutex_unlock(&g_set_mu);
     return rc;
 }
 

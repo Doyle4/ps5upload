@@ -1973,7 +1973,7 @@ saves_open_failed: "セーブを開けませんでした: {error}",
 saves_opened: "セーブを開きました",
 saves_opened_body: "ファイル画面の {path} で閲覧・編集できます。終わったらセーブデータ画面で閉じてください。",
 saves_open_folder_hint: "このセーブデータのフォルダーをファイルシステムブラウザーで開きます",
-saves_ps4_warning_body: "PS4形式の旧セーブデータ（下位互換で動作するPS4ゲームなど）のバックアップと復元は、確実に動作しない場合があります。PS4エミュレーターがセーブデータを内部でキャッシュしており、本体へのファイルコピーだけでは再マウントが起きないことがあるためです。復元したPS4セーブがゲーム内に表示されない場合は、ゲームを閉じて開き直すか、本体を再起動してください。既知の制限で、issue #198 で追跡しています。",
+saves_ps4_warning_body: "PS4 形式セーブの復元には未解決の信頼性問題があります。再起動は確認済みの修正ではありません。セーブの再署名やアカウント・タイトル ID の変更は行いません。先に復元先をバックアップし、診断については FAQ を確認してください。",
 saves_ps4_warning_title: "PS4形式のセーブデータ：",
 saves_restore_usb: "USBから復元",
 saves_restore_usb_all: "すべてUSBから復元",
@@ -4688,6 +4688,19 @@ c2c_test_deep_bad: "4 KiB のテスト送信が届きませんでした: {detail
 "cw_files_up_failed": "{n} 件失敗: {reason}",
 "cw_files_up_no_space": "ドライブがいっぱいです",
 "cw_files_edit_eol_note": "このファイルの一部の改行は単独の CR（旧 Mac 形式）です。保存すると、このファイルで通常使われている改行に変わります。",
+// File properties, paired Minion visibility and local JSON cheat import.
+"fs_properties": "プロパティと権限",
+"fs_properties_mode": "権限（8進数、例：0444、0755）",
+"minion_tile_connect": "Minion の表示を変更するにはヘルパーに接続してください。",
+"minion_tile_update": "この機能にはヘルパーの更新が必要です。",
+"minion_tile_show": "Minion を表示 / 復元",
+"minion_tile_hide": "Minion を非表示",
+"cheats_import": "ローカル JSON チートをインポート",
+"cheats_import_saved": "スイッチをオフにしてインポートしました：{path}",
+"cheats_import_hint": "256 KiB 以下の JSON トレーナーを使用し、正確なタイトル ID とゲームバージョンをファイル名に含めてください（例：PPSA13197_01.000.json）。名前を変えてもパッチに互換性は生まれません。SHN/MC4 は先に JSON に変換してください。",
+"cheats_import_state": "チートエンジンをオフにし、このタイトルの既存チートを削除して保存済みスイッチ状態を消してからインポートしてください。既存ファイルは上書きされません。インポートしたスイッチはオフのままです。対応するゲームバージョンでのみ有効にしてください。",
+"saves_android_destination": "バックアップは日付付き ZIP として端末の Download フォルダー（/storage/emulated/0/Download）に保存されます。復元は暗号化ファイルをコピーするだけで、アカウントやタイトル ID は変更しません。",
+
 };
 
 export default ja;

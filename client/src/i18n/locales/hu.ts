@@ -1251,7 +1251,7 @@ saves_error: "Nem sikerült listázni a mentéseket",
 saves_loading: "Mentések olvasása…",
 saves_restore: "Visszaállítás",
 saves_ps4_warning_title: "PS4-formátumú mentések:",
-saves_ps4_warning_body: "a PS4-örökölt mentések (mint a visszamenőleges kompatibilitással futó PS4-játékok) biztonsági mentése és visszaállítása nem mindig megbízható — a PS4-emulátor belsőleg gyorsítótárazza a mentésadatokat, és egy nyers fájlmásolás a konzolra nem mindig vált ki újracsatolást. Ha egy visszaállított PS4-mentés nem jelenik meg a játékban, próbáld bezárni és újranyitni a játékot, vagy indítsd újra a konzolt. Ez egy ismert korlátozás, a #198-as hibajegy alatt követve.",
+saves_ps4_warning_body: "A PS4-mentések visszaállításának megbízhatósági problémái még megoldatlanok. A játék vagy konzol újraindítása nem igazolt javítás. Nincs újraaláírás, fiók- vagy játékazonosító-módosítás. Előbb mentsd a céladatokat; diagnosztika a GYIK-ben.",
 saves_restore_confirm_body: "Válassz egy .zip-et, aminek a felső mappája megegyezik a title ID-vel. Ez ELŐSZÖR KITÖRLI a jelenlegi PS5-mentést, majd feltölti a biztonsági mentést — ha a feltöltés megszakad, a mentés üresen maradhat automatikus visszaállítás nélkül. Ha fontos, előbb mentsd el a jelenlegit is.",
 saves_restore_confirm_label: "Visszaállítás",
 saves_restore_confirm_title: "Visszaállítod: {title} egy .zip biztonsági mentésből?",
@@ -4982,6 +4982,19 @@ c2c_test_deep_bad: "A 4 KiB-os tesztküldés nem érkezett meg: {detail}",
 "cw_files_up_failed": "{n} sikertelen: {reason}",
 "cw_files_up_no_space": "a meghajtó megtelt",
 "cw_files_edit_eol_note": "A fájl néhány sortörése magányos CR (régi Mac-stílus). Mentéskor ezek a fájl szokásos sortöréseivé válnak.",
+// File properties, paired Minion visibility and local JSON cheat import.
+"fs_properties": "Tulajdonságok és jogosultságok",
+"fs_properties_mode": "Jogosultságok (oktális, pl. 0444 vagy 0755)",
+"minion_tile_connect": "A Minion megjelenítésének módosításához csatlakozz a segédhez.",
+"minion_tile_update": "Ehhez a vezérlőhöz frissítsd a segédet.",
+"minion_tile_show": "Minion megjelenítése / visszaállítása",
+"minion_tile_hide": "Minion elrejtése",
+"cheats_import": "Helyi JSON-csalás importálása",
+"cheats_import_saved": "Importálva, kikapcsolt kapcsolókkal: {path}",
+"cheats_import_hint": "Legfeljebb 256 KiB-os JSON-trainert használj, a pontos játékazonosítóval és verzióval a fájlnévben, pl. PPSA13197_01.000.json. Az átnevezés nem teszi kompatibilissé a javításokat. A SHN/MC4 fájlokat előbb alakítsd JSON-ná.",
+"cheats_import_state": "Előbb kapcsold ki a csalásmotort. Importálás előtt távolítsd el a játék meglévő csalásait a mentett kapcsolóállapot törléséhez. A fájlokat soha nem írja felül. Az importált kapcsolók kikapcsolva maradnak; csak az egyező játékverziónál engedélyezd őket.",
+"saves_android_destination": "A mentések dátumozott ZIP-ek a telefon Download mappájában (/storage/emulated/0/Download). A visszaállítás titkosított fájlokat másol, a fiókot és a játékazonosítót nem módosítja.",
+
 };
 
 export default hu;
