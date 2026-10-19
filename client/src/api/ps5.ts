@@ -543,6 +543,33 @@ export async function startTransferDir(
   return res.job_id;
 }
 
+/** Start ONE upload job for a set of files (POST /api/transfer/file-list): each `src` lands
+ *  at its `dest` (absolute, below `destRoot`). One AVA1 job instead of one per file, so a pick
+ *  of thousands of small files goes at the console's small-file speed rather than paying a
+ *  job's setup for each. `txId` (32 hex): the same list under the same id resumes, the
+ *  console's journal skipping the files it already has. The engine stats every source before
+ *  it answers with the job id, hence the long request (a slow disk, tens of thousands of
+ *  files). */
+export async function startTransferFileList(
+  destRoot: string,
+  files: { src: string; dest: string }[],
+  addr: string,
+  txId?: string | null,
+  bandwidthCapMbps?: number,
+): Promise<string> {
+  const res = await invoke<{ job_id: string }>("transfer_file_list", {
+    req: {
+      dest_root: destRoot,
+      files,
+      addr,
+      tx_id: txId ?? null,
+      bandwidth_cap_mbps:
+        bandwidthCapMbps && bandwidthCapMbps > 0 ? bandwidthCapMbps : null,
+    },
+  });
+  return res.job_id;
+}
+
 /** Start a zip-archive upload. The engine decompresses on the host so files
  *  land already extracted under `destRoot` — no temp copy of the whole game,
  *  no payload changes. Same `destRoot` contract as `startTransferDir`: pass

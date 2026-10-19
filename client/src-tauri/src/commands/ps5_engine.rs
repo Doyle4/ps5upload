@@ -12,7 +12,7 @@
 use std::sync::OnceLock;
 use std::time::Duration;
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::engine;
 
@@ -402,6 +402,39 @@ pub async fn transfer_dir(req: TransferDirReq) -> Result<JsonValue, String> {
         "bandwidth_cap_mbps": req.bandwidth_cap_mbps,
     });
     post_json(&url, &body).await
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct TransferFileListEntry {
+    pub src: String,
+    pub dest: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct TransferFileListReq {
+    pub dest_root: String,
+    pub files: Vec<TransferFileListEntry>,
+    pub addr: Option<String>,
+    pub tx_id: Option<String>,
+    #[serde(default)]
+    pub bandwidth_cap_mbps: Option<f64>,
+}
+
+/// Upload a set of files as ONE job (the Files screen's multi-file pick). Proxies the
+/// engine's `/api/transfer/file-list`. Long request: the engine stats every source before it
+/// answers with the job id, which on a slow disk and tens of thousands of files takes a while.
+#[tauri::command]
+pub async fn transfer_file_list(req: TransferFileListReq) -> Result<JsonValue, String> {
+    let base = engine::url();
+    let url = format!("{base}/api/transfer/file-list");
+    let body = serde_json::json!({
+        "dest_root": req.dest_root,
+        "files": req.files,
+        "addr": req.addr,
+        "tx_id": req.tx_id,
+        "bandwidth_cap_mbps": req.bandwidth_cap_mbps,
+    });
+    post_json_long(&url, &body).await
 }
 
 #[derive(Debug, Deserialize)]

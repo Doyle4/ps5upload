@@ -1184,6 +1184,10 @@ export async function browserInvoke<T>(
     case "transfer_dir":
       return postJson<T>("/api/transfer/dir", args["req"], /*long=*/ true);
 
+    // The Files screen's multi-file upload: one job for the whole set (same body shape).
+    case "transfer_file_list":
+      return postJson<T>("/api/transfer/file-list", args["req"], /*long=*/ true);
+
     case "transfer_dir_reconcile":
       return postJson<T>(
         "/api/transfer/dir-reconcile",

@@ -1,10 +1,13 @@
 import {
+  fsListDir,
   jobCancel,
   jobStatus,
   pathKind,
   startTransferDir,
   startTransferFile,
+  startTransferFileList,
 } from "../api/ps5";
+import { fetchJobFiles } from "../lib/jobFiles";
 import { isAutoRecoverable } from "../lib/uploadRecovery";
 import {
   fsUploadForHost,
@@ -34,6 +37,11 @@ export const fsUploadDeps: FsUploadDeps = {
     startTransferFile(src, dest, addr, null, cap),
   startDir: (src, dest, addr, cap) =>
     startTransferDir(src, dest, addr, null, undefined, cap),
+  // Two or more files of a pick: one job for all of them (see state/fsUploadPlan).
+  startList: (destRoot, files, addr, txId, cap) =>
+    startTransferFileList(destRoot, files, addr, txId, cap),
+  listDir: (addr, dir) => fsListDir(addr, dir),
+  jobFiles: (id) => fetchJobFiles(id),
   // The same limit the upload queue passes (set in Settings or on the Upload screen).
   bandwidthCapMbps: () => useUploadSettingsStore.getState().bandwidthCapMbps,
   jobStatus: (id) => jobStatus(id),

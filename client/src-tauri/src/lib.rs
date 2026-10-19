@@ -237,6 +237,7 @@ pub fn run() {
             commands::ps5_readiness,
             commands::transfer_file,
             commands::transfer_dir,
+            commands::transfer_file_list,
             commands::transfer_zip,
             commands::zip_inspect,
             commands::zip_inspect_stream,
