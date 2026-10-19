@@ -313,13 +313,20 @@ fn all_containers() -> Vec<PathBuf> {
     let Some(lib) = library() else {
         return roots.iter().flat_map(|r| organize::containers(r)).collect();
     };
+    // A package lying loose in a root has no container: the root itself is its folder.
     let mut out: Vec<PathBuf> = lib
         .games
         .values()
         .flat_map(|g| g.locations.iter())
-        .filter(|l| l.kind == "pkg" && !l.container.is_empty())
+        .filter(|l| l.kind == "pkg")
         .filter(|l| roots.iter().any(|r| r == FsPath::new(&l.root)))
-        .map(|l| FsPath::new(&l.root).join(&l.container))
+        .map(|l| {
+            if l.container.is_empty() {
+                PathBuf::from(&l.root)
+            } else {
+                FsPath::new(&l.root).join(&l.container)
+            }
+        })
         .filter(|c| c.is_dir())
         .collect();
     out.sort();
