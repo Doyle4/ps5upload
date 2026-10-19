@@ -12,7 +12,10 @@ use ava1::wire::Message;
 use ava1_ctest::*;
 use common::*;
 
-// The C server is a process-wide singleton: run this binary with `--test-threads=1`.
+// The C server is a process-wide singleton. nextest runs each test in its own process, but
+// `cargo test` (the coverage job) runs them as threads of one process, where one test filling
+// the 32-slot table could evict another test's finished jobs. Each test takes this lock first.
+static SERIAL: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 
 const OP_KIND: u8 = 4;
 /// The console page's fixed identity (constraints.md): ASCII, zero-padded to 32 bytes.
@@ -102,6 +105,7 @@ async fn copy(s: &Session, job: [u8; 16], src: &std::path::Path, dest: &std::pat
 
 #[tokio::test(flavor = "multi_thread")]
 async fn list_all_includes_other_owners_jobs() {
+    let _serial = SERIAL.lock().await;
     let t = two("any-list", 0).await;
     let op = [0xa1; 16];
     assert_eq!(run_fsck(&t.a, op).await, gen::STATUS_OK);
@@ -127,6 +131,7 @@ async fn list_all_includes_other_owners_jobs() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn cancel_any_cancels_other_owners_copy() {
+    let _serial = SERIAL.lock().await;
     let t = two("any-cancel", 3000).await;
     write_tree(&t.d.join("usb/g"), 3000, |_| 2048);
     let job = [0xa2; 16];
@@ -159,6 +164,7 @@ async fn cancel_any_cancels_other_owners_copy() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn job_list_rpc_unchanged_for_pcs() {
+    let _serial = SERIAL.lock().await;
     let t = two("any-rpc", 0).await;
     let (ja, jb) = ([0xa3; 16], [0xa4; 16]);
     assert_eq!(run_fsck(&t.a, ja).await, gen::STATUS_OK);
@@ -234,6 +240,7 @@ async fn all_finished(ids: &[[u8; 16]]) {
 /// releases only its own, which frees room for new jobs.
 #[tokio::test(flavor = "multi_thread")]
 async fn table_holds_32_jobs_and_seen_console_jobs_make_room() {
+    let _serial = SERIAL.lock().await;
     let t = two("any-cap32", 0).await;
     let mut pc = Vec::new();
     let mut mine = Vec::new();
@@ -291,6 +298,7 @@ async fn table_holds_32_jobs_and_seen_console_jobs_make_room() {
 /// read it finished (not the 10-minute park age); a paired PC's finished jobs stay listed.
 #[tokio::test(flavor = "multi_thread")]
 async fn seen_console_jobs_leave_after_the_grace_pc_jobs_stay() {
+    let _serial = SERIAL.lock().await;
     let t = two("any-seen", 0).await;
     write_tree(&t.d.join("usb/g"), 5, |_| 1024);
     let (my_op, my_copy, pc_op, pc_copy) = ([0x81; 16], [0x82; 16], [0x83; 16], [0x84; 16]);
