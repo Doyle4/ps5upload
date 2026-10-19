@@ -4,6 +4,14 @@ What's new in ps5upload, written for humans.
 
 ---
 
+## 7.1.8
+
+- **Convert reads more Kraken-compressed PS5 packages (#477).** Some packages compressed at the
+  highest Kraken level stopped Convert with "kraken: chunk too short" although they were fine:
+  a small piece at the start of a block was refused. They convert now.
+
+---
+
 ## 7.1.7
 
 - **Organize packages works on your servers too.** Folders on a saved SMB, FTP, SFTP or WebDAV
