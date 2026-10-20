@@ -128,7 +128,7 @@ export default function FpkgConvertScreen() {
     isFolder: boolean,
     lz4?: AmprLz4Options,
   ): boolean | "skipped" => {
-    if (build.kind === "image" && !isFolder) return "skipped";
+    if (build.kind === "image" && !isFolder && !isFolderableSource(src)) return "skipped";
     if (build.kind === "folder" && !isFolderableSource(src)) return "skipped";
     const u = useUploadStore.getState();
     return useConvertQueue.getState().add({
@@ -160,17 +160,7 @@ export default function FpkgConvertScreen() {
     setError(notes.length ? notes.join(" ") : null);
   };
   const skippedText = (n: number) =>
-    build.kind === "folder"
-      ? tr(
-          "cq_folder_sources_only",
-          { count: n },
-          "Only a game image or a package made with the debug key can become a folder: {count} skipped.",
-        )
-      : tr(
-          "cq_image_folders_only",
-          { count: n },
-          "Only a game folder on this computer can become a game image: {count} skipped.",
-        );
+    `${tr("upload_skipped", undefined, "Skipped")}: ${n}`;
   const skippedNote = (n: number) => setError(skippedText(n));
   // The console's swap journals are read through these; one set per console.
   const swapDeps = useMemo(() => (canInstall ? consoleSwapDeps(host) : null), [canInstall, host]);
