@@ -4,6 +4,24 @@ What's new in ps5upload, written for humans.
 
 ---
 
+## 7.1.12
+
+- **SMB collection moves.** Close metadata readers before moving inspected game folders, and
+  wait for pending closes before renames and directory removal. Denied SMB operations no longer
+  appear as failed sign-ins. CI checks intact folder moves and Undo on an authenticated Samba
+  share with Apple metadata streams.
+- **Adjustable avatar crop (#491).** Position a crop horizontally or vertically and center it
+  again. Preview and Apply use the same framing in both browser and desktop clients.
+- **Files and payloads from a browser (#489).** Choose or drop files from your device, upload
+  them to the engine, and review them before sending to the PS5. Send a selected ELF payload
+  through the engine to a running loader after an explicit Send action. Archive intake remains
+  available in the native app.
+- **Reverse proxy hosting (#490).** Docker healthchecks respect the configured URL path prefix.
+  New setup instructions cover dedicated hostnames, subpaths, proxy limits, allowlists, and the
+  direct connection the PS5 needs for package downloads.
+- **Queue sizes.** Show known sizes on individual pending rows and label unknown sizes clearly.
+  These are estimates, not a promise that the destination has enough free space.
+
 ## 7.1.11
 
 - **Browser avatar upload (#486).** Choose an image from the browser device, preview crop or
