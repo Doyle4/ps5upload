@@ -1,9 +1,8 @@
-//! A tidy layout for the packages in a collection folder: PS Game Library's `pkgorganize.py`,
-//! ported rule for rule.
+//! A root-relative layout for collection packages, mount images and extracted games.
 //!
 //! Every package is renamed `Title - TitleID - vVersion - Region - KIND.pkg` and filed under
-//! `<folder>/<Platform>/<TitleID - Title>/`, where `<folder>` is the top-level folder of the
-//! collection root it already sits in (a package never moves between them). Planning is pure:
+//! `<root>/<Platform>/<TitleID - Title>/`, with images retaining their extension and game
+//! folders moved intact. A source never moves between configured collection roots. Planning is pure:
 //! the preview and the run come from the same code, and the run re-plans and drops any move
 //! that changed since the preview. Nothing is overwritten, nothing is deleted, and every move
 //! is a rename on one volume (never a copy). Each run writes its undo log before its first move.
@@ -320,70 +319,102 @@ pub fn split_siblings(tree: &dyn Tree, path: &Path) -> Vec<PathBuf> {
     }
 }
 
-/// Every package below a folder, Finder's sidecars and dot-folders ignored.
-pub fn scan(tree: &dyn Tree, container: &Path) -> Vec<PathBuf> {
+/// Discovery types understood by the existing Collection metadata readers.
+fn source_kind(tree: &dyn Tree, path: &Path) -> String {
+    if path.parent().and_then(|p| tree.list(p)).is_some_and(|es| {
+        es.iter()
+            .any(|e| e.is_dir && path.file_name().is_some_and(|n| n == e.name.as_str()))
+    }) {
+        "folder".into()
+    } else {
+        super::scan::file_type(&path.file_name().unwrap_or_default().to_string_lossy())
+            .unwrap_or("unknown")
+            .into()
+    }
+}
+
+fn is_game_folder(tree: &dyn Tree, dir: &Path, entries: &[super::organize_fs::DirEnt]) -> bool {
+    entries.iter().any(|e| e.is_dir && e.name == "sce_sys")
+        && tree.list(&dir.join("sce_sys")).is_some_and(|es| {
+            es.iter()
+                .any(|e| e.is_file && matches!(e.name.as_str(), "param.json" | "param.sfo"))
+        })
+}
+
+/// One candidate per complete game source. Never walk inside an extracted game.
+fn discover(
+    tree: &dyn Tree,
+    container: &Path,
+    excluded: &[PathBuf],
+) -> (Vec<PathBuf>, Vec<Skipped>) {
     let mut found = Vec::new();
+    let mut skipped = Vec::new();
     let mut stack = vec![(container.to_path_buf(), 0usize)];
     while let Some((dir, depth)) = stack.pop() {
         let Some(mut entries) = tree.list(&dir) else {
+            skipped.push(Skipped {
+                container: path_string(container),
+                path: rel(container, &dir),
+                reason: SKIP_UNREADABLE.into(),
+                detail: "directory could not be listed".into(),
+            });
             continue;
         };
         entries.sort_by(|a, b| a.name.cmp(&b.name));
+        if is_game_folder(tree, &dir, &entries) {
+            if dir == container {
+                skipped.push(Skipped {
+                    container: path_string(container),
+                    path: String::new(),
+                    reason: "game is the collection root".into(),
+                    detail: "Choose its parent folder to organize this game.".into(),
+                });
+            } else {
+                found.push(dir);
+            }
+            continue;
+        }
         for e in entries {
+            if e.name.starts_with('.') || junk::is_junk_name(&e.name) {
+                continue;
+            }
+            let path = dir.join(&e.name);
+            if excluded.iter().any(|r| path.starts_with(r)) {
+                continue;
+            }
             if e.is_dir {
-                if !e.name.starts_with('.') && depth < MAX_DEPTH {
-                    stack.push((dir.join(&e.name), depth + 1));
+                if depth < MAX_DEPTH {
+                    stack.push((path, depth + 1));
+                } else {
+                    skipped.push(Skipped {
+                        container: path_string(container),
+                        path: rel(container, &path),
+                        reason: "depth limit".into(),
+                        detail: "Directory exceeds the organization scan depth.".into(),
+                    });
                 }
-            } else if e.is_file
-                && !junk::is_junk_name(&e.name)
-                && e.name.to_ascii_lowercase().ends_with(".pkg")
-            {
-                found.push(dir.join(&e.name));
+            } else if e.is_file && super::scan::file_type(&e.name).is_some() {
+                found.push(path);
             }
         }
     }
     found.sort();
-    found
+    (found, skipped)
 }
 
-/// The packages lying loose in a folder itself, not in its subfolders. A collection root is
-/// organized this way: its subfolders are containers of their own (planned separately), so a
-/// root plans only the packages at its top level.
-pub fn scan_top(tree: &dyn Tree, dir: &Path) -> Vec<PathBuf> {
-    let Some(entries) = tree.list(dir) else {
-        return Vec::new();
-    };
-    let mut found: Vec<PathBuf> = entries
-        .into_iter()
-        .filter(|e| {
-            e.is_file
-                && !e.name.starts_with('.')
-                && !junk::is_junk_name(&e.name)
-                && e.name.to_ascii_lowercase().ends_with(".pkg")
-        })
-        .map(|e| dir.join(&e.name))
-        .collect();
-    found.sort();
-    found
+#[cfg(test)]
+pub fn scan(tree: &dyn Tree, container: &Path) -> Vec<PathBuf> {
+    discover(tree, container, &[]).0
 }
 
-/// The top-level folders of a collection root that hold packages, whatever they are called,
-/// and the root itself when packages lie loose in it.
+/// A configured root is the organization boundary, regardless of its child folder names.
+#[cfg(test)]
 pub fn containers(tree: &dyn Tree, root: &Path) -> Vec<PathBuf> {
-    let Some(entries) = tree.list(root) else {
-        return Vec::new();
-    };
-    let mut out: Vec<PathBuf> = entries
-        .into_iter()
-        .filter(|e| !e.name.starts_with('.') && e.is_dir)
-        .map(|e| root.join(&e.name))
-        .filter(|p| !scan(tree, p).is_empty())
-        .collect();
-    if !scan_top(tree, root).is_empty() {
-        out.push(root.to_path_buf());
+    if tree.list(root).is_some() {
+        vec![root.to_path_buf()]
+    } else {
+        Vec::new()
     }
-    out.sort();
-    out
 }
 
 /// Reads a package's facts, taking them from `cached(path, size, mtime)` when it knows the
@@ -394,16 +425,38 @@ pub fn read_facts_with(
     path: &Path,
     cached: &dyn Fn(&Path, u64, i64) -> Option<PkgInfo>,
 ) -> Facts {
-    let parts = split_siblings(tree, path);
-    let size = parts
-        .iter()
-        .map(|p| tree.meta(p).map(|m| m.size).unwrap_or(0))
-        .sum();
+    let kind = source_kind(tree, path);
+    let parts = if kind == "pkg" {
+        split_siblings(tree, path)
+    } else {
+        vec![path.to_path_buf()]
+    };
+    let size = if kind == "folder" {
+        0
+    } else {
+        parts
+            .iter()
+            .map(|p| tree.meta(p).map(|m| m.size).unwrap_or(0))
+            .sum()
+    };
     let mtime = tree.meta(&parts[0]).map(|m| m.mtime).unwrap_or(0);
-    let info = (parts.len() == 1)
+    // Tree paths use literal server names; metadata readers consume encoded remote URLs.
+    let identity_path = match super::organize_fs::split_raw(&path_string(&parts[0])) {
+        Some((id, path)) => PathBuf::from(format!(
+            "remote://{}/{}",
+            id,
+            path.split('/')
+                .filter(|s| !s.is_empty())
+                .map(crate::remote::path::encode_segment)
+                .collect::<Vec<_>>()
+                .join("/")
+        )),
+        None => parts[0].clone(),
+    };
+    let info = (parts.len() == 1 && kind != "folder")
         .then(|| cached(&parts[0], size, mtime))
         .flatten()
-        .or_else(|| super::identify::identify(&parts[0], "pkg"))
+        .or_else(|| super::identify::identify(&identity_path, &kind))
         .unwrap_or_default();
     Facts {
         path: path.to_path_buf(),
@@ -423,8 +476,12 @@ fn taken_names(tree: &dyn Tree, container: &Path, moving: &HashSet<String>) -> H
             if e.is_dir {
                 // A folder's name is taken too: no file may land on it.
                 taken.insert(key(&path));
-                if !e.name.starts_with('.') && depth < MAX_DEPTH {
-                    stack.push((path, depth + 1));
+                if !e.name.starts_with('.') && depth < MAX_DEPTH && !moving.contains(&key(&path)) {
+                    if let Some(children) = tree.list(&path) {
+                        if !is_game_folder(tree, &path, &children) {
+                            stack.push((path, depth + 1));
+                        }
+                    }
                 }
             } else if !junk::is_junk_name(&e.name) {
                 let k = key(&path);
@@ -449,10 +506,11 @@ fn unique_names(
     taken: &HashSet<String>,
     part_numbers: Option<&[u32]>,
     current: Option<&[String]>,
+    extension: &str,
 ) -> Vec<String> {
     let slots = |stem: &str| -> Vec<String> {
         match part_numbers {
-            None => vec![format!("{stem}.pkg")],
+            None => vec![format!("{stem}{extension}")],
             Some(ns) => ns.iter().map(|n| format!("{stem}_{n}.pkg")).collect(),
         }
     };
@@ -510,8 +568,25 @@ pub fn plan_files(
     let mut out = Plan::default();
     let mut parsed: Vec<Facts> = Vec::new();
     for path in files {
+        let kind = source_kind(tree, &path);
+        if !matches!(
+            kind.as_str(),
+            "pkg" | "folder" | "mount.exfat" | "mount.ffpkg" | "mount.ffpfs" | "mount.ffpfsc"
+        ) {
+            out.skipped.push(Skipped {
+                container: cname.clone(),
+                path: rel(container, &path),
+                reason: "unsupported format".into(),
+                detail: "Extract archives before organizing their game contents.".into(),
+            });
+            continue;
+        }
         // Only part 0 of a split set carries a header: plan the set from it.
-        let parts = split_siblings(tree, &path);
+        let parts = if kind == "pkg" {
+            split_siblings(tree, &path)
+        } else {
+            vec![path.clone()]
+        };
         if parts.len() > 1 && parts[0] != path {
             continue;
         }
@@ -528,7 +603,9 @@ pub fn plan_files(
         } else if !f.info.complete {
             out.skipped
                 .push(skip(SKIP_INCOMPLETE, f.info.kind_reason.clone()));
-        } else if f.info.title_id.is_empty() {
+        } else if !super::is_game_id(&f.info.title_id)
+            || !matches!(f.info.platform.as_str(), "PS3" | "PS4" | "PS5")
+        {
             out.skipped.push(skip(SKIP_NO_ID, String::new()));
         } else {
             parsed.push(f);
@@ -575,9 +652,23 @@ pub fn plan_files(
                 f.path.clone(),
             )
         });
-        let mut seen: HashMap<(String, String, String, u64), String> = HashMap::new();
+        let mut seen: HashMap<(String, String, String, String, u64), String> = HashMap::new();
         for f in ordered {
+            let kind = source_kind(tree, &f.path);
+            let extension = if kind == "folder" {
+                String::new()
+            } else {
+                format!(
+                    ".{}",
+                    f.path
+                        .extension()
+                        .unwrap_or_default()
+                        .to_string_lossy()
+                        .to_ascii_lowercase()
+                )
+            };
             let identity = (
+                kind,
                 f.info.content_id.clone(),
                 f.info.kind.clone(),
                 f.info.version.clone(),
@@ -635,6 +726,7 @@ pub fn plan_files(
                 &taken,
                 numbers.as_deref(),
                 here.as_deref(),
+                &extension,
             );
             for n in &names {
                 taken.insert(key(&dest_dir.join(n)));
@@ -662,7 +754,11 @@ pub fn plan_files(
                     reason: f.info.kind_reason.clone(),
                     version: f.info.version.clone(),
                     region: f.info.region.clone(),
-                    size: tree.meta(part).map(|m| m.size).unwrap_or(0),
+                    size: if f.parts.len() == 1 {
+                        f.size
+                    } else {
+                        tree.meta(part).map(|m| m.size).unwrap_or(0)
+                    },
                     content_id: f.info.content_id.clone(),
                     part: (names.len() > 1).then(|| format!("{} of {}", i + 1, names.len())),
                     duplicate: duplicate_of.is_some(),
@@ -700,15 +796,29 @@ pub fn plan_cached(
                 .then(|| c.pkg.clone())
         })
     };
-    // A root is planned for its loose packages only: its subfolders are containers of their own.
-    let files = if roots.iter().any(|(r, _)| r == container) {
-        scan_top(tree, container)
-    } else {
-        scan(tree, container)
-    };
+    let excluded: Vec<PathBuf> = roots
+        .iter()
+        .map(|(r, _)| r)
+        .filter(|r| r.as_path() != container && r.starts_with(container))
+        .cloned()
+        .collect();
+    let (files, skipped) = discover(tree, container, &excluded);
     let mut plan = plan_files(tree, container, files, &|p: &Path| {
-        read_facts_with(tree, p, &cached)
+        let mut f = read_facts_with(tree, p, &cached);
+        if source_kind(tree, p) == "folder" {
+            if let Some(location) = lib.and_then(|lib| {
+                lib.games.values().flat_map(|g| &g.locations).find(|l| {
+                    roots
+                        .iter()
+                        .any(|(r, key)| key == &l.root && r.join(&l.path) == p)
+                })
+            }) {
+                f.size = location.size_bytes;
+            }
+        }
+        f
     });
+    plan.skipped.extend(skipped);
     if let Some(trouble) = tree.trouble() {
         // A folder the server would not list: its packages are missing from this preview.
         plan.skipped.push(Skipped {
@@ -1183,6 +1293,213 @@ mod tests {
     }
 
     #[test]
+    fn current_folder_metadata_and_unsupported_sources_are_visible() {
+        let l = lib("folder-metadata");
+        let root = &l.0;
+        let sys = root.join("dump/sce_sys");
+        std::fs::create_dir_all(&sys).unwrap();
+        std::fs::write(sys.join("param.json"), br#"{"titleId":"PPSA01234","contentVersion":"01.000.000","localizedParameters":{"defaultLanguage":"en-US","en-US":{"titleName":"Example"}}}"#).unwrap();
+        put(root, "archive.zip", 10);
+        put(root, "broken.ffpfs", 10);
+        let roots = [(root.clone(), "root".into())];
+        let plan = plan_cached(&LocalTree, root, None, &roots);
+        assert_eq!(plan.moves.len(), 1, "{plan:?}");
+        assert_eq!(plan.moves[0].from, "dump");
+        assert!(plan.moves[0].to.starts_with("PS5/PPSA01234 - Example/"));
+        assert!(plan
+            .skipped
+            .iter()
+            .any(|s| s.path == "archive.zip" && s.reason == "unsupported format"));
+        assert!(plan
+            .skipped
+            .iter()
+            .any(|s| s.path == "broken.ffpfs" && s.reason == SKIP_UNREADABLE));
+        std::fs::write(sys.join("param.json"), b"invalid JSON").unwrap();
+        let fresh = plan_cached(&LocalTree, root, None, &roots);
+        assert!(fresh.moves.is_empty());
+        assert!(fresh
+            .skipped
+            .iter()
+            .any(|s| s.path == "dump" && s.reason == SKIP_UNREADABLE));
+    }
+
+    #[test]
+    fn discovery_reports_depth_limit_without_entering_game_assets() {
+        let l = lib("depth-limit");
+        let mut deep = l.0.clone();
+        for _ in 0..=MAX_DEPTH {
+            deep.push("nested");
+        }
+        put(&deep, "hidden.pkg", 1);
+        let (found, skipped) = discover(&LocalTree, &l.0, &[]);
+        assert!(found.is_empty());
+        assert_eq!(skipped.len(), 1);
+        assert_eq!(skipped[0].reason, "depth limit");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn discovery_does_not_follow_symlinks_outside_the_root() {
+        let l = lib("symlink-root");
+        let outside = lib("symlink-outside");
+        put(&outside.0, "external.pkg", 1);
+        std::os::unix::fs::symlink(&outside.0, l.0.join("linked")).unwrap();
+        std::os::unix::fs::symlink(outside.0.join("external.pkg"), l.0.join("linked.pkg")).unwrap();
+        assert!(scan(&LocalTree, &l.0).is_empty());
+    }
+
+    #[test]
+    fn mixed_collection_is_discovered_at_the_configured_root() {
+        let l = lib("mixed-root");
+        let root = &l.0;
+        put(&root.join("CUSA00900 - Bloodborne"), "base.pkg", 10);
+        for ext in ["exfat", "ffpkg", "ffpfs", "FFPFSC"] {
+            put(root, &format!("image.{ext}"), 12);
+        }
+        put(&root.join("PPSA01234-app/sce_sys"), "param.json", 2);
+        put(&root.join("PPSA01234-app/Media"), "internal.pkg", 3);
+        let found = scan(&LocalTree, root);
+        assert_eq!(
+            found.len(),
+            6,
+            "one package, four images and one intact folder: {found:?}"
+        );
+        assert!(found.contains(&root.join("PPSA01234-app")));
+        assert!(!found.iter().any(|p| p.ends_with("internal.pkg")));
+        assert_eq!(containers(&LocalTree, root), vec![root.clone()]);
+    }
+
+    #[test]
+    fn mixed_formats_keep_extensions_and_folder_contents_through_undo() {
+        let l = lib("mixed-undo");
+        let root = &l.0;
+        for ext in ["exfat", "ffpkg", "ffpfs", "ffpfsc"] {
+            put(root, &format!("image.{ext}"), 12);
+        }
+        put(&root.join("dump/sce_sys"), "param.json", 2);
+        put(&root.join("dump/Media"), "asset.bin", 23);
+        let metadata = info(
+            "Example",
+            "PPSA01234",
+            "UP0000-PPSA01234_00-EXAMPLE",
+            "base",
+            "1.00",
+        );
+        let facts = |p: &Path| Facts {
+            path: p.to_path_buf(),
+            parts: vec![p.to_path_buf()],
+            size: 12,
+            info: PkgInfo {
+                platform: "PS5".into(),
+                ..metadata.clone()
+            },
+        };
+        let sources = [
+            "image.exfat",
+            "image.ffpkg",
+            "image.ffpfs",
+            "image.ffpfsc",
+            "dump",
+        ]
+        .iter()
+        .map(|p| root.join(p))
+        .collect();
+        let plan = plan_files(&LocalTree, root, sources, &facts);
+        assert_eq!(plan.moves.len(), 5);
+        for ext in ["exfat", "ffpkg", "ffpfs", "ffpfsc"] {
+            let mv = plan
+                .moves
+                .iter()
+                .find(|m| m.from == format!("image.{ext}"))
+                .unwrap();
+            assert!(mv.to.ends_with(&format!(".{ext}")), "{mv:?}");
+            assert!(
+                !mv.duplicate,
+                "different representations are not identical files"
+            );
+        }
+        let folder = plan
+            .moves
+            .iter()
+            .find(|m| m.from == "dump")
+            .unwrap()
+            .to
+            .clone();
+        let log = root.join("undo.json");
+        let run = apply(&LocalTree, root, plan.moves, &log, "", None).unwrap();
+        assert!(run.failed.is_empty(), "{:?}", run.failed);
+        assert_eq!(
+            std::fs::read(root.join(&folder).join("Media/asset.bin")).unwrap(),
+            vec![7; 23]
+        );
+        let again = plan_with(&LocalTree, root, &facts);
+        assert!(again.moves.is_empty(), "{:?}", again.moves);
+        assert_eq!(
+            again
+                .skipped
+                .iter()
+                .filter(|s| s.reason == SKIP_IN_PLACE)
+                .count(),
+            5
+        );
+        let undone = revert(&log, &local).unwrap();
+        assert!(undone.problems.is_empty(), "{:?}", undone.problems);
+        assert_eq!(undone.reverted.len(), 5);
+        assert_eq!(
+            std::fs::read(root.join("dump/Media/asset.bin")).unwrap(),
+            vec![7; 23]
+        );
+    }
+
+    #[test]
+    fn extracted_folder_never_merges_with_an_existing_directory() {
+        let l = lib("folder-collision");
+        let root = &l.0;
+        let dest = "PS5/PPSA01234 - Example/Example - PPSA01234 - v1.00 - US - BASE";
+        put(&root.join("dump/sce_sys"), "param.json", 2);
+        put(&root.join(dest), "keep.bin", 7);
+        let facts = |p: &Path| Facts {
+            path: p.to_path_buf(),
+            parts: vec![p.to_path_buf()],
+            size: 2,
+            info: PkgInfo {
+                platform: "PS5".into(),
+                ..info("Example", "PPSA01234", "", "base", "1.00")
+            },
+        };
+        let plan = plan_files(&LocalTree, root, vec![root.join("dump")], &facts);
+        assert_eq!(plan.moves.len(), 1);
+        assert_ne!(plan.moves[0].to, dest);
+        assert!(!plan.moves[0].to.ends_with(".pkg"));
+        let log = root.join("undo.json");
+        let run = apply(&LocalTree, root, plan.moves, &log, "", None).unwrap();
+        assert!(run.failed.is_empty());
+        assert_eq!(
+            std::fs::read(root.join(dest).join("keep.bin")).unwrap(),
+            vec![7; 7]
+        );
+        assert!(!root.join(dest).join("sce_sys").exists());
+    }
+
+    #[test]
+    fn configured_child_root_is_excluded_from_the_parent_plan() {
+        let l = lib("overlap");
+        put(&l.0, "outside.exfat", 2);
+        put(&l.0.join("separate"), "owned.exfat", 2);
+        let roots = vec![
+            (l.0.clone(), "parent".into()),
+            (l.0.join("separate"), "child".into()),
+        ];
+        let plan = plan_cached(&LocalTree, &l.0, None, &roots);
+        assert_eq!(
+            plan.skipped.len(),
+            1,
+            "only the parent's invalid image should be reported"
+        );
+        assert_eq!(plan.skipped[0].path, "outside.exfat");
+    }
+
+    #[test]
     fn dlc_is_filed_under_the_base_game_folder() {
         let l = lib("dlc");
         let c = l.0.join("fpkg");
@@ -1344,13 +1661,13 @@ mod tests {
         put(&root.join("fpkg"), "other.pkg", 10);
         let found = containers(&LocalTree, &root);
         assert!(found.contains(&root), "{found:?}");
-        assert!(found.contains(&root.join("fpkg")), "{found:?}");
-        // The root plans only its loose package; the subfolder is a container of its own.
-        assert_eq!(scan_top(&LocalTree, &root), vec![root.join("game.pkg")]);
+        assert_eq!(found, vec![root.clone()]);
+        // Both loose and nested packages belong to the configured root.
+        assert_eq!(scan(&LocalTree, &root).len(), 2);
         let p = plan_files(
             &LocalTree,
             &root,
-            scan_top(&LocalTree, &root),
+            scan(&LocalTree, &root),
             &table(&[(
                 "game",
                 info(
