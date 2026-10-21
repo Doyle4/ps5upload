@@ -4638,6 +4638,19 @@ c2c_test_deep_bad: "4 KiB 测试发送未到达：{detail}",
 "saves_android_destination": "备份是带日期的 ZIP，保存在手机的 Download 文件夹（/storage/emulated/0/Download）。恢复只复制加密文件，不会更改所属账号或游戏 ID。",
 
 library_compressed_hint: "压缩镜像需要 ShadowMount+ 才能游玩。如需编辑，请先在“文件”中解压。",
+  "profile.avatar.horizontal": "水平位置",
+  "profile.avatar.vertical": "垂直位置",
+  "profile.avatar.center": "居中图像",
+  "browserFile.staging": "正在上传到服务器…",
+  "browserFile.choose": "从此设备选择…",
+  "browserFile.hint": "选择或拖入此设备上的文件。文件会先上传到服务器，再显示供你检查后发送到 PS5。上传完成前请保持此标签页打开。",
+  "browserPayload.size": "请选择不超过 64 MiB 的 ELF 载荷。",
+  "browserPayload.file": "载荷文件",
+  "browserPayload.port": "加载器端口",
+  "browserPayload.hint": "通过服务器将此设备上的 ELF 载荷发送到所选 PS5。请先启动 ELF 加载器。发送数据不代表载荷已成功运行。",
+  "browserPayload.sent": "已向加载器发送 {n} 字节。",
+  "browserFile.archive": "上传压缩包需要使用原生应用。请选择普通文件或磁盘镜像。",
+  "queue_size_unknown": "尚不清楚大小",
 };
 
 export default zh_CN;

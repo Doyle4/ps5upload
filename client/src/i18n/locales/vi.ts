@@ -4684,6 +4684,19 @@ c2c_test_deep_bad: "Lượt gửi thử 4 KiB không tới: {detail}",
 "saves_android_destination": "Bản sao lưu là ZIP có ngày trong thư mục Download của điện thoại (/storage/emulated/0/Download). Khôi phục chỉ sao chép tệp mã hóa, không đổi tài khoản hay ID tựa game.",
 
 library_compressed_hint: "Ảnh đĩa nén cần ShadowMount+ để chơi. Để chỉnh sửa, hãy mở Tệp và giải nén trước.",
+  "profile.avatar.horizontal": "Vị trí ngang",
+  "profile.avatar.vertical": "Vị trí dọc",
+  "profile.avatar.center": "Căn giữa ảnh",
+  "browserFile.staging": "Đang tải lên máy chủ…",
+  "browserFile.choose": "Từ thiết bị này…",
+  "browserFile.hint": "Chọn hoặc thả tệp từ thiết bị này. Tệp được tải lên máy chủ rồi hiển thị để xem lại trước khi gửi đến PS5. Giữ tab này mở đến khi tải lên xong.",
+  "browserPayload.size": "Chọn payload ELF có kích thước tối đa 64 MiB.",
+  "browserPayload.file": "Tệp payload",
+  "browserPayload.port": "Cổng trình nạp",
+  "browserPayload.hint": "Gửi payload ELF qua máy chủ đến PS5 đã chọn. Khởi động trình nạp ELF trước. Việc gửi dữ liệu không xác nhận payload đã chạy.",
+  "browserPayload.sent": "Đã gửi {n} byte đến trình nạp.",
+  "browserFile.archive": "Tải tệp nén lên cần ứng dụng gốc. Chọn tệp thường hoặc ảnh đĩa.",
+  "queue_size_unknown": "Chưa biết kích thước",
 };
 
 export default vi;

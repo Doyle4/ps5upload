@@ -4698,6 +4698,19 @@ c2c_test_deep_bad: "4 KiB का परीक्षण नहीं पहुँ
 "saves_android_destination": "बैकअप तारीख वाले ZIP हैं, जो फ़ोन के Download फ़ोल्डर (/storage/emulated/0/Download) में मिलेंगे। बहाली एन्क्रिप्टेड फ़ाइलें कॉपी करती है; खाता या टाइटल ID नहीं बदलती।",
 
 library_compressed_hint: "संपीड़ित इमेज चलाने के लिए ShadowMount+ चाहिए। संपादन के लिए पहले फ़ाइलें खोलें और डीकंप्रेस करें।",
+  "profile.avatar.horizontal": "क्षैतिज स्थिति",
+  "profile.avatar.vertical": "लंबवत स्थिति",
+  "profile.avatar.center": "चित्र केंद्र में रखें",
+  "browserFile.staging": "सर्वर पर अपलोड हो रहा है…",
+  "browserFile.choose": "इस डिवाइस से…",
+  "browserFile.hint": "इस डिवाइस से फ़ाइलें चुनें या छोड़ें। वे पहले सर्वर पर अपलोड होंगी, फिर PS5 पर भेजने से पहले समीक्षा के लिए दिखेंगी। अपलोड पूरा होने तक यह टैब खुला रखें।",
+  "browserPayload.size": "64 MiB या उससे छोटा ELF पेलोड चुनें।",
+  "browserPayload.file": "पेलोड फ़ाइल",
+  "browserPayload.port": "लोडर पोर्ट",
+  "browserPayload.hint": "इस डिवाइस से सर्वर के माध्यम से चुने हुए PS5 पर ELF पेलोड भेजें। पहले ELF लोडर शुरू करें। डेटा भेजना पेलोड शुरू होने की पुष्टि नहीं करता।",
+  "browserPayload.sent": "लोडर को {n} बाइट भेजे गए।",
+  "browserFile.archive": "आर्काइव अपलोड के लिए नेटिव ऐप चाहिए। साधारण फ़ाइल या डिस्क इमेज चुनें।",
+  "queue_size_unknown": "आकार अभी ज्ञात नहीं है",
 };
 
 export default hi;

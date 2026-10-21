@@ -4632,6 +4632,19 @@ c2c_test_deep_bad: "L’invio di prova di 4 KiB non è arrivato: {detail}",
 "saves_android_destination": "I backup sono ZIP datati nella cartella Download del telefono (/storage/emulated/0/Download). Il ripristino copia file cifrati senza cambiarne account o ID titolo.",
 
 library_compressed_hint: "Le immagini compresse richiedono ShadowMount+ per giocare. Per modificarle, apri File e decomprimile prima.",
+  "profile.avatar.horizontal": "Posizione orizzontale",
+  "profile.avatar.vertical": "Posizione verticale",
+  "profile.avatar.center": "Centra immagine",
+  "browserFile.staging": "Caricamento sul server…",
+  "browserFile.choose": "Da questo dispositivo…",
+  "browserFile.hint": "Scegli o trascina file da questo dispositivo. Verranno caricati sul server e mostrati per la verifica prima di inviarli alla PS5. Tieni aperta questa scheda fino al termine del caricamento.",
+  "browserPayload.size": "Scegli un payload ELF di massimo 64 MiB.",
+  "browserPayload.file": "File del payload",
+  "browserPayload.port": "Porta del loader",
+  "browserPayload.hint": "Invia un payload ELF tramite il server alla PS5 selezionata. Avvia prima il loader ELF. L’invio dei dati non conferma l’avvio del payload.",
+  "browserPayload.sent": "{n} byte inviati al loader.",
+  "browserFile.archive": "Il caricamento di archivi richiede l’app nativa. Scegli un file normale o un’immagine disco.",
+  "queue_size_unknown": "Dimensione ancora sconosciuta",
 };
 
 export default it;

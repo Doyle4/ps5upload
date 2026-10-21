@@ -4997,6 +4997,19 @@ c2c_test_deep_bad: "A 4 KiB-os tesztküldés nem érkezett meg: {detail}",
 "saves_android_destination": "A mentések dátumozott ZIP-ek a telefon Download mappájában (/storage/emulated/0/Download). A visszaállítás titkosított fájlokat másol, a fiókot és a játékazonosítót nem módosítja.",
 
 library_compressed_hint: "A tömörített képfájlok futtatásához ShadowMount+ szükséges. Szerkesztés előtt bontsd ki őket a Fájlok alatt.",
+  "profile.avatar.horizontal": "Vízszintes helyzet",
+  "profile.avatar.vertical": "Függőleges helyzet",
+  "profile.avatar.center": "Kép középre igazítása",
+  "browserFile.staging": "Feltöltés a kiszolgálóra…",
+  "browserFile.choose": "Erről az eszközről…",
+  "browserFile.hint": "Válasszon vagy húzzon ide fájlokat erről az eszközről. A kiszolgálóra feltöltés után ellenőrizheti őket, mielőtt a PS5-re küldi. A feltöltés végéig tartsa nyitva ezt a lapot.",
+  "browserPayload.size": "Válasszon legfeljebb 64 MiB méretű ELF-payloadot.",
+  "browserPayload.file": "Payload fájlja",
+  "browserPayload.port": "Betöltő portja",
+  "browserPayload.hint": "ELF-payload küldése a kiszolgálón keresztül a kiválasztott PS5-re. Előbb indítsa el az ELF-betöltőt. Az adatok elküldése nem igazolja a payload elindulását.",
+  "browserPayload.sent": "{n} bájt elküldve a betöltőnek.",
+  "browserFile.archive": "Archívumok feltöltéséhez a natív alkalmazás szükséges. Válasszon egyszerű fájlt vagy lemezképet.",
+  "queue_size_unknown": "A méret még ismeretlen",
 };
 
 export default hu;

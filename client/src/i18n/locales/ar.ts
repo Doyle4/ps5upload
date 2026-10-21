@@ -4682,6 +4682,19 @@ c2c_test_deep_bad: "لم يصل الإرسال التجريبي بحجم 4 KiB: 
 "saves_android_destination": "النسخ ملفات ZIP مؤرخة في مجلد Download للهاتف (/storage/emulated/0/Download). الاستعادة تنسخ الملفات المشفرة ولا تغيّر الحساب أو معرّف اللعبة.",
 
 library_compressed_hint: "تحتاج الصور المضغوطة إلى ShadowMount+ للعب. للتعديل، افتح الملفات وفك الضغط أولاً.",
+  "profile.avatar.horizontal": "الموضع الأفقي",
+  "profile.avatar.vertical": "الموضع الرأسي",
+  "profile.avatar.center": "توسيط الصورة",
+  "browserFile.staging": "جارٍ الرفع إلى الخادم…",
+  "browserFile.choose": "من هذا الجهاز…",
+  "browserFile.hint": "اختر الملفات أو أسقطها من هذا الجهاز. تُرفع إلى الخادم ثم تظهر للمراجعة قبل إرسالها إلى PS5. أبقِ علامة التبويب مفتوحة حتى ينتهي الرفع.",
+  "browserPayload.size": "اختر حمولة ELF بحجم 64 MiB أو أقل.",
+  "browserPayload.file": "ملف الحمولة",
+  "browserPayload.port": "منفذ المحمّل",
+  "browserPayload.hint": "أرسل حمولة ELF من هذا الجهاز عبر الخادم إلى PS5 المحدد. شغّل محمّل ELF أولاً. إرسال البيانات لا يؤكد بدء الحمولة.",
+  "browserPayload.sent": "تم إرسال {n} بايت إلى المحمّل.",
+  "browserFile.archive": "يتطلب رفع الأرشيفات التطبيق الأصلي. اختر ملفاً عادياً أو صورة قرص.",
+  "queue_size_unknown": "الحجم غير معروف بعد",
 };
 
 export default ar;

@@ -4689,6 +4689,19 @@ c2c_test_deep_bad: "4 KiB'lik test gönderimi ulaşmadı: {detail}",
 "saves_android_destination": "Yedekler telefonun Download klasöründe tarihli ZIP dosyalarıdır (/storage/emulated/0/Download). Geri yükleme şifreli dosyaları kopyalar; hesabı veya oyun kimliğini değiştirmez.",
 
 library_compressed_hint: "Sıkıştırılmış kalıpları oynatmak için ShadowMount+ gerekir. Düzenlemek için Dosyalar bölümünde önce açın.",
+  "profile.avatar.horizontal": "Yatay konum",
+  "profile.avatar.vertical": "Dikey konum",
+  "profile.avatar.center": "Görüntüyü ortala",
+  "browserFile.staging": "Sunucuya yükleniyor…",
+  "browserFile.choose": "Bu cihazdan…",
+  "browserFile.hint": "Bu cihazdan dosya seçin veya sürükleyin. Dosyalar sunucuya yüklendikten sonra PS5’e gönderilmeden önce incelemeniz için gösterilir. Yükleme bitene kadar sekmeyi açık tutun.",
+  "browserPayload.size": "64 MiB veya daha küçük bir ELF yükü seçin.",
+  "browserPayload.file": "Yük dosyası",
+  "browserPayload.port": "Yükleyici bağlantı noktası",
+  "browserPayload.hint": "ELF yükünü sunucu üzerinden seçili PS5’e gönderin. Önce ELF yükleyicisini başlatın. Verilerin gönderilmesi yükün çalıştığını doğrulamaz.",
+  "browserPayload.sent": "Yükleyiciye {n} bayt gönderildi.",
+  "browserFile.archive": "Arşiv yüklemek için yerel uygulama gerekir. Normal bir dosya veya disk görüntüsü seçin.",
+  "queue_size_unknown": "Boyut henüz bilinmiyor",
 };
 
 export default tr;

@@ -4983,6 +4983,19 @@ c2c_test_deep_bad: "ارسال آزمایشی ۴ KiB نرسید: {detail}",
 "saves_android_destination": "پشتیبان‌ها ZIP تاریخ‌دار در پوشه Download گوشی هستند (/storage/emulated/0/Download). بازیابی فقط فایل‌های رمزگذاری‌شده را کپی می‌کند و حساب یا شناسه بازی را تغییر نمی‌دهد.",
 
 library_compressed_hint: "برای اجرای ایمیج فشرده به ShadowMount+ نیاز است. برای ویرایش، ابتدا در بخش فایل‌ها آن را از حالت فشرده خارج کنید.",
+  "profile.avatar.horizontal": "موقعیت افقی",
+  "profile.avatar.vertical": "موقعیت عمودی",
+  "profile.avatar.center": "قرار دادن تصویر در مرکز",
+  "browserFile.staging": "در حال بارگذاری روی سرور…",
+  "browserFile.choose": "از این دستگاه…",
+  "browserFile.hint": "فایل‌ها را از این دستگاه انتخاب یا رها کنید. ابتدا روی سرور بارگذاری می‌شوند و پیش از ارسال به PS5 برای بررسی نمایش داده می‌شوند. برگه را تا پایان بارگذاری باز نگه دارید.",
+  "browserPayload.size": "یک پی‌لود ELF با اندازهٔ حداکثر 64 MiB انتخاب کنید.",
+  "browserPayload.file": "فایل پی‌لود",
+  "browserPayload.port": "درگاه بارگذار",
+  "browserPayload.hint": "پی‌لود ELF را از طریق سرور به PS5 انتخاب‌شده بفرستید. ابتدا بارگذار ELF را اجرا کنید. ارسال داده‌ها اجرای پی‌لود را تأیید نمی‌کند.",
+  "browserPayload.sent": "{n} بایت به بارگذار ارسال شد.",
+  "browserFile.archive": "بارگذاری بایگانی به برنامهٔ بومی نیاز دارد. فایل عادی یا تصویر دیسک انتخاب کنید.",
+  "queue_size_unknown": "اندازه هنوز مشخص نیست",
 };
 
 export default fa;

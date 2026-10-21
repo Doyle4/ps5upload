@@ -4690,6 +4690,19 @@ c2c_test_deep_bad: "Die 4-KiB-Testsendung ist nicht angekommen: {detail}",
 "saves_android_destination": "Datierte ZIP-Backups liegen im Download-Ordner dieses Telefons (/storage/emulated/0/Download). Wiederherstellen kopiert verschlüsselte Dateien und ändert weder Konto noch Titel-ID.",
 
 library_compressed_hint: "Komprimierte Images benötigen ShadowMount+ zum Spielen. Zum Bearbeiten zuerst unter Dateien entpacken.",
+  "profile.avatar.horizontal": "Horizontale Position",
+  "profile.avatar.vertical": "Vertikale Position",
+  "profile.avatar.center": "Bild zentrieren",
+  "browserFile.staging": "Wird auf den Server hochgeladen…",
+  "browserFile.choose": "Von diesem Gerät…",
+  "browserFile.hint": "Dateien von diesem Gerät auswählen oder ablegen. Nach dem Hochladen auf den Server erscheinen sie zur Prüfung vor dem Senden an die PS5. Den Tab bis zum Ende des Hochladens offen lassen.",
+  "browserPayload.size": "Eine ELF-Payload mit höchstens 64 MiB auswählen.",
+  "browserPayload.file": "Payload-Datei",
+  "browserPayload.port": "Loader-Port",
+  "browserPayload.hint": "Eine ELF-Payload über den Server an die ausgewählte PS5 senden. Zuerst den ELF-Loader starten. Gesendete Daten bestätigen keinen erfolgreichen Start.",
+  "browserPayload.sent": "{n} Bytes an den Loader gesendet.",
+  "browserFile.archive": "Archive erfordern die native App. Eine normale Datei oder ein Datenträgerabbild auswählen.",
+  "queue_size_unknown": "Größe noch unbekannt",
 };
 
 export default de;

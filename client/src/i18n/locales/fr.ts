@@ -4700,6 +4700,19 @@ c2c_test_deep_bad: "L’envoi test de 4 Kio n’est pas arrivé : {detail}",
 "saves_android_destination": "Les sauvegardes sont des ZIP datés dans Téléchargements du téléphone (/storage/emulated/0/Download). La restauration copie les fichiers chiffrés sans modifier leur compte ni l’identifiant du titre.",
 
 library_compressed_hint: "Les images compressées nécessitent ShadowMount+ pour jouer. Pour les modifier, ouvrez Fichiers et décompressez-les d’abord.",
+  "profile.avatar.horizontal": "Position horizontale",
+  "profile.avatar.vertical": "Position verticale",
+  "profile.avatar.center": "Centrer l’image",
+  "browserFile.staging": "Envoi vers le serveur…",
+  "browserFile.choose": "Depuis cet appareil…",
+  "browserFile.hint": "Choisissez ou déposez des fichiers de cet appareil. Ils sont envoyés au serveur puis affichés pour vérification avant leur transfert vers la PS5. Gardez cet onglet ouvert jusqu’à la fin de l’envoi.",
+  "browserPayload.size": "Choisissez un payload ELF de 64 MiB maximum.",
+  "browserPayload.file": "Fichier du payload",
+  "browserPayload.port": "Port du chargeur",
+  "browserPayload.hint": "Envoyez un payload ELF via le serveur vers la PS5 sélectionnée. Démarrez d’abord le chargeur ELF. L’envoi des données ne confirme pas le démarrage du payload.",
+  "browserPayload.sent": "{n} octets envoyés au chargeur.",
+  "browserFile.archive": "L’envoi d’archives nécessite l’application native. Choisissez un fichier ordinaire ou une image disque.",
+  "queue_size_unknown": "Taille encore inconnue",
 };
 
 export default fr;

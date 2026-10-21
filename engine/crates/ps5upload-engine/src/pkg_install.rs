@@ -499,7 +499,18 @@ impl Drop for RemoveOnDrop {
     }
 }
 
-async fn pkg_upload_handler(mut form: axum::extract::Multipart) -> Response<Body> {
+async fn pkg_upload_handler(form: axum::extract::Multipart) -> Response<Body> {
+    stage_browser_upload(form, true).await
+}
+
+async fn file_upload_handler(form: axum::extract::Multipart) -> Response<Body> {
+    stage_browser_upload(form, false).await
+}
+
+async fn stage_browser_upload(
+    mut form: axum::extract::Multipart,
+    packages_only: bool,
+) -> Response<Body> {
     use tokio::io::AsyncWriteExt;
 
     cleanup_stale_pkg_uploads();
@@ -529,7 +540,7 @@ async fn pkg_upload_handler(mut form: axum::extract::Multipart) -> Response<Body
         };
         let filename = sanitize_pkg_filename(field.file_name().unwrap_or("package.pkg"));
         // The parser validates CNT/FIH magic; the suffix is only a picker hint.
-        if !is_install_package_filename(&filename) {
+        if packages_only && !is_install_package_filename(&filename) {
             continue;
         }
         let dest = dir.join(&filename);
@@ -593,7 +604,7 @@ async fn pkg_upload_handler(mut form: axum::extract::Multipart) -> Response<Body
     let _ = tokio::fs::remove_dir_all(&dir).await;
     json_response(
         StatusCode::BAD_REQUEST,
-        serde_json::json!({ "error": "no .pkg or .fpkg file in the upload" }),
+        serde_json::json!({ "error": if packages_only { "no .pkg or .fpkg file in the upload" } else { "no file in the upload" } }),
     )
 }
 
@@ -754,6 +765,11 @@ pub fn router(state: PkgInstallStateHandle) -> Router {
             post(pkg_upload_handler).layer(DefaultBodyLimit::disable()),
         )
         .route("/api/pkg/upload/{id}", delete(pkg_upload_delete_handler))
+        .route(
+            "/api/files/upload",
+            post(file_upload_handler).layer(DefaultBodyLimit::disable()),
+        )
+        .route("/api/files/upload/{id}", delete(pkg_upload_delete_handler))
         .route("/api/pkg/parse-split", post(parse_split_handler))
         // Read-only UFS2 image inspector for .ffpkg / .ufs files.
         // Lets the renderer surface "what's in this image?" before
@@ -5270,5 +5286,33 @@ mod host_net_tests {
         let r: AllowFirewallRequest = serde_json::from_str(r#"{"profile":"Public"}"#).unwrap();
         assert!(!r.confirm, "a missing flag is a no");
         assert!(allow_firewall_decision(&r).is_err());
+    }
+}
+
+#[cfg(test)]
+mod browser_file_intake_tests {
+    use super::*;
+    #[tokio::test]
+    async fn a_browser_can_stage_a_non_package_file_and_remove_only_its_upload() {
+        let state = Arc::new(PkgInstallState::restored());
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server =
+            tokio::spawn(async move { axum::serve(listener, router(state)).await.unwrap() });
+        let result = tokio::task::spawn_blocking(move || {
+            let body = "--boundary\r\nContent-Disposition: form-data; name=\"file\"; filename=\"../notes.txt\"\r\nContent-Type: application/octet-stream\r\n\r\nhello from browser\r\n--boundary--\r\n";
+            let mut response = ureq::post(format!("http://{address}/api/files/upload"))
+                .header("content-type", "multipart/form-data; boundary=boundary")
+                .send(body.as_bytes()).expect("stage browser file");
+            let result: serde_json::Value = serde_json::from_str(&response.body_mut().read_to_string().unwrap()).unwrap();
+            assert_eq!(result["filename"], "notes.txt");
+            let path = result["path"].as_str().unwrap();
+            assert_eq!(std::fs::read(path).unwrap(), b"hello from browser");
+            let id = result["upload_id"].as_str().unwrap();
+            ureq::delete(format!("http://{address}/api/files/upload/{id}")).call().unwrap();
+            assert!(!std::path::Path::new(path).exists());
+        }).await;
+        server.abort();
+        result.unwrap();
     }
 }

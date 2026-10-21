@@ -4699,6 +4699,19 @@ c2c_test_deep_bad: "O envio de teste de 4 KiB não chegou: {detail}",
 "saves_android_destination": "Os backups são ZIPs datados na pasta Download do telefone (/storage/emulated/0/Download). Restaurar copia arquivos criptografados sem alterar a conta ou o ID do título.",
 
 library_compressed_hint: "Imagens compactadas precisam do ShadowMount+ para jogar. Para editar, abra Arquivos e descompacte primeiro.",
+  "profile.avatar.horizontal": "Posição horizontal",
+  "profile.avatar.vertical": "Posição vertical",
+  "profile.avatar.center": "Centralizar imagem",
+  "browserFile.staging": "Enviando ao servidor…",
+  "browserFile.choose": "Deste dispositivo…",
+  "browserFile.hint": "Escolha ou arraste arquivos deste dispositivo. Eles serão enviados ao servidor e exibidos para revisão antes do envio ao PS5. Mantenha esta aba aberta até concluir o envio.",
+  "browserPayload.size": "Escolha um payload ELF de até 64 MiB.",
+  "browserPayload.file": "Arquivo do payload",
+  "browserPayload.port": "Porta do carregador",
+  "browserPayload.hint": "Envie um payload ELF pelo servidor ao PS5 selecionado. Inicie primeiro o carregador ELF. O envio dos dados não confirma a execução do payload.",
+  "browserPayload.sent": "{n} bytes enviados ao carregador.",
+  "browserFile.archive": "O envio de arquivos compactados exige o aplicativo nativo. Escolha um arquivo comum ou uma imagem de disco.",
+  "queue_size_unknown": "Tamanho ainda desconhecido",
 };
 
 export default pt_BR;

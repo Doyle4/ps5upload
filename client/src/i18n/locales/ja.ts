@@ -4703,6 +4703,19 @@ c2c_test_deep_bad: "4 KiB のテスト送信が届きませんでした: {detail
 "saves_android_destination": "バックアップは日付付き ZIP として端末の Download フォルダー（/storage/emulated/0/Download）に保存されます。復元は暗号化ファイルをコピーするだけで、アカウントやタイトル ID は変更しません。",
 
 library_compressed_hint: "圧縮イメージのプレイには ShadowMount+ が必要です。編集するには「ファイル」で先に展開してください。",
+  "profile.avatar.horizontal": "横位置",
+  "profile.avatar.vertical": "縦位置",
+  "profile.avatar.center": "画像を中央に配置",
+  "browserFile.staging": "サーバーにアップロード中…",
+  "browserFile.choose": "このデバイスから…",
+  "browserFile.hint": "このデバイスのファイルを選択するかドロップしてください。サーバーへのアップロード後、PS5への送信前に確認画面に表示されます。アップロード完了までタブを開いたままにしてください。",
+  "browserPayload.size": "64 MiB以下のELFペイロードを選択してください。",
+  "browserPayload.file": "ペイロードファイル",
+  "browserPayload.port": "ローダーのポート",
+  "browserPayload.hint": "サーバーを経由して選択中のPS5にELFペイロードを送信します。先にELFローダーを起動してください。データの送信はペイロードの起動を保証しません。",
+  "browserPayload.sent": "ローダーに{n}バイト送信しました。",
+  "browserFile.archive": "アーカイブのアップロードにはネイティブアプリが必要です。通常のファイルかディスクイメージを選択してください。",
+  "queue_size_unknown": "サイズはまだ不明です",
 };
 
 export default ja;

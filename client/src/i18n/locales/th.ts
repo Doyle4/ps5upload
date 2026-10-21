@@ -4691,6 +4691,19 @@ c2c_test_deep_bad: "การส่งทดสอบ 4 KiB ไปไม่ถ�
 "saves_android_destination": "ข้อมูลสำรองเป็น ZIP ลงวันที่ในโฟลเดอร์ Download ของโทรศัพท์ (/storage/emulated/0/Download) การคืนค่าคัดลอกไฟล์ที่เข้ารหัส ไม่เปลี่ยนบัญชีหรือรหัสเกม",
 
 library_compressed_hint: "อิมเมจที่บีบอัดต้องใช้ ShadowMount+ เพื่อเล่น หากต้องการแก้ไข ให้เปิดไฟล์และคลายการบีบอัดก่อน",
+  "profile.avatar.horizontal": "ตำแหน่งแนวนอน",
+  "profile.avatar.vertical": "ตำแหน่งแนวตั้ง",
+  "profile.avatar.center": "จัดภาพกึ่งกลาง",
+  "browserFile.staging": "กำลังอัปโหลดไปยังเซิร์ฟเวอร์…",
+  "browserFile.choose": "จากอุปกรณ์นี้…",
+  "browserFile.hint": "เลือกหรือลากไฟล์จากอุปกรณ์นี้ ไฟล์จะอัปโหลดไปยังเซิร์ฟเวอร์แล้วแสดงให้ตรวจสอบก่อนส่งไปยัง PS5 เปิดแท็บนี้ไว้จนกว่าจะอัปโหลดเสร็จ",
+  "browserPayload.size": "เลือกเพย์โหลด ELF ขนาดไม่เกิน 64 MiB",
+  "browserPayload.file": "ไฟล์เพย์โหลด",
+  "browserPayload.port": "พอร์ตตัวโหลด",
+  "browserPayload.hint": "ส่งเพย์โหลด ELF ผ่านเซิร์ฟเวอร์ไปยัง PS5 ที่เลือก เริ่มตัวโหลด ELF ก่อน การส่งข้อมูลไม่ได้ยืนยันว่าเพย์โหลดเริ่มทำงานแล้ว",
+  "browserPayload.sent": "ส่ง {n} ไบต์ไปยังตัวโหลดแล้ว",
+  "browserFile.archive": "การอัปโหลดไฟล์เก็บถาวรต้องใช้แอปเนทีฟ เลือกไฟล์ทั่วไปหรืออิมเมจดิสก์",
+  "queue_size_unknown": "ยังไม่ทราบขนาด",
 };
 
 export default th;
