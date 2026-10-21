@@ -4,7 +4,7 @@ What's new in ps5upload, written for humans.
 
 ---
 
-## Unreleased
+## 7.1.11
 
 - **Browser avatar upload (#486).** Choose an image from the browser device, preview crop or
   fit, and confirm applying it to the selected console user. Works with Docker engines too.
