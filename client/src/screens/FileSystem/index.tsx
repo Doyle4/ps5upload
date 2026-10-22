@@ -1,3 +1,4 @@
+import { splitPkgBytes } from "../../lib/splitPkgSize";
 import { FileProperties } from "./FileProperties";
 import { consoleAddr, hostOf } from "../../lib/addr";
 import { trStatic } from "../../lib/trStatic";
@@ -798,7 +799,10 @@ export default function FileSystemScreen() {
     if (!ok) return;
     setInstallingPkgName(entry.name);
     try {
-      const r = await installFromConsolePath(fullPath, host, { sizeBytes: entry.size });
+      // A split set's lead carries its parts' bytes too, for the queue's total.
+      const r = await installFromConsolePath(fullPath, host, {
+        sizeBytes: splitPkgBytes(entry.name, entry.size, entries ?? []),
+      });
       if (r.ok) {
         pushNotification(
           r.mayNotLaunch ? "warning" : "success",

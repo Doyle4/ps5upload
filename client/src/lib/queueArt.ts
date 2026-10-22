@@ -27,6 +27,10 @@ export interface SourceArt {
 export type SourceArtReader = (path: string) => Promise<SourceArt>;
 
 const MAX_ACTIVE = 2;
+/** Results kept at most; the oldest one no row shows goes first. */
+const MAX_ENTRIES = 100;
+/** Edge the icon is kept at: the row shows it at 32-44 px, so this covers a 2x screen. */
+export const ICON_KEEP_PX = 96;
 const MAX_REMOTE_ACTIVE = 1;
 /** A read that failed (engine away, server asleep) may be tried again after this long. A
  *  failure is never remembered as "this source has no art". */
@@ -41,6 +45,10 @@ type Entry =
 const entries = new Map<string, Entry>();
 const waiting: string[] = [];
 const listeners = new Set<() => void>();
+/** Rows that asked for each path's read: one row going away cancels nothing another wants. */
+const wants = new Map<string, number>();
+/** Rows showing each path: an entry a row shows is never evicted. */
+const viewers = new Map<string, number>();
 let active = 0;
 let remoteActive = 0;
 let reader: SourceArtReader = readSourceArt;
@@ -52,6 +60,7 @@ export async function readSourceArt(path: string): Promise<SourceArt> {
   let icon: string | null = null;
   if (inspection.images.some((i) => i.name === "icon0.png")) {
     icon = await gameInspectImageUrl(token, "icon0.png").catch(() => null);
+    if (icon) icon = await downscaleIcon(icon, ICON_KEEP_PX);
   }
   const size = inspection.source?.size;
   return {
@@ -60,6 +69,58 @@ export async function readSourceArt(path: string): Promise<SourceArt> {
     contentId: id.content_id?.trim() || null,
     titleId: id.title_id?.trim() || null,
     size: typeof size === "number" && size > 0 ? size : null,
+  };
+}
+
+/** A `data:` icon redrawn at `px` across (a full icon0.png is 300-700 KiB; the queue keeps up to
+ *  MAX_ENTRIES of them). Uses only standard DOM APIs, so it works in the browser build too; where
+ *  they are missing or fail, the original is kept. */
+export async function downscaleIcon(url: string, px: number): Promise<string> {
+  try {
+    if (typeof document === "undefined" || typeof Image === "undefined") return url;
+    const img = new Image();
+    img.src = url;
+    await img.decode();
+    const w = img.naturalWidth;
+    const h = img.naturalHeight;
+    if (!w || !h || (w <= px && h <= px)) return url;
+    const scale = px / Math.max(w, h);
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(w * scale));
+    canvas.height = Math.max(1, Math.round(h * scale));
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return url;
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL("image/png");
+  } catch {
+    return url;
+  }
+}
+
+/** Forget the oldest finished entries no row shows, down to MAX_ENTRIES. */
+function evict(): void {
+  if (entries.size <= MAX_ENTRIES) return;
+  for (const [path, e] of entries) {
+    if (entries.size <= MAX_ENTRIES) break;
+    if ((e.state === "done" || e.state === "failed") && !(viewers.get(path) ?? 0)) {
+      entries.delete(path);
+    }
+  }
+}
+
+function bump(map: Map<string, number>, path: string, by: number): number {
+  const n = Math.max(0, (map.get(path) ?? 0) + by);
+  if (n) map.set(path, n);
+  else map.delete(path);
+  return n;
+}
+
+/** A row starts showing `path`'s art. Returns the matching release. */
+export function viewSourceArt(path: string): () => void {
+  bump(viewers, path, 1);
+  return () => {
+    bump(viewers, path, -1);
+    evict();
   };
 }
 
@@ -81,21 +142,31 @@ function pump(): void {
     entries.set(path, { state: "reading" });
     void reader(path)
       .then(
-        (art) => entries.set(path, { state: "done", art }),
-        () => entries.set(path, { state: "failed", at: Date.now() }),
+        (art) => {
+          // Re-inserted, so the Map's order is least recently finished first.
+          entries.delete(path);
+          entries.set(path, { state: "done", art });
+        },
+        () => {
+          entries.delete(path);
+          entries.set(path, { state: "failed", at: Date.now() });
+        },
       )
       .finally(() => {
         active--;
         if (remote) remoteActive--;
+        evict();
         emit();
         pump();
       });
   }
 }
 
-/** Ask for `path`'s art. No-op when it is known, being read, or already asked for; a failed
- *  read is asked again only after RETRY_AFTER_MS. */
+/** Ask for `path`'s art (one per asking row; pair it with cancelSourceArt). Reads nothing when
+ *  it is known, being read, or already asked for; a failed read is asked again only after
+ *  RETRY_AFTER_MS. */
 export function requestSourceArt(path: string): void {
+  bump(wants, path, 1);
   const e = entries.get(path);
   if (e && (e.state !== "failed" || Date.now() - e.at < RETRY_AFTER_MS)) return;
   entries.set(path, { state: "waiting" });
@@ -103,8 +174,10 @@ export function requestSourceArt(path: string): void {
   pump();
 }
 
-/** A row that scrolled away or stopped waiting: drop its read if it has not started. */
+/** A row that scrolled away or stopped waiting: its read is dropped once no row wants it and
+ *  only if it has not started. */
 export function cancelSourceArt(path: string): void {
+  if (bump(wants, path, -1) > 0) return;
   const i = waiting.indexOf(path);
   if (i < 0) return;
   waiting.splice(i, 1);
@@ -177,6 +250,7 @@ export function useSourceArt(path: string | null, want: boolean): SourceArt | nu
     () => sourceArtFor(path),
     () => sourceArtFor(path),
   );
+  useEffect(() => (path ? viewSourceArt(path) : undefined), [path]);
   useEffect(() => {
     if (!path || !want) return;
     requestSourceArt(path);
@@ -190,6 +264,8 @@ export function __resetSourceArtForTests(fn?: SourceArtReader): void {
   entries.clear();
   waiting.length = 0;
   listeners.clear();
+  wants.clear();
+  viewers.clear();
   active = 0;
   remoteActive = 0;
   reader = fn ?? readSourceArt;

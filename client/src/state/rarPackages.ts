@@ -28,6 +28,7 @@ import {
 import { consoleAddr, transferAddr } from "../lib/addr";
 import { pkgMkdirChain, pkgStorageFor } from "../lib/pkgStorage";
 import { rarPasswordProblem, type RarPasswordProblem } from "../lib/rarPassword";
+import { splitPkgBytes, type ListedFile } from "../lib/splitPkgSize";
 import { pkgLibraryStore } from "./pkgLibrary";
 
 /** The exclude entry that keeps only packages; the engine lists with the same one. */
@@ -210,6 +211,18 @@ async function unpack(
   }
 }
 
+function baseOf(path: string): string {
+  return path.slice(path.lastIndexOf("/") + 1);
+}
+
+/** The other listed packages in `path`'s folder of the archive, by name. */
+export function siblingsOf(path: string, all: readonly RarPackage[]): ListedFile[] {
+  const dir = path.slice(0, path.lastIndexOf("/") + 1);
+  return all
+    .filter((p) => p.path !== path && p.path.startsWith(dir) && !p.path.slice(dir.length).includes("/"))
+    .map((p) => ({ name: baseOf(p.path), size: p.size }));
+}
+
 /** Unpack a RAR's packages to the console and install each, base first. */
 export async function installRarPackages(
   opts: RarInstallOptions,
@@ -266,7 +279,8 @@ export async function installRarPackages(
       known.push({
         entry: p.path,
         consolePath,
-        size: p.size,
+        // A split set's lead carries its parts (same folder in the archive).
+        size: splitPkgBytes(baseOf(p.path), p.size, siblingsOf(p.path, listed.packages)),
         category: info.category ?? "",
         titleId: info.title_id ?? "",
         appVer: info.app_ver ?? "",

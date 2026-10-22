@@ -26,7 +26,9 @@ import {
   isArchiveFirstVolume,
   isRarFirstVolume,
   orderForInstall,
+  siblingsOf,
 } from "./rarPackages";
+import { splitPkgBytes } from "../lib/splitPkgSize";
 
 const HOST = "10.0.0.5";
 
@@ -107,6 +109,20 @@ describe("installRarPackages", () => {
       "/user/data/ps5upload/pkg_library/rar_Multi/Update/Patch.pkg",
     ]);
     expect(r.outcomes.map((o) => o.status)).toEqual(["installed", "installed"]);
+    // Each queue row is sized from the archive listing.
+    expect(installFromConsolePath.mock.calls.map((c) => c[2])).toEqual([{ sizeBytes: 20 }, { sizeBytes: 10 }]);
+  });
+
+  it("sizes a split set's lead with its parts from the same archive folder", () => {
+    const all = [
+      { path: "G/Big_0.pkg", size: 100 },
+      { path: "G/Big_1.pkg", size: 50 },
+      { path: "Other/Big_1.pkg", size: 999 },
+      { path: "G/sub/Big_2.pkg", size: 999 },
+    ];
+    const sibs = siblingsOf("G/Big_0.pkg", all);
+    expect(sibs).toEqual([{ name: "Big_1.pkg", size: 50 }]);
+    expect(splitPkgBytes("Big_0.pkg", 100, sibs)).toBe(150);
   });
 
   it("skips a patch whose base failed, and leaves every file in place", async () => {

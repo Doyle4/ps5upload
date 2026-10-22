@@ -63,10 +63,13 @@ export function queueInstallNeeds(items: readonly QueueItem[]): InstallNeeds {
       unknown++;
       continue;
     }
-    // A running install has written some of it already: the drive's free space counts that.
+    // A running install has written some of it already (the PS5 writes a stream or link
+    // install as it arrives): the drive's free space counts that. A USB stage copy does not land
+    // on the install drive's tally the same way, so it is not subtracted.
+    const phase = it.installProgress?.phase;
     const written =
-      it.status === "running" && it.installProgress?.phase === "install"
-        ? it.installProgress.current
+      it.status === "running" && (phase === "install" || phase === "transfer")
+        ? Math.min(total, it.installProgress?.current ?? 0)
         : 0;
     bytes += Math.max(0, total - written);
   }

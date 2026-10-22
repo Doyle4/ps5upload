@@ -4,10 +4,12 @@ import {
   __resetSourceArtForTests,
   busyServers,
   cancelSourceArt,
+  downscaleIcon,
   queueArtSourcePath,
   requestSourceArt,
   shouldReadSourceArt,
   sourceArtFor,
+  viewSourceArt,
   type SourceArt,
 } from "./queueArt";
 import type { QueueItem } from "../state/uploadQueue";
@@ -133,5 +135,36 @@ describe("reading source art", () => {
     requestSourceArt("/a.pkg");
     spy.mockRestore();
     expect(r.calls).toHaveLength(2);
+  });
+
+  it("one row going away does not cancel a read another row still wants", async () => {
+    const r = controlledReader();
+    __resetSourceArtForTests(r.read);
+    for (const p of ["/a.pkg", "/b.pkg", "/c.pkg", "/c.pkg"]) requestSourceArt(p);
+    cancelSourceArt("/c.pkg");
+    r.pending.get("/a.pkg")!.resolve(art());
+    await flush();
+    expect(r.calls).toEqual(["/a.pkg", "/b.pkg", "/c.pkg"]);
+  });
+
+  it("keeps at most 100 results, dropping the oldest no row shows", async () => {
+    __resetSourceArtForTests(async (p) => art({ title: p }));
+    const release = viewSourceArt("/0.pkg");
+    for (let i = 0; i < 105; i++) {
+      requestSourceArt(`/${i}.pkg`);
+      await flush();
+    }
+    // The shown one stays; the next-oldest unshown ones went.
+    expect(sourceArtFor("/0.pkg")?.title).toBe("/0.pkg");
+    expect(sourceArtFor("/1.pkg")).toBeNull();
+    expect(sourceArtFor("/104.pkg")?.title).toBe("/104.pkg");
+    release();
+    requestSourceArt("/105.pkg");
+    await flush();
+    expect(sourceArtFor("/0.pkg")).toBeNull();
+  });
+
+  it("keeps the original icon where it cannot redraw it", async () => {
+    expect(await downscaleIcon("data:image/png;base64,AA==", 96)).toBe("data:image/png;base64,AA==");
   });
 });

@@ -28,6 +28,17 @@ function fromItem(it: QueueItem): CopyActivity {
   if (it.status === "pending") return { phase: "queued" };
   if (it.status === "done") return { phase: "done", installing };
   if (it.status === "failed") return { phase: "failed", message: it.error ?? "" };
+  if (installing) {
+    // An install moves no queue bytes (bytesSent stays 0): its own progress says how far it is.
+    const p = it.installProgress;
+    const pct =
+      p && p.total > 0
+        ? Math.min(100, Math.round((p.current / p.total) * 100))
+        : typeof it.installPct === "number"
+          ? Math.min(100, Math.max(0, Math.round(it.installPct)))
+          : null;
+    return { phase: "sending", installing, pct };
+  }
   const total = it.totalBytes || it.estimatedBytes || 0;
   return {
     phase: "sending",

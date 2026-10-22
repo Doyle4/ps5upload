@@ -133,10 +133,17 @@ describe("what the installs need against the install drive", () => {
         installProgress: { phase: "install", current: 5 * GiB, total: 20 * GiB, bytesPerSec: 0 },
       }),
       install({ id: "c" }),
+      install({
+        id: "t",
+        estimatedBytes: 8 * GiB,
+        status: "running",
+        install: { via: "stream", source: "/pc/t.pkg" },
+        installProgress: { phase: "transfer", current: 3 * GiB, total: 8 * GiB, bytesPerSec: 0 },
+      }),
       install({ id: "d", estimatedBytes: 99 * GiB, status: "done" }),
       item({ id: "e", estimatedBytes: 50 * GiB }),
     ]);
-    expect(needs).toEqual({ count: 3, bytes: 25 * GiB, unknown: 1 });
+    expect(needs).toEqual({ count: 4, bytes: 30 * GiB, unknown: 1 });
   });
 
   it("reads free space from the package drive, else internal storage", () => {
