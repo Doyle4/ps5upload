@@ -4339,6 +4339,7 @@ c2c_test_deep_bad: "4 KiB のテスト送信が届きませんでした: {detail
 "cw_hint_help": "ヘルプ",
 "cw_hint_refresh": "更新",
 "cw_hint_fullscreen": "全画面",
+"cw_home_leave_hint": "PS5のホーム画面に戻るには、PSボタンを押してください。",
 "cw_settings_fullscreen": "全画面",
 "cw_settings_fullscreen_note": "ブラウザーのバーを隠して、ページをテレビ全体に表示します。次にボタンを押したときに有効になります。",
 "cw_settings_theme": "テーマ",

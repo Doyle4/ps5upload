@@ -4327,6 +4327,7 @@ c2c_test_deep_bad: "การส่งทดสอบ 4 KiB ไปไม่ถ�
 "cw_hint_help": "ความช่วยเหลือ",
 "cw_hint_refresh": "รีเฟรช",
 "cw_hint_fullscreen": "เต็มจอ",
+"cw_home_leave_hint": "หากต้องการกลับไปที่หน้าจอหลักของ PS5 ให้กดปุ่ม PS",
 "cw_settings_fullscreen": "เต็มจอ",
 "cw_settings_fullscreen_note": "ซ่อนแถบของเบราว์เซอร์เพื่อให้หน้าเต็มจอทีวี มีผลเมื่อคุณกดปุ่มครั้งถัดไป",
 "cw_settings_theme": "ธีม",

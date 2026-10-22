@@ -206,13 +206,28 @@ export function isPs5Browser(ua: string = typeof navigator !== "undefined" ? nav
   return /PlayStation/i.test(ua);
 }
 
-/** Close the browser (PS5: back to the home screen). Never throws. */
+/** Fired on window when ○ on the first screen could not leave the page (the browser refused to close it). */
+export const CLOSE_REFUSED_EVENT = "cw-close-refused";
+/** How long a refused window.close() takes to show: the page is still visible after this. */
+export const CLOSE_CHECK_MS = 600;
+
+/**
+ * Close the browser (PS5: back to the home screen). Never throws. The PS5 browser refuses once
+ * the page has more than one history entry, and a page cannot send the console home by itself:
+ * when the page is still showing a moment later, CLOSE_REFUSED_EVENT tells the user to press
+ * the PS button.
+ */
 function closeWindow(): void {
   try {
     window.close();
   } catch {
     /* not closable: the page stays */
   }
+  setTimeout(() => {
+    if (!window.closed && document.visibilityState === "visible") {
+      window.dispatchEvent(new Event(CLOSE_REFUSED_EVENT));
+    }
+  }, CLOSE_CHECK_MS);
 }
 
 let offInput: (() => void) | null = null;

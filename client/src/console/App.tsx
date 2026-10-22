@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useReducer, useState } from "react";
 import { call, isOffline, onTokenExpired } from "./api";
-import { useBackLevel } from "./backHistory";
+import { CLOSE_REFUSED_EVENT, useBackLevel } from "./backHistory";
 import { toggleFullscreen } from "./fullscreen";
 import { Controls } from "./help/Controls";
 import { HelpOverlay } from "./help/HelpOverlay";
@@ -19,6 +19,8 @@ import { t } from "./strings";
 
 /** The console chip refreshes this often (the temperature moves). */
 const STATUS_POLL_MS = 10_000;
+/** The "press the PS button" note after ○ on Home stays this long. */
+const LEAVE_HINT_MS = 6_000;
 
 function railButton(id: string): HTMLElement | null {
   return document.querySelector<HTMLElement>(`[data-rail-id="${id}"]`);
@@ -50,6 +52,23 @@ export function App({ inputMap }: { inputMap: InputMap }) {
   useBackLevel(active !== SECTIONS[0].id);
 
   useEffect(() => onTokenExpired(() => setExpired(true)), []);
+
+  // ○ on Home could not close the page (the PS5 browser refuses once the page has history):
+  // say which button gets back to the PS5's home screen.
+  const [leaveHint, setLeaveHint] = useState(false);
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const show = () => {
+      setLeaveHint(true);
+      clearTimeout(timer);
+      timer = setTimeout(() => setLeaveHint(false), LEAVE_HINT_MS);
+    };
+    window.addEventListener(CLOSE_REFUSED_EVENT, show);
+    return () => {
+      window.removeEventListener(CLOSE_REFUSED_EVENT, show);
+      clearTimeout(timer);
+    };
+  }, []);
 
   // The console chip. Stops once the token is gone: every call would 401.
   useEffect(() => {
@@ -176,6 +195,11 @@ export function App({ inputMap }: { inputMap: InputMap }) {
         <HelpOverlay map={inputMap} screen={section.id} onControls={openControls} onClose={closeOverlay} />
       ) : null}
       {overlay === "controls" ? <Controls map={inputMap} onClose={closeOverlay} /> : null}
+      {leaveHint ? (
+        <div className="cw-toast" role="status">
+          {t("cw_home_leave_hint")}
+        </div>
+      ) : null}
       {expired ? <ReloadBanner /> : null}
     </div>
   );
