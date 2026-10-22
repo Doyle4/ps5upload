@@ -51,6 +51,9 @@ import { usePackageViewer } from "../../state/packageViewer";
 import { consoleSwapDeps } from "../../lib/dumpSwapConsole";
 import { amprTrace, titleIdOf } from "../../api/amprTrace";
 
+/** Why a source was not queued: the build picked cannot be made from it. */
+type QueueSkip = "not-image" | "not-folder";
+
 /** How long a first press of Delete package stays armed. */
 const DELETE_ARM_MS = 5000;
 
@@ -121,15 +124,16 @@ export default function FpkgConvertScreen() {
         ? { kind: "folder" }
         : { kind: "pkg" };
   const then = thenFor(build.kind, thenChoice, canInstall);
-  /** "skipped": an image was asked for a source that is not a game folder here, or a folder
-   *  for one that is not an image or package. */
+  /** A skip says which build the source cannot become: an image needs a game folder, image,
+   *  package or archive (unpacked first); a folder needs an image or package. */
   const queueAdd = (
     src: string,
     isFolder: boolean,
     lz4?: AmprLz4Options,
-  ): boolean | "skipped" => {
-    if (build.kind === "image" && !isFolder && !isFolderableSource(src)) return "skipped";
-    if (build.kind === "folder" && !isFolderableSource(src)) return "skipped";
+  ): boolean | QueueSkip => {
+    if (build.kind === "image" && !isFolder && !isFolderableSource(src) && !isArchiveSource(src))
+      return "not-image";
+    if (build.kind === "folder" && !isFolderableSource(src)) return "not-folder";
     const u = useUploadStore.getState();
     return useConvertQueue.getState().add({
       source: src,
@@ -154,14 +158,26 @@ export default function FpkgConvertScreen() {
       notes.push(
         tr("cq_not_games", { count: notGames }, "{count} folder(s) were not games and were skipped."),
       );
-    const skipped = results.filter((r) => r === "skipped").length;
-    if (skipped) notes.push(skippedText(skipped));
+    for (const why of ["not-image", "not-folder"] as const) {
+      const n = results.filter((r) => r === why).length;
+      if (n) notes.push(skippedText(why, n));
+    }
     if (results.some((r) => r === false)) notes.push(tr("cq_already", undefined, "This game is already in the queue."));
     setError(notes.length ? notes.join(" ") : null);
   };
-  const skippedText = (n: number) =>
-    `${tr("upload_skipped", undefined, "Skipped")}: ${n}`;
-  const skippedNote = (n: number) => setError(skippedText(n));
+  /** Why a source was left out of the queue, said for a person. */
+  const skippedText = (why: QueueSkip, n: number) =>
+    why === "not-image"
+      ? tr(
+          "cq_skipped_not_image",
+          { count: n },
+          "Skipped {count}: only a game folder, game image, package or archive (.zip, .7z, .rar) can become a game image.",
+        )
+      : tr(
+          "cq_skipped_not_folder",
+          { count: n },
+          "Skipped {count}: only a game image or package can become a game folder. A folder already is one; an archive can become a package or image.",
+        );
   // The console's swap journals are read through these; one set per console.
   const swapDeps = useMemo(() => (canInstall ? consoleSwapDeps(host) : null), [canInstall, host]);
   const installTaskId = pipeline.phase === "running" ? pipeline.installTaskId : null;
@@ -339,6 +355,7 @@ export default function FpkgConvertScreen() {
         lz4Active(build.format, lz4Choice)
           ? { profileToml: lz4Profile?.text, installRuntime: lz4InstallRuntime }
           : undefined,
+        password || undefined,
       );
       return;
     }
@@ -405,6 +422,9 @@ export default function FpkgConvertScreen() {
   // package build reads it). An archive cannot from here: unpack it first.
   const src = source.trim();
   const isLocalFolder = inspection !== null && !noFiles && !isArchiveSource(src);
+  // An archive is not looked inside until the run unpacks it; an image run unpacks it first,
+  // as a package run does.
+  const canImage = isLocalFolder || (src !== "" && isArchiveSource(src));
   // A game image or a package can be unpacked into a plain folder, wherever it is; a folder is
   // one already, and an archive is unpacked first.
   const canFolder = src !== "" && isFolderableSource(src);
@@ -575,7 +595,7 @@ export default function FpkgConvertScreen() {
               lz4: lz4Choice,
             }}
             onRun={run}
-            canImage={isLocalFolder}
+            canImage={canImage}
             canFolder={canFolder}
             isFolderSource={isFolderSource}
             summary={
@@ -605,7 +625,7 @@ export default function FpkgConvertScreen() {
                   ? { profileToml: lz4Profile?.text, installRuntime: lz4InstallRuntime }
                   : undefined,
               );
-              if (r === "skipped") skippedNote(1);
+              if (r === "not-image" || r === "not-folder") setError(skippedText(r, 1));
               else if (!r) setError(tr("cq_already", undefined, "This game is already in the queue."));
             }}
             onCompress={() => void compress(source.trim(), outputDir.trim() || undefined)}

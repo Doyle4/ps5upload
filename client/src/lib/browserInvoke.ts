@@ -816,6 +816,7 @@ export async function browserInvoke<T>(
         ampr_lz4: args["amprLz4"],
         verify_chunk_kib: args["verifyChunkKib"],
         full_verify: args["fullVerify"] ?? false,
+        name: args["name"],
       });
     }
     case "folder_build": {

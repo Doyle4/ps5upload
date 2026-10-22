@@ -227,9 +227,9 @@ export function RunCard(props: RunCardProps) {
           {image && !props.canImage && props.canConvert !== false && (
             <div className="text-xs text-[var(--color-muted)]">
               {tr(
-                "fpkg.image.folderOnly_v3",
+                "fpkg.image.folderOnly_v4",
                 undefined,
-                "Only a game folder or game image (on this computer, a saved server or the PS5) can become a game image; unpack an archive first.",
+                "Only a game folder, game image or archive (.zip, .7z, .rar) with a game in it can become a game image; an archive is unpacked into the output folder first.",
               )}
             </div>
           )}

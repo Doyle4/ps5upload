@@ -82,7 +82,7 @@ vi.mock("./roster", async (orig) => ({
   useRosterStore: { getState: () => roster },
 }));
 
-import { POLL_MS, useFpkgConversion } from "./fpkgConversion";
+import { POLL_MS, archiveStem, useFpkgConversion } from "./fpkgConversion";
 import { commandTask, taskCapabilities } from "./taskControls";
 import { useTaskStore } from "./tasks";
 
@@ -768,6 +768,38 @@ describe("fpkg pipeline", () => {
     expect(p.phase === "failed" && p.message).toMatch(/password/i);
     expect(p.phase === "failed" && p.message).not.toMatch(/rar_password/);
     expect(build).not.toHaveBeenCalled();
+  });
+
+  it("unpacks a .rar before making a compressed image of it, named after the archive", async () => {
+    // Discord report: an archive source could not become an image at all.
+    const buildImage = vi.fn().mockResolvedValue({ job_id: "i7" });
+    const { fpkg } = await import("../api/fpkg");
+    (fpkg as unknown as { buildImage: unknown }).buildImage = buildImage;
+    const game = "/out/.ps5upload-extract-x1";
+    jobStatus
+      .mockResolvedValueOnce({ status: "done", dest: game, bytes_sent: 10 })
+      .mockResolvedValueOnce({ status: "done", dest: "/out/My Game.ffpfsc", bytes_sent: 4 });
+    await useFpkgConversion
+      .getState()
+      .buildImage("/dl/My Game.part1.rar", "/out", true, "exfat", undefined, undefined, "pw");
+    expect(useFpkgConversion.getState().pipeline).toMatchObject({ phase: "running", mode: "image", stage: "extract" });
+    expect(extract).toHaveBeenCalledWith("/dl/My Game.part1.rar", "/out", "pw");
+    await tick();
+    expect(buildImage).toHaveBeenCalledWith(game, "/out", "exfat", true, undefined, 8192, false, "My Game");
+    await tick();
+    expect(useFpkgConversion.getState().pipeline).toMatchObject({
+      phase: "done",
+      mode: "image",
+      source: "/dl/My Game.part1.rar",
+      packagePath: "/out/My Game.ffpfsc",
+    });
+    expect(cleanupExtract).toHaveBeenCalledWith(game);
+  });
+
+  it("names an archive's image after the archive", () => {
+    expect(archiveStem("/dl/My Game.part01.rar")).toBe("My Game");
+    expect(archiveStem("C:\\dl\\G.v1.02.7z")).toBe("G.v1.02");
+    expect(archiveStem("remote://nas-1/dl/a.ZIP")).toBe("a");
   });
 
   it("copies a server image before compressing it (compression reads local disk)", async () => {

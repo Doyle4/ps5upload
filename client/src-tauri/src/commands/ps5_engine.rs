@@ -2484,6 +2484,7 @@ pub async fn ffpfsc_compress(
 
 /// Write a game folder as one `.exfat` image for ShadowMountPlus; runs as an engine job.
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 pub async fn exfat_build(
     source: String,
     output_dir: Option<String>,
@@ -2494,6 +2495,8 @@ pub async fn exfat_build(
     // The read-back check's chunk in KiB; the engine's default when absent.
     verify_chunk_kib: Option<u32>,
     full_verify: Option<bool>,
+    // What to call the image instead of the source's name (a game unpacked from an archive).
+    name: Option<String>,
 ) -> Result<JsonValue, String> {
     let base = engine::url();
     let url = format!("{base}/api/exfat/build");
@@ -2507,6 +2510,7 @@ pub async fn exfat_build(
             "ampr_lz4": ampr_lz4,
             "verify_chunk_kib": verify_chunk_kib,
             "full_verify": full_verify.unwrap_or(false),
+            "name": name,
         }),
     )
     .await

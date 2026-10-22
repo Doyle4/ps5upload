@@ -140,6 +140,9 @@ export const fpkg = {
     verifyChunkKib?: number,
     /** Read the whole image back (Convert's preference); the fast sampled check when false. */
     fullVerify = false,
+    /** What to call the image instead of the source's own name (a game unpacked from an
+     *  archive is named after the archive). */
+    name?: string,
   ) =>
     invoke<{ job_id: string }>("exfat_build", {
       source,
@@ -151,6 +154,7 @@ export const fpkg = {
         : undefined,
       verifyChunkKib,
       fullVerify,
+      name,
     }),
   /** Unpack a game image (.exfat, .ffpkg, .ffpfs, .ffpfsc) or a package made with the debug
    *  key into a plain folder in the output folder, named after the source (or `name`). One
