@@ -714,6 +714,67 @@ int webui_kv_int(const char *text, size_t n, const char *key, long *out) {
     return 1;
 }
 
+/* `"key":N` (or null when the value is absent, not an integer, or at most `none`) after a comma. */
+static size_t fan_put_int(char *out, size_t cap, size_t at, const char *text, size_t n, const char *key, long none) {
+    long v = 0;
+    int k;
+    if (at >= cap) return at;
+    if (webui_kv_int(text, n, key, &v) == 1 && v > none) k = snprintf(out + at, cap - at, ",\"%s\":%ld", key + 4, v);
+    else k = snprintf(out + at, cap - at, ",\"%s\":null", key + 4);
+    return k < 0 ? cap : at + (size_t)k;
+}
+
+int webui_fan_status_json(const char *text, size_t n, char *out, size_t cap) {
+    char guard[16], filtered[16];
+    long cpu = 0, soc = 0, pinned = 0, min_c = 45, max_c = 85, restores = 0;
+    size_t at;
+    int k;
+    if (!cap) return -1;
+    if (webui_kv_int(text, n, "cpu_temp", &cpu) != 1 || cpu <= 0) cpu = 0;
+    if (webui_kv_int(text, n, "soc_temp", &soc) != 1 || soc <= 0) soc = 0;
+    if (webui_kv_int(text, n, "fan_pinned_c", &pinned) != 1 || pinned < 0) pinned = 0;
+    (void)webui_kv_int(text, n, "fan_min_c", &min_c);
+    (void)webui_kv_int(text, n, "fan_max_c", &max_c);
+    if (webui_kv_int(text, n, "fan_restores", &restores) != 1 || restores < 0) restores = 0;
+    if (webui_kv_str(text, n, "fan_guard", guard, sizeof guard) != 1 ||
+        (strcmp(guard, "ok") != 0 && strcmp(guard, "failing") != 0))
+        strcpy(guard, "off");
+    k = snprintf(out, cap, "{\"cpu_c\":");
+    at = k < 0 ? cap : (size_t)k;
+    if (at < cap) {
+        k = cpu ? snprintf(out + at, cap - at, "%ld", cpu) : snprintf(out + at, cap - at, "null");
+        at = k < 0 ? cap : at + (size_t)k;
+    }
+    if (at < cap) {
+        k = soc ? snprintf(out + at, cap - at, ",\"soc_c\":%ld", soc) : snprintf(out + at, cap - at, ",\"soc_c\":null");
+        at = k < 0 ? cap : at + (size_t)k;
+    }
+    /* key + 4 drops the "fan_" prefix: fan_duty_pct -> duty_pct */
+    at = fan_put_int(out, cap, at, text, n, "fan_duty_pct", -1);
+    at = fan_put_int(out, cap, at, text, n, "fan_target_c", -1);
+    at = fan_put_int(out, cap, at, text, n, "fan_stock_c", 0);
+    at = fan_put_int(out, cap, at, text, n, "fan_last_restore_s", -1);
+    if (at < cap) {
+        k = snprintf(out + at, cap - at, ",\"pinned_c\":%ld,\"min_c\":%ld,\"max_c\":%ld,\"restores\":%ld,\"guard\":\"%s\"",
+                     pinned, min_c, max_c, restores, guard);
+        at = k < 0 ? cap : at + (size_t)k;
+    }
+    /* one decimal as the helper wrote it ("47.3"); anything else is not passed through */
+    {
+        int ok = webui_kv_str(text, n, "fan_filtered_c", filtered, sizeof filtered) == 1 && filtered[0] >= '1' &&
+                 filtered[0] <= '9';
+        for (size_t i = 0; ok && filtered[i]; i++)
+            if (!((filtered[i] >= '0' && filtered[i] <= '9') || (filtered[i] == '.' && i > 0 && filtered[i + 1])))
+                ok = 0;
+        if (at < cap) {
+            k = ok ? snprintf(out + at, cap - at, ",\"filtered_c\":%s}", filtered)
+                   : snprintf(out + at, cap - at, ",\"filtered_c\":null}");
+            at = k < 0 ? cap : at + (size_t)k;
+        }
+    }
+    return at >= cap ? -1 : (int)at;
+}
+
 int webui_is_game_title_id(const char *tid) {
     /* PS5 (PPSA, and PCSx/PLxS... for older regional ranges), PS4 (CUSA, PCJS/PLJS Japan, PCAS/PLAS
      * Asia, PCKS/PLKS Korea, ECAS/ELAS Asia) and the PS Vita/PS3-era PCSA..PCSH ranges. */
