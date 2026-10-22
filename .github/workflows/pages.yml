@@ -48,6 +48,8 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 22
+          # Always the newest 22.x (security releases; the runner image can lag).
+          check-latest: true
       - name: Snapshot the releases (fallback for the page)
         run: node scripts/site-releases.mjs
         env:

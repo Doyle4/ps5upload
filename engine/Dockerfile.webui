@@ -33,7 +33,8 @@
 # your own trusted LAN.  Never expose port 19113 to the internet.
 
 # ── Stage 1: build the React frontend ────────────────────────────────────────
-FROM node:26-alpine AS frontend
+# Pinned to a release with the October 2026 Node security fixes (Brotli, TLS hostname checks).
+FROM node:26.12.1-alpine AS frontend
 
 # The client at its repo-relative place: the FAQ and Changelog screens bundle
 # ../FAQ.md and ../CHANGELOG.md from the repo root.
