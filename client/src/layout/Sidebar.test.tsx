@@ -38,18 +38,34 @@ function render(el: React.ReactElement = <Sidebar />) {
   return renderToStaticMarkup(<MemoryRouter initialEntries={["/home"]}>{el}</MemoryRouter>);
 }
 
-/** A sidebar whose store holds these lists. */
-async function withLists(hidden: string[], closedSections: string[]) {
+/** A sidebar whose store holds these lists (and, optionally, starts collapsed). */
+async function withLists(
+  hidden: string[],
+  closedSections: string[],
+  pinned: string[] = [],
+  collapsed = false,
+  windows = false,
+) {
   vi.resetModules();
+  vi.doMock("../lib/platform", async (orig) => ({
+    ...(await orig<typeof import("../lib/platform")>()),
+    isWindows: () => windows,
+  }));
+  vi.doMock("../lib/safeStorage", () => ({
+    safeGetItem: (k: string) => (collapsed && k === "ps5upload.desktop-sidebar.collapsed.v1" ? "1" : null),
+    safeSetItem: vi.fn(),
+  }));
   vi.doMock("../state/navSidebar", () => ({
-    useNavSidebarStore: (
-      selector: (state: {
-        hidden: string[];
-        closedSections: string[];
-        toggleHidden: () => void;
-        toggleSection: () => void;
-      }) => unknown,
-    ) => selector({ hidden, closedSections, toggleHidden: () => {}, toggleSection: () => {} }),
+    useNavSidebarStore: (selector: (state: Record<string, unknown>) => unknown) =>
+      selector({
+        hidden,
+        closedSections,
+        pinned,
+        toggleHidden: () => {},
+        toggleSection: () => {},
+        togglePinned: () => {},
+        movePinnedTo: () => {},
+      }),
   }));
   return (await import("./Sidebar")).default;
 }
@@ -119,5 +135,74 @@ describe("Sidebar", () => {
     expect(html).toMatch(/aria-expanded="false"[^>]*>(?:(?!<\/button>).)*Diagnostics/);
     expect(html).not.toContain('href="/logs"');
     expect(html).toContain('href="/games"');
+  });
+
+  it("has no Pinned group until something is pinned", () => {
+    const html = render();
+    expect(html).not.toContain('data-testid="nav-pinned"');
+    expect(html).not.toContain(">Pinned<");
+    // Every section row offers a pin, next to its hide button.
+    expect(html).toContain('aria-label="Pin Convert Games"');
+    expect(html).not.toContain('aria-label="Pin Home"');
+  });
+
+  it("shows pinned screens in pin order under Home and Bug report, and keeps them in their sections", async () => {
+    const Pinned = await withLists([], [], ["/processes", "/files"]);
+    const html = render(<Pinned />);
+    const group = html.slice(html.indexOf('data-testid="nav-pinned"'));
+    const groupEnd = group.indexOf("</section>");
+    const inGroup = group.slice(0, groupEnd);
+    expect(html.indexOf('href="/bug-report"')).toBeLessThan(html.indexOf('data-testid="nav-pinned"'));
+    expect(inGroup).toContain(">Pinned<");
+    expect(inGroup.indexOf('href="/processes"')).toBeLessThan(inGroup.indexOf('href="/files"'));
+    expect(inGroup).toContain('aria-label="Unpin Processes &amp; ports"');
+    // Rows of the Pinned group drag to reorder, and have no hide button.
+    expect(inGroup).toContain('draggable="true"');
+    expect(inGroup).not.toContain("from the sidebar");
+    // Still in their own sections too, where the pin button now unpins.
+    expect(html.split('href="/files"').length - 1).toBe(2);
+    expect(html).toMatch(/aria-pressed="true"[^>]*aria-label="Unpin File System"/);
+  });
+
+  it("shows a pinned screen that is hidden in Pinned only, and does not count it hidden", async () => {
+    const Both = await withLists(["/cheats", "/shell"], [], ["/cheats"]);
+    const html = render(<Both />);
+    expect(html.split('href="/cheats"').length - 1).toBe(1);
+    const group = html.slice(html.indexOf('data-testid="nav-pinned"'));
+    expect(group.slice(0, group.indexOf("</section>"))).toContain('href="/cheats"');
+    expect(html).toContain("1 hidden");
+  });
+
+  it("offers no more pins once twelve are pinned", async () => {
+    const { NAV_ITEMS } = await import("./navItems");
+    const twelve = NAV_ITEMS.filter((i) => !i.beta).slice(0, 12).map((i) => i.to);
+    const Full = await withLists([], [], twelve);
+    const html = render(<Full />);
+    const unpinned = NAV_ITEMS.filter((i) => !i.beta && !twelve.includes(i.to))[0];
+    const button = html.match(new RegExp(`<button[^>]*aria-label="Pin ${unpinned.fallback}"[^>]*>`))?.[0];
+    expect(button).toContain('disabled=""');
+    expect(button).toContain('title="You can pin up to 12 screens"');
+  });
+
+  it("puts pinned icons at the top of the collapsed rail, with tooltips", async () => {
+    const Rail = await withLists([], [], ["/files"], true);
+    const html = render(<Rail />);
+    expect(html).toContain('data-collapsed="true"');
+    const group = html.slice(html.indexOf('data-testid="nav-pinned"'));
+    const inGroup = group.slice(0, group.indexOf("</section>"));
+    expect(inGroup).toMatch(/<a[^>]*href="\/files"/);
+    expect(inGroup).toContain('title="File System"');
+    expect(inGroup).not.toContain(">Pinned<");
+    expect(inGroup).not.toContain("<button");
+    expect(inGroup).not.toContain("draggable");
+    // Above the sections' icons.
+    expect(html.indexOf('data-testid="nav-pinned"')).toBeLessThan(html.indexOf('href="/upload"'));
+  });
+
+  it("offers no drag in the Windows app, whose window takes every drag", async () => {
+    const Win = await withLists([], [], ["/files", "/upload"], false, true);
+    const html = render(<Win />);
+    expect(html).toContain('data-testid="nav-pinned"');
+    expect(html).not.toContain("draggable");
   });
 });

@@ -11,7 +11,17 @@ import { activateFocusTrap } from "../lib/focusTrap";
 import { useTr } from "../state/lang";
 import { useBetaFeaturesStore } from "../state/betaFeatures";
 import { isTauriEnv } from "../lib/tauriEnv";
-import { NAV_ITEMS, navItemOffered, navItemVisible, PINNED_NAV_ITEMS } from "../layout/navItems";
+import {
+  FIXED_NAV_ITEMS,
+  isPinnableNav,
+  MAX_PINNED,
+  NAV_ITEMS,
+  navItemOffered,
+  navItemVisible,
+  pinnedFirst,
+  type NavItem,
+} from "../layout/navItems";
+import { useNavSidebarStore } from "../state/navSidebar";
 import { isMacOrLinuxDesktop } from "../lib/platform";
 
 /**
@@ -52,8 +62,22 @@ interface Command {
   /** Optional secondary line for context. */
   hint?: string;
   /** Group label for visual sectioning. */
-  group: "Navigation" | "Theme" | "Connection" | "Window" | "Games";
+  group: "Navigation" | "Theme" | "Connection" | "Window" | "Games" | "Pins";
   run: () => void | Promise<void>;
+}
+
+/**
+ * The palette's screens: Home and Bug report, then the user's pinned screens in pin order,
+ * then the rest in sidebar order (same visibility rules as the sidebar).
+ */
+export function paletteScreens(
+  pinned: readonly string[],
+  where: { betaEnabled: boolean; inBrowser: boolean; macOrLinux: boolean },
+): NavItem[] {
+  const shown = (i: NavItem) =>
+    navItemOffered(i, { inBrowser: where.inBrowser, macOrLinux: where.macOrLinux }) &&
+    navItemVisible(i, where.betaEnabled);
+  return [...FIXED_NAV_ITEMS, ...pinnedFirst(NAV_ITEMS, pinned)].filter(shown);
 }
 
 function useCommands(close: () => void): Command[] {
@@ -62,6 +86,8 @@ function useCommands(close: () => void): Command[] {
   const tr = useTr();
   const library = useCollectionStore((s) => s.library);
   const games = useMemo(() => (library ? Object.values(library.games) : []), [library]);
+  const pinned = useNavSidebarStore((s) => s.pinned);
+  const togglePinned = useNavSidebarStore((s) => s.togglePinned);
 
   return useMemo<Command[]>(() => {
     // Nav labels reuse the same i18n keys as Sidebar (which already
@@ -88,12 +114,33 @@ function useCommands(close: () => void): Command[] {
 
     // Every screen the sidebar has (same labels, same visibility rules), so the palette can
     // never list a screen that is gone or call one by an old name. Extra words help matching.
-    const beta = useBetaFeaturesStore.getState().enabled;
-    const screens = [...PINNED_NAV_ITEMS, ...NAV_ITEMS].filter(
-      (i) =>
-        navItemOffered(i, { inBrowser: !isTauriEnv(), macOrLinux: isMacOrLinuxDesktop() }) &&
-        navItemVisible(i, beta),
-    );
+    // Pinned screens come first.
+    const screens = paletteScreens(pinned, {
+      betaEnabled: useBetaFeaturesStore.getState().enabled,
+      inBrowser: !isTauriEnv(),
+      macOrLinux: isMacOrLinuxDesktop(),
+    });
+    // "Pin <screen>" / "Unpin <screen>": listed only when searching, like games. Only the pins
+    // shown here count toward the limit (a beta screen's pin with beta off doesn't).
+    const shownPins = screens.filter((i) => pinned.includes(i.to)).map((i) => i.to);
+    const pinCommands = screens
+      .filter((i) => isPinnableNav(i.to) && (pinned.includes(i.to) || shownPins.length < MAX_PINNED))
+      .map((i): Command => {
+        const name = tr(i.key, undefined, i.fallback);
+        const isPinned = pinned.includes(i.to);
+        return {
+          id: `pin:${i.to}`,
+          label: isPinned
+            ? tr("nav_unpin_item", { name }, "Unpin {name}")
+            : tr("nav_pin_item", { name }, "Pin {name}"),
+          keywords: ["pin", i.fallback, ...(NAV_KEYWORDS[i.to] ?? [])],
+          group: "Pins",
+          run: () => {
+            togglePinned(i.to, shownPins);
+            close();
+          },
+        };
+      });
     return [
       ...screens.map((i) => nav(i.to, i.key, i.fallback, NAV_KEYWORDS[i.to])),
       // Tabs worth jumping to directly.
@@ -176,6 +223,7 @@ function useCommands(close: () => void): Command[] {
           close();
         },
       },
+      ...pinCommands,
       // The Collection's games, each to its page. Listed only when searching.
       ...games.map(
         (g): Command => ({
@@ -191,7 +239,7 @@ function useCommands(close: () => void): Command[] {
         }),
       ),
     ];
-  }, [navigate, toggleTheme, close, tr, games]);
+  }, [navigate, toggleTheme, close, tr, games, pinned, togglePinned]);
 }
 
 /** The event a button sends to open the palette (it is otherwise opened by
@@ -297,7 +345,7 @@ export function CommandPalette() {
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return commands.filter((c) => c.group !== "Games");
+    if (!q) return commands.filter((c) => c.group !== "Games" && c.group !== "Pins");
     return commands.filter((c) => {
       if (c.label.toLowerCase().includes(q)) return true;
       if (c.keywords?.some((k) => k.toLowerCase().includes(q))) return true;

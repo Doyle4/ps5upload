@@ -20,4 +20,13 @@ describe("the sidebar lists in settings.json", () => {
       closedSections: [],
     });
   });
+
+  it("reads the pinned screens in order, and says nothing about pins for an older file", () => {
+    expect(navListsFromSettings({ pinned: ["/files", 2, "/upload"] })).toEqual({
+      hidden: [],
+      closedSections: [],
+      pinned: ["/files", "/upload"],
+    });
+    expect(navListsFromSettings({ hidden: [] })).not.toHaveProperty("pinned");
+  });
 });

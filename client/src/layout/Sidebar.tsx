@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { NavLink } from "react-router";
-import { ChevronDown, ChevronLeft, ChevronRight, EyeOff, LayoutGrid } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, EyeOff, LayoutGrid, Pin, PinOff } from "lucide-react";
 
 import { getAppVersion } from "../lib/appVersion";
 import { safeGetItem, safeSetItem } from "../lib/safeStorage";
@@ -12,8 +12,15 @@ import { isTauriEnv } from "../lib/tauriEnv";
 import { useBetaFeaturesStore } from "../state/betaFeatures";
 import { AppLogo } from "../components/AppLogo";
 import RosterPicker from "./RosterPicker";
-import { isPinnedNav, PINNED_NAV_ITEMS, sidebarGroups, type NavItem } from "./navItems";
-import { isMacOrLinuxDesktop } from "../lib/platform";
+import {
+  FIXED_NAV_ITEMS,
+  isFixedNav,
+  MAX_PINNED,
+  pinnedNavItems,
+  sidebarGroups,
+  type NavItem,
+} from "./navItems";
+import { isMacOrLinuxDesktop, isWindows } from "../lib/platform";
 
 const COLLAPSED_KEY = "ps5upload.desktop-sidebar.collapsed.v1";
 
@@ -54,15 +61,31 @@ export default function Sidebar() {
   const betaEnabled = useBetaFeaturesStore((s) => s.enabled);
   // Every screen, in its sections, minus what the user hid — see `sidebarGroups`.
   const hidden = useNavSidebarStore((s) => s.hidden);
-  // A pinned screen hidden by an older version stays shown, so it is not counted.
-  const hiddenCount = hidden.filter((to) => !isPinnedNav(to)).length;
+  const pinned = useNavSidebarStore((s) => s.pinned);
+  // Home/Bug report hidden by an older version stay shown, and a pinned screen shows in
+  // Pinned: neither is counted.
+  const hiddenCount = hidden.filter((to) => !isFixedNav(to) && !pinned.includes(to)).length;
   const closedSections = useNavSidebarStore((s) => s.closedSections);
   const toggleHidden = useNavSidebarStore((s) => s.toggleHidden);
   const toggleSection = useNavSidebarStore((s) => s.toggleSection);
+  const togglePinned = useNavSidebarStore((s) => s.togglePinned);
+  const movePinnedTo = useNavSidebarStore((s) => s.movePinnedTo);
   const groups = useMemo(
     () => sidebarGroups(hidden, betaEnabled, !isTauriEnv(), isMacOrLinuxDesktop()),
     [hidden, betaEnabled],
   );
+  // The user's Pinned group: copies of screens, in pin order; not rendered while empty.
+  const pinnedItems = useMemo(
+    () => pinnedNavItems(pinned, betaEnabled, !isTauriEnv(), isMacOrLinuxDesktop()),
+    [pinned, betaEnabled],
+  );
+  const shownPins = useMemo(() => pinnedItems.map((i) => i.to), [pinnedItems]);
+  const pinFull = shownPins.length >= MAX_PINNED;
+  // The Windows app's window takes every drag for its own file drop (uploads), so no in-page
+  // drag reaches a row there (as in Files): no drag there; More's Edit reorders everywhere.
+  const dragReorderWorks = !(isTauriEnv() && isWindows());
+  // The pinned screen being dragged to a new place in the Pinned group.
+  const dragging = useRef<string | null>(null);
 
   const toggleCollapsed = () => {
     setCollapsed((current) => {
@@ -72,21 +95,32 @@ export default function Sidebar() {
     });
   };
 
-  /** The arrow key that points from a row's link to its hide button, which sits at the
-   *  inline end of the row. */
+  /** The arrow key that points from a row's link to its buttons (pin, hide), which sit at
+   *  the inline end of the row. */
   const endKey = () => (document.documentElement.dir === "rtl" ? "ArrowLeft" : "ArrowRight");
   const startKey = () => (document.documentElement.dir === "rtl" ? "ArrowRight" : "ArrowLeft");
-  const towardHideButton = (e: React.KeyboardEvent<HTMLAnchorElement>) => {
+  const rowButtons = (el: HTMLElement) =>
+    Array.from(el.closest("li")?.querySelectorAll<HTMLButtonElement>("button:not(:disabled)") ?? []);
+  const towardButtons = (e: React.KeyboardEvent<HTMLAnchorElement>) => {
     if (e.key !== endKey()) return;
-    const button = e.currentTarget.parentElement?.querySelector<HTMLElement>("button");
+    const button = rowButtons(e.currentTarget)[0];
     if (!button) return;
     e.preventDefault();
     button.focus();
   };
-  const backToLink = (e: React.KeyboardEvent<HTMLButtonElement>) => {
+  /** Between a row's buttons with the arrow keys; past the first (or Escape), back to the link. */
+  const betweenButtons = (e: React.KeyboardEvent<HTMLButtonElement>) => {
+    const buttons = rowButtons(e.currentTarget);
+    const at = buttons.indexOf(e.currentTarget);
+    if (e.key === endKey()) {
+      e.preventDefault();
+      buttons[at + 1]?.focus();
+      return;
+    }
     if (e.key !== startKey() && e.key !== "Escape") return;
     e.preventDefault();
-    e.currentTarget.parentElement?.querySelector<HTMLElement>("a")?.focus();
+    if (e.key === startKey() && at > 0) buttons[at - 1].focus();
+    else e.currentTarget.closest("li")?.querySelector<HTMLElement>("a")?.focus();
   };
   /** Focus the link of the row after `el`'s (else the one before). */
   const focusNeighbour = (el: HTMLElement) => {
@@ -95,18 +129,67 @@ export default function Sidebar() {
     next?.querySelector<HTMLElement>("a")?.focus();
   };
 
-  const renderItem = (item: NavItem, hideable: boolean) => {
+  /**
+   * One row. `fixed`: Home and Bug report, no buttons. `section`: a screen in its section, with
+   * pin and hide buttons. `pinned`: its copy in the Pinned group, with unpin, draggable to
+   * reorder (`index` is its place).
+   */
+  const renderItem = (item: NavItem, kind: "fixed" | "section" | "pinned", index = 0) => {
     const Icon = item.icon;
     const label = tr(item.key, undefined, item.fallback);
     const showErrors = item.to === "/logs" && errorCount > 0;
     const showUpdate = item.to === "/settings" && updateAvailable;
+    const hasButtons = kind !== "fixed" && !collapsed;
+    const isPinned = pinned.includes(item.to);
+    const draggable = kind === "pinned" && !collapsed && dragReorderWorks;
+    const buttonClass =
+      "flex h-7 w-7 items-center justify-center rounded-full bg-[var(--color-float)] text-[var(--color-muted)] opacity-0 hover:text-[var(--color-text)] focus-visible:opacity-100 group-hover:opacity-100 disabled:cursor-not-allowed disabled:hover:text-[var(--color-muted)]";
+    const pinLabel = isPinned
+      ? tr("nav_unpin_item", { name: label }, "Unpin {name}")
+      : tr("nav_pin_item", { name: label }, "Pin {name}");
+    const pinDisabled = !isPinned && pinFull;
     return (
-      <li key={item.to} className="group relative">
+      <li
+        key={item.to}
+        className="group relative"
+        data-pinned-row={kind === "pinned" ? item.to : undefined}
+        draggable={draggable || undefined}
+        onDragStart={
+          draggable
+            ? (e) => {
+                dragging.current = item.to;
+                e.dataTransfer.effectAllowed = "move";
+                e.dataTransfer.setData("text/plain", item.to);
+              }
+            : undefined
+        }
+        onDragOver={
+          draggable
+            ? (e) => {
+                if (!dragging.current) return;
+                e.preventDefault();
+                e.dataTransfer.dropEffect = "move";
+              }
+            : undefined
+        }
+        onDrop={
+          draggable
+            ? (e) => {
+                const from = dragging.current;
+                dragging.current = null;
+                if (!from) return;
+                e.preventDefault();
+                movePinnedTo(from, index);
+              }
+            : undefined
+        }
+        onDragEnd={draggable ? () => (dragging.current = null) : undefined}
+      >
         <NavLink
           to={item.to}
           title={collapsed ? label : undefined}
           aria-label={collapsed ? label : undefined}
-          onKeyDown={hideable && !collapsed ? towardHideButton : undefined}
+          onKeyDown={hasButtons ? towardButtons : undefined}
           // Pills: the active one is a tinted row with an accent icon
           // (`.nav-pill` in index.css keys off aria-current).
           className={[
@@ -136,27 +219,50 @@ export default function Sidebar() {
             />
           )}
         </NavLink>
-        {/* A sibling of the link (a button inside <a> is invalid and would navigate), shown on
+        {/* Siblings of the link (a button inside <a> is invalid and would navigate), shown on
             hover or keyboard focus so the list stays quiet.
-            Not a Tab stop: one after every link made the sidebar twice as long to tab
-            through. From a focused link the arrow key toward the button reaches it (and the
-            other arrow goes back); More has the same switch for every screen. */}
-        {hideable && !collapsed && (
-          <button
-            type="button"
-            tabIndex={-1}
-            onKeyDown={backToLink}
-            onClick={(e) => {
-              // This row is about to go: keep keyboard focus in the list.
-              if (e.currentTarget === document.activeElement) focusNeighbour(e.currentTarget);
-              toggleHidden(item.to);
-            }}
-            aria-label={tr("nav_hide_item", { name: label }, "Hide {name} from the sidebar")}
-            title={tr("nav_hide", undefined, "Hide from the sidebar")}
-            className="absolute end-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full bg-[var(--color-float)] text-[var(--color-muted)] opacity-0 hover:text-[var(--color-text)] focus-visible:opacity-100 group-hover:opacity-100"
-          >
-            <EyeOff size={14} aria-hidden />
-          </button>
+            Not Tab stops: one after every link made the sidebar twice as long to tab
+            through. From a focused link the arrow key toward the buttons reaches them (and the
+            other arrow goes back); More has the same switches for every screen. */}
+        {hasButtons && (
+          <span className="absolute end-2 top-1/2 flex -translate-y-1/2 items-center gap-1">
+            <button
+              type="button"
+              tabIndex={-1}
+              disabled={pinDisabled}
+              onKeyDown={betweenButtons}
+              onClick={(e) => {
+                // Unpinning from the Pinned group removes this row: keep focus in the list.
+                if (kind === "pinned" && e.currentTarget === document.activeElement) {
+                  focusNeighbour(e.currentTarget);
+                }
+                togglePinned(item.to, shownPins);
+              }}
+              aria-pressed={kind === "section" ? isPinned : undefined}
+              aria-label={pinLabel}
+              title={pinDisabled ? tr("nav_pin_full", { max: MAX_PINNED }, "You can pin up to {max} screens") : pinLabel}
+              className={buttonClass}
+            >
+              {isPinned ? <PinOff size={14} aria-hidden /> : <Pin size={14} aria-hidden />}
+            </button>
+            {kind === "section" && (
+              <button
+                type="button"
+                tabIndex={-1}
+                onKeyDown={betweenButtons}
+                onClick={(e) => {
+                  // This row is about to go: keep keyboard focus in the list.
+                  if (e.currentTarget === document.activeElement) focusNeighbour(e.currentTarget);
+                  toggleHidden(item.to);
+                }}
+                aria-label={tr("nav_hide_item", { name: label }, "Hide {name} from the sidebar")}
+                title={tr("nav_hide", undefined, "Hide from the sidebar")}
+                className={buttonClass}
+              >
+                <EyeOff size={14} aria-hidden />
+              </button>
+            )}
+          </span>
         )}
       </li>
     );
@@ -220,7 +326,21 @@ export default function Sidebar() {
         aria-label={tr("v5_tab_primary_nav", undefined, "Primary")}
         className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-4 py-3 [overscroll-behavior:contain]"
       >
-        <ul className="space-y-1">{PINNED_NAV_ITEMS.map((item) => renderItem(item, false))}</ul>
+        <ul className="space-y-1">{FIXED_NAV_ITEMS.map((item) => renderItem(item, "fixed"))}</ul>
+        {/* The user's pins, right under Home/Bug report. Not there at all until something is
+            pinned: someone who never pins sees no change. */}
+        {pinnedItems.length > 0 && (
+          <section data-testid="nav-pinned" className="mt-5">
+            {collapsed ? (
+              <div aria-hidden className="mx-3 mb-3 border-t border-[var(--color-border)]" />
+            ) : (
+              <h2 className="px-2 pb-2 text-[0.6875rem] font-medium uppercase tracking-[0.08em] text-[var(--color-muted)]">
+                {tr("nav_section_pinned", undefined, "Pinned")}
+              </h2>
+            )}
+            <ul className="space-y-1">{pinnedItems.map((item) => renderItem(item, "pinned", pinned.indexOf(item.to)))}</ul>
+          </section>
+        )}
         {groups.map((group) => {
           const title = tr(group.section.key, undefined, group.section.fallback);
           // The icon rail has no header to reopen a folded section from, so it shows them all.
@@ -241,7 +361,7 @@ export default function Sidebar() {
                   {open ? <ChevronDown size={12} aria-hidden /> : <ChevronRight size={12} aria-hidden className="rtl:rotate-180" />}
                 </button>
               )}
-              {open && <ul className="space-y-1">{group.items.map((item) => renderItem(item, true))}</ul>}
+              {open && <ul className="space-y-1">{group.items.map((item) => renderItem(item, "section"))}</ul>}
             </section>
           );
         })}

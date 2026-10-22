@@ -10,6 +10,11 @@
  * Three zones: console switcher + search (sticky), the screen list
  * (grouped, or flat while searching), and a utility footer.
  *
+ * Every row can be pinned (phones too: Pinned shows here, under Bug report,
+ * as it does in the desktop sidebar). Its Edit button shows Move up/down on
+ * the pinned rows — the touch- and keyboard-friendly way to reorder them —
+ * and otherwise they look like every other row.
+ *
  * SCROLLING: this screen deliberately has NO scroll container of its own.
  * <main> in AppShell is already `overflow-y-auto` with the bottom-nav
  * padding applied; adding another would recreate the exact nested-scroll
@@ -18,7 +23,20 @@
  */
 import { useEffect, useMemo, useState } from "react";
 import { NavLink } from "react-router";
-import { ChevronRight, Eye, EyeOff, LayoutGrid, Moon, Search, Sun, X } from "lucide-react";
+import {
+  ArrowDown,
+  ArrowUp,
+  ChevronRight,
+  Eye,
+  EyeOff,
+  LayoutGrid,
+  Moon,
+  Pin,
+  PinOff,
+  Search,
+  Sun,
+  X,
+} from "lucide-react";
 
 import { PageHeader, Input, EmptyState } from "../../components";
 import { useTr } from "../../state/lang";
@@ -34,8 +52,10 @@ import { useBetaFeaturesStore } from "../../state/betaFeatures";
 import NotificationInbox from "../../layout/NotificationInbox";
 import {
   BUG_REPORT_NAV_ITEM,
-  isPinnedNav,
+  isFixedNav,
+  MAX_PINNED,
   NAV_ITEMS,
+  pinnedNavItems,
   groupNavItems,
   filterNavItems,
   navItemOffered,
@@ -46,6 +66,7 @@ import {
 export default function MoreScreen() {
   const tr = useTr();
   const [query, setQuery] = useState("");
+  const [editingPins, setEditingPins] = useState(false);
   const { theme, toggleTheme } = useThemeStore();
   const [version, setVersion] = useState("");
 
@@ -72,7 +93,15 @@ export default function MoreScreen() {
     () => filterNavItems([BUG_REPORT_NAV_ITEM, ...visible], query, tr),
     [visible, query, tr],
   );
-  const groups = useMemo(() => groupNavItems(matches.filter((i) => !isPinnedNav(i.to))), [matches]);
+  const groups = useMemo(() => groupNavItems(matches.filter((i) => !isFixedNav(i.to))), [matches]);
+  const pinned = useNavSidebarStore((s) => s.pinned);
+  const pinnedItems = useMemo(
+    () => pinnedNavItems(pinned, betaEnabled, !isTauriEnv(), isMacOrLinuxDesktop()),
+    [pinned, betaEnabled],
+  );
+  // Unpinning the last one ends editing: the group (and its Done) is gone, and pinning again
+  // later should show plain rows. Adjusted during render, React's pattern for derived state.
+  if (editingPins && pinnedItems.length === 0) setEditingPins(false);
   const searching = query.trim().length > 0;
   return (
     <div className="app-page max-w-4xl! pb-6!">
@@ -149,7 +178,7 @@ export default function MoreScreen() {
             <MoreRow
               key={item.to}
               item={item}
-              pinned={isPinnedNav(item.to)}
+              fixed={isFixedNav(item.to)}
               errorCount={errorCount}
               updateAvailable={updateAvailable}
             />
@@ -163,9 +192,45 @@ export default function MoreScreen() {
               item={BUG_REPORT_NAV_ITEM}
               errorCount={errorCount}
               updateAvailable={updateAvailable}
-              pinned
+              fixed
             />
           </ul>
+          {/* The user's pins, in pin order, like the sidebar's Pinned group; absent until
+              something is pinned. Each row also stays in its section below. */}
+          {pinnedItems.length > 0 && (
+            <section data-testid="more-pinned" className="mt-6">
+              <div className="flex items-center justify-between px-4 pb-1">
+                <h2 className="text-[0.6875rem] font-medium uppercase tracking-[0.08em] text-[var(--color-muted)]">
+                  {tr("nav_section_pinned", undefined, "Pinned")}
+                </h2>
+                {/* Reordering is a mode: the arrows would crowd every row (names cut to
+                    "Install Pa…" at phone width) for something done now and then. */}
+                <button
+                  type="button"
+                  onClick={() => setEditingPins((v) => !v)}
+                  aria-pressed={editingPins}
+                  className="-me-3 min-h-11 rounded-full px-3 text-sm font-medium text-[var(--color-accent)] hover:bg-[var(--color-surface-3)]"
+                >
+                  {editingPins
+                    ? tr("nav_pinned_done", undefined, "Done")
+                    : tr("nav_pinned_edit", undefined, "Edit")}
+                </button>
+              </div>
+              <ul className="surface-panel overflow-hidden p-1.5">
+                {pinnedItems.map((item, i) => (
+                  <MoreRow
+                    key={item.to}
+                    item={item}
+                    errorCount={errorCount}
+                    updateAvailable={updateAvailable}
+                    order={
+                      editingPins ? { first: i === 0, last: i === pinnedItems.length - 1 } : undefined
+                    }
+                  />
+                ))}
+              </ul>
+            </section>
+          )}
           {groups.map((group) => (
             <section key={group.section.key} className="mt-6 first:mt-1">
               <h2 className="px-4 pb-2 text-[0.6875rem] font-medium uppercase tracking-[0.08em] text-[var(--color-muted)]">
@@ -225,23 +290,51 @@ export function MoreRow({
   item,
   errorCount,
   updateAvailable,
-  pinned = false,
+  fixed = false,
+  order,
 }: {
   item: NavItem;
   errorCount: number;
   updateAvailable: boolean;
-  /** Always in the sidebar: no hide switch. */
-  pinned?: boolean;
+  /** Home/Bug report, always in the sidebar: no hide or pin switch. */
+  fixed?: boolean;
+  /** A row of the Pinned group in edit mode: offers Move up/down (not past the ends) in
+   *  place of the chevron. */
+  order?: { first: boolean; last: boolean };
 }) {
   const tr = useTr();
   const Icon = item.icon;
   const showErrors = item.to === "/logs" && errorCount > 0;
   const showUpdate = item.to === "/settings" && updateAvailable;
-  const hidden = useNavSidebarStore((s) => !pinned && s.hidden.includes(item.to));
+  const hidden = useNavSidebarStore((s) => !fixed && s.hidden.includes(item.to));
   const toggleHidden = useNavSidebarStore((s) => s.toggleHidden);
+  const isPinned = useNavSidebarStore((s) => !fixed && s.pinned.includes(item.to));
+  const pinnedAll = useNavSidebarStore((s) => s.pinned);
+  const betaEnabled = useBetaFeaturesStore((s) => s.enabled);
+  // The pins the Pinned group shows: only these count toward the limit, and moves step over
+  // the rest (a beta screen's pin while beta is off).
+  const shownPins = useMemo(
+    () =>
+      pinnedNavItems(pinnedAll, betaEnabled, !isTauriEnv(), isMacOrLinuxDesktop()).map((i) => i.to),
+    [pinnedAll, betaEnabled],
+  );
+  const pinFull = shownPins.length >= MAX_PINNED;
+  const togglePinned = useNavSidebarStore((s) => s.togglePinned);
+  const movePinned = useNavSidebarStore((s) => s.movePinned);
+  /** Move, then keep keyboard focus on this row (the list re-orders under it): on the same
+   *  arrow if it can still move that way, else the other arrow. */
+  const move = (delta: -1 | 1) => {
+    movePinned(item.to, delta, shownPins);
+    window.setTimeout(() => {
+      const row = document.querySelector(`[data-pin-row="${CSS.escape(item.to)}"]`);
+      const same = row?.querySelector<HTMLButtonElement>(`[data-move="${delta}"]:not(:disabled)`);
+      const other = row?.querySelector<HTMLButtonElement>(`[data-move="${-delta}"]:not(:disabled)`);
+      (same ?? other ?? row?.querySelector<HTMLButtonElement>("[data-pin-toggle]"))?.focus();
+    }, 0);
+  };
   const label = tr(item.key, undefined, item.fallback);
   return (
-    <li className="flex items-center">
+    <li className="flex items-center" data-pin-row={order ? item.to : undefined}>
       <NavLink
         to={item.to}
         className={({ isActive }) =>
@@ -288,17 +381,62 @@ export function MoreRow({
             )}
           />
         )}
-        <ChevronRight
-          size={18}
-          aria-hidden
-          className="shrink-0 text-[var(--color-muted)] rtl:rotate-180"
-        />
+        {!order && (
+          <ChevronRight
+            size={18}
+            aria-hidden
+            className="shrink-0 text-[var(--color-muted)] rtl:rotate-180"
+          />
+        )}
       </NavLink>
       {/* Sibling of the link, not a child: a <button> inside an <a> is
           invalid markup and the click would navigate instead of toggling. */}
+      {/* Pinned group only: reorder without dragging (touch, keyboard, screen readers). */}
+      {order && (
+        <>
+          <MoreIconButton
+            label={tr("nav_move_up_item", { name: label }, "Move {name} up")}
+            disabled={order.first}
+            data-move="-1"
+            onClick={() => move(-1)}
+          >
+            <ArrowUp size={16} aria-hidden />
+          </MoreIconButton>
+          <MoreIconButton
+            label={tr("nav_move_down_item", { name: label }, "Move {name} down")}
+            disabled={order.last}
+            data-move="1"
+            onClick={() => move(1)}
+          >
+            <ArrowDown size={16} aria-hidden />
+          </MoreIconButton>
+        </>
+      )}
+      {/* Pin: phones and desktop alike — the Pinned group is on this screen too. */}
+      {!fixed && (
+        <MoreIconButton
+          label={
+            isPinned
+              ? tr("nav_unpin_item", { name: label }, "Unpin {name}")
+              : tr("nav_pin_item", { name: label }, "Pin {name}")
+          }
+          title={
+            !isPinned && pinFull
+              ? tr("nav_pin_full", { max: MAX_PINNED }, "You can pin up to {max} screens")
+              : undefined
+          }
+          pressed={isPinned}
+          disabled={!isPinned && pinFull}
+          data-pin-toggle=""
+          onClick={() => togglePinned(item.to, shownPins)}
+          className={isPinned ? "text-[var(--color-accent)]" : "text-[var(--color-muted)]"}
+        >
+          {isPinned ? <PinOff size={16} aria-hidden /> : <Pin size={16} aria-hidden />}
+        </MoreIconButton>
+      )}
       {/* Desktop only: phones navigate by tabs and this list, and have no sidebar to change. A
-          pinned screen has no switch: it is always there. */}
-      {!pinned && (
+          fixed screen has no switch: it is always there. */}
+      {!fixed && !order && (
         <button
           type="button"
           onClick={() => toggleHidden(item.to)}
@@ -321,5 +459,42 @@ export function MoreRow({
         </button>
       )}
     </li>
+  );
+}
+
+/** A 44px round icon button at the end of a More row. */
+function MoreIconButton({
+  label,
+  title,
+  pressed,
+  disabled = false,
+  onClick,
+  className = "text-[var(--color-muted)]",
+  children,
+  ...data
+}: {
+  label: string;
+  title?: string;
+  pressed?: boolean;
+  disabled?: boolean;
+  onClick: () => void;
+  className?: string;
+  children: React.ReactNode;
+  /** `data-*` attributes, passed through (focus lookup after a move). */
+  [data: `data-${string}`]: string | undefined;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      {...data}
+      aria-pressed={pressed}
+      aria-label={label}
+      title={title ?? label}
+      className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition-colors hover:bg-[var(--color-surface-3)] disabled:opacity-35 disabled:hover:bg-transparent ${className}`}
+    >
+      {children}
+    </button>
   );
 }

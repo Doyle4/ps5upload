@@ -4,11 +4,15 @@ import en from "../i18n/locales/en";
 import {
   NAV_ITEMS,
   HOME_NAV_ITEM,
-  PINNED_NAV_ITEMS,
+  FIXED_NAV_ITEMS,
   sidebarGroups,
   navItemOffered,
   groupNavItems,
   filterNavItems,
+  cleanPinned,
+  pinnedNavItems,
+  pinnedFirst,
+  MAX_PINNED,
   type NavItem,
 } from "./navItems";
 
@@ -64,7 +68,7 @@ describe("the sidebar's sections", () => {
     // Home and Bug report sit above the sections, not inside one.
     expect(paths(groups)).not.toContain(HOME_NAV_ITEM.to);
     expect(paths(groups)).not.toContain("/bug-report");
-    expect(PINNED_NAV_ITEMS.map((i) => i.to)).toEqual(["/home", "/bug-report"]);
+    expect(FIXED_NAV_ITEMS.map((i) => i.to)).toEqual(["/home", "/bug-report"]);
   });
 
   it("leaves hidden screens out", () => {
@@ -300,3 +304,31 @@ describe("hasBetaItems", () => {
     expect(hasBetaItems()).toBe(NAV_ITEMS.some((i) => i.beta));
   });
 });
+
+describe("pinned screens", () => {
+  it("cleans a stored pin list: real screens only, no Home/Bug report, no repeats", () => {
+    expect(cleanPinned(["/files", "/gone", 3, "/files", "/home", "/bug-report", "/upload"])).toEqual([
+      "/files",
+      "/upload",
+    ]);
+    // Not capped on load: pins this build doesn't show don't count toward MAX_PINNED, and
+    // capping here would drop a pin the user still has.
+    expect(cleanPinned(NAV_ITEMS.map((i) => i.to))).toHaveLength(NAV_ITEMS.length);
+    expect(MAX_PINNED).toBe(12);
+  });
+
+  it("resolves pins in pin order, ignoring hidden, but not beta or platform rules", () => {
+    expect(pinnedNavItems(["/processes", "/files"], false, false).map((i) => i.to)).toEqual([
+      "/processes",
+      "/files",
+    ]);
+    expect(pinnedNavItems(["/shell", "/files"], false, true).map((i) => i.to)).toEqual(["/files"]);
+  });
+
+  it("orders pinned items first, in pin order, the rest unchanged", () => {
+    const items = [{ to: "a" }, { to: "b" }, { to: "c" }, { to: "d" }];
+    expect(pinnedFirst(items, ["c", "a"]).map((i) => i.to)).toEqual(["c", "a", "b", "d"]);
+    expect(pinnedFirst(items, []).map((i) => i.to)).toEqual(["a", "b", "c", "d"]);
+  });
+});
+

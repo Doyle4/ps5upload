@@ -302,11 +302,67 @@ export const BUG_REPORT_NAV_ITEM: NavItem = {
 };
 
 /** Above every section, in this order; none can be hidden. */
-export const PINNED_NAV_ITEMS: readonly NavItem[] = [HOME_NAV_ITEM, BUG_REPORT_NAV_ITEM];
+export const FIXED_NAV_ITEMS: readonly NavItem[] = [HOME_NAV_ITEM, BUG_REPORT_NAV_ITEM];
 
 /** Whether a screen is pinned (never hidden, never counted as hidden). */
-export function isPinnedNav(to: string): boolean {
-  return PINNED_NAV_ITEMS.some((i) => i.to === to);
+export function isFixedNav(to: string): boolean {
+  return FIXED_NAV_ITEMS.some((i) => i.to === to);
+}
+
+/** At most this many screens in the user's Pinned group, counting the ones it shows (a pin
+ *  this build doesn't show now — a beta screen with beta off — doesn't take a place). */
+export const MAX_PINNED = 12;
+
+/** Whether the user can pin this screen: any screen in the sections. Home and Bug report are
+ *  already always at the top, so pinning them would only duplicate them. */
+export function isPinnableNav(to: string): boolean {
+  return !isFixedNav(to) && NAV_ITEMS.some((i) => i.to === to);
+}
+
+/**
+ * A stored pin list made safe to use: strings only, screens that still exist (a removed or
+ * renamed screen's id is dropped), no repeats, pin order kept. Not capped: which pins count
+ * toward `MAX_PINNED` depends on what is shown, which this can't know.
+ */
+export function cleanPinned(list: readonly unknown[]): string[] {
+  const out: string[] = [];
+  for (const v of list) {
+    if (typeof v !== "string" || out.includes(v) || !isPinnableNav(v)) continue;
+    out.push(v);
+  }
+  return out;
+}
+
+/**
+ * The user's Pinned group, in pin order: the pinned screens this build can show now (beta and
+ * platform rules still apply). Hiding does not: a pinned screen shows here even when hidden
+ * from its section.
+ */
+export function pinnedNavItems(
+  pinned: readonly string[],
+  betaEnabled: boolean,
+  inBrowser: boolean,
+  macOrLinux = true,
+): NavItem[] {
+  return pinned
+    .map((to) => NAV_ITEMS.find((i) => i.to === to))
+    .filter(
+      (i): i is NavItem =>
+        !!i && navItemVisible(i, betaEnabled) && navItemOffered(i, { inBrowser, macOrLinux }),
+    );
+}
+
+/** Pinned screens first (in pin order), then the rest in their usual order — the command
+ *  palette's screen list. */
+export function pinnedFirst<T extends { to: string }>(items: readonly T[], pinned: readonly string[]): T[] {
+  const rank = (i: T) => {
+    const at = pinned.indexOf(i.to);
+    return at === -1 ? Number.MAX_SAFE_INTEGER : at;
+  };
+  return items
+    .map((item, index) => ({ item, index }))
+    .sort((a, b) => rank(a.item) - rank(b.item) || a.index - b.index)
+    .map((x) => x.item);
 }
 
 /** Whether an item is currently visible. Beta items stay hidden until the
