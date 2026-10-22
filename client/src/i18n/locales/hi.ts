@@ -4527,6 +4527,7 @@ c2c_test_deep_bad: "4 KiB का परीक्षण नहीं पहुँ
 "cw_files_smb_err_busy": "नेटवर्क शेयर सेवा व्यस्त है। थोड़ी देर में फिर कोशिश करें।",
 "cw_files_smb_err_generic": "नेटवर्क शेयर में कुछ गड़बड़ हो गई।",
 "cw_files_smb_err_not_supported": "सर्वर इस शेयर पर इसकी अनुमति नहीं देता।",
+"cw_files_smb_stopping": "कॉपी रद्द की जा रही है…",
 "cw_files_unmount_done": "{path} अनमाउंट किया गया।",
 "cw_files_last_gone": "पिछली बार खोला गया फ़ोल्डर ({path}) अब मौजूद नहीं है।",
 "cw_files_unmount_game": "पहले गेम बंद करें।",

@@ -4520,6 +4520,7 @@ c2c_test_deep_bad: "การส่งทดสอบ 4 KiB ไปไม่ถ�
 "cw_files_smb_err_busy": "บริการแชร์เครือข่ายไม่ว่าง ลองอีกครั้งในอีกสักครู่",
 "cw_files_smb_err_generic": "เกิดข้อผิดพลาดกับแชร์เครือข่าย",
 "cw_files_smb_err_not_supported": "เซิร์ฟเวอร์ไม่อนุญาตให้ทำสิ่งนั้นบนแชร์นี้",
+"cw_files_smb_stopping": "กำลังยกเลิกการคัดลอก…",
 "cw_files_unmount_done": "ยกเลิกการเมานต์ {path} แล้ว",
 "cw_files_last_gone": "โฟลเดอร์ที่เปิดไว้ล่าสุด ({path}) ไม่มีอยู่แล้ว",
 "cw_files_unmount_game": "ปิดเกมก่อน",

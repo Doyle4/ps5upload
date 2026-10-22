@@ -341,6 +341,7 @@
   "cw_files_smb_server_hint": "IP पता या नाम, जैसे 192.168.1.10",
   "cw_files_smb_share": "शेयर",
   "cw_files_smb_share_to_share": "एक नेटवर्क शेयर से दूसरे में कॉपी करना समर्थित नहीं है। पहले कंसोल पर कॉपी करें।",
+  "cw_files_smb_stopping": "कॉपी रद्द की जा रही है…",
   "cw_files_smb_title": "नेटवर्क शेयर",
   "cw_files_smb_user": "उपयोगकर्ता नाम",
   "cw_files_smb_user_hint": "अतिथि के रूप में साइन इन करने के लिए खाली छोड़ें",

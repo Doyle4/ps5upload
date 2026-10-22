@@ -341,6 +341,7 @@
   "cw_files_smb_server_hint": "IP 地址或名称，例如 192.168.1.10",
   "cw_files_smb_share": "共享",
   "cw_files_smb_share_to_share": "不支持从一个网络共享复制到另一个。请先复制到主机。",
+  "cw_files_smb_stopping": "正在取消复制…",
   "cw_files_smb_title": "网络共享",
   "cw_files_smb_user": "用户名",
   "cw_files_smb_user_hint": "留空则以访客身份登录",

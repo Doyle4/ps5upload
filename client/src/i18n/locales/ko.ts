@@ -4530,6 +4530,7 @@ c2c_test_deep_bad: "4 KiB 테스트 전송이 도착하지 않았습니다: {det
 "cw_files_smb_err_busy": "네트워크 공유 서비스가 사용 중입니다. 잠시 후 다시 시도하세요.",
 "cw_files_smb_err_generic": "네트워크 공유에 문제가 발생했습니다.",
 "cw_files_smb_err_not_supported": "서버가 이 공유에서 해당 작업을 허용하지 않습니다.",
+"cw_files_smb_stopping": "복사를 취소하는 중…",
 "cw_files_unmount_done": "{path} 마운트를 해제했습니다.",
 "cw_files_last_gone": "마지막으로 열었던 폴더({path})가 없습니다.",
 "cw_files_unmount_game": "먼저 게임을 종료하세요.",

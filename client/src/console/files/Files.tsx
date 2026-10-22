@@ -333,7 +333,8 @@ function withBytes(line: string, b: Busy): string {
 /** "Copying 3 of 40" (item `at` is being sent or is running), or "Stopping…". */
 export function busyText(b: Busy | null): string | null {
   if (!b) return null;
-  if (b.stopping) return t("cw_files_batch_stopping");
+  // A share copy's Stop cancels the item running too (batch.ts cancels), not only the ones after it.
+  if (b.stopping) return t(b.cancels ? "cw_files_smb_stopping" : "cw_files_batch_stopping");
   const at = Math.max(1, b.at);
   if (b.op === "copy") return withBytes(t("cw_files_batch_copy", { at, total: b.total }), b);
   if (b.op === "move") return t("cw_files_batch_move", { at, total: b.total });

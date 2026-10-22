@@ -341,6 +341,7 @@
   "cw_files_smb_server_hint": "Adres IP lub nazwa, np. 192.168.1.10",
   "cw_files_smb_share": "Udział",
   "cw_files_smb_share_to_share": "Kopiowanie z jednego udziału sieciowego do innego nie jest obsługiwane. Najpierw skopiuj na konsolę.",
+  "cw_files_smb_stopping": "Anulowanie kopiowania…",
   "cw_files_smb_title": "Udziały sieciowe",
   "cw_files_smb_user": "Nazwa użytkownika",
   "cw_files_smb_user_hint": "Zostaw puste, aby zalogować się jako gość",

@@ -4511,6 +4511,7 @@ c2c_test_deep_bad: "لم يصل الإرسال التجريبي بحجم 4 KiB: 
 "cw_files_smb_err_busy": "خدمة مشاركات الشبكة مشغولة. حاول مرة أخرى بعد قليل.",
 "cw_files_smb_err_generic": "حدث خطأ ما في مشاركة الشبكة.",
 "cw_files_smb_err_not_supported": "لا يسمح الخادم بذلك على هذه المشاركة.",
+"cw_files_smb_stopping": "جارٍ إلغاء النسخ…",
 "cw_files_unmount_done": "تم إلغاء تركيب {path}.",
 "cw_files_last_gone": "المجلد الذي فتحته آخر مرة ({path}) لم يعد موجودًا.",
 "cw_files_unmount_game": "أغلق اللعبة أولًا.",

@@ -4511,6 +4511,7 @@ c2c_test_deep_bad: "4 KiB-এর পরীক্ষামূলক পাঠা�
 "cw_files_smb_err_busy": "নেটওয়ার্ক শেয়ার পরিষেবা ব্যস্ত। একটু পরে আবার চেষ্টা করুন।",
 "cw_files_smb_err_generic": "নেটওয়ার্ক শেয়ারে কিছু সমস্যা হয়েছে।",
 "cw_files_smb_err_not_supported": "সার্ভার এই শেয়ারে এটি করার অনুমতি দেয় না।",
+"cw_files_smb_stopping": "কপি বাতিল করা হচ্ছে…",
 "cw_files_unmount_done": "{path} আনমাউন্ট করা হয়েছে।",
 "cw_files_last_gone": "শেষবার খোলা ফোল্ডারটি ({path}) আর নেই।",
 "cw_files_unmount_game": "আগে গেমটি বন্ধ করুন।",

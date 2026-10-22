@@ -341,6 +341,7 @@
   "cw_files_smb_server_hint": "Indirizzo IP o nome, ad es. 192.168.1.10",
   "cw_files_smb_share": "Condivisione",
   "cw_files_smb_share_to_share": "Non è possibile copiare da una condivisione di rete a un'altra. Copia prima sulla console.",
+  "cw_files_smb_stopping": "Annullamento della copia…",
   "cw_files_smb_title": "Condivisioni di rete",
   "cw_files_smb_user": "Nome utente",
   "cw_files_smb_user_hint": "Lascia vuoto per accedere come ospite",

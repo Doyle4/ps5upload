@@ -341,6 +341,7 @@
   "cw_files_smb_server_hint": "IP address or name, e.g. 192.168.1.10",
   "cw_files_smb_share": "Share",
   "cw_files_smb_share_to_share": "Copying from one network share to another is not supported. Copy to the console first.",
+  "cw_files_smb_stopping": "Cancelling the copy…",
   "cw_files_smb_title": "Network shares",
   "cw_files_smb_user": "User name",
   "cw_files_smb_user_hint": "Leave empty to sign in as a guest",

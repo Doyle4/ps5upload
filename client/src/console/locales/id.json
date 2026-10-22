@@ -341,6 +341,7 @@
   "cw_files_smb_server_hint": "Alamat IP atau nama, mis. 192.168.1.10",
   "cw_files_smb_share": "Share",
   "cw_files_smb_share_to_share": "Menyalin dari satu share jaringan ke share lain tidak didukung. Salin ke konsol dulu.",
+  "cw_files_smb_stopping": "Membatalkan penyalinan…",
   "cw_files_smb_title": "Share jaringan",
   "cw_files_smb_user": "Nama pengguna",
   "cw_files_smb_user_hint": "Biarkan kosong untuk masuk sebagai tamu",

@@ -171,6 +171,8 @@ describe("network shares in Files", () => {
     expect(busyText(busy)).toContain(t("cw_home_percent", { n: 50 }));
     const html = renderToStaticMarkup(<FilesView {...props({ busy, onStopBatch: vi.fn() })} />);
     expect(html).toContain('data-action="stop-batch"');
+    // Stop asked: it says the copy is being cancelled, not "after this item"
+    expect(busyText({ ...busy, stopping: true })).toBe(t("cw_files_smb_stopping"));
     // a console batch of one item does not offer Stop (its job runs on)
     expect(renderToStaticMarkup(<FilesView {...props({ path: "/data", busy: { ...busy, cancels: undefined }, onStopBatch: vi.fn() })} />)).not.toContain(
       'data-action="stop-batch"',

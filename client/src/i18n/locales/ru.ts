@@ -4461,6 +4461,7 @@ c2c_test_deep_bad: "Тестовая отправка 4 КиБ не дошла: 
 "cw_files_smb_err_busy": "Служба сетевых ресурсов занята. Попробуйте чуть позже.",
 "cw_files_smb_err_generic": "С сетевым ресурсом что-то пошло не так.",
 "cw_files_smb_err_not_supported": "Сервер не разрешает это для этого общего ресурса.",
+"cw_files_smb_stopping": "Отмена копирования…",
 "cw_files_unmount_done": "{path} отключён.",
 "cw_files_last_gone": "Последней открытой папки ({path}) больше нет.",
 "cw_files_unmount_game": "Сначала закройте игру.",

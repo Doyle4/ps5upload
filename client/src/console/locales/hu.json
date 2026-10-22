@@ -341,6 +341,7 @@
   "cw_files_smb_server_hint": "IP-cím vagy név, pl. 192.168.1.10",
   "cw_files_smb_share": "Megosztás",
   "cw_files_smb_share_to_share": "Egyik hálózati megosztásról a másikra nem lehet másolni. Előbb másold a konzolra.",
+  "cw_files_smb_stopping": "Másolás megszakítása…",
   "cw_files_smb_title": "Hálózati megosztások",
   "cw_files_smb_user": "Felhasználónév",
   "cw_files_smb_user_hint": "Hagyd üresen a vendégként való belépéshez",

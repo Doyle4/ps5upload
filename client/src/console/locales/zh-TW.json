@@ -341,6 +341,7 @@
   "cw_files_smb_server_hint": "IP 位址或名稱，例如 192.168.1.10",
   "cw_files_smb_share": "共用",
   "cw_files_smb_share_to_share": "不支援從一個網路共用複製到另一個。請先複製到主機。",
+  "cw_files_smb_stopping": "正在取消複製…",
   "cw_files_smb_title": "網路共用",
   "cw_files_smb_user": "使用者名稱",
   "cw_files_smb_user_hint": "留空則以訪客身分登入",

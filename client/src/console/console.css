@@ -757,6 +757,15 @@ button {
   height: 1.1em;
   vertical-align: -0.15em;
 }
+.cw-share-dialog h2 {
+  margin-bottom: 0.2rem;
+}
+.cw-share-dialog .cw-field {
+  margin-bottom: 0.45rem;
+}
+.cw-share-dialog .cw-input {
+  padding: 0.35rem 0.6rem;
+}
 .cw-share-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;

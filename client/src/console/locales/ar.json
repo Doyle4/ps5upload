@@ -341,6 +341,7 @@
   "cw_files_smb_server_hint": "عنوان IP أو اسم، مثل 192.168.1.10",
   "cw_files_smb_share": "المشاركة",
   "cw_files_smb_share_to_share": "النسخ من مشاركة شبكة إلى أخرى غير مدعوم. انسخ إلى هذا الجهاز أولًا.",
+  "cw_files_smb_stopping": "جارٍ إلغاء النسخ…",
   "cw_files_smb_title": "مشاركات الشبكة",
   "cw_files_smb_user": "اسم المستخدم",
   "cw_files_smb_user_hint": "اتركه فارغًا لتسجيل الدخول كضيف",

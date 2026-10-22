@@ -341,6 +341,7 @@
   "cw_files_smb_server_hint": "IP アドレスまたは名前（例: 192.168.1.10）",
   "cw_files_smb_share": "共有",
   "cw_files_smb_share_to_share": "ネットワーク共有から別のネットワーク共有へはコピーできません。先にコンソールにコピーしてください。",
+  "cw_files_smb_stopping": "コピーをキャンセルしています…",
   "cw_files_smb_title": "ネットワーク共有",
   "cw_files_smb_user": "ユーザー名",
   "cw_files_smb_user_hint": "ゲストとしてサインインする場合は空欄のまま",

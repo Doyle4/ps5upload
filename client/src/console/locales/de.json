@@ -341,6 +341,7 @@
   "cw_files_smb_server_hint": "IP-Adresse oder Name, z. B. 192.168.1.10",
   "cw_files_smb_share": "Freigabe",
   "cw_files_smb_share_to_share": "Kopieren von einer Netzwerkfreigabe auf eine andere wird nicht unterstützt. Kopiere zuerst auf die Konsole.",
+  "cw_files_smb_stopping": "Kopieren wird abgebrochen…",
   "cw_files_smb_title": "Netzwerkfreigaben",
   "cw_files_smb_user": "Benutzername",
   "cw_files_smb_user_hint": "Leer lassen, um dich als Gast anzumelden",

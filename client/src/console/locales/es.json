@@ -341,6 +341,7 @@
   "cw_files_smb_server_hint": "Dirección IP o nombre, p. ej. 192.168.1.10",
   "cw_files_smb_share": "Recurso compartido",
   "cw_files_smb_share_to_share": "No se puede copiar de un recurso de red a otro. Copia primero a la consola.",
+  "cw_files_smb_stopping": "Cancelando la copia…",
   "cw_files_smb_title": "Recursos compartidos de red",
   "cw_files_smb_user": "Nombre de usuario",
   "cw_files_smb_user_hint": "Déjalo vacío para entrar como invitado",

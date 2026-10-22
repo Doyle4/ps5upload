@@ -4532,6 +4532,7 @@ c2c_test_deep_bad: "4 KiB のテスト送信が届きませんでした: {detail
 "cw_files_smb_err_busy": "ネットワーク共有サービスがビジー状態です。しばらくしてからもう一度お試しください。",
 "cw_files_smb_err_generic": "ネットワーク共有で問題が発生しました。",
 "cw_files_smb_err_not_supported": "この共有では、サーバーがその操作を許可していません。",
+"cw_files_smb_stopping": "コピーをキャンセルしています…",
 "cw_files_unmount_done": "{path} のマウントを解除しました。",
 "cw_files_last_gone": "前回開いていたフォルダー（{path}）はもうありません。",
 "cw_files_unmount_game": "先にゲームを終了してください。",
