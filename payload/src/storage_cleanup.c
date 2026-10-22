@@ -43,7 +43,9 @@
 #define SC_WALK_DEPTH 24
 /* A Sony update removal is watched this long before it is reported as still going. */
 #define SC_PATCH_WAIT_MS (5u * 60u * 1000u)
-#define SC_ORPHAN_PATCH_WAIT_MS (2u * 60u * 1000u)
+/* An orphaned update (B): Sony answers 0 even for a title it has no update of (measured on FW 13.60
+ * with a planted /user/patch/<id>, nothing removed), so after this wait its files are deleted. */
+#define SC_ORPHAN_PATCH_WAIT_MS (30u * 1000u)
 /* ps5upload temp files touched this recently may belong to something running: listed, not ticked. */
 #define SC_RECENT_S (30 * 60)
 /* "Worth a look": a single file at least this big outside game folders. */
@@ -1077,24 +1079,38 @@ static void apply_one(sc_item_t *it, int idx) {
         int r = uninstall_patch(it->title_id, &rc);
         if (r == 0) {
             set_apply_phase(idx + 1, "waiting");
-            if (wait_gone(it->path, it->cat == 'A' ? SC_PATCH_WAIT_MS : SC_ORPHAN_PATCH_WAIT_MS))
+            if (wait_gone(it->path, it->cat == 'A' ? SC_PATCH_WAIT_MS : SC_ORPHAN_PATCH_WAIT_MS)) {
                 finish_item(it, 1, "", 0);
-            else
+                return;
+            }
+            if (it->cat == 'A' || content_db_has_title(it->title_id) != 0) {
                 finish_item(it, 3, "still_present", 0);
-            return;
-        }
-        if (it->cat == 'A') {
+                return;
+            }
+            fprintf(stderr, "[cleanup] Sony left the update of %s (no such title); deleting its files\n", it->title_id);
+        } else if (it->cat == 'A') {
             /* never a plain delete of an installed game's update */
             finish_item(it, 3, r == -2 ? "not_supported" : "sony_refused", rc);
             return;
+        } else {
+            fprintf(stderr, "[cleanup] Sony declined the update of %s (0x%08X); deleting its files\n", it->title_id,
+                    (unsigned)rc);
         }
-        fprintf(stderr, "[cleanup] Sony declined the update of %s (0x%08X); deleting its files\n", it->title_id,
-                (unsigned)rc);
     }
     int rc;
     if (it->is_dir) rc = fsj_rm_rf(it->path, 0, NULL);
     else rc = unlink(it->path) == 0 || errno == ENOENT ? 0 : -1;
     int e = errno;
+    if (rc == 0 && it->cat == 'E') {
+        /* the title's download folder goes too when nothing else is in it */
+        char dir[SC_PATH];
+        snprintf(dir, sizeof dir, "%s", it->path);
+        char *slash = strrchr(dir, '/');
+        if (slash) {
+            *slash = '\0';
+            (void)rmdir(dir);
+        }
+    }
     if (rc == 0 && !exists_path(it->path)) finish_item(it, 1, "", 0);
     else finish_item(it, 3, "delete_failed", (uint32_t)e);
 }

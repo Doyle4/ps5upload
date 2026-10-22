@@ -219,7 +219,7 @@ export function CleanupView(p: CleanupViewProps) {
       {finished && p.scan && !p.scan.appdb ? <p className="cw-dim">{t("cw_cleanup_appdb_body")}</p> : null}
       {finished && p.scan && p.scan.install_running ? <p className="cw-dim">{t("cw_cleanup_install_running_body")}</p> : null}
       {finished && groups.length === 0 ? <p className="cw-dim">{t("cw_cleanup_nothing")}</p> : null}
-      {finished && groups.length > 0 ? <p className="cw-dim cw-cleanup-how">{t("cw_cleanup_how")}</p> : null}
+      {finished && items.some(isRemovable) ? <p className="cw-dim cw-cleanup-how">{t("cw_cleanup_how")}</p> : null}
       {groups.map((g) => (
         <section key={g.cat} className="cw-cleanup-group" aria-label={categoryTitle(t, g.cat)}>
           <h2 className="cw-h2">

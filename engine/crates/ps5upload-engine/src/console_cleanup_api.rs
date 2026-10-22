@@ -67,6 +67,12 @@ fn reason_of(e: &anyhow::Error) -> String {
     }
     if let Some(m) = e.downcast_ref::<ps5upload_core::mgmt::MgmtError>() {
         let cause = m.cause.trim();
+        // The helper's refusal body, `{"ok":false,"err":"<token>"}`, travels as the cause.
+        if let Ok(v) = serde_json::from_str::<serde_json::Value>(cause) {
+            if let Some(t) = v.get("err").and_then(|t| t.as_str()) {
+                return t.to_string();
+            }
+        }
         let head = cause.split_once(':').map_or(cause, |(h, _)| h).trim();
         if !head.is_empty() && head.bytes().all(|b| b.is_ascii_lowercase() || b == b'_') {
             return head.to_string();
@@ -184,6 +190,13 @@ mod tests {
         }
         .into();
         assert_eq!(reason_of(&e), "install_running");
+        let body: anyhow::Error = ps5upload_core::mgmt::MgmtError {
+            label: "CLEANUP_APPLY".into(),
+            status: 1,
+            cause: r#"{"ok":false,"err":"bad_request"}"#.into(),
+        }
+        .into();
+        assert_eq!(reason_of(&body), "bad_request");
         let old: anyhow::Error = ps5upload_core::mgmt::MgmtError {
             label: "CLEANUP_SCAN".into(),
             status: ps5upload_core::console_files::ERR_UNKNOWN_METHOD,
