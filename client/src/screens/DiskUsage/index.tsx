@@ -1,40 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  PieChart,
-  RefreshCw,
-  ChevronUp,
-} from "lucide-react";
-import { invoke } from "../../lib/invokeLogged";
-
-type RawEntry = { name?: string; kind?: string; size?: number };
-interface DirListResult {
-  entries?: RawEntry[];
-  truncated?: boolean;
-}
-
-/** The payload caps every FS_LIST_DIR response at 256 entries. */
-const LIST_PAGE = 256;
-
-/** List EVERY entry in a remote dir, paging until exhausted. The old
- *  single-shot `limit: 2048` was silently clamped to 256 by the payload,
- *  so any folder with >256 children had its usage massively undercounted. */
-async function listDirAll(addr: string, path: string): Promise<RawEntry[]> {
-  const all: RawEntry[] = [];
-  let offset = 0;
-  for (;;) {
-    const res = await invoke<DirListResult>("ps5_list_dir", {
-      addr,
-      path,
-      offset,
-      limit: LIST_PAGE,
-    });
-    const ents = res.entries ?? [];
-    all.push(...ents);
-    offset += ents.length;
-    if (ents.length === 0 || (!res.truncated && ents.length < LIST_PAGE)) break;
-  }
-  return all;
-}
+import { useEffect, useMemo, useRef, useState } from "react";
+import { PieChart, RefreshCw, ChevronUp, Square } from "lucide-react";
 import { useConnectionStore } from "../../state/connection";
 import {
   PageHeader,
@@ -48,118 +13,120 @@ import { humanizePs5Error } from "../../lib/humanizeError";
 import { useTr } from "../../state/lang";
 import { formatBytes } from "../../lib/format";
 import { mgmtAddr } from "../../lib/addr";
-
-interface DirNode {
-  name: string;
-  size: number;
-  isDir: boolean;
-  /** Cumulative recursive size — populated after walk. */
-  totalSize: number;
-}
+import {
+  blocksOf,
+  cachedFolder,
+  forgetWalks,
+  rememberWalk,
+  runWalk,
+  type DuBlock,
+  type DuDir,
+  type DuStatus,
+} from "./duTree";
 
 /**
  * Disk usage treemap viewer.
  *
- * Walks a starting path with FS_LIST_DIR (one level per dir),
- * accumulates cumulative sizes, and renders the result as a
- * "squarified treemap" — each rectangle's area proportional to
- * size. Click a directory to drill in.
- *
- * Walk depth is bounded to 3 levels by default to keep latency
- * manageable on slow LANs; the user can drill into deeper levels
- * by clicking. We don't mirror the FileSystem screen's full
- * navigation — this is purely visualization.
+ * The engine walks the folder on the console (every folder below it, a few
+ * lists at a time) and answers with each entry's recursive size, rendered as
+ * a "squarified treemap" — each rectangle's area proportional to size. Click
+ * a folder to drill in: the walk of its parent already holds that folder's
+ * tree (kept per console for the session in `duTree`), so drilling in does
+ * not walk again. Refresh walks again; leaving the screen or the folder
+ * cancels a walk that is still going.
  */
 export default function DiskUsageScreen() {
   const tr = useTr();
   const host = useConnectionStore((s) => s.host);
   const payloadStatus = useConnectionStore((s) => s.payloadStatus);
   const [path, setPath] = useState("/user");
-  const [nodes, setNodes] = useState<DirNode[] | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [dir, setDir] = useState<DuDir | null>(null);
+  const [partial, setPartial] = useState<DuStatus["partial"]>(undefined);
+  const [progress, setProgress] = useState<DuStatus | null>(null);
+  const [scanning, setScanning] = useState(false);
+  const [stopped, setStopped] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // Monotonic walk id — see the drop-stale guard in refresh().
-  const walkSeqRef = useRef(0);
+  // Bumped by Refresh: the walk effect runs again with the cache for this folder dropped.
+  const [reload, setReload] = useState(0);
+  const walkRef = useRef<AbortController | null>(null);
 
   // Reset to the volume root and drop the previous console's tree the instant
   // the active console changes, so a switch never momentarily shows console
   // A's directories under console B's header.
   useEffect(() => {
     setPath("/user");
-    setNodes(null);
+    setDir(null);
     setError(null);
   }, [host]);
 
-  const refresh = useCallback(async () => {
-    if (!host?.trim() || payloadStatus !== "up") return;
-    // Drop-stale guard: this walk is N+1 round trips over the LAN, so a fast
-    // drill A→B (or a console switch) could let an older walk resolve last and
-    // paint the wrong folder. Every refresh() bumps a sequence counter and
-    // captures its own id; a walk bails the moment a newer one starts. (The
-    // previous `${host}::${path}` token compared a captured value to itself —
-    // always equal — so it never actually dropped a stale walk.)
-    const myWalk = ++walkSeqRef.current;
-    const isStale = () => walkSeqRef.current !== myWalk;
-    const addr = mgmtAddr(host.trim());
-    setLoading(true);
-    setError(null);
-    try {
-      const entries = await listDirAll(addr, path);
-      if (isStale()) return;
-      // First pass: top-level entries with their direct sizes. For
-      // directories we recurse one more level so the pie has meaningful
-      // sizes. NOTE: directory totals are still files-in-immediate-children
-      // only — FS_LIST_DIR carries no recursive size and there's no du, so a
-      // folder of subfolders legitimately sums to 0 (see the totalBytes==0
-      // fallback list in the render).
-      const result: DirNode[] = [];
-      for (const e of entries) {
-        if (!e.name) continue;
-        if (e.kind === "dir") {
-          let total = 0;
-          try {
-            const childPath = path === "/" ? `/${e.name}` : `${path}/${e.name}`;
-            const child = await listDirAll(addr, childPath);
-            for (const c of child) {
-              total += c.size ?? 0;
-            }
-          } catch {
-            // Permission denied or empty — treat as zero.
-            total = 0;
-          }
-          result.push({
-            name: e.name,
-            size: e.size ?? 0,
-            isDir: true,
-            totalSize: total,
-          });
-        } else {
-          result.push({
-            name: e.name,
-            size: e.size ?? 0,
-            isDir: false,
-            totalSize: e.size ?? 0,
-          });
-        }
-      }
-      if (isStale()) return;
-      result.sort((a, b) => b.totalSize - a.totalSize);
-      setNodes(result);
-    } catch (e) {
-      if (isStale()) return;
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setLoading(false);
-    }
-  }, [host, payloadStatus, path]);
-
   useEffect(() => {
-    refresh();
-  }, [refresh]);
+    const h = host?.trim();
+    if (!h || payloadStatus !== "up") return;
+    setError(null);
+    setStopped(false);
+    const hit = cachedFolder(h, path);
+    if (hit) {
+      setDir(hit.dir);
+      setPartial(hit.partial);
+      setScanning(false);
+      return;
+    }
+    // Each walk owns its abort: the cleanup (a new folder, a console switch, leaving the
+    // screen) cancels it on the engine, and a late reply from it is dropped.
+    const ac = new AbortController();
+    walkRef.current = ac;
+    setDir(null);
+    setProgress(null);
+    setScanning(true);
+    runWalk(mgmtAddr(h), path, (s) => !ac.signal.aborted && setProgress(s), ac.signal)
+      .then((s) => {
+        if (!s || ac.signal.aborted) return;
+        if (s.state === "failed") {
+          setError(s.error ?? "failed");
+          return;
+        }
+        rememberWalk(h, s);
+        if (s.tree) {
+          setDir(s.tree);
+          setPartial(s.partial);
+        }
+      })
+      .catch((e) => {
+        if (!ac.signal.aborted) setError(e instanceof Error ? e.message : String(e));
+      })
+      .finally(() => {
+        if (!ac.signal.aborted) setScanning(false);
+      });
+    return () => ac.abort();
+  }, [host, payloadStatus, path, reload]);
 
-  const totalBytes = useMemo(() => {
-    return (nodes ?? []).reduce((acc, n) => acc + n.totalSize, 0);
-  }, [nodes]);
+  function refresh() {
+    const h = host?.trim();
+    if (h) forgetWalks(h, path);
+    setReload((n) => n + 1);
+  }
+
+  function stop() {
+    walkRef.current?.abort();
+    setScanning(false);
+    setStopped(true);
+  }
+
+  const blocks = useMemo<DuBlock[] | null>(
+    () =>
+      dir
+        ? blocksOf(dir).map((b) =>
+            b.count !== undefined
+              ? {
+                  ...b,
+                  name: tr("disk_usage_other_files", { count: b.count }, `${b.count} other files`),
+                }
+              : b,
+          )
+        : null,
+    [dir, tr],
+  );
+  const totalBytes = dir?.bytes ?? 0;
 
   function up() {
     const trimmed = path.replace(/\/+$/, "");
@@ -181,9 +148,9 @@ export default function DiskUsageScreen() {
         icon={PieChart}
         title={tr("disk_usage_title", undefined, "Disk usage")}
         description={tr(
-          "disk_usage_description_v2",
+          "disk_usage_description_v3",
           undefined,
-          "See what is taking up space on the PS5. Each block is a file or a folder. A folder is sized by the files directly inside it; its subfolders are not counted, so click it to look further down.",
+          "See what is taking up space on the PS5. Each block is a file or a folder, and a folder counts everything inside it, subfolders included. Click a folder to look inside.",
         )}
         right={
           <Button
@@ -191,7 +158,7 @@ export default function DiskUsageScreen() {
             size="sm"
             leftIcon={<RefreshCw size={12} />}
             onClick={refresh}
-            disabled={loading || !host?.trim() || payloadStatus !== "up"}
+            disabled={scanning || !host?.trim() || payloadStatus !== "up"}
           >
             {tr("refresh", undefined, "Refresh")}
           </Button>
@@ -242,68 +209,126 @@ export default function DiskUsageScreen() {
               title={tr("disk_usage_failed", undefined, "Couldn't read this folder")}
               detail={humanizePs5Error(error) || error}
               action={
-                <Button variant="secondary" size="sm" onClick={() => void refresh()}>
+                <Button variant="secondary" size="sm" onClick={refresh}>
                   {tr("disk_usage_retry", undefined, "Retry")}
                 </Button>
               }
             />
           )}
 
-          {loading && nodes === null && (
-            <div className="text-center text-xs text-[var(--color-muted)]">
-              <Spinner size={12} className="mr-2 inline" />
-              {tr("disk_usage_walking", undefined, "Walking…")}
+          {scanning && (
+            <div
+              className="flex flex-wrap items-center justify-center gap-2 text-xs text-[var(--color-muted)]"
+              data-testid="disk-usage-progress"
+            >
+              <Spinner size={12} />
+              <span className="tabular-nums">
+                {tr(
+                  "disk_usage_scanning",
+                  {
+                    dirs: progress?.dirs_scanned ?? 0,
+                    size: formatBytes(progress?.bytes ?? 0),
+                  },
+                  `Counting… ${progress?.dirs_scanned ?? 0} folders, ${formatBytes(progress?.bytes ?? 0)} so far`,
+                )}
+              </span>
+              <Button variant="ghost" size="sm" leftIcon={<Square size={10} />} onClick={stop}>
+                {tr("stop", undefined, "Stop")}
+              </Button>
             </div>
           )}
 
-          {nodes && nodes.length === 0 && !loading && (
+          {stopped && !scanning && !dir && (
+            <EmptyState
+              icon={PieChart}
+              message={tr("disk_usage_stopped", undefined, "Counting stopped.")}
+              action={
+                <Button variant="secondary" size="sm" onClick={refresh}>
+                  {tr("disk_usage_retry", undefined, "Retry")}
+                </Button>
+              }
+            />
+          )}
+
+          {dir && <DiskUsageNotes dir={dir} partial={partial} />}
+
+          {blocks && blocks.length === 0 && !scanning && (
             <EmptyState
               icon={PieChart}
               message={tr("disk_usage_empty", undefined, "Folder is empty.")}
             />
           )}
 
-          {nodes && nodes.length > 0 && totalBytes > 0 && (
-            <Treemap nodes={nodes} totalBytes={totalBytes} onDrill={drill} />
+          {blocks && blocks.length > 0 && totalBytes > 0 && (
+            <Treemap nodes={blocks} totalBytes={totalBytes} onDrill={drill} />
           )}
 
-          {/* Folder of subfolders: every child is a directory, which carries
-              no size (no recursive du on the payload), so totalBytes is 0 and
-              the treemap can't render. Show a drillable list + explain, rather
-              than a blank panel. */}
-          {nodes && nodes.length > 0 && totalBytes === 0 && !loading && (
-            <div className="space-y-2">
-              <p className="text-xs text-[var(--color-muted)]">
-                {tr(
-                  "disk_usage_no_recursive_sizes",
-                  undefined,
-                  "Folder sizes aren't computed recursively, so a folder containing only subfolders shows 0 B here. Drill in to see file sizes.",
-                )}
-              </p>
-              <ul className="divide-y divide-[var(--color-border)] rounded-[var(--radius-card)] border border-[var(--glass-edge)]">
-                {nodes.map((n) => (
-                  <li key={n.name}>
-                    <button
-                      type="button"
-                      onClick={() => drill(n.name, n.isDir)}
-                      disabled={!n.isDir}
-                      className="flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-[var(--color-surface-3)] disabled:cursor-default disabled:hover:bg-transparent"
-                    >
-                      <span className="truncate">
-                        {n.isDir ? "📁 " : "📄 "}
-                        {n.name}
-                      </span>
-                      <span className="ml-3 shrink-0 text-xs text-[var(--color-muted)]">
-                        {n.isDir ? "—" : formatBytes(n.size)}
-                      </span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </div>
+          {/* Nothing here takes any space (only empty folders or empty files), so the
+              treemap has no area to share out. A drillable list instead of a blank panel. */}
+          {blocks && blocks.length > 0 && totalBytes === 0 && !scanning && (
+            <ul className="divide-y divide-[var(--color-border)] rounded-[var(--radius-card)] border border-[var(--glass-edge)]">
+              {blocks.map((n) => (
+                <li key={n.name}>
+                  <button
+                    type="button"
+                    onClick={() => drill(n.name, n.isDir)}
+                    disabled={!n.isDir}
+                    className="flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-[var(--color-surface-3)] disabled:cursor-default disabled:hover:bg-transparent"
+                  >
+                    <span className="truncate">
+                      {n.isDir ? "📁 " : "📄 "}
+                      {n.name}
+                    </span>
+                    <span className="ml-3 shrink-0 text-xs text-[var(--color-muted)]">
+                      {formatBytes(n.totalSize)}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
           )}
         </div>
       </ConnectionGate>
+    </div>
+  );
+}
+
+/** What the walk counted, and what it could not. */
+export function DiskUsageNotes({
+  dir,
+  partial,
+}: {
+  dir: DuDir;
+  partial?: DuStatus["partial"];
+}) {
+  const tr = useTr();
+  return (
+    <div className="space-y-1 text-xs text-[var(--color-muted)]">
+      <p className="tabular-nums">
+        {tr(
+          "disk_usage_summary",
+          { files: dir.files, dirs: dir.dirs },
+          `${dir.files} files in ${dir.dirs} folders`,
+        )}
+      </p>
+      {partial && (
+        <p className="text-[var(--color-warn)]">
+          {tr(
+            "disk_usage_partial",
+            undefined,
+            "Counting stopped before it reached every folder, so these sizes are lower than the real ones.",
+          )}
+        </p>
+      )}
+      {dir.skipped > 0 && (
+        <p>
+          {tr(
+            "disk_usage_skipped",
+            { count: dir.skipped },
+            `${dir.skipped} folders were not counted: they could not be read, belong to the system, or are on another drive.`,
+          )}
+        </p>
+      )}
     </div>
   );
 }
@@ -316,7 +341,7 @@ function Treemap({
   totalBytes,
   onDrill,
 }: {
-  nodes: DirNode[];
+  nodes: DuBlock[];
   totalBytes: number;
   onDrill: (name: string, isDir: boolean) => void;
 }) {
@@ -333,7 +358,6 @@ function Treemap({
           ...top,
           {
             name: tr("disk_usage_more", { count: rest.length }, `(+${rest.length} more)`),
-            size: 0,
             isDir: false,
             totalSize: restTotal,
           },
@@ -342,8 +366,8 @@ function Treemap({
 
   // Simple row-packing: walk through items in size-desc order, each
   // row gets entries until we hit a heuristic threshold.
-  const rows: DirNode[][] = [];
-  let currentRow: DirNode[] = [];
+  const rows: DuBlock[][] = [];
+  let currentRow: DuBlock[] = [];
   let currentRowSize = 0;
   const targetRowSize = totalBytes / Math.ceil(Math.sqrt(display.length));
   for (const n of display) {
