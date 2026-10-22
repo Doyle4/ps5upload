@@ -55,8 +55,8 @@ fn c_payload_binds_only_9120() {
     for banned in ["bind(", "listen(", "accept("] {
         assert!(!rt.contains(banned), "runtime.c still calls {banned}");
     }
-    // The helper's only listener is the AVA1 server; the installer daemon (a separate process)
-    // has its own.
+    // The helper's only listener is the AVA1 server; the installer daemon and the SMB daemon
+    // (separate processes) have their own.
     let mut binders: Vec<String> = files
         .iter()
         .filter(|(_, t)| t.contains("bind(") || t.contains("listen("))
@@ -68,8 +68,17 @@ fn c_payload_binds_only_9120() {
         })
         .collect();
     binders.retain(|p| {
-        !p.ends_with(".py") && !p.starts_with("tests/") && !p.starts_with("installer/")
+        !p.ends_with(".py")
+            && !p.starts_with("tests/")
+            && !p.starts_with("installer/")
+            && !p.starts_with("smb/")
     });
+    // The SMB daemon listens on the console's loopback only: the helper is its one client.
+    let smbd = std::fs::read_to_string(payload().join("smb/smbd_main.c")).unwrap();
+    assert!(
+        smbd.contains("htonl(INADDR_LOOPBACK)"),
+        "the SMB daemon must listen on 127.0.0.1 only"
+    );
     // The port list (net.ports) binds each port and closes it at once to see whether it is
     // taken; it never listens, so it opens no listener.
     let ports = std::fs::read_to_string(payload().join("src/net_ports.c")).unwrap();

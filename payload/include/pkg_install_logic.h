@@ -64,21 +64,35 @@ static inline int pkg_is_payload_name(const char *name) {
     return pkg_ends_with_ci(name, ".elf") || pkg_ends_with_ci(name, ".bin");
 }
 
-/* The marker every ps5upload helper carries (its AVA1 trust slot), searched across block borders:
- * `carry` holds the previous block's last bytes (sizeof marker - 1), *have how many. 1 = found. */
-#define PKG_HELPER_MARKER "AVA1TRUST"
+/* The marker every ps5upload helper carries (its AVA1 trust slot). Never written as one literal:
+ * the engine stamps its key into the helper's only copy of these bytes (CI counts exactly one), so
+ * the search string is put together at run time from bytes stored XORed. */
+#define PKG_HELPER_MARKER_LEN 9
+static inline void pkg_helper_marker(char out[PKG_HELPER_MARKER_LEN + 1]) {
+    static const unsigned char x[PKG_HELPER_MARKER_LEN] = {
+        'A' ^ 0x5a, 'V' ^ 0x5a, 'A' ^ 0x5a, '1' ^ 0x5a, 'T' ^ 0x5a, 'R' ^ 0x5a, 'U' ^ 0x5a, 'S' ^ 0x5a, 'T' ^ 0x5a,
+    };
+    volatile unsigned char key = 0x5a; /* keeps the compiler from folding the bytes back together */
+    for (size_t i = 0; i < PKG_HELPER_MARKER_LEN; i++) out[i] = (char)(x[i] ^ key);
+    out[PKG_HELPER_MARKER_LEN] = '\0';
+}
+
+/* Searches for that marker across block borders: `carry` holds the previous block's last bytes
+ * (marker length - 1), *have how many. 1 = found. */
 static inline int pkg_scan_marker(const uint8_t *b, size_t n, char carry[16], size_t *have) {
-    const size_t m = sizeof PKG_HELPER_MARKER - 1;
+    const size_t m = PKG_HELPER_MARKER_LEN;
+    char marker[PKG_HELPER_MARKER_LEN + 1];
     char win[16 + 16];
     size_t i, k;
+    pkg_helper_marker(marker);
     /* the seam: the carried tail plus this block's head */
     k = *have;
     memcpy(win, carry, k);
     for (i = 0; i < n && k < sizeof win; i++) win[k++] = (char)b[i];
     for (i = 0; i + m <= k; i++)
-        if (memcmp(win + i, PKG_HELPER_MARKER, m) == 0) return 1;
+        if (memcmp(win + i, marker, m) == 0) return 1;
     for (i = 0; i + m <= n; i++)
-        if (b[i] == 'A' && memcmp(b + i, PKG_HELPER_MARKER, m) == 0) return 1;
+        if (b[i] == marker[0] && memcmp(b + i, marker, m) == 0) return 1;
     /* keep the last m - 1 bytes of carry+block for the next seam */
     if (n >= m - 1) {
         memcpy(carry, b + n - (m - 1), m - 1);

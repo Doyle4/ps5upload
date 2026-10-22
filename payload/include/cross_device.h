@@ -43,7 +43,10 @@
  *   src/shell_builtin.c   1  guard  `mv` (mv_same_dev, lstat of the source)
  *   src/webui_settings.c  1  dir    webui.json: tmp -> final
  *   src/webui_inputlog.c  1  dir    webui-input.log ring rewrite: tmp -> final
- *   src/webui_tile.c      1  dir    tile folder files: tmp -> final
+ *   src/webui_tile.c      3  dir    tile folder files: tmp -> final; mount.lnk <-> ps5upload.lnk in
+ *                                   /user/app/PSUP00001 (kept from ShadowMount+, #480)
+ *   src/smb_client.c      1  dir    SMB daemon key: <key>.tmp -> key
+ *   src/smb_shares.c      1  dir    saved shares: <file>.tmp -> file
  *   src/files_prefs.c     1  dir    files-prefs.json: tmp -> final
  *   src/webui_files.c     2  dir    text save and upload: .ps5u-<hex>.part beside the target -> target
  *                                   (the device is compared too, same_device_as, failing closed)
