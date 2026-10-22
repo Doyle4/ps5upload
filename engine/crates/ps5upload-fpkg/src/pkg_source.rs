@@ -598,7 +598,7 @@ impl PkgSource {
                         b.logical,
                         b.len,
                         b.even_len,
-                        b.stored_len - b.even_len,
+                        b.stored_len.saturating_sub(b.even_len),
                         b.mode_bits
                     ))
                 })?;

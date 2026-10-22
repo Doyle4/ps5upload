@@ -1574,7 +1574,8 @@ mod tests {
         );
         let back = decode_block(&[Half::Entropy(arr), Half::Raw(text.clone())], BLOCK).unwrap();
         assert_eq!(&back[..HALF], &text[..]);
-        // A raw (type 0) array, 2-byte header, is an entropy-only chunk too (ooz decodes it).
+        // A raw (type 0) array, 2-byte header, also decodes as an entropy half (the layout bit
+        // says what the half is, so the header bit ooz would read here is not consulted).
         let back = decode_block(&[Half::Entropy(vec![0x80, 0x03, b'a', b'b', b'c'])], 3);
         assert_eq!(back.unwrap(), b"abc");
     }
