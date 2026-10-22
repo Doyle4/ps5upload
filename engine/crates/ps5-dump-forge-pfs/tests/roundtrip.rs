@@ -739,9 +739,10 @@ fn damaged_containers_are_refused() {
         s.read("d.exfat")
     };
     assert_eq!(read(img.clone()).unwrap(), data);
-    // A garbled first block fails to inflate.
+    // A garbled first block fails to inflate: its first deflate block's type made the
+    // reserved 0b11 (the byte after the two-byte zlib header).
     let mut bad = img.clone();
-    bad[c + B + 10] ^= 0xFF;
+    bad[c + B + 2] |= 0b110;
     assert!(read(bad).is_err());
     // An offset that runs backwards.
     let mut bad = img.clone();
