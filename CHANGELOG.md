@@ -4,6 +4,20 @@ What's new in ps5upload, written for humans.
 
 ---
 
+## 7.1.15
+
+- **Launching with nobody signed in no longer restarts the PS5's home screen.** Pressing Play
+  while no user was signed in (for example right after a reboot) could crash and restart the
+  PS5's home screen. The helper now waits a moment for a user, and if there still isn't one it
+  says "Sign in on the PS5 first, then press Play again" instead. Update the helper for this fix.
+- **LZ4 images compress what each game engine can read that way.** Unity games compress only
+  their streamed assets and resource files and keep their startup files as normal files; games
+  from engines PS5Upload doesn't recognise compress only their large files (16 MB and up).
+  Unreal games keep 7.1.14's rule, and a measured or custom profile still decides everything.
+  A Unity game built this way launched and played on a PS5 (FW 13.60).
+
+---
+
 ## 7.1.14
 
 - **Convert reads more Kraken-compressed PS5 packages (#493).** Some packages stopped Convert
