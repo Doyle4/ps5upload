@@ -521,6 +521,7 @@
   "cw_settings_on": "オン",
   "cw_settings_theme": "テーマ",
   "cw_settings_tile": "ホーム画面に PS5Upload Minion を表示",
+  "cw_settings_tile_hidden": "PS5 が PS5Upload Minion の記録を残したため、代わりにホーム画面のアイコンを非表示にしました。",
   "cw_settings_tips": "ヒントをもう一度表示",
   "cw_settings_using": "コントローラーとヒント",
   "cw_settings_version": "バージョン {version}",

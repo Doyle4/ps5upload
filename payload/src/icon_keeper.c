@@ -128,9 +128,11 @@ static void *icon_keeper_thread(void *arg) {
     for (;;) {
         time_t m = appdb_mtime();
         if (m != 0 && m != seen) {
+            /* Held across the write: an icon_keeper_note(id, 0) (the tile turned on again, which
+             * then shows its icon) waits for it, so a pass that loaded the old list cannot hide
+             * the icon again right after it was shown. */
             pthread_mutex_lock(&g_keeper_mu);
             int n = keeper_load(ids, KEEPER_MAX);
-            pthread_mutex_unlock(&g_keeper_mu);
             if (n > 0) {
                 for (int i = 0; i < n; i++) ptrs[i] = ids[i];
                 char err[160] = {0};
@@ -142,6 +144,7 @@ static void *icon_keeper_thread(void *arg) {
                 /* Our own write moved the mtime: that change is not one to answer. */
                 m = appdb_mtime();
             }
+            pthread_mutex_unlock(&g_keeper_mu);
             seen = m;
         }
         sleep(KEEPER_POLL_S);

@@ -562,6 +562,56 @@ int main(void) {
         unlink(CONTENT_DB_APP_BACKUP);
     }
 
+    /* ── #480: presence looks in every titleId table, however many users ── */
+    {
+        sqlite3 *db = NULL;
+        char sql[512];
+        content_db_presence_t p;
+        unlink(CONTENT_DB_APP);
+        assert(sqlite3_open(CONTENT_DB_APP, &db) == SQLITE_OK);
+        exec_or_die(db, "CREATE TABLE tbl_contentinfo (titleId TEXT NOT NULL, titleName TEXT, metaDataPath TEXT,"
+                        " PRIMARY KEY(titleId));");
+        /* Six users: tbl_contentinfo + 3 titleId tables each = 19, past the old cap of 12. The
+         * tile's icon is in the last user's table only (created last, sorted last). */
+        for (int u = 0; u < 6; u++) {
+            snprintf(sql, sizeof sql,
+                     "CREATE TABLE tbl_addon_10%d (titleId TEXT); CREATE TABLE tbl_playlist_10%d (titleId TEXT);"
+                     " CREATE TABLE tbl_iconinfo_10%d (titleId TEXT NOT NULL, titleName TEXT, visible INT,"
+                     " PRIMARY KEY(titleId));",
+                     u, u, u);
+            exec_or_die(db, sql);
+        }
+        exec_or_die(db, "INSERT INTO tbl_iconinfo_105 VALUES ('PSUP00001', 'PS5Upload Minion', 1);");
+        exec_or_die(db, "INSERT INTO tbl_iconinfo_100 VALUES ('CUSA00900', 'Bloodborne', 1);");
+        exec_or_die(db, "INSERT INTO tbl_contentinfo VALUES ('CUSA00900', 'Bloodborne', '/user/app/CUSA00900/sce_sys');");
+        sqlite3_close(db);
+
+        assert(content_db_title_presence("PSUP00001", &p) == 0);
+        assert(p.tables == 19);
+        assert(p.any == 1 && p.content == 0 && p.icons == 1 && p.icons_visible == 1);
+        assert(strcmp(p.where, "tbl_iconinfo_105(visible)") == 0);
+        assert(content_db_has_title("PSUP00001") == 1);
+        printf("✓ a row in the 19th titleId table is found (the old scan stopped at 12): %s\n", p.where);
+
+        /* Hidden, and an install record: both reported, and the record is told apart. */
+        char err[160] = {0};
+        assert(content_db_icon_set_visible("PSUP00001", 0, err, sizeof err) == 0);
+        assert(sqlite3_open(CONTENT_DB_APP, &db) == SQLITE_OK);
+        exec_or_die(db, "INSERT INTO tbl_contentinfo VALUES ('PSUP00001', 'PS5Upload Minion', '/user/app/PSUP00001/sce_sys');");
+        sqlite3_close(db);
+        assert(content_db_title_presence("PSUP00001", &p) == 0);
+        assert(p.any == 1 && p.content == 1 && p.icons == 1 && p.icons_visible == 0);
+        assert(strcmp(p.where, "tbl_contentinfo,tbl_iconinfo_105") == 0);
+        printf("✓ the install record and a hidden icon are told apart: %s\n", p.where);
+
+        assert(content_db_title_presence("PPSA99999", &p) == 0);
+        assert(p.any == 0 && p.content == 0 && p.where[0] == '\0');
+        assert(content_db_has_title("PPSA99999") == 0);
+        assert(content_db_title_presence("bad'id", &p) == -1);
+        unlink(CONTENT_DB_APP_BACKUP);
+        printf("✓ an absent title is 0 in every table; a bad id is refused\n");
+    }
+
     unlink(CONTENT_DB_APP);
     unlink(CONTENT_DB_APPINFO);
     printf("\nAll content_db self-tests passed.\n");

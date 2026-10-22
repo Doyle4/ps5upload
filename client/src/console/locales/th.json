@@ -521,6 +521,7 @@
   "cw_settings_on": "เปิด",
   "cw_settings_theme": "ธีม",
   "cw_settings_tile": "แสดง PS5Upload Minion บนหน้าจอหลัก",
+  "cw_settings_tile_hidden": "PS5 เก็บบันทึกของ PS5Upload Minion ไว้ จึงซ่อนไอคอนบนหน้าจอหลักแทน",
   "cw_settings_tips": "แสดงเคล็ดลับอีกครั้ง",
   "cw_settings_using": "จอยและเคล็ดลับ",
   "cw_settings_version": "เวอร์ชัน {version}",

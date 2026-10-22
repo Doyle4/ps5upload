@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import de from "../locales/de.json";
 import { _setStringsLoaderForTests, chooseLanguage, getLanguage, storedLanguage, stringsReady, t } from "../strings";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
-import { lanToggleStep, SettingsView, waitTileApplied, type SettingsViewProps, type WebSettings } from "./Settings";
+import { lanToggleStep, SettingsView, tileNote, waitTileApplied, type SettingsViewProps, type WebSettings } from "./Settings";
 
 function elements(node: ReactNode): ReactElement<Record<string, unknown>>[] {
   const out: ReactElement<Record<string, unknown>>[] = [];
@@ -81,6 +81,20 @@ describe("settings", () => {
     const last = await waitTileApplied(at({ tile_busy: true }), stuck, sleep, 5000, 1000);
     expect(stuck).toHaveBeenCalledTimes(5);
     expect(last?.tile_busy).toBe(true);
+  });
+
+  it("tile_note_says_when_removal_could_only_hide_the_icon", () => {
+    const at = (over: Partial<WebSettings>): WebSettings => ({ lan: false, tile: false, version: "7.1.18", ...over });
+    // #480: the PS5 kept its record, the helper hid the icon instead: the switch says so.
+    expect(tileNote(at({ tile_result: "hidden" }))).toBe(t("cw_settings_tile_hidden"));
+    const sw = elements(SettingsView(base({ settings: at({ tile_result: "hidden" }) }))).find((e) => e.props.action === "tile");
+    expect(sw?.props.note).toBe(t("cw_settings_tile_hidden"));
+    // Removed for real, still working, failed, turned back on, or an older helper: no note.
+    expect(tileNote(at({ tile_result: "removed" }))).toBeUndefined();
+    expect(tileNote(at({ tile_result: "hidden", tile_busy: true }))).toBeUndefined();
+    expect(tileNote(at({ tile_result: "hidden", tile_failed: true }))).toBeUndefined();
+    expect(tileNote(at({ tile: true, tile_result: "hidden" }))).toBeUndefined();
+    expect(tileNote(at({}))).toBeUndefined();
   });
 
   it("full screen switch shows only where the browser supports it", () => {

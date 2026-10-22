@@ -31,6 +31,21 @@ describe("paired console controls", () => {
       "tile",
     );
   });
+  it("passes the helper's tile result through when it sends one", async () => {
+    reply({
+      supported: true,
+      tile: false,
+      tile_busy: false,
+      tile_failed: false,
+      tile_result: "hidden",
+    });
+    expect(await minionTile("h", false)).toMatchObject({
+      tile: false,
+      tile_result: "hidden",
+    });
+    reply({ supported: true, tile: false, tile_busy: false, tile_failed: false });
+    expect(await minionTile("h")).not.toHaveProperty("tile_result");
+  });
   it("feature detects old helpers and rejects malformed settings", async () => {
     reply({ supported: false });
     expect(await minionTile("h")).toEqual({ supported: false });

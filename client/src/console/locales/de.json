@@ -521,6 +521,7 @@
   "cw_settings_on": "An",
   "cw_settings_theme": "Design",
   "cw_settings_tile": "PS5Upload Minion auf dem Startbildschirm anzeigen",
+  "cw_settings_tile_hidden": "Die PS5 hat den Eintrag von PS5Upload Minion behalten, daher wurde das Symbol auf dem Startbildschirm stattdessen ausgeblendet.",
   "cw_settings_tips": "Tipps erneut zeigen",
   "cw_settings_using": "Controller und Tipps",
   "cw_settings_version": "Version: {version}",

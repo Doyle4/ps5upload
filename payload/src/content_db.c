@@ -409,28 +409,68 @@ int content_db_apps(content_db_app_t *out, int max, const char **source) {
     return cdb_apps_window(out, 0, max, NULL, NULL, source);
 }
 
-int content_db_has_title(const char *title_id) {
+/* Appends `name` (and "(visible)" when `visible`) to `where`, comma separated, while it fits. */
+static void cdb_where_add(char *where, size_t cap, const char *name, int visible) {
+    size_t at = strlen(where);
+    int k = snprintf(where + at, cap - at, "%s%s%s", at ? "," : "", name, visible ? "(visible)" : "");
+    if (k < 0 || (size_t)k >= cap - at) where[at] = '\0'; /* keep whole entries only */
+}
+
+int content_db_title_presence(const char *title_id, content_db_presence_t *out) {
     sqlite3 *db = NULL;
-    cdb_app_schema_t cands[CDB_MAX_SCHEMAS];
-    int found = -1;
+    sqlite3_stmt *tables = NULL;
+    if (!out) return -1;
+    memset(out, 0, sizeof *out);
+    out->content = -1;
     if (!cdb_valid_title_id(title_id)) return -1;
     if (cdb_open_ro(CONTENT_DB_APP, &db, NULL) != SQLITE_OK || !db) return -1;
-    int ncand = cdb_discover_app_schemas(db, cands, CDB_MAX_SCHEMAS);
-    for (int ci = 0; ci < ncand && found != 1; ci++) {
-        char sql[256];
+    if (sqlite3_prepare_v2(db, "SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name", -1, &tables,
+                           NULL) != SQLITE_OK) {
+        sqlite3_close(db);
+        return -1;
+    }
+    while (sqlite3_step(tables) == SQLITE_ROW) {
+        const unsigned char *t = sqlite3_column_text(tables, 0);
+        char name[96], col[64], meta[64], vis[64], sql[256];
         sqlite3_stmt *st = NULL;
+        if (!t || strlen((const char *)t) >= sizeof name || strchr((const char *)t, '"')) continue;
+        snprintf(name, sizeof name, "%s", (const char *)t);
+        if (!cdb_has_column(db, name, "titleId", col, sizeof col)) continue;
+        int is_content = cdb_has_column(db, name, "metaDataPath", meta, sizeof meta);
+        int is_icon = cdb_has_column(db, name, "visible", vis, sizeof vis);
+        out->tables++;
+        if (is_content && out->content < 0) out->content = 0;
         /* Identifiers come from sqlite_master and PRAGMA table_info; the id is bound. */
-        snprintf(sql, sizeof sql, "SELECT 1 FROM \"%s\" WHERE \"%s\" = ? LIMIT 1", cands[ci].table,
-                 cands[ci].col_title);
+        if (is_icon)
+            snprintf(sql, sizeof sql, "SELECT COUNT(*), COALESCE(SUM(\"%s\" <> 0), 0) FROM \"%s\" WHERE \"%s\" = ?",
+                     vis, name, col);
+        else
+            snprintf(sql, sizeof sql, "SELECT COUNT(*), 0 FROM \"%s\" WHERE \"%s\" = ?", name, col);
         if (sqlite3_prepare_v2(db, sql, -1, &st, NULL) != SQLITE_OK) continue;
         sqlite3_bind_text(st, 1, title_id, -1, SQLITE_STATIC);
-        int step = sqlite3_step(st);
-        if (step == SQLITE_ROW) found = 1;
-        else if (step == SQLITE_DONE && found < 0) found = 0;
+        if (sqlite3_step(st) == SQLITE_ROW) {
+            int rows = sqlite3_column_int(st, 0), shown = sqlite3_column_int(st, 1);
+            if (rows > 0) {
+                out->any = 1;
+                if (is_content) out->content = 1;
+                if (is_icon) {
+                    out->icons += rows;
+                    out->icons_visible += shown;
+                }
+                cdb_where_add(out->where, sizeof out->where, name, is_icon && shown > 0);
+            }
+        }
         sqlite3_finalize(st);
     }
+    sqlite3_finalize(tables);
     sqlite3_close(db);
-    return found;
+    return out->tables > 0 ? 0 : -1;
+}
+
+int content_db_has_title(const char *title_id) {
+    content_db_presence_t p;
+    if (content_db_title_presence(title_id, &p) != 0) return -1;
+    return p.any;
 }
 
 int content_db_select_text(const char *db_path, const char *sql, int max_rows,

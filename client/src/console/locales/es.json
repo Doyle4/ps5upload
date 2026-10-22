@@ -521,6 +521,7 @@
   "cw_settings_on": "Sí",
   "cw_settings_theme": "Tema",
   "cw_settings_tile": "Mostrar PS5Upload Minion en la pantalla de inicio",
+  "cw_settings_tile_hidden": "La PS5 conservó el registro de PS5Upload Minion, así que se ocultó su icono de la pantalla de inicio.",
   "cw_settings_tips": "Volver a mostrar consejos",
   "cw_settings_using": "Mando y consejos",
   "cw_settings_version": "Versión {version}",

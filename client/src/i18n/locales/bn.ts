@@ -4290,6 +4290,7 @@ c2c_test_deep_bad: "4 KiB-এর পরীক্ষামূলক পাঠা�
 "cw_settings_lan_confirm_title": "অন্য ডিভাইসকে অনুমতি দেবেন?",
 "cw_settings_lan_allow": "অনুমতি দিন",
 "cw_settings_tile": "হোম স্ক্রিনে PS5Upload Minion দেখান",
+"cw_settings_tile_hidden": "PS5 PS5Upload Minion-এর রেকর্ড রেখে দিয়েছে, তাই এর বদলে হোম স্ক্রিনের আইকনটি লুকানো হয়েছে।",
 "cw_settings_on": "চালু",
 "cw_settings_off": "বন্ধ",
 "cw_settings_language": "ভাষা",

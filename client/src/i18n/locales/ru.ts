@@ -4240,6 +4240,7 @@ c2c_test_deep_bad: "Тестовая отправка 4 КиБ не дошла: 
 "cw_settings_lan_confirm_title": "Разрешить другим устройствам?",
 "cw_settings_lan_allow": "Разрешить",
 "cw_settings_tile": "Показывать PS5Upload Minion на главном экране",
+"cw_settings_tile_hidden": "PS5 сохранила запись о PS5Upload Minion, поэтому его значок на главном экране скрыт.",
 "cw_settings_on": "Вкл.",
 "cw_settings_off": "Выкл.",
 "cw_settings_language": "Язык",

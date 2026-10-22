@@ -272,10 +272,12 @@ static int f_del_staged(void *c) { note(c, "delete_staged"); return 0; }
 static int f_del_dir(void *c) { note(c, "delete_dir"); return ((fake_console_t *)c)->delete_dir_rc; }
 static int f_marker(void *c) { note(c, "unlink_marker"); return 0; }
 
+static webui_tile_removal_t g_verdict;
+
 static int run_remove(fake_console_t *f) {
     webui_tile_remove_ops_t ops = { f, f_staged, f_unregister, f_row, f_restage, f_hide, f_del_staged, f_del_dir,
                                     f_marker };
-    return webui_tile_remove_with(&ops);
+    return webui_tile_remove_with(&ops, &g_verdict);
 }
 
 #define DELETES "delete_staged,delete_dir,unlink_marker"
@@ -285,11 +287,13 @@ static void tile_remove_runs_in_order(void) {
         fake_console_t f = { .staged = 1, .confirmed = { 1 }, .sony_ok = { 1 }, .rows = { 0 } };
         CHECK(run_remove(&f) == 0);
         CHECK(strcmp(f.log, "unregister," DELETES) == 0);
+        CHECK(g_verdict == WEBUI_TILE_GONE);
     }
     { /* the unregister itself failed: nothing is touched */
         fake_console_t f = { .staged = 1, .unreg_rc = { -1 } };
         CHECK(run_remove(&f) == -1);
         CHECK(strcmp(f.log, "unregister") == 0);
+        CHECK(g_verdict == WEBUI_TILE_KEEP);
     }
     { /* one record left after Sony's 0: asked again, then gone */
         fake_console_t f = { .staged = 1, .confirmed = { 0, 1 }, .sony_ok = { 1, 1 }, .rows = { 1, 0 } };
@@ -310,6 +314,7 @@ static void tile_remove_runs_in_order(void) {
         fake_console_t f = { .staged = 1, .rows = { 1 } };
         CHECK(run_remove(&f) == 0);
         CHECK(strcmp(f.log, "unregister,hide," DELETES) == 0);
+        CHECK(g_verdict == WEBUI_TILE_HIDDEN);
     }
     { /* Sony keeps it and it cannot be hidden: the tile keeps its files (no grey ghost) */
         fake_console_t f = { .staged = 1, .rows = { 1 }, .hide_rc = -1 };
@@ -345,6 +350,230 @@ static void tile_removal_verdict_follows_appdb(void) {
     CHECK(webui_tile_removal_verdict(1, 1, 0) == WEBUI_TILE_KEEP);
 }
 
+/* ---- #480: the sweep at helper start and the watch after a removal ---- */
+
+static webui_tile_seen_t seen3(int rows, int content, int drawn) {
+    webui_tile_seen_t v;
+    v.rows = rows;
+    v.content = content;
+    v.icons_visible = drawn;
+    return v;
+}
+
+static void tile_install_record_prefers_contentinfo(void) {
+    webui_tile_seen_t v;
+    v = seen3(1, 0, 1); /* only an icon row is left (Options > Delete left it): not installed */
+    CHECK(webui_tile_install_record(&v) == 0);
+    v = seen3(1, 1, 1);
+    CHECK(webui_tile_install_record(&v) == 1);
+    v = seen3(1, -1, 0); /* firmware without tbl_contentinfo: any row counts */
+    CHECK(webui_tile_install_record(&v) == 1);
+    v = seen3(0, -1, 0);
+    CHECK(webui_tile_install_record(&v) == 0);
+    v = seen3(-1, -1, 0);
+    CHECK(webui_tile_install_record(&v) == -1);
+    /* The outside-removal rule on top of it: an icon row alone no longer re-registers the tile. */
+    v = seen3(1, 0, 1);
+    CHECK(webui_tile_removed_outside(1, webui_tile_install_record(&v), 0, 0) == 1);
+    v = seen3(1, 1, 1);
+    CHECK(webui_tile_removed_outside(1, webui_tile_install_record(&v), 0, 1) == 0);
+}
+
+static void tile_sweep_plan_cases(void) {
+    static const struct {
+        int tile_on, rows, content, drawn, registered, leftovers, may_remove;
+        webui_tile_sweep_t want;
+        const char *why;
+    } cases[] = {
+        { 1, 1, 1, 1, 0, 0, 1, WEBUI_TILE_SWEEP_NONE, "tile on: the ensure path owns it, even a zombie" },
+        { 1, 1, 1, 1, 1, 1, 1, WEBUI_TILE_SWEEP_NONE, "tile on and registered" },
+        { 1, 0, 0, 0, 0, 1, 1, WEBUI_TILE_SWEEP_NONE, "tile on, leftovers: ensure registers them" },
+        { 0, 1, 1, 1, 0, 0, 1, WEBUI_TILE_SWEEP_ZOMBIE, "the reported zombie: listed, drawn, no files" },
+        { 0, 1, 0, 1, 0, 0, 0, WEBUI_TILE_SWEEP_ZOMBIE, "an icon row Sony left behind, drawn (watch)" },
+        { 0, 1, 1, 0, 0, 0, 0, WEBUI_TILE_SWEEP_ZOMBIE, "an install record without files, icon hidden" },
+        { 0, 1, -1, 1, 0, 0, 1, WEBUI_TILE_SWEEP_ZOMBIE, "no contentinfo table, icon drawn" },
+        { 0, 1, 0, 0, 0, 0, 1, WEBUI_TILE_SWEEP_NONE, "only hidden icon rows: nothing shows" },
+        { 0, 1, 1, 1, 0, 1, 1, WEBUI_TILE_SWEEP_REMOVE, "off but its files are there: finish the removal" },
+        { 0, 1, 1, 1, 1, 1, 1, WEBUI_TILE_SWEEP_REMOVE, "off but still registered this boot" },
+        { 0, 1, 1, 1, 0, 1, 0, WEBUI_TILE_SWEEP_NONE, "the watch never re-runs a removal that kept the tile" },
+        { 0, 1, 1, 1, 1, 0, 0, WEBUI_TILE_SWEEP_NONE, "the watch leaves a bound tile alone" },
+        { 0, 0, 0, 0, 0, 1, 1, WEBUI_TILE_SWEEP_CLEAN, "gone from app.db, files left: delete them" },
+        { 0, 0, 0, 0, 0, 1, 0, WEBUI_TILE_SWEEP_CLEAN, "gone from app.db, files left (watch)" },
+        { 0, 0, 0, 0, 1, 1, 1, WEBUI_TILE_SWEEP_NONE, "gone from app.db but bound: app.db lagging, wait" },
+        { 0, 0, 0, 0, 0, 0, 1, WEBUI_TILE_SWEEP_NONE, "nothing at all" },
+        { 0, -1, -1, 0, 0, 0, 1, WEBUI_TILE_SWEEP_NONE, "app.db unreadable: never guess" },
+        { 0, -1, -1, 0, 0, 1, 1, WEBUI_TILE_SWEEP_NONE, "app.db unreadable, files left: never guess" },
+    };
+    size_t i;
+    for (i = 0; i < sizeof cases / sizeof cases[0]; i++) {
+        webui_tile_seen_t v = seen3(cases[i].rows, cases[i].content, cases[i].drawn);
+        webui_tile_sweep_t got = webui_tile_sweep_plan(cases[i].tile_on, &v, cases[i].registered, cases[i].leftovers,
+                                                       cases[i].may_remove);
+        if (got != cases[i].want) {
+            fprintf(stderr, "FAIL sweep_plan: %s (got %d)\n", cases[i].why, (int)got);
+            failures++;
+        }
+    }
+}
+
+/* A scripted app.db over time: each look returns the next state (the last one repeats). */
+typedef struct {
+    int tile_on;
+    webui_tile_seen_t states[12];
+    int n_states, at;
+    int registered, leftovers;
+    int hide_rc, remove_rc;
+    int stop_after_waits; /* wait reports a new request on this wait (1-based); 0 never */
+    int n_waits;
+    unsigned waited;
+    char log[512];
+} fake_appdb_t;
+
+static void anote(fake_appdb_t *f, const char *step) {
+    if (f->log[0]) strncat(f->log, ",", sizeof f->log - strlen(f->log) - 1);
+    strncat(f->log, step, sizeof f->log - strlen(f->log) - 1);
+}
+static int a_tile_on(void *c) { return ((fake_appdb_t *)c)->tile_on; }
+static int a_look(void *c, webui_tile_seen_t *seen) {
+    fake_appdb_t *f = c;
+    int i = f->at < f->n_states ? f->at : f->n_states - 1;
+    f->at++;
+    *seen = f->states[i];
+    anote(f, "look");
+    return 0;
+}
+static int a_registered(void *c) { return ((fake_appdb_t *)c)->registered; }
+static int a_leftovers(void *c) { return ((fake_appdb_t *)c)->leftovers; }
+static int a_uninstall(void *c) { anote(c, "uninstall"); return 0; }
+static int a_hide(void *c) {
+    fake_appdb_t *f = c;
+    anote(f, "hide");
+    return f->hide_rc;
+}
+static void a_keep(void *c) { anote(c, "keep"); }
+static int a_remove(void *c) { anote(c, "remove"); return ((fake_appdb_t *)c)->remove_rc; }
+static int a_clean(void *c) { anote(c, "clean"); return 0; }
+static int a_wait(void *c, unsigned s) {
+    fake_appdb_t *f = c;
+    f->n_waits++;
+    if (f->stop_after_waits && f->n_waits == f->stop_after_waits) return 1;
+    f->waited += s;
+    return 0;
+}
+
+static webui_tile_sweep_ops_t aops(fake_appdb_t *f) {
+    webui_tile_sweep_ops_t o = { f, a_tile_on, a_look, a_registered, a_leftovers, a_uninstall, a_hide, a_keep,
+                                 a_remove, a_clean, a_wait };
+    return o;
+}
+
+static void tile_zombie_is_uninstalled_then_hidden(void) {
+    { /* the reported state: Sony's record and a drawn icon, no files. Sony gives up the record. */
+        fake_appdb_t f = { .states = { seen3(1, 1, 1), seen3(1, 1, 1), seen3(0, 0, 0) }, .n_states = 3 };
+        webui_tile_sweep_ops_t o = aops(&f);
+        int un = 0;
+        CHECK(webui_tile_sweep_once(&o, 1, &un) == WEBUI_TILE_RESULT_REMOVED);
+        CHECK(strcmp(f.log, "look,look,uninstall,look,keep") == 0);
+        CHECK(un == 1);
+    }
+    { /* Sony keeps it: hidden everywhere, and the icon keeper keeps it hidden */
+        fake_appdb_t f = { .states = { seen3(1, 1, 1) }, .n_states = 1 };
+        webui_tile_sweep_ops_t o = aops(&f);
+        int un = 0;
+        CHECK(webui_tile_sweep_once(&o, 1, &un) == WEBUI_TILE_RESULT_HIDDEN);
+        CHECK(strcmp(f.log, "look,look,uninstall,look,keep,hide") == 0);
+    }
+    { /* an icon row alone (no install record): no Sony call, just hidden */
+        fake_appdb_t f = { .states = { seen3(1, 0, 1) }, .n_states = 1 };
+        webui_tile_sweep_ops_t o = aops(&f);
+        int un = 0;
+        CHECK(webui_tile_sweep_once(&o, 1, &un) == WEBUI_TILE_RESULT_HIDDEN);
+        CHECK(strcmp(f.log, "look,look,keep,hide") == 0);
+        CHECK(un == 0);
+    }
+    { /* hiding failed: reported, never a silent success */
+        fake_appdb_t f = { .states = { seen3(1, 0, 1) }, .n_states = 1, .hide_rc = -1 };
+        webui_tile_sweep_ops_t o = aops(&f);
+        int un = 0;
+        CHECK(webui_tile_sweep_once(&o, 1, &un) == WEBUI_TILE_RESULT_FAILED);
+    }
+    { /* the tile is on: nothing is read, nothing touched */
+        fake_appdb_t f = { .tile_on = 1, .states = { seen3(1, 1, 1) }, .n_states = 1 };
+        webui_tile_sweep_ops_t o = aops(&f);
+        int un = 0;
+        CHECK(webui_tile_sweep_once(&o, 1, &un) == WEBUI_TILE_RESULT_NONE);
+        CHECK(f.log[0] == '\0');
+    }
+    { /* at start, off, its files still there: the full removal */
+        fake_appdb_t f = { .states = { seen3(1, 1, 1) }, .n_states = 1, .leftovers = 1 };
+        webui_tile_sweep_ops_t o = aops(&f);
+        int un = 0;
+        CHECK(webui_tile_sweep_once(&o, 1, &un) == WEBUI_TILE_RESULT_REMOVED);
+        CHECK(strcmp(f.log, "look,remove") == 0);
+    }
+    { /* gone from app.db, files left: deleted without a Sony call */
+        fake_appdb_t f = { .states = { seen3(0, 0, 0) }, .n_states = 1, .leftovers = 1 };
+        webui_tile_sweep_ops_t o = aops(&f);
+        int un = 0;
+        CHECK(webui_tile_sweep_once(&o, 1, &un) == WEBUI_TILE_RESULT_REMOVED);
+        CHECK(strcmp(f.log, "look,clean") == 0);
+    }
+}
+
+static void tile_settle_catches_a_row_that_comes_back(void) {
+    static const unsigned delays[] = WEBUI_TILE_SETTLE_DELAYS;
+    unsigned total = 0;
+    size_t i;
+    for (i = 0; i < sizeof delays / sizeof delays[0]; i++) total += delays[i];
+    CHECK(total >= 100 && total <= 150); /* "about two minutes" */
+    { /* gone, gone, then the home screen writes the icon back: hidden (no record: no Sony call) */
+        fake_appdb_t f = { .states = { seen3(0, 0, 0), seen3(0, 0, 0), seen3(1, 0, 1), seen3(1, 0, 1), seen3(1, 0, 0) },
+                           .n_states = 5 };
+        webui_tile_sweep_ops_t o = aops(&f);
+        int un = 0;
+        CHECK(webui_tile_settle_with(&o, &un) == WEBUI_TILE_RESULT_HIDDEN);
+        CHECK(strncmp(f.log, "look,look,look,look,keep,hide,look", 34) == 0);
+        CHECK(f.waited == total);
+    }
+    { /* an install record reappears and stays, icon hidden: one extra uninstall in the whole watch */
+        fake_appdb_t f = { .states = { seen3(0, 0, 0), seen3(1, 1, 0) }, .n_states = 2 };
+        webui_tile_sweep_ops_t o = aops(&f);
+        int un = 0;
+        (void)webui_tile_settle_with(&o, &un);
+        CHECK(strstr(f.log, "uninstall") != NULL);
+        CHECK(strstr(strstr(f.log, "uninstall") + 1, "uninstall") == NULL);
+    }
+    { /* stays gone: nothing done */
+        fake_appdb_t f = { .states = { seen3(0, 0, 0) }, .n_states = 1 };
+        webui_tile_sweep_ops_t o = aops(&f);
+        int un = 0;
+        CHECK(webui_tile_settle_with(&o, &un) == WEBUI_TILE_RESULT_NONE);
+        CHECK(strstr(f.log, "hide") == NULL && strstr(f.log, "uninstall") == NULL);
+    }
+    { /* a new request (the tile turned on again) stops the watch at once */
+        fake_appdb_t f = { .states = { seen3(0, 0, 0), seen3(1, 0, 1) }, .n_states = 2, .stop_after_waits = 2 };
+        webui_tile_sweep_ops_t o = aops(&f);
+        int un = 0;
+        CHECK(webui_tile_settle_with(&o, &un) == WEBUI_TILE_RESULT_NONE);
+        CHECK(strcmp(f.log, "look") == 0);
+    }
+    { /* a removal that kept a working tile (files there): the watch does not retry it */
+        fake_appdb_t f = { .states = { seen3(1, 1, 1) }, .n_states = 1, .leftovers = 1 };
+        webui_tile_sweep_ops_t o = aops(&f);
+        int un = 0;
+        CHECK(webui_tile_settle_with(&o, &un) == WEBUI_TILE_RESULT_NONE);
+        CHECK(strstr(f.log, "remove") == NULL && strstr(f.log, "hide") == NULL);
+    }
+}
+
+static void tile_result_names(void) {
+    CHECK(strcmp(webui_tile_result_name(WEBUI_TILE_RESULT_NONE), "") == 0);
+    CHECK(strcmp(webui_tile_result_name(WEBUI_TILE_RESULT_ADDED), "added") == 0);
+    CHECK(strcmp(webui_tile_result_name(WEBUI_TILE_RESULT_REMOVED), "removed") == 0);
+    CHECK(strcmp(webui_tile_result_name(WEBUI_TILE_RESULT_HIDDEN), "hidden") == 0);
+    CHECK(strcmp(webui_tile_result_name(WEBUI_TILE_RESULT_FAILED), "failed") == 0);
+}
+
 int main(void) {
     snprintf(g_dir, sizeof g_dir, "/tmp/ps5upload-webui-settings-XXXXXX");
     if (!mkdtemp(g_dir)) {
@@ -360,6 +589,11 @@ int main(void) {
     tile_outside_removal_is_respected();
     tile_removal_verdict_follows_appdb();
     tile_remove_runs_in_order();
+    tile_install_record_prefers_contentinfo();
+    tile_sweep_plan_cases();
+    tile_zombie_is_uninstalled_then_hidden();
+    tile_settle_catches_a_row_that_comes_back();
+    tile_result_names();
     rmdir(g_dir);
     if (failures) {
         fprintf(stderr, "webui settings self-test: %d failure(s)\n", failures);
