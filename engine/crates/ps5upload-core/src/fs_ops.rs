@@ -256,6 +256,70 @@ pub fn ffpfsc_unpack(
     }
 }
 
+/// What [`archive_extract`] asks for: the archive (or its first volume) and the folder its entries
+/// are written into, with the password and how an existing folder is treated.
+#[derive(Debug, Clone, Default, serde::Serialize)]
+pub struct ExtractRequest {
+    pub path: String,
+    pub dest: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub password: Option<String>,
+    /// The folder may exist: write into it.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub merge: bool,
+    /// An existing file is replaced (else kept and counted in `skipped`).
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub replace: bool,
+}
+
+/// What [`archive_extract`] wrote. `unsafe` counts entries refused for escaping the folder (an
+/// absolute name, `..`, a link on the way), `links` the links and special files never created.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct ExtractResult {
+    pub path: String,
+    #[serde(default)]
+    pub files: u64,
+    #[serde(default)]
+    pub dirs: u64,
+    #[serde(default)]
+    pub bytes: u64,
+    #[serde(default)]
+    pub skipped: u64,
+    #[serde(default, rename = "unsafe")]
+    pub unsafe_entries: u64,
+    #[serde(default)]
+    pub links: u64,
+}
+
+/// Extract an archive on the console into a folder there (.zip, .7z, .rar, .tar and .tar.gz/.bz2/.xz/
+/// .zst, numbered and RAR volume sets). The helper runs its extractor payload for it, so nothing
+/// crosses the network. `op_id` keys `/api/ps5/fs/op-status` and `op-cancel`. Refused: a folder
+/// that exists without `merge`, a drive without room. A folder the run made is removed again when
+/// it fails or is stopped.
+pub fn archive_extract(
+    addr: &str,
+    req: &ExtractRequest,
+    op_id: u64,
+    io_timeout: std::time::Duration,
+) -> Result<ExtractResult> {
+    let body = serde_json::to_vec(req).context("serialize archive_extract")?;
+    match mgmt::run_op(
+        addr,
+        mgmt::ops::ARCHIVE_EXTRACT,
+        &format!("ARCHIVE_EXTRACT({})", req.path),
+        &body,
+        &mgmt::JobCall {
+            op_id,
+            subject: &req.path,
+            deadline: io_timeout,
+        },
+    ) {
+        Ok(resp) => serde_json::from_slice(&resp).context("decode ARCHIVE_EXTRACT result"),
+        Err(e) if is_cancel(&e, "fs_extract_cancelled") => bail!("cancelled"),
+        Err(e) => Err(e),
+    }
+}
+
 // ─── FS_READ ────────────────────────────────────────────────────────────────
 
 /// Ask the payload for up to `limit` bytes of a file on the PS5 starting at

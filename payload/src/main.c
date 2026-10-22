@@ -24,6 +24,7 @@
 #include "icon_keeper.h"
 #include "fakelib_overlay.h"
 #include "ava1_glue.h"
+#include "archive_extract.h"
 #include "takeover_flag.h"
 #include "ava1_stop.h"
 #include "ava1_data.h"
@@ -592,6 +593,7 @@ int main(void) {
      * the desktop-side post-install delete handles steady-state. */
     runtime_sweep_stale_pkg_temp();
     fs_pfsc_sweep();
+    archive_extract_sweep();
     startup_trace("SWEEP_DONE");
 
     if (runtime_init(&state) != 0) {

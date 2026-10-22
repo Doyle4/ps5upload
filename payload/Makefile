@@ -184,6 +184,14 @@ WEBUI_PAGE_DEPS := $(shell find $(CLIENT_DIR)/src/console -type f ! -name '*.tes
         $(CLIENT_DIR)/public/logo-square.png $(CLIENT_DIR)/vite.console.config.ts \
         $(CLIENT_DIR)/package.json $(CLIENT_DIR)/package-lock.json ../scripts/build-console-strings.mjs
 
+# The on-console archive extractor (extractor/, its own payload: decompression code linked into the
+# helper crashed it, see extractor/README.md), embedded by xxd as ps5upload_extractor_elf[] +
+# ps5upload_extractor_elf_len, which src/archive_extract.c sends to the console's ELF loader for each
+# extraction. Built by its own Makefile (7-Zip and libarchive, C++); `cd extractor` keeps xxd's names.
+EXTRACTOR_DIR := extractor
+EXTRACTOR_ELF := $(EXTRACTOR_DIR)/ps5upload-extractor.elf
+EXTRACTOR_ELF_C := build/extractor_elf.c
+
 SRCS := src/main.c src/runtime.c src/shell_builtin.c src/takeover.c src/takeover_flag.c src/ownership_record.c src/ava1_stop.c src/register.c src/hw_info.c \
         src/drive_sensors.c \
         src/proc_list.c src/ptrace_remote.c src/shellui_rpc.c \
@@ -194,7 +202,7 @@ SRCS := src/main.c src/runtime.c src/shell_builtin.c src/takeover.c src/takeover
         src/tmdb.c src/fw_spoof.c src/focus_probe.c \
         src/content_db.c src/mgmt_rpc.c src/fs_jobs.c src/net_probe.c src/net_ports.c src/mgmt_fs.c src/path_policy.c \
         src/webui_http.c src/webui_auth.c src/webui_server.c src/webui_codec.c src/webui_api.c \
-        src/webui_settings.c src/webui_inputlog.c src/webui_files.c src/webui_cheats_store.c src/webui_tile.c src/webui_strings.c src/webui_offline.c src/files_prefs.c src/files_handoff.c $(WEBUI_TILE_ICON_C) \
+        src/webui_settings.c src/webui_inputlog.c src/webui_files.c src/webui_cheats_store.c src/webui_tile.c src/webui_strings.c src/webui_offline.c src/files_prefs.c src/files_handoff.c src/archive_extract.c $(WEBUI_TILE_ICON_C) $(EXTRACTOR_ELF_C) \
         $(WEBUI_PAGE_C) $(WEBUI_STRINGS_C) $(WEBUI_OFFLINE_C) \
         third_party/tiny_aes/aes.c \
         $(BLAKE3_SRCS)
@@ -241,6 +249,17 @@ build/ava1/ava1/ava1_chacha_avx2.o: ava1/ava1_chacha_avx2.c $(HEADERS) Makefile
 	@mkdir -p $(dir $@)
 	$(CC) $(AVA1_CFLAGS) -mavx2 -c -o $@ $<
 
+# Always asks the extractor's Makefile (it knows its own sources); the C array is rewritten only when
+# the ELF changed.
+$(EXTRACTOR_ELF): FORCE
+	$(MAKE) -C $(EXTRACTOR_DIR)
+
+$(EXTRACTOR_ELF_C): $(EXTRACTOR_ELF) Makefile
+	@mkdir -p $(dir $@)
+	(cd $(EXTRACTOR_DIR) && xxd -i ps5upload-extractor.elf) > $@.tmp && mv $@.tmp $@
+
+FORCE:
+
 $(WEBUI_TILE_ICON_C): $(WEBUI_TILE_ICON_PNG) Makefile
 	@mkdir -p $(dir $@)
 	(cd assets && xxd -i webui_tile_icon0.png) > $@.tmp && mv $@.tmp $@
@@ -279,6 +298,8 @@ $(ELF).gz: $(ELF)
 clean:
 	rm -f $(ELF) $(ELF).gz $(SQLITE_OBJ) $(MONO_OBJ)
 	rm -rf build/ava1 $(SDK_CRT_BUILD)
+	$(MAKE) -C $(EXTRACTOR_DIR) clean
+	rm -f $(EXTRACTOR_ELF_C)
 	rm -f $(WEBUI_TILE_ICON_C) $(WEBUI_PAGE_C) $(WEBUI_STRINGS_C) $(WEBUI_OFFLINE_C) build/webui_page.gz \
 		build/webui_sw.js build/webui_cache.appcache
 
@@ -287,4 +308,4 @@ send: $(ELF)
 	nc -w 1 $(PS5_HOST) $(PS5_PORT) < $(ELF)
 	@echo "Sent — wait for PS5 notification before testing"
 
-.PHONY: all clean send
+.PHONY: all clean send FORCE

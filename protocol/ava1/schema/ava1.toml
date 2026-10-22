@@ -1143,6 +1143,10 @@ value = 9
 name = "JOB_OP_FFPFSC_UNPACK"   # a .ffpfsc's image written beside it on the console (#453)
 ty = "u8"
 value = 10
+[[const]]
+name = "JOB_OP_ARCHIVE_EXTRACT" # a .zip/.7z/.rar/.tar.* on the console extracted into a folder there
+ty = "u8"
+value = 11
 # fs.* entry kinds (FsEntry.kind, FsStat.kind): ENTRY_FILE (0) and ENTRY_DIR (1) above, plus:
 [[const]]
 name = "ENTRY_LINK"       # a symbolic link (not followed)
