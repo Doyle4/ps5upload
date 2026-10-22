@@ -1116,6 +1116,9 @@ pub(crate) fn python_float(f: f64) -> String {
 /// mmap, which the runtime does not serve), the system and backport folders, AMPR's own
 /// files, text configuration a title may read outside AMPR, already-compressed media, and the
 /// streaming containers Insomniac titles open at boot.
+///
+/// This is the profile for a game of no known engine; [`default_profile_for`] picks the one
+/// for the game's own files.
 pub fn default_profile(level: u8, block_shift: u8) -> Config {
     let mut c = Config {
         compression_mode: if level <= 2 {
@@ -1140,6 +1143,73 @@ pub fn default_profile(level: u8, block_shift: u8) -> Config {
         include: loose,
         ..base
     });
+    c
+}
+
+/// The profile used when the user gives none, for a game with these files (paths relative to
+/// `/app0`).
+///
+/// An Unreal Engine title with IoStore containers (`.ucas`) gets [`unreal_profile`]: only the
+/// containers are packed. Everything else, an Unreal title with `.pak` files only included,
+/// gets [`default_profile`], so the build still packs something.
+pub fn default_profile_for<'a>(
+    paths: impl IntoIterator<Item = &'a str>,
+    level: u8,
+    block_shift: u8,
+) -> Config {
+    if paths.into_iter().any(is_iostore_container) {
+        unreal_profile(level, block_shift)
+    } else {
+        default_profile(level, block_shift)
+    }
+}
+
+/// An Unreal Engine IoStore container, in any letter case.
+fn is_iostore_container(path: &str) -> bool {
+    path.to_ascii_lowercase().ends_with(UCAS_EXT)
+}
+
+const UCAS_EXT: &str = ".ucas";
+/// `*.ucas` in any letter case: rules match case-sensitively.
+const UCAS_GLOB: &str = "*.[uU][cC][aA][sS]";
+
+/// Which built-in profile [`default_profile_for`] picks for these files: `"unreal"` or
+/// `"default"`.
+pub fn default_profile_name<'a>(paths: impl IntoIterator<Item = &'a str>) -> &'static str {
+    if paths.into_iter().any(is_iostore_container) {
+        "unreal"
+    } else {
+        "default"
+    }
+}
+
+/// The profile for an Unreal Engine title: its IoStore containers (`*.ucas`, nearly all of the
+/// game's bytes) compressed, everything else loose.
+///
+/// Unreal opens its other files through its own platform file layer, and ampr_emu 0.4.2.1
+/// (whose release build hooks POSIX `open`/`stat`/`read`, not every libkernel entry) did not
+/// serve a packed one: Star Wars Galactic Racer (PPSA28416, FW 13.60) built with the default
+/// profile stopped at boot with "Failed to open descriptor file
+/// ../../../griffin/griffin.uproject". The `.pak` files, `.utoc` tables, `.sig` signatures and
+/// the shader and pipeline caches go through the same layer; Lazy_AMPR, exfat2ampr and
+/// theghostonline's tool also keep `.pak` and `.utoc` loose. Packing only the containers
+/// leaves nothing else to guess.
+pub fn unreal_profile(level: u8, block_shift: u8) -> Config {
+    let mut c = default_profile(level, block_shift);
+    let base = c.default_rule();
+    let loose = c
+        .rules
+        .pop()
+        .expect("the default profile ends with its loose rule");
+    c.rules = vec![
+        Rule {
+            action: Action::Compress,
+            include: vec![UCAS_GLOB.into()],
+            layout: Layout::Mixed,
+            ..base
+        },
+        loose,
+    ];
     c
 }
 
@@ -1170,6 +1240,9 @@ const DEFAULT_LOOSE: &[&str] = &[
     "ampr_assets-*.pak",
     "ampr_commands.bin",
     "apr_emu.log",
+    // An Unreal project descriptor, opened through the engine's own file layer: packed, it
+    // stopped Star Wars Galactic Racer at boot ("Failed to open descriptor file"). Any case.
+    "*.[uU][pP][rR][oO][jJ][eE][cC][tT]",
     // Text configuration, which a title may open with ordinary file calls.
     "*.json",
     "*.ini",
@@ -1375,6 +1448,57 @@ mod tests {
             assert_eq!(c.select(loose).action, Action::Loose, "{loose}");
         }
         assert_eq!(c.select("d/soundbank.fr").action, Action::Compress);
+    }
+
+    #[test]
+    fn an_unreal_title_packs_only_its_iostore_containers() {
+        let files = [
+            "eboot.bin",
+            "griffin/griffin.uproject",
+            "griffin/Content/Paks/pakchunk0-ps5.ucas",
+            "griffin/Content/Paks/pakchunk0-ps5.utoc",
+        ];
+        let c = default_profile_for(files, 9, 16);
+        assert_eq!(c, unreal_profile(9, 16));
+        let ucas = c.select("griffin/Content/Paks/pakchunk0-ps5.ucas");
+        assert_eq!(ucas.action, Action::Compress);
+        assert_eq!(ucas.resolved_layout(), Layout::Mixed);
+        for loose in [
+            "griffin/griffin.uproject",
+            "griffin/Content/Paks/pakchunk0-ps5.pak",
+            "griffin/Content/Paks/pakchunk0-ps5.utoc",
+            "griffin/Content/Paks/pakchunk0-ps5.sig",
+            "griffin/Content/PipelineCaches/PS5/x.upipelinecache",
+            "Engine/Content/Internationalization/icudt64l.dat",
+            "eboot.bin",
+            "fakelib/libSceAmpr.sprx",
+            // The default's loose list still applies after the containers rule.
+            "movies/x.ucas.mp4",
+        ] {
+            assert_eq!(c.select(loose).action, Action::Loose, "{loose}");
+        }
+        // Detection and the rule agree on letter case.
+        let upper = ["D/X.UCAS"];
+        assert_eq!(default_profile_for(upper, 9, 16), unreal_profile(9, 16));
+        assert_eq!(default_profile_name(upper), "unreal");
+        assert_eq!(c.select("D/X.UCAS").action, Action::Compress);
+        assert_eq!(c.select("d/x.Ucas").action, Action::Compress);
+        // A game of no known engine keeps the folder-wide default.
+        let plain = ["eboot.bin", "d/actor/x"];
+        assert_eq!(default_profile_for(plain, 9, 16), default_profile(9, 16));
+        assert_eq!(default_profile_name(plain), "default");
+        // So does an Unreal title without IoStore (.pak only): packing nothing gains nothing.
+        let pak_only = ["game/game.uproject", "game/Content/Paks/pakchunk0-ps5.pak"];
+        let d = default_profile_for(pak_only, 9, 16);
+        assert_eq!(d, default_profile(9, 16));
+        // ...which still never packs a project descriptor, in any letter case.
+        for loose in ["game/game.uproject", "game/Game.UProject", "x.UPROJECT"] {
+            assert_eq!(d.select(loose).action, Action::Loose, "{loose}");
+        }
+        assert_eq!(
+            d.select("game/Content/Paks/pakchunk0-ps5.pak").action,
+            Action::Compress
+        );
     }
 
     /// The canonical document drakmor's packer hashes for the build id, for the default config
