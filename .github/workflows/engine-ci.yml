@@ -47,6 +47,8 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 22
+          # Always the newest 22.x (security releases; the runner image can lag).
+          check-latest: true
       - name: Verify downstream files match VERSION
         run: node scripts/update-version.js --check
 
@@ -613,6 +615,8 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 22
+          # Always the newest 22.x (security releases; the runner image can lag).
+          check-latest: true
           cache: npm
           cache-dependency-path: client/package-lock.json
 
@@ -668,6 +672,8 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 22
+          # Always the newest 22.x (security releases; the runner image can lag).
+          check-latest: true
 
       - name: Check script syntax
         run: npm run scripts:check
@@ -712,6 +718,8 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 22
+          # Always the newest 22.x (security releases; the runner image can lag).
+          check-latest: true
           cache: npm
           cache-dependency-path: client/package-lock.json
 
@@ -754,6 +762,8 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 22
+          # Always the newest 22.x (security releases; the runner image can lag).
+          check-latest: true
           cache: npm
           cache-dependency-path: client/package-lock.json
 
@@ -856,6 +866,8 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 22
+          # Always the newest 22.x (security releases; the runner image can lag).
+          check-latest: true
           cache: npm
           cache-dependency-path: client/package-lock.json
 
