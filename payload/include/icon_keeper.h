@@ -8,8 +8,9 @@
  * visible again within 5 s of its launch). The helper remembers which titles were hidden here,
  * in /data/ps5upload/hidden_icons.txt, and a thread hides them again whenever app.db changes. */
 
-/* Remember (`hidden` 1) or forget (0) that the user hid `title_id`. */
-void icon_keeper_note(const char *title_id, int hidden);
+/* Remember (`hidden` 1) or forget (0) that the user hid `title_id`. Returns 1 when the list
+ * changed (the id was added, or was there and is now forgotten), else 0. */
+int icon_keeper_note(const char *title_id, int hidden);
 
 /* Start the thread; it runs for the helper's lifetime. */
 void icon_keeper_start(void);

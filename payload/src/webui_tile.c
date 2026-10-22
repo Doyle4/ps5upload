@@ -155,12 +155,24 @@ webui_tile_action_t webui_tile_plan(int files_changed, int mount_live, int lnk_o
     return WEBUI_TILE_REGISTER;
 }
 
+int webui_tile_removed_outside(int marker, int appdb_row, int mount_live, int lnk_ours) {
+    return marker && appdb_row == 0 && !(mount_live && lnk_ours);
+}
+
+webui_tile_removal_t webui_tile_removal_verdict(int appdb_row, int sony_confirmed, int hidden) {
+    if (appdb_row == 0) return WEBUI_TILE_GONE;
+    if (appdb_row < 0) return sony_confirmed ? WEBUI_TILE_GONE : WEBUI_TILE_KEEP;
+    return hidden ? WEBUI_TILE_HIDDEN : WEBUI_TILE_KEEP;
+}
+
 #ifndef WEBUI_TILE_HOST_TEST
 
 #include <pthread.h>
 #include <sys/mount.h>
 #include <sys/param.h>
 
+#include "content_db.h"
+#include "icon_keeper.h"
 #include "proc_identity.h"
 #include "register.h"
 
@@ -213,10 +225,42 @@ static int tile_register(void) {
     return 0;
 }
 
+/* The tile is on the home screen (again): remember that the helper put it there, and show its icon
+ * if an earlier removal could only hide it (the icon keeper forgets it first, or it would hide the
+ * icon again at the next app.db change). */
+static void tile_now_registered(int unhide) {
+    char why[160] = {0};
+    int fd = open(WEBUI_TILE_MARKER, O_WRONLY | O_CREAT | O_TRUNC, 0666);
+    if (fd >= 0) close(fd);
+    if (unhide && content_db_icon_set_visible(WEBUI_TILE_TITLE_ID, 1, why, sizeof why) != 0)
+        fprintf(stderr, "webui tile: cannot show the hidden icon again: %s\n", why);
+}
+
+int webui_tile_respect_outside_removal(void) {
+    int out;
+    if (access(WEBUI_TILE_MARKER, F_OK) != 0) return 0;
+    pthread_mutex_lock(&g_op_mu);
+    out = webui_tile_removed_outside(1, register_appdb_has_title(WEBUI_TILE_TITLE_ID), tile_mount_live(),
+                                     tile_lnk_ours());
+    if (out) {
+        fprintf(stderr, "webui tile: removed outside the helper (app.db has no %s); not registering it again\n",
+                WEBUI_TILE_TITLE_ID);
+        /* Left staged, FW 13.x AppInstallAll would install it again with the next folder game. The
+         * folder stays while a bind still sits on it. */
+        (void)webui_tile_remove_files(TILE_USER_APP);
+        (void)webui_tile_remove_files(TILE_APPMETA);
+        if (!tile_mount_live()) (void)webui_tile_remove_files(WEBUI_TILE_DIR);
+        (void)unlink(WEBUI_TILE_MARKER);
+    }
+    pthread_mutex_unlock(&g_op_mu);
+    return out;
+}
+
 int webui_tile_ensure(uint16_t port) {
     const char *err = NULL;
-    int changed, rc = 0;
+    int changed, rc = 0, unhide;
     pthread_mutex_lock(&g_op_mu);
+    unhide = icon_keeper_note(WEBUI_TILE_TITLE_ID, 0);
     changed = webui_tile_write_files(WEBUI_TILE_DIR, port);
     if (changed < 0) {
         fprintf(stderr, "webui tile: cannot write %s: %s\n", WEBUI_TILE_DIR, strerror(errno));
@@ -242,6 +286,7 @@ int webui_tile_ensure(uint16_t port) {
             rc = tile_register();
             break;
         }
+        if (rc == 0) tile_now_registered(unhide);
     }
     pthread_mutex_unlock(&g_op_mu);
     return rc;
@@ -249,33 +294,67 @@ int webui_tile_ensure(uint16_t port) {
 
 int webui_tile_remove(void) {
     const char *err = NULL;
-    unregister_outcome_t outcome;
-    int rc = 0;
+    unregister_outcome_t outcome, again;
+    char why[160] = {0};
+    int rc = 0, row, hidden = 0, staged;
     pthread_mutex_lock(&g_op_mu);
+    staged = is_dir(TILE_USER_APP);
     /* The nullfs must be gone before the folder under it is deleted: on an unregister failure the
      * folders stay (a tile pointing at nothing is worse than a tile that still works). */
     if (unregister_title(WEBUI_TILE_TITLE_ID, &err, &outcome) != 0) {
         fprintf(stderr, "webui tile: unregister failed: %s; keeping %s\n", err ? err : "unknown", WEBUI_TILE_DIR);
-        rc = -1;
-    } else {
-        if (!unregister_tile_confirmed(&outcome)) {
-            fprintf(stderr, "webui tile: removal unconfirmed rc=0x%08x; keeping recovery files\n",
-                    (unsigned)outcome.sony_rc);
-            pthread_mutex_unlock(&g_op_mu);
-            return -1;
-        }
-        /* unregister_title keeps the staged /user/app/PSUP00001 (sce_sys, icon, mount.lnk). On FW 13.x
-         * register goes through AppInstallAll, which installs everything staged there: left behind,
-         * the next folder-game register would bring back the tile the user removed. */
-        if (webui_tile_remove_files(TILE_USER_APP) != 0) {
-            fprintf(stderr, "webui tile: cannot delete %s: %s\n", TILE_USER_APP, strerror(errno));
-            rc = -1;
-        }
-        if (webui_tile_remove_files(WEBUI_TILE_DIR) != 0) {
-            fprintf(stderr, "webui tile: cannot delete %s: %s\n", WEBUI_TILE_DIR, strerror(errno));
-            rc = -1;
+        pthread_mutex_unlock(&g_op_mu);
+        return -1;
+    }
+    /* Judge by app.db, which the home screen draws. Its row outliving the uninstall while the tile's
+     * files were deleted is the greyed-out tile of #480. */
+    row = register_appdb_has_title(WEBUI_TILE_TITLE_ID);
+    if (row == 1 && outcome.api_called && outcome.sony_rc == 0) {
+        /* One uninstall can remove one of two install records (measured on FW 13.x after
+         * AppInstallAll, where unregister_title already repeats it; not there after
+         * AppInstallTitleDir): ask once more. */
+        fprintf(stderr, "webui tile: app.db still lists %s after the uninstall; asking again\n", WEBUI_TILE_TITLE_ID);
+        if (unregister_title(WEBUI_TILE_TITLE_ID, &err, &again) == 0) row = register_appdb_has_title(WEBUI_TILE_TITLE_ID);
+    }
+    if (row == 1 && !staged) {
+        /* Sony's record outlived the tile's files (an older helper deleted them after a refused
+         * uninstall). Stage and register the tile again so the uninstall has an app to remove. */
+        fprintf(stderr, "webui tile: %s is listed without its files; restaging it to uninstall it\n",
+                WEBUI_TILE_TITLE_ID);
+        if (webui_tile_write_files(WEBUI_TILE_DIR, WEBUI_PORT) >= 0 && tile_register() == 0 &&
+            unregister_title(WEBUI_TILE_TITLE_ID, &err, &outcome) == 0)
+            row = register_appdb_has_title(WEBUI_TILE_TITLE_ID);
+    }
+    if (row == 1) {
+        /* Sony keeps it: hide the icon the way the PC hides one (#407), and keep it hidden. */
+        if (content_db_icon_set_visible(WEBUI_TILE_TITLE_ID, 0, why, sizeof why) == 0) {
+            hidden = 1;
+            (void)icon_keeper_note(WEBUI_TILE_TITLE_ID, 1);
+            fprintf(stderr, "webui tile: the console keeps %s (uninstall rc=0x%08x); its icon is hidden\n",
+                    WEBUI_TILE_TITLE_ID, (unsigned)outcome.sony_rc);
+        } else {
+            fprintf(stderr, "webui tile: cannot hide the icon: %s\n", why);
         }
     }
+    if (webui_tile_removal_verdict(row, unregister_tile_confirmed(&outcome), hidden) == WEBUI_TILE_KEEP) {
+        fprintf(stderr, "webui tile: removal unconfirmed (app.db %d, rc=0x%08x); keeping the tile's files\n", row,
+                (unsigned)outcome.sony_rc);
+        pthread_mutex_unlock(&g_op_mu);
+        return -1;
+    }
+    /* unregister_title keeps the staged /user/app/PSUP00001 (sce_sys, icon, mount.lnk). On FW 13.x
+     * register goes through AppInstallAll, which installs everything staged there: left behind,
+     * the next folder-game register would bring back the tile the user removed. */
+    if (webui_tile_remove_files(TILE_USER_APP) != 0) {
+        fprintf(stderr, "webui tile: cannot delete %s: %s\n", TILE_USER_APP, strerror(errno));
+        rc = -1;
+    }
+    (void)webui_tile_remove_files(TILE_APPMETA);
+    if (webui_tile_remove_files(WEBUI_TILE_DIR) != 0) {
+        fprintf(stderr, "webui tile: cannot delete %s: %s\n", WEBUI_TILE_DIR, strerror(errno));
+        rc = -1;
+    }
+    if (unlink(WEBUI_TILE_MARKER) != 0 && errno != ENOENT) rc = -1;
     pthread_mutex_unlock(&g_op_mu);
     return rc;
 }

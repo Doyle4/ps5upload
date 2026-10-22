@@ -1177,6 +1177,16 @@ int webui_api_tile(const char *body, size_t len, char *out, size_t cap) {
     return n < 0 || (size_t)n >= cap ? -1 : n;
 }
 
+void webui_api_tile_forget(void) {
+    webui_settings_t s;
+    pthread_mutex_lock(&g_set_mu);
+    s = g_set;
+    s.tile = 0;
+    if (webui_settings_save(WEBUI_SETTINGS_PATH, &s) != 0) fprintf(stderr, "webui: cannot save tile:false\n");
+    g_set = s; /* the tile is off either way */
+    pthread_mutex_unlock(&g_set_mu);
+}
+
 int webui_api_tile_off(void) {
     webui_settings_t s;
     int rc = 0;

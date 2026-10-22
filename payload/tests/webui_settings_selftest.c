@@ -207,6 +207,41 @@ static void tile_plan_decides_rebind_or_register(void) {
     CHECK(webui_tile_plan(1, 1, 1, 1) == WEBUI_TILE_REGISTER);
 }
 
+/* #480: helper start leaves a tile the user deleted on the PS5 deleted, and never mistakes a
+ * fresh registration (app.db lagging behind it) or an unreadable app.db for one. */
+static void tile_outside_removal_is_respected(void) {
+    int k, r, m, l;
+    for (k = 0; k < 2; k++)
+        for (r = -1; r <= 1; r++)
+            for (m = 0; m < 2; m++)
+                for (l = 0; l < 2; l++) {
+                    int want = k && r == 0 && !(m && l);
+                    if (webui_tile_removed_outside(k, r, m, l) != want) {
+                        fprintf(stderr, "FAIL removed_outside(marker=%d row=%d mount=%d lnk=%d) != %d\n", k, r, m, l, want);
+                        failures++;
+                    }
+                }
+    CHECK(webui_tile_removed_outside(1, 0, 0, 0) == 1);  /* deleted on the PS5, then a reboot */
+    CHECK(webui_tile_removed_outside(0, 0, 0, 0) == 0);  /* never registered by this helper: register */
+    CHECK(webui_tile_removed_outside(1, -1, 0, 0) == 0); /* app.db unreadable: do not guess */
+    CHECK(webui_tile_removed_outside(1, 0, 1, 1) == 0);  /* this boot's registration */
+    CHECK(webui_tile_removed_outside(1, 1, 0, 1) == 0);  /* still registered: rebind */
+}
+
+/* #480: the files go only when the icon is gone from the home screen (or hidden); a row Sony keeps
+ * and nobody could hide keeps a working tile instead of leaving a greyed-out one. */
+static void tile_removal_verdict_follows_appdb(void) {
+    int c, h;
+    for (c = 0; c < 2; c++)
+        for (h = 0; h < 2; h++) {
+            CHECK(webui_tile_removal_verdict(0, c, h) == WEBUI_TILE_GONE);
+            CHECK(webui_tile_removal_verdict(1, c, h) == (h ? WEBUI_TILE_HIDDEN : WEBUI_TILE_KEEP));
+            CHECK(webui_tile_removal_verdict(-1, c, h) == (c ? WEBUI_TILE_GONE : WEBUI_TILE_KEEP));
+        }
+    /* The reported case: Sony answered 0 and the PC list was empty, but app.db kept the row. */
+    CHECK(webui_tile_removal_verdict(1, 1, 0) == WEBUI_TILE_KEEP);
+}
+
 int main(void) {
     snprintf(g_dir, sizeof g_dir, "/tmp/ps5upload-webui-settings-XXXXXX");
     if (!mkdtemp(g_dir)) {
@@ -219,6 +254,8 @@ int main(void) {
     param_json_exact();
     tile_files_written_only_when_different();
     tile_plan_decides_rebind_or_register();
+    tile_outside_removal_is_respected();
+    tile_removal_verdict_follows_appdb();
     rmdir(g_dir);
     if (failures) {
         fprintf(stderr, "webui settings self-test: %d failure(s)\n", failures);

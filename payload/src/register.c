@@ -1443,7 +1443,7 @@ static void remove_our_appmeta(const char *title_id) {
 }
 
 /* Whether app.db has a row for `title_id`: 1 / 0, or -1 when app.db could not be read. */
-static int appdb_has_title(const char *title_id) {
+int register_appdb_has_title(const char *title_id) {
     enum { MAX_ROWS = 2048 };
     content_db_app_t *rows = calloc(MAX_ROWS, sizeof(*rows));
     if (!rows) return -1;
@@ -1470,7 +1470,7 @@ static int title_still_present(const char *title_id) {
         if (path_exists(path)) p.app_dir = 1;
     }
     if (!p.appmeta_dir && p.app_dir) {
-        int row = appdb_has_title(title_id);
+        int row = register_appdb_has_title(title_id);
         p.appdb_known = row >= 0;
         p.appdb_row = row > 0;
     }
