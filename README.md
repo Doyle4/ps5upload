@@ -421,6 +421,8 @@ This software builds on the following open-source projects:
 * [SQLite](https://sqlite.org/) (public domain) — reading the console's app database
 * [tiny-AES-c](https://github.com/kokke/tiny-AES-c) (Unlicense) — MC4 cheat decryption
 * [libsmb2](https://github.com/sahlberg/libsmb2) (LGPL-2.1-or-later) — network shares on the console's own Files page; **vendored** at [`payload/third_party/libsmb2`](payload/third_party/libsmb2) and built into a separate on-demand daemon (`payload/smb/`), never into the helper
+* [7-Zip](https://7-zip.org) (Igor Pavlov; LGPL-2.1-or-later, parts BSD-3-Clause) — the decoders of the on-console archive extractor; the files it needs are **vendored** at [`payload/third_party/7zip`](payload/third_party/7zip) (no RAR code), built into a separate on-demand payload (`payload/extractor/`), never into the helper
+* [libarchive](https://github.com/libarchive/libarchive) (BSD-2-Clause) — that extractor's RAR and RAR5 readers, **vendored** at [`payload/third_party/libarchive`](payload/third_party/libarchive)
 
 ## Thanks
 
