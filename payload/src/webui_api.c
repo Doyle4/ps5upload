@@ -19,6 +19,7 @@
 #include <time.h>
 #include <unistd.h>
 
+#include "archive_extract.h"
 #include "ava1_data.h"
 #include "ava1_gen.h"
 #include "ava1_glue.h"
@@ -50,6 +51,7 @@
 #define API_LIST_JSON (64u * 1024u)  /* one fs.list page as JSON: entries past it page on */
 #define API_JOBS_JSON (16u * 1024u)  /* AVA1_MAX_JOBS (32) entries of ~260 bytes */
 #define API_STATUS_JSON (8u * 6u * 1024u) /* one job status: a result of WEBUI_JOB_RESULT_MAX, escaped */
+#define XPASS_MAX (512u)            /* an archive password, NUL included */
 #define API_PATH (1024u)             /* a path, NUL included (the helper's FS_PATH_MAX) */
 #define API_READ_MAX (1024u * 1024u) /* /api/fs/read's longest answer */
 #define API_LIST_MAX 256u            /* fs.list entries per call (the helper's own ceiling) */
@@ -790,6 +792,80 @@ static void r_fs_unpack_info(const char *b, size_t n, uint8_t *out, int fd) {
     else put_fmt(j, cap, &at, "\"free\":null,");
     put_fmt(j, cap, &at, "\"exists\":%s,\"compressed\":%s}", pr.exists ? "true" : "false",
             pr.compressed ? "true" : "false");
+    send_json(fd, 200, j, at);
+}
+
+/* Extract an archive on the console (ARCHIVE_EXTRACT, run by the extractor payload): {"path", "dest",
+ * optional "password", "merge", "replace"}. The job's result: {"path","files","dirs","bytes","skipped",
+ * "unsafe","links"}. */
+static void r_fs_extract(const char *b, size_t n, uint8_t *out, int fd) {
+    char path[API_PATH], dest[API_PATH], password[XPASS_MAX], *tail;
+    size_t at = 0, cap = 3 * API_PATH + 3 * XPASS_MAX + 64;
+    int merge = 0, replace = 0, rc;
+    if (need_path(fd, b, n, "path", path, sizeof path) != 0) return;
+    if (need_path(fd, b, n, "dest", dest, sizeof dest) != 0) return;
+    rc = webui_json_str(b, n, "password", password, sizeof password);
+    if (rc < 0) {
+        send_bad(fd, "bad_password");
+        return;
+    }
+    if (webui_json_bool(b, n, "merge", &merge) < 0 || webui_json_bool(b, n, "replace", &replace) < 0) {
+        send_bad(fd, "bad_merge");
+        return;
+    }
+    tail = malloc(cap);
+    if (!tail) {
+        send_error(fd, 500, "out_of_memory", 13);
+        return;
+    }
+    /* archive_extract.c reads it back with fsj_json_str (\" \\ \uXXXX understood). */
+    at = (size_t)snprintf(tail, cap, ",\"dest\":\"");
+    at += webui_json_escape(tail + at, cap - at, dest, strlen(dest));
+    if (at + 16 < cap) at += (size_t)snprintf(tail + at, cap - at, "\"%s", rc == 1 ? ",\"password\":\"" : "");
+    if (rc == 1 && at < cap) {
+        at += webui_json_escape(tail + at, cap - at, password, strlen(password));
+        if (at + 2 < cap) at += (size_t)snprintf(tail + at, cap - at, "\"");
+    }
+    if (at + 40 < cap)
+        at += (size_t)snprintf(tail + at, cap - at, ",\"merge\":%s,\"replace\":%s", merge ? "true" : "false",
+                               replace ? "true" : "false");
+    else
+        at = cap; /* did not fit */
+    memset(password, 0, sizeof password);
+    if (at >= cap) {
+        memset(tail, 0, cap);
+        free(tail);
+        send_bad(fd, "bad_path");
+        return;
+    }
+    start_path_job(fd, out, AVA1_JOB_OP_ARCHIVE_EXTRACT, path, NULL, tail);
+    memset(tail, 0, cap);
+    free(tail);
+}
+
+/* What an extraction would do, before it starts: {"name","dest","size","volumes","free"|null,"exists",
+ * "kind"}. A source it would refuse answers its cause (403 path, 404 cannot open, 409 not an archive). */
+static void r_fs_extract_info(const char *b, size_t n, uint8_t *out, int fd) {
+    char path[API_PATH];
+    archive_probe_t pr;
+    const char *bad;
+    char *j = (char *)out;
+    size_t at = 0, cap = API_OUT_MAX;
+    if (need_path(fd, b, n, "path", path, sizeof path) != 0) return;
+    bad = archive_extract_probe(path, &pr);
+    if (bad) {
+        int http = strstr(bad, "not_allowed") ? 403 : (strstr(bad, "open_failed") ? 404 : 409);
+        send_error(fd, http, bad, strlen(bad));
+        return;
+    }
+    put_fmt(j, cap, &at, "{");
+    put_str(j, cap, &at, "name", pr.name);
+    put_fmt(j, cap, &at, ",");
+    put_str(j, cap, &at, "dest", pr.dest);
+    put_fmt(j, cap, &at, ",\"size\":%llu,\"volumes\":%u,", (unsigned long long)pr.size, pr.volumes);
+    if (pr.have_free) put_fmt(j, cap, &at, "\"free\":%llu,", (unsigned long long)pr.free);
+    else put_fmt(j, cap, &at, "\"free\":null,");
+    put_fmt(j, cap, &at, "\"exists\":%s,\"kind\":\"%s\"}", pr.exists ? "true" : "false", pr.kind);
     send_json(fd, 200, j, at);
 }
 
@@ -2600,6 +2676,8 @@ static const struct {
     { "/api/fs/crc32", r_fs_crc32 },
     { "/api/fs/unpack", r_fs_unpack },
     { "/api/fs/unpack/info", r_fs_unpack_info },
+    { "/api/fs/extract", r_fs_extract },
+    { "/api/fs/extract/info", r_fs_extract_info },
     { "/api/upload/begin", r_upload_begin },
     { "/api/upload/cancel", r_upload_cancel },
     { "/api/download/begin", r_download_begin },

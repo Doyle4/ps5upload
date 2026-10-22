@@ -2,6 +2,7 @@
  * engine trusted through the ELF's trust slot. Pairing opens by itself for 5 minutes
  * only while nothing is paired; otherwise a paired device opens it (pairing.open). */
 #include "ava1_glue.h"
+#include "archive_extract.h"
 
 #include <errno.h>
 #include <stdio.h>
@@ -228,6 +229,7 @@ int ava1_payload_start(void) {
                 g_data_on = 1;
                 fsj_register_ops(); /* job.run: delete, chmod -R, hash, crc32 (the table adds the rest) */
                 webui_pkg_register_ops(); /* job.run: the console page's package install */
+                archive_extract_register(); /* job.run: an archive extracted on the console */
             }
         }
     }

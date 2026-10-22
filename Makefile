@@ -862,6 +862,8 @@ test-payload: payload
 		}; \
 	done
 	@echo "✓ Main payload and PS5Upload installer are PS5 ELFs with gzip resources"
+	@echo "Running the archive extractor's tests (host build)..."
+	@$(MAKE) -C $(PAYLOAD_DIR)/extractor host-test
 	@echo "Running play-time launch/resume self-test (host build)..."
 	@cc -O2 -Wall -Wextra -Werror -o /tmp/ps5upload-activity-selftest \
 		$(PAYLOAD_DIR)/tests/activity_launch_selftest.c

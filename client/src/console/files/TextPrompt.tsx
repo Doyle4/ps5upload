@@ -21,6 +21,8 @@ export function TextPrompt({
   fieldLabel,
   check = checkName,
   extra,
+  secret = false,
+  note,
   onSubmit,
   onCancel,
 }: {
@@ -31,6 +33,10 @@ export function TextPrompt({
   check?: (value: string) => string | null | Promise<string | null>;
   /** Shown under the box (Go to path's pinned folders). */
   extra?: ReactNode;
+  /** A password: the box masks what is typed (and the phone handoff is not offered). */
+  secret?: boolean;
+  /** A line above the box (why it is asked). */
+  note?: ReactNode;
   onSubmit: (value: string) => void;
   onCancel: () => void;
 }) {
@@ -75,11 +81,12 @@ export function TextPrompt({
         }}
       >
         <h2>{title}</h2>
+        {note}
         <label className="cw-field">
           <span className="cw-dim">{fieldLabel ?? t("cw_files_name")}</span>
           <input
             className="cw-focusable cw-input"
-            type="text"
+            type={secret ? "password" : "text"}
             value={value}
             data-nav-default=""
             autoComplete="off"
@@ -97,7 +104,7 @@ export function TextPrompt({
           </p>
         ) : null}
         {extra}
-        <PhoneHandoff />
+        {secret ? null : <PhoneHandoff />}
         <div className="cw-dialog-buttons">
           <button type="button" className="cw-focusable cw-button" onClick={onCancel}>
             <span>{t("cw_dialog_cancel")}</span>

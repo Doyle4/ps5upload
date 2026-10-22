@@ -53,6 +53,8 @@
  *   ava1/ava1_journal.c   1  dir    journal: tmp -> final
  *   ava1/ava1_store.c     1  dir    key and trust stores: tmp -> final
  *   ava1/ava1_recv.c      2  dir    outboard renames inside the job folder
+ *   (the extractor payload, not counted by the test: extractor/src/xsink.c 1 dir, an extracted file's
+ *   .ps5u-x-<pid>-<n>.part beside it -> its name; extractor/src/xreq.c 1 dir, status.json.tmp -> status.json)
  *
  * `XDEV_UNKNOWN` is deliberately a third value rather than being folded
  * into "safe", and it is FAIL CLOSED: a caller proceeds to rename() only on

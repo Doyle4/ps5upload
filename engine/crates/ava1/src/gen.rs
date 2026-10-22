@@ -183,6 +183,7 @@ pub const JOB_OP_CLEANUP: u8 = 8;
 pub const JOB_OP_SDK_SCAN: u8 = 9;
 pub const JOB_OP_FFPFSC_UNPACK: u8 = 10;
 pub const JOB_OP_PKG_INSTALL: u8 = 11;
+pub const JOB_OP_ARCHIVE_EXTRACT: u8 = 12;
 pub const ENTRY_LINK: u8 = 2;
 pub const ENTRY_OTHER: u8 = 3;
 pub const ENTRY_UNKNOWN: u8 = 4;

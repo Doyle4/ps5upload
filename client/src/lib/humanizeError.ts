@@ -106,6 +106,54 @@ export function humanizePs5Error(
     return te("err_unpack_bad");
   }
 
+  // ─── Extracting an archive on the console (the extractor payload) ────
+  {
+    const m = raw.match(/fs_extract_(\w+)/i);
+    if (m) {
+      const cause = m[1].toLowerCase();
+      switch (cause) {
+        case "no_space":
+          return te("err_extract_no_space");
+        case "destination_exists":
+          return te("err_extract_exists");
+        case "busy":
+          return te("err_extract_busy");
+        case "password_required":
+          return te("err_extract_password_required");
+        case "wrong_password":
+          return te("err_extract_wrong_password");
+        case "rar_encrypted":
+          return te("err_extract_rar_encrypted");
+        case "unsupported_method":
+          return te("err_extract_unsupported_method");
+        case "corrupt":
+        case "truncated":
+          return te("err_extract_corrupt");
+        case "not_archive":
+          return te("err_extract_not_archive");
+        case "missing_volume": {
+          const v = raw.match(/fs_extract_missing_volume:\s*(\S[^\n]*)/i);
+          return te("err_extract_missing_volume", { name: v ? v[1].trim() : "?" });
+        }
+        case "loader_unreachable":
+          return te("err_extract_loader");
+        case "not_started":
+        case "died":
+          return te("err_extract_died");
+        case "no_memory":
+          return te("err_extract_no_memory");
+        case "write_failed":
+          return te("err_extract_write_failed");
+        case "open_failed":
+          return te("err_extract_open_failed");
+        case "path_not_allowed":
+        case "bad_dest":
+        case "missing_path":
+          return te("err_extract_path");
+      }
+    }
+  }
+
   // ─── NPXS system-pkg + mgmt disconnect mid-install ─────────────────
   // Sony accepts the register call (we see `register_path=shellui-rpc
   // accepted`) but `sceAppInstUtilInstallByPackage` isn't designed

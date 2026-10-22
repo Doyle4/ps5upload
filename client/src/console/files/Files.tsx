@@ -44,6 +44,8 @@ import { isFfpfsc, opCause, opResult, startOp, watchOp, type OpEnd } from "./opJ
 import { UnpackDialog, unpackCauseText, unpackErrorText } from "./UnpackDialog";
 import { PkgDialog } from "./PkgDialog";
 import { installBusyText, installMessage, installPhaseText, installStoppable, isPayload, isPkg, loadPayload, payloadErrorText, startInstall } from "./pkg";
+import { ExtractDialog, extractCauseText, extractErrorText, type ExtractStart } from "./ExtractDialog";
+import { isExtractableArchive, toExtractResult } from "../../lib/archiveName";
 import { VerifyDialog } from "./VerifyDialog";
 import {
   copyItems,
@@ -129,6 +131,10 @@ export type FilesAsk =
   | { kind: "reinstall"; name: string; title: string }
   /** Load a .elf/.bin into the console's payload loader. */
   | { kind: "payload"; name: string }
+  /** Extract an archive into a folder next to it. */
+  | { kind: "extract"; name: string }
+  /** The archive has a password (`wrong`: the one given was refused): ask, then run `start` again. */
+  | { kind: "extractpw"; name: string; start: ExtractStart; wrong: boolean }
   | { kind: "mkdir" }
   /** A new, empty file (then opened in the editor). */
   | { kind: "newfile" }
@@ -316,6 +322,8 @@ export interface FilesViewProps {
   onInstallPkg?: (name: string, replace: boolean, title: string) => void;
   /** Send `name` (a .elf/.bin in the folder shown) to the console's payload loader. */
   onLoadPayload?: (name: string) => void;
+  /** Extract `name` (an archive in the folder shown) as `start` says; `password` once one was asked for. */
+  onExtract?: (name: string, start: ExtractStart, password?: string) => void;
   onMkdir: (name: string) => void;
   onPicked: (op: "copy" | "move", names: string[], destDir: string) => void;
   /** Open `dir` in Files with `name` focused (a search result); null name: the folder itself. */
@@ -353,6 +361,7 @@ export function busyText(b: Busy | null): string | null {
   if (b.op === "chmod") return t("cw_files_fixperm_batch", { at, total: b.total });
   if (b.op === "rename") return t("cw_files_br_batch", { at, total: b.total });
   if (b.op === "unpack") return withBytes(t("cw_files_unpack_batch", { name: baseName(b.paths?.[0] ?? "") }), b);
+  if (b.op === "extract") return withBytes(t("cw_files_extract_batch", { name: baseName(b.paths?.[0] ?? "") }), b);
   if (b.op === "install") {
     const name = baseName(b.paths?.[0] ?? "");
     return `${name}: ${installBusyText(installPhaseText(b.phase), b.bytesDone ?? 0, b.bytesTotal ?? 0)}`;
@@ -378,6 +387,7 @@ export function sheetActions(names: string[], entries: Entry[], pinned: boolean 
   if (e && e.kind === "dir" && pinned != null) out.push(pinned ? "unpin" : "pin");
   if (e && e.kind === "file") out.push("verify", "hex");
   if (e && e.kind === "file" && isFfpfsc(e.name)) out.push("unpack");
+  if (e && e.kind === "file" && isExtractableArchive(e.name)) out.push("extract");
   if (canShowOnPc()) out.push("showpc");
   out.push("fixperm", "delete");
   return out;
@@ -454,6 +464,27 @@ export function unpackMessage(end: OpEnd | { end: "error"; error: unknown }, sou
   const cause = opCause(end.status);
   const why = unpackCauseText(cause) ?? t("cw_files_unpack_failed_generic", { cause: cause || "?" });
   return { tone: "error", text: t("cw_files_unpack_failed", { reason: why }) };
+}
+
+/** The line a finished extract leaves (`merged`: it wrote into a folder that was already there). */
+export function extractMessage(end: OpEnd | { end: "error"; error: unknown }, merged: boolean): Message | null {
+  if (end.end === "done") {
+    const r = toExtractResult(opResult<unknown>(end.status));
+    const parts = [t("cw_files_extract_done", { n: r.files, name: r.path ? baseName(r.path) : "" })];
+    if (r.skipped > 0) parts.push(t("cw_files_extract_done_skipped", { n: r.skipped }));
+    if (r.unsafe > 0) parts.push(t("cw_files_extract_done_unsafe", { n: r.unsafe }));
+    if (r.links > 0) parts.push(t("cw_files_extract_done_links", { n: r.links }));
+    return { tone: "info", text: parts.join(" ") };
+  }
+  if (end.end === "cancelled") return { tone: "info", text: t(merged ? "cw_files_extract_stopped_merge" : "cw_files_extract_stopped") };
+  if (end.end === "gone") return { tone: "info", text: t("cw_files_op_gone") };
+  if (end.end === "error") {
+    const why = extractErrorText(end.error);
+    return why ? { tone: "error", text: t("cw_files_extract_failed", { reason: why }) } : null;
+  }
+  const cause = opCause(end.status);
+  const why = extractCauseText(cause) ?? t("cw_files_unpack_failed_generic", { cause: cause || "?" });
+  return { tone: "error", text: t("cw_files_extract_failed", { reason: why }) };
 }
 
 /** Go to path's pinned folders: one button each, ✕ opens it. */
@@ -649,6 +680,8 @@ function askView(p: FilesViewProps) {
                 return p.onAsk({ kind: "pkg", name });
               case "loadpayload":
                 return p.onAsk({ kind: "payload", name });
+              case "extract":
+                return p.onAsk({ kind: "extract", name });
               case "mkdir":
                 return p.onAsk({ kind: "mkdir" });
               case "newfile":
@@ -789,6 +822,34 @@ function askView(p: FilesViewProps) {
           busy={!!p.askBusy}
           error={p.askError}
           onConfirm={() => p.onLoadPayload?.(a.name)}
+          onCancel={p.onDismiss}
+        />
+      );
+    case "extract":
+      return (
+        <ExtractDialog
+          dir={path}
+          name={a.name}
+          path={joinPath(path, a.name)}
+          busy={p.busy != null}
+          onStart={(start) => p.onExtract?.(a.name, start)}
+          onCancel={p.onDismiss}
+        />
+      );
+    case "extractpw":
+      return (
+        <TextPrompt
+          title={t("cw_files_extract_pw_title", { name: a.name })}
+          fieldLabel={t("cw_files_extract_pw_label")}
+          note={
+            <p className={a.wrong ? "cw-field-error" : "cw-dim"} role={a.wrong ? "alert" : undefined}>
+              {t(a.wrong ? "cw_files_extract_pw_wrong" : "cw_files_extract_pw_body")}
+            </p>
+          }
+          initial=""
+          secret
+          check={(v) => (v ? null : t("cw_files_extract_pw_empty"))}
+          onSubmit={(v) => p.onExtract?.(a.name, a.start, v)}
           onCancel={p.onDismiss}
         />
       );
@@ -958,7 +1019,7 @@ export function FilesView(p: FilesViewProps) {
       {status ? (
         <div className="cw-msg" role="status">
           {status}
-          {p.onStopBatch && p.busy && !p.busy.stopping && (p.busy.total > 1 || p.busy.op === "unpack" || (p.busy.op === "install" && installStoppable(p.busy.phase)) || p.busy.cancels) ? (
+          {p.onStopBatch && p.busy && !p.busy.stopping && (p.busy.total > 1 || p.busy.op === "unpack" || (p.busy.op === "install" && installStoppable(p.busy.phase)) || p.busy.cancels || p.busy.op === "extract") ? (
             <button
               type="button"
               className="cw-focusable cw-button cw-msg-action"
@@ -1732,6 +1793,58 @@ export function Files({ ctx }: { ctx: SectionContext }) {
     [path],
   );
 
+  const onExtract = useCallback(
+    (name: string, start: ExtractStart, password?: string) => {
+      if (path == null || currentBatch()) return;
+      const src = joinPath(path, name);
+      setAsk(null);
+      setMessage(null);
+      let end: OpEnd | { end: "error"; error: unknown } = { end: "gone" };
+      const body = {
+        path: src,
+        dest: start.dest,
+        ...(password ? { password } : {}),
+        ...(start.merge ? { merge: true } : {}),
+        ...(start.replace ? { replace: true } : {}),
+      };
+      const run = startBatch(
+        "extract",
+        1,
+        async (ctl) => {
+          const r: BatchResult = { started: [], moved: [], failed: [], jobFailed: [], skipped: [] };
+          ctl.onProgress(1, 1);
+          try {
+            const job = await startOp("/api/fs/extract", body);
+            r.started.push(job);
+            end = await watchOp(job, { stopped: ctl.stopped, onStatus: (s) => ctl.onBytes(s.bytes_done, s.bytes_total) });
+          } catch (error) {
+            end = { end: "error", error };
+          }
+          return r;
+        },
+        [src, path],
+      );
+      run?.then(
+        () => {
+          if (!mounted.current) return;
+          const done = end as OpEnd | { end: "error"; error: unknown };
+          const cause = done.end === "failed" ? opCause(done.status) : done.end === "error" && done.error instanceof ApiError ? done.error.code : "";
+          if (cause === "fs_extract_password_required" || cause === "fs_extract_wrong_password") {
+            // Not a failure yet: ask for the password and run the same extract again.
+            setAsk({ kind: "extractpw", name, start, wrong: cause === "fs_extract_wrong_password" });
+            refresh();
+            return;
+          }
+          setMessage(extractMessage(done, start.merge));
+          if (done.end === "done") focusName.current = baseName(start.dest);
+          refresh();
+        },
+        () => undefined,
+      );
+    },
+    [path, refresh],
+  );
+
   const onMkdir = useCallback(
     (name: string) => {
       setAsk(null);
@@ -2105,6 +2218,7 @@ export function Files({ ctx }: { ctx: SectionContext }) {
         onUnpack={onUnpack}
         onInstallPkg={onInstallPkg}
         onLoadPayload={onLoadPayload}
+        onExtract={onExtract}
         onMkdir={onMkdir}
         onNewFile={onNewFile}
         onDownload={remote ? onDownload : undefined}

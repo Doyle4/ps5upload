@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { humanizePs5Error } from "./humanizeError";
+import en from "../i18n/locales/en";
 
 describe("humanizePs5Error", () => {
   it("returns empty input unchanged", () => {
@@ -373,5 +374,40 @@ describe("install and launch advice names today's app", () => {
   it("points at Games → Game files where a folder or image can be registered", () => {
     expect(humanizePs5Error("launch_sony_error_0x80941234")).toContain("Games → Game files");
     expect(humanizePs5Error("0x80A2FF06")).toContain("Games → Game files");
+  });
+});
+
+describe("archive extract causes", () => {
+  const cases: [string, string, Record<string, string>?][] = [
+    ["fs_extract_no_space: needs 9 bytes, 1 free", "err_extract_no_space"],
+    ["fs_extract_destination_exists", "err_extract_exists"],
+    ["fs_extract_busy", "err_extract_busy"],
+    ["fs_extract_password_required", "err_extract_password_required"],
+    ["fs_extract_wrong_password", "err_extract_wrong_password"],
+    ["fs_extract_rar_encrypted", "err_extract_rar_encrypted"],
+    ["fs_extract_unsupported_method: PPMd", "err_extract_unsupported_method"],
+    ["fs_extract_corrupt: CRC failed in a/b", "err_extract_corrupt"],
+    ["fs_extract_truncated", "err_extract_corrupt"],
+    ["fs_extract_not_archive", "err_extract_not_archive"],
+    ["fs_extract_missing_volume: g.part2.rar", "err_extract_missing_volume", { name: "g.part2.rar" }],
+    ["fs_extract_loader_unreachable", "err_extract_loader"],
+    ["fs_extract_died", "err_extract_died"],
+    ["fs_extract_not_started", "err_extract_died"],
+    ["fs_extract_no_memory", "err_extract_no_memory"],
+    ["fs_extract_write_failed: EIO", "err_extract_write_failed"],
+    ["fs_extract_open_failed", "err_extract_open_failed"],
+    ["fs_extract_path_not_allowed", "err_extract_path"],
+    ["fs_extract_bad_dest", "err_extract_path"],
+  ];
+  for (const [raw, key, vars] of cases) {
+    it(raw, () => {
+      let want = (en as Record<string, string>)[key];
+      expect(want, key).toBeTruthy();
+      for (const [k, v] of Object.entries(vars ?? {})) want = want.replace(`{${k}}`, v);
+      expect(humanizePs5Error(raw)).toBe(want);
+    });
+  }
+  it("leaves an unknown extract cause as it is", () => {
+    expect(humanizePs5Error("fs_extract_something_new")).toBe("fs_extract_something_new");
   });
 });

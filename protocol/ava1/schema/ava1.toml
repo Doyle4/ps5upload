@@ -1147,6 +1147,10 @@ value = 10
 name = "JOB_OP_PKG_INSTALL"     # the console page installs a .pkg on the console (staged from USB/M.2 first)
 ty = "u8"
 value = 11
+[[const]]
+name = "JOB_OP_ARCHIVE_EXTRACT" # a .zip/.7z/.rar/.tar.* on the console extracted into a folder there
+ty = "u8"
+value = 12
 # fs.* entry kinds (FsEntry.kind, FsStat.kind): ENTRY_FILE (0) and ENTRY_DIR (1) above, plus:
 [[const]]
 name = "ENTRY_LINK"       # a symbolic link (not followed)

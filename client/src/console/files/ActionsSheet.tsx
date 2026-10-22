@@ -5,6 +5,7 @@ import {
   FilePlus,
   ClipboardCopy,
   FileArchive,
+  PackageOpen,
   FileCheck,
   Replace,
   Copy,
@@ -48,6 +49,7 @@ export type SheetAction =
   | "unpack"
   | "install"
   | "loadpayload"
+  | "extract"
   | "showpc"
   | "fixperm"
   | "delete"
@@ -76,6 +78,7 @@ const ITEMS: Record<SheetAction, { icon: LucideIcon; key: string }> = {
   unpack: { icon: FileArchive, key: "cw_files_unpack" },
   install: { icon: PackagePlus, key: "cw_pkg_install" },
   loadpayload: { icon: Rocket, key: "cw_payload_load" },
+  extract: { icon: PackageOpen, key: "cw_files_extract" },
   showpc: SHOW_ON_PC_ITEM,
   fixperm: { icon: ShieldCheck, key: "cw_files_fixperm" },
   delete: { icon: Trash2, key: "cw_files_delete" },
@@ -84,7 +87,7 @@ const ITEMS: Record<SheetAction, { icon: LucideIcon; key: string }> = {
 };
 
 /** The ones a running copy/move/delete request holds back (one batch at a time). */
-const HELD: ReadonlySet<SheetAction> = new Set(["copy", "move", "bulkrename", "unpack", "install", "fixperm", "delete"]);
+const HELD: ReadonlySet<SheetAction> = new Set(["copy", "move", "bulkrename", "unpack", "install", "extract", "fixperm", "delete"]);
 
 /** More actions than this go in two columns. */
 export const SHEET_ONE_COLUMN = 8;

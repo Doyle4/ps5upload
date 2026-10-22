@@ -2457,6 +2457,96 @@ async fn ps5_fs_unpack(
     }
 }
 
+#[derive(Deserialize)]
+struct FsExtractReq {
+    addr: Option<String>,
+    path: String,
+    dest: String,
+    #[serde(default)]
+    password: Option<String>,
+    #[serde(default)]
+    merge: bool,
+    #[serde(default)]
+    replace: bool,
+    #[serde(default)]
+    op_id: u64,
+}
+
+/// POST /api/ps5/fs/extract `{addr, path, dest, password?, merge?, replace?, op_id}` — extract an
+/// archive on the console into `dest` there (the helper's extractor payload does the decoding).
+/// Progress and cancel go through `op-status`/`op-cancel` with the same `op_id`. 200 `{ok, path,
+/// files, dirs, bytes, skipped, unsafe, links}`; 409 when cancelled; 502 with the helper's cause
+/// otherwise (`fs_extract_password_required`, `fs_extract_no_space: ...`, ...). The password is
+/// never logged.
+async fn ps5_fs_extract(
+    State(_state): State<AppState>,
+    Json(req): Json<FsExtractReq>,
+) -> impl IntoResponse {
+    let Some(addr) = required_console_addr(req.addr) else {
+        return missing_console_addr();
+    };
+    let op_id = req.op_id;
+    let x = ps5upload_core::fs_ops::ExtractRequest {
+        path: req.path,
+        dest: req.dest,
+        password: req.password.filter(|p| !p.is_empty()),
+        merge: req.merge,
+        replace: req.replace,
+    };
+    let started = std::time::Instant::now();
+    crate::log_info!(
+        "fs_extract: addr={addr} path={} dest={} merge={} replace={} password={} op_id={op_id}",
+        x.path,
+        x.dest,
+        x.merge,
+        x.replace,
+        x.password.is_some()
+    );
+    let path_for_log = x.path.clone();
+    // A large solid archive decodes for a long time; the job is followed, not timed out.
+    let deadline = std::time::Duration::from_secs(12 * 60 * 60);
+    match tokio::task::spawn_blocking(move || {
+        // Marks the console busy for the job: a helper stop is refused meanwhile.
+        let _busy = helper_stop::enter(&addr);
+        ps5upload_core::fs_ops::archive_extract(&addr, &x, op_id, deadline)
+    })
+    .await
+    .map_err(anyhow::Error::from)
+    .and_then(|r| r)
+    {
+        Ok(done) => {
+            crate::log_info!(
+                "fs_extract ok: {path_for_log} -> {} ({} files, {} bytes, {} skipped, {} unsafe, {} links) in {} ms",
+                done.path,
+                done.files,
+                done.bytes,
+                done.skipped,
+                done.unsafe_entries,
+                done.links,
+                started.elapsed().as_millis()
+            );
+            Json(serde_json::json!({
+                "ok": true,
+                "path": done.path,
+                "files": done.files,
+                "dirs": done.dirs,
+                "bytes": done.bytes,
+                "skipped": done.skipped,
+                "unsafe": done.unsafe_entries,
+                "links": done.links,
+            }))
+            .into_response()
+        }
+        Err(e) if e.to_string() == "cancelled" => {
+            json_err(StatusCode::CONFLICT, "cancelled").into_response()
+        }
+        Err(e) => {
+            crate::log_warn!("fs_extract failed: {path_for_log}: {e:#}");
+            json_err(StatusCode::BAD_GATEWAY, format!("{e:#}")).into_response()
+        }
+    }
+}
+
 async fn ps5_fs_move(
     State(_state): State<AppState>,
     Json(req): Json<FsMoveReq>,
@@ -10650,6 +10740,7 @@ async fn run(cfg: EngineConfig) -> anyhow::Result<()> {
         .route("/api/ps5/fs/delete", post(ps5_fs_delete))
         .route("/api/ps5/fs/move", post(ps5_fs_move))
         .route("/api/ps5/fs/unpack", post(ps5_fs_unpack))
+        .route("/api/ps5/fs/extract", post(ps5_fs_extract))
         .route("/api/ps5/fs/copy", post(ps5_fs_copy))
         .route("/api/ps5/fs/op-status", get(ps5_fs_op_status))
         .route("/api/ps5/fs/op-cancel", post(ps5_fs_op_cancel))
