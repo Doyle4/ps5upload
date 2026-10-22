@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
-import { Activity, Fan as FanIcon, Folder, Gamepad2, House, Settings, Sparkles, type LucideIcon } from "lucide-react";
+import { Activity, Eraser, Fan as FanIcon, Folder, Gamepad2, House, Settings, Sparkles, type LucideIcon } from "lucide-react";
+import { Cleanup } from "./cleanup/Cleanup";
 import { Cheats } from "./cheats/Cheats";
 import { Fan } from "./fan/Fan";
 import { Files } from "./files/Files";
@@ -42,7 +43,7 @@ export interface Section {
   acceptsParams?: boolean;
 }
 
-// Registry: Home, Games (installed titles), Files, Cheats (the running game's), Fan, Processes, Settings. Files opens at ctx.params.path
+// Registry: Home, Games (installed titles), Files, Cheats (the running game's), Fan, Processes, Clean up, Settings. Files opens at ctx.params.path
 // (acceptsParams), so Home's drive cards open it at a drive.
 export const SECTIONS: Section[] = [
   {
@@ -81,6 +82,12 @@ export const SECTIONS: Section[] = [
     icon: Activity,
     labelKey: "cw_procs_title",
     render: (ctx) => <Processes ctx={ctx} />,
+  },
+  {
+    id: "cleanup",
+    icon: Eraser,
+    labelKey: "cw_cleanup_title",
+    render: (ctx) => <Cleanup ctx={ctx} />,
   },
   {
     id: "settings",

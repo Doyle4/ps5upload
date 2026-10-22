@@ -82,6 +82,11 @@ fn the_ids_the_gate_and_the_converters_key_on_are_the_schema_numbers() {
     assert_eq!(m::FILES_HANDOFF_PUT.id, gen::METHOD_FILES_HANDOFF_PUT);
     assert_eq!(m::FILES_HANDOFF_TAKE.id, gen::METHOD_FILES_HANDOFF_TAKE);
     assert_eq!(m::MINION_TILE.id, gen::METHOD_MINION_TILE);
+    assert_eq!(m::CLEANUP_SCAN.id, gen::METHOD_CLEANUP_SCAN);
+    assert_eq!(m::CLEANUP_STATUS.id, gen::METHOD_CLEANUP_STATUS);
+    assert_eq!(m::CLEANUP_APPLY.id, gen::METHOD_CLEANUP_APPLY);
+    assert_eq!(m::CLEANUP_APPLY_STATUS.id, gen::METHOD_CLEANUP_APPLY_STATUS);
+    assert_eq!(m::CLEANUP_CANCEL.id, gen::METHOD_CLEANUP_CANCEL);
     // The core's feature detect (an older helper) keys on the schema's unknown-method status.
     assert_eq!(
         ps5upload_core::console_files::ERR_UNKNOWN_METHOD,

@@ -31,6 +31,7 @@
 //!   GET  /api/ps5/volumes             → list storage volumes detected by the payload
 //!   GET  /api/ps5/list-dir?path=...   → list immediate children of a directory on PS5
 //!   POST /api/ps5/disk-usage          → start a recursive size walk (see `disk_usage`)
+//!   POST /api/ps5/cleanup/scan        → console clean-up scan / apply (see `console_cleanup_api`)
 
 mod activity;
 mod ampr_trace;
@@ -41,6 +42,7 @@ mod c2c_api;
 mod collection;
 mod collection_api;
 mod collection_tidy_api;
+mod console_cleanup_api;
 mod console_files_api;
 mod console_payload;
 mod console_read;
@@ -10584,6 +10586,7 @@ async fn run(cfg: EngineConfig) -> anyhow::Result<()> {
 
     let activity_installs = pkg_state.clone();
     let helper_stop_installs = pkg_state.clone();
+    let cleanup_installs = pkg_state.clone();
     let app = Router::new()
         .route("/", get(ui_handler))
         .route(
@@ -10615,6 +10618,25 @@ async fn run(cfg: EngineConfig) -> anyhow::Result<()> {
         .route("/api/ps5/disk-usage", post(disk_usage::start))
         .route("/api/ps5/disk-usage/{id}", get(disk_usage::status))
         .route("/api/ps5/disk-usage/{id}/cancel", post(disk_usage::cancel))
+        .route("/api/ps5/cleanup/scan", post(console_cleanup_api::scan))
+        .route(
+            "/api/ps5/cleanup/scan/{id}",
+            get(console_cleanup_api::scan_status),
+        )
+        .route(
+            "/api/ps5/cleanup/scan/{id}/apply",
+            post(
+                move |axum::extract::Path(id): axum::extract::Path<u32>,
+                      Json(req): Json<console_cleanup_api::ApplyBody>| {
+                    console_cleanup_api::apply(cleanup_installs.clone(), id, req)
+                },
+            ),
+        )
+        .route(
+            "/api/ps5/cleanup/apply/{id}",
+            get(console_cleanup_api::apply_status),
+        )
+        .route("/api/ps5/cleanup/cancel", post(console_cleanup_api::cancel))
         .route("/api/ava1/identity", get(ava1_api::identity_handler))
         .route("/api/ava1/pairing", get(ava1_api::pairing_handler))
         .route(

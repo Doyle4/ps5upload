@@ -95,6 +95,10 @@ typedef int (*app_install_all_fn_t)(void *);
  * NULL from dlsym and made uninstall a no-op. Correct export
  * takes 3 args (we pass NULL for the trailing two). */
 typedef int (*app_uninstall_fn_t)(const char *, int *, int *);
+/* sceAppInstUtilAppUnInstallPat(title_id): removes a title's installed update (/user/patch/<id>)
+ * and puts the game back on its base version, like Settings > Storage does. Same installer
+ * subsystem as AppUnInstall (PKG Manager's leftovers.c and Itemzflow call it this way). */
+typedef int (*app_uninstall_pat_fn_t)(const char *);
 typedef int (*app_inst_util_initialize_fn_t)(void);
 /* PS5 layout: second param is `char *argv`, third is a caller-
  * owned LncAppParam block (first 4 bytes = struct size). */
@@ -122,6 +126,7 @@ typedef struct {
     app_install_title_dir_fn_t    app_install_title_dir;
     app_install_all_fn_t          app_install_all;  /* FW 13.x fallback; may be NULL */
     app_uninstall_fn_t            app_uninstall;   /* may be NULL */
+    app_uninstall_pat_fn_t        app_uninstall_pat; /* may be NULL (console clean-up) */
     app_inst_util_initialize_fn_t app_inst_util_initialize;  /* may be NULL */
     /* Lnc + SystemService -- launch (triple-strategy) */
     launch_app_fn_t          launch_app;
@@ -271,6 +276,14 @@ static void register_module_init_impl(void) {
         };
         g_reg.app_uninstall = (app_uninstall_fn_t)
             reg_dlsym_first(uninstall_names, "app-uninstall");
+    }
+    {
+        static const char *const uninstall_pat_names[] = {
+            "sceAppInstUtilAppUnInstallPat",
+            NULL,
+        };
+        g_reg.app_uninstall_pat = (app_uninstall_pat_fn_t)
+            reg_dlsym_first(uninstall_pat_names, "app-uninstall-pat");
     }
     g_reg.app_inst_util_initialize = (app_inst_util_initialize_fn_t)
         reg_dlsym_default("sceAppInstUtilInitialize");
@@ -1608,6 +1621,42 @@ int unregister_title(const char *title_id, const char **err_reason_out,
                 title_id, (unsigned)out->sony_rc);
     }
     return 0;
+}
+
+int uninstall_patch_available(void) {
+    register_module_init();
+    return g_reg.app_uninstall_pat != NULL;
+}
+
+/* Removes the installed update of `title_id` through Sony (console clean-up). Same window as the
+ * uninstall in unregister_title: sony_api_lock, then kernel_rw_lock around a ShellCore authid swap
+ * (the installer's gate), the call, the verified restore and the post-call grace. Sony's removal is
+ * asynchronous like every install: rc 0 means accepted, and the caller watches /user/patch/<id>. */
+int uninstall_patch(const char *title_id, uint32_t *rc_out) {
+    register_module_init();
+    if (rc_out) *rc_out = 0;
+    if (!title_id || !is_safe_component(title_id)) return -1;
+    if (!g_reg.app_uninstall_pat) return -2;
+    pid_t mypid = getpid();
+    pthread_mutex_lock(&sony_api_lock);
+    if (g_reg.app_inst_util_initialize) (void)g_reg.app_inst_util_initialize();
+    pthread_mutex_lock(&kernel_rw_lock);
+    uint64_t saved = kernel_get_ucred_authid(mypid);
+    if (saved != 0) (void)kernel_set_ucred_authid(mypid, PS5_SHELLCORE_AUTHID);
+    fprintf(stderr, "[register] -> sceAppInstUtilAppUnInstallPat(%s)\n", title_id);
+    int rc = g_reg.app_uninstall_pat(title_id);
+    if (saved != 0) {
+        for (int attempt = 0; attempt < 3; attempt++) {
+            (void)kernel_set_ucred_authid(mypid, saved);
+            if (kernel_get_ucred_authid(mypid) == saved) break;
+        }
+    }
+    pthread_mutex_unlock(&kernel_rw_lock);
+    usleep(SONY_API_POST_SLEEP_US);
+    pthread_mutex_unlock(&sony_api_lock);
+    fprintf(stderr, "[register] sceAppInstUtilAppUnInstallPat(%s) rc=0x%08X\n", title_id, (unsigned)rc);
+    if (rc_out) *rc_out = (uint32_t)rc;
+    return rc == 0 ? 0 : -3;
 }
 
 /* Opens the PS5's built-in web browser (NPXS20001) via

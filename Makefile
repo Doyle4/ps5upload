@@ -1025,6 +1025,12 @@ test-payload: payload
 		$(PAYLOAD_DIR)/tests/cheats_plan_selftest.c
 	@/tmp/ps5upload-cheats-plan-selftest
 	@echo "✓ a cheat's code caves are written before the jumps into them, and removed after"
+	@echo "Running console clean-up rules self-test (host build)..."
+	@cc -O2 -Wall -Wextra -Werror -I$(PAYLOAD_DIR)/include \
+		-o /tmp/ps5upload-cleanup-rules-selftest \
+		$(PAYLOAD_DIR)/tests/cleanup_rules_selftest.c
+	@/tmp/ps5upload-cleanup-rules-selftest
+	@echo "✓ clean-up removes only its categories' paths: never the package library, saves, installed games or another drive's system folders"
 	@echo "Checking per-console isolation..."
 	@./scripts/check-per-console-isolation.sh
 	@echo "✓ one console's data cannot be shown under another's name"

@@ -329,6 +329,7 @@ export default function VolumesScreen() {
               navigate(`/files?path=${encodeURIComponent(path)}`);
             }}
             onChanged={() => void refresh()}
+            onOpenCleanup={() => navigate("/cleanup")}
           />
         )}
       </ConnectionGate>

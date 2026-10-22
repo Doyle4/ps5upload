@@ -73,6 +73,7 @@
 #include "ava1_stop.h"
 #include "ava1_glue.h"
 #include "ownership_record.h"
+#include "storage_cleanup.h"
 
 /* Capacity policy mirrored by ps5upload-core::volumes. Keep a small working
  * margin -- 1 GiB, scaled down for small volumes -- out of every filesystem
@@ -282,6 +283,17 @@
 #define MGMT_FRAME_FILES_HANDOFF_TAKE_ACK 274u
 #define MGMT_FRAME_MINION_TILE 275u
 #define MGMT_FRAME_MINION_TILE_ACK 276u
+/* console clean-up (storage_cleanup.c) */
+#define MGMT_FRAME_CLEANUP_SCAN 290u
+#define MGMT_FRAME_CLEANUP_SCAN_ACK 291u
+#define MGMT_FRAME_CLEANUP_STATUS 292u
+#define MGMT_FRAME_CLEANUP_STATUS_ACK 293u
+#define MGMT_FRAME_CLEANUP_APPLY 294u
+#define MGMT_FRAME_CLEANUP_APPLY_ACK 295u
+#define MGMT_FRAME_CLEANUP_APPLY_STATUS 296u
+#define MGMT_FRAME_CLEANUP_APPLY_STATUS_ACK 297u
+#define MGMT_FRAME_CLEANUP_CANCEL 298u
+#define MGMT_FRAME_CLEANUP_CANCEL_ACK 299u
 #define MGMT_FRAME_SDK_SCAN 214u
 #define MGMT_FRAME_SDK_SCAN_ACK 215u
 #define MGMT_FRAME_SDK_PATCH 216u
@@ -7902,6 +7914,46 @@ static int handle_minion_tile(runtime_state_t *state, const char *body, uint64_t
     n = webui_api_tile(body, (size_t)body_len, reply, sizeof reply);
     if (n < 0) return -1;
     return mgmt_reply(MGMT_FRAME_MINION_TILE_ACK, reply, (uint64_t)n);
+}
+
+/* ── Console clean-up (storage_cleanup.c) ───────────────────────────────
+ * Each call only starts, reads or stops the scan/apply thread and answers at once; a refusal is
+ * {"ok":false,"err":..}, which the dispatcher turns into an AVA1 error with that token. */
+typedef int (*cleanup_call_fn)(const char *body, size_t n, char *out, size_t cap);
+
+static int cleanup_reply(runtime_state_t *state, uint16_t ack, cleanup_call_fn fn, const char *body,
+                         uint64_t body_len) {
+    if (!state || body_len > 64u * 1024u) return mgmt_reply(MGMT_FRAME_ERROR, "bad_request", 11);
+    char *out = malloc(SC_STATUS_MAX);
+    if (!out) return mgmt_reply(MGMT_FRAME_ERROR, "out_of_memory", 13);
+    int n = fn(body ? body : "", (size_t)body_len, out, SC_STATUS_MAX);
+    int rc = mgmt_reply(ack, out, (uint64_t)(n > 0 ? n : 0));
+    free(out);
+    return rc;
+}
+
+static int cleanup_scan_call(const char *body, size_t n, char *out, size_t cap) {
+    (void)body;
+    (void)n;
+    return sc_scan_start(out, cap);
+}
+
+static int handle_cleanup_scan(runtime_state_t *state, const char *body, uint64_t body_len) {
+    return cleanup_reply(state, MGMT_FRAME_CLEANUP_SCAN_ACK, cleanup_scan_call, body, body_len);
+}
+static int handle_cleanup_status(runtime_state_t *state, const char *body, uint64_t body_len) {
+    return cleanup_reply(state, MGMT_FRAME_CLEANUP_STATUS_ACK, sc_scan_status, body, body_len);
+}
+/* MGMT_SONY: the apply thread removes installed updates through uninstall_patch (register.c), which
+ * takes sony_api_lock itself. */
+static int handle_cleanup_apply(runtime_state_t *state, const char *body, uint64_t body_len) {
+    return cleanup_reply(state, MGMT_FRAME_CLEANUP_APPLY_ACK, sc_apply_start, body, body_len);
+}
+static int handle_cleanup_apply_status(runtime_state_t *state, const char *body, uint64_t body_len) {
+    return cleanup_reply(state, MGMT_FRAME_CLEANUP_APPLY_STATUS_ACK, sc_apply_status, body, body_len);
+}
+static int handle_cleanup_cancel(runtime_state_t *state, const char *body, uint64_t body_len) {
+    return cleanup_reply(state, MGMT_FRAME_CLEANUP_CANCEL_ACK, sc_cancel, body, body_len);
 }
 
 /* ── Network round-trip ack ──────────────────────────────────────────── */

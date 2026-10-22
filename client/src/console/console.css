@@ -1933,3 +1933,122 @@ button {
     padding: 0.8rem;
   }
 }
+
+/* ---- clean up ---- */
+.cw-cleanup-card {
+  display: flex;
+  width: 100%;
+  max-width: 44rem;
+  margin-top: 0.6rem;
+  padding: 0.6rem 0.9rem;
+  text-align: left;
+}
+.cw-cleanup-card svg {
+  flex: none;
+  width: 1.6rem;
+  height: 1.6rem;
+  margin-right: 0.8rem;
+}
+.cw-cleanup-progress,
+.cw-cleanup-result {
+  padding: 0.6rem 0.9rem;
+  margin-bottom: 0.8rem;
+}
+.cw-cleanup-progress .cw-button {
+  margin-left: 0.8rem;
+}
+.cw-cleanup-failed {
+  color: var(--color-bad);
+}
+.cw-cleanup-how,
+.cw-cleanup-hint {
+  font-size: 0.85rem;
+  margin: 0 0 0.5rem;
+}
+.cw-cleanup-group {
+  margin-bottom: 1rem;
+}
+.cw-cleanup-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.cw-cleanup-item {
+  display: flex;
+  margin-bottom: 0.4rem;
+}
+.cw-cleanup-row {
+  flex: 1;
+  min-width: 0;
+  min-height: 3.3rem;
+  padding: 0.35rem 0.9rem;
+  text-align: left;
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  box-shadow: inset 0 0 0 1px var(--color-border);
+}
+.cw-cleanup-row[aria-disabled="true"] {
+  opacity: 0.6;
+}
+.cw-cleanup-check {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 1.6rem;
+  height: 1.6rem;
+  margin-right: 0.8rem;
+  border-radius: var(--radius-control);
+  box-shadow: inset 0 0 0 2px var(--color-border);
+}
+/* Ticked is the filled box, never a ring: a ring is what focus looks like. */
+.cw-cleanup-row.is-on .cw-cleanup-check {
+  background: var(--accent-fill);
+  color: var(--color-accent-contrast);
+  box-shadow: none;
+}
+.cw-cleanup-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+.cw-cleanup-name,
+.cw-cleanup-desc {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cw-cleanup-name {
+  font-weight: 600;
+}
+.cw-cleanup-desc {
+  font-size: 0.8rem;
+}
+.cw-cleanup-size {
+  flex: none;
+  margin-left: 0.8rem;
+  font-weight: 600;
+}
+.cw-cleanup-path {
+  word-break: break-all;
+}
+.cw-cleanup-bar {
+  position: -webkit-sticky;
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  padding: 0.6rem 0.9rem;
+  margin-top: 0.6rem;
+  border-radius: var(--radius-card);
+  background: var(--color-surface-2, var(--color-surface));
+  box-shadow: inset 0 0 0 1px var(--color-border);
+}
+.cw-cleanup-bar-text {
+  flex: 1;
+  min-width: 0;
+}
+.cw-cleanup-bar .cw-button {
+  margin-left: 0.6rem;
+}
