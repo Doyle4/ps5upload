@@ -839,9 +839,12 @@ pub(crate) fn build_at(
             crate::engine_log::record(
                 "info",
                 format!(
-                    "ffpfsc: compression={} {}",
+                    "ffpfsc: compression={} {} read_ms={} verify_ms={} verify_mode={} block_check=inflate-every-compressed-block",
                     level.name(),
-                    wrap_log_line(&wrap_opts, w)
+                    wrap_log_line(&wrap_opts, w),
+                    read_time.as_millis(),
+                    (started.elapsed() - written_at).as_millis(),
+                    log_line(&summary),
                 ),
             );
         }
@@ -870,9 +873,10 @@ pub(crate) fn build_at(
 }
 
 /// What the log says of a `.ffpfsc` stream: how it was encoded, what each block became, and
-/// where the time went (`feed`: the inner writer reading the source and cutting blocks;
-/// `feed_wait`: it waiting for the workers; `encode`: summed over the workers; `write`: the
-/// writer thread's writes).
+/// where the time went (`feed`: the inner writer reading the source and cutting blocks, of
+/// which `read` is the source's reads; `feed_wait`: it waiting for the workers; `encode`: summed
+/// over the workers, each compressed block's inflate-back check included; `write`: the writer
+/// thread's writes; `stream`: all of it, wall clock).
 fn wrap_log_line(
     o: &ps5_dump_forge_pfs::WrapOptions,
     w: &ps5_dump_forge_pfs::WrapReport,

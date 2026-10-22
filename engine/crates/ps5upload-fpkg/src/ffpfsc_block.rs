@@ -421,6 +421,25 @@ mod tests {
         }
     }
 
+    /// The in-build check refuses a stream that inflates to other bytes, a truncated one, and
+    /// one with bytes after its end.
+    #[test]
+    fn the_inflate_back_check_catches_a_wrong_stream() {
+        let mut e = BlockEncoder::new(Level::Balanced.options());
+        let a = text();
+        let Stored::Zlib { bytes, .. } = e.encode(&a).unwrap() else {
+            panic!("text compresses");
+        };
+        e.check(&bytes, &a).unwrap();
+        let mut b = a.clone();
+        b[BLOCK / 2] ^= 1;
+        assert!(e.check(&bytes, &b).is_err());
+        assert!(e.check(&bytes[..bytes.len() - 1], &a).is_err());
+        let mut longer = bytes.clone();
+        longer.push(0);
+        assert!(e.check(&longer, &a).is_err());
+    }
+
     #[test]
     fn a_short_block_is_refused() {
         let mut e = BlockEncoder::new(Level::Fast.options());
