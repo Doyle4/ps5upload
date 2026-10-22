@@ -11,8 +11,9 @@
  * (grouped, or flat while searching), and a utility footer.
  *
  * Every row can be pinned (phones too: Pinned shows here, under Bug report,
- * as it does in the desktop sidebar); pinned rows move up/down here, which
- * is the touch- and keyboard-friendly way to reorder them.
+ * as it does in the desktop sidebar). Its Edit button shows Move up/down on
+ * the pinned rows — the touch- and keyboard-friendly way to reorder them —
+ * and otherwise they look like every other row.
  *
  * SCROLLING: this screen deliberately has NO scroll container of its own.
  * <main> in AppShell is already `overflow-y-auto` with the bottom-nav
@@ -65,6 +66,7 @@ import {
 export default function MoreScreen() {
   const tr = useTr();
   const [query, setQuery] = useState("");
+  const [editingPins, setEditingPins] = useState(false);
   const { theme, toggleTheme } = useThemeStore();
   const [version, setVersion] = useState("");
 
@@ -194,9 +196,23 @@ export default function MoreScreen() {
               something is pinned. Each row also stays in its section below. */}
           {pinnedItems.length > 0 && (
             <section data-testid="more-pinned" className="mt-6">
-              <h2 className="px-4 pb-2 text-[0.6875rem] font-medium uppercase tracking-[0.08em] text-[var(--color-muted)]">
-                {tr("nav_section_pinned", undefined, "Pinned")}
-              </h2>
+              <div className="flex items-center justify-between px-4 pb-1">
+                <h2 className="text-[0.6875rem] font-medium uppercase tracking-[0.08em] text-[var(--color-muted)]">
+                  {tr("nav_section_pinned", undefined, "Pinned")}
+                </h2>
+                {/* Reordering is a mode: the arrows would crowd every row (names cut to
+                    "Install Pa…" at phone width) for something done now and then. */}
+                <button
+                  type="button"
+                  onClick={() => setEditingPins((v) => !v)}
+                  aria-pressed={editingPins}
+                  className="-me-3 min-h-11 rounded-full px-3 text-sm font-medium text-[var(--color-accent)] hover:bg-[var(--color-surface-3)]"
+                >
+                  {editingPins
+                    ? tr("nav_pinned_done", undefined, "Done")
+                    : tr("nav_pinned_edit", undefined, "Edit")}
+                </button>
+              </div>
               <ul className="surface-panel overflow-hidden p-1.5">
                 {pinnedItems.map((item, i) => (
                   <MoreRow
@@ -204,7 +220,9 @@ export default function MoreScreen() {
                     item={item}
                     errorCount={errorCount}
                     updateAvailable={updateAvailable}
-                    order={{ first: i === 0, last: i === pinnedItems.length - 1 }}
+                    order={
+                      editingPins ? { first: i === 0, last: i === pinnedItems.length - 1 } : undefined
+                    }
                   />
                 ))}
               </ul>
@@ -277,7 +295,8 @@ export function MoreRow({
   updateAvailable: boolean;
   /** Home/Bug report, always in the sidebar: no hide or pin switch. */
   fixed?: boolean;
-  /** A row of the Pinned group: offers Move up/down (not past the ends). */
+  /** A row of the Pinned group in edit mode: offers Move up/down (not past the ends) in
+   *  place of the chevron. */
   order?: { first: boolean; last: boolean };
 }) {
   const tr = useTr();
@@ -339,11 +358,13 @@ export function MoreRow({
             )}
           />
         )}
-        <ChevronRight
-          size={18}
-          aria-hidden
-          className="shrink-0 text-[var(--color-muted)] rtl:rotate-180"
-        />
+        {!order && (
+          <ChevronRight
+            size={18}
+            aria-hidden
+            className="shrink-0 text-[var(--color-muted)] rtl:rotate-180"
+          />
+        )}
       </NavLink>
       {/* Sibling of the link, not a child: a <button> inside an <a> is
           invalid markup and the click would navigate instead of toggling. */}

@@ -2530,6 +2530,8 @@ roster_order_hint: "این ترتیب تب‌های کنسول و انتخابگ
   "nav_hidden_count": "{count} پنهان — از More نشانشان بده",
   "nav_hidden_marker": "پنهان از نوار کناری",
   "nav_section_pinned": "سنجاق‌شده",
+  "nav_pinned_edit": "ویرایش",
+  "nav_pinned_done": "تمام",
   "nav_pin_item": "سنجاق کردن {name}",
   "nav_unpin_item": "برداشتن سنجاق {name}",
   "nav_pin_full": "حداکثر {max} صفحه را می‌توانید سنجاق کنید",

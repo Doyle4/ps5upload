@@ -2469,6 +2469,8 @@ roster_order_hint: "Ez a sorrend állítja be a konzolfüleket és a választót
   "nav_hidden_count": "{count} elrejtve — a Továbbiakban megjeleníthetők",
   "nav_hidden_marker": "Elrejtve az oldalsávon",
   "nav_section_pinned": "Kitűzve",
+  "nav_pinned_edit": "Szerkesztés",
+  "nav_pinned_done": "Kész",
   "nav_pin_item": "{name} kitűzése",
   "nav_unpin_item": "{name} levétele",
   "nav_pin_full": "Legfeljebb {max} képernyőt tűzhetsz ki",

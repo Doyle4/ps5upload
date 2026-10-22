@@ -101,8 +101,11 @@ describe("More's pin switch", () => {
     const last = row("/upload", { first: false, last: true });
     expect(button(last, "Move [^\"]+ up")).not.toContain('disabled=""');
     expect(button(last, "Move [^\"]+ down")).toContain('disabled=""');
-    // Rows outside the Pinned group have no move buttons.
+    // Arrows take the chevron's place while editing.
+    expect(first).not.toContain("lucide-chevron-right");
+    // Not editing (and outside the Pinned group): no move buttons, the chevron is back.
     expect(row("/files")).not.toContain("Move File System");
+    expect(row("/files")).toContain("lucide-chevron-right");
   });
 });
 
@@ -120,7 +123,10 @@ describe("More's Pinned group", () => {
     expect(at).toBeGreaterThan(html.indexOf('href="/bug-report"'));
     const group = html.slice(at, html.indexOf("</section>", at));
     expect(group.indexOf('href="/processes"')).toBeLessThan(group.indexOf('href="/files"'));
-    expect(button(group, "Move [^\"]+ up")).toContain('disabled=""');
+    // Until Edit: plain rows (name, chevron, pin), no arrows.
+    expect(group).toMatch(/<button[^>]*aria-pressed="false"[^>]*>Edit<\/button>/);
+    expect(group).not.toContain("Move ");
+    expect(group).toContain("lucide-chevron-right");
     expect(html.split('href="/files"').length - 1).toBe(2);
   });
 });
