@@ -98,6 +98,10 @@ int unregister_title(const char *title_id,
                      const char **err_reason_out,
                      unregister_outcome_t *out);
 
+/* Whether app.db (what the home screen draws) still has a row for `title_id`: 1, 0, or -1 when
+ * app.db could not be read. Read-only. */
+int register_appdb_has_title(const char *title_id);
+
 /* Re-establish only the nullfs bind /system_ex/app/<title_id> -> src_path
  * (step 4 of register_title_from_path, with its /system_ex rw remount and
  * eboot.bin checks) for a title that is still registered with Sony but whose

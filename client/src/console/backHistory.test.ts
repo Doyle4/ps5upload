@@ -269,3 +269,91 @@ it("coalesces two Back requests before the asynchronous history pop", () => {
   f.flush();
   expect(p.depth()).toBe(1);
 });
+
+describe("#480: ○ on the PS5's first screen leaves the page", () => {
+  /** fakeEnv plus history.length: the entries back and forward (a pop keeps its entry forward). */
+  function ps5WithLength() {
+    const f = fakeEnv();
+    let forward = 0;
+    const push = f.env.push as ReturnType<typeof vi.fn>;
+    push.mockImplementation(() => {
+      f.entries.push("guard");
+      forward = 0; // a push drops the forward entries
+    });
+    f.env.atGuard = () => f.entries[f.entries.length - 1] === "guard";
+    f.env.length = () => f.entries.length + forward;
+    const browserBack = f.browserBack;
+    f.browserBack = () => {
+      const r = browserBack();
+      if (r === "stayed") forward++;
+      return r;
+    };
+    const onRoot = vi.fn();
+    const runBack = vi.fn();
+    const h = createBackHistory(f.env, runBack, { onRoot, graceMs: 1500 });
+    f.flush();
+    return { f, h, onRoot, runBack, length: () => f.env.length!() };
+  }
+
+  it("a fresh page keeps a single history entry, so the browser's own ○ (and window.close) can leave", () => {
+    const { f, onRoot, length } = ps5WithLength();
+    expect(f.entries).toEqual(["page"]);
+    expect(length()).toBe(1);
+    f.tick(2000);
+    expect(f.browserBack()).toBe("left"); // the first ○ leaves; no press is spent on a refused close
+    expect(onRoot).not.toHaveBeenCalled();
+  });
+
+  it("after a level the first screen keeps its guard and ○ there tries onRoot once", () => {
+    const { f, h, onRoot, length } = ps5WithLength();
+    f.tick(2000);
+    const close = h.addLevel();
+    f.flush();
+    close();
+    f.flush();
+    expect(f.entries).toEqual(["page", "guard"]); // history is deep now: kept for the first screen
+    expect(length()).toBe(2);
+    expect(f.browserBack()).toBe("stayed");
+    f.flush();
+    expect(onRoot).toHaveBeenCalledTimes(1);
+    expect(f.entries).toEqual(["page"]); // refused: the next ○ is the browser's own
+    expect(f.browserBack()).toBe("left");
+  });
+
+  it("Escape/Backspace/gamepad ○ on a fresh first screen leave too, once", () => {
+    const { f, h, onRoot, runBack } = ps5WithLength();
+    expect(f.entries).toEqual(["page"]); // no guard to pop
+    f.tick(2000);
+    h.requestBack();
+    expect(onRoot).toHaveBeenCalledTimes(1);
+    expect(f.env.back).not.toHaveBeenCalled();
+    expect(runBack).not.toHaveBeenCalled();
+    // Still open: a second press runs the page's own back action, not onRoot again.
+    f.tick(1000);
+    h.requestBack();
+    expect(onRoot).toHaveBeenCalledTimes(1);
+    expect(runBack).toHaveBeenCalledTimes(1);
+    // A level opened and closed again re-arms it (deep history: through the guard now).
+    const close = h.addLevel();
+    f.flush();
+    close();
+    f.flush();
+    f.tick(1000);
+    h.requestBack();
+    f.flush();
+    expect(onRoot).toHaveBeenCalledTimes(2);
+  });
+
+  it("a section opened from a fresh page still steps back to Home with ○", () => {
+    const { f, h, runBack, onRoot } = ps5WithLength();
+    const close = h.addLevel();
+    runBack.mockImplementation(() => close());
+    f.flush();
+    expect(f.entries).toEqual(["page", "guard"]);
+    f.tick(2000);
+    expect(f.browserBack()).toBe("stayed");
+    f.flush();
+    expect(runBack).toHaveBeenCalledTimes(1);
+    expect(onRoot).not.toHaveBeenCalled();
+  });
+});

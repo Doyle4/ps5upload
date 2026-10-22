@@ -409,6 +409,30 @@ int content_db_apps(content_db_app_t *out, int max, const char **source) {
     return cdb_apps_window(out, 0, max, NULL, NULL, source);
 }
 
+int content_db_has_title(const char *title_id) {
+    sqlite3 *db = NULL;
+    cdb_app_schema_t cands[CDB_MAX_SCHEMAS];
+    int found = -1;
+    if (!cdb_valid_title_id(title_id)) return -1;
+    if (cdb_open_ro(CONTENT_DB_APP, &db, NULL) != SQLITE_OK || !db) return -1;
+    int ncand = cdb_discover_app_schemas(db, cands, CDB_MAX_SCHEMAS);
+    for (int ci = 0; ci < ncand && found != 1; ci++) {
+        char sql[256];
+        sqlite3_stmt *st = NULL;
+        /* Identifiers come from sqlite_master and PRAGMA table_info; the id is bound. */
+        snprintf(sql, sizeof sql, "SELECT 1 FROM \"%s\" WHERE \"%s\" = ? LIMIT 1", cands[ci].table,
+                 cands[ci].col_title);
+        if (sqlite3_prepare_v2(db, sql, -1, &st, NULL) != SQLITE_OK) continue;
+        sqlite3_bind_text(st, 1, title_id, -1, SQLITE_STATIC);
+        int step = sqlite3_step(st);
+        if (step == SQLITE_ROW) found = 1;
+        else if (step == SQLITE_DONE && found < 0) found = 0;
+        sqlite3_finalize(st);
+    }
+    sqlite3_close(db);
+    return found;
+}
+
 int content_db_select_text(const char *db_path, const char *sql, int max_rows,
                            void *ctx,
                            int (*row_cb)(void *ctx, int ncol,

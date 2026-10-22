@@ -807,6 +807,12 @@ int main(void) {
         if (webui_settings_load(WEBUI_SETTINGS_PATH, &ws) != 0)
             fprintf(stderr, "webui: %s missing or unreadable; using defaults\n", WEBUI_SETTINGS_PATH);
         webui_api_settings_init(&ws);
+        /* A tile the user deleted on the PS5 itself stays deleted (#480): the setting follows, before
+         * the page can be asked for it. */
+        if (ws.tile && webui_tile_respect_outside_removal()) {
+            webui_api_tile_forget();
+            ws.tile = 0;
+        }
         memset(&wc, 0, sizeof wc);
         wc.port = WEBUI_PORT;
         wc.lan = ws.lan;

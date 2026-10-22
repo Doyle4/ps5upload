@@ -274,6 +274,12 @@ int main(void) {
     assert(rows[0].app_id == 101);
     printf("✓ row API returns %d rows from sqlite\n", n);
 
+    /* ── one title looked up by id (#480: the tile's removal check) ──── */
+    assert(content_db_has_title("NPXS40000") == 1);
+    assert(content_db_has_title("PSUP00001") == 0);
+    assert(content_db_has_title("bad'id") == -1);
+    printf("✓ a title is found by a WHERE lookup, and a missing one is 0\n");
+
     /* ── a database that is not a database falls back to the scanner ─── */
     {
         FILE *f = fopen(CONTENT_DB_APP, "wb");

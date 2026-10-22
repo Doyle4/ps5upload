@@ -33,6 +33,10 @@ void webui_api_settings_init(const webui_settings_t *s);
  * confirmed Sony removal plus folder cleanup; -1 on any failure. */
 int webui_api_tile_off(void);
 
+/* At helper start, the tile was removed outside the helper (webui_tile_respect_outside_removal):
+ * saves tile:false so the page and the PC show it off. No tile request. */
+void webui_api_tile_forget(void);
+
 /* Paired-helper tile get/set; never changes LAN access. JSON reply length, or -1. */
 int webui_api_tile(const char *body, size_t len, char *out, size_t cap);
 
