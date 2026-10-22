@@ -41,6 +41,10 @@ Update the helper for everything below.
   and unmounted it a few seconds after it was added; the helper now keeps it. Removing the tile
   checks for longer, a grey tile left behind by an older helper is cleaned up when the helper
   starts, and the result says whether the tile was removed or could only be hidden.
+- **Turn PS5Upload Minion off completely.** Settings → PS5Upload Minion has an On/Off switch, and
+  Minion's own Settings has "Turn off PS5Upload Minion". Off removes the home-screen tile (no grey
+  icon left behind) and stops the page on the console, and it stays off after restarts. The PC app
+  keeps working, and you can turn Minion back on from it any time.
 - **Minion: Circle on Home.** When the PS5 browser won't let the page close itself, a note says to
   press the PS button to go back to the home screen.
 - **HyperHEN's built-in ShadowMount+ counts everywhere.** 7.1.10 taught Installed games about it;
