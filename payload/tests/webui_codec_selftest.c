@@ -705,7 +705,7 @@ static void app_refusals(void) {
 }
 
 static void proc_guards(void) {
-    const char *j = "{\"processes\":["
+    const char *j = "{\"ok\":true,\"procs\":["
                     "{\"pid\":1,\"name\":\"init\",\"comm\":\"init\",\"title_id\":\"\",\"app_id\":0,\"memory_mib\":1.0,"
                     "\"threads\":1,\"kind\":\"system\",\"is_self\":false},"
                     "{\"pid\":88,\"name\":\"SceShellUI\",\"comm\":\"SceShellUI\",\"title_id\":\"NPXS40087\",\"app_id\":5,"
@@ -725,7 +725,7 @@ static void proc_guards(void) {
     CHECK(strcmp(webui_proc_kill_refusal(j, n, 1), "system") == 0);
     CHECK(strcmp(webui_proc_kill_refusal(j, n, 0), "system") == 0);
     CHECK(strcmp(webui_proc_kill_refusal(j, n, 999), "not_running") == 0);
-    CHECK(strcmp(webui_proc_kill_refusal("{\"processes\":[{\"pid\":120", 24, 120), "not_running") == 0);
+    CHECK(strcmp(webui_proc_kill_refusal("{\"procs\":[{\"pid\":120", strlen("{\"procs\":[{\"pid\":120"), 120), "not_running") == 0);
     CHECK(strcmp(webui_proc_kill_refusal("nope", 4, 120), "not_running") == 0);
 
     CHECK(webui_proc_game_running(j, n, "PPSA01650", 0) == 1);
@@ -733,7 +733,7 @@ static void proc_guards(void) {
     CHECK(webui_proc_game_running(j, n, "CUSA07842", 0) == 0);
     CHECK(webui_proc_game_running(j, n, "CUSA07842", 1) == 1);
     CHECK(webui_proc_game_running(j, n, "NPXS40087", 0) == 0); /* system apps are not games */
-    CHECK(webui_proc_game_running("{\"processes\":[]}", 16, "X", 1) == 0);
+    CHECK(webui_proc_game_running("{\"procs\":[]}", strlen("{\"procs\":[]}"), "X", 1) == 0);
     CHECK(webui_proc_game_running("{\"x\":1}", 7, "X", 1) == -1);
 }
 

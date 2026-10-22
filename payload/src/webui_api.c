@@ -1040,7 +1040,7 @@ static void r_apps_info(const char *b, size_t n, uint8_t *out, int fd) {
     free(json);
 }
 
-/* PROCESS_LIST (the PC app's Processes screen): {"processes":[{pid,name,comm,title_id,app_id,memory_mib,
+/* PROCESS_LIST (the PC app's Processes screen): {"ok":true,"procs":[{pid,name,comm,title_id,app_id,memory_mib,
  * threads,kind,is_self}],...}. In-process sysctl walk, no Sony API. */
 static void r_proc_list(const char *b, size_t n, uint8_t *out, int fd) {
     const uint8_t *t;

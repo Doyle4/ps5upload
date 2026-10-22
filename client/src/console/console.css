@@ -1079,9 +1079,24 @@ button {
   margin: 0.25rem 0.3rem 0 0;
 }
 .cw-game-sheet {
-  width: 36rem;
+  width: 50rem;
   max-height: calc(100vh - 2rem);
   overflow-y: auto;
+}
+.cw-game-sheet-body {
+  display: grid;
+  grid-template-columns: 1.3fr 1fr;
+  grid-gap: 1rem;
+  gap: 1rem;
+}
+.cw-game-sheet .cw-info {
+  margin-bottom: 0.4rem;
+}
+.cw-game-sheet .cw-info > div {
+  padding: 0.15rem 0;
+}
+.cw-game-sheet .cw-info dt {
+  width: 7.5rem;
 }
 .cw-game-sheet-head {
   display: flex;
@@ -1105,6 +1120,10 @@ button {
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   text-align: left;
+}
+.cw-proc .cw-task-title,
+.cw-proc .cw-task-sub {
+  display: block;
 }
 .cw-proc.is-fg {
   border-color: var(--color-accent);

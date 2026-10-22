@@ -175,7 +175,7 @@ export function placeOf(origin: Origin, imageBacked: boolean, source: string, ap
     if (/^\/mnt\/usb\d+(\/|$)/.test(source)) return "usb";
     if (/^\/mnt\/ext\d+(\/|$)/.test(source)) return "ext";
     if (/^\/(data|user)(\/|$)/.test(source)) return "internal";
-    return source ? "folder" : "unknown";
+    if (source) return "folder";
   }
   if (appRoot === "/user/app") return "internal";
   if (appRoot && appRoot.startsWith("/mnt/ext")) return "ext";
@@ -324,10 +324,10 @@ export interface Proc {
   isSelf: boolean;
 }
 
-/** /api/proc/list: {"processes":[{pid,name,comm,title_id,app_id,memory_mib,threads,kind,is_self}]}. */
+/** /api/proc/list: {"ok":true,"procs":[{pid,name,comm,title_id,app_id,memory_mib,threads,kind,is_self}]}. */
 export function parseProcesses(raw: unknown): { procs: Proc[]; truncated: boolean } {
-  const list = Array.isArray((raw as { processes?: unknown } | null)?.processes)
-    ? ((raw as { processes: Record<string, unknown>[] }).processes ?? [])
+  const list = Array.isArray((raw as { procs?: unknown } | null)?.procs)
+    ? ((raw as { procs: Record<string, unknown>[] }).procs ?? [])
     : [];
   const procs: Proc[] = [];
   let truncated = false;

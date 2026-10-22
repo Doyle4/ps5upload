@@ -190,60 +190,64 @@ function GameSheet({ g, p }: { g: Game; p: GamesViewProps }) {
           <Tags g={g} p={p} />
         </div>
       </div>
-      <dl className="cw-info">
-        {rows.map(([k, v, mono]) => (
-          <div key={k}>
-            <dt className="cw-dim">{k}</dt>
-            <dd className={mono ? "cw-mono" : undefined}>{v}</dd>
-          </div>
-        ))}
-      </dl>
-      {note ? <p className="cw-dim">{note}</p> : null}
-      <div className="cw-sheet-items">
-        <button
-          type="button"
-          className="cw-focusable cw-sheet-item"
-          data-game-action="launch"
-          data-nav-default=""
-          disabled={otherRunning || starting || removing}
-          onClick={() => p.onLaunch(g)}
-        >
-          <Play aria-hidden />
-          <span>{run ? t("cw_games_resume") : t("cw_games_launch")}</span>
-        </button>
-        {run ? (
-          <button
-            type="button"
-            className="cw-focusable cw-sheet-item is-danger"
-            data-game-action="close"
-            onClick={() => p.onAsk({ kind: "close", game: g, run })}
-          >
-            <Square aria-hidden />
-            <span>{t("cw_home_close_game")}</span>
-          </button>
-        ) : null}
-        {g.hidden !== null ? (
+      <div className="cw-game-sheet-body">
+        <div>
+          <dl className="cw-info">
+            {rows.map(([k, v, mono]) => (
+              <div key={k}>
+                <dt className="cw-dim">{k}</dt>
+                <dd className={mono ? "cw-mono" : undefined}>{v}</dd>
+              </div>
+            ))}
+          </dl>
+          {note ? <p className="cw-dim">{note}</p> : null}
+        </div>
+        <div className="cw-sheet-items">
           <button
             type="button"
             className="cw-focusable cw-sheet-item"
-            data-game-action="hide"
-            disabled={removing}
-            onClick={() => p.onToggleHidden(g)}
+            data-game-action="launch"
+            data-nav-default=""
+            disabled={otherRunning || starting || removing}
+            onClick={() => p.onLaunch(g)}
           >
-            {g.hidden ? <Eye aria-hidden /> : <EyeOff aria-hidden />}
-            <span>{g.hidden ? t("cw_games_show_icon") : t("cw_games_hide_icon")}</span>
+            <Play aria-hidden />
+            <span>{run ? t("cw_games_resume") : t("cw_games_launch")}</span>
           </button>
-        ) : null}
-        <button
-          type="button"
-          className="cw-focusable cw-sheet-item is-danger"
-          data-game-action="uninstall"
-          disabled={!!run || removing || p.launching === g.titleId}
-          onClick={() => p.onAsk({ kind: "uninstall", game: g })}
-        >
-          <Trash2 aria-hidden />
-          <span>{t("cw_games_uninstall")}</span>
-        </button>
+          {run ? (
+            <button
+              type="button"
+              className="cw-focusable cw-sheet-item is-danger"
+              data-game-action="close"
+              onClick={() => p.onAsk({ kind: "close", game: g, run })}
+            >
+              <Square aria-hidden />
+              <span>{t("cw_home_close_game")}</span>
+            </button>
+          ) : null}
+          {g.hidden !== null ? (
+            <button
+              type="button"
+              className="cw-focusable cw-sheet-item"
+              data-game-action="hide"
+              disabled={removing}
+              onClick={() => p.onToggleHidden(g)}
+            >
+              {g.hidden ? <Eye aria-hidden /> : <EyeOff aria-hidden />}
+              <span>{g.hidden ? t("cw_games_show_icon") : t("cw_games_hide_icon")}</span>
+            </button>
+          ) : null}
+          <button
+            type="button"
+            className="cw-focusable cw-sheet-item is-danger"
+            data-game-action="uninstall"
+            disabled={!!run || removing || p.launching === g.titleId}
+            onClick={() => p.onAsk({ kind: "uninstall", game: g })}
+          >
+            <Trash2 aria-hidden />
+            <span>{t("cw_games_uninstall")}</span>
+          </button>
+        </div>
       </div>
       <div className="cw-dialog-buttons">
         <button type="button" className="cw-focusable cw-button" onClick={p.onCloseSheet}>
@@ -544,6 +548,8 @@ export function Games({ ctx }: { ctx: SectionContext }) {
       setData((d) =>
         d ? { ...d, games: d.games.map((x) => (x.titleId === g.titleId ? { ...x, hidden: hide } : x)) } : d,
       );
+      // The sheet closes so the line about the home screen shows.
+      setOpenId(null);
       setMessage({ tone: "info", text: t(hide ? "cw_games_hidden_done" : "cw_games_shown_done", { name: g.name }) });
     } catch (e) {
       const text = errorText(e);

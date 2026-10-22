@@ -168,7 +168,7 @@ const char *webui_unmount_refusal(const char *p, int game_running);
  * which the PC app never uninstalls on one confirm and never hides). */
 const char *webui_app_refusal(const char *tid, int destructive);
 
-/* From a PROCESS_LIST reply ({"processes":[{"pid":N,..,"title_id":"..","app_id":N,"kind":"app"|
+/* From a PROCESS_LIST reply ({"ok":true,"procs":[{"pid":N,..,"title_id":"..","app_id":N,"kind":"app"|
  * "payload"|"system","is_self":bool},...]}): why the page may not stop `pid`, or NULL. "not_running"
  * when the pid is not listed (or the reply does not parse), "helper" for the helper's own process,
  * "system" for anything not a game ("app") or a payload ("payload") and for pid 0/1. The PC app asks

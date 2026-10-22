@@ -87,6 +87,8 @@ describe("games model", () => {
     expect(placeOf("pkg", false, "", "/user/app")).toBe("internal");
     expect(placeOf("pkg", false, "", "/mnt/ext0/user/app")).toBe("ext");
     expect(placeOf("pkg", false, "", null)).toBe("unknown");
+    // a homebrew installer's registration has no source: its app folder says where
+    expect(placeOf("registered", false, "", "/mnt/ext1/user/app")).toBe("ext");
   });
 
   it("reads the helper's replies defensively", () => {
@@ -144,7 +146,8 @@ describe("games model", () => {
 
   it("knows running games from the process list (games only, not the helper)", () => {
     const { procs, truncated } = parseProcesses({
-      processes: [
+      ok: true,
+      procs: [
         { pid: 10, name: "eboot.bin", title_id: "CUSA07842", app_id: 0, kind: "app", is_self: false },
         { pid: 11, name: "ps2-emu", title_id: "CUSA07842", app_id: 99, kind: "app", is_self: false },
         { pid: 12, name: "SceShellUI", title_id: "NPXS40087", app_id: 5, kind: "system", is_self: false },

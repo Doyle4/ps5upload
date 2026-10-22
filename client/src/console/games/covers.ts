@@ -5,7 +5,7 @@
  * JPEG data URL, and kept for the page's life (at most CACHE_MAX).
  */
 import { useEffect, useRef, useState, type RefObject } from "react";
-import { callBlob } from "../api";
+import { ApiError, callBlob } from "../api";
 import { TITLE_ID_RE } from "./model";
 
 export const COVER_PX = 192;
@@ -73,12 +73,24 @@ export async function loadCover(titleId: string): Promise<string | null> {
   return slot(async () => {
     const again = cache.get(titleId);
     if (again) return again;
-    try {
-      const b = await callBlob("/api/fs/read", { path: `/user/appmeta/${titleId}/icon0.png` });
-      if (!/^image\/(png|jpeg)$/.test(b.type)) {
-        missing.add(titleId);
-        return null;
+    // appmeta first; a title a homebrew installer put on FW 13.60 has only its app folder (the engine's order).
+    let b: Blob | null = null;
+    for (const path of [`/user/appmeta/${titleId}/icon0.png`, `/user/app/${titleId}/sce_sys/icon0.png`]) {
+      try {
+        const got = await callBlob("/api/fs/read", { path });
+        if (/^image\/(png|jpeg)$/.test(got.type)) {
+          b = got;
+          break;
+        }
+      } catch (e) {
+        if (!(e instanceof ApiError) || e.status === 0 || e.status === 401) return null;
       }
+    }
+    if (!b) {
+      missing.add(titleId);
+      return null;
+    }
+    try {
       const url = await shrink(b);
       if (cache.size >= CACHE_MAX) {
         const first = cache.keys().next().value;

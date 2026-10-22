@@ -915,12 +915,12 @@ const char *webui_app_refusal(const char *tid, int destructive) {
     return NULL;
 }
 
-/* Calls fn(element, its length, ctx) for every object in PROCESS_LIST's "processes" array until fn
+/* Calls fn(element, its length, ctx) for every object in PROCESS_LIST's "procs" array until fn
  * returns non-zero (that value is returned). 0 when the walk ended, -1 when the reply does not parse. */
 static int each_process(const char *json, size_t n, int (*fn)(const char *el, size_t len, void *ctx), void *ctx) {
     const char *arr, *q, *e;
     size_t alen;
-    if (webui_json_array(json, n, "processes", &arr, &alen) != 1) return -1;
+    if (webui_json_array(json, n, "procs", &arr, &alen) != 1) return -1;
     e = arr + alen;
     q = arr + 1;
     for (;;) {
