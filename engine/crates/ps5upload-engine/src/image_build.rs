@@ -831,10 +831,13 @@ pub(crate) fn build_packed(
     if let Some(why) = ampr_pack::image::refusal(source) {
         return Err(why);
     }
-    let config = packs
-        .profile
-        .clone()
-        .unwrap_or_else(|| ampr_pack::default_profile(packs.level, packs.block_shift));
+    let config = packs.profile.clone().unwrap_or_else(|| {
+        ampr_pack::default_profile_for(
+            source.files().iter().map(|f| f.path.as_str()),
+            packs.level,
+            packs.block_shift,
+        )
+    });
     // Claimed by the caller like the image's `.partial`, so nothing else writes here.
     let spool = lz4_spool(output);
     let mtime = std::time::SystemTime::now()
@@ -1308,6 +1311,80 @@ mod tests {
         std::fs::write(src.join("data/text.bin"), &text[..150_000]).unwrap();
         std::fs::write(src.join("data/settings.json"), b"{\"a\":1}").unwrap();
         src
+    }
+
+    /// An Unreal Engine title keeps everything but its IoStore containers loose: with its
+    /// project descriptor packed, Star Wars Galactic Racer stopped at boot ("Failed to open
+    /// descriptor file ../../../griffin/griffin.uproject").
+    #[test]
+    fn an_unreal_title_packs_only_its_iostore_containers() {
+        let root = std::env::temp_dir().join(format!("ps5upload-imgu-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        let src = ampr_game(&root);
+        let paks = src.join("griffin/Content/Paks");
+        std::fs::create_dir_all(&paks).unwrap();
+        let text: Vec<u8> = (0..300_000u32)
+            .flat_map(|i| format!("uasset {} ", i % 911).into_bytes())
+            .take(300_000)
+            .collect();
+        std::fs::write(src.join("griffin/griffin.uproject"), b"{\"FileVersion\":3}").unwrap();
+        for name in [
+            "pakchunk0-ps5.pak",
+            "pakchunk0-ps5.utoc",
+            "pakchunk0-ps5.ucas",
+            "pakchunk0-ps5.sig",
+            "global.utoc",
+            "global.ucas",
+        ] {
+            std::fs::write(paks.join(name), &text).unwrap();
+        }
+        let out = root.join("PPSA28416-app.exfat");
+        let mut tree = FolderSource::open(&src).unwrap();
+        build_packed(
+            ImageFormat::Exfat,
+            &mut tree,
+            &out,
+            &Lz4Packs {
+                profile: None,
+                level: 9,
+                block_shift: 16,
+            },
+            VerifyMode::Full,
+            DEFAULT_VERIFY_CHUNK,
+            &AtomicBool::new(false),
+            &mut |_, _, _| {},
+        )
+        .unwrap();
+        let mut image = ps5upload_fpkg::exfat::ExFatSource::open(&out).unwrap();
+        let in_image: Vec<String> = image.files().iter().map(|f| f.path.clone()).collect();
+        let reader = ps5upload_fpkg::ampr_pack::Reader::open(&mut image, "ampr_assets.index")
+            .expect("the containers are packed");
+        let mut packed: Vec<&str> = (0..reader.manifest.files.len())
+            .filter(|&i| reader.manifest.files[i].packed())
+            .map(|i| {
+                let p = reader.manifest.path(i).unwrap();
+                p.strip_prefix("/app0/").unwrap_or(p)
+            })
+            .collect();
+        packed.sort();
+        assert_eq!(
+            packed,
+            [
+                "griffin/Content/Paks/global.ucas",
+                "griffin/Content/Paks/pakchunk0-ps5.ucas"
+            ]
+        );
+        for loose in [
+            "griffin/griffin.uproject",
+            "griffin/Content/Paks/pakchunk0-ps5.pak",
+            "griffin/Content/Paks/pakchunk0-ps5.utoc",
+            "griffin/Content/Paks/pakchunk0-ps5.sig",
+            "griffin/Content/Paks/global.utoc",
+            "data/text.bin",
+        ] {
+            assert!(in_image.contains(&loose.to_string()), "{loose} is loose");
+        }
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     /// An LZ4-packed exFAT image, read back through the exFAT reader and then the pack reader,

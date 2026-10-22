@@ -37,7 +37,7 @@ pub mod pack;
 pub mod profile_gen;
 pub mod read;
 
-pub use config::{default_profile, Config};
+pub use config::{default_profile, default_profile_for, unreal_profile, Config};
 pub use pack::{build, Control, Output};
 pub use read::Reader;
 

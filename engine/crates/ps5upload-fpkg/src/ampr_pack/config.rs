@@ -1116,6 +1116,9 @@ pub(crate) fn python_float(f: f64) -> String {
 /// mmap, which the runtime does not serve), the system and backport folders, AMPR's own
 /// files, text configuration a title may read outside AMPR, already-compressed media, and the
 /// streaming containers Insomniac titles open at boot.
+///
+/// This is the profile for a game of no known engine; [`default_profile_for`] picks the one
+/// for the game's own files.
 pub fn default_profile(level: u8, block_shift: u8) -> Config {
     let mut c = Config {
         compression_mode: if level <= 2 {
@@ -1140,6 +1143,62 @@ pub fn default_profile(level: u8, block_shift: u8) -> Config {
         include: loose,
         ..base
     });
+    c
+}
+
+/// The profile used when the user gives none, for a game with these files (paths relative to
+/// `/app0`).
+///
+/// An Unreal Engine title gets [`unreal_profile`]: only its IoStore containers are packed.
+/// Everything else gets [`default_profile`].
+pub fn default_profile_for<'a>(
+    paths: impl IntoIterator<Item = &'a str>,
+    level: u8,
+    block_shift: u8,
+) -> Config {
+    if paths.into_iter().any(is_unreal_marker) {
+        unreal_profile(level, block_shift)
+    } else {
+        default_profile(level, block_shift)
+    }
+}
+
+/// A file only an Unreal Engine build ships: its project descriptor or an IoStore table of
+/// contents or container.
+fn is_unreal_marker(path: &str) -> bool {
+    let lower = path.to_ascii_lowercase();
+    [".uproject", ".utoc", ".ucas"]
+        .iter()
+        .any(|ext| lower.ends_with(ext))
+}
+
+/// The profile for an Unreal Engine title: its IoStore containers (`*.ucas`, nearly all of the
+/// game's bytes) compressed, everything else loose.
+///
+/// Unreal opens its other files through its own platform file layer, and ampr_emu 0.4.2.1
+/// (whose release build hooks POSIX `open`/`stat`/`read`, not every libkernel entry) did not
+/// serve a packed one: Star Wars Galactic Racer (PPSA28416, FW 13.60) built with the default
+/// profile stopped at boot with "Failed to open descriptor file
+/// ../../../griffin/griffin.uproject". The `.pak` files, `.utoc` tables, `.sig` signatures and
+/// the shader and pipeline caches go through the same layer; Lazy_AMPR, exfat2ampr and
+/// theghostonline's tool also keep `.pak` and `.utoc` loose. Packing only the containers
+/// leaves nothing else to guess.
+pub fn unreal_profile(level: u8, block_shift: u8) -> Config {
+    let mut c = default_profile(level, block_shift);
+    let base = c.default_rule();
+    let loose = c
+        .rules
+        .pop()
+        .expect("the default profile ends with its loose rule");
+    c.rules = vec![
+        Rule {
+            action: Action::Compress,
+            include: vec!["*.ucas".into()],
+            layout: Layout::Mixed,
+            ..base
+        },
+        loose,
+    ];
     c
 }
 
@@ -1375,6 +1434,44 @@ mod tests {
             assert_eq!(c.select(loose).action, Action::Loose, "{loose}");
         }
         assert_eq!(c.select("d/soundbank.fr").action, Action::Compress);
+    }
+
+    #[test]
+    fn an_unreal_title_packs_only_its_iostore_containers() {
+        let files = [
+            "eboot.bin",
+            "griffin/griffin.uproject",
+            "griffin/Content/Paks/pakchunk0-ps5.ucas",
+            "griffin/Content/Paks/pakchunk0-ps5.utoc",
+        ];
+        let c = default_profile_for(files, 9, 16);
+        assert_eq!(c, unreal_profile(9, 16));
+        let ucas = c.select("griffin/Content/Paks/pakchunk0-ps5.ucas");
+        assert_eq!(ucas.action, Action::Compress);
+        assert_eq!(ucas.resolved_layout(), Layout::Mixed);
+        for loose in [
+            "griffin/griffin.uproject",
+            "griffin/Content/Paks/pakchunk0-ps5.pak",
+            "griffin/Content/Paks/pakchunk0-ps5.utoc",
+            "griffin/Content/Paks/pakchunk0-ps5.sig",
+            "griffin/Content/PipelineCaches/PS5/x.upipelinecache",
+            "Engine/Content/Internationalization/icudt64l.dat",
+            "eboot.bin",
+            "fakelib/libSceAmpr.sprx",
+            // The default's loose list still applies after the containers rule.
+            "movies/x.ucas.mp4",
+        ] {
+            assert_eq!(c.select(loose).action, Action::Loose, "{loose}");
+        }
+        // A game of no known engine keeps the folder-wide default.
+        assert_eq!(
+            default_profile_for(["eboot.bin", "d/actor/x"], 9, 16),
+            default_profile(9, 16)
+        );
+        assert_eq!(
+            default_profile_for(["D/X.UCAS"], 9, 16),
+            unreal_profile(9, 16)
+        );
     }
 
     /// The canonical document drakmor's packer hashes for the build id, for the default config
