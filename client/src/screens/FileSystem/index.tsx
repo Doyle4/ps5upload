@@ -48,6 +48,7 @@ import {
   X,
   HardDrive,
   Usb,
+  Eject,
   Eye,
   FolderOpen,
   Link2,
@@ -211,6 +212,7 @@ import {
 } from "../../state/roster";
 import { useStaleHostGuard } from "../../lib/staleHostGuard";
 import { labelEngineJob } from "../../lib/bgWork";
+import { canEjectUsb, useUsbEject } from "../../lib/useUsbEject";
 
 function parent(p: string): string {
   if (p === "/" || p === "") return "/";
@@ -381,6 +383,8 @@ export default function FileSystemScreen() {
   // just hides itself, which is less noisy than yet another red
   // banner for what's a degraded-but-functional state.
   const [volumes, setVolumes] = useState<Volume[] | null>(null);
+  // Bumped after a USB eject so the drive bar lists the drives again.
+  const [volumesEpoch, setVolumesEpoch] = useState(0);
   const [entries, setEntries] = useState<DirEntry[] | null>(null);
   // Path of the most recent listing request — used to drop a stale (slower)
   // response from a folder the user already navigated away from. See refresh.
@@ -489,6 +493,15 @@ export default function FileSystemScreen() {
   // no-op in Tauri webview and falls through to plugin-dialog's
   // ACL-gated confirm command.
   const { confirm: confirmDialog, dialog: confirmDialogNode } = useConfirm();
+  // Eject next to each USB drive, as the console's own Files page has (#496). Browsing inside
+  // the drive that went away returns to /data.
+  const { eject: ejectUsb, ejectingPath, dialog: ejectDialogNode } = useUsbEject({
+    onEjected: (_host, mountPoint) => {
+      setVolumesEpoch((n) => n + 1);
+      setPath((p) => (p === mountPoint || p.startsWith(`${mountPoint}/`) ? "/data" : p));
+    },
+    onError: setError,
+  });
   const { alert: alertDialog, dialog: alertDialogNode } = useAlert();
   const { prompt: promptDialog, dialog: promptDialogNode } = usePrompt();
   const { ask: askConflict, dialog: conflictDialogNode } = useConflictAsk(host);
@@ -652,7 +665,7 @@ export default function FileSystemScreen() {
     return () => {
       cancelled = true;
     };
-  }, [host, payloadStatus]);
+  }, [host, payloadStatus, volumesEpoch]);
 
   // An "Add files" run ended (here, or while another screen was open): list the folder
   // again so what landed shows. The count is per console, so a console switch is not a run.
@@ -2630,6 +2643,7 @@ export default function FileSystemScreen() {
         />
       )}
       {confirmDialogNode}
+      {ejectDialogNode}
       {conflictDialogNode}
       {alertDialogNode}
       {promptDialogNode}
@@ -2730,7 +2744,8 @@ export default function FileSystemScreen() {
                 v.path.startsWith("/mnt/usb") || v.path.startsWith("/mnt/ext");
               const active = currentVolumePath === v.path;
               const Icon = external ? Usb : HardDrive;
-              return (
+              const ejectable = canEjectUsb(v.path);
+              const chip = (
                 <button
                   key={v.path}
                   type="button"
@@ -2765,6 +2780,24 @@ export default function FileSystemScreen() {
                     · {formatBytes(v.free_bytes)}
                   </span>
                 </button>
+              );
+              if (!ejectable) return chip;
+              const ejecting = ejectingPath === v.path;
+              return (
+                <span key={v.path} className="inline-flex shrink-0 items-center gap-0.5">
+                  {chip}
+                  <button
+                    type="button"
+                    onClick={() => void ejectUsb(v.path)}
+                    disabled={ejectingPath !== null}
+                    title={tr("volumes_eject_tooltip", undefined, "Unmount the USB drive so it can be unplugged safely.")}
+                    aria-label={`${tr("volumes_eject", undefined, "Eject")} ${v.path}`}
+                    className="chip shrink-0 px-1.5 py-1 sm:py-1.5"
+                    data-eject={v.path}
+                  >
+                    {ejecting ? <Spinner size={12} /> : <Eject size={12} />}
+                  </button>
+                </span>
               );
             })}
             {/* When the current path sits under no known volume, mirror the old
