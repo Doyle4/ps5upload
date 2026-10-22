@@ -950,6 +950,7 @@ export default function InstallPackageScreen() {
     })) return;
     await Promise.all(plan.map((item) => installStream(item.path, targetHost, {
       displayName: item.name, category: item.category, contentId: item.contentId,
+      sizeBytes: item.size ?? null,
     })));
   }
 
@@ -1065,7 +1066,7 @@ export default function InstallPackageScreen() {
     useRecentLinksStore.getState().remember(host, { url: link, name: req.name, mode: req.mode });
     // The user's name for it; else the name the link ended up with (a redirect or
     // Content-Disposition).
-    await runUrlInstall(link, req.mode, req.name || info?.filename);
+    await runUrlInstall(link, req.mode, req.name || info?.filename, undefined, info?.total_size);
   }
 
   /** Start a link install that was approved. `existing`: the user's answer to a different
@@ -1075,11 +1076,13 @@ export default function InstallPackageScreen() {
     mode: LinkInstallMode,
     displayName: string | undefined,
     existing?: ExistingChoice,
+    /** The size the link probe reported, for the queue row. */
+    sizeBytes?: number | null,
   ) {
     setExistingPrompt(null);
     const startedAt = Date.now();
     try {
-      const result = await installUrl(link, host, { mode, displayName, existing });
+      const result = await installUrl(link, host, { mode, displayName, existing, sizeBytes });
       if (result.existingFile) {
         setExistingPrompt({ link, mode, displayName, file: result.existingFile });
         return;

@@ -4999,6 +4999,12 @@ library_compressed_hint: "برای اجرای ایمیج فشرده به ShadowM
   "browserPayload.sent": "{n} بایت به بارگذار ارسال شد.",
   "browserFile.archive": "بارگذاری بایگانی به برنامهٔ بومی نیاز دارد. فایل عادی یا تصویر دیسک انتخاب کنید.",
   "queue_size_unknown": "اندازه هنوز مشخص نیست",
+  "queue_space_need": "{size} برای نصب",
+  "queue_space_free": "{size} آزاد در {drive}",
+  "queue_space_internal": "حافظهٔ داخلی",
+  "queue_space_unknown": "موارد بدون اندازه: {n}",
+  "queue_space_short": "شاید جا نشود — حدود {size} بیشتر لازم است",
+  "queue_space_hint": "برآوردی برای برنامه‌ریزی. هر نصب همچنان خودش فضای PS5 را بررسی می‌کند.",
 };
 
 export default fa;

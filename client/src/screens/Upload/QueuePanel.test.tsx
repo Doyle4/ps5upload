@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 
-import { QueueRow, queueItemsForHost, queueSections } from "./QueuePanel";
+import { QueueRow, queueItemsForHost, queueRowIcon, queueRowName, queueSections } from "./QueuePanel";
 import en from "../../i18n/locales/en";
 import type { QueueItem } from "../../state/uploadQueue";
 
@@ -181,5 +181,61 @@ describe("Queue panel", () => {
 
   it("titles the panel Queue", () => {
     expect(en.queue_title).toBe("Queue");
+  });
+
+  describe("row art (spec 2026-10-22 §2)", () => {
+    const folder = (over: Record<string, unknown> = {}) =>
+      item({
+        id: "f",
+        sourceKind: "game-folder",
+        sourcePath: "/Users/me/Games/PPSA00001-app",
+        displayName: "PPSA00001-app",
+        addr: "10.0.0.2:9113",
+        resolvedDest: "/data/homebrew/PPSA00001-app",
+        status: "pending",
+        ...over,
+      });
+    const sourceArt = {
+      icon: "data:image/png;base64,AA==",
+      title: "Astro's Playroom",
+      contentId: "UP9000-PPSA00001_00-ASTROSPLAYROOM00",
+      titleId: "PPSA00001",
+      size: 1,
+    };
+
+    it("never sends a path on this computer to the console's icon route", () => {
+      expect(queueRowIcon(folder(), null).gamePath).toBeNull();
+      expect(queueRowIcon(folder({ status: "running" }), null).gamePath).toBeNull();
+      expect(queueRowIcon(folder({ status: "failed" }), null).gamePath).toBeNull();
+      const html = row(folder());
+      expect(html).not.toContain(encodeURIComponent("/Users/me/Games"));
+      expect(html).not.toContain("game-icon");
+    });
+
+    it("uses the console's copy of a folder once the upload put it there", () => {
+      expect(queueRowIcon(folder({ status: "done" }), null).gamePath).toBe("/data/homebrew/PPSA00001-app");
+    });
+
+    it("puts the source's icon first and fills a missing title id from the source", () => {
+      const icon = queueRowIcon(folder(), sourceArt);
+      expect(icon.sourceSrc).toBe(sourceArt.icon);
+      expect(icon.titleId).toBe("PPSA00001");
+      // The queued content id wins over the source's.
+      expect(
+        queueRowIcon(
+          item({ sourceKind: "pkg", contentId: "EP0001-CUSA00002_00-0000000000000000", status: "pending" }),
+          sourceArt,
+        ).titleId,
+      ).toBe("CUSA00002");
+    });
+
+    it("names a row by the source's title only when its name is just the file's name", () => {
+      expect(queueRowName(folder(), undefined, sourceArt.title, "/Users/me/Games/PPSA00001-app")).toBe(
+        "Astro's Playroom",
+      );
+      const offer = item({ sourceKind: "install", displayName: "Game · Update 1.02" });
+      expect(queueRowName(offer, undefined, sourceArt.title, "/pc/g-patch.pkg")).toBe("Game · Update 1.02");
+      expect(queueRowName(item({ sourceKind: "pkg", displayName: "x.pkg" }), undefined, "T", "/x.pkg")).toBe("T");
+    });
   });
 });

@@ -4707,6 +4707,12 @@ library_compressed_hint: "Image terkompresi memerlukan ShadowMount+ untuk bermai
   "browserPayload.sent": "{n} byte dikirim ke pemuat.",
   "browserFile.archive": "Unggahan arsip memerlukan aplikasi native. Pilih berkas biasa atau citra disk.",
   "queue_size_unknown": "Ukuran belum diketahui",
+  "queue_space_need": "{size} untuk dipasang",
+  "queue_space_free": "{size} kosong di {drive}",
+  "queue_space_internal": "penyimpanan internal",
+  "queue_space_unknown": "Item tanpa ukuran: {n}",
+  "queue_space_short": "Mungkin tidak muat — perlu sekitar {size} lagi",
+  "queue_space_hint": "Perkiraan untuk membantu perencanaan. Setiap pemasangan tetap memeriksa ruang di PS5 sendiri.",
 };
 
 export default id;

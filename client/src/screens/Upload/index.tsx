@@ -1480,7 +1480,9 @@ function Step2Options(props: {
                 ? () => {
                     // Queued on the console's queue (shown at the top of this
                     // screen and on Install Package); the pick is done.
-                    void pkgLibraryStore(consoleHost).getState().installStream(source.path, consoleHost);
+                    void pkgLibraryStore(consoleHost).getState().installStream(source.path, consoleHost, {
+                      sizeBytes: source.pkgInfo?.totalBytes ?? null,
+                    });
                     onClear();
                   }
                 : undefined

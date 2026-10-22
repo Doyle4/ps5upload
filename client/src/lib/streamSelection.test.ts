@@ -10,3 +10,10 @@ it("reads the whole selection and orders base, update, DLC without duplicates", 
 it("does not produce a partial install plan when a header cannot be read", async () => {
   await expect(planStreamSelection(["/bad.pkg"], async () => { throw new Error("unreadable"); })).rejects.toThrow("unreadable");
 });
+it("keeps each package's size for its queue row, and leaves an unknown size out", async () => {
+  const result = await planStreamSelection(["/a.pkg", "/b.pkg"], async (path) => ({
+    head: { category: "gd" },
+    total_size: path === "/a.pkg" ? 1234 : 0,
+  }));
+  expect(result.map((i) => i.size)).toEqual([1234, undefined]);
+});

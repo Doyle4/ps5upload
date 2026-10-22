@@ -4705,6 +4705,12 @@ library_compressed_hint: "Sıkıştırılmış kalıpları oynatmak için Shadow
   "browserPayload.sent": "Yükleyiciye {n} bayt gönderildi.",
   "browserFile.archive": "Arşiv yüklemek için yerel uygulama gerekir. Normal bir dosya veya disk görüntüsü seçin.",
   "queue_size_unknown": "Boyut henüz bilinmiyor",
+  "queue_space_need": "Kurulacak: {size}",
+  "queue_space_free": "{drive} üzerinde boş: {size}",
+  "queue_space_internal": "dahili depolama",
+  "queue_space_unknown": "Boyutu bilinmeyen öğe: {n}",
+  "queue_space_short": "Sığmayabilir — yaklaşık {size} daha gerekli",
+  "queue_space_hint": "Planlamaya yardımcı bir tahmin. Her kurulum PS5'teki alanı yine kendisi denetler.",
 };
 
 export default tr;

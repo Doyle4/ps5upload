@@ -4648,6 +4648,12 @@ library_compressed_hint: "Для запуска сжатых образов ну
   "browserPayload.sent": "В загрузчик отправлено {n} байт.",
   "browserFile.archive": "Для загрузки архивов нужно нативное приложение. Выберите обычный файл или образ диска.",
   "queue_size_unknown": "Размер пока неизвестен",
+  "queue_space_need": "К установке: {size}",
+  "queue_space_free": "Свободно на {drive}: {size}",
+  "queue_space_internal": "внутренняя память",
+  "queue_space_unknown": "Без размера: {n}",
+  "queue_space_short": "Может не поместиться — нужно ещё около {size}",
+  "queue_space_hint": "Оценка для планирования. Каждая установка всё равно сама проверяет место на PS5.",
 };
 
 export default ru;

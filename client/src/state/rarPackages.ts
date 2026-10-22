@@ -87,6 +87,8 @@ export interface RarPackageInfo {
   entry: string;
   /** Where it is on the console once unpacked. */
   consolePath: string;
+  /** Its size from the archive listing (0 when unknown). */
+  size?: number;
   category: string;
   titleId: string;
   appVer: string;
@@ -264,6 +266,7 @@ export async function installRarPackages(
       known.push({
         entry: p.path,
         consolePath,
+        size: p.size,
         category: info.category ?? "",
         titleId: info.title_id ?? "",
         appVer: info.app_ver ?? "",
@@ -299,7 +302,9 @@ export async function installRarPackages(
     });
     // One queue item per package; never deleted afterwards (the queue item reads the file in
     // place), and an update takes the engine's safe route because it reads the category.
-    const r = await pkgLibraryStore(host).getState().installFromConsolePath(pkg.consolePath, host);
+    const r = await pkgLibraryStore(host).getState().installFromConsolePath(pkg.consolePath, host, {
+      sizeBytes: pkg.size ?? null,
+    });
     if (r.ok) {
       outcomes.push({ entry: pkg.entry, consolePath: pkg.consolePath, status: "installed" });
     } else {

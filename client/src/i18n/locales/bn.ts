@@ -4698,6 +4698,12 @@ library_compressed_hint: "সংকুচিত ইমেজ চালাতে 
   "browserPayload.sent": "লোডারে {n} বাইট পাঠানো হয়েছে।",
   "browserFile.archive": "আর্কাইভ আপলোডের জন্য নেটিভ অ্যাপ দরকার। সাধারণ ফাইল বা ডিস্ক ইমেজ বাছুন।",
   "queue_size_unknown": "আকার এখনও জানা নেই",
+  "queue_space_need": "ইনস্টল করতে {size}",
+  "queue_space_free": "{drive}-এ {size} খালি",
+  "queue_space_internal": "অভ্যন্তরীণ স্টোরেজ",
+  "queue_space_unknown": "আকারহীন আইটেম: {n}",
+  "queue_space_short": "জায়গা না-ও হতে পারে — আরও প্রায় {size} দরকার",
+  "queue_space_hint": "পরিকল্পনার জন্য একটি আনুমানিক হিসাব। প্রতিটি ইনস্টল PS5-এ জায়গা নিজেই যাচাই করে।",
 };
 
 export default bn;

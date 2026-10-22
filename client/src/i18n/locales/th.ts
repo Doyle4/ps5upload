@@ -4707,6 +4707,12 @@ library_compressed_hint: "อิมเมจที่บีบอัดต้อ
   "browserPayload.sent": "ส่ง {n} ไบต์ไปยังตัวโหลดแล้ว",
   "browserFile.archive": "การอัปโหลดไฟล์เก็บถาวรต้องใช้แอปเนทีฟ เลือกไฟล์ทั่วไปหรืออิมเมจดิสก์",
   "queue_size_unknown": "ยังไม่ทราบขนาด",
+  "queue_space_need": "ต้องติดตั้ง {size}",
+  "queue_space_free": "ว่าง {size} บน {drive}",
+  "queue_space_internal": "พื้นที่เก็บข้อมูลภายใน",
+  "queue_space_unknown": "รายการที่ไม่ทราบขนาด: {n}",
+  "queue_space_short": "อาจไม่พอ — ต้องการเพิ่มอีกราว {size}",
+  "queue_space_hint": "ค่าประมาณเพื่อช่วยวางแผน การติดตั้งแต่ละครั้งยังตรวจพื้นที่บน PS5 เองเสมอ",
 };
 
 export default th;

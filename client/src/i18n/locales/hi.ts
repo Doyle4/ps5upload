@@ -4714,6 +4714,12 @@ library_compressed_hint: "संपीड़ित इमेज चलाने 
   "browserPayload.sent": "लोडर को {n} बाइट भेजे गए।",
   "browserFile.archive": "आर्काइव अपलोड के लिए नेटिव ऐप चाहिए। साधारण फ़ाइल या डिस्क इमेज चुनें।",
   "queue_size_unknown": "आकार अभी ज्ञात नहीं है",
+  "queue_space_need": "इंस्टॉल करने को {size}",
+  "queue_space_free": "{drive} पर {size} खाली",
+  "queue_space_internal": "आंतरिक स्टोरेज",
+  "queue_space_unknown": "बिना आकार वाले आइटम: {n}",
+  "queue_space_short": "शायद जगह न हो — लगभग {size} और चाहिए",
+  "queue_space_hint": "योजना में मदद के लिए एक अनुमान। हर इंस्टॉल PS5 पर जगह खुद भी जाँचता है।",
 };
 
 export default hi;

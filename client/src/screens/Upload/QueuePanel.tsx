@@ -17,6 +17,7 @@ import {
   Info,
   UploadCloud,
   Moon,
+  HardDrive,
 } from "lucide-react";
 
 import {
@@ -27,13 +28,29 @@ import {
   Toggle,
 } from "../../components";
 import { queueItemViewPath } from "../../lib/queueView";
-import { queueItemBytes, queueRemainingBytes } from "../../lib/queueSize";
+import {
+  installSpaceLine,
+  installTargetSpace,
+  queueInstallNeeds,
+  queueItemBytes,
+  queueRemainingBytes,
+  type InstallTargetSpace,
+} from "../../lib/queueSize";
+import {
+  busyServers,
+  queueArtSourcePath,
+  shouldReadSourceArt,
+  useSourceArt,
+  type SourceArt,
+} from "../../lib/queueArt";
+import { useOnScreen } from "../../lib/useOnScreen";
+import { usePkgStorageStore } from "../../lib/pkgStorage";
 import { usePackageViewer } from "../../state/packageViewer";
 import { GameIcon } from "../../components/GameIcon";
 import { PlatformBadge } from "../../components/PlatformBadge";
-import { humanizeJobErrorReason } from "../../api/ps5";
+import { humanizeJobErrorReason, listVolumes } from "../../api/ps5";
 import { humanizePs5Error } from "../../lib/humanizeError";
-import { hostOf } from "../../lib/addr";
+import { hostOf, transferAddr } from "../../lib/addr";
 import {
   platformForTitleId,
   titleIdFromContentId,
@@ -153,9 +170,13 @@ export const QueuePanel = memo(function QueuePanel({ host }: { host?: string } =
   const tr = useTr();
   const allItems = useUploadQueueStore((s) => s.items);
   const items = useMemo(() => queueItemsForHost(allItems, host), [allItems, host]);
-  // Bytes the queue still has to write, across every console shown here.
-  // Counts down live while a transfer runs, alongside the count chips.
-  const totalBytes = useMemo(() => queueRemainingBytes(items), [items]);
+  // Bytes the queue still has to upload, across every console shown here.
+  // Counts down live while a transfer runs, alongside the count chips. Installs
+  // have their own line (InstallSpace), against the install drive's free space.
+  const totalBytes = useMemo(() => queueRemainingBytes(uploadsOnly(items)), [items]);
+  // Saved servers a running transfer reads from: rows on them hold their art read.
+  const busyKey = useMemo(() => [...busyServers(allItems)].sort().join("\n"), [allItems]);
+  const busy = useMemo(() => new Set(busyKey ? busyKey.split("\n") : []), [busyKey]);
   const continueOnFailure = useUploadQueueStore((s) => s.continueOnFailure);
   const running = useUploadQueueStore((s) => s.running);
   const runningHosts = useUploadQueueStore((s) => s.runningHosts);
@@ -272,6 +293,9 @@ export const QueuePanel = memo(function QueuePanel({ host }: { host?: string } =
               )}
             </span>
           )}
+          {!multiConsole && groups[0] && (
+            <InstallSpace host={groups[0].host} items={groups[0].items} />
+          )}
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -364,6 +388,7 @@ export const QueuePanel = memo(function QueuePanel({ host }: { host?: string } =
             onCancel={cancelItem}
             onRetry={(id) => void retryInstall(id)}
             onRetryViaUpload={(id) => void retryInstallViaUpload(id)}
+            busy={busy}
           />
         ))}
       </div>
@@ -441,9 +466,11 @@ function ConsoleGroup({
   onCancel,
   onRetry,
   onRetryViaUpload,
+  busy,
 }: {
   host: string;
   items: QueueItem[];
+  busy: ReadonlySet<string>;
   hostRunning: boolean;
   showHeader: boolean;
   onStartHost: () => void;
@@ -488,7 +515,7 @@ function ConsoleGroup({
   const sections = useMemo(() => queueSections(items), [items]);
   // This console's remaining queue size, shown as a chip in the group
   // header next to the counts. Counts down live while an upload runs.
-  const groupBytes = useMemo(() => queueRemainingBytes(items), [items]);
+  const groupBytes = useMemo(() => queueRemainingBytes(uploadsOnly(items)), [items]);
   // A waiting row can move only past a neighbour in the same install tier —
   // the tier (base → update → DLC) decides the order before the list does.
   const movable = useMemo(() => {
@@ -540,6 +567,7 @@ function ConsoleGroup({
                   onCancel={() => onCancel(item.id)}
                   onRetry={() => onRetry(item.id)}
                   onRetryViaUpload={() => onRetryViaUpload(item.id)}
+                  busy={busy}
                 />
               );
             })}
@@ -608,6 +636,7 @@ function ConsoleGroup({
               )}
             </span>
           )}
+          <InstallSpace host={host} items={items} />
           {hostRunning ? (
             <Button
               variant="secondary"
@@ -667,6 +696,7 @@ export function QueueRow({
   onCancel,
   onRetry,
   onRetryViaUpload,
+  busy = NO_BUSY_SERVERS,
 }: {
   item: QueueItem;
   /** 1-based place in this console's run order, for a waiting item. */
@@ -680,9 +710,26 @@ export function QueueRow({
   onCancel: () => void;
   onRetry: () => void;
   onRetryViaUpload: () => void;
+  /** Saved servers a running transfer reads from (see busyServers). */
+  busy?: ReadonlySet<string>;
 }) {
   const tr = useTr();
   const { confirm, dialog: confirmNode } = useConfirm();
+  const isPendingRow = item.status === "pending";
+  // The source's own art and identity, read lazily: only while the row waits and is on screen.
+  const artPath = queueArtSourcePath(item);
+  const [rowRef, onScreen] = useOnScreen<HTMLLIElement>(isPendingRow && !!artPath);
+  const art = useSourceArt(
+    artPath,
+    shouldReadSourceArt(artPath, { pending: isPendingRow, visible: onScreen, busy }),
+  );
+  const noteSourceSize = useUploadQueueStore((s) => s.noteSourceSize);
+  const artSize = art?.size ?? 0;
+  useEffect(() => {
+    if (isPendingRow && artSize > 0 && !(item.estimatedBytes ?? 0)) {
+      noteSourceSize(item.id, artSize);
+    }
+  }, [isPendingRow, artSize, item.estimatedBytes, item.id, noteSourceSize]);
   const isInstall = item.sourceKind === "install";
   const viewPath = queueItemViewPath(item);
   // A running install can be stopped (here, or after cancelling it on the PS5, which the app
@@ -704,17 +751,17 @@ export function QueueRow({
   // pkg: title id parsed out of the ContentID drives the cover (appmeta/CDN)
   // and the PS4/PS5 badge. game-folder: the folder's own sce_sys/icon0.png.
   // Other kinds (plain file, archive, image) have no game art, so no thumb.
-  const titleId =
-    item.sourceKind === "pkg" || isInstall
-      ? titleIdFromContentId(item.contentId)
-      : null;
+  const icon = queueRowIcon(item, art);
+  const titleId = icon.titleId;
   const titleInfo = useTitleInfo(titleId);
   const platform = platformForTitleId(titleId);
   const hasGameArt =
     item.sourceKind === "pkg" ||
     item.sourceKind === "game-folder" ||
-    isInstall;
-  const rowName = queueRowName(item, titleInfo?.title);
+    isInstall ||
+    !!icon.sourceSrc ||
+    !!titleId;
+  const rowName = queueRowName(item, titleInfo?.title, art?.title, artPath);
   const pct =
     item.totalBytes > 0
       ? Math.max(0, Math.min(100, (item.bytesSent / item.totalBytes) * 100))
@@ -752,6 +799,7 @@ export function QueueRow({
 
   return (
     <li
+      ref={rowRef}
       className={`rounded-[var(--radius-card)] border text-sm shadow-[var(--edge-highlight),var(--shadow-1)] transition-colors ${
         isActive ? "px-4 py-3.5" : "px-4 py-3"
       } ${
@@ -793,9 +841,8 @@ export function QueueRow({
               host={hostOf(item.addr)}
               size={isActive ? 44 : 32}
               titleId={titleId}
-              gamePath={
-                item.sourceKind === "game-folder" ? item.sourcePath : null
-              }
+              gamePath={icon.gamePath}
+              sourceSrc={icon.sourceSrc}
               fallbackSrc={titleInfo?.coverImageUrl ?? null}
             />
           </div>
@@ -1405,11 +1452,138 @@ export function rowPhase(item: {
 export function queueRowName(
   item: { sourceKind: string; installedTitle?: string | null; displayName: string },
   onlineTitle: string | undefined,
+  /** The title read from the source itself (lib/queueArt). */
+  sourceTitle?: string | null,
+  /** The source that title came from: it replaces a name that is only that file's name. */
+  sourcePath?: string | null,
 ): string {
   if (item.sourceKind === "pkg") {
-    return onlineTitle || item.installedTitle || item.displayName;
+    return onlineTitle || item.installedTitle || sourceTitle || item.displayName;
+  }
+  // A caller's own name ("Game · Update 1.02", the user's name for a link) stays.
+  if (sourceTitle && sourcePath && item.displayName === baseName(sourcePath)) {
+    return sourceTitle;
   }
   return item.displayName;
+}
+
+function baseName(p: string): string {
+  return p.replace(/[\\/]+$/, "").split(/[\\/]/).pop() ?? p;
+}
+
+const NO_BUSY_SERVERS: ReadonlySet<string> = new Set();
+
+/** The queue's upload rows: installs are sized against the install drive instead. */
+function uploadsOnly(items: QueueItem[]): QueueItem[] {
+  return items.filter((it) => it.sourceKind !== "install");
+}
+
+/** Where a queue row's icon comes from, in the order GameIcon tries them: the icon read from
+ *  the source, the console's icon for its title (installed), then the online cover (by title
+ *  id). A console game folder only once the upload has put it there: a path on this computer
+ *  never goes to the console's icon route. */
+export function queueRowIcon(
+  item: Pick<QueueItem, "sourceKind" | "contentId" | "status" | "resolvedDest">,
+  art: SourceArt | null,
+): { titleId: string | null; gamePath: string | null; sourceSrc: string | null } {
+  const titleId =
+    titleIdFromContentId(item.contentId) ||
+    titleIdFromContentId(art?.contentId) ||
+    art?.titleId ||
+    null;
+  const gamePath =
+    item.sourceKind === "game-folder" && item.status === "done" && item.resolvedDest
+      ? item.resolvedDest
+      : null;
+  return { titleId, gamePath, sourceSrc: art?.icon ?? null };
+}
+
+/** "X to install · Y free on <drive>" for one console's installs, with an amber note when every
+ *  size is known and they need more than is free. Informational only: each install still checks
+ *  for itself, and nothing here blocks or adds a guessed reserve. */
+function InstallSpace({ host, items }: { host: string; items: QueueItem[] }) {
+  const tr = useTr();
+  const needs = useMemo(() => queueInstallNeeds(items), [items]);
+  // Read the drives again when the queue changes or a row finishes, not on every progress tick.
+  const refreshKey = useMemo(
+    () => items.map((it) => `${it.id}:${it.status}`).join(","),
+    [items],
+  );
+  const free = useInstallTargetSpace(host, refreshKey, needs.count > 0);
+  const line = installSpaceLine(needs, free);
+  if (!line) return null;
+  const parts: string[] = [];
+  if (line.need > 0) {
+    parts.push(
+      tr("queue_space_need", { size: formatBytes(line.need) }, `${formatBytes(line.need)} to install`),
+    );
+  }
+  if (line.free) {
+    const drive = line.free.drive ?? tr("queue_space_internal", undefined, "internal storage");
+    parts.push(
+      tr(
+        "queue_space_free",
+        { size: formatBytes(line.free.freeBytes), drive },
+        `${formatBytes(line.free.freeBytes)} free on ${drive}`,
+      ),
+    );
+  }
+  if (line.unknown > 0) {
+    parts.push(
+      tr("queue_space_unknown", { n: line.unknown }, `Items without a size: ${line.unknown}`),
+    );
+  }
+  if (parts.length === 0) return null;
+  return (
+    <span
+      className="flex flex-wrap items-center gap-1.5 text-[11px] font-medium tabular-nums text-[var(--color-muted)]"
+      title={tr(
+        "queue_space_hint",
+        undefined,
+        "An estimate to help you plan. Each install still checks the space on the PS5 itself.",
+      )}
+    >
+      <span className="flex items-center gap-1 rounded-full bg-[var(--color-surface-3)] px-2 py-0.5">
+        <HardDrive size={11} className="shrink-0" aria-hidden />
+        {parts.join(" · ")}
+      </span>
+      {line.shortBy != null && (
+        <span className="rounded-full bg-[var(--color-warn)]/15 px-2 py-0.5 text-[var(--color-warn)]">
+          {tr(
+            "queue_space_short",
+            { size: formatBytes(line.shortBy) },
+            `May not fit — about ${formatBytes(line.shortBy)} more needed`,
+          )}
+        </span>
+      )}
+    </span>
+  );
+}
+
+/** Free space on `host`'s install drive, read when `refreshKey` changes. Null while unknown, when
+ *  the drives can't be read, or when there is nothing to install: no read, no claim. */
+function useInstallTargetSpace(
+  host: string,
+  refreshKey: string,
+  enabled: boolean,
+): InstallTargetSpace | null {
+  const chosen = usePkgStorageStore((s) => s.defaults[hostOf(host)] ?? null);
+  const [space, setSpace] = useState<InstallTargetSpace | null>(null);
+  useEffect(() => {
+    if (!enabled || !host) {
+      setSpace(null);
+      return;
+    }
+    let live = true;
+    listVolumes(transferAddr(host)).then(
+      (vols) => live && setSpace(installTargetSpace(vols, chosen)),
+      () => live && setSpace(null),
+    );
+    return () => {
+      live = false;
+    };
+  }, [host, refreshKey, enabled, chosen]);
+  return space;
 }
 
 /** Size + average speed on a finished queue row. `speed` is the bare size:

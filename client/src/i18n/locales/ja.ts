@@ -4719,6 +4719,12 @@ library_compressed_hint: "圧縮イメージのプレイには ShadowMount+ が�
   "browserPayload.sent": "ローダーに{n}バイト送信しました。",
   "browserFile.archive": "アーカイブのアップロードにはネイティブアプリが必要です。通常のファイルかディスクイメージを選択してください。",
   "queue_size_unknown": "サイズはまだ不明です",
+  "queue_space_need": "インストール予定 {size}",
+  "queue_space_free": "{drive} の空き {size}",
+  "queue_space_internal": "内部ストレージ",
+  "queue_space_unknown": "サイズ不明の項目: {n}",
+  "queue_space_short": "入りきらない可能性 — あと約 {size} 必要",
+  "queue_space_hint": "計画用の目安です。各インストールは PS5 上の空き容量を個別に確認します。",
 };
 
 export default ja;

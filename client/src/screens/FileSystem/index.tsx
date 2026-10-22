@@ -798,7 +798,7 @@ export default function FileSystemScreen() {
     if (!ok) return;
     setInstallingPkgName(entry.name);
     try {
-      const r = await installFromConsolePath(fullPath, host);
+      const r = await installFromConsolePath(fullPath, host, { sizeBytes: entry.size });
       if (r.ok) {
         pushNotification(
           r.mayNotLaunch ? "warning" : "success",

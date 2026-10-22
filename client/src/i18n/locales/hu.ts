@@ -5013,6 +5013,12 @@ library_compressed_hint: "A tömörített képfájlok futtatásához ShadowMount
   "browserPayload.sent": "{n} bájt elküldve a betöltőnek.",
   "browserFile.archive": "Archívumok feltöltéséhez a natív alkalmazás szükséges. Válasszon egyszerű fájlt vagy lemezképet.",
   "queue_size_unknown": "A méret még ismeretlen",
+  "queue_space_need": "Telepítendő: {size}",
+  "queue_space_free": "Szabad hely itt: {drive}: {size}",
+  "queue_space_internal": "belső tárhely",
+  "queue_space_unknown": "Méret nélküli elemek: {n}",
+  "queue_space_short": "Lehet, hogy nem fér el – kb. {size} még kell",
+  "queue_space_hint": "Becslés a tervezéshez. Minden telepítés maga is ellenőrzi a helyet a PS5-ön.",
 };
 
 export default hu;
