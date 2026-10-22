@@ -76,18 +76,22 @@ int hw_storage_get_text(char *out, size_t out_cap, size_t *out_written,
 
 /* Set the fan-turbo temperature threshold in °C.
  *
- * Mechanism: `open("/dev/icc_fan") → ioctl(0xC01C8F07, &buf) → close`.
+ * Mechanism: `open("/dev/icc_fan")`, GET the 28-byte profile (0xC01C8F08), change the target
+ * byte, SET it whole (0xC01C8F07), GET again and compare (fan_servo.h).
  * The device node is exposed by the ICC thermal driver in FreeBSD 11
  * and does NOT require the shellui runtime context that
  * sceKernelGet*Temperature
  * needs, which is why we can fire it from a standalone payload.
  *
  * `threshold_c` is clamped to [HW_FAN_THRESHOLD_MIN, HW_FAN_THRESHOLD_MAX]
- * inside the function — callers don't need to pre-validate. Persists
- * until PS5 reboot.
+ * inside the function — callers don't need to pre-validate. Pinned and
+ * persisted: the watcher puts it back whenever the system resets it.
  *
  * Returns 0 on success; -1 with *err_reason_out set on failure
- * ("icc_fan_open_failed", "icc_fan_ioctl_failed"). */
+ * ("icc_fan_open_failed", "icc_fan_read_failed" (nothing written),
+ * "icc_fan_ioctl_failed", "icc_fan_verify_failed", "icc_fan_not_applied",
+ * "fan_above_stock" (higher than the console's own target: fans slower
+ * than stock)). A user set also lets a guard that gave up write again. */
 int hw_fan_set_threshold(uint8_t threshold_c, const char **err_reason_out);
 
 /* The temperature the controller is working to right now (read back from /dev/icc_fan), or
@@ -110,10 +114,22 @@ int hw_fan_is_stock_reading(int current_c, int ours_c);
 int hw_fan_restore_stock(const char **err_reason_out);
 
 /* Safe clamp bounds. 45 °C floor keeps the fan from running at turbo
- * during normal idle; 80 °C ceiling leaves thermal headroom before
- * Sony's ~95 °C emergency cutoff. */
+ * during normal idle; the 85 °C ceiling is the mildest drakmor/fan_target
+ * build and still under the console's own 91 °C (anything above the
+ * console's own value is refused besides: hw_fan_set_threshold). */
 #define HW_FAN_THRESHOLD_MIN 45
-#define HW_FAN_THRESHOLD_MAX 80
+#define HW_FAN_THRESHOLD_MAX 85
+
+/* Current fan duty as Q10 PWM (1024 = 100 %) from /dev/icc_fan 0xC0148F02, or -1. */
+int hw_fan_read_duty_q10(void);
+
+/* The fan lines of HW_TEMPS, appended as key=value lines: fan_pinned_c, fan_target_c (-1
+ * unreadable), fan_stock_c (0 never seen), fan_min_c, fan_max_c, fan_restores (targets put back
+ * after the system reset them, this session), fan_last_restore_s (seconds ago, -1 never),
+ * fan_guard (off|ok|failing), fan_filtered_c (the controller's filtered temperature, one
+ * decimal, -1 unreadable or outside 20..110), fan_servo (the 28-byte profile as 56 hex
+ * characters, empty when unreadable). snprintf's return. */
+int hw_fan_status_text(char *out, size_t cap);
 
 /* Returns the currently-pinned threshold in °C, or 0 if the user has
  * never set one this session (in which case the auto-reapply watcher
@@ -135,17 +151,17 @@ void hw_fan_pin_threshold(uint8_t threshold_c);
  * a zero return means "nothing pinned, leave fan at firmware default". */
 int hw_fan_load_persisted(void);
 
-/* Reapply interval — how often the watcher thread re-applies the
- * pinned fan threshold (in seconds). User-configurable so a power
- * user who wants faster fan-response during heavy gaming can dial
- * it down to 5s, or someone who finds the reapply wasteful can push
- * it up to 60s. Default is 15s. Persisted across reboots. */
+/* Watcher tick — how often the watcher reads the target back and, when
+ * the system reset it, writes the pinned one again (in seconds). Default
+ * 2 s: a read costs one ioctl and a write happens only after a reset.
+ * Persisted across reboots. */
 int hw_fan_reapply_interval(void);
 void hw_fan_set_reapply_interval(int seconds);
 
 /* Load the persisted reapply interval from
  * /data/ps5upload/fan_reapply.conf. Returns the seconds value, or
- * FAN_REAPPLY_DEFAULT_SEC (15) if no valid persisted file exists.
+ * FAN_REAPPLY_DEFAULT_SEC (2) if no valid persisted file exists (a file
+ * from the 15 s builds that says 15 reads as 2: fan_reapply_parse).
  * Call once at boot alongside hw_fan_load_persisted. */
 int hw_fan_load_reapply_interval(void);
 

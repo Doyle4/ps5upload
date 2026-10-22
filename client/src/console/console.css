@@ -817,6 +817,39 @@ button {
   cursor: default;
 }
 
+/* ---- Fan ---- */
+.cw-fan-readings {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  padding: 0.7rem 1rem;
+  margin-bottom: 0.8rem;
+}
+.cw-fan-reading {
+  min-width: 9rem;
+  margin-right: 1.5rem;
+}
+.cw-fan-value {
+  font-size: 1.6rem;
+  font-variant-numeric: tabular-nums;
+}
+.cw-fan-target {
+  margin-left: auto;
+  text-align: right;
+}
+.cw-fan .cw-fan-choice {
+  min-width: 6.5rem;
+  justify-content: center;
+}
+.cw-fan .cw-quick .cw-button[aria-pressed="true"] {
+  background: var(--color-accent-soft);
+  color: var(--color-text);
+  box-shadow: inset 0 0 0 2px var(--color-accent);
+}
+.cw-fan .cw-button[aria-disabled="true"] {
+  opacity: 0.55;
+}
+
 /* ---- Settings ---- */
 .cw-setting {
   margin-bottom: 0.8rem;

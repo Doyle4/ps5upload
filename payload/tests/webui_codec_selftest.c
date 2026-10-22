@@ -129,6 +129,11 @@ static int jv_value(void) {
         if (*jp == '-') jp++;
         if (!(*jp >= '0' && *jp <= '9')) return 0;
         while (*jp >= '0' && *jp <= '9') jp++;
+        if (*jp == '.') { /* a fraction needs a digit after the point */
+            jp++;
+            if (!(*jp >= '0' && *jp <= '9')) return 0;
+            while (*jp >= '0' && *jp <= '9') jp++;
+        }
         return 1;
     }
     return 0;
@@ -607,6 +612,31 @@ static void kv_lines(void) {
     CHECK(webui_kv_str(t, strlen(t), "serial", s, sizeof s) == 0);
 }
 
+static void fan_status(void) {
+    char out[512];
+    const char *t = "cpu_temp=51\nsoc_temp=0\nfan_duty_pct=19\nproduct_shape=-1\nfan_pinned_c=75\nfan_target_c=75\n"
+                    "fan_stock_c=91\nfan_min_c=45\nfan_max_c=85\nfan_restores=2\nfan_last_restore_s=12\n"
+                    "fan_guard=ok\nfan_filtered_c=47.3\nfan_servo=00000000005b\n";
+    int n = webui_fan_status_json(t, strlen(t), out, sizeof out);
+    CHECK(n > 0 && json_valid(out));
+    CHECK(strcmp(out, "{\"cpu_c\":51,\"soc_c\":null,\"duty_pct\":19,\"target_c\":75,\"stock_c\":91,"
+                      "\"last_restore_s\":12,\"pinned_c\":75,\"min_c\":45,\"max_c\":85,\"restores\":2,"
+                      "\"guard\":\"ok\",\"filtered_c\":47.3}") == 0);
+    /* missing readings are null, a strange guard is off, a malformed decimal is dropped */
+    t = "cpu_temp=0\nfan_duty_pct=-1\nfan_target_c=-1\nfan_stock_c=0\nfan_last_restore_s=-1\nfan_guard=x\n"
+        "fan_filtered_c=4.7.\n";
+    n = webui_fan_status_json(t, strlen(t), out, sizeof out);
+    CHECK(n > 0 && json_valid(out));
+    CHECK(strstr(out, "\"cpu_c\":null") && strstr(out, "\"duty_pct\":null") && strstr(out, "\"target_c\":null") &&
+          strstr(out, "\"stock_c\":null") && strstr(out, "\"last_restore_s\":null") && strstr(out, "\"guard\":\"off\"") &&
+          strstr(out, "\"filtered_c\":null"));
+    t = "fan_filtered_c=-1\n";
+    CHECK(webui_fan_status_json(t, strlen(t), out, sizeof out) > 0 && strstr(out, "\"filtered_c\":null"));
+    t = "fan_filtered_c=1e9\n";
+    CHECK(webui_fan_status_json(t, strlen(t), out, sizeof out) > 0 && strstr(out, "\"filtered_c\":null"));
+    CHECK(webui_fan_status_json(t, strlen(t), out, 40) == -1);
+}
+
 static void focus_running(void) {
     char tid[16];
     uint32_t app = 0;
@@ -922,6 +952,7 @@ int main(void) {
     status_mapping();
     mime_types();
     kv_lines();
+    fan_status();
     focus_running();
     focus_running_fallback_games_only();
     cheats_status();

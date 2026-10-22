@@ -30,7 +30,7 @@ import { useConfirm } from "../../components/ConfirmDialog";
 import PowerTelemetryPanel from "./PowerTelemetryPanel";
 import NetworkPanel from "./NetworkPanel";
 import PeripheralPanel from "./PeripheralPanel";
-import { FAN_PRESETS } from "./fanPresets";
+import { fanPresetsFor, fanTargetCeiling } from "../../lib/fanTargets";
 import { usePoll } from "../../lib/usePoll";
 import { mgmtAddr, transferAddr } from "../../lib/addr";
 import { useStaleHostGuard } from "../../lib/staleHostGuard";
@@ -55,7 +55,6 @@ import {
   smpMetaControl,
   smpMetaStats,
   FAN_THRESHOLD_MIN_C,
-  FAN_THRESHOLD_MAX_C,
   FAN_RESTORE_CONSOLE,
   type HwInfo,
   type HwPower,
@@ -712,6 +711,9 @@ export default function HardwareScreen() {
             pinnedC={temps?.fan_pinned_c ?? 0}
             targetC={temps?.fan_target_c ?? -1}
             stockC={temps?.fan_stock_c ?? 0}
+            restores={temps?.fan_restores ?? 0}
+            lastRestoreS={temps?.fan_last_restore_s ?? -1}
+            guard={temps?.fan_guard ?? ""}
           />
 
           <SmpMetaCard host={host ?? ""} payloadUp={payloadStatus === "up"} />
@@ -816,6 +818,9 @@ function FanThresholdCard({
   pinnedC,
   targetC,
   stockC,
+  restores,
+  lastRestoreS,
+  guard,
 }: {
   host: string;
   payloadUp: boolean;
@@ -824,6 +829,12 @@ function FanThresholdCard({
   targetC: number;
   /** The console's own value, as it was before ps5upload changed it; 0 = never seen. */
   stockC: number;
+  /** Targets the helper put back after a game start reset them, this helper session. */
+  restores: number;
+  /** Seconds since the last of those, -1 = never. */
+  lastRestoreS: number;
+  /** "failing" when the helper's guard gave up (the console's own control is in charge). */
+  guard: string;
 }) {
   const tr = useTr();
   /* pinnedC comes from the payload's hw_fan_pinned_threshold() — an
@@ -872,7 +883,7 @@ function FanThresholdCard({
       if (!canSet) return;
       const clamped = Math.max(
         FAN_THRESHOLD_MIN_C,
-        Math.min(FAN_THRESHOLD_MAX_C, Math.round(targetC)),
+        Math.min(fanTargetCeiling(stockC), Math.round(targetC)),
       );
       // It changes how hard the fans work and is re-applied on every helper load, so
       // it is not a click to make by accident.
@@ -898,12 +909,22 @@ function FanThresholdCard({
         setLastSetC(clamped);
         setDraftC(clamped);
       } catch (e) {
-        setError(e instanceof Error ? e.message : String(e));
+        const msg = e instanceof Error ? e.message : String(e);
+        // The helper refuses a target above the console's own (fans slower than stock).
+        setError(
+          msg.includes("fan_above_stock")
+            ? tr(
+                "hardware_fan_above_stock",
+                undefined,
+                "That is warmer than this console's own setting, so it was not applied.",
+              )
+            : msg,
+        );
       } finally {
         setBusy(false);
       }
     },
-    [canSet, host, confirm, tr],
+    [canSet, host, confirm, tr, stockC],
   );
 
   return (
@@ -919,24 +940,20 @@ function FanThresholdCard({
         )}
       </header>
 
-      <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
-        {FAN_PRESETS.map((p) => {
-          const active = lastSetC === p.c;
+      <div className="mb-3 grid grid-cols-3 gap-2 sm:grid-cols-5">
+        {fanPresetsFor(stockC).map((c) => {
+          const active = (lastSetC ?? (pinnedC > 0 ? pinnedC : null)) === c;
           return (
             <button
-              key={p.id}
+              key={c}
               type="button"
-              onClick={() => applyThreshold(p.c)}
+              onClick={() => applyThreshold(c)}
               disabled={!canSet}
-              title={tr(p.hintKey, undefined, p.hintFallback)}
               aria-pressed={active}
-              className="chip flex-col justify-center gap-0.5 !rounded-[var(--radius-field)] px-2 py-2.5 text-xs disabled:opacity-50"
+              className="chip justify-center gap-1 !rounded-[var(--radius-field)] px-2 py-2.5 text-xs disabled:opacity-50"
             >
-              <span className="flex items-center gap-1 font-medium">
-                {active && <Check size={10} />}
-                {tr(p.labelKey, undefined, p.labelFallback)}
-              </span>
-              <span className="font-mono tabular-nums">{p.c}°C</span>
+              {active && <Check size={10} />}
+              <span className="font-mono tabular-nums">{c}°C</span>
             </button>
           );
         })}
@@ -952,7 +969,7 @@ function FanThresholdCard({
         <input
           type="range"
           min={FAN_THRESHOLD_MIN_C}
-          max={FAN_THRESHOLD_MAX_C}
+          max={fanTargetCeiling(stockC)}
           step={1}
           value={draftC}
           disabled={!canSet}
@@ -1000,6 +1017,28 @@ function FanThresholdCard({
           {tr("hardware_fan_restore", undefined, "Use the console's own setting")}
         </button>
       </div>
+
+      {guard === "failing" && (
+        <div className="mt-3 flex items-start gap-2 text-xs text-[var(--color-bad)]" data-testid="fan-guard-failing">
+          <AlertTriangle size={12} className="mt-0.5" />
+          <span>
+            {tr(
+              "hardware_fan_guard_failing",
+              undefined,
+              "ps5upload could not keep the fan target, so the console's own fan control is in charge. Set a target again to retry.",
+            )}
+          </span>
+        </div>
+      )}
+      {pinnedC > 0 && restores > 0 && lastRestoreS >= 0 && (
+        <p className="mt-2 text-xs text-[var(--color-muted)]" data-testid="fan-restores">
+          {tr(
+            "hardware_fan_restores",
+            { count: restores, s: lastRestoreS },
+            `Put back ${restores}× after a game reset it, last ${lastRestoreS} s ago.`,
+          )}
+        </p>
+      )}
 
       {restored && (
         <p className="mt-2 text-xs text-[var(--color-good)]">

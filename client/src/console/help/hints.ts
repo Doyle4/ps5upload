@@ -9,7 +9,7 @@
  */
 import type { ButtonAction, InputMap, NavAction } from "../nav";
 
-/** A screen: a section id (home, files, cheats, settings) or an overlay. */
+/** A screen: a section id (home, files, cheats, fan, settings) or an overlay. */
 export type ScreenId = string;
 
 /** Overlays: only ✕ and ○ do anything there. */

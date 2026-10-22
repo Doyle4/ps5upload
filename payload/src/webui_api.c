@@ -29,6 +29,7 @@
 #include "files_handoff.h"
 #include "files_prefs.h"
 #include "fs_jobs.h"
+#include "hw_info.h"
 #include "path_policy.h"
 #include "proc_identity.h"
 #include "ps5_firmware.h"
@@ -958,6 +959,67 @@ static void r_volumes_unmount(const char *b, size_t n, uint8_t *out, int fd) {
     st = call_text(AVA1_METHOD_FS_UNMOUNT, req, at, out, &ol, &t, &tl);
     if (st != AVA1_STATUS_OK) send_status_error(fd, st, out, ol);
     else send_json(fd, 200, "{}", 2);
+}
+
+/* ---- the fan (Fan page): read and set it the way the desktop does ---- */
+
+#define API_FAN_JSON 512u /* webui_fan_status_json's object is under 300 bytes */
+
+/* HW_TEMPS "f" (the basic sensors plus the fan duty, the one extended read the page needs) as
+ * webui_fan_status_json's object. */
+static void send_fan_status(uint8_t *out, int fd) {
+    char json[API_FAN_JSON];
+    const uint8_t *t;
+    size_t ol, tl;
+    int st, k;
+    st = call_text(AVA1_METHOD_HW_TEMPS, "f", 1, out, &ol, &t, &tl);
+    if (st != AVA1_STATUS_OK) {
+        send_status_error(fd, st, out, ol);
+        return;
+    }
+    k = webui_fan_status_json((const char *)t, tl, json, sizeof json);
+    if (k < 0) send_error(fd, 500, "bad_fan_reply", 13);
+    else send_json(fd, 200, json, (size_t)k);
+}
+
+static void r_fan(const char *b, size_t n, uint8_t *out, int fd) {
+    (void)b;
+    (void)n;
+    send_fan_status(out, fd);
+}
+
+/* {"target_c":N} (HW_FAN_THRESHOLD_MIN..MAX) or {"stock":true}: HW_FAN_THRESHOLD "N", or "0" for the
+ * console's own setting (hw_fan_restore_stock), as the engine sends it; then the status read after it.
+ * The helper's refusals reach the page as 409 fan_above_stock (higher than the console's own) and
+ * 409 fan_restore_needs_restart (ours is dropped; the console's own value comes back at its next
+ * fan-pattern switch or restart); a write it could not verify as icc_fan_*. */
+static void r_fan_set(const char *b, size_t n, uint8_t *out, int fd) {
+    char req[16], cause[API_CAUSE_MAX + 1];
+    const uint8_t *t;
+    size_t ol, tl;
+    uint64_t c = 0;
+    int stock = 0, k, st;
+    if (webui_json_bool(b, n, "stock", &stock) < 0) {
+        send_bad(fd, "bad_stock");
+        return;
+    }
+    if (!stock && (webui_json_u64(b, n, "target_c", &c) != 1 || c < HW_FAN_THRESHOLD_MIN || c > HW_FAN_THRESHOLD_MAX)) {
+        send_bad(fd, "bad_target_c");
+        return;
+    }
+    k = snprintf(req, sizeof req, "%u", stock ? 0u : (unsigned)c);
+    st = call_text(AVA1_METHOD_HW_FAN_THRESHOLD, req, (size_t)k, out, &ol, &t, &tl);
+    if (st != AVA1_STATUS_OK) {
+        size_t cl = ol < API_CAUSE_MAX ? ol : API_CAUSE_MAX;
+        memcpy(cause, out, cl);
+        cause[cl] = '\0';
+        if (strcmp(cause, "fan_above_stock") == 0 || strcmp(cause, "fan_restore_needs_restart") == 0)
+            send_error(fd, 409, cause, cl);
+        else
+            send_status_error(fd, st, out, ol);
+        return;
+    }
+    send_fan_status(out, fd);
 }
 
 /* ---- file manager prefs (files_prefs.c): pinned folders, recent folders, the last folder ---- */
@@ -2177,6 +2239,8 @@ static const struct {
     { "/api/volumes", r_volumes },
     { "/api/volumes/eject", r_volumes_eject },
     { "/api/volumes/unmount", r_volumes_unmount },
+    { "/api/fan", r_fan },
+    { "/api/fan/set", r_fan_set },
     { "/api/files/prefs", r_files_prefs },
     { "/api/files/prefs/set", r_files_prefs_set },
     { "/api/files/handoff/take", r_files_handoff_take },

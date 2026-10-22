@@ -884,6 +884,12 @@ test-payload: payload
 		-o /tmp/ps5upload-net-ports-selftest \
 		$(PAYLOAD_DIR)/tests/net_ports_selftest.c
 	@/tmp/ps5upload-net-ports-selftest
+	@echo "Running fan servo self-test (host build)..."
+	@cc -O2 -Wall -Wextra -Werror -I$(PAYLOAD_DIR)/include \
+		-o /tmp/ps5upload-fan-servo-selftest \
+		$(PAYLOAD_DIR)/tests/fan_servo_selftest.c
+	@/tmp/ps5upload-fan-servo-selftest
+	@echo "✓ fan target writes keep the rest of the profile; the guard writes only after a reset and gives up after 5 failures"
 	@echo "Running cheat XML UTF-16 normalizer self-test (host build)..."
 	@cc -O2 -Wall -Wextra -Werror -I$(PAYLOAD_DIR)/include \
 		-o /tmp/ps5upload-xml-encoding-selftest \

@@ -114,6 +114,13 @@ const char *webui_mime_for(const char *path);
 int webui_kv_str(const char *text, size_t n, const char *key, char *out, size_t cap);
 int webui_kv_int(const char *text, size_t n, const char *key, long *out);
 
+/* A HW_TEMPS reply (key=value lines, hw_info.h hw_fan_status_text) as the Fan page's JSON:
+ * {"cpu_c":N,"soc_c":N,"duty_pct":N,"target_c":N,"stock_c":N,"pinned_c":N,"min_c":N,"max_c":N,
+ *  "restores":N,"last_restore_s":N,"guard":"off"|"ok"|"failing","filtered_c":N.N}
+ * with null for a reading the helper reports as missing (temperatures 0, duty / target /
+ * last_restore_s -1, stock 0, filtered -1). The number written, or -1 when it does not fit. */
+int webui_fan_status_json(const char *text, size_t n, char *out, size_t cap);
+
 /* 1 when `tid` is a game's title id: four letters of a game prefix (PPSA, CUSA, PCJS, PLJS, ...:
  * Sony's disc and digital game ranges for every region) and five digits. Homebrew (FAKE..., PLDM...,
  * WKAL...), system apps (NPXS...) and the page's own tile (WEBUI_TILE_TITLE_ID) are not games. */

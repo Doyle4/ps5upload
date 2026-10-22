@@ -66,9 +66,8 @@ int fan_curve_set(const char *points_json, char *err, size_t err_cap) {
 
     /* Apply to hardware via hw_info's canonical setter rather than a
      * private ioctl. hw_fan_set_threshold does the /dev/icc_fan write AND
-     * pins + persists the value so the 15 s auto-reapply watcher keeps it
-     * alive across the fan-state resets the firmware issues on every game
-     * launch. A one-shot ioctl here would silently revert on the next
+     * pins + persists the value so the watcher puts it back after the
+     * fan-pattern resets the firmware issues on every game launch. A one-shot ioctl here would silently revert on the next
      * launch — the whole reason hw_info owns the watcher. The ICC ioctl takes
      * ONE temperature, the one the firmware's own fan control holds, not a
      * curve. So the curve maps to the lowest temperature where it asks for
