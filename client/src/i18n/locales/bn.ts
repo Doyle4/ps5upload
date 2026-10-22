@@ -4318,6 +4318,7 @@ c2c_test_deep_bad: "4 KiB-এর পরীক্ষামূলক পাঠা�
 "cw_hint_help": "সাহায্য",
 "cw_hint_refresh": "রিফ্রেশ",
 "cw_hint_fullscreen": "ফুল স্ক্রিন",
+"cw_home_leave_hint": "PS5-এর হোম স্ক্রিনে ফিরতে PS বোতাম টিপুন।",
 "cw_settings_fullscreen": "ফুল স্ক্রিন",
 "cw_settings_fullscreen_note": "ব্রাউজারের বারগুলো লুকিয়ে রাখে যাতে পেজটি পুরো টিভি জুড়ে থাকে। পরের বার বোতাম চাপলে কার্যকর হয়।",
 "cw_settings_theme": "থিম",

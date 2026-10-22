@@ -4318,6 +4318,7 @@ c2c_test_deep_bad: "لم يصل الإرسال التجريبي بحجم 4 KiB: 
 "cw_hint_help": "مساعدة",
 "cw_hint_refresh": "تحديث",
 "cw_hint_fullscreen": "ملء الشاشة",
+"cw_home_leave_hint": "للعودة إلى الشاشة الرئيسية لجهاز PS5، اضغط زر PS.",
 "cw_settings_fullscreen": "ملء الشاشة",
 "cw_settings_fullscreen_note": "يخفي أشرطة المتصفح لتملأ الصفحة شاشة التلفاز. يسري عند ضغطتك التالية على زر.",
 "cw_settings_theme": "المظهر",

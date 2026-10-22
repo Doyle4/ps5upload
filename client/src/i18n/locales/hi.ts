@@ -4334,6 +4334,7 @@ c2c_test_deep_bad: "4 KiB का परीक्षण नहीं पहुँ
 "cw_hint_help": "सहायता",
 "cw_hint_refresh": "रीफ़्रेश करें",
 "cw_hint_fullscreen": "फ़ुल स्क्रीन",
+"cw_home_leave_hint": "PS5 की होम स्क्रीन पर लौटने के लिए PS बटन दबाएँ।",
 "cw_settings_fullscreen": "फ़ुल स्क्रीन",
 "cw_settings_fullscreen_note": "ब्राउज़र की पट्टियाँ छिपाता है ताकि पेज पूरे टीवी पर दिखे। अगली बार बटन दबाने पर लागू होता है।",
 "cw_settings_theme": "थीम",

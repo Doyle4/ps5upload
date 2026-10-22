@@ -4337,6 +4337,7 @@ c2c_test_deep_bad: "4 KiB 테스트 전송이 도착하지 않았습니다: {det
 "cw_hint_help": "도움말",
 "cw_hint_refresh": "새로 고침",
 "cw_hint_fullscreen": "전체 화면",
+"cw_home_leave_hint": "PS5 홈 화면으로 돌아가려면 PS 버튼을 누르세요.",
 "cw_settings_fullscreen": "전체 화면",
 "cw_settings_fullscreen_note": "브라우저 막대를 숨겨 페이지가 TV 화면을 가득 채웁니다. 다음에 버튼을 누를 때 적용됩니다.",
 "cw_settings_theme": "테마",

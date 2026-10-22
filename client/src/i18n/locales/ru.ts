@@ -4268,6 +4268,7 @@ c2c_test_deep_bad: "Тестовая отправка 4 КиБ не дошла: 
 "cw_hint_help": "Справка",
 "cw_hint_refresh": "Обновить",
 "cw_hint_fullscreen": "Полный экран",
+"cw_home_leave_hint": "Чтобы вернуться на главный экран PS5, нажмите кнопку PS.",
 "cw_settings_fullscreen": "Полный экран",
 "cw_settings_fullscreen_note": "Скрывает панели браузера, чтобы страница заполняла весь телевизор. Срабатывает при следующем нажатии кнопки.",
 "cw_settings_theme": "Тема",

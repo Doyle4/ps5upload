@@ -201,6 +201,23 @@ button {
   color: var(--color-muted);
 }
 
+/* A short note at the bottom (e.g. how to leave the page); it reads itself out (role=status). */
+.cw-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 4.5rem;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: calc(100vw - 2rem);
+  padding: 0.7rem 1.1rem;
+  border-radius: var(--radius-panel);
+  background: var(--color-float);
+  box-shadow: var(--shadow-3);
+  font-size: 1.05rem;
+  text-align: center;
+  z-index: 10;
+}
+
 /* ---- shared buttons ---- */
 .cw-button {
   display: inline-flex;
