@@ -39,8 +39,18 @@ function render(el: React.ReactElement = <Sidebar />) {
 }
 
 /** A sidebar whose store holds these lists (and, optionally, starts collapsed). */
-async function withLists(hidden: string[], closedSections: string[], pinned: string[] = [], collapsed = false) {
+async function withLists(
+  hidden: string[],
+  closedSections: string[],
+  pinned: string[] = [],
+  collapsed = false,
+  windows = false,
+) {
   vi.resetModules();
+  vi.doMock("../lib/platform", async (orig) => ({
+    ...(await orig<typeof import("../lib/platform")>()),
+    isWindows: () => windows,
+  }));
   vi.doMock("../lib/safeStorage", () => ({
     safeGetItem: (k: string) => (collapsed && k === "ps5upload.desktop-sidebar.collapsed.v1" ? "1" : null),
     safeSetItem: vi.fn(),
@@ -187,5 +197,12 @@ describe("Sidebar", () => {
     expect(inGroup).not.toContain("draggable");
     // Above the sections' icons.
     expect(html.indexOf('data-testid="nav-pinned"')).toBeLessThan(html.indexOf('href="/upload"'));
+  });
+
+  it("offers no drag in the Windows app, whose window takes every drag", async () => {
+    const Win = await withLists([], [], ["/files", "/upload"], false, true);
+    const html = render(<Win />);
+    expect(html).toContain('data-testid="nav-pinned"');
+    expect(html).not.toContain("draggable");
   });
 });

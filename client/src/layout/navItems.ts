@@ -309,7 +309,8 @@ export function isFixedNav(to: string): boolean {
   return FIXED_NAV_ITEMS.some((i) => i.to === to);
 }
 
-/** At most this many screens in the user's Pinned group. */
+/** At most this many screens in the user's Pinned group, counting the ones it shows (a pin
+ *  this build doesn't show now — a beta screen with beta off — doesn't take a place). */
 export const MAX_PINNED = 12;
 
 /** Whether the user can pin this screen: any screen in the sections. Home and Bug report are
@@ -320,14 +321,14 @@ export function isPinnableNav(to: string): boolean {
 
 /**
  * A stored pin list made safe to use: strings only, screens that still exist (a removed or
- * renamed screen's id is dropped), no repeats, pin order kept, at most `MAX_PINNED`.
+ * renamed screen's id is dropped), no repeats, pin order kept. Not capped: which pins count
+ * toward `MAX_PINNED` depends on what is shown, which this can't know.
  */
 export function cleanPinned(list: readonly unknown[]): string[] {
   const out: string[] = [];
   for (const v of list) {
     if (typeof v !== "string" || out.includes(v) || !isPinnableNav(v)) continue;
     out.push(v);
-    if (out.length >= MAX_PINNED) break;
   }
   return out;
 }

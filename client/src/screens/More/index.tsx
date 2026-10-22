@@ -99,6 +99,9 @@ export default function MoreScreen() {
     () => pinnedNavItems(pinned, betaEnabled, !isTauriEnv(), isMacOrLinuxDesktop()),
     [pinned, betaEnabled],
   );
+  // Unpinning the last one ends editing: the group (and its Done) is gone, and pinning again
+  // later should show plain rows. Adjusted during render, React's pattern for derived state.
+  if (editingPins && pinnedItems.length === 0) setEditingPins(false);
   const searching = query.trim().length > 0;
   return (
     <div className="app-page max-w-4xl! pb-6!">
@@ -306,12 +309,32 @@ export function MoreRow({
   const hidden = useNavSidebarStore((s) => !fixed && s.hidden.includes(item.to));
   const toggleHidden = useNavSidebarStore((s) => s.toggleHidden);
   const isPinned = useNavSidebarStore((s) => !fixed && s.pinned.includes(item.to));
-  const pinFull = useNavSidebarStore((s) => s.pinned.length >= MAX_PINNED);
+  const pinnedAll = useNavSidebarStore((s) => s.pinned);
+  const betaEnabled = useBetaFeaturesStore((s) => s.enabled);
+  // The pins the Pinned group shows: only these count toward the limit, and moves step over
+  // the rest (a beta screen's pin while beta is off).
+  const shownPins = useMemo(
+    () =>
+      pinnedNavItems(pinnedAll, betaEnabled, !isTauriEnv(), isMacOrLinuxDesktop()).map((i) => i.to),
+    [pinnedAll, betaEnabled],
+  );
+  const pinFull = shownPins.length >= MAX_PINNED;
   const togglePinned = useNavSidebarStore((s) => s.togglePinned);
   const movePinned = useNavSidebarStore((s) => s.movePinned);
+  /** Move, then keep keyboard focus on this row (the list re-orders under it): on the same
+   *  arrow if it can still move that way, else the other arrow. */
+  const move = (delta: -1 | 1) => {
+    movePinned(item.to, delta, shownPins);
+    window.setTimeout(() => {
+      const row = document.querySelector(`[data-pin-row="${CSS.escape(item.to)}"]`);
+      const same = row?.querySelector<HTMLButtonElement>(`[data-move="${delta}"]:not(:disabled)`);
+      const other = row?.querySelector<HTMLButtonElement>(`[data-move="${-delta}"]:not(:disabled)`);
+      (same ?? other ?? row?.querySelector<HTMLButtonElement>("[data-pin-toggle]"))?.focus();
+    }, 0);
+  };
   const label = tr(item.key, undefined, item.fallback);
   return (
-    <li className="flex items-center">
+    <li className="flex items-center" data-pin-row={order ? item.to : undefined}>
       <NavLink
         to={item.to}
         className={({ isActive }) =>
@@ -374,14 +397,16 @@ export function MoreRow({
           <MoreIconButton
             label={tr("nav_move_up_item", { name: label }, "Move {name} up")}
             disabled={order.first}
-            onClick={() => movePinned(item.to, -1)}
+            data-move="-1"
+            onClick={() => move(-1)}
           >
             <ArrowUp size={16} aria-hidden />
           </MoreIconButton>
           <MoreIconButton
             label={tr("nav_move_down_item", { name: label }, "Move {name} down")}
             disabled={order.last}
-            onClick={() => movePinned(item.to, 1)}
+            data-move="1"
+            onClick={() => move(1)}
           >
             <ArrowDown size={16} aria-hidden />
           </MoreIconButton>
@@ -402,7 +427,8 @@ export function MoreRow({
           }
           pressed={isPinned}
           disabled={!isPinned && pinFull}
-          onClick={() => togglePinned(item.to)}
+          data-pin-toggle=""
+          onClick={() => togglePinned(item.to, shownPins)}
           className={isPinned ? "text-[var(--color-accent)]" : "text-[var(--color-muted)]"}
         >
           {isPinned ? <PinOff size={16} aria-hidden /> : <Pin size={16} aria-hidden />}
@@ -445,6 +471,7 @@ function MoreIconButton({
   onClick,
   className = "text-[var(--color-muted)]",
   children,
+  ...data
 }: {
   label: string;
   title?: string;
@@ -453,12 +480,15 @@ function MoreIconButton({
   onClick: () => void;
   className?: string;
   children: React.ReactNode;
+  /** `data-*` attributes, passed through (focus lookup after a move). */
+  [data: `data-${string}`]: string | undefined;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={disabled}
+      {...data}
       aria-pressed={pressed}
       aria-label={label}
       title={title ?? label}

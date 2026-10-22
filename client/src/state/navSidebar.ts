@@ -5,7 +5,9 @@
 // with Home and About, and everything else behind More). Section headers collapse too.
 //
 // Pinning puts a copy of a screen in a Pinned group at the top (pin order, at most
-// MAX_PINNED); a pinned screen shows there even when hidden from its section.
+// MAX_PINNED shown); a pinned screen shows there even when hidden from its section.
+// Callers pass `shown`, the pins the group shows now (pinnedNavItems): a pin kept for a
+// screen this build hides (beta off) takes no place and is stepped over when moving.
 //
 // Persisted per machine in localStorage via safeStorage, and mirrored to
 // ~/.ps5upload/settings.json by userConfig, like the collapsed-rail flag.
@@ -46,10 +48,11 @@ interface NavSidebarState {
   pinned: string[];
   toggleHidden: (to: string) => void;
   toggleSection: (key: string) => void;
-  /** Pin at the end, or unpin. A no-op for a screen that can't be pinned, or when full. */
-  togglePinned: (to: string) => void;
-  /** Move a pinned screen by `delta` places (More's Move up/down). */
-  movePinned: (to: string, delta: number) => void;
+  /** Pin at the end, or unpin. A no-op for a screen that can't be pinned, or when the shown
+   *  pins (`shown`, else all) already fill MAX_PINNED. */
+  togglePinned: (to: string, shown?: readonly string[]) => void;
+  /** Move a pinned screen by `delta` places among the shown pins (More's Move up/down). */
+  movePinned: (to: string, delta: number, shown?: readonly string[]) => void;
   /** Move a pinned screen to `index` (the sidebar's drag). */
   movePinnedTo: (to: string, index: number) => void;
   /** Replace the lists — hydrating from the settings-file mirror. `pinned` left out (a file
@@ -87,16 +90,23 @@ export const useNavSidebarStore = create<NavSidebarState>((set) => ({
       safeSetItem(CLOSED_KEY, JSON.stringify(closedSections));
       return { closedSections };
     }),
-  togglePinned: (to) =>
+  togglePinned: (to, shown) =>
     set((s) => {
-      if (!s.pinned.includes(to) && (!isPinnableNav(to) || s.pinned.length >= MAX_PINNED)) return s;
+      const count = (shown ?? s.pinned).length;
+      if (!s.pinned.includes(to) && (!isPinnableNav(to) || count >= MAX_PINNED)) return s;
       const pinned = flip(s.pinned, to);
       safeSetItem(PINNED_KEY, JSON.stringify(pinned));
       return { pinned };
     }),
-  movePinned: (to, delta) =>
+  movePinned: (to, delta, shown) =>
     set((s) => {
-      const pinned = moved(s.pinned, to, s.pinned.indexOf(to) + delta);
+      // Step over pins that aren't shown: land next to the shown neighbour, so every press
+      // visibly moves the row.
+      const order = shown ? s.pinned.filter((x) => shown.includes(x)) : s.pinned;
+      const at = order.indexOf(to);
+      const neighbour = at === -1 ? undefined : order[at + delta];
+      if (neighbour === undefined) return s;
+      const pinned = moved(s.pinned, to, s.pinned.indexOf(neighbour));
       if (pinned === s.pinned) return s;
       safeSetItem(PINNED_KEY, JSON.stringify(pinned));
       return { pinned };

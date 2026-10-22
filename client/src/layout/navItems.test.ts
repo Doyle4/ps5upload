@@ -306,12 +306,15 @@ describe("hasBetaItems", () => {
 });
 
 describe("pinned screens", () => {
-  it("cleans a stored pin list: real screens only, no Home/Bug report, no repeats, at most twelve", () => {
+  it("cleans a stored pin list: real screens only, no Home/Bug report, no repeats", () => {
     expect(cleanPinned(["/files", "/gone", 3, "/files", "/home", "/bug-report", "/upload"])).toEqual([
       "/files",
       "/upload",
     ]);
-    expect(cleanPinned(NAV_ITEMS.map((i) => i.to))).toHaveLength(MAX_PINNED);
+    // Not capped on load: pins this build doesn't show don't count toward MAX_PINNED, and
+    // capping here would drop a pin the user still has.
+    expect(cleanPinned(NAV_ITEMS.map((i) => i.to))).toHaveLength(NAV_ITEMS.length);
+    expect(MAX_PINNED).toBe(12);
   });
 
   it("resolves pins in pin order, ignoring hidden, but not beta or platform rules", () => {

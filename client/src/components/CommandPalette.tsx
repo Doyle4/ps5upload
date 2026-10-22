@@ -120,9 +120,11 @@ function useCommands(close: () => void): Command[] {
       inBrowser: !isTauriEnv(),
       macOrLinux: isMacOrLinuxDesktop(),
     });
-    // "Pin <screen>" / "Unpin <screen>": listed only when searching, like games.
+    // "Pin <screen>" / "Unpin <screen>": listed only when searching, like games. Only the pins
+    // shown here count toward the limit (a beta screen's pin with beta off doesn't).
+    const shownPins = screens.filter((i) => pinned.includes(i.to)).map((i) => i.to);
     const pinCommands = screens
-      .filter((i) => isPinnableNav(i.to) && (pinned.includes(i.to) || pinned.length < MAX_PINNED))
+      .filter((i) => isPinnableNav(i.to) && (pinned.includes(i.to) || shownPins.length < MAX_PINNED))
       .map((i): Command => {
         const name = tr(i.key, undefined, i.fallback);
         const isPinned = pinned.includes(i.to);
@@ -134,7 +136,7 @@ function useCommands(close: () => void): Command[] {
           keywords: ["pin", i.fallback, ...(NAV_KEYWORDS[i.to] ?? [])],
           group: "Pins",
           run: () => {
-            togglePinned(i.to);
+            togglePinned(i.to, shownPins);
             close();
           },
         };

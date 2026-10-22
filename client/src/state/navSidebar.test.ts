@@ -149,4 +149,33 @@ describe("the sidebar's pinned screens", () => {
     expect(store.getState().pinned).toEqual(["/convert", "/files"]);
     expect(JSON.parse(storage.get(PINNED_KEY)!)).toEqual(["/convert", "/files"]);
   });
+
+  it("counts only the shown pins toward twelve", async () => {
+    const { NAV_ITEMS, MAX_PINNED } = await import("../layout/navItems");
+    const store = await freshStore();
+    const screens = NAV_ITEMS.map((i) => i.to);
+    for (const to of screens.slice(0, MAX_PINNED)) store.getState().togglePinned(to);
+    // One of them isn't shown now (say a beta screen with beta off): there is room for one more.
+    const shown = screens.slice(1, MAX_PINNED);
+    store.getState().togglePinned(screens[MAX_PINNED], shown);
+    expect(store.getState().pinned).toHaveLength(MAX_PINNED + 1);
+    // Now twelve shown: full again.
+    store.getState().togglePinned(screens[MAX_PINNED + 1], [...shown, screens[MAX_PINNED]]);
+    expect(store.getState().pinned).toHaveLength(MAX_PINNED + 1);
+    // And all thirteen survive a relaunch.
+    expect((await freshStore()).getState().pinned).toHaveLength(MAX_PINNED + 1);
+  });
+
+  it("steps a move over pins that aren't shown, so every press visibly moves", async () => {
+    const store = await freshStore();
+    for (const to of ["/files", "/cheats", "/upload"]) store.getState().togglePinned(to);
+    const shown = ["/files", "/upload"];
+    store.getState().movePinned("/upload", -1, shown);
+    expect(store.getState().pinned).toEqual(["/upload", "/files", "/cheats"]);
+    store.getState().movePinned("/upload", 1, shown);
+    expect(store.getState().pinned).toEqual(["/files", "/upload", "/cheats"]);
+    // Already last among the shown: nothing to do.
+    store.getState().movePinned("/upload", 1, shown);
+    expect(store.getState().pinned).toEqual(["/files", "/upload", "/cheats"]);
+  });
 });

@@ -20,7 +20,7 @@ import {
   sidebarGroups,
   type NavItem,
 } from "./navItems";
-import { isMacOrLinuxDesktop } from "../lib/platform";
+import { isMacOrLinuxDesktop, isWindows } from "../lib/platform";
 
 const COLLAPSED_KEY = "ps5upload.desktop-sidebar.collapsed.v1";
 
@@ -79,7 +79,11 @@ export default function Sidebar() {
     () => pinnedNavItems(pinned, betaEnabled, !isTauriEnv(), isMacOrLinuxDesktop()),
     [pinned, betaEnabled],
   );
-  const pinFull = pinned.length >= MAX_PINNED;
+  const shownPins = useMemo(() => pinnedItems.map((i) => i.to), [pinnedItems]);
+  const pinFull = shownPins.length >= MAX_PINNED;
+  // The Windows app's window takes every drag for its own file drop (uploads), so no in-page
+  // drag reaches a row there (as in Files): no drag there; More's Edit reorders everywhere.
+  const dragReorderWorks = !(isTauriEnv() && isWindows());
   // The pinned screen being dragged to a new place in the Pinned group.
   const dragging = useRef<string | null>(null);
 
@@ -137,7 +141,7 @@ export default function Sidebar() {
     const showUpdate = item.to === "/settings" && updateAvailable;
     const hasButtons = kind !== "fixed" && !collapsed;
     const isPinned = pinned.includes(item.to);
-    const draggable = kind === "pinned" && !collapsed;
+    const draggable = kind === "pinned" && !collapsed && dragReorderWorks;
     const buttonClass =
       "flex h-7 w-7 items-center justify-center rounded-full bg-[var(--color-float)] text-[var(--color-muted)] opacity-0 hover:text-[var(--color-text)] focus-visible:opacity-100 group-hover:opacity-100 disabled:cursor-not-allowed disabled:hover:text-[var(--color-muted)]";
     const pinLabel = isPinned
@@ -232,7 +236,7 @@ export default function Sidebar() {
                 if (kind === "pinned" && e.currentTarget === document.activeElement) {
                   focusNeighbour(e.currentTarget);
                 }
-                togglePinned(item.to);
+                togglePinned(item.to, shownPins);
               }}
               aria-pressed={kind === "section" ? isPinned : undefined}
               aria-label={pinLabel}
