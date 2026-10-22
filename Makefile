@@ -907,6 +907,12 @@ test-payload: payload
 		$(PAYLOAD_DIR)/tests/webui_strings_selftest.c $(PAYLOAD_DIR)/src/webui_strings.c
 	@/tmp/ps5upload-webui-strings-selftest
 	@echo "✓ GET /strings/<lang>.json answers only the embedded languages, never a crafted path"
+	@echo "Running console package reader self-test (host build)..."
+	@cc -O2 -Wall -Wextra -Werror -I$(PAYLOAD_DIR)/include \
+		-o /tmp/ps5upload-pkg-info-selftest \
+		$(PAYLOAD_DIR)/tests/pkg_info_selftest.c
+	@/tmp/ps5upload-pkg-info-selftest
+	@echo "✓ the console page's package preview reads PS4/PS5 headers and refuses out-of-range offsets"
 	@echo "Running webui offline copy lookup self-test (host build)..."
 	@cc -O2 -Wall -Wextra -Werror -I$(PAYLOAD_DIR)/include \
 		-o /tmp/ps5upload-webui-offline-selftest \

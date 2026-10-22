@@ -38,6 +38,7 @@
 #include "webui_files.h"
 #include "webui_inputlog.h"
 #include "webui_offline.h"
+#include "webui_pkg.h"
 #include "webui_page.h"
 #include "webui_server.h"
 #include "webui_settings.h"
@@ -907,6 +908,77 @@ static void r_app_close(const char *b, size_t n, uint8_t *out, int fd) {
     if (st != AVA1_STATUS_OK) send_status_error(fd, st, out, ol);
     else send_json(fd, 200, (const char *)t, tl);
 }
+
+/* ---- packages and payloads on the console (webui_pkg.c) ---- */
+
+#define API_PKG_JSON 4096u
+
+static void r_pkg_info(const char *b, size_t n, uint8_t *out, int fd) {
+    char path[API_PATH], *json;
+    const char *cause = "internal";
+    int st;
+    (void)out;
+    if (need_path(fd, b, n, "path", path, sizeof path) != 0) return;
+    json = malloc(API_PKG_JSON);
+    if (!json) {
+        send_error(fd, 500, "out_of_memory", 13);
+        return;
+    }
+    st = webui_pkg_info_json(path, json, API_PKG_JSON, &cause);
+    if (st == 200) send_json(fd, 200, json, strlen(json));
+    else send_error(fd, st, cause, strlen(cause));
+    free(json);
+}
+
+static void r_pkg_icon(const char *b, size_t n, uint8_t *out, int fd) {
+    char path[API_PATH];
+    const char *cause = "internal";
+    uint8_t *png = NULL;
+    size_t len = 0;
+    int st;
+    (void)out;
+    if (need_path(fd, b, n, "path", path, sizeof path) != 0) return;
+    st = webui_pkg_icon(path, &png, &len, &cause);
+    if (st == 200) webui_send_ex(fd, 200, "image/png", png, len, "Content-Security-Policy: sandbox\r\n");
+    else send_error(fd, st, cause, strlen(cause));
+    free(png);
+}
+
+/* {"path"[,"replace":true]}: checked here first (a full game already installed answers 409
+ * pkg_install_already_installed, so the page can ask before Sony removes it), then the job. */
+static void r_pkg_install(const char *b, size_t n, uint8_t *out, int fd) {
+    char path[API_PATH];
+    const char *cause = "internal";
+    int replace = 0, st;
+    if (need_path(fd, b, n, "path", path, sizeof path) != 0) return;
+    if (webui_json_bool(b, n, "replace", &replace) < 0) {
+        send_bad(fd, "bad_replace");
+        return;
+    }
+    st = webui_pkg_install_check(path, replace, &cause);
+    if (st != 200) {
+        send_error(fd, st, cause, strlen(cause));
+        return;
+    }
+    start_path_job(fd, out, AVA1_JOB_OP_PKG_INSTALL, path, NULL, replace ? ",\"replace\":true" : "");
+}
+
+static void r_payload_load(const char *b, size_t n, uint8_t *out, int fd) {
+    char path[API_PATH], json[48];
+    const char *cause = "internal";
+    uint64_t sent = 0;
+    int st, k;
+    (void)out;
+    if (need_path(fd, b, n, "path", path, sizeof path) != 0) return;
+    st = webui_payload_load(path, &sent, &cause);
+    if (st != 200) {
+        send_error(fd, st, cause, strlen(cause));
+        return;
+    }
+    k = snprintf(json, sizeof json, "{\"bytes\":%llu}", (unsigned long long)sent);
+    send_json(fd, 200, json, (size_t)k);
+}
+
 
 /* ---- games: the installed titles, through the methods the PC app's Games screen calls ----
  *
@@ -2543,6 +2615,10 @@ static const struct {
     { "/api/apps/icon", r_apps_icon },
     { "/api/proc/list", r_proc_list },
     { "/api/proc/kill", r_proc_kill },
+    { "/api/pkg/info", r_pkg_info },
+    { "/api/pkg/icon", r_pkg_icon },
+    { "/api/pkg/install", r_pkg_install },
+    { "/api/payload/load", r_payload_load },
     { "/api/settings", r_settings },
     { "/api/settings/set", r_settings_set },
     { "/api/input-log", r_input_log },

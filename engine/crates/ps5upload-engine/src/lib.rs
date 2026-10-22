@@ -42,6 +42,7 @@ mod collection;
 mod collection_api;
 mod collection_tidy_api;
 mod console_files_api;
+mod console_payload;
 mod console_read;
 mod console_snapshot;
 mod convert_source;

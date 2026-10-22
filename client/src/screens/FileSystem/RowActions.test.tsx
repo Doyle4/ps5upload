@@ -200,6 +200,24 @@ describe("buildRowActions: what a Files row offers", () => {
     expect(b.find((x) => x.id === "install")?.busy).toBe(false);
     expect(b.find((x) => x.id === "install")?.disabled).toBe(true);
   });
+
+  it("a .elf/.bin offers Load payload after Install's place, held while a package installs", () => {
+    const loadPayload = vi.fn();
+    const c = { ...ctx(), loadPayload, loadingPayloadName: "k.elf" };
+    const e = { name: "k.elf", kind: "file", size: 300_000 };
+    const ids = buildRowActions(e, c).map((a) => a.id);
+    expect(ids.indexOf("load-payload")).toBe(ids.length - 2);
+    const act = buildRowActions(e, c).find((a) => a.id === "load-payload");
+    expect(act?.busy).toBe(true);
+    act?.run();
+    expect(loadPayload).toHaveBeenCalledWith(e);
+    expect(buildRowActions({ name: "x.BIN", kind: "file", size: 9 }, c).some((a) => a.id === "load-payload")).toBe(true);
+    expect(buildRowActions({ name: "x.txt", kind: "file", size: 9 }, c).some((a) => a.id === "load-payload")).toBe(false);
+    // no handler (older screen wiring): not offered
+    expect(buildRowActions(e, ctx()).some((a) => a.id === "load-payload")).toBe(false);
+    const held = buildRowActions(e, { ...c, pkgInstalling: true }).find((a) => a.id === "load-payload");
+    expect(held?.disabled).toBe(true);
+  });
 });
 
 describe("menuPlacement", () => {

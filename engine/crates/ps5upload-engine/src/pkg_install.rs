@@ -824,6 +824,11 @@ pub fn api_router(state: PkgInstallStateHandle) -> Router {
         // disagree. Read-only; safe to poll from the package list.
         .route("/api/pkg/install/preflight", get(install_preflight_handler))
         .route("/api/pkg/payload-restore", post(payload_restore_handler))
+        // File system → Load payload: a .elf/.bin already on the console, to its loader.
+        .route(
+            "/api/ps5/payload/load-console",
+            post(crate::console_payload::load_handler),
+        )
         .with_state(state)
 }
 

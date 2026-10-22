@@ -178,6 +178,11 @@ WEBUI_STRINGS_C := build/webui_strings.c
 # dist-console/cache.appcache, embedded by xxd as webui_sw_js[] and webui_cache_appcache[]
 # (include/webui_offline.h), served at GET /sw.js and GET /cache.appcache.
 WEBUI_OFFLINE_C := build/webui_offline.c
+# The installer daemon the console page's package install brings up (webui_pkg.c), embedded by xxd
+# as webui_installer_elf[] + webui_installer_elf_len plus its INST_VERSION (include/webui_installer.h).
+# The same checked-in ELF the engine embeds (the root Makefile builds it before this payload).
+WEBUI_INSTALLER_ELF := installer/ps5upload-installer.elf
+WEBUI_INSTALLER_C := build/webui_installer.c
 CLIENT_DIR := ../client
 WEBUI_PAGE_DEPS := $(shell find $(CLIENT_DIR)/src/console -type f ! -name '*.test.ts' 2>/dev/null) \
         $(wildcard $(CLIENT_DIR)/src/i18n/locales/*.ts) $(CLIENT_DIR)/src/index.css \
@@ -195,6 +200,7 @@ SRCS := src/main.c src/runtime.c src/shell_builtin.c src/takeover.c src/takeover
         src/content_db.c src/mgmt_rpc.c src/fs_jobs.c src/net_probe.c src/net_ports.c src/mgmt_fs.c src/path_policy.c \
         src/webui_http.c src/webui_auth.c src/webui_server.c src/webui_codec.c src/webui_api.c \
         src/webui_settings.c src/webui_inputlog.c src/webui_files.c src/webui_cheats_store.c src/webui_tile.c src/webui_strings.c src/webui_offline.c src/files_prefs.c src/files_handoff.c $(WEBUI_TILE_ICON_C) \
+        src/pkg_info.c src/webui_pkg.c $(WEBUI_INSTALLER_C) \
         $(WEBUI_PAGE_C) $(WEBUI_STRINGS_C) $(WEBUI_OFFLINE_C) \
         third_party/tiny_aes/aes.c \
         $(BLAKE3_SRCS)
@@ -253,6 +259,14 @@ $(WEBUI_PAGE_C): $(WEBUI_PAGE_DEPS) Makefile
 	mv build/webui_page.gz.tmp build/webui_page.gz
 	(cd build && xxd -i webui_page.gz) > $@.tmp && mv $@.tmp $@
 
+# Copied under build/ first so xxd names the array webui_installer_elf.
+$(WEBUI_INSTALLER_C): $(WEBUI_INSTALLER_ELF) installer/main.c Makefile
+	@mkdir -p $(dir $@)
+	cp $(WEBUI_INSTALLER_ELF) build/webui_installer.elf
+	(cd build && xxd -i webui_installer.elf) > $@.tmp
+	sed -n 's/^#define INST_VERSION *"\([0-9.]*\)".*/const char webui_installer_version[] = "\1";/p' installer/main.c >> $@.tmp
+	grep -q webui_installer_version $@.tmp && mv $@.tmp $@
+
 # Written from the dist-console/strings the page rule's build just produced.
 $(WEBUI_STRINGS_C): $(WEBUI_PAGE_C) ../scripts/embed-console-strings.mjs Makefile
 	@mkdir -p $(dir $@)
@@ -280,7 +294,7 @@ clean:
 	rm -f $(ELF) $(ELF).gz $(SQLITE_OBJ) $(MONO_OBJ)
 	rm -rf build/ava1 $(SDK_CRT_BUILD)
 	rm -f $(WEBUI_TILE_ICON_C) $(WEBUI_PAGE_C) $(WEBUI_STRINGS_C) $(WEBUI_OFFLINE_C) build/webui_page.gz \
-		build/webui_sw.js build/webui_cache.appcache
+		build/webui_sw.js build/webui_cache.appcache $(WEBUI_INSTALLER_C) build/webui_installer.elf
 
 send: $(ELF)
 	@echo "Sending $(ELF) to $(PS5_HOST):$(PS5_PORT) ..."

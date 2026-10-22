@@ -780,6 +780,14 @@ button {
   margin: 0;
   word-break: break-all;
 }
+/* A package's preview (files/PkgDialog.tsx): its icon a little larger than a folder banner's. */
+.cw-pkg {
+  max-width: 44rem;
+}
+.cw-pkg .cw-pkg-icon {
+  width: 6rem;
+  height: 6rem;
+}
 .cw-viewer {
   width: calc(100vw - 4rem);
   height: calc(100vh - 4rem);

@@ -17,6 +17,7 @@ import {
   MoreVertical,
   PackagePlus,
   Pencil,
+  Rocket,
   ScanSearch,
   Trash2,
   Upload,
@@ -103,7 +104,16 @@ export interface RowActionsContext {
   crc32: (e: RowEntry) => void;
   verify: (e: RowEntry) => void;
   install: (e: RowEntry) => void;
+  /** Send a .elf/.bin on the console to its payload loader (absent: not offered). */
+  loadPayload?: (e: RowEntry) => void;
+  /** The entry a payload load is sending now. */
+  loadingPayloadName?: string | null;
   remove: (e: RowEntry) => void;
+}
+
+/** A file offered to the console's payload loader (:9021): .elf or .bin. */
+export function isConsolePayloadName(name: string): boolean {
+  return /\.(elf|bin)$/i.test(name);
 }
 
 /** A row's actions, in the order the desktop row draws them as buttons and
@@ -224,6 +234,21 @@ export function buildRowActions(e: RowEntry, ctx: RowActionsContext): RowAction[
       run: () => ctx.install(e),
       disabled: ctx.pkgInstalling,
       busy: ctx.installingPkgName === e.name,
+      tone: "accent",
+    });
+  if (!isDir && ctx.loadPayload && isConsolePayloadName(e.name))
+    actions.push({
+      id: "load-payload",
+      icon: Rocket,
+      label: tr("fs_load_payload", undefined, "Load payload"),
+      title: tr(
+        "fs_load_payload_tooltip",
+        undefined,
+        "Send this payload to the PS5's payload loader (port 9021)",
+      ),
+      run: () => ctx.loadPayload?.(e),
+      disabled: ctx.pkgInstalling || !ctx.hasHost,
+      busy: ctx.loadingPayloadName === e.name,
       tone: "accent",
     });
   actions.push({
