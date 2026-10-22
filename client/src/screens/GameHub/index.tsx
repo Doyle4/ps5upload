@@ -70,6 +70,7 @@ import { DrivesCard } from "./DrivesCard";
 import { TraceCard } from "./TraceCard";
 import { fetchRunningGames } from "../../lib/runningGames";
 import { killGame } from "../../lib/killGame";
+import { humanizePs5Error } from "../../lib/humanizeError";
 import { playFor, useTrackedPlay } from "../../lib/trackedPlay";
 import { runningAfterClose, runningOn, useRunningAppsStore } from "../../state/runningApps";
 // Direct import to avoid the barrel's circular-dep warning at build.
@@ -254,7 +255,7 @@ export default function GameHubScreen() {
       pushNotification(
         "error",
         tr("game_hub_launch_failed", undefined, "Launch failed"),
-        { body: e instanceof Error ? e.message : String(e) },
+        { body: humanizePs5Error(e instanceof Error ? e.message : String(e)) },
       );
     } finally {
       setLaunching(false);

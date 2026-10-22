@@ -1752,6 +1752,7 @@ err_service_unavailable:
   "Ta akcja wymaga usługi Sony, która nie jest udostępniona w Twoim oprogramowaniu układowym. Wszystko inne nadal działa.",
 err_launch_no_profile:
   "Na PS5 nie wybrano żadnego profilu. Wybierz profil użytkownika na ekranie głównym PS5, a następnie spróbuj ponownie uruchomić grę.",
+err_launch_no_user: "Na PS5 nikt nie jest zalogowany. Najpierw zaloguj się na PS5, a potem ponownie naciśnij Graj.",
 err_launch_not_registered:
   "PS5 zgłasza, że tytuł nie jest zarejestrowany. Kliknij najpierw Zarejestruj lub wyrejestruj i zarejestruj ponownie, jeśli został już dodany.",
 err_launch_busy:

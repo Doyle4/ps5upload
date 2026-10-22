@@ -1947,6 +1947,7 @@ err_service_unavailable:
   "Ehhez a művelethez egy olyan Sony szolgáltatás kell, ami nincs exportálva a firmware-eden. Minden más továbbra is működik.",
 err_launch_no_profile:
   "A PS5-ön nincs kiválasztott profil. Válassz felhasználói profilt a PS5 kezdőképernyőjén, majd próbáld újra az Indítást.",
+err_launch_no_user: "Senki sincs bejelentkezve a PS5-ön. Előbb jelentkezz be a PS5-ön, majd nyomd meg újra a Játék gombot.",
 err_launch_not_registered:
   "A PS5 szerint a cím nincs regisztrálva. Kattints előbb a Regisztrálásra, vagy törölj és regisztrálj újra, ha már korábban hozzáadtad.",
 err_launch_busy:

@@ -1337,6 +1337,7 @@ err_volumes_unavailable: "PS5 这次未返回卷列表 — 请稍后重试。如
 err_sqlite_unavailable: "此 PS5 固件版本不支持标题注册查询。库视图的其余功能仍可正常使用。",
 err_service_unavailable: "此操作需要您固件上未导出的某个 Sony 服务。其他所有功能仍可正常使用。",
 err_launch_no_profile: "PS5 未选择任何用户档案。请在 PS5 主屏幕选择一个用户档案，然后重试启动。",
+err_launch_no_user: "PS5 上当前没有已登录的用户。请先在 PS5 上登录，然后再次点击“开始游戏”。",
 err_launch_not_registered: "PS5 提示该标题未注册。请先点击注册，如果之前已添加则取消注册后再重新注册。",
 err_launch_busy: "PS5 启动器正忙于另一个标题。请关闭 PS5 上正在运行的游戏后重试启动。",
 err_launch_corrupt: "PS5 提示此标题的数据已损坏。eboot.bin 或 sce_sys 文件夹可能不完整 — 请重新上传该游戏。",

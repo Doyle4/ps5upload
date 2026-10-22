@@ -1766,6 +1766,52 @@ static int launch_via_system_service(const char *title_id, int fg_user) {
  * treats `err < 0` as the sole error case. */
 static inline int launch_sys_ok(int rc) { return rc >= 0; }
 
+/* A foreground user id we can launch for. 0 and -1 (0xFFFFFFFF) both mean
+ * "nobody signed in" to Sony's user service. */
+static inline int fg_user_is_real(int u) {
+    return u > 0 && (uint32_t)u != 0xFFFFFFFFu;
+}
+
+/* One serialized sceUserServiceGetForegroundUser read; -1 on failure (on a
+ * non-zero return the out-param is undefined, so it is never trusted). */
+static int launch_read_fg_user(void) {
+    int fg_user = -1;
+    if (!g_reg.user_service_get_foreground_user) return -1;
+    pthread_mutex_lock(&sony_api_lock);
+    int probe = -1;
+    if (g_reg.user_service_get_foreground_user(&probe) == 0) fg_user = probe;
+    usleep(SONY_API_POST_SLEEP_US);
+    pthread_mutex_unlock(&sony_api_lock);
+    return fg_user;
+}
+
+/* Right after boot (and for a moment after sign-in) the user service reports
+ * no foreground user even though one is about to exist. Before concluding
+ * "nobody is signed in", ask again a few times. Each read takes and releases
+ * sony_api_lock on its own; the sleeps happen with the lock released so other
+ * Sony callers are not starved. Bounded: ~4 s worst case, only on the
+ * no-user path. */
+#define LAUNCH_FG_USER_POLLS    8
+#define LAUNCH_FG_USER_POLL_US  500000u
+
+static int launch_wait_for_fg_user(const char *title_id) {
+    int fg_user = -1;
+    for (int i = 0; i < LAUNCH_FG_USER_POLLS; i++) {
+        usleep(LAUNCH_FG_USER_POLL_US);
+        fg_user = launch_read_fg_user();
+        if (fg_user_is_real(fg_user)) {
+            fprintf(stderr,
+                    "[payload2] launch %s: foreground user=%d after %d re-ask(s)\n",
+                    title_id, fg_user, i + 1);
+            return fg_user;
+        }
+    }
+    fprintf(stderr,
+            "[payload2] launch %s: still no foreground user after %d re-asks "
+            "(last=%d)\n", title_id, LAUNCH_FG_USER_POLLS, fg_user);
+    return fg_user;
+}
+
 int launch_title(const char *title_id, const char **err_reason_out,
                  char *reason_buf, size_t reason_cap) {
     register_module_init();
@@ -1835,10 +1881,10 @@ int launch_title(const char *title_id, const char **err_reason_out,
     pthread_mutex_unlock(&sony_api_lock);
     fprintf(stderr, "[payload2] launch %s: foreground user=%d\n",
             title_id, fg_user);
-    /* fg_user may still be 0 if no profile is currently selected on
-     * the console. Sony's launcher would reject; but that's a real
-     * "user must pick a profile" case, not a transient race — let
-     * the launch attempt produce a clean error instead of looping. */
+    /* fg_user may still be 0/-1 if nobody is signed in, or right after
+     * boot before the user service settles. The no-user gate below (after
+     * the already-running branch) re-asks briefly and then refuses to use
+     * the ShellUI route, returning launch_no_user instead. */
 
     /* Primary path: route the call through SceShellUI via ptrace.
      * Sony's launcher accepts the call when getpid() inside the
@@ -1917,6 +1963,39 @@ int launch_title(const char *title_id, const char **err_reason_out,
          * for. Focus is best-effort — reporting failure here would be wrong
          * and would tempt the UI into another launch. */
         return 0;
+    }
+
+    /* No signed-in user known? Re-ask briefly first (boot settles), and if
+     * there is still nobody, NEVER take the ShellUI ptrace route below.
+     *
+     * Measured on FW 13.60 (Pro, twice in one week): "foreground user=-1",
+     * the in-process launcher refused with 0x80940005, the ladder fell
+     * through to shellui_rpc_launch_app, and SceShellUI crashed/restarted.
+     * With nobody signed in there is nothing a launch can succeed for anyway,
+     * so the only safe thing is one in-process attempt (no ptrace) and, if
+     * the console refuses it, a clear "sign in first" error. */
+    if (!fg_user_is_real(fg_user)) {
+        fg_user = launch_wait_for_fg_user(title_id);
+    }
+    if (!fg_user_is_real(fg_user)) {
+        int rc_nu = launch_via_system_service(title_id, fg_user);
+        if (launch_sys_ok(rc_nu)) return 0;
+        /* A non-zero rc does not always mean the launch failed (see
+         * launch_took_effect); check before calling it a failure. */
+        if (rc_nu != -1 && launch_took_effect(title_id)) return 0;
+        fprintf(stderr,
+                "[payload2] launch %s: no signed-in user (fg=%d), in-process "
+                "launch rc=0x%x — not using the ShellUI route; asking the user "
+                "to sign in\n",
+                title_id, fg_user, (unsigned)rc_nu);
+        if (reason_buf && reason_cap > 0) {
+            snprintf(reason_buf, reason_cap, "launch_no_user: rc=0x%08x",
+                     (unsigned int)rc_nu);
+            if (err_reason_out) *err_reason_out = reason_buf;
+        } else if (err_reason_out) {
+            *err_reason_out = "launch_no_user";
+        }
+        return -1;
     }
 
     /* PRIMARY: in-process sceSystemServiceLaunchApp, no ptrace. Only fall

@@ -237,6 +237,13 @@ export function humanizePs5Error(
     return te("err_service_unavailable");
   }
 
+  // No one signed in on the console. The payload refuses to launch through
+  // the ShellUI route in that state (it crashed SceShellUI on FW 13.60), so
+  // this is the whole answer: sign in, then press Play again.
+  if (/launch_no_user/i.test(raw)) {
+    return te("err_launch_no_user");
+  }
+
   // ─── Sony launcher error codes (after 2.2.32 auto-retry) ──────────
   // launch_title surfaces sceLncUtilLaunchApp's return value as
   // `launch_sony_error_0xNNNNNNNN`. The codes below are the ones we

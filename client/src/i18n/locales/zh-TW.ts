@@ -1331,6 +1331,7 @@ err_volumes_unavailable: "PS5 這次未傳回磁碟區清單 — 請稍候再試
 err_sqlite_unavailable: "此 PS5 韌體版本無法使用標題註冊查詢功能。資源庫檢視的其餘功能仍可正常運作。",
 err_service_unavailable: "此操作需要一個您的韌體未匯出的 Sony 服務。其餘功能仍可正常運作。",
 err_launch_no_profile: "PS5 未選擇任何設定檔。請在 PS5 主畫面選擇一個使用者設定檔,然後再次嘗試啟動。",
+err_launch_no_user: "PS5 上目前沒有已登入的使用者。請先在 PS5 上登入,然後再次按下「開始遊戲」。",
 err_launch_not_registered: "PS5 表示此標題尚未註冊。請先點擊註冊,或在已新增的情況下先取消註冊再重新註冊。",
 err_launch_busy: "PS5 啟動器正忙於另一個標題。請關閉 PS5 上任何執行中的遊戲後再次嘗試啟動。",
 err_launch_corrupt: "PS5 表示此標題的資料已損毀。eboot.bin 或 sce_sys 資料夾可能不完整 — 請重新上傳遊戲。",
