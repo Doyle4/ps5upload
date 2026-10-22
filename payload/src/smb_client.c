@@ -247,8 +247,9 @@ static int exchange(const char *fields, size_t len, int timeout_ms, char **reply
     return rc;
 }
 
-/* The ELF to the loader: connect (retrying a refused port), send it all, half-close, wait for the
- * loader to close its end (it has read the image by then). */
+/* The ELF to the loader: connect (retrying a refused port), send it all, half-close, and give the
+ * loader a moment to read it. (elfldr then hands this connection to the daemon as its stdio, so it
+ * is not closed from that side: the wait is bounded, and the daemon points its stdio elsewhere.) */
 static int send_to_loader(void) {
     long long until = now_ms() + LOADER_RETRY_MS;
     int fd;
@@ -270,7 +271,7 @@ static int send_to_loader(void) {
     }
     shutdown(fd, SHUT_WR);
     {
-        long long stop = now_ms() + 3000;
+        long long stop = now_ms() + 1000;
         while (now_ms() < stop) {
             struct pollfd p = {fd, POLLIN, 0};
             if (poll(&p, 1, 500) <= 0) continue;

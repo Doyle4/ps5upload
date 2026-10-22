@@ -36,7 +36,9 @@ int webui_smb_http_status(const char *t) {
     if (!strcmp(t, "smb_no_share") || !strcmp(t, "not_found") || !strcmp(t, "unknown_share") ||
         !strcmp(t, "unknown_job"))
         return 404;
-    if (!strcmp(t, "exists") || !strcmp(t, "not_dir") || !strcmp(t, "is_dir") || !strcmp(t, "cancelled")) return 409;
+    if (!strcmp(t, "exists") || !strcmp(t, "not_dir") || !strcmp(t, "is_dir") || !strcmp(t, "cancelled") ||
+        !strcmp(t, "smb_not_supported"))
+        return 409;
     if (!strcmp(t, "no_space") || !strcmp(t, "shares_full")) return 507;
     if (!strcmp(t, "busy") || !strncmp(t, "smb_daemon_", 11) || !strcmp(t, "smb_loader_unavailable")) return 503;
     if (!strcmp(t, "smb_unreachable") || !strcmp(t, "smb_timeout") || !strcmp(t, "smb_disconnected")) return 502;

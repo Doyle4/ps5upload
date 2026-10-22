@@ -25,6 +25,7 @@ const char *smbp_err_token(int e) {
     case XE_BUSY: return "busy";
     case XE_TOO_DEEP: return "too_deep";
     case XE_INTO_ITSELF: return "into_itself";
+    case XE_NOT_SUPPORTED: return "smb_not_supported";
     default: return "io_error";
     }
 }

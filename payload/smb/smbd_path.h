@@ -33,7 +33,8 @@ typedef enum {
     XE_BAD_REQUEST = -16,
     XE_BUSY = -17,
     XE_TOO_DEEP = -18,
-    XE_INTO_ITSELF = -19
+    XE_INTO_ITSELF = -19,
+    XE_NOT_SUPPORTED = -20 /* the server refuses the operation (some NAS / FUSE-backed shares: rename) */
 } xerr_t;
 
 const char *smbp_err_token(int e);

@@ -85,7 +85,8 @@ export function createDirLoader(path: string, onState: (s: DirState) => void): D
   };
 
   async function page(offset: number): Promise<ListReply> {
-    return call<ListReply>("/api/fs/list", { path, offset, limit: LIST_PAGE });
+    // A folder on a network share ("smb://<id>/…", files/smb.ts) is read through the SMB daemon.
+    return call<ListReply>(path.startsWith("smb://") ? "/api/smb/list" : "/api/fs/list", { path, offset, limit: LIST_PAGE });
   }
 
   const loader: DirLoader = {

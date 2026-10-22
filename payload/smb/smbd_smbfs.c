@@ -23,6 +23,13 @@
 
 static pthread_mutex_t g_lib_mu = PTHREAD_MUTEX_INITIALIZER;
 
+/* libsmb2 keeps the last NT status it saw until another error replaces it, and a failed compound
+ * (unlink, rename) reports the CLOSE's errno, not the CREATE's: the status is the only reliable
+ * account of what the server said. It is cleared before every call so it never describes an
+ * earlier one. (A library function without a public declaration: libsmb2-private.h.) */
+void smb2_set_nterror(struct smb2_context *smb2, int nterror, const char *error_string, ...);
+#define FRESH(ctx) smb2_set_nterror((ctx), 0, "%s", "")
+
 typedef struct {
     struct smb2_context *ctx;
     smbconn_t conn;
@@ -53,13 +60,61 @@ static void ctx_free(struct smb2_context *ctx) {
     pthread_mutex_unlock(&g_lib_mu);
 }
 
+/* What the server answered, when it answered with a refusal (0: no such answer). */
+static int map_nt(uint32_t nt) {
+    switch (nt) {
+    case SMB2_STATUS_OBJECT_NAME_NOT_FOUND:
+    case SMB2_STATUS_OBJECT_PATH_NOT_FOUND:
+    case SMB2_STATUS_NO_SUCH_FILE: return XE_NOT_FOUND;
+    case SMB2_STATUS_ACCESS_DENIED:
+    case SMB2_STATUS_NETWORK_ACCESS_DENIED:
+    case SMB2_STATUS_CANNOT_DELETE:
+    case SMB2_STATUS_SHARING_VIOLATION:
+    case SMB2_STATUS_MEDIA_WRITE_PROTECTED: return XE_ACCESS;
+    case SMB2_STATUS_OBJECT_NAME_COLLISION:
+    case SMB2_STATUS_DIRECTORY_NOT_EMPTY: return XE_EXISTS;
+    case SMB2_STATUS_DISK_FULL: return XE_NO_SPACE;
+    case SMB2_STATUS_OBJECT_NAME_INVALID: return XE_BAD_NAME;
+    case SMB2_STATUS_NOT_A_DIRECTORY: return XE_NOT_DIR;
+    case SMB2_STATUS_FILE_IS_A_DIRECTORY: return XE_IS_DIR;
+    case SMB2_STATUS_NOT_SUPPORTED:
+    case SMB2_STATUS_INVALID_DEVICE_REQUEST: return XE_NOT_SUPPORTED;
+    case SMB2_STATUS_IO_TIMEOUT: return XE_TIMEOUT;
+    case SMB2_STATUS_NETWORK_NAME_DELETED:
+    case SMB2_STATUS_USER_SESSION_DELETED:
+    case SMB2_STATUS_CONNECTION_DISCONNECTED:
+    case SMB2_STATUS_CONNECTION_RESET: return XE_DISCONNECTED;
+    default: return 0;
+    }
+}
+
+/* A compound call (mkdir, unlink, rmdir) whose CREATE the server refused names the status only in
+ * libsmb2's error text ("Create failed with status STATUS_OBJECT_NAME_COLLISION.") and returns the
+ * CLOSE's ENETRESET: read the text (cleared before the call, so it is this call's). 0 = no match. */
+static int map_text(const char *t) {
+    if (!t || !t[0]) return 0;
+    if (strstr(t, "OBJECT_NAME_COLLISION") || strstr(t, "DIRECTORY_NOT_EMPTY")) return XE_EXISTS;
+    if (strstr(t, "OBJECT_NAME_NOT_FOUND") || strstr(t, "OBJECT_PATH_NOT_FOUND") || strstr(t, "NO_SUCH_FILE"))
+        return XE_NOT_FOUND;
+    if (strstr(t, "ACCESS_DENIED") || strstr(t, "SHARING_VIOLATION") || strstr(t, "CANNOT_DELETE")) return XE_ACCESS;
+    if (strstr(t, "NOT_SUPPORTED")) return XE_NOT_SUPPORTED;
+    if (strstr(t, "DISK_FULL")) return XE_NO_SPACE;
+    if (strstr(t, "OBJECT_NAME_INVALID")) return XE_BAD_NAME;
+    if (strstr(t, "NOT_A_DIRECTORY")) return XE_NOT_DIR;
+    if (strstr(t, "FILE_IS_A_DIRECTORY")) return XE_IS_DIR;
+    return 0;
+}
+
 /* A failed call's result as an xerr_t: the connection's state first (a dropped socket is
- * "disconnected" whatever errno the call picked), then the errno libsmb2 mapped the NT status to. */
+ * "disconnected" whatever errno the call picked), then the server's NT status and error text (both
+ * cleared before the call: FRESH), then the errno libsmb2 mapped it to. */
 static int map_rc(struct smb2_context *ctx, int rc) {
-    int e = rc < 0 ? -rc : rc;
+    int e = rc < 0 ? -rc : rc, byst;
     uint32_t nt = ctx ? (uint32_t)smb2_get_nterror(ctx) : 0;
     if (ctx && smb2_get_fd(ctx) < 0) return XE_DISCONNECTED;
     if (rc == -1) return XE_DISCONNECTED; /* wait_for_reply: poll failed / no connection */
+    if (nt && (byst = map_nt(nt)) != 0) return byst;
+    if (ctx && (byst = map_text(smb2_get_error(ctx))) != 0) return byst;
     switch (e) {
     case ENOENT: return XE_NOT_FOUND;
     case EACCES:
@@ -166,6 +221,7 @@ static int s_stat(xfs_t *fs, const char *path, xstat_t *st) {
     int rc;
     if (!SFS(fs)->ctx) return XE_DISCONNECTED;
     memset(&s, 0, sizeof s);
+    FRESH(SFS(fs)->ctx);
     rc = smb2_stat(SFS(fs)->ctx, path, &s);
     if (rc < 0) return map_rc(SFS(fs)->ctx, rc);
     st->kind = s.smb2_type == SMB2_TYPE_DIRECTORY ? XK_DIR : s.smb2_type == SMB2_TYPE_FILE ? XK_FILE : XK_OTHER;
@@ -179,16 +235,11 @@ static int s_opendir(xfs_t *fs, const char *path, void **dir) {
     if (!SFS(fs)->ctx) return XE_DISCONNECTED;
     d = calloc(1, sizeof *d);
     if (!d) return XE_NOMEM;
+    FRESH(SFS(fs)->ctx);
     d->dir = smb2_opendir(SFS(fs)->ctx, path);
     if (!d->dir) {
         int e = map_rc(SFS(fs)->ctx, -EIO);
-        uint32_t nt = (uint32_t)smb2_get_nterror(SFS(fs)->ctx);
         free(d);
-        if (nt == SMB2_STATUS_OBJECT_NAME_NOT_FOUND || nt == SMB2_STATUS_OBJECT_PATH_NOT_FOUND ||
-            nt == SMB2_STATUS_NO_SUCH_FILE)
-            return XE_NOT_FOUND;
-        if (nt == SMB2_STATUS_ACCESS_DENIED) return XE_ACCESS;
-        if (nt == SMB2_STATUS_NOT_A_DIRECTORY) return XE_NOT_DIR;
         return e;
     }
     *dir = d;
@@ -223,6 +274,7 @@ static void s_closedir(xfs_t *fs, void *dir) {
 static int s_mkdir(xfs_t *fs, const char *path) {
     int rc;
     if (!SFS(fs)->ctx) return XE_DISCONNECTED;
+    FRESH(SFS(fs)->ctx);
     rc = smb2_mkdir(SFS(fs)->ctx, path);
     return rc < 0 ? map_rc(SFS(fs)->ctx, rc) : 0;
 }
@@ -230,16 +282,9 @@ static int s_mkdir(xfs_t *fs, const char *path) {
 static int s_open(xfs_t *fs, const char *path, int flags, void **fh) {
     struct smb2fh *h;
     if (!SFS(fs)->ctx) return XE_DISCONNECTED;
+    FRESH(SFS(fs)->ctx);
     h = smb2_open(SFS(fs)->ctx, path, flags);
-    if (!h) {
-        uint32_t nt = (uint32_t)smb2_get_nterror(SFS(fs)->ctx);
-        if (nt == SMB2_STATUS_OBJECT_NAME_NOT_FOUND || nt == SMB2_STATUS_OBJECT_PATH_NOT_FOUND) return XE_NOT_FOUND;
-        if (nt == SMB2_STATUS_ACCESS_DENIED) return XE_ACCESS;
-        if (nt == SMB2_STATUS_DISK_FULL) return XE_NO_SPACE;
-        if (nt == SMB2_STATUS_OBJECT_NAME_INVALID) return XE_BAD_NAME;
-        if (nt == SMB2_STATUS_FILE_IS_A_DIRECTORY) return XE_IS_DIR;
-        return map_rc(SFS(fs)->ctx, -EIO);
-    }
+    if (!h) return map_rc(SFS(fs)->ctx, -EIO);
     *fh = h;
     return 0;
 }
@@ -256,6 +301,7 @@ static long long s_pread(xfs_t *fs, void *fh, void *buf, size_t n, uint64_t off)
     if (!SFS(fs)->ctx) return XE_DISCONNECTED;
     max = smb2_get_max_read_size(SFS(fs)->ctx);
     if (max && n > max) n = max;
+    FRESH(SFS(fs)->ctx);
     rc = smb2_pread(SFS(fs)->ctx, fh, buf, (uint32_t)n, off);
     return rc < 0 ? map_rc(SFS(fs)->ctx, rc) : rc;
 }
@@ -266,6 +312,7 @@ static long long s_pwrite(xfs_t *fs, void *fh, const void *buf, size_t n, uint64
     if (!SFS(fs)->ctx) return XE_DISCONNECTED;
     max = smb2_get_max_write_size(SFS(fs)->ctx);
     if (max && n > max) n = max;
+    FRESH(SFS(fs)->ctx);
     rc = smb2_pwrite(SFS(fs)->ctx, fh, (const uint8_t *)buf, (uint32_t)n, off);
     return rc < 0 ? map_rc(SFS(fs)->ctx, rc) : rc;
 }
@@ -274,6 +321,7 @@ static int s_close(xfs_t *fs, void *fh) {
     int rc;
     if (!fh) return 0;
     if (!SFS(fs)->ctx) return XE_DISCONNECTED;
+    FRESH(SFS(fs)->ctx);
     rc = smb2_close(SFS(fs)->ctx, fh);
     return rc < 0 ? map_rc(SFS(fs)->ctx, rc) : 0;
 }
@@ -281,6 +329,7 @@ static int s_close(xfs_t *fs, void *fh) {
 static int s_unlink(xfs_t *fs, const char *path) {
     int rc;
     if (!SFS(fs)->ctx) return XE_DISCONNECTED;
+    FRESH(SFS(fs)->ctx);
     rc = smb2_unlink(SFS(fs)->ctx, path);
     return rc < 0 ? map_rc(SFS(fs)->ctx, rc) : 0;
 }
@@ -288,6 +337,7 @@ static int s_unlink(xfs_t *fs, const char *path) {
 static int s_rmdir(xfs_t *fs, const char *path) {
     int rc;
     if (!SFS(fs)->ctx) return XE_DISCONNECTED;
+    FRESH(SFS(fs)->ctx);
     rc = smb2_rmdir(SFS(fs)->ctx, path);
     return rc < 0 ? map_rc(SFS(fs)->ctx, rc) : 0;
 }
@@ -301,6 +351,7 @@ static int s_rename(xfs_t *fs, const char *from, const char *to, int replace) {
         rc = s_unlink(fs, to);
         if (rc != 0 && rc != XE_NOT_FOUND) return rc;
     }
+    FRESH(SFS(fs)->ctx);
     rc = smb2_rename(SFS(fs)->ctx, from, to);
     return rc < 0 ? map_rc(SFS(fs)->ctx, rc) : 0;
 }
@@ -311,6 +362,7 @@ static int s_free_space(xfs_t *fs, const char *path, uint64_t *out) {
     int rc;
     if (!SFS(fs)->ctx) return XE_DISCONNECTED;
     memset(&v, 0, sizeof v);
+    FRESH(SFS(fs)->ctx);
     rc = smb2_statvfs(SFS(fs)->ctx, path, &v);
     if (rc < 0) return map_rc(SFS(fs)->ctx, rc);
     bs = v.f_frsize ? v.f_frsize : v.f_bsize;

@@ -15,7 +15,9 @@
 #define PS5UPLOAD_SMBD_PROTO_H
 
 #define SMBD_PORT 9183
+#ifndef SMBD_DIR /* a host build of the daemon (tests) points it elsewhere */
 #define SMBD_DIR "/data/ps5upload/smb"
+#endif
 #define SMBD_KEY_PATH SMBD_DIR "/daemon.key"
 #define SMBD_LOG_PATH SMBD_DIR "/smbd.log"
 #define SMBD_KEY_HEX 64

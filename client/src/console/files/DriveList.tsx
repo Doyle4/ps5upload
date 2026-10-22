@@ -1,10 +1,11 @@
-import { Disc, Eject, HardDrive, History, RotateCw, Star, TextCursorInput, Usb } from "lucide-react";
+import { Disc, Eject, HardDrive, History, Network, Plus, RotateCw, Star, TextCursorInput, Usb } from "lucide-react";
 import { formatBytes } from "../../lib/format";
 import { isDrive, volumeLabel, type Volume } from "../home/Home";
 import { t } from "../strings";
 import { ActionsButton } from "../ui/ActionsButton";
 import { baseName, volumeOf } from "./move";
 import type { FilesPrefs } from "./prefs";
+import { shareAddress, type SmbShare } from "./smb";
 
 const isUsb = (v: Volume) => /^\/mnt\/usb\d+$/.test(v.path) || v.mount_from.startsWith("/dev/da");
 
@@ -71,10 +72,63 @@ function Places({
 }
 
 /**
+ * Network shares saved on the console: one row each (✕ opens it, "⋯" offers
+ * Open, Edit and Remove) and "Add network share". Hidden on a helper without
+ * them (shares null).
+ */
+function Shares({
+  shares,
+  onOpen,
+  onActions,
+  onAdd,
+}: {
+  shares: SmbShare[];
+  onOpen: (path: string) => void;
+  onActions: (id: string) => void;
+  onAdd?: () => void;
+}) {
+  const title = t("cw_files_smb_title");
+  return (
+    <section className="cw-places" data-section="shares">
+      <h2 className="cw-h2">{title}</h2>
+      {shares.length ? (
+        <ul className="cw-files" data-nav-list aria-label={title}>
+          {shares.map((s) => (
+            <li key={s.id} className="cw-file" data-nav-item data-share={s.id}>
+              <button type="button" className="cw-focusable cw-file-main" data-share-open={s.id} onClick={() => onOpen(s.path)}>
+                <Network className="cw-file-icon" aria-hidden />
+                <span className="cw-file-text">
+                  <span className="cw-file-name">
+                    {s.name}
+                    {!s.user ? <span className="cw-tag">{t("cw_files_smb_guest")}</span> : null}
+                  </span>
+                  <span className="cw-dim cw-mono cw-file-sub">{shareAddress(s)}</span>
+                </span>
+              </button>
+              <ActionsButton onPress={() => onActions(s.id)} />
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="cw-dim">{t("cw_files_smb_none")}</p>
+      )}
+      {onAdd ? (
+        <div className="cw-toolbar">
+          <button type="button" className="cw-focusable cw-button" data-action="smb-add" onClick={onAdd}>
+            <Plus aria-hidden />
+            <span>{t("cw_files_smb_add")}</span>
+          </button>
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+/**
  * Files' first level: Pinned folders, one row per drive (internal, extended/M.2,
  * USB) with its free space and, for a USB drive, Eject; images PS5Upload mounted,
- * with Unmount; then Recent folders. ✕ opens; "⋯" (or △) on a pinned or recent
- * folder offers Open and Pin / Unpin.
+ * with Unmount; network shares; then Recent folders. ✕ opens; "⋯" (or △) on a
+ * pinned or recent folder offers Open and Pin / Unpin.
  */
 export function DriveList({
   volumes,
@@ -87,6 +141,9 @@ export function DriveList({
   onPlaceActions,
   onGoTo,
   unmountHeld,
+  shares,
+  onShareActions,
+  onAddShare,
 }: {
   volumes: Volume[] | null;
   error: boolean;
@@ -101,6 +158,10 @@ export function DriveList({
   onGoTo?: () => void;
   /** Why Unmount is held now (a game is running), shown in its place. */
   unmountHeld?: string | null;
+  /** Saved network shares; null hides the section (not read yet, or a helper without them). */
+  shares?: SmbShare[] | null;
+  onShareActions?: (id: string) => void;
+  onAddShare?: () => void;
 }) {
   const all = volumes ?? [];
   const drives = all.filter(isDrive);
@@ -232,6 +293,7 @@ export function DriveList({
           </ul>
         </section>
       ) : null}
+      {shares ? <Shares shares={shares} onOpen={onOpen} onActions={onShareActions ?? (() => undefined)} onAdd={onAddShare} /> : null}
       {recent}
     </>
   );
