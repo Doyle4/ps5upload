@@ -66,8 +66,10 @@ int main(int argc, char **argv) {
     const char *req_path;
     int rc;
 #ifdef __PROSPERO__
-    /* Not "payload.elf" (the name elfldr gives raw payloads), which other payloads sweep for. */
-    proc_name_set_self("ps5upload-extract");
+    /* Not "payload.elf" (the name elfldr gives raw payloads), which other payloads sweep for, and
+     * not "ps5upload-*" either: the helper SIGKILLs every process of that name as a stray instance of
+     * itself (runtime_sweep_our_instances), which ended the first hardware run mid-archive. */
+    proc_name_set_self("ps5u-extract");
     (void)argc;
     (void)argv;
     req_path = XMAIN_DIR "/request.json";
