@@ -1974,10 +1974,13 @@ int launch_title(const char *title_id, const char **err_reason_out,
      * With nobody signed in there is nothing a launch can succeed for anyway,
      * so the only safe thing is one in-process attempt (no ptrace) and, if
      * the console refuses it, a clear "sign in first" error. */
-    if (!fg_user_is_real(fg_user)) {
+    /* Without the user-service symbol we cannot tell "nobody signed in" from
+     * "can't ask": keep the old ladder rather than refusing every launch. */
+    const int can_ask = g_reg.user_service_get_foreground_user != NULL;
+    if (can_ask && !fg_user_is_real(fg_user)) {
         fg_user = launch_wait_for_fg_user(title_id);
     }
-    if (!fg_user_is_real(fg_user)) {
+    if (can_ask && !fg_user_is_real(fg_user)) {
         int rc_nu = launch_via_system_service(title_id, fg_user);
         if (launch_sys_ok(rc_nu)) return 0;
         /* A non-zero rc does not always mean the launch failed (see

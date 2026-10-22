@@ -1,4 +1,5 @@
 import { usePoll, useTransferBusy } from "../../lib/usePoll";
+import { humanizePs5Error } from "../../lib/humanizeError";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Cpu, RefreshCw, RotateCw, Skull, TriangleAlert, Layers, Network } from "lucide-react";
 import { useSearchParams } from "react-router";
@@ -282,7 +283,7 @@ function ProcessesPanel({ onCount }: { onCount: (n: number | undefined) => void 
         } catch (e) {
           const msg = e instanceof Error ? e.message : String(e);
           log.warn("process", `relaunch ${p.title_id} failed: ${msg}`);
-          if (mountedRef.current) setError(msg);
+          if (mountedRef.current) setError(humanizePs5Error(msg));
         }
         await refresh();
       } catch (e) {
