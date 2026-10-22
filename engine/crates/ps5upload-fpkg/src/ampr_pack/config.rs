@@ -1241,14 +1241,16 @@ fn is_unity_marker(path: &str) -> bool {
 }
 
 /// What the Unity profile packs. `*` crosses folders, so `*/StreamingAssets/*` is anything
-/// under a `StreamingAssets` folder at any depth (Unity spells it exactly so).
+/// under a `StreamingAssets` folder at any depth. Rules match case-sensitively and detection
+/// does not, so every pattern is spelled in any letter case: a dump with lowercased names is
+/// still recognised as Unity, and must then still pack its assets.
 const UNITY_PACKED: &[&str] = &[
     // Asset bundles, Addressables, video and audio banks: nearly all of a Unity title's bytes.
-    "StreamingAssets/*",
-    "*/StreamingAssets/*",
+    "[sS][tT][rR][eE][aA][mM][iI][nN][gG][aA][sS][sS][eE][tT][sS]/*",
+    "*/[sS][tT][rR][eE][aA][mM][iI][nN][gG][aA][sS][sS][eE][tT][sS]/*",
     // Texture, mesh and audio payloads that the serialized files point into, read in ranges.
-    "*.resS",
-    "*.resource",
+    "*.[rR][eE][sS][sS]",
+    "*.[rR][eE][sS][oO][uU][rR][cC][eE]",
 ];
 
 /// The profile for a Unity title: `StreamingAssets` and the `.resS` / `.resource` payloads
@@ -1646,6 +1648,9 @@ mod tests {
             "StreamingAssets/x.bundle",
             "Media/sharedassets0.assets.resS",
             "Media/resources.resource",
+            // Lowercased dumps: detected as Unity, so their assets still pack.
+            "Media/streamingassets/x.bundle",
+            "Media/sharedassets0.assets.RESS",
         ] {
             let r = c.select(packed);
             assert_eq!(r.action, Action::Compress, "{packed}");
@@ -1667,8 +1672,6 @@ mod tests {
             // The loose list still wins inside StreamingAssets.
             "Media/StreamingAssets/aa/catalog.json",
             "Media/StreamingAssets/intro.mp4",
-            // Unity spells the folder exactly so.
-            "Media/streamingassets/x.bundle",
         ] {
             assert_eq!(c.select(loose).action, Action::Loose, "{loose}");
         }
