@@ -6,6 +6,8 @@
 //! keeping a block raw, and time through not deflating what cannot shrink:
 //!
 //! - a block of zeros is never deflated: its stored form is worked out once per build;
+//! - a block whose byte histogram says no deflate could reach the size it must beat (already
+//!   compressed media, mostly) is stored raw without a full deflate ([`incompressible`]);
 //! - the deflate writes into a buffer the size of what the block must beat;
 //! - [`Level::Smallest`] tries a second, stronger pass (libdeflate level 12, near-optimal
 //!   parsing) on every block level 9 shrank, and keeps whichever is shorter;
@@ -185,6 +187,9 @@ impl BlockEncoder {
         if is_zero(block) {
             return Ok(Stored::Zero);
         }
+        if incompressible(block, self.cap) {
+            return Ok(Stored::Raw { prechecked: true });
+        }
         Ok(match self.compress(block)? {
             Some((bytes, strong)) => Stored::Zlib { bytes, strong },
             None => Stored::Raw { prechecked: false },
@@ -237,6 +242,56 @@ fn is_zero(block: &[u8]) -> bool {
         .0
         .iter()
         .all(|c| c.iter().fold(0u8, |a, &b| a | b) == 0)
+}
+
+/// Whether the block's bytes are spread so evenly that no deflate could get it under `cap`, and
+/// nothing in it repeats: already-compressed data, which is most of a media-heavy game. The
+/// order-0 entropy of the bytes bounds what Huffman coding alone can reach; repeats are what
+/// LZ77 adds on top, so a block with any is never ruled out here (a table of `i % 251` has a
+/// flat histogram and deflates to almost nothing). Measured on a real media-heavy game (1 in 16
+/// blocks of PPSA30883): at a 1% gain the check skips 12% of the blocks, and level 6 would have
+/// saved 14 KB on the 18 of them it could shrink.
+pub fn incompressible(block: &[u8], cap: usize) -> bool {
+    let mut counts = [[0u32; 256]; 4];
+    for c in block.as_chunks::<4>().0 {
+        counts[0][c[0] as usize] += 1;
+        counts[1][c[1] as usize] += 1;
+        counts[2][c[2] as usize] += 1;
+        counts[3][c[3] as usize] += 1;
+    }
+    let [a, b, c, d] = &counts;
+    let n = block.len() as f64;
+    let mut bits = 0.0;
+    for (((a, b), c), d) in a.iter().zip(b).zip(c).zip(d) {
+        let k = a + b + c + d;
+        if k > 0 {
+            let k = f64::from(k);
+            bits -= k * (k / n).log2();
+        }
+    }
+    bits / 8.0 > cap as f64 && !repeats(block)
+}
+
+/// Whether 4-byte sequences recur in the block more than chance allows: a hash table of the
+/// last place each was seen, the way a fast LZ77 match finder starts. In noise two equal
+/// 4-byte sequences meet about once per 2^32 tries, so a few dozen hits mean real repeats.
+fn repeats(block: &[u8]) -> bool {
+    const HITS: u32 = 32;
+    let mut last = vec![0u32; 1 << 12];
+    let mut hits = 0;
+    for i in 0..block.len().saturating_sub(3) {
+        let v = u32::from_le_bytes([block[i], block[i + 1], block[i + 2], block[i + 3]]);
+        let h = (v.wrapping_mul(0x9E37_79B1) >> 20) as usize;
+        let seen = last[h] as usize;
+        if seen > 0 && block[seen - 1..seen + 3] == block[i..i + 4] {
+            hits += 1;
+            if hits >= HITS {
+                return true;
+            }
+        }
+        last[h] = i as u32 + 1;
+    }
+    false
 }
 
 #[cfg(test)]
@@ -293,10 +348,12 @@ mod tests {
             assert!(zero.len() < 1024);
             assert_eq!(inflate(&zero), vec![0u8; BLOCK]);
             assert_eq!(e.encode(&vec![0u8; BLOCK]).unwrap(), Stored::Zero);
-            // Noise never shrinks.
+            // Noise never shrinks; below Smallest the histogram alone rules it out.
             assert_eq!(
                 e.encode(&random(1)).unwrap(),
-                Stored::Raw { prechecked: false }
+                Stored::Raw {
+                    prechecked: level != Level::Smallest
+                }
             );
             for block in [text(), mixed.clone(), sparse.clone()] {
                 match e.encode(&block).unwrap() {
@@ -345,6 +402,21 @@ mod tests {
         let mut smallest = BlockEncoder::new(Level::Smallest.options());
         match smallest.encode(&block).unwrap() {
             Stored::Zlib { bytes, .. } => assert_eq!(inflate(&bytes), block),
+            other => panic!("{other:?}"),
+        }
+    }
+
+    #[test]
+    fn a_flat_histogram_that_repeats_is_still_compressed() {
+        let table: Vec<u8> = (0..BLOCK as u32).map(|i| (i % 251) as u8).collect();
+        assert!(!incompressible(&table, BLOCK * 99 / 100));
+        assert!(incompressible(&random(5), BLOCK * 99 / 100));
+        let mut e = BlockEncoder::new(Level::Balanced.options());
+        match e.encode(&table).unwrap() {
+            Stored::Zlib { bytes, .. } => {
+                assert!(bytes.len() < 1024);
+                assert_eq!(inflate(&bytes), table);
+            }
             other => panic!("{other:?}"),
         }
     }
