@@ -20,6 +20,7 @@ use std::io::{BufWriter, Write};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 
+use ps5upload_fpkg::ffpfsc_block::Level;
 use ps5upload_fpkg::sample::{self, VerifyMode, VerifySummary, SLICE};
 use ps5upload_fpkg::source::{SourceFile, SourceTree};
 
@@ -164,31 +165,32 @@ pub(crate) fn output_names(
 }
 
 /// Wraps a source and hashes each file in 8 MiB slices as a writer reads it front to back, so
-/// verifying does not read the source a second time. A file read any other way is hashed
+/// verifying does not read the source a second time. The hashing runs on its own thread, fed a
+/// copy of each read, so the writer's thread only reads. A file read any other way is hashed
 /// afterwards.
 struct HashingTree<'a> {
     inner: &'a mut dyn SourceTree,
     sizes: HashMap<String, u64>,
-    /// Bytes seen so far, the slice being hashed, and the slices finished.
+    /// To the hashing thread: `None` once it is done or gone.
+    feed: Option<std::sync::mpsc::SyncSender<(String, u64, Vec<u8>)>>,
+    hasher: Option<std::thread::JoinHandle<HashMap<String, Vec<blake3::Hash>>>>,
+    /// Time the writer spent in the source's reads.
+    read_time: std::time::Duration,
+}
+
+/// Reads queued for the hashing thread before a read waits for it: 32 of the writers' 1 MiB.
+const HASH_QUEUE: usize = 32;
+
+/// The hashing thread's state: bytes seen so far per file, the slice being hashed, and the
+/// slices finished.
+#[derive(Default)]
+struct SliceHasher {
+    sizes: HashMap<String, u64>,
     in_flight: HashMap<String, (u64, blake3::Hasher, Vec<blake3::Hash>)>,
     done: HashMap<String, Vec<blake3::Hash>>,
 }
 
-impl<'a> HashingTree<'a> {
-    fn new(inner: &'a mut dyn SourceTree) -> Self {
-        let sizes = inner
-            .files()
-            .iter()
-            .map(|f| (f.path.clone(), f.size))
-            .collect();
-        Self {
-            inner,
-            sizes,
-            in_flight: HashMap::new(),
-            done: HashMap::new(),
-        }
-    }
-
+impl SliceHasher {
     fn observe(&mut self, path: &str, offset: u64, bytes: &[u8]) {
         let Some(&size) = self.sizes.get(path) else {
             return;
@@ -225,13 +227,65 @@ impl<'a> HashingTree<'a> {
             }
         }
     }
+}
+
+impl<'a> HashingTree<'a> {
+    fn new(inner: &'a mut dyn SourceTree) -> Self {
+        let sizes: HashMap<String, u64> = inner
+            .files()
+            .iter()
+            .map(|f| (f.path.clone(), f.size))
+            .collect();
+        let (feed, reads) = std::sync::mpsc::sync_channel::<(String, u64, Vec<u8>)>(HASH_QUEUE);
+        let mut state = SliceHasher {
+            sizes: sizes.clone(),
+            ..Default::default()
+        };
+        let hasher = std::thread::Builder::new()
+            .name("image-hash".into())
+            .spawn(move || {
+                for (path, offset, bytes) in reads {
+                    state.observe(&path, offset, &bytes);
+                }
+                state.done
+            })
+            .ok();
+        Self {
+            inner,
+            sizes,
+            feed: hasher.is_some().then_some(feed),
+            hasher,
+            read_time: std::time::Duration::ZERO,
+        }
+    }
+
+    fn observe(&mut self, path: &str, offset: u64, bytes: &[u8]) {
+        if !self.sizes.contains_key(path) {
+            return;
+        }
+        if let Some(feed) = &self.feed {
+            // A gone hasher only means these files are hashed afterwards.
+            if feed
+                .send((path.to_string(), offset, bytes.to_vec()))
+                .is_err()
+            {
+                self.feed = None;
+            }
+        }
+    }
 
     /// Every file's slice hashes: the ones seen whole while writing, the rest read now.
     fn hashes(mut self, cancel: &AtomicBool) -> Result<HashMap<String, Vec<blake3::Hash>>, String> {
+        self.feed = None;
+        let mut done = match self.hasher.take().map(|h| h.join()) {
+            Some(Ok(done)) => done,
+            Some(Err(_)) => return Err("the source hashing thread failed".into()),
+            None => HashMap::new(),
+        };
         let missing: Vec<(String, u64)> = self
             .sizes
             .iter()
-            .filter(|(p, _)| !self.done.contains_key(*p))
+            .filter(|(p, _)| !done.contains_key(*p))
             .map(|(p, s)| (p.clone(), *s))
             .collect();
         for (path, size) in missing {
@@ -249,9 +303,9 @@ impl<'a> HashingTree<'a> {
                     Ok(())
                 },
             )?;
-            self.done.insert(path, slices);
+            done.insert(path, slices);
         }
-        Ok(self.done)
+        Ok(done)
     }
 }
 
@@ -260,7 +314,9 @@ impl SourceTree for HashingTree<'_> {
         self.inner.files()
     }
     fn read(&mut self, path: &str) -> ps5upload_fpkg::Result<Vec<u8>> {
+        let t = std::time::Instant::now();
         let all = self.inner.read(path)?;
+        self.read_time += t.elapsed();
         self.observe(path, 0, &all);
         Ok(all)
     }
@@ -270,7 +326,9 @@ impl SourceTree for HashingTree<'_> {
         offset: u64,
         len: usize,
     ) -> ps5upload_fpkg::Result<Vec<u8>> {
+        let t = std::time::Instant::now();
         let bytes = self.inner.read_range(path, offset, len)?;
+        self.read_time += t.elapsed();
         self.observe(path, offset, &bytes);
         Ok(bytes)
     }
@@ -669,6 +727,32 @@ pub(crate) fn build(
     cancel: &AtomicBool,
     stage: &mut dyn FnMut(&str, u64, u64),
 ) -> Result<ImageBuilt, String> {
+    build_at(
+        format,
+        inner_name,
+        Level::default(),
+        source,
+        output,
+        mode,
+        verify_chunk,
+        cancel,
+        stage,
+    )
+}
+
+/// [`build`], a `.ffpfsc` compressed at `level` (ignored for a plain image).
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn build_at(
+    format: ImageFormat,
+    inner_name: Option<&str>,
+    level: Level,
+    source: &mut dyn SourceTree,
+    output: &Path,
+    mode: VerifyMode,
+    verify_chunk: u64,
+    cancel: &AtomicBool,
+    stage: &mut dyn FnMut(&str, u64, u64),
+) -> Result<ImageBuilt, String> {
     if source.files().is_empty() {
         return Err(format!("{} has no files in it", source.describe()));
     }
@@ -702,30 +786,32 @@ pub(crate) fn build(
             "write"
         };
         let mut report = |done: u64, total: u64| stage(write_stage, done, total);
-        let (image_bytes, stored) = match inner_name {
+        let wrap_opts = ps5_dump_forge_pfs::WrapOptions::at(level);
+        let (image_bytes, stored, wrapped) = match inner_name {
             None => {
                 let mut out = BufWriter::with_capacity(8 << 20, &mut file);
                 let n = planned
                     .write(&mut hashing, &mut out, cancel, &mut report)
                     .map_err(|e| e.to_string())?;
                 out.flush().map_err(|e| e.to_string())?;
-                (n, n)
+                (n, n, None)
             }
             Some(name) => {
                 let (n, wrapped) = ps5_dump_forge_pfs::wrap(
                     name,
                     planned.image_size(),
                     &mut file,
-                    &ps5_dump_forge_pfs::WrapOptions::default(),
+                    &wrap_opts,
                     cancel,
                     |s| planned.write(&mut hashing, s, cancel, &mut report),
                 )
                 .map_err(|e| e.to_string())?;
-                (n, wrapped.image_size)
+                (n, wrapped.image_size, Some(wrapped))
             }
         };
         file.sync_all().map_err(|e| e.to_string())?;
         drop(file);
+        let read_time = hashing.read_time;
         let hashes = hashing.hashes(cancel)?;
 
         let written_at = started.elapsed();
@@ -744,11 +830,24 @@ pub(crate) fn build(
         std::fs::rename(&partial, output).map_err(|e| e.to_string())?;
         crate::engine_log::record("info", format!("verify: {}", log_line(&summary)));
         crate::engine_log::record("info", format!(
-            "image build: format={} compressed={} files={} data_bytes={} output_bytes={} plan_ms={} write_ms={} verify_ms={} verify_mode={mode:?}",
+            "image build: format={} compressed={} files={} data_bytes={} output_bytes={} plan_ms={} write_ms={} read_ms={} verify_ms={} verify_mode={mode:?}",
             format.extension(), inner_name.is_some(), want_sizes.len(), data, stored,
-            planned_at.as_millis(), (written_at - planned_at).as_millis(),
+            planned_at.as_millis(), (written_at - planned_at).as_millis(), read_time.as_millis(),
             (started.elapsed() - written_at).as_millis(),
         ));
+        if let Some(w) = &wrapped {
+            crate::engine_log::record(
+                "info",
+                format!(
+                    "ffpfsc: compression={} {} read_ms={} verify_ms={} verify_mode={} block_check=inflate-every-compressed-block",
+                    level.name(),
+                    wrap_log_line(&wrap_opts, w),
+                    read_time.as_millis(),
+                    (started.elapsed() - written_at).as_millis(),
+                    log_line(&summary),
+                ),
+            );
+        }
         let mut detail = format!(
             "{}, {} files, {data} data bytes, {}",
             format.extension(),
@@ -771,6 +870,26 @@ pub(crate) fn build(
         let _ = std::fs::remove_file(&partial);
     }
     settle(result, cancel.load(Ordering::Relaxed))
+}
+
+/// What the log says of a `.ffpfsc` stream: how it was encoded, what each block became, and
+/// where the time went (`feed`: the inner writer reading the source and cutting blocks, of
+/// which `read` is the source's reads; `feed_wait`: it waiting for the workers; `encode`: summed
+/// over the workers, each compressed block's inflate-back check included; `write`: the writer
+/// thread's writes; `stream`: all of it, wall clock).
+fn wrap_log_line(
+    o: &ps5_dump_forge_pfs::WrapOptions,
+    w: &ps5_dump_forge_pfs::WrapReport,
+) -> String {
+    let raw = w.blocks - w.compressed_blocks;
+    format!(
+        "level={} min_gain={}% encoder={} threads={} blocks={} compressed={} raw={} zero={} prechecked_raw={} strong_wins={} console_refused={} zlib_fallback={} raw_bytes={} stored_bytes={} feed_ms={} feed_wait_ms={} encode_ms={} write_ms={} stream_ms={}",
+        o.level, o.min_block_gain, o.encoder(), w.threads, w.blocks, w.compressed_blocks, raw,
+        w.zero_blocks, w.prechecked_blocks, w.strong_blocks, w.refused_blocks, w.fallback_blocks,
+        w.raw_size, w.stored_size,
+        w.feed.as_millis(), w.feed_wait.as_millis(), w.encode.as_millis(), w.write.as_millis(),
+        w.wall.as_millis(),
+    )
 }
 
 /// What the log says of a read-back: `fast, 2.1 GiB of 80.9 GiB in 41 samples (seed 7), policy 1`.

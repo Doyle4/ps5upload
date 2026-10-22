@@ -767,7 +767,7 @@ export const useFpkgConversion = create<ConversionState>((set, get) => ({
   buildImage: async (source, outputDir, thenCompress, format = "exfat", thenUpload, lz4, password) => {
     if (get().pipeline.phase === "running") return;
     pendingImageUpload = thenUpload ?? null;
-    const { verifyChunkKib, fullVerify } = useConvertPrefs.getState();
+    const { verifyChunkKib, fullVerify, imageLevel } = useConvertPrefs.getState();
     // One engine job: compressing happens as the image is written, so no uncompressed copy
     // is ever on disk.
     // The console it goes to, when it is sent once built: another console's view of this
@@ -781,7 +781,7 @@ export const useFpkgConversion = create<ConversionState>((set, get) => ({
         source,
         outputDir,
         (local) =>
-          fpkg.buildImage(local, outputDir, format, thenCompress, lz4, verifyChunkKib, fullVerify, name),
+          fpkg.buildImage(local, outputDir, format, thenCompress, lz4, verifyChunkKib, fullVerify, name, imageLevel),
         null,
         password,
       );
@@ -797,6 +797,8 @@ export const useFpkgConversion = create<ConversionState>((set, get) => ({
         lz4,
         verifyChunkKib,
         fullVerify,
+        undefined,
+        imageLevel,
       );
       update({ jobId: job_id });
       poll(job_id, null);

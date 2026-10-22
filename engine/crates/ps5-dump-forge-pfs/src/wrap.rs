@@ -1,12 +1,14 @@
 //! `.ffpfsc`: an inner image (`.exfat`, `.ffpkg` or `.ffpfs`) as a zlib PFSC container, the one
 //! file of a minimal PFS, built as the inner writer writes it, with no staged image.
 //!
-//! The inner writer writes into a [`Stream`] on the calling thread. The stream cuts 64 KiB
-//! blocks and hands each, with a one-shot reply channel, to worker threads over a bounded
-//! channel; it keeps the replies in submission order and, once `threads * 4` are pending,
-//! waits on the oldest and writes it to the output itself. So memory is bounded by that depth,
-//! nothing reorders, and an error anywhere (a worker's, the output's, the inner writer's)
-//! comes back to the calling thread, which joins every worker before it returns.
+//! Three stages run at once. The inner writer writes into a [`Stream`] on the calling thread,
+//! which cuts 64 KiB blocks straight into buffers from a fixed pool (no copy per block) and
+//! hands each to the workers. The workers encode them ([`ffpfsc_block`]: zeros and blocks that
+//! cannot shrink skip the deflate, every compressed block is inflated back and compared before
+//! it is kept). One writer thread puts the results back in order, writes them, and returns the
+//! buffers to the pool. So the calling thread only reads and cuts, memory is bounded by the
+//! pool, nothing reorders, and an error anywhere (a worker's, the output's, the inner writer's)
+//! comes back to the calling thread, which joins every thread before it returns.
 //!
 //! In the output, by byte: blocks 0..6 are the PFS (header, inodes, super-root, path table,
 //! reserved, `uroot`), written last; at block 6 the PFSC header and its table of `n + 1`
@@ -15,16 +17,18 @@
 //! compressed when that saves [`WrapOptions::min_block_gain`] percent and is shorter than 64 KiB
 //! (a reader tells the two apart by length alone), else stored raw. The container is kept even
 //! if it does not shrink: a stream cannot be re-read to store the image raw instead.
+//!
+//! [`ffpfsc_block`]: ps5upload_fpkg::ffpfsc_block
 
-use std::collections::VecDeque;
+use std::collections::BTreeMap;
 use std::fs::File;
 use std::io::{self, BufWriter, Seek, SeekFrom, Write};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::mpsc::{self, Receiver, Sender, SyncSender, TrySendError};
+use std::sync::mpsc::{self, Receiver, Sender, SyncSender};
 use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 
-use flate2::Compression;
-use flate2::write::ZlibEncoder;
+use ps5upload_fpkg::ffpfsc_block::{BlockEncoder, BlockOptions, Level, Stored};
 use ps5upload_fpkg::{Error, Result};
 
 use crate::image::{self, Sink};
@@ -37,35 +41,67 @@ pub(crate) const PFSC_MAGIC: u32 = 0x4353_4650;
 const PFSC_VERSION_WORD: u32 = 6;
 pub(crate) const PFSC_HEADER_LEN: usize = 0x30;
 pub(crate) const PFSC_TABLE_AT: u64 = 0x400;
-/// Replies pending per worker before the stream waits on the oldest.
-const DEPTH_PER_WORKER: usize = 4;
+/// Blocks in flight per worker: the pool the stream cuts into.
+const DEPTH_PER_WORKER: usize = 8;
 
 #[derive(Debug, Clone)]
 pub struct WrapOptions {
-    /// zlib level, 1–9. Level 6 lands within 0.2% of level 9 on a real exFAT game image and
-    /// builds 30% faster.
+    /// Deflate level, 1–12.
     pub level: u32,
     /// Percent a block must shrink by to be stored compressed (at most 90).
     pub min_block_gain: u8,
+    /// Also try level 12 on each block `level` shrank, keeping the shorter.
+    pub strong: bool,
     /// Worker threads; 0 uses every core.
     pub threads: usize,
     /// The PFS timestamp (seconds since 1970); `None` is now.
     pub time: Option<i64>,
 }
 
-impl Default for WrapOptions {
-    fn default() -> Self {
+impl WrapOptions {
+    /// The options of a compression level, every core, the time now.
+    pub fn at(level: Level) -> Self {
+        let b = level.options();
         Self {
-            level: 6,
-            min_block_gain: 5,
+            level: b.level,
+            min_block_gain: b.min_gain,
+            strong: b.strong,
             threads: 0,
             time: None,
         }
     }
+
+    fn block(&self) -> BlockOptions {
+        BlockOptions {
+            level: self.level,
+            min_gain: self.min_block_gain,
+            strong: self.strong,
+        }
+    }
+
+    /// What encodes the blocks, for a log line.
+    pub fn encoder(&self) -> String {
+        self.block().encoder()
+    }
+
+    /// The worker count these options mean on this machine.
+    pub fn worker_threads(&self) -> usize {
+        match self.threads {
+            0 => std::thread::available_parallelism().map_or(4, |n| n.get()),
+            n => n,
+        }
+    }
+}
+
+/// [`Level::Balanced`].
+impl Default for WrapOptions {
+    fn default() -> Self {
+        Self::at(Level::Balanced)
+    }
 }
 
 /// What was written.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct WrapReport {
     pub image_size: u64,
     /// The inner image's length.
@@ -74,8 +110,30 @@ pub struct WrapReport {
     pub stored_size: u64,
     /// 64 KiB blocks of the inner image.
     pub blocks: u64,
-    /// Of those, the ones stored compressed.
+    /// Of those, the ones stored compressed (zero blocks included).
     pub compressed_blocks: u64,
+    /// Blocks of zeros (stored compressed, never deflated).
+    pub zero_blocks: u64,
+    /// Blocks stored raw because their bytes ruled out a gain, without a deflate.
+    pub prechecked_blocks: u64,
+    /// Compressed blocks the stronger encoder made shorter.
+    pub strong_blocks: u64,
+    /// Blocks for which a libdeflate stream was turned down as one the console misreads.
+    pub refused_blocks: u64,
+    /// Of those, the blocks stored as zlib-rs's stream instead.
+    pub fallback_blocks: u64,
+    pub threads: usize,
+    /// The calling thread's time in the inner writer (reading the source and cutting blocks),
+    /// less the time it waited for a free buffer.
+    pub feed: Duration,
+    /// The calling thread's wait for a free buffer: the workers or the writer were behind.
+    pub feed_wait: Duration,
+    /// Encoding time summed over the workers.
+    pub encode: Duration,
+    /// The writer's time in writes to the output.
+    pub write: Duration,
+    /// The whole stream, first byte to last block written.
+    pub wall: Duration,
 }
 
 /// Bytes between the container's start and its first block: 64 KiB, grown by whole blocks
@@ -101,21 +159,6 @@ pub fn container_size_max(raw_size: u64) -> Result<u64> {
         .ok_or_else(too_big)
 }
 
-/// One block as it is stored: padded to 64 KiB, then zlib when that saves `min_gain` percent.
-fn encode_block(raw: &[u8], level: u32, min_gain: u8) -> io::Result<Vec<u8>> {
-    let mut padded = raw.to_vec();
-    padded.resize(BLOCK as usize, 0);
-    let mut enc = ZlibEncoder::new(Vec::with_capacity(BLOCK as usize), Compression::new(level));
-    enc.write_all(&padded)?;
-    let z = enc.finish()?;
-    let limit = BLOCK as usize * (100 - usize::from(min_gain)) / 100;
-    Ok(if z.len() < BLOCK as usize && z.len() <= limit {
-        z
-    } else {
-        padded
-    })
-}
-
 /// Build a `.ffpfsc` holding `inner_name` (whose name tells SMP the filesystem) into `out`, an
 /// empty file the caller owns, fsyncs and renames. `fill` writes the inner image into the
 /// [`Stream`]: exactly `raw_size` bytes, forward only. Returns what `fill` returned.
@@ -127,12 +170,29 @@ pub fn wrap<T>(
     cancel: &AtomicBool,
     fill: impl FnOnce(&mut Stream<'_>) -> Result<T>,
 ) -> Result<(T, WrapReport)> {
-    let (level, gain) = (opts.level, opts.min_block_gain);
-    let encode = move |raw: &[u8]| encode_block(raw, level, gain);
+    let encode = |e: &mut BlockEncoder, raw: &[u8]| e.encode(raw);
     wrap_with(inner_name, raw_size, out, opts, cancel, &encode, fill)
 }
 
-type Encode = dyn Fn(&[u8]) -> io::Result<Vec<u8>> + Sync;
+/// How a worker encodes one block with its own encoder (a seam for the tests).
+type Encode = dyn Fn(&mut BlockEncoder, &[u8]) -> io::Result<Stored> + Sync;
+
+/// Why a block has no stored form.
+enum Failure {
+    Io(io::Error),
+    Panic(String),
+}
+
+/// A block back from a worker: its place, its buffer (for the pool, and the bytes when raw),
+/// and what it became.
+type Done = (u64, Vec<u8>, std::result::Result<Stored, Failure>);
+
+/// What the writer hands back: every block's start in the container then the end, and the
+/// counts and time for the report.
+struct Written {
+    offsets: Vec<u64>,
+    report: WrapReport,
+}
 
 fn wrap_with<T>(
     inner_name: &str,
@@ -143,15 +203,8 @@ fn wrap_with<T>(
     encode: &Encode,
     fill: impl FnOnce(&mut Stream<'_>) -> Result<T>,
 ) -> Result<(T, WrapReport)> {
-    if !(1..=9).contains(&opts.level) {
-        return Err(err(format!(
-            "zlib level must be 1 through 9, not {}",
-            opts.level
-        )));
-    }
-    if opts.min_block_gain > 90 {
-        return Err(err("the minimum block gain must be at most 90%"));
-    }
+    let block_opts = opts.block();
+    block_opts.check().map_err(err)?;
     if raw_size == 0 {
         return Err(err("the image inside a .ffpfsc cannot be empty"));
     }
@@ -166,64 +219,114 @@ fn wrap_with<T>(
     check_cancel(cancel)?;
     let base = FILE_BLOCK * BLOCK;
     out.seek(SeekFrom::Start(base + data_at))?;
-    let threads = match opts.threads {
-        0 => std::thread::available_parallelism().map_or(4, |n| n.get()),
-        n => n,
-    };
-    let limit = threads * DEPTH_PER_WORKER;
+    let threads = opts.worker_threads();
+    let depth = threads * DEPTH_PER_WORKER;
+    // Every zero block is stored as this.
+    let zero = BlockEncoder::new(block_opts).zero_block()?;
+    let failed = AtomicBool::new(false);
+    let started = Instant::now();
 
-    let (filled, panicked) = std::thread::scope(|s| {
-        let (work, queue) = mpsc::sync_channel::<Job>(limit);
+    let (filled, encode_time, panicked, written) = std::thread::scope(|s| {
+        let (work, queue) = mpsc::sync_channel::<(u64, Vec<u8>)>(depth);
+        let (done, results) = mpsc::channel::<Done>();
+        let (free, pool) = mpsc::channel::<Vec<u8>>();
+        for _ in 0..depth {
+            let _ = free.send(vec![0u8; BLOCK as usize]);
+        }
         // Only the workers hold the queue: once they are all gone, a submit fails at once.
         let queue = Arc::new(Mutex::new(queue));
         let workers: Vec<_> = (0..threads)
             .map(|_| {
                 let queue = Arc::clone(&queue);
-                s.spawn(move || worker(&queue, encode))
+                let done = done.clone();
+                s.spawn(move || worker(&queue, &done, encode, block_opts))
             })
             .collect();
         drop(queue);
+        drop(done);
+        let failed = &failed;
+        let zero = &zero[..];
+        let sink = BufWriter::with_capacity(8 << 20, &mut *out);
+        let writer = s.spawn(move || {
+            let r = write_blocks(results, free, sink, data_at, zero, cancel);
+            if r.is_err() {
+                failed.store(true, Ordering::Relaxed);
+            }
+            r
+        });
         let mut stream = Stream {
-            out: BufWriter::with_capacity(8 << 20, &mut *out),
-            work,
-            pending: VecDeque::with_capacity(limit),
-            limit,
+            work: Some(work),
+            pool,
+            block: None,
+            fill: 0,
+            seq: 0,
             raw_size,
             pos: 0,
-            block: Vec::with_capacity(BLOCK as usize),
-            offsets: vec![data_at],
-            compressed_blocks: 0,
             cancel,
+            failed,
+            waited: Duration::ZERO,
         };
-        let filled = fill(&mut stream).and_then(|t| Ok((t, stream.finish()?)));
-        // Closes the queue: idle workers see it and exit.
+        let fill_started = Instant::now();
+        let filled = fill(&mut stream).and_then(|t| {
+            stream.finish()?;
+            Ok(t)
+        });
+        let feed = fill_started.elapsed();
+        let waited = stream.waited;
+        // Closes the queue: idle workers see it and exit, then the writer.
         drop(stream);
+        let mut encode_time = Duration::ZERO;
         let mut panicked = None;
         for w in workers {
-            if let Err(payload) = w.join() {
-                panicked.get_or_insert(payload);
+            match w.join() {
+                Ok(t) => encode_time += t,
+                Err(payload) => {
+                    panicked.get_or_insert(panic_text(&*payload));
+                }
             }
         }
-        (filled, panicked)
+        let written = match writer.join() {
+            Ok(r) => r,
+            Err(payload) => Err(Failure::Panic(panic_text(&*payload))),
+        };
+        (
+            filled.map(|t| (t, feed.saturating_sub(waited), waited)),
+            encode_time,
+            panicked,
+            written,
+        )
     });
-    // The root error wins: a worker's panic over the closed channel it left behind, a cancel
-    // over the error it made the inner writer return.
-    if let Some(payload) = panicked {
-        let why = payload
-            .downcast_ref::<&str>()
-            .map(|s| s.to_string())
-            .or_else(|| payload.downcast_ref::<String>().cloned())
-            .unwrap_or_default();
+    // The root error wins: a worker's panic or failure over what it made the inner writer
+    // return, a cancel over the error it caused.
+    if let Some(why) = panicked {
         return Err(err(format!("a compression worker panicked: {why}")));
     }
-    let (value, (offsets, compressed_blocks)) = match filled {
+    let Written {
+        offsets,
+        report: counts,
+    } = match written {
+        Ok(w) => w,
+        Err(_) if cancel.load(Ordering::Relaxed) => return Err(Error::Cancelled),
+        Err(Failure::Panic(why)) => {
+            return Err(err(format!("a compression worker panicked: {why}")));
+        }
+        Err(Failure::Io(e)) => return Err(Error::Io(e)),
+    };
+    let (value, feed, feed_wait) = match filled {
         Err(_) if cancel.load(Ordering::Relaxed) => return Err(Error::Cancelled),
         r => r?,
     };
     check_cancel(cancel)?;
+    let wall = started.elapsed();
 
     // The container's header and table, then the PFS around it.
     let blocks = raw_size.div_ceil(BLOCK);
+    if offsets.len() as u64 != blocks + 1 {
+        return Err(err(format!(
+            "internal error: {} of {blocks} blocks written",
+            offsets.len().saturating_sub(1)
+        )));
+    }
     let stored = offsets.last().copied().unwrap_or(data_at);
     out.seek(SeekFrom::Start(base))?;
     let mut sink = Sink::new(&mut *out, cancel);
@@ -253,11 +356,87 @@ fn wrap_with<T>(
             raw_size,
             stored_size: stored,
             blocks,
-            compressed_blocks,
+            threads,
+            feed,
+            feed_wait,
+            encode: encode_time,
+            wall,
+            ..counts
         },
     ))
 }
 
+fn panic_text(payload: &(dyn std::any::Any + Send)) -> String {
+    payload
+        .downcast_ref::<&str>()
+        .map(|s| s.to_string())
+        .or_else(|| payload.downcast_ref::<String>().cloned())
+        .unwrap_or_default()
+}
+
+/// Puts the workers' results back in order and writes them, returning each buffer to the pool
+/// once its block is out. Stops at the first failure.
+fn write_blocks(
+    results: Receiver<Done>,
+    free: Sender<Vec<u8>>,
+    mut out: BufWriter<&mut File>,
+    data_at: u64,
+    zero: &[u8],
+    cancel: &AtomicBool,
+) -> std::result::Result<Written, Failure> {
+    let mut offsets = vec![data_at];
+    let mut report = WrapReport::default();
+    let mut waiting: BTreeMap<u64, (Vec<u8>, Stored)> = BTreeMap::new();
+    let mut next = 0u64;
+    for (seq, buf, result) in results {
+        waiting.insert(seq, (buf, result?));
+        while let Some((buf, stored)) = waiting.remove(&next) {
+            if cancel.load(Ordering::Relaxed) {
+                return Err(Failure::Io(io::Error::other("cancelled")));
+            }
+            let bytes: &[u8] = match &stored {
+                Stored::Zero => {
+                    report.zero_blocks += 1;
+                    report.compressed_blocks += 1;
+                    zero
+                }
+                Stored::Raw { prechecked } => {
+                    report.prechecked_blocks += u64::from(*prechecked);
+                    &buf
+                }
+                Stored::Zlib {
+                    bytes,
+                    strong,
+                    refused,
+                    fallback,
+                } => {
+                    report.compressed_blocks += 1;
+                    report.strong_blocks += u64::from(*strong);
+                    report.refused_blocks += u64::from(*refused);
+                    report.fallback_blocks += u64::from(*fallback);
+                    bytes
+                }
+            };
+            let t = Instant::now();
+            out.write_all(bytes).map_err(Failure::Io)?;
+            report.write += t.elapsed();
+            let end = offsets.last().copied().unwrap_or(0) + bytes.len() as u64;
+            offsets.push(end);
+            // The stream may be gone already (an error elsewhere): nothing to hand it then.
+            let _ = free.send(buf);
+            next += 1;
+        }
+    }
+    if !waiting.is_empty() {
+        return Err(Failure::Io(io::Error::other(
+            "internal error: a compressed block never came back",
+        )));
+    }
+    let t = Instant::now();
+    out.flush().map_err(Failure::Io)?;
+    report.write += t.elapsed();
+    Ok(Written { offsets, report })
+}
 fn pfsc_header(blocks: u64, data_at: u64) -> [u8; PFSC_HEADER_LEN] {
     let mut h = [0u8; PFSC_HEADER_LEN];
     h[0x00..0x04].copy_from_slice(&PFSC_MAGIC.to_le_bytes());
@@ -270,22 +449,37 @@ fn pfsc_header(blocks: u64, data_at: u64) -> [u8; PFSC_HEADER_LEN] {
     h
 }
 
-/// A raw block and where its stored form goes.
-type Job = (Vec<u8>, Sender<io::Result<Vec<u8>>>);
-
-/// Takes blocks until the queue closes. A panic drops the reply sender, which the stream
-/// sees as a failed worker; the queue lock is never held across the encode.
-fn worker(queue: &Mutex<Receiver<Job>>, encode: &Encode) {
+/// Takes blocks until the queue closes, and returns the time spent encoding. A panic in the
+/// encoder is caught and sent as the block's failure, so the writer never waits for a block
+/// that will not come; the queue lock is never held across the encode.
+fn worker(
+    queue: &Mutex<Receiver<(u64, Vec<u8>)>>,
+    done: &Sender<Done>,
+    encode: &Encode,
+    opts: BlockOptions,
+) -> Duration {
+    let mut encoder = BlockEncoder::new(opts);
+    let mut busy = Duration::ZERO;
     loop {
         let next = match queue.lock() {
             Ok(q) => q.recv(),
-            Err(_) => return,
+            Err(_) => return busy,
         };
-        let Ok((raw, reply)) = next else {
-            return;
+        let Ok((seq, raw)) = next else {
+            return busy;
         };
-        // The stream may be gone already (an error elsewhere); nothing to tell it then.
-        let _ = reply.send(encode(&raw));
+        let t = Instant::now();
+        let result =
+            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| encode(&mut encoder, &raw)));
+        busy += t.elapsed();
+        let (result, fatal) = match result {
+            Ok(r) => (r.map_err(Failure::Io), false),
+            Err(payload) => (Err(Failure::Panic(panic_text(&*payload))), true),
+        };
+        // The writer may be gone already (an error elsewhere); nothing to tell it then.
+        if done.send((seq, raw, result)).is_err() || fatal {
+            return busy;
+        }
     }
 }
 
@@ -293,22 +487,27 @@ fn worker(queue: &Mutex<Receiver<Job>>, encode: &Encode) {
 /// Seeking forward writes zeros (cancellable per block); `End(0)` is the current position;
 /// going back is an error.
 pub struct Stream<'a> {
-    out: BufWriter<&'a mut File>,
-    work: SyncSender<Job>,
-    /// Replies in submission order.
-    pending: VecDeque<Receiver<io::Result<Vec<u8>>>>,
-    limit: usize,
+    /// To the workers; `None` once the last block is in.
+    work: Option<SyncSender<(u64, Vec<u8>)>>,
+    /// Free 64 KiB buffers, back from the writer.
+    pool: Receiver<Vec<u8>>,
+    /// The block being cut, `fill` bytes of it so far.
+    block: Option<Vec<u8>>,
+    fill: usize,
+    /// The next block's place.
+    seq: u64,
     raw_size: u64,
     /// Inner-image bytes taken.
     pos: u64,
-    /// The block being cut.
-    block: Vec<u8>,
-    /// Every block's start in the container, then the end.
-    /// ponytail: 8 bytes per 64 KiB in memory (19 MB for a 150 GB image); spill to the output
-    /// past that.
-    offsets: Vec<u64>,
-    compressed_blocks: u64,
     cancel: &'a AtomicBool,
+    /// Set by the writer when it stops on an error.
+    failed: &'a AtomicBool,
+    /// Time spent waiting for a free buffer.
+    waited: Duration,
+}
+
+fn worker_failed() -> io::Error {
+    io::Error::other("compression worker failed")
 }
 
 impl Stream<'_> {
@@ -324,11 +523,22 @@ impl Stream<'_> {
             )));
         }
         while !buf.is_empty() {
-            let n = (BLOCK as usize - self.block.len()).min(buf.len());
-            self.block.extend_from_slice(&buf[..n]);
+            let fill = self.fill;
+            let block = match &mut self.block {
+                Some(b) => b,
+                None => {
+                    let t = Instant::now();
+                    let b = self.pool.recv().map_err(|_| worker_failed())?;
+                    self.waited += t.elapsed();
+                    self.block.insert(b)
+                }
+            };
+            let n = (BLOCK as usize - fill).min(buf.len());
+            block[fill..fill + n].copy_from_slice(&buf[..n]);
+            self.fill += n;
             buf = &buf[n..];
             self.pos += n as u64;
-            if self.block.len() == BLOCK as usize {
+            if self.fill == BLOCK as usize {
                 self.submit()?;
             }
         }
@@ -338,67 +548,47 @@ impl Stream<'_> {
     fn zeros(&mut self, mut n: u64) -> io::Result<()> {
         static ZEROS: [u8; BLOCK as usize] = [0; BLOCK as usize];
         while n > 0 {
-            let k = (BLOCK - self.block.len() as u64).min(n);
+            let k = (BLOCK - self.fill as u64).min(n);
             self.take(&ZEROS[..k as usize])?;
             n -= k;
         }
         Ok(())
     }
 
-    /// Hands the cut block to the workers, first writing the oldest reply if the queue is at
-    /// its depth. The work channel holds at most what is pending, so the send never blocks.
+    /// Hands the cut block to the workers. The queue holds as many as the pool has buffers, so
+    /// the send never waits.
     fn submit(&mut self) -> io::Result<()> {
         if self.cancel.load(Ordering::Relaxed) {
             return Err(io::Error::other("the .ffpfsc build was cancelled"));
         }
-        while self.pending.len() >= self.limit {
-            self.write_oldest()?;
+        if self.failed.load(Ordering::Relaxed) {
+            return Err(worker_failed());
         }
-        let raw = std::mem::replace(&mut self.block, Vec::with_capacity(BLOCK as usize));
-        let (reply, result) = mpsc::channel();
-        self.work.try_send((raw, reply)).map_err(|e| match e {
-            TrySendError::Full(_) => {
-                io::Error::other("internal error: the compression queue is full")
-            }
-            TrySendError::Disconnected(_) => io::Error::other("compression worker failed"),
-        })?;
-        self.pending.push_back(result);
-        Ok(())
-    }
-
-    fn write_oldest(&mut self) -> io::Result<()> {
-        let Some(result) = self.pending.pop_front() else {
+        let Some(mut block) = self.block.take() else {
             return Ok(());
         };
-        let stored = result
-            .recv()
-            .map_err(|_| io::Error::other("compression worker failed"))??;
-        if stored.len() < BLOCK as usize {
-            self.compressed_blocks += 1;
-        }
-        self.out.write_all(&stored)?;
-        let end = self.offsets.last().copied().unwrap_or(0) + stored.len() as u64;
-        self.offsets.push(end);
+        // A pooled buffer holds an earlier block: the short last one is padded with zeros.
+        block[self.fill..].fill(0);
+        self.fill = 0;
+        let work = self.work.as_ref().ok_or_else(worker_failed)?;
+        work.send((self.seq, block)).map_err(|_| worker_failed())?;
+        self.seq += 1;
         Ok(())
     }
 
-    /// The last (padded) block, every pending reply, then the offsets and the count of
-    /// compressed blocks.
-    fn finish(&mut self) -> Result<(Vec<u64>, u64)> {
+    /// The last (padded) block, then closes the queue.
+    fn finish(&mut self) -> Result<()> {
         if self.pos != self.raw_size {
             return Err(err(format!(
                 "the inner image is {} bytes, not the planned {}",
                 self.pos, self.raw_size
             )));
         }
-        if !self.block.is_empty() {
+        if self.block.is_some() {
             self.submit()?;
         }
-        while !self.pending.is_empty() {
-            self.write_oldest()?;
-        }
-        self.out.flush()?;
-        Ok((std::mem::take(&mut self.offsets), self.compressed_blocks))
+        self.work = None;
+        Ok(())
     }
 }
 
@@ -408,7 +598,7 @@ impl Write for Stream<'_> {
         Ok(buf.len())
     }
 
-    /// Blocks are written as their replies come; `wrap` drains the rest.
+    /// Blocks are written by the writer thread as they come; `wrap` waits for the rest.
     fn flush(&mut self) -> io::Result<()> {
         Ok(())
     }
@@ -481,8 +671,8 @@ mod tests {
         Ok(())
     }
 
-    fn plain(raw: &[u8]) -> io::Result<Vec<u8>> {
-        encode_block(raw, 6, 5)
+    fn plain(e: &mut BlockEncoder, raw: &[u8]) -> io::Result<Stored> {
+        e.encode(raw)
     }
 
     #[test]
@@ -520,11 +710,11 @@ mod tests {
         let r = bounded(move || {
             let mut out = File::create(d.join("e.ffpfsc")).unwrap();
             let calls = AtomicUsize::new(0);
-            let encode = move |raw: &[u8]| {
+            let encode = move |e: &mut BlockEncoder, raw: &[u8]| {
                 if calls.fetch_add(1, Ordering::Relaxed) == 5 {
                     return Err(io::Error::other("zlib broke"));
                 }
-                plain(raw)
+                plain(e, raw)
             };
             let cancel = AtomicBool::new(false);
             wrap_with(
@@ -548,11 +738,11 @@ mod tests {
         let r = bounded(move || {
             let mut out = File::create(d.join("p.ffpfsc")).unwrap();
             let calls = AtomicUsize::new(0);
-            let encode = move |raw: &[u8]| {
+            let encode = move |e: &mut BlockEncoder, raw: &[u8]| {
                 if calls.fetch_add(1, Ordering::Relaxed) == 3 {
                     panic!("encoder exploded");
                 }
-                plain(raw)
+                plain(e, raw)
             };
             let cancel = AtomicBool::new(false);
             wrap_with(
@@ -577,7 +767,9 @@ mod tests {
         let d = temp("gone");
         let r = bounded(move || {
             let mut out = File::create(d.join("g.ffpfsc")).unwrap();
-            let encode = |_: &[u8]| -> io::Result<Vec<u8>> { panic!("every worker dies") };
+            let encode = |_: &mut BlockEncoder, _: &[u8]| -> io::Result<Stored> {
+                panic!("every worker dies")
+            };
             let cancel = AtomicBool::new(false);
             let mut fill_err = None;
             let r = wrap_with(

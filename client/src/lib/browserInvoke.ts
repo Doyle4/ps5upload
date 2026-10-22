@@ -817,6 +817,7 @@ export async function browserInvoke<T>(
         verify_chunk_kib: args["verifyChunkKib"],
         full_verify: args["fullVerify"] ?? false,
         name: args["name"],
+        ffpfsc_level: args["ffpfscLevel"],
       });
     }
     case "folder_build": {

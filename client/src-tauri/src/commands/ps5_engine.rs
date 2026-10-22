@@ -2497,6 +2497,8 @@ pub async fn exfat_build(
     full_verify: Option<bool>,
     // What to call the image instead of the source's name (a game unpacked from an archive).
     name: Option<String>,
+    // How hard a .ffpfsc is compressed: fast, balanced or smallest; the engine's default when absent.
+    ffpfsc_level: Option<String>,
 ) -> Result<JsonValue, String> {
     let base = engine::url();
     let url = format!("{base}/api/exfat/build");
@@ -2511,6 +2513,7 @@ pub async fn exfat_build(
             "verify_chunk_kib": verify_chunk_kib,
             "full_verify": full_verify.unwrap_or(false),
             "name": name,
+            "ffpfsc_level": ffpfsc_level,
         }),
     )
     .await

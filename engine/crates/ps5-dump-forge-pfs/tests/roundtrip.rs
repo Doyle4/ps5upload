@@ -8,8 +8,8 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 
 use ps5_dump_forge_pfs::{
-    BLOCK, Layout, Options, PfsSource, Stream, WrapOptions, container_size_max, open_ffpfsc, plan,
-    wrap, write,
+    BLOCK, Layout, Options, PfsSource, Stream, WrapOptions, WrapReport, container_size_max,
+    open_ffpfsc, plan, wrap, write,
 };
 use ps5upload_fpkg::source::{SourceFile, SourceTree};
 use ps5upload_fpkg::{Error, Result};
@@ -739,9 +739,10 @@ fn damaged_containers_are_refused() {
         s.read("d.exfat")
     };
     assert_eq!(read(img.clone()).unwrap(), data);
-    // A garbled first block fails to inflate.
+    // A garbled first block fails to inflate: its first deflate block's type made the
+    // reserved 0b11 (the byte after the two-byte zlib header).
     let mut bad = img.clone();
-    bad[c + B + 10] ^= 0xFF;
+    bad[c + B + 2] |= 0b110;
     assert!(read(bad).is_err());
     // An offset that runs backwards.
     let mut bad = img.clone();
@@ -979,4 +980,112 @@ fn a_damaged_collision_resolver_is_refused() {
     assert_eq!(&img[at + 16..at + 34], b"collision_resolver");
     gone[at + 16] = b'C';
     assert_eq!(open_err(gone), FPT_MISMATCH);
+}
+
+/// Wraps `data` at `level` and reads every block back through the outer PFS (each compressed
+/// block inflated by the reader): `(report, bytes read)`.
+fn wrap_at(data: &[u8], level: ps5upload_fpkg::ffpfsc_block::Level) -> (WrapReport, Vec<u8>) {
+    let tmp = TempDir::new("level");
+    let path = tmp.0.join("l.ffpfsc");
+    let mut out = File::create(&path).unwrap();
+    let wopts = WrapOptions {
+        time: Some(TIME),
+        threads: 3,
+        ..WrapOptions::at(level)
+    };
+    let cancel = AtomicBool::new(false);
+    let ((), r) = wrap(
+        "blob.exfat",
+        data.len() as u64,
+        &mut out,
+        &wopts,
+        &cancel,
+        |s| Ok(s.write_all(data)?),
+    )
+    .unwrap();
+    drop(out);
+    assert_eq!(std::fs::metadata(&path).unwrap().len(), r.image_size);
+    let mut outer = PfsSource::open(&path).unwrap();
+    let bytes = outer.read("blob.exfat").unwrap();
+    (r, bytes)
+}
+
+/// Zeros, noise, text and a mix of the three, each in whole blocks and one short tail, round
+/// trip at every level; zeros are never deflated, noise stays raw, and Smallest is the
+/// smallest.
+#[test]
+fn every_level_round_trips_zeros_noise_text_and_mixed() {
+    use ps5upload_fpkg::ffpfsc_block::Level;
+    let mut x = 0x2545_F491u32;
+    let mut noise = |n: usize| -> Vec<u8> {
+        (0..n)
+            .map(|_| {
+                x ^= x << 13;
+                x ^= x >> 17;
+                x ^= x << 5;
+                x as u8
+            })
+            .collect()
+    };
+    let mut text = Vec::new();
+    let mut i = 0u32;
+    while text.len() < 3 * B {
+        text.extend_from_slice(format!("line {i}: the console inflates each block\n").as_bytes());
+        i += 1;
+    }
+    text.truncate(3 * B);
+    let mut data = Vec::new();
+    data.extend(vec![0u8; 2 * B]); // blocks 0-1: zeros
+    data.extend(noise(3 * B)); // 2-4: noise
+    data.extend(&text); // 5-7: text
+    for k in 0..2 {
+        // 8-9: half text, half noise
+        data.extend(&text[k * B..k * B + B / 2]);
+        data.extend(noise(B / 2));
+    }
+    data.extend(&text[..1000]); // 10: a short tail
+    let mut sizes = Vec::new();
+    for level in [Level::Fast, Level::Balanced, Level::Smallest] {
+        let (r, back) = wrap_at(&data, level);
+        assert!(back == data, "{level:?} did not round trip");
+        assert_eq!(r.blocks, 11);
+        assert_eq!(r.zero_blocks, 2, "{level:?}");
+        // Zeros, text, the mixes and the tail compress; noise does not.
+        assert_eq!(r.compressed_blocks, 8, "{level:?}");
+        sizes.push(r.stored_size);
+    }
+    assert!(sizes[2] <= sizes[1] && sizes[2] <= sizes[0], "{sizes:?}");
+}
+
+/// A real game's bytes round trip at every level: the first 256 MiB of the file named by
+/// `PS5UPLOAD_FFPFSC_SAMPLE` (any game file or image).
+/// PS5UPLOAD_FFPFSC_SAMPLE=/path/to/game.exfat cargo test -p ps5-dump-forge-pfs --release --test roundtrip real_game -- --ignored --nocapture
+#[test]
+#[ignore]
+fn real_game_sample_round_trips_at_every_level() {
+    use ps5upload_fpkg::ffpfsc_block::Level;
+    use std::io::Read;
+    let path = std::env::var("PS5UPLOAD_FFPFSC_SAMPLE").expect("PS5UPLOAD_FFPFSC_SAMPLE");
+    let mut data = Vec::new();
+    File::open(&path)
+        .unwrap()
+        .take(256 << 20)
+        .read_to_end(&mut data)
+        .unwrap();
+    for level in [Level::Fast, Level::Balanced, Level::Smallest] {
+        let t = std::time::Instant::now();
+        let (r, back) = wrap_at(&data, level);
+        assert!(back == data, "{level:?} did not round trip");
+        println!(
+            "{level:?}: {} -> {} bytes, {}/{} blocks compressed ({} zero, {} prechecked raw, {} strong), {:.1} s",
+            r.raw_size,
+            r.stored_size,
+            r.compressed_blocks,
+            r.blocks,
+            r.zero_blocks,
+            r.prechecked_blocks,
+            r.strong_blocks,
+            t.elapsed().as_secs_f64()
+        );
+    }
 }
