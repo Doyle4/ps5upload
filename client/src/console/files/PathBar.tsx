@@ -4,6 +4,7 @@ import type { Volume } from "../home/Home";
 import { focusElement } from "../nav";
 import { t } from "../strings";
 import { barItems, pathSegments } from "./pathParts";
+import { isSmbPath, smbSegments, type SmbShare } from "./smb";
 
 /**
  * Up, then the folder shown as buttons: ✕ on a segment jumps there. A long
@@ -16,17 +17,20 @@ export function PathBar({
   volumes,
   onOpen,
   onUp,
+  shares,
 }: {
   path: string;
   volumes: Volume[];
   onOpen: (path: string) => void;
   onUp: () => void;
+  /** Names a network share's top ("smb://<id>…" paths). */
+  shares?: SmbShare[] | null;
 }) {
   const [expanded, setExpanded] = useState(false);
   const root = useRef<HTMLElement>(null);
   /** After "…": focus the first segment it revealed. */
   const revealAt = useRef<number | null>(null);
-  const items = barItems(pathSegments(path, volumes), expanded);
+  const items = barItems(isSmbPath(path) ? smbSegments(path, shares ?? []) : pathSegments(path, volumes), expanded);
 
   useEffect(() => {
     if (revealAt.current == null) return;

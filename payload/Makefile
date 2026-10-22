@@ -98,7 +98,7 @@ SQLITE_CFLAGS := -Os -g0 \
                  -DSQLITE_DQS=0 \
                  -DSQLITE_UNTESTABLE=1
 
-INCLUDES := -Iinclude -I$(BLAKE3_DIR) -I$(SQLITE_DIR) -Ithird_party/tiny_aes -Iava1 -Iava1/gen -Ithird_party/monocypher
+INCLUDES := -Iinclude -Ismb -I$(BLAKE3_DIR) -I$(SQLITE_DIR) -Ithird_party/tiny_aes -Iava1 -Iava1/gen -Ithird_party/monocypher
 CFLAGS := -Wall -Wextra -Werror -g $(INCLUDES)
 
 # Sony sprx linkage. The payload calls sceLncUtilLaunchApp +
@@ -183,6 +183,18 @@ WEBUI_OFFLINE_C := build/webui_offline.c
 # The same checked-in ELF the engine embeds (the root Makefile builds it before this payload).
 WEBUI_INSTALLER_ELF := installer/ps5upload-installer.elf
 WEBUI_INSTALLER_C := build/webui_installer.c
+
+# The SMB daemon (payload/smb, include/smbd_proto.h): built by its own Makefile, stripped, and
+# embedded by xxd as smbd_elf[] + smbd_elf_len (include/smb_client.h), which the helper sends to the
+# console's ELF loader when the Files page first needs a network share. libsmb2 is never linked into
+# the helper itself; only the daemon's small JSON and path rules are shared (smb/smbd_json.c,
+# smb/smbd_path.c).
+SMBD_DIR := smb
+SMBD_ELF := $(SMBD_DIR)/ps5upload-smb.elf
+SMBD_ELF_C := build/smbd_elf.c
+SMBD_DEPS := $(wildcard $(SMBD_DIR)/*.c $(SMBD_DIR)/*.h) $(SMBD_DIR)/Makefile \
+        $(wildcard third_party/libsmb2/lib/*.c third_party/libsmb2/lib/*.h third_party/libsmb2/include/*.h \
+                   third_party/libsmb2/include/smb2/*.h) third_party/libsmb2/config.h include/smbd_proto.h include/config.h
 CLIENT_DIR := ../client
 WEBUI_PAGE_DEPS := $(shell find $(CLIENT_DIR)/src/console -type f ! -name '*.test.ts' 2>/dev/null) \
         $(wildcard $(CLIENT_DIR)/src/i18n/locales/*.ts) $(CLIENT_DIR)/src/index.css \
@@ -201,6 +213,7 @@ SRCS := src/main.c src/runtime.c src/shell_builtin.c src/takeover.c src/takeover
         src/webui_http.c src/webui_auth.c src/webui_server.c src/webui_codec.c src/webui_api.c \
         src/webui_settings.c src/webui_inputlog.c src/webui_files.c src/webui_cheats_store.c src/webui_tile.c src/webui_strings.c src/webui_offline.c src/files_prefs.c src/files_handoff.c $(WEBUI_TILE_ICON_C) \
         src/pkg_info.c src/webui_pkg.c $(WEBUI_INSTALLER_C) \
+        src/webui_smb.c src/smb_shares.c src/smb_client.c smb/smbd_json.c smb/smbd_path.c $(SMBD_ELF_C) \
         $(WEBUI_PAGE_C) $(WEBUI_STRINGS_C) $(WEBUI_OFFLINE_C) \
         third_party/tiny_aes/aes.c \
         $(BLAKE3_SRCS)
@@ -209,7 +222,7 @@ SRCS := src/main.c src/runtime.c src/shell_builtin.c src/takeover.c src/takeover
 # is belt-and-braces given the recipe below re-compiles every .c every
 # time, but it guards against the one case where the build system
 # otherwise misses: `touch include/foo.h` alone, with no .c change.
-HEADERS := $(wildcard include/*.h) $(wildcard $(BLAKE3_DIR)/*.h) $(wildcard ava1/*.h) $(wildcard ava1/gen/*.h)
+HEADERS := $(wildcard include/*.h) smb/smbd_json.h smb/smbd_path.h $(wildcard $(BLAKE3_DIR)/*.h) $(wildcard ava1/*.h) $(wildcard ava1/gen/*.h)
 
 all: $(ELF) $(ELF).gz
 
@@ -267,6 +280,16 @@ $(WEBUI_INSTALLER_C): $(WEBUI_INSTALLER_ELF) installer/main.c Makefile
 	sed -n 's/^#define INST_VERSION *"\([0-9.]*\)".*/const char webui_installer_version[] = "\1";/p' installer/main.c >> $@.tmp
 	grep -q webui_installer_version $@.tmp && mv $@.tmp $@
 
+# The daemon ELF, stripped (its symbols are not needed on the console), then embedded. `cd build`
+# keeps xxd's symbol names smbd_elf / smbd_elf_len.
+$(SMBD_ELF): $(SMBD_DEPS)
+	$(MAKE) -C $(SMBD_DIR)
+
+$(SMBD_ELF_C): $(SMBD_ELF) Makefile
+	@mkdir -p $(dir $@)
+	$(PS5_PAYLOAD_SDK)/bin/prospero-strip -o build/smbd.elf $(SMBD_ELF)
+	(cd build && xxd -i smbd.elf) > $@.tmp && mv $@.tmp $@
+
 # Written from the dist-console/strings the page rule's build just produced.
 $(WEBUI_STRINGS_C): $(WEBUI_PAGE_C) ../scripts/embed-console-strings.mjs Makefile
 	@mkdir -p $(dir $@)
@@ -294,7 +317,8 @@ clean:
 	rm -f $(ELF) $(ELF).gz $(SQLITE_OBJ) $(MONO_OBJ)
 	rm -rf build/ava1 $(SDK_CRT_BUILD)
 	rm -f $(WEBUI_TILE_ICON_C) $(WEBUI_PAGE_C) $(WEBUI_STRINGS_C) $(WEBUI_OFFLINE_C) build/webui_page.gz \
-		build/webui_sw.js build/webui_cache.appcache $(WEBUI_INSTALLER_C) build/webui_installer.elf
+		build/webui_sw.js build/webui_cache.appcache $(WEBUI_INSTALLER_C) build/webui_installer.elf $(SMBD_ELF_C) build/smbd.elf
+	$(MAKE) -C $(SMBD_DIR) clean
 
 send: $(ELF)
 	@echo "Sending $(ELF) to $(PS5_HOST):$(PS5_PORT) ..."

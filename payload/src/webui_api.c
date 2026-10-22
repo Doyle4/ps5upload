@@ -42,6 +42,7 @@
 #include "webui_page.h"
 #include "webui_server.h"
 #include "webui_settings.h"
+#include "webui_smb.h"
 #include "webui_strings.h"
 #include "webui_tile.h"
 
@@ -2630,6 +2631,19 @@ static const struct {
     { "/api/index/status", r_index_status },
     { "/api/index/search", r_index_search },
     { "/api/index/cancel", r_index_cancel },
+    /* network shares (webui_smb.h) */
+    { "/api/smb/shares", webui_smb_shares },
+    { "/api/smb/discover", webui_smb_discover },
+    { "/api/smb/save", webui_smb_save },
+    { "/api/smb/remove", webui_smb_remove },
+    { "/api/smb/list", webui_smb_list },
+    { "/api/smb/stat", webui_smb_stat },
+    { "/api/smb/mkdir", webui_smb_mkdir },
+    { "/api/smb/copy", webui_smb_copy },
+    { "/api/smb/delete", webui_smb_delete },
+    { "/api/smb/job", webui_smb_job },
+    { "/api/smb/cancel", webui_smb_cancel },
+    { "/api/smb/jobs", webui_smb_jobs },
 };
 
 /* The page's own headers: same-origin fetches plus the two GitHub hosts the cheat finder reads

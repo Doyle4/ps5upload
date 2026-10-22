@@ -32,6 +32,8 @@ export interface BatchProgress {
   bytesTotal?: number;
   /** A one-job batch's own line (an install's phase: its job message). */
   phase?: string | null;
+  /** Stop cancels the item running too (a network-share copy), so it is offered for one item as well. */
+  cancels?: boolean;
 }
 
 /** How often a running job is checked. */
@@ -131,10 +133,11 @@ export function startBatch<R extends BatchResult = BatchResult>(
   total: number,
   work: (ctl: BatchControl) => Promise<R>,
   paths?: string[],
+  cancels?: boolean,
 ): Promise<R> | null {
   if (progress) return null;
   stopAsked = false;
-  progress = { op, at: 0, total, stopping: false, ...(paths ? { paths } : {}) };
+  progress = { op, at: 0, total, stopping: false, ...(paths ? { paths } : {}), ...(cancels ? { cancels } : {}) };
   emit();
   const ctl: BatchControl = {
     onProgress: (at, n) => {

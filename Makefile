@@ -944,6 +944,26 @@ test-payload: payload
 		$(PAYLOAD_DIR)/tests/webui_files_selftest.c $(PAYLOAD_DIR)/src/webui_files.c
 	@/tmp/ps5upload-webui-files-selftest
 	@echo "✓ text saves and uploads go through a same-folder temp + rename; a cut-off upload leaves no file; folders stream as a valid .tar"
+	@echo "Running SMB daemon path/address/JSON self-test (host build)..."
+	@cc -O2 -Wall -Wextra -Werror -I$(PAYLOAD_DIR)/smb -I$(PAYLOAD_DIR)/include \
+		-o /tmp/ps5upload-smbd-path-selftest $(PAYLOAD_DIR)/tests/smbd_path_selftest.c \
+		$(PAYLOAD_DIR)/smb/smbd_path.c $(PAYLOAD_DIR)/smb/smbd_json.c
+	@/tmp/ps5upload-smbd-path-selftest
+	@echo "✓ share paths, server addresses and non-ASCII names parse; bad ones are refused"
+	@echo "Running SMB daemon copy state-machine self-test (host build)..."
+	@cc -O2 -Wall -Wextra -Werror -I$(PAYLOAD_DIR)/smb -I$(PAYLOAD_DIR)/include \
+		-o /tmp/ps5upload-smbd-copy-selftest $(PAYLOAD_DIR)/tests/smbd_copy_selftest.c \
+		$(PAYLOAD_DIR)/smb/smbd_copy.c $(PAYLOAD_DIR)/smb/smbd_path.c $(PAYLOAD_DIR)/smb/smbd_localfs.c
+	@/tmp/ps5upload-smbd-copy-selftest
+	@echo "✓ share copies go through a part file, survive a dropped server, cancel and refuse cleanly"
+	@echo "Running console page network-share routes self-test (host build)..."
+	@cc -O2 -Wall -Wextra -Werror -pthread -I$(PAYLOAD_DIR)/include -I$(PAYLOAD_DIR)/smb \
+		-I$(PAYLOAD_DIR)/ava1 -I$(PAYLOAD_DIR)/ava1/gen -I$(PAYLOAD_DIR)/third_party/monocypher \
+		-o /tmp/ps5upload-webui-smb-selftest $(PAYLOAD_DIR)/tests/webui_smb_selftest.c \
+		$(PAYLOAD_DIR)/src/webui_smb.c $(PAYLOAD_DIR)/src/smb_shares.c $(PAYLOAD_DIR)/smb/smbd_json.c \
+		$(PAYLOAD_DIR)/smb/smbd_path.c $(PAYLOAD_DIR)/third_party/monocypher/monocypher.c
+	@/tmp/ps5upload-webui-smb-selftest
+	@echo "✓ saved shares keep passwords out of the page and the file; copies obey the helper's path policy"
 	@echo "Running file index name-match self-test (host build)..."
 	@cc -O2 -Wall -Wextra -Werror -I$(PAYLOAD_DIR)/include \
 		-o /tmp/ps5upload-index-glob-selftest $(PAYLOAD_DIR)/tests/index_glob_selftest.c

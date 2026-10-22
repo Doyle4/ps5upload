@@ -763,6 +763,54 @@ button {
 .cw-field-error {
   color: var(--color-bad);
 }
+/* Add / edit a network share: two columns of fields so it fits the TV's 700 px height. */
+.cw-share-dialog {
+  width: 50rem;
+  max-height: calc(100vh - 2rem);
+  overflow-y: auto;
+}
+.cw-share-dialog h2 svg {
+  width: 1.1em;
+  height: 1.1em;
+  vertical-align: -0.15em;
+}
+.cw-share-dialog h2 {
+  margin-bottom: 0.2rem;
+}
+.cw-share-dialog .cw-field {
+  margin-bottom: 0.45rem;
+}
+.cw-share-dialog .cw-input {
+  padding: 0.35rem 0.6rem;
+}
+.cw-share-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  column-gap: 1rem;
+}
+.cw-share-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.6rem;
+}
+.cw-share-row .cw-field {
+  flex: 1;
+  min-width: 0;
+}
+.cw-share-row .cw-button {
+  margin-bottom: 0.8rem;
+}
+.cw-share-found {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  list-style: none;
+  padding: 0;
+  margin: 0 0 0.8rem;
+  max-height: 8rem;
+  overflow-y: auto;
+}
 .cw-info {
   margin: 0 0 1rem;
 }
@@ -1823,6 +1871,9 @@ button {
  * The folder's tools wrap under the path, the rail and rows tighten, long names and the status chip
  * cut with an ellipsis, and dialogs (the viewer and its editor too) fit the screen. */
 @media (max-width: 40rem) {
+  .cw-share-grid {
+    grid-template-columns: 1fr;
+  }
   .cw-brand {
     min-width: 0;
     overflow: hidden;

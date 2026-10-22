@@ -420,6 +420,7 @@ This software builds on the following open-source projects:
 * [BLAKE3](https://github.com/BLAKE3-team/BLAKE3) (CC0 / Apache-2.0) — fast hashing for AVA1 file verification
 * [SQLite](https://sqlite.org/) (public domain) — reading the console's app database
 * [tiny-AES-c](https://github.com/kokke/tiny-AES-c) (Unlicense) — MC4 cheat decryption
+* [libsmb2](https://github.com/sahlberg/libsmb2) (LGPL-2.1-or-later) — network shares on the console's own Files page; **vendored** at [`payload/third_party/libsmb2`](payload/third_party/libsmb2) and built into a separate on-demand daemon (`payload/smb/`), never into the helper
 
 ## Thanks
 
