@@ -1349,6 +1349,7 @@ err_service_unavailable:
   "Cette action nécessite un service Sony qui n'est pas exporté sur votre firmware. Tout le reste fonctionne toujours.",
 err_launch_no_profile:
   "Aucun profil n'est sélectionné sur la PS5. Choisissez un profil utilisateur sur l'écran d'accueil PS5, puis réessayez de lancer.",
+err_launch_no_user: "Personne n'est connecté sur la PS5. Connectez-vous d'abord sur la PS5, puis appuyez de nouveau sur Jouer.",
 err_launch_not_registered:
   "La PS5 indique que le titre n'est pas enregistré. Cliquez d'abord sur Register, ou désinscrivez puis ré-enregistrez s'il était déjà ajouté.",
 err_launch_busy:

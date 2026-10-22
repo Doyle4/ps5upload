@@ -1344,6 +1344,7 @@ err_service_unavailable:
   "Thao tác này cần một dịch vụ của Sony không được xuất ra trên firmware của bạn. Mọi thứ khác vẫn hoạt động.",
 err_launch_no_profile:
   "PS5 chưa chọn hồ sơ nào. Hãy chọn một hồ sơ người dùng trên màn hình chính PS5 rồi thử Khởi chạy lại.",
+err_launch_no_user: "Chưa có ai đăng nhập trên PS5. Hãy đăng nhập trên PS5 trước, rồi nhấn Chơi lại.",
 err_launch_not_registered:
   "PS5 cho biết tựa game chưa được đăng ký. Hãy bấm Register trước, hoặc hủy đăng ký rồi đăng ký lại nếu đã thêm trước đó.",
 err_launch_busy:

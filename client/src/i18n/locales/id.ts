@@ -1349,6 +1349,7 @@ err_service_unavailable:
   "Tindakan ini memerlukan layanan Sony yang tidak diekspor di firmware Anda. Semua lainnya tetap berfungsi.",
 err_launch_no_profile:
   "PS5 tidak memiliki profil yang dipilih. Pilih profil pengguna di layar utama PS5, lalu coba Launch lagi.",
+err_launch_no_user: "Tidak ada yang masuk di PS5. Masuk di PS5 terlebih dahulu, lalu tekan Main lagi.",
 err_launch_not_registered:
   "PS5 mengatakan judul belum terdaftar. Klik Register terlebih dahulu, atau unregister + daftar ulang jika sudah ditambahkan.",
 err_launch_busy:

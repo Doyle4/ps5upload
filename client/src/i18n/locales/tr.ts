@@ -1349,6 +1349,7 @@ err_service_unavailable:
   "Bu eylem, ürün yazılımınızda dışa aktarılmayan bir Sony servisi gerektiriyor. Diğer her şey yine de çalışır.",
 err_launch_no_profile:
   "PS5'te seçili profil yok. PS5 ana ekranından bir kullanıcı profili seçin, sonra tekrar Launch deneyin.",
+err_launch_no_user: "PS5'te oturum açmış kimse yok. Önce PS5'te oturum açın, ardından Oyna'ya tekrar basın.",
 err_launch_not_registered:
   "PS5 başlığın kayıtlı olmadığını söylüyor. Önce Register'a tıklayın veya zaten eklendiyse kaydı kaldırıp yeniden kaydedin.",
 err_launch_busy:

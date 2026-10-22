@@ -1350,6 +1350,7 @@ err_service_unavailable:
   "이 작업에는 현재 펌웨어에서 제공되지 않는 Sony 서비스가 필요합니다. 나머지 모든 기능은 정상 작동합니다.",
 err_launch_no_profile:
   "PS5에 선택된 프로필이 없습니다. PS5 홈 화면에서 사용자 프로필을 선택한 뒤 다시 실행해 보세요.",
+err_launch_no_user: "PS5에 로그인한 사용자가 없습니다. 먼저 PS5에서 로그인한 뒤 다시 플레이를 누르세요.",
 err_launch_not_registered:
   "PS5에서 타이틀이 등록되지 않았다고 합니다. 먼저 등록을 클릭하거나, 이미 추가되어 있었다면 등록 해제 후 다시 등록하세요.",
 err_launch_busy:

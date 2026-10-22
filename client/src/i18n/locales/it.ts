@@ -1331,6 +1331,7 @@ err_volumes_unavailable: "Questa volta la PS5 non ha restituito l'elenco dei vol
 err_sqlite_unavailable: "Le ricerche di registrazione dei titoli non sono disponibili su questo firmware della PS5. Il resto della vista della libreria funziona comunque.",
 err_service_unavailable: "Questa azione richiede un servizio di Sony non esportato sul tuo firmware. Tutto il resto funziona comunque.",
 err_launch_no_profile: "La PS5 non ha alcun profilo selezionato. Scegli un profilo utente nella schermata Home della PS5, poi riprova ad avviare.",
+err_launch_no_user: "Nessuno ha effettuato l'accesso sulla PS5. Accedi prima sulla PS5, poi premi di nuovo Gioca.",
 err_launch_not_registered: "La PS5 dice che il titolo non è registrato. Clicca prima Registra, oppure annulla la registrazione e registra di nuovo se era già stato aggiunto.",
 err_launch_busy: "Il launcher della PS5 è occupato con un altro titolo. Chiudi qualsiasi gioco in esecuzione sulla PS5 e riprova ad avviare.",
 err_launch_corrupt: "La PS5 dice che i dati di questo titolo sono danneggiati. L'eboot.bin o la cartella sce_sys potrebbero essere incompleti — ricarica il gioco.",

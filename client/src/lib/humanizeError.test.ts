@@ -208,6 +208,11 @@ describe("humanizePs5Error", () => {
       expect(out).toMatch(/launcher returned/i);
       expect(out).toMatch(/0x80940099/);
     });
+    it("launch_no_user → sign in on the PS5 first", () => {
+      expect(
+        humanizePs5Error("payload rejected APP_LAUNCH: launch_no_user"),
+      ).toMatch(/Sign in on the PS5 first, then press Play again/);
+    });
     it("invalid title-id error", () => {
       expect(humanizePs5Error("launch_title_id_invalid")).toMatch(
         /title id doesn't look valid/i,

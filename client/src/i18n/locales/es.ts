@@ -1331,6 +1331,7 @@ err_volumes_unavailable: "La PS5 no devolvió la lista de volúmenes esta vez �
 err_sqlite_unavailable: "Las consultas de registro de títulos no están disponibles en el firmware de esta PS5. El resto de la vista de biblioteca sigue funcionando.",
 err_service_unavailable: "Esta acción necesita un servicio de Sony que no está exportado en tu firmware. Todo lo demás sigue funcionando.",
 err_launch_no_profile: "La PS5 no tiene ningún perfil seleccionado. Elige un perfil de usuario en la pantalla de inicio de la PS5 y vuelve a intentar Launch.",
+err_launch_no_user: "No hay nadie con la sesión iniciada en la PS5. Inicia sesión primero en la PS5 y vuelve a pulsar Jugar.",
 err_launch_not_registered: "La PS5 indica que el título no está registrado. Haz clic en Register primero, o desregístralo y vuelve a registrarlo si ya estaba añadido.",
 err_launch_busy: "El lanzador de la PS5 está ocupado con otro título. Cierra cualquier juego en ejecución en la PS5 y vuelve a intentar Launch.",
 err_launch_corrupt: "La PS5 indica que los datos de este título están dañados. El eboot.bin o la carpeta sce_sys pueden estar incompletos — vuelve a subir el juego.",
