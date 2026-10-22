@@ -307,15 +307,31 @@ fn is_zero(block: &[u8]) -> bool {
 /// blocks of PPSA30883): at a 1% gain the check skips 12% of the blocks, and level 6 would have
 /// saved 14 KB on the 18 of them it could shrink.
 pub fn incompressible(block: &[u8], cap: usize) -> bool {
+    // A quarter first: most blocks of most games are plainly compressible, and their sample
+    // says so (an early "no" only means the block is deflated as usual).
+    let quarter = &block[..block.len() / 4];
+    if entropy_bits(quarter) * 4.0 / 8.0 < cap as f64 * SAMPLE_MARGIN {
+        return false;
+    }
+    entropy_bits(block) / 8.0 > cap as f64 && !repeats(block)
+}
+
+/// How far under the cap a quarter's estimate must fall to settle it: a 16 KiB sample of a
+/// block that is evenly random reads about 0.01 bit a byte low, and a block's quarters can
+/// differ; 3% under is well clear of both.
+const SAMPLE_MARGIN: f64 = 0.97;
+
+/// The order-0 entropy of `bytes`, in bits for all of them.
+fn entropy_bits(bytes: &[u8]) -> f64 {
     let mut counts = [[0u32; 256]; 4];
-    for c in block.as_chunks::<4>().0 {
+    for c in bytes.as_chunks::<4>().0 {
         counts[0][c[0] as usize] += 1;
         counts[1][c[1] as usize] += 1;
         counts[2][c[2] as usize] += 1;
         counts[3][c[3] as usize] += 1;
     }
     let [a, b, c, d] = &counts;
-    let n = block.len() as f64;
+    let n = bytes.len() as f64;
     let mut bits = 0.0;
     for (((a, b), c), d) in a.iter().zip(b).zip(c).zip(d) {
         let k = a + b + c + d;
@@ -324,7 +340,7 @@ pub fn incompressible(block: &[u8], cap: usize) -> bool {
             bits -= k * (k / n).log2();
         }
     }
-    bits / 8.0 > cap as f64 && !repeats(block)
+    bits
 }
 
 /// Whether 4-byte sequences recur in the block more than chance allows: a hash table of the
