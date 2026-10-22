@@ -1,0 +1,226 @@
+diff --git a/CPP/7zip/Archive/Bz2Handler.cpp b/CPP/7zip/Archive/Bz2Handler.cpp
+index 02eeee6..85a2ff6 100644
+--- a/CPP/7zip/Archive/Bz2Handler.cpp
++++ b/CPP/7zip/Archive/Bz2Handler.cpp
+@@ -20,11 +20,16 @@ using namespace NWindows;
+ namespace NArchive {
+ namespace NBz2 {
+ 
++// ps5upload: extract-only builds keep no update side (no encoders linked).
++#ifdef Z7_EXTRACT_ONLY
++Z7_CLASS_IMP_CHandler_IInArchive_1(IArchiveOpenSeq)
++#else
+ Z7_CLASS_IMP_CHandler_IInArchive_3(
+   IArchiveOpenSeq,
+   IOutArchive,
+   ISetProperties
+ )
++#endif
+   CMyComPtr<IInStream> _stream;
+   CMyComPtr<ISequentialInStream> _seqStream;
+   
+@@ -43,7 +48,11 @@ Z7_CLASS_IMP_CHandler_IInArchive_3(
+   UInt64 _numStreams;
+   UInt64 _numBlocks;
+ 
++#ifdef Z7_EXTRACT_ONLY
++  CCommonMethodProps _props;
++#else
+   CSingleMethodProps _props;
++#endif
+ };
+ 
+ static const Byte kProps[] =
+@@ -329,6 +338,8 @@ static HRESULT ReportArcProps(IArchiveUpdateCallbackArcProp *reportArcProp,
+ }
+ */
+ 
++#ifndef Z7_EXTRACT_ONLY
++
+ static HRESULT UpdateArchive(
+     UInt64 unpackSize,
+     ISequentialOutStream *outStream,
+@@ -469,6 +480,8 @@ Z7_COM7F_IMF(CHandler::SetProperties(const wchar_t * const *names, const PROPVAR
+   return _props.SetProperties(names, values, numProps);
+ }
+ 
++#endif // Z7_EXTRACT_ONLY
++
+ static const Byte k_Signature[] = { 'B', 'Z', 'h' };
+ 
+ REGISTER_ARC_IO(
+diff --git a/CPP/7zip/Archive/GzHandler.cpp b/CPP/7zip/Archive/GzHandler.cpp
+index 9c85bf3..0334576 100644
+--- a/CPP/7zip/Archive/GzHandler.cpp
++++ b/CPP/7zip/Archive/GzHandler.cpp
+@@ -446,11 +446,16 @@ HRESULT CItem::WriteFooter(ISequentialOutStream *stream)
+   return WriteStream(stream, buf, 8);
+ }
+ 
++// ps5upload: extract-only builds keep no update side (no encoders linked).
++#ifdef Z7_EXTRACT_ONLY
++Z7_CLASS_IMP_CHandler_IInArchive_1(IArchiveOpenSeq)
++#else
+ Z7_CLASS_IMP_CHandler_IInArchive_3(
+   IArchiveOpenSeq,
+   IOutArchive,
+   ISetProperties
+ )
++#endif
+   CItem _item;
+ 
+   bool _isArc;
+@@ -470,8 +475,10 @@ Z7_CLASS_IMP_CHandler_IInArchive_3(
+   CMyComPtr<IInStream> _stream;
+   CMyComPtr2<ICompressCoder, NDecoder::CCOMCoder> _decoder;
+ 
++#ifndef Z7_EXTRACT_ONLY
+   CSingleMethodProps _props;
+   CHandlerTimeOptions _timeOptions;
++#endif
+ 
+ public:
+   CHandler():
+@@ -858,6 +865,8 @@ Z7_COM7F_IMF(CHandler::Extract(const UInt32 *indices, UInt32 numItems,
+   COM_TRY_END
+ }
+ 
++#ifndef Z7_EXTRACT_ONLY
++
+ static const Byte kHostOS =
+   #ifdef _WIN32
+   NHostOS::kFAT;
+@@ -1185,6 +1194,8 @@ Z7_COM7F_IMF(CHandler::SetProperties(const wchar_t * const *names, const PROPVAR
+   return S_OK;
+ }
+ 
++#endif // Z7_EXTRACT_ONLY
++
+ static const Byte k_Signature[] = { kSignature_0, kSignature_1, kSignature_2 };
+ 
+ REGISTER_ARC_IO(
+diff --git a/CPP/7zip/Archive/Tar/TarHandler.h b/CPP/7zip/Archive/Tar/TarHandler.h
+index f1ef3b6..22ee644 100644
+--- a/CPP/7zip/Archive/Tar/TarHandler.h
++++ b/CPP/7zip/Archive/Tar/TarHandler.h
+@@ -14,12 +14,21 @@
+ namespace NArchive {
+ namespace NTar {
+ 
++// ps5upload: extract-only builds keep no update side (TarHandlerOut.cpp is not built).
++#ifdef Z7_EXTRACT_ONLY
++Z7_CLASS_IMP_CHandler_IInArchive_3(
++    IArchiveOpenSeq
++  , IInArchiveGetStream
++  , ISetProperties
++)
++#else
+ Z7_CLASS_IMP_CHandler_IInArchive_4(
+     IArchiveOpenSeq
+   , IInArchiveGetStream
+   , ISetProperties
+   , IOutArchive
+ )
++#endif
+ public:
+   CObjectVector<CItemEx> _items;
+   CMyComPtr<IInStream> _stream;
+diff --git a/CPP/7zip/Archive/Zip/ZipHandler.h b/CPP/7zip/Archive/Zip/ZipHandler.h
+index 1f38bff..a203148 100644
+--- a/CPP/7zip/Archive/Zip/ZipHandler.h
++++ b/CPP/7zip/Archive/Zip/ZipHandler.h
+@@ -9,12 +9,22 @@
+ 
+ #include "../../Common/CreateCoder.h"
+ 
++// ps5upload: extract-only builds keep no update side (ZipHandlerOut.cpp and the encoders are not built).
++#ifdef Z7_EXTRACT_ONLY
++#include "../Common/HandlerOut.h"
++#else
+ #include "ZipCompressionMode.h"
++#endif
+ #include "ZipIn.h"
+ 
+ namespace NArchive {
+ namespace NZip {
+ 
++#ifdef Z7_EXTRACT_ONLY
++const CMethodId kMethodId_ZipBase = 0x040100;
++const CMethodId kMethodId_BZip2   = 0x040202;
++#endif
++
+ const unsigned kNumMethodNames1 = NFileHeader::NCompressionMethod::kZstdPk + 1;
+ const unsigned kMethodNames2Start = NFileHeader::NCompressionMethod::kZstdWz;
+ const unsigned kNumMethodNames2 = NFileHeader::NCompressionMethod::kWzAES + 1 - kMethodNames2Start;
+@@ -26,29 +36,38 @@ extern const char * const kMethodNames2[kNumMethodNames2];
+ class CHandler Z7_final:
+   public IInArchive,
+   // public IArchiveGetRawProps,
++#ifndef Z7_EXTRACT_ONLY
+   public IOutArchive,
+   public ISetProperties,
++#endif
+   Z7_PUBLIC_ISetCompressCodecsInfo_IFEC
+   public CMyUnknownImp
+ {
+   Z7_COM_QI_BEGIN2(IInArchive)
+   // Z7_COM_QI_ENTRY(IArchiveGetRawProps)
++#ifndef Z7_EXTRACT_ONLY
+   Z7_COM_QI_ENTRY(IOutArchive)
+   Z7_COM_QI_ENTRY(ISetProperties)
++#endif
+   Z7_COM_QI_ENTRY_ISetCompressCodecsInfo_IFEC
+   Z7_COM_QI_END
+   Z7_COM_ADDREF_RELEASE
+ 
+   Z7_IFACE_COM7_IMP(IInArchive)
+   // Z7_IFACE_COM7_IMP(IArchiveGetRawProps)
++#ifndef Z7_EXTRACT_ONLY
+   Z7_IFACE_COM7_IMP(IOutArchive)
+   Z7_IFACE_COM7_IMP(ISetProperties)
++#endif
+   DECL_ISetCompressCodecsInfo
+ 
+ private:
+   CObjectVector<CItemEx> m_Items;
+   CInArchive m_Archive;
+ 
++#ifdef Z7_EXTRACT_ONLY
++  CCommonMethodProps _props;
++#else
+   CBaseProps _props;
+   CHandlerTimeOptions TimeOptions;
+ 
+@@ -56,6 +75,7 @@ private:
+   bool m_ForceAesMode;
+ 
+   bool _removeSfxBlock;
++#endif
+   bool m_ForceLocal;
+   bool m_ForceUtf8;
+   bool _force_SeqOutMode; // for creation
+@@ -67,12 +87,14 @@ private:
+ 
+   void InitMethodProps()
+   {
++#ifndef Z7_EXTRACT_ONLY
+     _props.Init();
+     TimeOptions.Init();
+     TimeOptions.Prec = k_PropVar_TimePrec_0;
+     m_MainMethod = -1;
+     m_ForceAesMode = false;
+     _removeSfxBlock = false;
++#endif
+     m_ForceLocal = false;
+     m_ForceUtf8 = false;
+     _force_SeqOutMode = false;
+@@ -83,7 +105,9 @@ private:
+ 
+   // void MarkAltStreams(CObjectVector<CItemEx> &items);
+ 
++#ifndef Z7_EXTRACT_ONLY
+   HRESULT GetOutProperty(IArchiveUpdateCallback *callback, UInt32 callbackIndex, Int32 arcIndex, PROPID propID, PROPVARIANT *value);
++#endif
+ 
+ public:
+   CHandler();

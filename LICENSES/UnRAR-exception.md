@@ -44,3 +44,9 @@ Reproduced as required, verbatim:
 - The on-PS5 payload (which contains GPL-3.0 code vendored from
   ps5-payload-dev) is a **separate binary** from the engine and does not link
   with UnRAR — it is mere aggregation, not a combined work.
+- The on-PS5 archive extractor (`payload/extractor`, embedded in the helper)
+  links the payload SDK's GPL-3.0 startup code, so it must not contain UnRAR
+  code either: it reads RAR with libarchive's independent, BSD-licensed RAR
+  readers, and the 7-Zip sources vendored for it (`payload/third_party/7zip`)
+  leave out 7-Zip's UnRAR-derived RAR decoders. Encrypted RAR archives are not
+  supported there for that reason.

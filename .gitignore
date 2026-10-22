@@ -65,6 +65,9 @@ client/src-tauri/gen/schemas/
 # The built ELF is embedded as a Tauri resource; we check it in as a
 # release artifact. Object files + build dirs are not.
 payload/build/
+# The extractor is embedded in the helper from a build, never checked in.
+payload/extractor/build/
+payload/extractor/ps5upload-extractor.elf
 *.o
 *.a
 *.so
@@ -109,6 +112,8 @@ fixtures_out/
 *.tar
 *.tar.gz
 *.tgz
+# The extractor's RAR test archives (libarchive's, see their README) are checked in.
+!payload/extractor/tests/fixtures/*.rar
 
 # ─── Backup / temp ───────────────────────────────────────────────────────
 *.bak
