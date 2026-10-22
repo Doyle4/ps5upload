@@ -4726,6 +4726,12 @@ library_compressed_hint: "압축 이미지를 플레이하려면 ShadowMount+가
   "browserPayload.sent": "로더에 {n}바이트를 보냈습니다.",
   "browserFile.archive": "압축 파일을 업로드하려면 네이티브 앱이 필요합니다. 일반 파일이나 디스크 이미지를 선택하세요.",
   "queue_size_unknown": "아직 크기를 알 수 없음",
+  "queue_space_need": "설치할 용량 {size}",
+  "queue_space_free": "{drive} 여유 공간 {size}",
+  "queue_space_internal": "내부 저장소",
+  "queue_space_unknown": "크기를 모르는 항목: {n}",
+  "queue_space_short": "공간이 부족할 수 있음 — 약 {size} 더 필요",
+  "queue_space_hint": "계획을 돕기 위한 추정치입니다. 각 설치는 PS5의 공간을 직접 다시 확인합니다.",
 };
 
 export default ko;

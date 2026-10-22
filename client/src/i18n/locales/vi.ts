@@ -4709,6 +4709,12 @@ library_compressed_hint: "Ảnh đĩa nén cần ShadowMount+ để chơi. Để
   "browserPayload.sent": "Đã gửi {n} byte đến trình nạp.",
   "browserFile.archive": "Tải tệp nén lên cần ứng dụng gốc. Chọn tệp thường hoặc ảnh đĩa.",
   "queue_size_unknown": "Chưa biết kích thước",
+  "queue_space_need": "{size} cần cài",
+  "queue_space_free": "Còn trống {size} trên {drive}",
+  "queue_space_internal": "bộ nhớ trong",
+  "queue_space_unknown": "Mục chưa có kích thước: {n}",
+  "queue_space_short": "Có thể không đủ chỗ — cần thêm khoảng {size}",
+  "queue_space_hint": "Ước tính để bạn lên kế hoạch. Mỗi lần cài vẫn tự kiểm tra dung lượng trên PS5.",
 };
 
 export default vi;

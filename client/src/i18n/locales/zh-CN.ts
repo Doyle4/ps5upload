@@ -4663,6 +4663,12 @@ library_compressed_hint: "压缩镜像需要 ShadowMount+ 才能游玩。如需�
   "browserPayload.sent": "已向加载器发送 {n} 字节。",
   "browserFile.archive": "上传压缩包需要使用原生应用。请选择普通文件或磁盘镜像。",
   "queue_size_unknown": "尚不清楚大小",
+  "queue_space_need": "待安装 {size}",
+  "queue_space_free": "{drive} 可用 {size}",
+  "queue_space_internal": "内部存储",
+  "queue_space_unknown": "未知大小的项目：{n}",
+  "queue_space_short": "可能放不下——还需约 {size}",
+  "queue_space_hint": "仅供规划参考的估算。每次安装仍会自行检查 PS5 上的空间。",
 };
 
 export default zh_CN;

@@ -1353,6 +1353,39 @@ describe("install items", () => {
     );
   });
 
+  it("sizes an install from the caller's size, and leaves an unknown one unknown", async () => {
+    const s = useUploadQueueStore.getState();
+    const hold = s.enqueueInstall({ host, request: { via: "stream", source: "/hold.pkg" }, displayName: "H" });
+    await waitFor(() => calls.length === 1);
+    const sized = s.enqueueInstall({
+      host, request: { via: "library", path: "/staged/s.pkg" }, displayName: "S", sizeBytes: 5_000,
+    });
+    const bad = s.enqueueInstall({
+      host, request: { via: "console-path", path: "/x.pkg" }, displayName: "X", sizeBytes: -1,
+    });
+    const items = useUploadQueueStore.getState().items;
+    expect(items.find((i) => i.id === sized.id)?.estimatedBytes).toBe(5_000);
+    expect(items.find((i) => i.id === bad.id)?.estimatedBytes).toBe(0);
+    expect(items.find((i) => i.id === hold.id)?.estimatedBytes).toBe(0);
+    // Reading the source later sizes a waiting row once; a sized or running row keeps its own.
+    s.noteSourceSize(bad.id, 7_000);
+    s.noteSourceSize(bad.id, 9_000);
+    s.noteSourceSize(sized.id, 9_000);
+    s.noteSourceSize(hold.id, 9_000);
+    const after = useUploadQueueStore.getState().items;
+    expect(after.find((i) => i.id === bad.id)?.estimatedBytes).toBe(7_000);
+    expect(after.find((i) => i.id === sized.id)?.estimatedBytes).toBe(5_000);
+    expect(after.find((i) => i.id === hold.id)?.estimatedBytes).toBe(0);
+    gate.get("/hold.pkg")!({ ok: true });
+    await hold.done;
+    // Let the other two finish so nothing is left running into the next test.
+    for (const key of ["/staged/s.pkg", "console-path"]) {
+      await waitFor(() => gate.has(key));
+      gate.get(key)!({ ok: true });
+    }
+    await Promise.all([sized.done, bad.done]);
+  });
+
   it("[RF 3] a second install on the same console waits for the first", async () => {
     const a = useUploadQueueStore.getState().enqueueInstall({
       host, request: { via: "stream", source: "/a.pkg" }, displayName: "A",

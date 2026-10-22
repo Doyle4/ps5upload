@@ -26,6 +26,7 @@ export function installOffers(
         displayName: offerLabel(game, offer),
         contentId: offer.content_id || null,
         category: offer.category,
+        sizeBytes: offer.size_bytes,
       }).done,
   );
   if (done.length > 0) {

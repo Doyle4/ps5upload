@@ -5,10 +5,15 @@ export interface StreamSelectionItem {
   name: string;
   category?: string;
   contentId?: string;
+  /** Bytes across the package's parts, when the header read said. */
+  size?: number;
 }
 export async function planStreamSelection(
   paths: string[],
-  metadata: (path: string) => Promise<{ head?: { category?: string; content_id?: string } }>,
+  metadata: (path: string) => Promise<{
+    head?: { category?: string; content_id?: string };
+    total_size?: number;
+  }>,
 ): Promise<StreamSelectionItem[]> {
   const unique = [...new Set(paths)];
   const items: StreamSelectionItem[] = [];
@@ -16,7 +21,13 @@ export async function planStreamSelection(
   for (let start = 0; start < unique.length; start += 4) {
     items.push(...await Promise.all(unique.slice(start, start + 4).map(async (path) => {
       const m = await metadata(path);
-      return { path, name: path.split(/[\\/]/).pop() || path, category: m.head?.category, contentId: m.head?.content_id };
+      return {
+        path,
+        name: path.split(/[\\/]/).pop() || path,
+        category: m.head?.category,
+        contentId: m.head?.content_id,
+        size: m.total_size && m.total_size > 0 ? m.total_size : undefined,
+      };
     })));
   }
   const tier = (category?: string) => category === "gp" ? 1 : category === "ac" ? 2 : 0;

@@ -4707,6 +4707,12 @@ library_compressed_hint: "تحتاج الصور المضغوطة إلى ShadowMo
   "browserPayload.sent": "تم إرسال {n} بايت إلى المحمّل.",
   "browserFile.archive": "يتطلب رفع الأرشيفات التطبيق الأصلي. اختر ملفاً عادياً أو صورة قرص.",
   "queue_size_unknown": "الحجم غير معروف بعد",
+  "queue_space_need": "{size} للتثبيت",
+  "queue_space_free": "{size} متاحة على {drive}",
+  "queue_space_internal": "التخزين الداخلي",
+  "queue_space_unknown": "عناصر بلا حجم: {n}",
+  "queue_space_short": "قد لا تتسع — يلزم نحو {size} إضافية",
+  "queue_space_hint": "تقدير للمساعدة في التخطيط. كل تثبيت يتحقق من المساحة على PS5 بنفسه.",
 };
 
 export default ar;

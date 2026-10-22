@@ -27,6 +27,28 @@ describe("activityFor", () => {
     });
   });
 
+  it("shows a running install by its own progress, not the queued size", () => {
+    const install = (over: Record<string, unknown>) =>
+      ({
+        id: "i",
+        sourceKind: "install",
+        sourcePath: `pc:${game}.pkg`,
+        install: { via: "stream", source: `${game}.pkg` },
+        addr: "192.168.0.100",
+        status: "running",
+        bytesSent: 0,
+        totalBytes: 0,
+        estimatedBytes: 1000,
+        ...over,
+      }) as unknown as QueueItem;
+    const at = (it: QueueItem) => activityFor(`${game}.pkg`, [it], idle, "192.168.0.100");
+    expect(at(install({}))).toMatchObject({ phase: "sending", installing: true, pct: null });
+    expect(at(install({ installPct: 40 }))).toMatchObject({ pct: 40 });
+    expect(
+      at(install({ installPct: 40, installProgress: { phase: "transfer", current: 250, total: 1000, bytesPerSec: 0 } })),
+    ).toMatchObject({ pct: 25 });
+  });
+
   it("leaves the same game free to send to another console", () => {
     // Sending a game to the Pro disabled its Send button for the Phat too.
     expect(activityFor(game, [sending("192.168.0.100")], idle, "192.168.0.99")).toBeNull();

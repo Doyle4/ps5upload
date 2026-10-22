@@ -1073,6 +1073,8 @@ interface PkgLibraryState {
       displayName?: string;
       category?: string;
       contentId?: string;
+      /** The package's size when the caller knows it (sizes the queue row). */
+      sizeBytes?: number | null;
     },
   ) => Promise<{
     ok: boolean;
@@ -1094,7 +1096,13 @@ interface PkgLibraryState {
   installUrl: (
     url: string,
     host: string,
-    opts?: { mode?: LinkInstallMode; displayName?: string; existing?: ExistingChoice },
+    opts?: {
+      mode?: LinkInstallMode;
+      displayName?: string;
+      existing?: ExistingChoice;
+      /** The size the link probe reported, if any (sizes the queue row). */
+      sizeBytes?: number | null;
+    },
   ) => ReturnType<PkgLibraryState["installStream"]>;
   /** Download a link to this computer's disk, then install the local file.
    *
@@ -1149,6 +1157,8 @@ interface PkgLibraryState {
   installFromConsolePath: (
     path: string,
     host: string,
+    /** `sizeBytes`: the file's size from the listing (sizes the queue row). */
+    opts?: { sizeBytes?: number | null },
   ) => Promise<{
     ok: boolean;
     message?: string;
@@ -2866,6 +2876,7 @@ const makePkgLibraryStore = () =>
         displayName: entry?.title || entry?.contentId || basenameOf(path),
         contentId: entry?.contentId ?? null,
         category: entry?.category ?? null,
+        sizeBytes: entry?.size ?? null,
       }).done;
     },
 
@@ -2888,6 +2899,7 @@ const makePkgLibraryStore = () =>
         displayName: entry?.title || entry?.contentId || basenameOf(path),
         contentId: entry?.contentId ?? null,
         category: entry?.category ?? null,
+        sizeBytes: entry?.size ?? null,
       }).done;
     },
 
@@ -2950,6 +2962,7 @@ const makePkgLibraryStore = () =>
               displayName: target.title || target.contentId || basenameOf(target.path),
               contentId: target.contentId ?? null,
               category: target.category ?? null,
+              sizeBytes: target.size ?? null,
             }).done.then((r) => {
               if (r.ok) ok++;
               else failed++;
@@ -3080,6 +3093,8 @@ const makePkgLibraryStore = () =>
       // whole: a 100 GB package over a slow link legitimately takes hours,
       // and the engine reports an error the moment one actually occurs.
       const rateSamples: RateSample[] = [{ ts: Date.now(), bytes: 0 }];
+      // The finished file's size, for the install's queue row.
+      let downloadedBytes: number;
       for (;;) {
         await new Promise((r) => setTimeout(r, 1000));
         let st: {
@@ -3104,6 +3119,7 @@ const makePkgLibraryStore = () =>
         }
         const written = st.written ?? 0;
         const size = st.total && st.total > 0 ? st.total : total;
+        downloadedBytes = Math.max(written, size);
         const now = Date.now();
         pushRateSample(rateSamples, now, written);
         const bytesPerSec = computeRate(rateSamples, now);
@@ -3129,11 +3145,10 @@ const makePkgLibraryStore = () =>
       });
       log.info("install", "download finished; installing from the local file");
       // From here it is a local file, so the link can expire freely.
-      return get().installStream(
-        path,
-        host,
-        displayName?.trim() ? { displayName: displayName.trim() } : undefined,
-      );
+      return get().installStream(path, host, {
+        ...(displayName?.trim() ? { displayName: displayName.trim() } : {}),
+        sizeBytes: downloadedBytes > 0 ? downloadedBytes : null,
+      });
     },
     async installUrl(url, host, opts) {
       const trimmed = url.trim();
@@ -3169,6 +3184,7 @@ const makePkgLibraryStore = () =>
           insecureTls: useLinkInstallPrefs.getState().insecureFor(host),
         },
         displayName: name,
+        sizeBytes: opts?.sizeBytes ?? null,
       }).done;
     },
 
@@ -3618,7 +3634,14 @@ const makePkgLibraryStore = () =>
       const owns = !!onTask && !streamTaskCallbacks.has(key);
       if (owns) streamTaskCallbacks.set(key, onTask);
       try {
-        return await enqueueInstall({ host, request, displayName: name, category: opts?.category, contentId: opts?.contentId }).done;
+        return await enqueueInstall({
+          host,
+          request,
+          displayName: name,
+          category: opts?.category,
+          contentId: opts?.contentId,
+          sizeBytes: opts?.sizeBytes ?? null,
+        }).done;
       } finally {
         // Removed without running (Stop, Clear, refused): don't leak it.
         if (owns && streamTaskCallbacks.get(key) === onTask) streamTaskCallbacks.delete(key);
@@ -3632,6 +3655,7 @@ const makePkgLibraryStore = () =>
         request: { via: "external", pkg },
         displayName: pkg.name,
         contentId: pkg.contentId || null,
+        sizeBytes: pkg.size,
       }).done;
     },
 
@@ -3805,12 +3829,13 @@ const makePkgLibraryStore = () =>
       }
     },
 
-    async installFromConsolePath(path, host) {
+    async installFromConsolePath(path, host, opts) {
       if (!host?.trim()) return { ok: false, message: "No PS5 host selected." };
       return enqueueInstall({
         host,
         request: { via: "console-path", path },
         displayName: path.split("/").pop() || path,
+        sizeBytes: opts?.sizeBytes ?? null,
       }).done;
     },
 

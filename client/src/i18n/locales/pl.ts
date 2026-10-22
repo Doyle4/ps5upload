@@ -4962,6 +4962,12 @@ library_compressed_hint: "Skompresowane obrazy wymagają ShadowMount+, aby grać
   "browserPayload.sent": "Wysłano {n} bajtów do loadera.",
   "browserFile.archive": "Przesyłanie archiwów wymaga aplikacji natywnej. Wybierz zwykły plik lub obraz dysku.",
   "queue_size_unknown": "Rozmiar jeszcze nieznany",
+  "queue_space_need": "Do zainstalowania: {size}",
+  "queue_space_free": "Wolne na {drive}: {size}",
+  "queue_space_internal": "pamięć wewnętrzna",
+  "queue_space_unknown": "Pozycje bez rozmiaru: {n}",
+  "queue_space_short": "Może się nie zmieścić — potrzeba ok. {size} więcej",
+  "queue_space_hint": "Szacunek do planowania. Każda instalacja i tak sama sprawdza miejsce na PS5.",
 };
 
 export default pl;

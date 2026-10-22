@@ -63,6 +63,9 @@ export interface EnqueueInstallInput {
   contentId?: string | null;
   /** PARAM.SFO category (gd / gp / ac): orders base → update → DLC. */
   category?: string | null;
+  /** The package's size in bytes when the caller knows it (library entry, file listing, link
+   *  probe). Becomes the row's `estimatedBytes`; unknown (0/null) stays unknown. */
+  sizeBytes?: number | null;
 }
 
 export interface EnqueuedInstall {

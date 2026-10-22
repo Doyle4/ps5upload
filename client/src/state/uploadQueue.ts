@@ -445,6 +445,10 @@ interface QueueState {
    *  pending work keeps draining — unlike Stop, which halts the whole console.
    *  A pending/finished item is just removed. */
   cancelItem: (id: string) => void;
+  /** A waiting row with no size learned one from reading its source (the queue row's
+   *  inspection): it becomes the row's `estimatedBytes`. A row that already has a size, or is
+   *  no longer waiting, is left alone. */
+  noteSourceSize: (id: string, bytes: number) => void;
   moveUp: (id: string) => void;
   moveDown: (id: string) => void;
   clear: () => void;
@@ -606,6 +610,11 @@ export function sameInstall(it: QueueItem, input: EnqueueInstallInput): boolean 
   if (it.status !== "pending" && it.status !== "running") return false;
   if (hostOf(it.addr) !== hostOf(input.host)) return false;
   return installKey(it.install) === installKey(input.request);
+}
+
+/** A caller's size, or 0 (unknown) for anything that is not a positive whole byte count. */
+function knownSize(n: number | null | undefined): number {
+  return typeof n === "number" && Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
 }
 
 function installKey(r: InstallRequest): string {
@@ -2140,6 +2149,7 @@ export const useUploadQueueStore = create<QueueState>((set, get) => {
         contentId: input.contentId ?? null,
         category: input.category ?? null,
         install: input.request,
+        estimatedBytes: knownSize(input.sizeBytes),
       });
       const items = get().items;
       const added = items[items.length - 1];
@@ -2314,6 +2324,15 @@ export const useUploadQueueStore = create<QueueState>((set, get) => {
       if (wasRunning && nextPendingForHost(get().items, h)) {
         void get().startHost(h);
       }
+    },
+
+    noteSourceSize(id, bytes) {
+      const size = knownSize(bytes);
+      if (!size) return;
+      const it = get().items.find((x) => x.id === id);
+      if (!it || it.status !== "pending" || (it.estimatedBytes ?? 0) > 0) return;
+      set((s) => ({ items: patchItem(s.items, id, { estimatedBytes: size }) }));
+      scheduleSave();
     },
 
     moveUp(id) {
@@ -2669,6 +2688,7 @@ export const useUploadQueueStore = create<QueueState>((set, get) => {
     retryInstallViaUpload: () => Promise.resolve({ ok: false, message: readOnlyMessage }),
     remove: () => undefined,
     cancelItem: () => undefined,
+    noteSourceSize: () => undefined,
     moveUp: () => undefined,
     moveDown: () => undefined,
     clear: () => undefined,
