@@ -44,7 +44,7 @@ int webui_tile_remove_files(const char *dir);
 /* What ensure does, from what it observed (pure; host-tested):
  *   files_changed  webui_tile_write_files rewrote a file (register copies sce_sys: must re-copy)
  *   mount_live     the nullfs at /system_ex/app/PSUP00001 is mounted
- *   lnk_ours       /user/app/PSUP00001/mount.lnk names WEBUI_TILE_DIR
+ *   lnk_ours       the tracker (/user/app/PSUP00001/ps5upload.lnk, or mount.lnk) names WEBUI_TILE_DIR
  *   appmeta        /user/appmeta/PSUP00001 exists
  * NONE: registered this boot, nothing to do. REBIND: registered before, but the bind did not
  * survive a reboot: re-mount only, no Sony call (a full register on FW 13.x runs AppInstallAll,

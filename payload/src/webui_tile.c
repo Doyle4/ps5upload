@@ -296,6 +296,13 @@ webui_tile_result_t webui_tile_settle_with(const webui_tile_sweep_ops_t *o, int 
 #define TILE_THREAD_NAME "ps5upload-tile"
 #define TILE_SYSTEM_EX "/system_ex/app/" WEBUI_TILE_TITLE_ID
 #define TILE_MOUNT_LNK "/user/app/" WEBUI_TILE_TITLE_ID "/mount.lnk"
+/* The tile's tracker while it is registered: mount.lnk under another name. ShadowMount+ 1.7 treats
+ * every /user/app/<id>/mount.lnk as one of its on-demand titles and unmounts its /system_ex/app
+ * bind a few seconds after it appears ("[LINK] runtime layers released: PSUP00001", measured on the
+ * Phat, FW 13.60, SMP v1.7beta7: the tile's bind lasted under 6 s with mount.lnk and 60 s+ without
+ * it). An unbound tile is the greyed-out icon that still opens the page (#480). unregister_title
+ * recognizes our registrations by mount.lnk, so it is put back just before an unregister. */
+#define TILE_OWN_LNK "/user/app/" WEBUI_TILE_TITLE_ID "/ps5upload.lnk"
 
 /* Serializes ensure and remove (Sony calls, the folder) whoever calls them. */
 static pthread_mutex_t g_op_mu = PTHREAD_MUTEX_INITIALIZER;
@@ -310,11 +317,13 @@ static int tile_mount_live(void) {
     return statfs(TILE_SYSTEM_EX, &sfs) == 0 && strcmp(sfs.f_mntonname, TILE_SYSTEM_EX) == 0;
 }
 
-/* /user/app/PSUP00001/mount.lnk (written by register_title_from_path) names WEBUI_TILE_DIR. */
+/* The tracker (TILE_OWN_LNK, or mount.lnk as register_title_from_path and older helpers left it)
+ * names WEBUI_TILE_DIR. */
 static int tile_lnk_ours(void) {
     char lnk[256];
     ssize_t n;
-    int fd = open(TILE_MOUNT_LNK, O_RDONLY);
+    int fd = open(TILE_OWN_LNK, O_RDONLY);
+    if (fd < 0) fd = open(TILE_MOUNT_LNK, O_RDONLY);
     if (fd < 0) return 0;
     n = read(fd, lnk, sizeof lnk - 1);
     close(fd);
@@ -365,12 +374,44 @@ static int tile_register(void) {
 /* The tile is on the home screen (again): remember that the helper put it there, stop the icon
  * keeper hiding it, and make its icon visible: an earlier removal may have only been able to hide
  * it, and a registered tile must never stay invisible. "No icon" (app.db not updated yet) is fine. */
+/* mount.lnk -> TILE_OWN_LNK (same directory), so ShadowMount+ leaves the bind alone; when it already
+ * released the bind in the seconds mount.lnk was there, bind it again. */
+static void tile_lnk_hide_from_smp(void) {
+    const char *err = NULL;
+    if (access(TILE_MOUNT_LNK, F_OK) == 0) {
+        if (rename(TILE_MOUNT_LNK, TILE_OWN_LNK) != 0) {
+            fprintf(stderr, "webui tile: cannot rename %s: %s\n", TILE_MOUNT_LNK, strerror(errno));
+            return;
+        }
+        fprintf(stderr, "webui tile: tracker kept as %s (ShadowMount+ releases titles with a mount.lnk)\n",
+                TILE_OWN_LNK);
+    }
+    if (!tile_mount_live()) {
+        if (register_remount_nullfs(WEBUI_TILE_TITLE_ID, WEBUI_TILE_DIR, &err) == 0)
+            fprintf(stderr, "webui tile: the bind was released meanwhile; bound again\n");
+        else
+            fprintf(stderr, "webui tile: the bind was released and re-binding failed: %s\n", err ? err : "unknown");
+    }
+}
+
+/* TILE_OWN_LNK -> mount.lnk, so unregister_title sees our registration (unmounts the bind, removes
+ * the appmeta copy). */
+static void tile_lnk_restore(void) {
+    if (access(TILE_OWN_LNK, F_OK) != 0) return;
+    if (access(TILE_MOUNT_LNK, F_OK) == 0) (void)unlink(TILE_OWN_LNK);
+    else if (rename(TILE_OWN_LNK, TILE_MOUNT_LNK) != 0)
+        fprintf(stderr, "webui tile: cannot restore %s: %s\n", TILE_MOUNT_LNK, strerror(errno));
+}
+
 static void tile_now_registered(void) {
     char why[160] = {0};
     int fd = open(WEBUI_TILE_MARKER, O_WRONLY | O_CREAT | O_TRUNC, 0666);
     if (fd >= 0) close(fd);
+    webui_tile_seen_t seen;
+    tile_lnk_hide_from_smp();
     icon_keeper_note(WEBUI_TILE_TITLE_ID, 0);
     (void)content_db_icon_set_visible(WEBUI_TILE_TITLE_ID, 1, why, sizeof why);
+    tile_look(&seen, "registered");
 }
 
 int webui_tile_respect_outside_removal(void) {
@@ -401,6 +442,9 @@ int webui_tile_ensure(uint16_t port) {
     const char *err = NULL;
     int changed, rc = 0;
     pthread_mutex_lock(&g_op_mu);
+    /* First: a removal had the icon keeper keep PSUP00001 hidden, and the register below changes
+     * app.db, which wakes the keeper (seen on the Phat: it hid the new icon mid-register). */
+    icon_keeper_note(WEBUI_TILE_TITLE_ID, 0);
     changed = webui_tile_write_files(WEBUI_TILE_DIR, port);
     if (changed < 0) {
         fprintf(stderr, "webui tile: cannot write %s: %s\n", WEBUI_TILE_DIR, strerror(errno));
@@ -441,8 +485,10 @@ static int op_unregister(void *ctx, int *confirmed, int *sony_ok) {
     const char *err = NULL;
     unregister_outcome_t o;
     (void)ctx;
+    tile_lnk_restore();
     if (unregister_title(WEBUI_TILE_TITLE_ID, &err, &o) != 0) {
         fprintf(stderr, "webui tile: unregister failed: %s; keeping %s\n", err ? err : "unknown", WEBUI_TILE_DIR);
+        tile_lnk_hide_from_smp();
         return -1;
     }
     *confirmed = unregister_tile_confirmed(&o);
