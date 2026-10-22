@@ -14,7 +14,7 @@
  * itself, whatever the curve looked like (#400, after #354). */
 
 /* The most we set (HW_FAN_THRESHOLD_MAX, checked in fan_curve.c). */
-#define FAN_MAP_MAX_C   80
+#define FAN_MAP_MAX_C   85
 /* Floor, equal to HW_FAN_THRESHOLD_MIN (checked in fan_curve.c). */
 #define FAN_MAP_MIN_C   45
 /* "Leave it to the console": restore its own value and stop overriding it. */

@@ -36,6 +36,7 @@
 
 #include "hw_info.h"
 #include "hw_guard.h"
+#include "fan_servo.h"
 #include "config.h"
 
 /* ── Fault guard for Sony hardware getters ────────────────────────
@@ -121,40 +122,35 @@ int hw_guard_call_out(const char *label, int (*fn)(void *), void *out) {
  * 28 bytes even though only the threshold at offset 5 matters. A smaller
  * buffer (we shipped 10) takes an 18-byte stack overflow on the copyout.
  *
+ * The 28 bytes are the controller's whole runtime profile, and SET passes
+ * bytes 2..27 on to it: every write is GET, change byte 5, SET, GET again
+ * (fan_servo.c), never a zero-filled buffer with only the target in it.
+ *
  * Why the O_RDONLY open flag with a WRITE ioctl: FreeBSD's ioctl
  * permission check allows RDONLY fds for IOC_INOUT commands. Both
  * reference implementations open RDONLY — keeping the same flag
  * here means if Sony ever tightens the check (e.g., requires RDWR
  * on future firmware), our behavior will fail the same way theirs
  * does, and we can match their eventual fix. */
-#define ICC_FAN_IOCTL_SET_THRESHOLD 0xC01C8F07UL
-/* The read side of the same 28-byte profile. Byte 5 is the temperature the firmware's own
- * fan control works to hold; measured on FW 13.60 (CFI-1115A and CFI-7019) it reads 0x5b =
- * 91 C out of the box, and a write changes that byte and nothing else in the profile. */
-#define ICC_FAN_IOCTL_GET_STATE     0xC01C8F08UL
 #define ICC_FAN_DEVICE_NODE         "/dev/icc_fan"
-#define ICC_FAN_CMD_LEN             28  /* = IOCPARM_LEN(0xC01C8F07); kernel copies in/out this many bytes */
-#define ICC_FAN_THRESHOLD_OFFSET    5
 
-/* PS5 firmware resets the fan threshold to its stock value on every
- * app/game launch (and on suspend/resume + some system-menu paths).
- * Without auto-reapply, the user's "65 °C threshold" setting silently
- * reverts the moment they boot a game — exactly the workload where
- * the lower threshold matters. A background thread that re-issues the
- * pinned value every 15 s defeats the reset cheaply; sonicloader's
- * fan daemon uses the same interval and it's been stable in the wild.
+/* PS5 firmware puts its own fan target back whenever it switches fan
+ * pattern: every app/game launch and exit (home <-> game), and on
+ * suspend/resume. Without a guard the user's "70 °C" silently reverts
+ * the moment they boot a game — exactly the workload where it matters.
  *
- * Why 15 s and not faster: the firmware reset happens once per launch
- * transition (not continuously), so any tick smaller than the
- * user-perceptible delay between launch and "fan ramps up" is enough.
- * Going below 5 s would just burn extra ioctls for no thermal gain.
+ * The guard reads the target (one GET) every tick and writes only when
+ * it differs, so a short tick costs one cheap ioctl and puts the target
+ * back within about 2 s of a launch (drakmor/fan_target polls the same
+ * way). It used to re-write blindly every 15 s, which also re-sent the
+ * zeroed profile each time.
  *
- * The interval is user-configurable via hw_fan_set_reapply_interval()
- * (persisted to fan_reapply.conf). Default is 15 s if no persisted
- * file exists. Clamped to [1, 300] so a misconfigured value can't
- * disable the watcher (0 would spin-loop) or make it effectively
- * dormant (>300 s risks a game-launch reset going uncountered). */
-#define FAN_REAPPLY_DEFAULT_SEC  15
+ * The tick is user-configurable via hw_fan_set_reapply_interval()
+ * (persisted to fan_reapply.conf as "v3 <s>"); a file from the 15 s days
+ * moves to the 2 s default once. Clamped to [1, 300] so a misconfigured
+ * value can't spin the thread (0) or leave a launch reset in place for
+ * minutes. */
+#define FAN_REAPPLY_DEFAULT_SEC  2
 /* Physical bounds for the SoC power rails. A single rail drawing over 200 W,
  * or a total over 500 W, is not a real reading on this hardware — report 0
  * ("unavailable") rather than a fabricated number. */
@@ -692,24 +688,21 @@ int hw_temps_get_text_ex(int flags, char *out, size_t out_cap,
             }
         }
 
-        /* Current fan duty as a percentage. `scratch` is an opaque buffer
-         * the API writes into; its required size isn't documented, so we
-         * give it a generous zeroed 256-byte buffer (the reference passes a
-         * scratch and reads cleanly — 256 is well above any plausible need).
-         * The raw duty is a uint16; PS5 fan duty is reported either as a
-         * 0..100 percentage or a 0..255 PWM value, so we map >100 down from
-         * the 0..255 scale and clamp. Approximate by design (the exact
-         * scale is the one thing to confirm on hardware). */
-        if ((flags & HW_EXT_FAN) && g_hw.fan_duty) {
-            uint16_t duty = 0;
-            unsigned char scratch[256] = {0};
-            if (g_hw.fan_duty(&duty, scratch) == 0) {
-                int pct = (duty <= 100) ? (int)duty
-                                        : (int)(((int)duty * 100 + 127) / 255);
-                if (pct < 0) pct = 0;
-                if (pct > 100) pct = 100;
-                fan_duty_pct = pct;
+        /* Current fan duty as a percentage. The controller reports it as
+         * Q10 PWM (1024 = 100 %), not RPM: read it straight from
+         * /dev/icc_fan (0xC0148F02, the ioctl sceKernelGetCurrentFanDuty
+         * itself makes), and only when that fails from the Sony getter,
+         * whose second argument is chassis info (`scratch`, generously
+         * sized). The scale was once taken for 0..100 or 0..255, which
+         * showed a 19 % fan as 76 %. */
+        if (flags & HW_EXT_FAN) {
+            int q10 = hw_fan_read_duty_q10();
+            if (q10 < 0 && g_hw.fan_duty) {
+                uint16_t duty = 0;
+                unsigned char scratch[256] = {0};
+                if (g_hw.fan_duty(&duty, scratch) == 0 && duty <= 1024u) q10 = duty;
             }
+            if (q10 >= 0) fan_duty_pct = fan_duty_q10_pct((unsigned)q10);
         }
 
         /* Basic product shape — a raw Sony enum that distinguishes hardware
@@ -723,8 +716,6 @@ int hw_temps_get_text_ex(int flags, char *out, size_t out_cap,
         }
     }
 
-    int fan_pinned_c = hw_fan_pinned_threshold();
-
     int n = snprintf(out, out_cap,
         "cpu_temp=%d\n"
         "soc_temp=%d\n"
@@ -734,17 +725,20 @@ int hw_temps_get_text_ex(int flags, char *out, size_t out_cap,
         "soc_power_mw=%u\n"
         "cpu_usage_pct=%d\n"
         "fan_duty_pct=%d\n"
-        "product_shape=%d\n"
-        "fan_pinned_c=%d\n"
-        "fan_target_c=%d\n"
-        "fan_stock_c=%d\n",
+        "product_shape=%d\n",
         cpu_temp, soc_temp, m2_temp, cpu_freq_mhz, power_mw,
-        cpu_usage_pct, fan_duty_pct, product_shape, fan_pinned_c,
-        hw_fan_read_target(), hw_fan_stock_target());
+        cpu_usage_pct, fan_duty_pct, product_shape);
     if (n < 0 || (size_t)n >= out_cap) {
         if (err_reason_out) *err_reason_out = "hw_temps_format_failed";
         return -1;
     }
+    /* The fan's state: the target held now, the console's own, the guard, the 28-byte profile. */
+    int f = hw_fan_status_text(out + n, out_cap - (size_t)n);
+    if (f < 0 || (size_t)f >= out_cap - (size_t)n) {
+        if (err_reason_out) *err_reason_out = "hw_temps_format_failed";
+        return -1;
+    }
+    n += f;
     if (out_written) *out_written = (size_t)n;
     return 0;
 }
@@ -912,39 +906,44 @@ int hw_storage_get_text(char *out, size_t out_cap, size_t *out_written,
     return 0;
 }
 
-/* ── Fan auto-reapply watcher ─────────────────────────────────────
+/* ── Fan guard (keeps a pinned target in place) ───────────────────
  *
- * State lives in two atomics:
- *   g_pinned_threshold_c — the value to keep re-applying. 0 means
- *     "nothing pinned"; the watcher early-exits on a 0 tick so a
- *     payload that never sets fan stays at zero cost.
+ * State:
+ *   g_pinned_threshold_c — the target to keep. 0 means "nothing
+ *     pinned"; the watcher then does no ioctl at all, so a payload
+ *     that never sets the fan stays at zero cost.
+ *   g_fan_guard — restores counted, consecutive failed writes, and
+ *     whether it gave up (fan_servo.h). Guarded by g_fan_set_mtx.
  *   g_fan_watcher_started — guard for one-shot lazy launch. We use
  *     atomic_exchange so the second concurrent caller sees the prior
  *     "1" return value and bails before pthread_create runs again.
  *
  * Why lazy-start instead of starting from runtime_init: most ps5upload
  * sessions never touch the fan (the user only sent files), so paying
- * for an idle pthread + 15s wake-up tick on every payload boot would
- * be wasted work. First successful fan set wakes the watcher; once
- * armed it stays for the payload's lifetime (detached, no join). */
+ * for an idle pthread on every payload boot would be wasted work. First
+ * successful fan set wakes the watcher; once armed it stays for the
+ * payload's lifetime (detached, no join). */
 static atomic_int g_pinned_threshold_c   = 0;
 static atomic_int g_fan_watcher_started  = 0;
-/* Reapply interval in seconds (user-configurable, persisted). Loaded
+/* Watcher tick in seconds (user-configurable, persisted). Loaded
  * from fan_reapply.conf at boot, defaults to FAN_REAPPLY_DEFAULT_SEC.
  * The watcher thread reads this every cycle so a runtime change takes
  * effect on the next tick without restarting the thread. */
 static atomic_int g_fan_reapply_sec = FAN_REAPPLY_DEFAULT_SEC;
-/* Serializes the (ioctl, pin) sequence inside `hw_fan_set_threshold`.
+static fan_guard_t g_fan_guard = FAN_GUARD_INIT;
+/* The first write whose read-back differed outside byte 5 is logged; later ones are not. */
+static int g_fan_mismatch_logged = 0;
+/* Serializes every write to the controller (user set, restore, the
+ * watcher's put-back) with the pin and the guard state.
  *
  * Two concurrent callers setting different thresholds could
- * otherwise interleave: A opens/ioctls 50 → kernel state = 50;
- * B opens/ioctls 70 → kernel state = 70; A pins 50 → atomic = 50;
- * B pins 70 → atomic = 70.   That sequence ends consistent, but
- * SWAP one pair: A's ioctl 50 → kernel 50, B's ioctl 70 → kernel 70,
- * B's pin 70 → atomic 70, A's pin 50 → atomic 50.   Now the watcher
- * drives kernel back to 50 every 15s even though B was the most-
- * recent caller. Holding this mutex across the whole sequence
- * forces last-writer-wins consistency. */
+ * otherwise interleave: A writes 50 → kernel state = 50;
+ * B writes 70 → kernel state = 70; B pins 70 → atomic = 70;
+ * A pins 50 → atomic = 50. Now the watcher drives the kernel back
+ * to 50 even though B was the most-recent caller. And a watcher
+ * tick that read the pin just before a restore could write our
+ * value back over the console's own. Holding this mutex across the
+ * whole sequence forces last-writer-wins consistency. */
 static pthread_mutex_t g_fan_set_mtx = PTHREAD_MUTEX_INITIALIZER;
 
 int hw_fan_pinned_threshold(void) {
@@ -1007,32 +1006,29 @@ static void hw_fan_save_persisted(uint8_t threshold_c) {
     fclose(fp);
 }
 
-/* ── Reapply interval persistence ──────────────────────────────────
+/* ── Watcher tick persistence ──────────────────────────────────────
  *
- * Same trivial one-line-file format as the threshold. Loaded once at
- * boot from hw_fan_load_reapply_interval (called by main alongside
- * hw_fan_load_persisted). Saved on every successful call to
- * hw_fan_set_reapply_interval. */
+ * Same trivial one-line-file format as the threshold, tagged "v3". Loaded
+ * once at boot from hw_fan_load_reapply_interval (called by main
+ * alongside hw_fan_load_persisted, which then saves it back through
+ * hw_fan_set_reapply_interval, so an old file is rewritten as v3 once).
+ * The 15 s builds wrote a bare number their own loader never accepted;
+ * fan_reapply_parse moves that 15 to the 2 s default. */
 
 int hw_fan_load_reapply_interval(void) {
+    char text[32] = {0};
     FILE *fp = fopen(FAN_REAPPLY_PERSIST_PATH, "r");
     if (!fp) return FAN_REAPPLY_DEFAULT_SEC;
-    /* "v2 <C>" since #354. A file without the tag was written by a build that pinned a fan
-     * curve's FIRST point as the turbo threshold (fans at 100 % from ~50 C); it cannot be told
-     * apart from a deliberate threshold, so it is ignored once and the console runs stock until
-     * the user sets a threshold or a curve again. */
-    int val = 0;
-    int matched = fscanf(fp, "v2 %d", &val);
+    size_t n = fread(text, 1, sizeof text - 1, fp);
     fclose(fp);
-    if (matched != 1 || val < FAN_REAPPLY_MIN_SEC || val > FAN_REAPPLY_MAX_SEC)
-        return FAN_REAPPLY_DEFAULT_SEC;
-    return val;
+    text[n] = '\0';
+    return fan_reapply_parse(text, FAN_REAPPLY_DEFAULT_SEC, FAN_REAPPLY_MIN_SEC, FAN_REAPPLY_MAX_SEC);
 }
 
 static void hw_fan_save_reapply_interval(int seconds) {
     FILE *fp = fopen(FAN_REAPPLY_PERSIST_PATH, "w");
     if (!fp) return;
-    fprintf(fp, "%d\n", seconds);
+    fprintf(fp, "v3 %d\n", seconds);
     fclose(fp);
 }
 
@@ -1047,17 +1043,67 @@ void hw_fan_set_reapply_interval(int seconds) {
     hw_fan_save_reapply_interval(seconds);
 }
 
-/* Forward decl — defined below the setter so it can share the same
- * fd open/ioctl pattern via a static helper. */
-static int hw_fan_apply_locked(uint8_t threshold_c);
+/* ── The controller: read and write the whole 28-byte profile ──── */
+
+static int hw_fan_ioctl(void *ctx, unsigned long req, uint8_t *buf) {
+    return ioctl(*(int *)ctx, req, buf);
+}
+
+/* The 28-byte profile (selector 0) into obj: 0, or -1. */
+static int hw_fan_read_servo(uint8_t obj[FAN_SERVO_LEN]) {
+    int fd = open(ICC_FAN_DEVICE_NODE, O_RDONLY);
+    if (fd < 0) return -1;
+    int rc = fan_servo_get(hw_fan_ioctl, &fd, obj);
+    close(fd);
+    return rc;
+}
+
+static int64_t hw_fan_mono_s(void) {
+    struct timespec ts;
+    if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0) return 0;
+    return (int64_t)ts.tv_sec;
+}
+
+/* Write target `c` the safe way (fan_servo_set_target). Caller holds g_fan_set_mtx. 0, or -1
+ * with *why (may be NULL): "icc_fan_open_failed", "icc_fan_read_failed" (nothing written),
+ * "icc_fan_ioctl_failed", "icc_fan_verify_failed", "icc_fan_not_applied". */
+static int hw_fan_write_locked(uint8_t c, const char **why) {
+    uint8_t before[FAN_SERVO_LEN], after[FAN_SERVO_LEN];
+    int others = 0;
+    int fd = open(ICC_FAN_DEVICE_NODE, O_RDONLY);
+    if (fd < 0) {
+        if (why) *why = "icc_fan_open_failed";
+        return -1;
+    }
+    int rc = fan_servo_set_target(hw_fan_ioctl, &fd, c, before, after, &others);
+    close(fd);
+    if (others && !g_fan_mismatch_logged) {
+        /* Not a failure (the controller owns those bytes), but worth one line: it is the evidence
+         * for whether anything besides the target moves. */
+        char a[2 * FAN_SERVO_LEN + 1], b[2 * FAN_SERVO_LEN + 1];
+        g_fan_mismatch_logged = 1;
+        fan_servo_hex(before, b);
+        fan_servo_hex(after, a);
+        fprintf(stderr, "fan: profile changed beyond the target (set %u C): before %s after %s\n", (unsigned)c, b, a);
+    }
+    switch (rc) {
+    case FAN_SERVO_OK: return 0;
+    case FAN_SERVO_E_GET: if (why) *why = "icc_fan_read_failed"; break;
+    case FAN_SERVO_E_SET: if (why) *why = "icc_fan_ioctl_failed"; break;
+    case FAN_SERVO_E_VERIFY: if (why) *why = "icc_fan_verify_failed"; break;
+    default: if (why) *why = "icc_fan_not_applied"; break;
+    }
+    return -1;
+}
 
 /* ── What the console is using, and what it used before us ─────────
  *
  * The controller can be read back. That gives two things the feature never had: proof that a
  * write took, and the firmware's own value, so "restore" can mean the console's default and
  * not another number of ours. The default is NOT 60 C as this code long assumed: it read 91 C
- * on both FW 13.60 consoles measured, so every threshold and curve we applied (capped at 60
- * to 80) ran the fans harder than stock with no way back (#400). */
+ * on both FW 13.60 consoles measured (another board's table is known to use 69), so every
+ * threshold and curve we applied (capped at 60 to 80) ran the fans harder than stock with no
+ * way back (#400). */
 
 #define FAN_STOCK_PERSIST_PATH PS5UPLOAD2_RUNTIME_ROOT "/fan_stock.conf"
 /* A sane reading: below this the fans would never rest, above it the console is at its limit. */
@@ -1067,13 +1113,9 @@ static int hw_fan_apply_locked(uint8_t threshold_c);
 static atomic_int g_fan_stock_c = 0;
 
 int hw_fan_read_target(void) {
-    unsigned char st[ICC_FAN_CMD_LEN] = {0};
-    int fd = open(ICC_FAN_DEVICE_NODE, O_RDONLY);
-    if (fd < 0) return -1;
-    int rc = ioctl(fd, ICC_FAN_IOCTL_GET_STATE, st);
-    close(fd);
-    if (rc != 0) return -1;
-    return (int)st[ICC_FAN_THRESHOLD_OFFSET];
+    uint8_t st[FAN_SERVO_LEN];
+    if (hw_fan_read_servo(st) != 0) return -1;
+    return (int)st[FAN_SERVO_TARGET];
 }
 
 int hw_fan_stock_target(void) {
@@ -1108,6 +1150,32 @@ static void hw_fan_note_stock(int ours_c) {
     fclose(fp);
 }
 
+/* One watcher tick: GET, and SET only when the system put another target in. */
+static void hw_fan_watch_tick(void) {
+    pthread_mutex_lock(&g_fan_set_mtx);
+    int pinned = atomic_load(&g_pinned_threshold_c);
+    if (pinned < HW_FAN_THRESHOLD_MIN || pinned > HW_FAN_THRESHOLD_MAX || g_fan_guard.failing) {
+        /* No pin (or a sentinel), or the guard gave up: no ioctl at all. */
+        pthread_mutex_unlock(&g_fan_set_mtx);
+        return;
+    }
+    /* A failed read skips the tick (the device is briefly busy around launch transitions); it
+     * never turns into a blind write. */
+    int cur = hw_fan_read_target();
+    if (fan_watch_decide(&g_fan_guard, pinned, cur) == FAN_WATCH_RESTORE) {
+        const char *why = NULL;
+        int ok = hw_fan_write_locked((uint8_t)pinned, &why) == 0;
+        fan_guard_note(&g_fan_guard, ok, hw_fan_mono_s());
+        if (ok) {
+            printf("fan: target %d C put back (the system had set %d C)\n", pinned, cur);
+        } else if (g_fan_guard.failing) {
+            fprintf(stderr, "fan: %d writes in a row failed (%s); leaving the console's own control in charge\n",
+                    FAN_GUARD_MAX_FAILS, why ? why : "unknown");
+        }
+    }
+    pthread_mutex_unlock(&g_fan_set_mtx);
+}
+
 static void *hw_fan_watcher_thread_fn(void *arg) {
     (void)arg;
     /* Best-effort thread name for ps/top output; ignored if the
@@ -1124,21 +1192,7 @@ static void *hw_fan_watcher_thread_fn(void *arg) {
         if (interval < FAN_REAPPLY_MIN_SEC) interval = FAN_REAPPLY_MIN_SEC;
         if (interval > FAN_REAPPLY_MAX_SEC) interval = FAN_REAPPLY_MAX_SEC;
         for (int i = 0; i < interval; i++) sleep(1);
-
-        int t = atomic_load(&g_pinned_threshold_c);
-        if (t < HW_FAN_THRESHOLD_MIN || t > HW_FAN_THRESHOLD_MAX) {
-            /* No pin set, or pin was clobbered to a sentinel value;
-             * just spin idle. Cheaper than tearing the thread down +
-             * re-launching it on the next pin. */
-            continue;
-        }
-
-        /* Re-apply failures are non-fatal — the firmware may be in a
-         * brief state (e.g., suspend transition) where /dev/icc_fan is
-         * busy. Next tick will retry. We deliberately don't log here
-         * to avoid spamming the klog during normal launch transitions
-         * (the device is briefly unavailable mid-transition). */
-        (void)hw_fan_apply_locked((uint8_t)t);
+        hw_fan_watch_tick();
     }
     return NULL;
 }
@@ -1166,20 +1220,6 @@ static void hw_fan_watcher_start_once(void) {
     pthread_attr_destroy(&attr);
 }
 
-/* Bare ioctl call — no logging, no pin update, no watcher start. The
- * watcher thread uses this so its ticks don't recursively re-arm
- * themselves or print to stdout. */
-static int hw_fan_apply_locked(uint8_t threshold_c) {
-    int fd = open(ICC_FAN_DEVICE_NODE, O_RDONLY);
-    if (fd < 0) return -1;
-
-    unsigned char cmd[ICC_FAN_CMD_LEN] = {0};
-    cmd[ICC_FAN_THRESHOLD_OFFSET] = threshold_c;
-    int rc = ioctl(fd, ICC_FAN_IOCTL_SET_THRESHOLD, cmd);
-    close(fd);
-    return rc;
-}
-
 int hw_fan_set_threshold(uint8_t threshold_c, const char **err_reason_out) {
     /* Clamp. Intentionally silent — the client UI also clamps, but
      * we enforce here so a malicious/buggy caller can't bypass it by
@@ -1192,16 +1232,9 @@ int hw_fan_set_threshold(uint8_t threshold_c, const char **err_reason_out) {
     /* Serialize so two concurrent callers can't end up with the
      * kernel-state and the pin-atomic carrying different values
      * (which would cause the watcher to drive the kernel back to
-     * whichever caller pinned last regardless of which ioctl
+     * whichever caller pinned last regardless of which write
      * landed last). See g_fan_set_mtx comment for the race. */
     pthread_mutex_lock(&g_fan_set_mtx);
-
-    int fd = open(ICC_FAN_DEVICE_NODE, O_RDONLY);
-    if (fd < 0) {
-        pthread_mutex_unlock(&g_fan_set_mtx);
-        if (err_reason_out) *err_reason_out = "icc_fan_open_failed";
-        return -1;
-    }
 
     /* Before the first write of this helper's life: what is in the controller now is the
      * console's own value unless it is the one we have on file from an earlier run. */
@@ -1210,46 +1243,36 @@ int hw_fan_set_threshold(uint8_t threshold_c, const char **err_reason_out) {
         if (!ours) ours = hw_fan_load_persisted();
         hw_fan_note_stock(ours);
     }
-
-    unsigned char cmd[ICC_FAN_CMD_LEN] = {0};
-    cmd[ICC_FAN_THRESHOLD_OFFSET] = threshold_c;
-
-    int rc = ioctl(fd, ICC_FAN_IOCTL_SET_THRESHOLD, cmd);
-    int saved_errno = errno;
-    close(fd);
-
-    /* Read it back. A write the controller accepted but did not take used to be reported as
-     * success. A read that fails proves nothing either way and is not held against the write. */
-    if (rc == 0) {
-        int now = hw_fan_read_target();
-        if (now >= 0 && now != (int)threshold_c) {
-            pthread_mutex_unlock(&g_fan_set_mtx);
-            if (err_reason_out) *err_reason_out = "icc_fan_not_applied";
-            return -1;
-        }
-    }
-
-    if (rc < 0) {
+    /* Never quieter than the console's own setting (a board whose own target is 69 must not get
+     * 85 from us). */
+    const char *refusal = fan_target_refusal(threshold_c, hw_fan_stock_target());
+    if (refusal) {
         pthread_mutex_unlock(&g_fan_set_mtx);
-        /* On firmwares where the ioctl is refused we keep a generic
-         * reason — surfacing errno to the client would leak FreeBSD-
-         * specific codes that aren't actionable. Useful local debug
-         * info stays in saved_errno for a future logging hook. */
-        (void)saved_errno;
-        if (err_reason_out) *err_reason_out = "icc_fan_ioctl_failed";
+        if (err_reason_out) *err_reason_out = refusal;
         return -1;
     }
 
-    /* On success, pin the value and arm the auto-reapply watcher.
-     * Order matters: pin first, then start. If we started first and
-     * the thread happened to tick before atomic_store landed, it
-     * would early-exit on the still-zero pin and skip a cycle.
+    /* GET, change the target, SET, GET again: a write the controller accepted but did not
+     * take is a failure, and a failed first GET writes nothing. */
+    const char *why = NULL;
+    if (hw_fan_write_locked(threshold_c, &why) != 0) {
+        pthread_mutex_unlock(&g_fan_set_mtx);
+        if (err_reason_out) *err_reason_out = why;
+        return -1;
+    }
+
+    /* On success, pin the value and arm the watcher. Order matters:
+     * pin first, then start. If we started first and the thread
+     * happened to tick before atomic_store landed, it would see the
+     * still-zero pin and skip a cycle. A set the user asked for also
+     * lets a guard that gave up write again.
      *
      * Persist to disk after pinning so a payload redeploy or console
      * reboot restores the same threshold automatically (matches
      * elf-arsenal's config_save() call after a successful fan set). */
     hw_fan_pin_threshold(threshold_c);
     hw_fan_save_persisted(threshold_c);
+    fan_guard_clear(&g_fan_guard);
     pthread_mutex_unlock(&g_fan_set_mtx);
     hw_fan_watcher_start_once();
     return 0;
@@ -1257,6 +1280,7 @@ int hw_fan_set_threshold(uint8_t threshold_c, const char **err_reason_out) {
 
 int hw_fan_restore_stock(const char **err_reason_out) {
     pthread_mutex_lock(&g_fan_set_mtx);
+    fan_guard_clear(&g_fan_guard);
     int stock = hw_fan_stock_target();
     if (!stock) {
         /* Nothing of ours is in force and nothing was ever recorded: the controller already
@@ -1269,26 +1293,83 @@ int hw_fan_restore_stock(const char **err_reason_out) {
         }
         /* Ours is in force but the console's value was never seen (set by a build that did
          * not record it, and no restart since). Stop overriding it: the console goes back to
-         * its own value the next time it restarts, which is the honest answer. */
+         * its own value the next time it restarts or switches fan pattern (a game starting or
+         * closing), which is the honest answer. */
         atomic_store(&g_pinned_threshold_c, 0);
         (void)unlink(FAN_PERSIST_PATH);
         pthread_mutex_unlock(&g_fan_set_mtx);
         if (err_reason_out) *err_reason_out = "fan_restore_needs_restart";
         return -1;
     }
-    /* Stop re-applying first, so the watcher cannot put our value back behind the restore. */
+    /* Stop re-applying first; the watcher takes this mutex, so it cannot put our value back
+     * behind the restore either way. */
     atomic_store(&g_pinned_threshold_c, 0);
     (void)unlink(FAN_PERSIST_PATH);
-    int rc = hw_fan_apply_locked((uint8_t)stock);
-    int now = rc == 0 ? hw_fan_read_target() : -1;
+    const char *why = NULL;
+    int rc = hw_fan_write_locked((uint8_t)stock, &why);
     pthread_mutex_unlock(&g_fan_set_mtx);
     if (rc != 0) {
-        if (err_reason_out) *err_reason_out = "icc_fan_ioctl_failed";
-        return -1;
-    }
-    if (now >= 0 && now != stock) {
-        if (err_reason_out) *err_reason_out = "icc_fan_not_applied";
+        if (err_reason_out) *err_reason_out = why;
         return -1;
     }
     return 0;
+}
+
+/* ── Fan readouts for HW_TEMPS ─────────────────────────────────── */
+
+int hw_fan_read_duty_q10(void) {
+    uint8_t b[FAN_DUTY_LEN] = {0};
+    uint16_t duty;
+    int fd = open(ICC_FAN_DEVICE_NODE, O_RDONLY);
+    if (fd < 0) return -1;
+    int rc = ioctl(fd, FAN_DUTY_IOCTL_GET, b);
+    close(fd);
+    if (rc != 0) return -1;
+    memcpy(&duty, b + 2, sizeof duty);
+    return duty <= 1024u ? (int)duty : -1;
+}
+
+/* 8F09's filtered temperature in tenths of a C, -1 when unreadable or out of 20..110. */
+static int hw_fan_read_filtered_tenths(void) {
+    uint8_t b[FAN_EXT_LEN] = {0};
+    int fd = open(ICC_FAN_DEVICE_NODE, O_RDONLY);
+    if (fd < 0) return -1;
+    int rc = ioctl(fd, FAN_EXT_IOCTL_GET, b);
+    close(fd);
+    return rc == 0 ? fan_ext_filtered_tenths(b) : -1;
+}
+
+int hw_fan_status_text(char *out, size_t cap) {
+    uint8_t servo[FAN_SERVO_LEN];
+    char hex[2 * FAN_SERVO_LEN + 1] = "";
+    char filtered[16];
+    int target = -1;
+    if (hw_fan_read_servo(servo) == 0) {
+        target = servo[FAN_SERVO_TARGET];
+        fan_servo_hex(servo, hex);
+    }
+    int tenths = hw_fan_read_filtered_tenths();
+    if (tenths >= 0) snprintf(filtered, sizeof filtered, "%d.%d", tenths / 10, tenths % 10);
+    else snprintf(filtered, sizeof filtered, "-1");
+
+    pthread_mutex_lock(&g_fan_set_mtx);
+    int pinned = atomic_load(&g_pinned_threshold_c);
+    unsigned restores = (unsigned)g_fan_guard.restores;
+    long ago = fan_guard_last_ago(&g_fan_guard, hw_fan_mono_s());
+    const char *guard = fan_guard_name(&g_fan_guard, pinned);
+    pthread_mutex_unlock(&g_fan_set_mtx);
+
+    return snprintf(out, cap,
+        "fan_pinned_c=%d\n"
+        "fan_target_c=%d\n"
+        "fan_stock_c=%d\n"
+        "fan_min_c=%d\n"
+        "fan_max_c=%d\n"
+        "fan_restores=%u\n"
+        "fan_last_restore_s=%ld\n"
+        "fan_guard=%s\n"
+        "fan_filtered_c=%s\n"
+        "fan_servo=%s\n",
+        pinned, target, hw_fan_stock_target(), HW_FAN_THRESHOLD_MIN, HW_FAN_THRESHOLD_MAX,
+        restores, ago, guard, filtered, hex);
 }

@@ -11,9 +11,9 @@
  *
  * The curve is persisted to /data/ps5upload/fan_curve.json AND applied
  * to hardware via hw_fan_set_threshold(): the lowest temperature at which
- * the curve asks for 100% duty (capped at the stock 60 C, see fan_map.h)
- * becomes the pinned fan threshold, so hw_info's watcher keeps re-applying
- * it across the firmware's per-game-launch fan resets (a one-shot ioctl
+ * the curve asks for 100% duty (FAN_MAP_MIN_C..FAN_MAP_MAX_C, else the
+ * console's own setting, see fan_map.h) becomes the pinned fan threshold, so
+ * hw_info's watcher puts it back after the firmware's per-game-launch fan resets (a one-shot ioctl
  * would silently revert).
  *
  * On failure, `err` is filled with a human-readable reason (if err_cap > 0).

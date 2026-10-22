@@ -703,7 +703,7 @@ int main(void) {
     /* Restore persisted fan threshold. The runtime root now exists
      * (created by runtime_ensure_directories above), so the persist
      * file is readable if a previous session wrote one. A non-zero
-     * return arms the in-memory pin + starts the 15 s reapply watcher,
+     * return arms the in-memory pin + starts the fan watcher,
      * so a redeploy/reboot seamlessly continues holding the user's
      * last-set threshold without the desktop needing to resend it.
      *
