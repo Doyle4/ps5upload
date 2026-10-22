@@ -4,6 +4,25 @@ What's new in ps5upload, written for humans.
 
 ---
 
+## 7.1.16
+
+- **Pin the screens you use most.** Hover a screen in the sidebar and press the pin, or use the
+  pin on its row in More, or "Pin …" in the command palette (Cmd/Ctrl+K). Pinned screens appear
+  in a Pinned group near the top, in the order you pinned them; drag them in the sidebar, or use
+  Edit in More, to reorder. Up to 12. Nothing changes until you pin something.
+- **The install queue shows each game's icon and whether it fits.** Queued packages,
+  game folders and images now show the game's own icon before they install. The queue header
+  shows how much is waiting to install and how much space is free on the PS5 drive it installs
+  to, and warns "May not fit" when it clearly won't. It's an estimate only; each install still
+  checks the PS5's space itself.
+- **.ffpfsc images build faster and come out smaller (#479).** Convert's compressed .ffpfsc now
+  has three levels: Fast, Balanced (the default) and Smallest. On an 18 GB test game, Balanced
+  took about a third less time than before and came out 2–3% smaller; how much smaller depends on
+  how much the game's files can compress. Smallest takes several times as long for a little more.
+  A Smallest image was built, launched and played on a PS5 (FW 13.60, ShadowMount+).
+
+---
+
 ## 7.1.15
 
 - **Launching with nobody signed in no longer restarts the PS5's home screen.** Pressing Play
