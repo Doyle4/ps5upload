@@ -1117,8 +1117,8 @@ pub(crate) fn python_float(f: f64) -> String {
 /// files, text configuration a title may read outside AMPR, already-compressed media, and the
 /// streaming containers Insomniac titles open at boot.
 ///
-/// This is the profile for a game of no known engine; [`default_profile_for`] picks the one
-/// for the game's own files.
+/// No game gets this one unasked any more: [`default_profile_for`] picks a narrower profile
+/// from the game's own files, built on this one's settings and loose list.
 pub fn default_profile(level: u8, block_shift: u8) -> Config {
     let mut c = Config {
         compression_mode: if level <= 2 {
@@ -1146,22 +1146,70 @@ pub fn default_profile(level: u8, block_shift: u8) -> Config {
     c
 }
 
+/// The engine a game was built with, as far as the built-in profiles care.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GameEngine {
+    /// Unreal Engine with IoStore containers (`.ucas`).
+    Unreal,
+    /// Unity (a player data folder, `Media` on PS5, or Unity's own modules).
+    Unity,
+    /// Anything else, an Unreal title with `.pak` files only included.
+    Unknown,
+}
+
+impl GameEngine {
+    /// Recognise the engine from the game's paths (relative to `/app0`, any letter case).
+    pub fn detect<'a>(paths: impl IntoIterator<Item = &'a str>) -> Self {
+        let mut unity = false;
+        for p in paths {
+            if is_iostore_container(p) {
+                return Self::Unreal;
+            }
+            unity |= is_unity_marker(p);
+        }
+        if unity {
+            Self::Unity
+        } else {
+            Self::Unknown
+        }
+    }
+
+    /// The built-in profile's name, for the log.
+    pub fn profile_name(self) -> &'static str {
+        match self {
+            Self::Unreal => "unreal",
+            Self::Unity => "unity",
+            Self::Unknown => "large-files",
+        }
+    }
+}
+
 /// The profile used when the user gives none, for a game with these files (paths relative to
-/// `/app0`).
+/// `/app0`, with their sizes).
 ///
-/// An Unreal Engine title with IoStore containers (`.ucas`) gets [`unreal_profile`]: only the
-/// containers are packed. Everything else, an Unreal title with `.pak` files only included,
-/// gets [`default_profile`], so the build still packs something.
+/// - Unreal Engine with IoStore containers (`.ucas`): [`unreal_profile`], only the containers.
+/// - Unity: [`unity_profile`], only `StreamingAssets` and the big resource files.
+/// - Anything else: [`large_files_profile`], only files of [`LARGE_FILE_MIN`] or more inside a
+///   folder, so the many small files a title may open outside its own file layer stay loose.
+///
+/// A measured (traced) or user-given profile replaces all of these.
 pub fn default_profile_for<'a>(
-    paths: impl IntoIterator<Item = &'a str>,
+    files: impl IntoIterator<Item = (&'a str, u64)>,
     level: u8,
     block_shift: u8,
 ) -> Config {
-    if paths.into_iter().any(is_iostore_container) {
-        unreal_profile(level, block_shift)
-    } else {
-        default_profile(level, block_shift)
+    let files: Vec<(&str, u64)> = files.into_iter().collect();
+    match GameEngine::detect(files.iter().map(|&(p, _)| p)) {
+        GameEngine::Unreal => unreal_profile(level, block_shift),
+        GameEngine::Unity => unity_profile(level, block_shift),
+        GameEngine::Unknown => large_files_profile(files, level, block_shift),
     }
+}
+
+/// Which built-in profile [`default_profile_for`] picks for these files: `"unreal"`,
+/// `"unity"` or `"large-files"`.
+pub fn default_profile_name<'a>(paths: impl IntoIterator<Item = &'a str>) -> &'static str {
+    GameEngine::detect(paths).profile_name()
 }
 
 /// An Unreal Engine IoStore container, in any letter case.
@@ -1173,16 +1221,107 @@ const UCAS_EXT: &str = ".ucas";
 /// `*.ucas` in any letter case: rules match case-sensitively.
 const UCAS_GLOB: &str = "*.[uU][cC][aA][sS]";
 
-/// Which built-in profile [`default_profile_for`] picks for these files: `"unreal"` or
-/// `"default"`.
-pub fn default_profile_name<'a>(paths: impl IntoIterator<Item = &'a str>) -> &'static str {
-    if paths.into_iter().any(is_iostore_container) {
-        "unreal"
-    } else {
-        "default"
-    }
+/// File names only a Unity player ships, compared in lower case: the player data folder's
+/// manager file (`Media/globalgamemanagers` on PS5, `<Game>_Data/...` elsewhere) or, in a
+/// compressed build, `data.unity3d`; the built-in resources; the player and IL2CPP modules.
+/// Every PS5 Unity title checked (PPSA22999, PPSA31909, PPSA30883, PPSA33090) has
+/// `Media/globalgamemanagers` and `Media/Modules/Il2CppUserAssemblies.prx`.
+const UNITY_MARKERS: &[&str] = &[
+    "globalgamemanagers",
+    "data.unity3d",
+    "unity default resources",
+    "unityplayer.prx",
+    "unityplayer.sprx",
+    "il2cppuserassemblies.prx",
+];
+
+fn is_unity_marker(path: &str) -> bool {
+    let name = path.rsplit(['/', '\\']).next().unwrap_or(path);
+    UNITY_MARKERS.iter().any(|m| name.eq_ignore_ascii_case(m))
 }
 
+/// What the Unity profile packs. `*` crosses folders, so `*/StreamingAssets/*` is anything
+/// under a `StreamingAssets` folder at any depth. Rules match case-sensitively and detection
+/// does not, so every pattern is spelled in any letter case: a dump with lowercased names is
+/// still recognised as Unity, and must then still pack its assets.
+const UNITY_PACKED: &[&str] = &[
+    // Asset bundles, Addressables, video and audio banks: nearly all of a Unity title's bytes.
+    "[sS][tT][rR][eE][aA][mM][iI][nN][gG][aA][sS][sS][eE][tT][sS]/*",
+    "*/[sS][tT][rR][eE][aA][mM][iI][nN][gG][aA][sS][sS][eE][tT][sS]/*",
+    // Texture, mesh and audio payloads that the serialized files point into, read in ranges.
+    "*.[rR][eE][sS][sS]",
+    "*.[rR][eE][sS][oO][uU][rR][cC][eE]",
+];
+
+/// The profile for a Unity title: `StreamingAssets` and the `.resS` / `.resource` payloads
+/// compressed, everything else loose (the default's loose list still wins, so the
+/// Addressables catalog `.json`, the modules and media files stay real files).
+///
+/// The serialized files (`globalgamemanagers`, `level*`, `*.assets`) are small, read at boot,
+/// and no community profile is known to pack them; they stay loose.
+pub fn unity_profile(level: u8, block_shift: u8) -> Config {
+    let include: Vec<String> = UNITY_PACKED.iter().map(|s| s.to_string()).collect();
+    only_these_packed(level, block_shift, include)
+}
+
+/// The smallest file [`large_files_profile`] packs: 16 MiB.
+pub const LARGE_FILE_MIN: u64 = 16 << 20;
+
+/// The profile for a game of no known engine: files of [`LARGE_FILE_MIN`] or more inside a
+/// folder compressed, everything else loose (and the default's loose list still wins). The
+/// rule names each such file, since a rule cannot match by size.
+pub fn large_files_profile<'a>(
+    files: impl IntoIterator<Item = (&'a str, u64)>,
+    level: u8,
+    block_shift: u8,
+) -> Config {
+    let mut include: Vec<String> = files
+        .into_iter()
+        .filter(|&(p, size)| size >= LARGE_FILE_MIN && p.trim_start_matches('/').contains('/'))
+        .map(|(p, _)| glob_literal(p.trim_start_matches('/')))
+        .collect();
+    include.sort();
+    include.dedup();
+    only_these_packed(level, block_shift, include)
+}
+
+/// `path` as a pattern that matches only itself: `*`, `?` and `[` in brackets.
+fn glob_literal(path: &str) -> String {
+    let mut out = String::with_capacity(path.len());
+    for c in path.chars() {
+        match c {
+            '*' | '?' | '[' => {
+                out.push('[');
+                out.push(c);
+                out.push(']');
+            }
+            c => out.push(c),
+        }
+    }
+    out
+}
+
+/// [`default_profile`] with its folder-wide compress rule replaced by one for `include` (no
+/// rule at all when it is empty), followed by the default's loose rule.
+fn only_these_packed(level: u8, block_shift: u8, include: Vec<String>) -> Config {
+    let mut c = default_profile(level, block_shift);
+    let base = c.default_rule();
+    let loose = c
+        .rules
+        .pop()
+        .expect("the default profile ends with its loose rule");
+    c.rules.clear();
+    if !include.is_empty() {
+        c.rules.push(Rule {
+            action: Action::Compress,
+            include,
+            layout: Layout::Mixed,
+            ..base
+        });
+    }
+    c.rules.push(loose);
+    c
+}
 /// The profile for an Unreal Engine title: its IoStore containers (`*.ucas`, nearly all of the
 /// game's bytes) compressed, everything else loose.
 ///
@@ -1195,22 +1334,7 @@ pub fn default_profile_name<'a>(paths: impl IntoIterator<Item = &'a str>) -> &'s
 /// theghostonline's tool also keep `.pak` and `.utoc` loose. Packing only the containers
 /// leaves nothing else to guess.
 pub fn unreal_profile(level: u8, block_shift: u8) -> Config {
-    let mut c = default_profile(level, block_shift);
-    let base = c.default_rule();
-    let loose = c
-        .rules
-        .pop()
-        .expect("the default profile ends with its loose rule");
-    c.rules = vec![
-        Rule {
-            action: Action::Compress,
-            include: vec![UCAS_GLOB.into()],
-            layout: Layout::Mixed,
-            ..base
-        },
-        loose,
-    ];
-    c
+    only_these_packed(level, block_shift, vec![UCAS_GLOB.into()])
 }
 
 /// Paths the built-in profile leaves loose. `*` crosses folders (see [`glob`]), so `*.sprx`
@@ -1453,13 +1577,18 @@ mod tests {
     #[test]
     fn an_unreal_title_packs_only_its_iostore_containers() {
         let files = [
-            "eboot.bin",
-            "griffin/griffin.uproject",
-            "griffin/Content/Paks/pakchunk0-ps5.ucas",
-            "griffin/Content/Paks/pakchunk0-ps5.utoc",
+            ("eboot.bin", 30 << 20),
+            ("griffin/griffin.uproject", 1 << 10),
+            ("griffin/Content/Paks/pakchunk0-ps5.ucas", 4 << 30),
+            ("griffin/Content/Paks/pakchunk0-ps5.utoc", 40 << 20),
         ];
         let c = default_profile_for(files, 9, 16);
         assert_eq!(c, unreal_profile(9, 16));
+        assert_eq!(default_profile_name(files.map(|f| f.0)), "unreal");
+        // Same two rules as before engine detection grew: containers, then the loose list.
+        assert_eq!(c.rules.len(), 2);
+        assert_eq!(c.rules[0].include, [UCAS_GLOB]);
+        assert_eq!(c.rules[1], default_profile(9, 16).rules[1]);
         let ucas = c.select("griffin/Content/Paks/pakchunk0-ps5.ucas");
         assert_eq!(ucas.action, Action::Compress);
         assert_eq!(ucas.resolved_layout(), Layout::Mixed);
@@ -1478,27 +1607,170 @@ mod tests {
             assert_eq!(c.select(loose).action, Action::Loose, "{loose}");
         }
         // Detection and the rule agree on letter case.
-        let upper = ["D/X.UCAS"];
+        let upper = [("D/X.UCAS", 1)];
         assert_eq!(default_profile_for(upper, 9, 16), unreal_profile(9, 16));
-        assert_eq!(default_profile_name(upper), "unreal");
+        assert_eq!(default_profile_name(["D/X.UCAS"]), "unreal");
         assert_eq!(c.select("D/X.UCAS").action, Action::Compress);
         assert_eq!(c.select("d/x.Ucas").action, Action::Compress);
-        // A game of no known engine keeps the folder-wide default.
-        let plain = ["eboot.bin", "d/actor/x"];
-        assert_eq!(default_profile_for(plain, 9, 16), default_profile(9, 16));
-        assert_eq!(default_profile_name(plain), "default");
-        // So does an Unreal title without IoStore (.pak only): packing nothing gains nothing.
-        let pak_only = ["game/game.uproject", "game/Content/Paks/pakchunk0-ps5.pak"];
-        let d = default_profile_for(pak_only, 9, 16);
-        assert_eq!(d, default_profile(9, 16));
-        // ...which still never packs a project descriptor, in any letter case.
-        for loose in ["game/game.uproject", "game/Game.UProject", "x.UPROJECT"] {
-            assert_eq!(d.select(loose).action, Action::Loose, "{loose}");
+        // IoStore wins over a Unity marker (no such title is known; the order is fixed).
+        assert_eq!(
+            GameEngine::detect(["Media/globalgamemanagers", "x/a.ucas"]),
+            GameEngine::Unreal
+        );
+    }
+
+    #[test]
+    fn a_unity_title_packs_streaming_assets_and_resource_payloads() {
+        // The layout of PPSA30883 (Knowledge, or know Lady).
+        let files = [
+            ("eboot.bin", 34 << 20),
+            ("sce_sys/param.json", 4 << 10),
+            ("fakelib/libSceAmpr.sprx", 1 << 20),
+            ("Media/globalgamemanagers", 200 << 10),
+            ("Media/sharedassets0.assets", 2 << 20),
+            ("Media/sharedassets0.assets.resS", 200 << 20),
+            ("Media/resources.resource", 3 << 20),
+            ("Media/Modules/Il2CppUserAssemblies.prx", 55 << 20),
+            ("Media/StreamingAssets/aa/catalog.json", 1 << 20),
+            (
+                "Media/StreamingAssets/aa/PS5/videos/general.bundle",
+                2 << 30,
+            ),
+            ("Media/StreamingAssets/aa/PS5/small.bundle", 10 << 10),
+        ];
+        let c = default_profile_for(files, 9, 16);
+        assert_eq!(c, unity_profile(9, 16));
+        assert_eq!(default_profile_name(files.map(|f| f.0)), "unity");
+        for packed in [
+            "Media/StreamingAssets/aa/PS5/videos/general.bundle",
+            // Small files in StreamingAssets too: no size threshold for a known engine.
+            "Media/StreamingAssets/aa/PS5/small.bundle",
+            "StreamingAssets/x.bundle",
+            "Media/sharedassets0.assets.resS",
+            "Media/resources.resource",
+            // Lowercased dumps: detected as Unity, so their assets still pack.
+            "Media/streamingassets/x.bundle",
+            "Media/sharedassets0.assets.RESS",
+        ] {
+            let r = c.select(packed);
+            assert_eq!(r.action, Action::Compress, "{packed}");
+            assert_eq!(r.resolved_layout(), Layout::Mixed, "{packed}");
         }
+        for loose in [
+            "eboot.bin",
+            "sce_sys/param.json",
+            "fakelib/libSceAmpr.sprx",
+            "Media/globalgamemanagers",
+            "Media/globalgamemanagers.assets",
+            "Media/sharedassets0.assets",
+            "Media/level0",
+            "Media/Metadata/global-metadata.dat",
+            "Media/Modules/Il2CppUserAssemblies.prx",
+            "Media/Plugins/xlua.prx",
+            "Media/ScriptingAssemblies.json",
+            "Media/boot.config",
+            // The loose list still wins inside StreamingAssets.
+            "Media/StreamingAssets/aa/catalog.json",
+            "Media/StreamingAssets/intro.mp4",
+        ] {
+            assert_eq!(c.select(loose).action, Action::Loose, "{loose}");
+        }
+    }
+
+    #[test]
+    fn unity_is_recognised_by_any_of_its_markers() {
+        for marker in [
+            "Media/globalgamemanagers",
+            "Game_Data/globalgamemanagers",
+            "Media/data.unity3d",
+            "Media/Resources/unity default resources",
+            "Media/Modules/Il2CppUserAssemblies.prx",
+            // The lowercase spelling some dumps ship (see module_case).
+            "Media/Modules/Il2cppUserAssemblies.prx",
+            "sce_module/UnityPlayer.prx",
+            "UnityPlayer.sprx",
+        ] {
+            assert_eq!(
+                GameEngine::detect(["eboot.bin", marker]),
+                GameEngine::Unity,
+                "{marker}"
+            );
+        }
+        for not_unity in [
+            "Media/globalgamemanagers.bak/x",
+            "Media/my_globalgamemanagers",
+            "data/StreamingAssets/x.bundle",
+            "Media/x.assets",
+        ] {
+            assert_eq!(
+                GameEngine::detect(["eboot.bin", not_unity]),
+                GameEngine::Unknown,
+                "{not_unity}"
+            );
+        }
+    }
+
+    #[test]
+    fn an_unknown_engine_packs_only_large_files_in_folders() {
+        let files = [
+            ("eboot.bin", 40 << 20),
+            ("bigroot.dat", 40 << 20),
+            ("d/actor/big.dat", 16 << 20),
+            ("d/actor/just_under.dat", (16 << 20) - 1),
+            ("d/small.dat", 4 << 10),
+            ("d/odd[1]*?.bin", 20 << 20),
+            ("d/huge.ini", 1 << 30),
+            ("d/soundbank", 1 << 30),
+            ("sce_module/libc.prx", 20 << 20),
+        ];
+        let c = default_profile_for(files, 9, 16);
+        assert_eq!(c, large_files_profile(files, 9, 16));
+        assert_eq!(default_profile_name(files.map(|f| f.0)), "large-files");
+        for packed in ["d/actor/big.dat", "d/odd[1]*?.bin"] {
+            let r = c.select(packed);
+            assert_eq!(r.action, Action::Compress, "{packed}");
+            assert_eq!(r.resolved_layout(), Layout::Mixed, "{packed}");
+        }
+        for loose in [
+            "eboot.bin",
+            // Root files were never packed by the built-in profile.
+            "bigroot.dat",
+            "d/actor/just_under.dat",
+            "d/small.dat",
+            // Patterns are literal: the odd name matches only itself.
+            "d/odd1xx.bin",
+            "d/odd[1]ab.bin",
+            // The loose list still wins over size.
+            "d/huge.ini",
+            "d/soundbank",
+            "sce_module/libc.prx",
+            // A file the profile was not built for.
+            "d/new_big.dat",
+        ] {
+            assert_eq!(c.select(loose).action, Action::Loose, "{loose}");
+        }
+        // Nothing large: no compress rule at all, just the loose list.
+        let small = large_files_profile([("d/a", 1), ("d/b", 2)], 9, 16);
+        assert_eq!(small.rules.len(), 1);
+        assert_eq!(small.rules[0].action, Action::Loose);
+        assert_eq!(small.select("d/a").action, Action::Loose);
+        // An Unreal title without IoStore (.pak only) is no known engine...
+        let pak_only = [
+            ("game/game.uproject", 1 << 10),
+            ("game/Content/Paks/pakchunk0-ps5.pak", 2 << 30),
+            ("x.UPROJECT", 20 << 20),
+            ("game/Game.UProject", 20 << 20),
+        ];
+        let d = default_profile_for(pak_only, 9, 16);
+        assert_eq!(default_profile_name(pak_only.map(|f| f.0)), "large-files");
         assert_eq!(
             d.select("game/Content/Paks/pakchunk0-ps5.pak").action,
             Action::Compress
         );
+        // ...which still never packs a project descriptor, in any letter case.
+        for loose in ["game/game.uproject", "game/Game.UProject", "x.UPROJECT"] {
+            assert_eq!(d.select(loose).action, Action::Loose, "{loose}");
+        }
     }
 
     /// The canonical document drakmor's packer hashes for the build id, for the default config

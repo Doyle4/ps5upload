@@ -804,6 +804,26 @@ pub(crate) struct Lz4Packs {
     pub block_shift: u8,
 }
 
+/// The profile an LZ4 build packs with, and its name for the log: a measured or user-given
+/// profile always wins; otherwise the game's engine picks a built-in one.
+fn lz4_profile(
+    packs: &Lz4Packs,
+    files: &[ps5upload_fpkg::source::SourceFile],
+) -> (&'static str, ps5upload_fpkg::ampr_pack::Config) {
+    use ps5upload_fpkg::ampr_pack;
+    match &packs.profile {
+        Some(given) => ("given", given.clone()),
+        None => (
+            ampr_pack::default_profile_name(files.iter().map(|f| f.path.as_str())),
+            ampr_pack::default_profile_for(
+                files.iter().map(|f| (f.path.as_str(), f.size)),
+                packs.level,
+                packs.block_shift,
+            ),
+        ),
+    }
+}
+
 /// The spool an LZ4 build packs into, next to the image it is for.
 pub(crate) fn lz4_spool(output: &Path) -> PathBuf {
     PathBuf::from(format!("{}.lz4spool", output.display()))
@@ -831,21 +851,18 @@ pub(crate) fn build_packed(
     if let Some(why) = ampr_pack::image::refusal(source) {
         return Err(why);
     }
-    let paths = || source.files().iter().map(|f| f.path.as_str());
-    let profile_name = if packs.profile.is_some() {
-        "given"
-    } else {
-        ampr_pack::default_profile_name(paths())
-    };
-    let config = packs
-        .profile
-        .clone()
-        .unwrap_or_else(|| ampr_pack::default_profile_for(paths(), packs.level, packs.block_shift));
+    let (profile_name, config) = lz4_profile(packs, source.files());
     // Claimed by the caller like the image's `.partial`, so nothing else writes here.
     let spool = lz4_spool(output);
     let mtime = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map_or(0, |d| d.as_secs() as i64);
+    crate::log_info!(
+        "lz4 packs: profile={profile_name} chosen for {} files ({} rules) -> {}",
+        source.files().len(),
+        config.rules.len(),
+        output.display()
+    );
     stage("pack", 0, 0);
     let prepared = {
         let mut progress = |done: u64, total: u64| stage("pack", done, total);
@@ -902,6 +919,39 @@ pub(crate) fn build_packed(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn a_given_lz4_profile_overrides_engine_detection() {
+        use ps5upload_fpkg::ampr_pack::{self, Config};
+        use ps5upload_fpkg::source::SourceFile;
+        let files: Vec<SourceFile> = [
+            ("Media/globalgamemanagers", 1 << 10),
+            ("Media/StreamingAssets/a.bundle", 1 << 30),
+        ]
+        .into_iter()
+        .map(|(p, size)| SourceFile {
+            path: p.into(),
+            size,
+        })
+        .collect();
+        let mut packs = super::Lz4Packs {
+            profile: None,
+            level: 9,
+            block_shift: 16,
+        };
+        let (name, config) = super::lz4_profile(&packs, &files);
+        assert_eq!(name, "unity");
+        assert_eq!(config, ampr_pack::unity_profile(9, 16));
+        let given = Config::from_toml(
+            "[[rule]]\naction = \"compress\"\ninclude = [\"**\"]\n",
+            None,
+        )
+        .unwrap();
+        packs.profile = Some(given.clone());
+        let (name, config) = super::lz4_profile(&packs, &files);
+        assert_eq!(name, "given");
+        assert_eq!(config, given);
+    }
+
     #[test]
     fn nested_generic_packages_keep_game_folder_names() {
         assert_eq!(
@@ -1421,8 +1471,10 @@ mod tests {
             ImageFormat::Exfat,
             &mut tree,
             &out,
+            // The folder-wide profile, so the small fixture files are packed: the built-in
+            // profile for a game of no known engine packs only files of 16 MiB or more.
             &Lz4Packs {
-                profile: None,
+                profile: Some(ps5upload_fpkg::ampr_pack::default_profile(9, 16)),
                 level: 9,
                 block_shift: 16,
             },
