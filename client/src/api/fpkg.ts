@@ -10,6 +10,8 @@ import { invoke } from "../lib/invokeLogged";
 /** The game image filesystems the engine writes: UFS2 (`.ffpkg`, what ShadowMount+
  *  recommends), exFAT, or PFS (`.ffpfs`, experimental in ShadowMount+ 1.7). */
 export type ImageFormat = "ffpkg" | "exfat" | "ffpfs";
+/** How hard a .ffpfsc is compressed. */
+export type FfpfscLevel = "fast" | "balanced" | "smallest";
 
 export interface FpkgCheck {
   name: string;
@@ -143,6 +145,8 @@ export const fpkg = {
     /** What to call the image instead of the source's own name (a game unpacked from an
      *  archive is named after the archive). */
     name?: string,
+    /** How hard a .ffpfsc is compressed (with `compress`); the engine's Balanced when absent. */
+    ffpfscLevel?: FfpfscLevel,
   ) =>
     invoke<{ job_id: string }>("exfat_build", {
       source,
@@ -155,6 +159,7 @@ export const fpkg = {
       verifyChunkKib,
       fullVerify,
       name,
+      ffpfscLevel: compress ? ffpfscLevel : undefined,
     }),
   /** Unpack a game image (.exfat, .ffpkg, .ffpfs, .ffpfsc) or a package made with the debug
    *  key into a plain folder in the output folder, named after the source (or `name`). One

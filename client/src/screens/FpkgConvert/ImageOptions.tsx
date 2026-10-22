@@ -1,5 +1,5 @@
 import { Button, Toggle } from "../../components";
-import type { AmprPacksReadiness, ImageFormat } from "../../api/fpkg";
+import type { AmprPacksReadiness, FfpfscLevel, ImageFormat } from "../../api/fpkg";
 import { DEFAULT_VERIFY_CHUNK_KIB, VERIFY_CHUNK_KIB, useConvertPrefs } from "../../state/convertPrefs";
 import { useTr } from "../../state/lang";
 
@@ -234,8 +234,71 @@ export function ImageChoice({
           </span>
         </span>
       </label>
+      {compress && !packing && <FfpfscLevelOption />}
       {lz4 && format === "exfat" && <Lz4Option lz4={lz4} />}
       <VerifyChunkOption />
+    </div>
+  );
+}
+
+/** How hard a .ffpfsc is compressed: Fast, Balanced (the default) or Smallest. Remembered like
+ *  the other Convert options. */
+export function FfpfscLevelOption() {
+  const tr = useTr();
+  const level = useConvertPrefs((s) => s.imageLevel);
+  const setLevel = useConvertPrefs((s) => s.setImageLevel);
+  const levels: { id: FfpfscLevel; label: string; body: string }[] = [
+    {
+      id: "fast",
+      label: tr("fpkg.compressionFast", undefined, "Fast"),
+      body: tr("fpkg.image.level_fast_body", undefined, "Quickest to make, a little larger."),
+    },
+    {
+      id: "balanced",
+      label: tr("fpkg.compressionBalanced", undefined, "Balanced"),
+      body: tr("fpkg.image.level_balanced_body", undefined, "Almost as small, and several times faster to make."),
+    },
+    {
+      id: "smallest",
+      label: tr("fpkg.compressionSmallest", undefined, "Smallest"),
+      body: tr(
+        "fpkg.image.level_smallest_body",
+        undefined,
+        "Smallest file: a second, stronger encoder runs on every block, so it takes several times as long.",
+      ),
+    },
+  ];
+  return (
+    <div
+      role="radiogroup"
+      aria-label={tr("fpkg.compression", undefined, "Compression")}
+      className="ml-6 grid gap-2 2xl:grid-cols-3"
+      data-testid="ffpfsc-level"
+    >
+      {levels.map((l) => (
+        <button
+          key={l.id}
+          type="button"
+          role="radio"
+          aria-checked={level === l.id ? "true" : "false"}
+          onClick={() => setLevel(l.id)}
+          className={`border rounded-[var(--radius-card)] transition-[background-color,border-color,box-shadow] px-3 py-2 text-left text-xs ${
+            level === l.id
+              ? "border-[color-mix(in_srgb,var(--color-accent)_45%,transparent)] bg-[var(--color-surface-raised)] shadow-[var(--edge-highlight),var(--shadow-1)] ring-1 ring-[color-mix(in_srgb,var(--color-accent)_30%,transparent)]"
+              : "border-[var(--color-border)] bg-[var(--color-surface)] hover:bg-[var(--color-surface-raised)]"
+          }`}
+        >
+          <span className="flex flex-wrap items-center gap-x-2 gap-y-1 font-semibold text-[var(--color-text)]">
+            {l.label}
+            {l.id === "balanced" && (
+              <span className="rounded-full bg-[var(--color-accent-soft)] px-2 py-0.5 text-[10px] font-medium text-[var(--color-accent)]">
+                {tr("fpkg.recommended", undefined, "Recommended")}
+              </span>
+            )}
+          </span>
+          <span className="mt-0.5 block text-[var(--color-muted)]">{l.body}</span>
+        </button>
+      ))}
     </div>
   );
 }

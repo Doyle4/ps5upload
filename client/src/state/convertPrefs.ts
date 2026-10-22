@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-import type { FpkgCompression, ImageFormat } from "../api/fpkg";
+import type { FfpfscLevel, FpkgCompression, ImageFormat } from "../api/fpkg";
 import { safeGetItem, safeSetItem } from "../lib/safeStorage";
 
 /**
@@ -15,6 +15,8 @@ const KEY_FULL_VERIFY = "ps5upload.convert.full_verify";
 const KEY_MAKE = "ps5upload.convert.make";
 const KEY_IMAGE_FORMAT = "ps5upload.convert.image_format";
 const KEY_IMAGE_COMPRESS = "ps5upload.convert.image_compress";
+const KEY_IMAGE_LEVEL = "ps5upload.convert.image_level";
+const IMAGE_LEVELS: readonly FfpfscLevel[] = ["fast", "balanced", "smallest"];
 const IMAGE_FORMATS: readonly ImageFormat[] = ["ffpkg", "exfat", "ffpfs"];
 const LEVELS: readonly FpkgCompression[] = ["fast", "balanced", "smallest"];
 /** How much of a file a game image's read-back check reads per call, in KiB. The engine
@@ -41,7 +43,10 @@ interface ConvertPrefs {
   make: MakeKind;
   imageFormat: ImageFormat;
   imageCompress: boolean;
+  /** How hard a compressed image (.ffpfsc) is compressed. */
+  imageLevel: FfpfscLevel;
   setMake: (m: MakeKind) => void;
+  setImageLevel: (level: FfpfscLevel) => void;
   setImageChoice: (format: ImageFormat, compress: boolean) => void;
   setOutputDir: (dir: string) => void;
   setCompression: (c: FpkgCompression) => void;
@@ -67,6 +72,10 @@ export function parseMake(v: string | null): MakeKind {
   return v === "image" || v === "folder" ? v : "pkg";
 }
 
+export function parseImageLevel(v: string | null): FfpfscLevel {
+  return IMAGE_LEVELS.includes(v as FfpfscLevel) ? (v as FfpfscLevel) : "balanced";
+}
+
 export function parseImageFormat(v: string | null): ImageFormat {
   return IMAGE_FORMATS.includes(v as ImageFormat) ? (v as ImageFormat) : "ffpkg";
 }
@@ -79,6 +88,12 @@ export const useConvertPrefs = create<ConvertPrefs>((set) => ({
   make: parseMake(safeGetItem(KEY_MAKE)),
   imageFormat: parseImageFormat(safeGetItem(KEY_IMAGE_FORMAT)),
   imageCompress: safeGetItem(KEY_IMAGE_COMPRESS) === "1",
+  imageLevel: parseImageLevel(safeGetItem(KEY_IMAGE_LEVEL)),
+  setImageLevel: (level) => {
+    const v = IMAGE_LEVELS.includes(level) ? level : "balanced";
+    safeSetItem(KEY_IMAGE_LEVEL, v);
+    set({ imageLevel: v });
+  },
   setMake: (m) => {
     safeSetItem(KEY_MAKE, m);
     set({ make: m });

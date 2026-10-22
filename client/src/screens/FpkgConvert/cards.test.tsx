@@ -146,6 +146,25 @@ describe("OptionsCard for an image", () => {
     const pkg = renderToStaticMarkup(<OptionsCard {...props} make="pkg" language="" onLanguage={() => {}} />);
     expect(pkg).toContain("fpkg-language");
   });
+
+  it("offers the .ffpfsc levels only when compressing", () => {
+    const render = (compress: boolean) =>
+      renderToStaticMarkup(
+        <OptionsCard
+          {...props}
+          make="image"
+          image={{ format: "ffpkg", compress, onChoice: () => {} }}
+          language=""
+          onLanguage={() => {}}
+        />,
+      );
+    expect(render(false)).not.toContain("ffpfsc-level");
+    const on = render(true);
+    expect(on).toContain("ffpfsc-level");
+    for (const label of ["Fast", "Balanced", "Smallest", "Recommended"]) expect(on).toContain(label);
+    // Balanced is the default.
+    expect(on).toMatch(/aria-checked="true"[^>]*>(<[^>]+>)*Balanced/);
+  });
 });
 
 describe("OptionsCard verification", () => {

@@ -35,6 +35,17 @@ describe("convertPrefs", () => {
     expect(second.useConvertPrefs.getState().compression).toBe("smallest");
   });
 
+  it("remembers the .ffpfsc level, Balanced by default and for a corrupt value", async () => {
+    const first = await import("./convertPrefs");
+    expect(first.useConvertPrefs.getState().imageLevel).toBe("balanced");
+    first.useConvertPrefs.getState().setImageLevel("fast");
+    vi.resetModules();
+    const second = await import("./convertPrefs");
+    expect(second.useConvertPrefs.getState().imageLevel).toBe("fast");
+    expect(second.parseImageLevel("turbo")).toBe("balanced");
+    expect(second.parseImageLevel("smallest")).toBe("smallest");
+  });
+
   it("ignores a corrupt stored level", async () => {
     stored.set("ps5upload.convert.compression", "turbo");
     const { useConvertPrefs } = await import("./convertPrefs");
