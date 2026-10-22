@@ -4,6 +4,20 @@ What's new in ps5upload, written for humans.
 
 ---
 
+## 7.1.17
+
+- **Disk usage counts everything inside a folder (#495).** A folder's size now includes all its
+  subfolders, so /data and the folders in it show what they really take up. Disk usage counts
+  folders as it goes, with a Stop button, and opening a subfolder afterwards is instant. Links,
+  the system's own folders and other drives mounted inside are left out so nothing is counted
+  twice.
+- **Eject USB drives from File system (#496).** USB drives in File system's drive bar now have
+  an Eject button, like the PS5's own Files page. It works like Eject on Volumes: if the PS5 is
+  still holding the drive, it asks before ejecting anyway. Ejecting the drive you're browsing
+  takes you back to /data.
+
+---
+
 ## 7.1.16
 
 - **Pin the screens you use most.** Hover a screen in the sidebar and press the pin, or use the
