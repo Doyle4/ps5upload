@@ -800,6 +800,7 @@ describe("fpkg pipeline", () => {
     expect(archiveStem("/dl/My Game.part01.rar")).toBe("My Game");
     expect(archiveStem("C:\\dl\\G.v1.02.7z")).toBe("G.v1.02");
     expect(archiveStem("remote://nas-1/dl/a.ZIP")).toBe("a");
+    expect(archiveStem("/dl/Game..rar")).toBe("Game");
   });
 
   it("copies a server image before compressing it (compression reads local disk)", async () => {

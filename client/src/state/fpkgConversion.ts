@@ -573,7 +573,9 @@ export function isArchiveSource(path: string): boolean {
  *  or `.partN` (`Game.part1.rar` → `Game`). Its unpack folder's name means nothing. */
 export function archiveStem(path: string): string {
   const name = path.trim().split(/[\\/]/).pop() ?? "";
-  return name.replace(/(\.part\d+)?\.(zip|7z|rar)$/i, "");
+  // Trailing dots and spaces are not allowed at the end of a Windows file name, and the engine
+  // would only refuse it after a long unpack.
+  return name.replace(/(\.part\d+)?\.(zip|7z|rar)$/i, "").replace(/[. ]+$/, "");
 }
 
 /** A game image (`.exfat`, `.ffpkg`/`.ufs2`, `.ffpfs`, `.ffpfsc`) or a package (`.pkg`): what
