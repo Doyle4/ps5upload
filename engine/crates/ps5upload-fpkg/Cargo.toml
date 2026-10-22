@@ -10,6 +10,9 @@ version.workspace = true
 getrandom = "0.4"
 aes = "0.9"
 flate2 = "1"
+# Smallest .ffpfsc: libdeflate's near-optimal parser (level 12) on blocks zlib 9 shrank. Plain
+# C built by `cc`, like the vendored unrar, on every release target.
+libdeflater = "1.26"
 crc32fast = "1"
 # Raw LZ4 blocks for AMPR asset packs (already in the tree through smb2).
 lz4_flex = { version = "0.14", default-features = false, features = ["std", "safe-encode", "safe-decode", "checked-decode"] }

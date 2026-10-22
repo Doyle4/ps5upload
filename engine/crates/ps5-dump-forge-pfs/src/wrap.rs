@@ -28,7 +28,7 @@ use std::sync::mpsc::{self, Receiver, Sender, SyncSender};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use ps5upload_fpkg::ffpfsc_block::{BlockEncoder, BlockOptions, Stored};
+use ps5upload_fpkg::ffpfsc_block::{BlockEncoder, BlockOptions, Level, Stored};
 use ps5upload_fpkg::{Error, Result};
 
 use crate::image::{self, Sink};
@@ -46,11 +46,11 @@ const DEPTH_PER_WORKER: usize = 8;
 
 #[derive(Debug, Clone)]
 pub struct WrapOptions {
-    /// zlib level, 1–9.
+    /// Deflate level, 1–12.
     pub level: u32,
     /// Percent a block must shrink by to be stored compressed (at most 90).
     pub min_block_gain: u8,
-    /// Reserved for a second, stronger pass per block.
+    /// Also try level 12 on each block `level` shrank, keeping the shorter.
     pub strong: bool,
     /// Worker threads; 0 uses every core.
     pub threads: usize,
@@ -59,6 +59,18 @@ pub struct WrapOptions {
 }
 
 impl WrapOptions {
+    /// The options of a compression level, every core, the time now.
+    pub fn at(level: Level) -> Self {
+        let b = level.options();
+        Self {
+            level: b.level,
+            min_block_gain: b.min_gain,
+            strong: b.strong,
+            threads: 0,
+            time: None,
+        }
+    }
+
     fn block(&self) -> BlockOptions {
         BlockOptions {
             level: self.level,
@@ -81,15 +93,10 @@ impl WrapOptions {
     }
 }
 
+/// [`Level::Balanced`].
 impl Default for WrapOptions {
     fn default() -> Self {
-        Self {
-            level: 6,
-            min_block_gain: 5,
-            strong: false,
-            threads: 0,
-            time: None,
-        }
+        Self::at(Level::Balanced)
     }
 }
 

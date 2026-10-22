@@ -766,6 +766,9 @@ pub(crate) struct ExfatBuildReq {
     /// Write the image straight into a `.ffpfsc` container (no uncompressed copy on disk).
     #[serde(default)]
     compress: bool,
+    /// How hard a `.ffpfsc` is compressed: `fast`, `balanced` (the default) or `smallest`.
+    #[serde(default)]
+    ffpfsc_level: Option<String>,
     /// Pack the game's files into AMPR LZ4 asset packs first (exFAT only, not with `compress`).
     #[serde(default)]
     ampr_lz4: Option<AmprLz4Req>,
@@ -850,6 +853,10 @@ pub(crate) async fn exfat_build_handler(
     }
     let format = match crate::image_build::ImageFormat::parse(req.format.as_deref()) {
         Ok(f) => f,
+        Err(e) => return json_err(StatusCode::BAD_REQUEST, e).into_response(),
+    };
+    let level = match ps5upload_fpkg::ffpfsc_block::Level::parse(req.ffpfsc_level.as_deref()) {
+        Ok(l) => l,
         Err(e) => return json_err(StatusCode::BAD_REQUEST, e).into_response(),
     };
     let verify_chunk = match crate::image_build::verify_chunk(req.verify_chunk_kib) {
@@ -1085,9 +1092,10 @@ pub(crate) async fn exfat_build_handler(
             ),
             // A libSceAmpr game gets a fresh ampr_emu.index (#449), as a package does.
             None => match crate::image_build::AmprIndexed::wrap(&mut *tree) {
-                Ok(Some(mut indexed)) => crate::image_build::build(
+                Ok(Some(mut indexed)) => crate::image_build::build_at(
                     format,
                     inner_name.as_deref(),
+                    level,
                     &mut indexed,
                     &output,
                     mode,
@@ -1095,9 +1103,10 @@ pub(crate) async fn exfat_build_handler(
                     &cancel,
                     &mut report,
                 ),
-                Ok(None) => crate::image_build::build(
+                Ok(None) => crate::image_build::build_at(
                     format,
                     inner_name.as_deref(),
+                    level,
                     &mut *tree,
                     &output,
                     mode,

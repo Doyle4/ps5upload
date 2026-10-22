@@ -20,6 +20,7 @@ use std::io::{BufWriter, Write};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 
+use ps5upload_fpkg::ffpfsc_block::Level;
 use ps5upload_fpkg::sample::{self, VerifyMode, VerifySummary, SLICE};
 use ps5upload_fpkg::source::{SourceFile, SourceTree};
 
@@ -726,6 +727,32 @@ pub(crate) fn build(
     cancel: &AtomicBool,
     stage: &mut dyn FnMut(&str, u64, u64),
 ) -> Result<ImageBuilt, String> {
+    build_at(
+        format,
+        inner_name,
+        Level::default(),
+        source,
+        output,
+        mode,
+        verify_chunk,
+        cancel,
+        stage,
+    )
+}
+
+/// [`build`], a `.ffpfsc` compressed at `level` (ignored for a plain image).
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn build_at(
+    format: ImageFormat,
+    inner_name: Option<&str>,
+    level: Level,
+    source: &mut dyn SourceTree,
+    output: &Path,
+    mode: VerifyMode,
+    verify_chunk: u64,
+    cancel: &AtomicBool,
+    stage: &mut dyn FnMut(&str, u64, u64),
+) -> Result<ImageBuilt, String> {
     if source.files().is_empty() {
         return Err(format!("{} has no files in it", source.describe()));
     }
@@ -759,7 +786,7 @@ pub(crate) fn build(
             "write"
         };
         let mut report = |done: u64, total: u64| stage(write_stage, done, total);
-        let wrap_opts = ps5_dump_forge_pfs::WrapOptions::default();
+        let wrap_opts = ps5_dump_forge_pfs::WrapOptions::at(level);
         let (image_bytes, stored, wrapped) = match inner_name {
             None => {
                 let mut out = BufWriter::with_capacity(8 << 20, &mut file);
@@ -809,7 +836,14 @@ pub(crate) fn build(
             (started.elapsed() - written_at).as_millis(),
         ));
         if let Some(w) = &wrapped {
-            crate::engine_log::record("info", format!("ffpfsc: {}", wrap_log_line(&wrap_opts, w)));
+            crate::engine_log::record(
+                "info",
+                format!(
+                    "ffpfsc: compression={} {}",
+                    level.name(),
+                    wrap_log_line(&wrap_opts, w)
+                ),
+            );
         }
         let mut detail = format!(
             "{}, {} files, {data} data bytes, {}",
