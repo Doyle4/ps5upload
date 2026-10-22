@@ -65,6 +65,7 @@ const ProcessesScreen = lazyWithReload(() => import("./screens/Processes"));
 const CapturesScreen = lazyWithReload(() => import("./screens/Captures"));
 const ShellScreen = lazyWithReload(() => import("./screens/Shell"));
 const DiskUsageScreen = lazyWithReload(() => import("./screens/DiskUsage"));
+const CleanupScreen = lazyWithReload(() => import("./screens/Cleanup"));
 const AboutScreen = lazyWithReload(() => import("./screens/About"));
 const FAQScreen = lazyWithReload(() => import("./screens/FAQ"));
 const LogsScreen = lazyWithReload(() => import("./screens/Logs"));
@@ -493,6 +494,14 @@ function AppRoutes({ location }: { location: Location }) {
           element={
             <Suspense fallback={<ScreenLoader />}>
               <DiskUsageScreen />
+            </Suspense>
+          }
+        />
+        <Route
+          path="/cleanup"
+          element={
+            <Suspense fallback={<ScreenLoader />}>
+              <CleanupScreen />
             </Suspense>
           }
         />

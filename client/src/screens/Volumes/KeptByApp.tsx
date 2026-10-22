@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { FolderOpen, Trash2 } from "lucide-react";
+import { Eraser, FolderOpen, Trash2 } from "lucide-react";
 
 import { fsDelete } from "../../api/ps5";
 import { Button, Spinner } from "../../components";
@@ -36,6 +36,7 @@ export function KeptByAppView({
   busyPath,
   onClean,
   onOpen,
+  onOpenCleanup,
 }: {
   /** null while it is still measuring. */
   rows: UsageRow[] | null;
@@ -43,6 +44,8 @@ export function KeptByAppView({
   busyPath: string | null;
   onClean: (row: UsageRow) => void;
   onOpen: (row: UsageRow) => void;
+  /** Opens the Clean up screen, which also finds what other apps and the PS5 left behind. */
+  onOpenCleanup?: () => void;
 }) {
   const tr = useTr();
   const label = (key: KeptKey) =>
@@ -55,8 +58,13 @@ export function KeptByAppView({
           : tr("kept_tests", undefined, "Test files");
   return (
     <section className="mt-6" data-testid="kept-by-app">
-      <div className="mb-1 text-sm font-semibold">
-        {tr("kept_title", undefined, "Kept by ps5upload")}
+      <div className="mb-1 flex items-center gap-2">
+        <div className="flex-1 text-sm font-semibold">{tr("kept_title", undefined, "Kept by ps5upload")}</div>
+        {onOpenCleanup ? (
+          <Button size="sm" variant="ghost" leftIcon={<Eraser size={14} />} onClick={onOpenCleanup} data-testid="kept-open-cleanup">
+            {tr("cleanup_open", undefined, "Clean up…")}
+          </Button>
+        ) : null}
       </div>
       <p className="mb-2 text-xs text-[var(--color-muted)]">
         {tr(
@@ -133,6 +141,7 @@ export function KeptByApp({
   confirm,
   onOpenPath,
   onChanged,
+  onOpenCleanup,
 }: {
   host: string;
   drives: string[];
@@ -140,6 +149,7 @@ export function KeptByApp({
   confirm: (opts: { title: string; message: string; confirmLabel: string; destructive: boolean }) => Promise<boolean>;
   onOpenPath: (path: string) => void;
   onChanged: () => void;
+  onOpenCleanup?: () => void;
 }) {
   const tr = useTr();
   const [rows, setRows] = useState<UsageRow[] | null>(null);
@@ -193,6 +203,7 @@ export function KeptByApp({
       busyPath={busyPath}
       onClean={(r) => void clean(r)}
       onOpen={(r) => onOpenPath(r.path)}
+      onOpenCleanup={onOpenCleanup}
     />
   );
 }

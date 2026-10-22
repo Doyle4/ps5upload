@@ -49,6 +49,7 @@ import {
   Layers,
   WandSparkles,
   FilePen,
+  Eraser,
 } from "lucide-react";
 
 export interface NavItem {
@@ -125,6 +126,12 @@ export const NAV_ITEMS: NavItem[] = [
     key: "disk_usage",
     fallback: "Disk usage",
     icon: PieChart,
+  },
+  {
+    to: "/cleanup",
+    key: "cleanup_nav",
+    fallback: "Clean up",
+    icon: Eraser,
   },
   {
     to: "/connections",

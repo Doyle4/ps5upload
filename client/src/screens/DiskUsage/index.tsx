@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { PieChart, RefreshCw, ChevronUp, Square } from "lucide-react";
+import { PieChart, RefreshCw, ChevronUp, Square, Eraser } from "lucide-react";
+import { useNavigate } from "react-router";
 import { useConnectionStore } from "../../state/connection";
 import {
   PageHeader,
@@ -37,6 +38,7 @@ import {
  */
 export default function DiskUsageScreen() {
   const tr = useTr();
+  const navigate = useNavigate();
   const host = useConnectionStore((s) => s.host);
   const payloadStatus = useConnectionStore((s) => s.payloadStatus);
   const [path, setPath] = useState("/user");
@@ -153,15 +155,20 @@ export default function DiskUsageScreen() {
           "See what is taking up space on the PS5. Each block is a file or a folder, and a folder counts everything inside it, subfolders included. Click a folder to look inside.",
         )}
         right={
-          <Button
-            variant="secondary"
-            size="sm"
-            leftIcon={<RefreshCw size={12} />}
-            onClick={refresh}
-            disabled={scanning || !host?.trim() || payloadStatus !== "up"}
-          >
-            {tr("refresh", undefined, "Refresh")}
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="ghost" size="sm" leftIcon={<Eraser size={12} />} onClick={() => navigate("/cleanup")}>
+              {tr("cleanup_open", undefined, "Clean up…")}
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              leftIcon={<RefreshCw size={12} />}
+              onClick={refresh}
+              disabled={scanning || !host?.trim() || payloadStatus !== "up"}
+            >
+              {tr("refresh", undefined, "Refresh")}
+            </Button>
+          </div>
         }
       />
       <ConnectionGate require="payload">

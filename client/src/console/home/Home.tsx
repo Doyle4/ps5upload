@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
-import { Gamepad2, HardDrive, Sparkles, Usb, X } from "lucide-react";
+import { Eraser, Gamepad2, HardDrive, Sparkles, Usb, X } from "lucide-react";
 import { formatBytes } from "../../lib/format";
 import { ApiError, call, callBlob, isOffline } from "../api";
+import { cleanupLastFound, onCleanupFound } from "../cleanup/Cleanup";
 import { onNavAction } from "../nav";
 import type { SectionContext } from "../sections";
 import type { ConsoleStatus } from "../shell/TopBar";
@@ -146,6 +147,10 @@ export interface HomeViewProps {
   onOpenCheats?: (() => void) | null;
   /** ✕ on a storage card: Files at that drive's path, or null when Files cannot open a path. */
   onOpenDrive: ((path: string) => void) | null;
+  /** Open Clean up, or null while there is none (the card is hidden). */
+  onOpenCleanup?: (() => void) | null;
+  /** What the last clean-up scan of this page found, or null before one ran. */
+  cleanupFound?: { bytes: number; count: number } | null;
 }
 
 /** One drive. Focusable; ✕ (a click) opens Files there when `onOpen` is given. */
@@ -306,6 +311,24 @@ export function HomeView(p: HomeViewProps) {
             ))}
           </ul>
         )}
+        {p.onOpenCleanup ? (
+          <button
+            type="button"
+            className="cw-focusable cw-button cw-card cw-cleanup-card"
+            data-action="open-cleanup"
+            onClick={p.onOpenCleanup}
+          >
+            <Eraser aria-hidden />
+            <span className="cw-cleanup-text">
+              <span className="cw-cleanup-name">{t("cw_cleanup_home_card")}</span>
+              <span className="cw-dim">
+                {p.cleanupFound && p.cleanupFound.count > 0
+                  ? t("cw_cleanup_home_found", { size: formatBytes(p.cleanupFound.bytes) })
+                  : t("cw_cleanup_home_hint")}
+              </span>
+            </span>
+          </button>
+        ) : null}
       </section>
 
       {p.ask && copy ? (
@@ -454,6 +477,9 @@ export function Home({ ctx }: { ctx: SectionContext }) {
   const cover = loadedCover && coverFailed !== loadedCover ? loadedCover : null;
   const onOpenCheats = hasSection("cheats") ? () => openSection("cheats") : null;
   const onOpenDrive = canOpen("files") ? (path: string) => openSection("files", { path }) : null;
+  const onOpenCleanup = hasSection("cleanup") ? () => openSection("cleanup") : null;
+  const [cleanupFound, setCleanupFound] = useState(cleanupLastFound);
+  useEffect(() => onCleanupFound(() => setCleanupFound(cleanupLastFound())), []);
 
   return (
     <HomeView
@@ -480,6 +506,8 @@ export function Home({ ctx }: { ctx: SectionContext }) {
       onToggleTasks={() => setTasksExpanded((v) => !v)}
       onOpenCheats={onOpenCheats}
       onOpenDrive={onOpenDrive}
+      onOpenCleanup={onOpenCleanup}
+      cleanupFound={cleanupFound}
     />
   );
 }
