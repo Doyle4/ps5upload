@@ -208,6 +208,13 @@ fn do_hw_temps(addr: &str, extended: bool) -> Result<()> {
     Ok(())
 }
 
+/// HW_TEMPS "f" as the helper writes it: every fan line, the 28-byte servo profile included.
+fn do_fan_raw(addr: &str) -> Result<()> {
+    let body = ps5upload_core::mgmt::call(addr, ps5upload_core::mgmt::m::HW_TEMPS, b"f")?;
+    print!("{}", String::from_utf8_lossy(&body));
+    Ok(())
+}
+
 fn do_shutdown(addr: &str) -> Result<()> {
     let body = ps5upload_core::mgmt::call(addr, ps5upload_core::mgmt::m::NODE_SHUTDOWN, b"")?;
     println!("{}", String::from_utf8_lossy(&body));
@@ -860,6 +867,8 @@ fn usage() -> ! {
     );
     eprintln!("  process-kill <pid>         SIGKILL a process by pid");
     eprintln!("  saves                      list save-data folders + sizes");
+    eprintln!("  fan-raw                    the helper's fan lines (HW_TEMPS \"f\"), servo profile hex included");
+    eprintln!("  fan-set C                  set the fan target (45-85 C; 0 = the console's own)");
     eprintln!("  profile-info                       foreground user + account name slots");
     eprintln!("  profile-set-username SLOT NAME     rename an account-name slot");
     eprintln!("  profile-rename-user  UID_HEX NAME  rename a local console user");
@@ -1174,6 +1183,16 @@ fn main() -> Result<()> {
         }
         "hw-temps" => do_hw_temps(addr, false),
         "hw-temps-x" => do_hw_temps(addr, true),
+        "fan-raw" => do_fan_raw(addr),
+        "fan-set" => {
+            let c: u8 = rest
+                .get(1)
+                .context("fan-set needs a target in C (0 = the console's own)")?
+                .parse()?;
+            ps5upload_core::hw::hw_set_fan_threshold(addr, c)?;
+            println!("fan target set: {c}");
+            Ok(())
+        }
         "saves" => do_saves(addr),
         "profile-info" => do_profile_info(addr),
         "profile-set-username" => {
