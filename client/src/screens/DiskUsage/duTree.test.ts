@@ -150,6 +150,6 @@ describe("running a walk", () => {
     await vi.advanceTimersByTimeAsync(POLL_MS / 2);
     ac.abort();
     expect(await p).toBeNull();
-    expect(calls.at(-1)).toEqual({ cmd: "ps5_disk_usage_cancel", args: { id: "w1" } });
+    expect(calls[calls.length - 1]).toEqual({ cmd: "ps5_disk_usage_cancel", args: { id: "w1" } });
   });
 });
