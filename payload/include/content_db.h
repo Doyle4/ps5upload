@@ -62,9 +62,33 @@ typedef struct {
 int content_db_apps(content_db_app_t *out, int max, const char **source);
 
 /*
- * Whether any app.db title table (found by shape, like content_db_apps) has a
- * row for `title_id`: one indexed lookup per table, not a walk of every row.
- * Returns 1 / 0, or -1 when app.db could not be read (or has no such table).
+ * Where app.db mentions `title_id`, over EVERY table with a titleId column
+ * (no cap: a console has tbl_contentinfo plus three such tables per user, so
+ * a capped scan missed rows on a console with four or more users, #480).
+ *   tables         titleId tables looked in
+ *   any            1 when any of them has a row
+ *   content        Sony's install record: rows in a table that also has a
+ *                  metaDataPath column (tbl_contentinfo), 1 / 0; -1 when
+ *                  app.db has no such table
+ *   icons          rows in icon tables (titleId + visible: tbl_iconinfo_<user>)
+ *   icons_visible  of those, how many have visible != 0 (drawn on the home screen)
+ *   where          "tbl_contentinfo,tbl_iconinfo_<user>(visible)" for logs
+ * Returns 0, or -1 when app.db could not be read or has no titleId table.
+ */
+typedef struct {
+    int tables;
+    int any;
+    int content;
+    int icons;
+    int icons_visible;
+    char where[320];
+} content_db_presence_t;
+int content_db_title_presence(const char *title_id, content_db_presence_t *out);
+
+/*
+ * Whether any app.db titleId table has a row for `title_id`
+ * (content_db_title_presence's `any`). Returns 1 / 0, or -1 when app.db could
+ * not be read (or has no such table).
  */
 int content_db_has_title(const char *title_id);
 

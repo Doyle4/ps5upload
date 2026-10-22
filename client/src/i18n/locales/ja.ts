@@ -4311,6 +4311,7 @@ c2c_test_deep_bad: "4 KiB のテスト送信が届きませんでした: {detail
 "cw_settings_lan_confirm_title": "他の機器を許可しますか？",
 "cw_settings_lan_allow": "許可する",
 "cw_settings_tile": "ホーム画面に PS5Upload Minion を表示",
+"cw_settings_tile_hidden": "PS5 が PS5Upload Minion の記録を残したため、代わりにホーム画面のアイコンを非表示にしました。",
 "cw_settings_on": "オン",
 "cw_settings_off": "オフ",
 "cw_settings_language": "言語",

@@ -16,7 +16,16 @@ export interface WebSettings {
   tile_busy?: boolean;
   /** The last add/remove failed: the tile is not as `tile` says. */
   tile_failed?: boolean;
+  /** What the helper last did to the tile: "added", "removed", "hidden" (the PS5 kept its record,
+   *  so the icon was hidden instead), "failed" or "" (#480; older helpers send none). */
+  tile_result?: string;
   version: string;
+}
+
+/** The note under the tile switch: says when removing the tile could only hide its icon. */
+export function tileNote(s: WebSettings): string | undefined {
+  if (s.tile || s.tile_busy || s.tile_failed || s.tile_result !== "hidden") return undefined;
+  return t("cw_settings_tile_hidden");
 }
 
 /** How often, and how long at most, Settings re-reads after a tile switch. */
@@ -244,6 +253,7 @@ export function SettingsView(p: SettingsViewProps) {
                 on={s.tile}
                 disabled={p.busy}
                 onClick={p.onToggleTile}
+                note={tileNote(s)}
               />
             </div>
           </>

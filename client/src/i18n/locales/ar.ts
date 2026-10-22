@@ -4290,6 +4290,7 @@ c2c_test_deep_bad: "لم يصل الإرسال التجريبي بحجم 4 KiB: 
 "cw_settings_lan_confirm_title": "السماح للأجهزة الأخرى؟",
 "cw_settings_lan_allow": "سماح",
 "cw_settings_tile": "إظهار PS5Upload Minion على الشاشة الرئيسية",
+"cw_settings_tile_hidden": "احتفظ PS5 بسجل PS5Upload Minion، لذا أُخفيت أيقونته على الشاشة الرئيسية بدلاً من ذلك.",
 "cw_settings_on": "مفعّل",
 "cw_settings_off": "معطّل",
 "cw_settings_language": "اللغة",

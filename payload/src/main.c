@@ -813,6 +813,9 @@ int main(void) {
             webui_api_tile_forget();
             ws.tile = 0;
         }
+        /* Tile off: whatever is left of it goes, and a greyed-out icon the console kept (#480) is
+         * uninstalled again or hidden; this also fixes a console already showing one. */
+        if (!ws.tile) webui_tile_sweep_request();
         memset(&wc, 0, sizeof wc);
         wc.port = WEBUI_PORT;
         wc.lan = ws.lan;

@@ -522,6 +522,7 @@
   "cw_settings_on": "On",
   "cw_settings_theme": "Theme",
   "cw_settings_tile": "Show PS5Upload Minion on the home screen",
+  "cw_settings_tile_hidden": "The PS5 kept its record of PS5Upload Minion, so its home-screen icon is hidden instead.",
   "cw_settings_tips": "Show tips again",
   "cw_settings_using": "Controller and tips",
   "cw_settings_version": "Version {version}",

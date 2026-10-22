@@ -522,6 +522,7 @@
   "cw_settings_on": "Activé",
   "cw_settings_theme": "Thème",
   "cw_settings_tile": "Afficher PS5Upload Minion sur l'écran d'accueil",
+  "cw_settings_tile_hidden": "La PS5 a conservé l'entrée de PS5Upload Minion : son icône a donc été masquée sur l'écran d'accueil.",
   "cw_settings_tips": "Revoir les astuces",
   "cw_settings_using": "Manette et astuces",
   "cw_settings_version": "Version : {version}",

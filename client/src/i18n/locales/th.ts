@@ -4299,6 +4299,7 @@ c2c_test_deep_bad: "การส่งทดสอบ 4 KiB ไปไม่ถ�
 "cw_settings_lan_confirm_title": "อนุญาตอุปกรณ์อื่นหรือไม่",
 "cw_settings_lan_allow": "อนุญาต",
 "cw_settings_tile": "แสดง PS5Upload Minion บนหน้าจอหลัก",
+"cw_settings_tile_hidden": "PS5 เก็บบันทึกของ PS5Upload Minion ไว้ จึงซ่อนไอคอนบนหน้าจอหลักแทน",
 "cw_settings_on": "เปิด",
 "cw_settings_off": "ปิด",
 "cw_settings_language": "ภาษา",

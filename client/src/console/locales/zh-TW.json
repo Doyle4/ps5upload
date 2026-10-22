@@ -522,6 +522,7 @@
   "cw_settings_on": "開",
   "cw_settings_theme": "佈景主題",
   "cw_settings_tile": "在主畫面顯示 PS5Upload Minion",
+  "cw_settings_tile_hidden": "PS5 保留了 PS5Upload Minion 的記錄，因此改為隱藏其主畫面圖示。",
   "cw_settings_tips": "再次顯示提示",
   "cw_settings_using": "控制器與提示",
   "cw_settings_version": "版本 {version}",

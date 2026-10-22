@@ -1057,18 +1057,21 @@ void webui_api_settings_init(const webui_settings_t *s) {
 
 /* tile_busy / tile_failed: the tile switch is applied on the tile thread after this reply (Sony calls
  * take seconds), so the page re-reads /api/settings until tile_busy is false and then says so when
- * the last ensure/remove failed (webui_tile_state). */
+ * the last ensure/remove failed (webui_tile_state). tile_result: what the helper last did to the
+ * tile ("added", "removed", "hidden", "failed" or ""; webui_tile_result_name). */
 /* `addr`: with LAN access on, the console's address a phone opens ("Continue on your phone"; the
  * page builds http://<addr>:<port>/ from it); "" when off or there is none. Dotted IPv4 only. */
 static void send_settings(int fd, const webui_settings_t *s) {
-    char json[256], addr[INET_ADDRSTRLEN];
+    char json[288], addr[INET_ADDRSTRLEN];
     int busy, failed, k;
-    webui_tile_state(&busy, &failed);
+    webui_tile_result_t result;
+    webui_tile_state(&busy, &failed, &result);
     if (!s->lan || !webui_lan_addr(addr)) addr[0] = '\0';
     k = snprintf(json, sizeof json,
-                 "{\"lan\":%s,\"tile\":%s,\"tile_busy\":%s,\"tile_failed\":%s,\"version\":\"%s\",\"addr\":\"%s\"}",
+                 "{\"lan\":%s,\"tile\":%s,\"tile_busy\":%s,\"tile_failed\":%s,\"tile_result\":\"%s\","
+                 "\"version\":\"%s\",\"addr\":\"%s\"}",
                  s->lan ? "true" : "false", s->tile ? "true" : "false", busy ? "true" : "false",
-                 failed ? "true" : "false", PS5UPLOAD2_VERSION, addr);
+                 failed ? "true" : "false", webui_tile_result_name(result), PS5UPLOAD2_VERSION, addr);
     if (k < 0 || (size_t)k >= sizeof json) {
         send_error(fd, 500, "bad_settings_reply", 18);
         return;
@@ -1156,6 +1159,7 @@ static void r_settings_set(const char *b, size_t n, uint8_t *out, int fd) {
 int webui_api_tile(const char *body, size_t len, char *out, size_t cap) {
     webui_settings_t s;
     int tile = 0, busy, failed, n;
+    webui_tile_result_t result;
     int has = webui_json_bool(body, len, "tile", &tile);
     if (has < 0) return snprintf(out, cap, "{\"ok\":false,\"err\":\"bad_tile\"}");
     pthread_mutex_lock(&g_set_mu);
@@ -1170,9 +1174,10 @@ int webui_api_tile(const char *body, size_t len, char *out, size_t cap) {
         /* Also retries an interrupted registration/removal with an unchanged setting. */
         webui_tile_request(s.tile, WEBUI_PORT);
     }
-    webui_tile_state(&busy, &failed);
-    n = snprintf(out, cap, "{\"tile\":%s,\"tile_busy\":%s,\"tile_failed\":%s}",
-        s.tile ? "true" : "false", busy ? "true" : "false", failed ? "true" : "false");
+    webui_tile_state(&busy, &failed, &result);
+    n = snprintf(out, cap, "{\"tile\":%s,\"tile_busy\":%s,\"tile_failed\":%s,\"tile_result\":\"%s\"}",
+        s.tile ? "true" : "false", busy ? "true" : "false", failed ? "true" : "false",
+        webui_tile_result_name(result));
     pthread_mutex_unlock(&g_set_mu);
     return n < 0 || (size_t)n >= cap ? -1 : n;
 }
@@ -1189,6 +1194,7 @@ void webui_api_tile_forget(void) {
 
 int webui_api_tile_off(void) {
     webui_settings_t s;
+    unsigned gen;
     int rc = 0;
     pthread_mutex_lock(&g_set_mu);
     s = g_set;
@@ -1200,8 +1206,12 @@ int webui_api_tile_off(void) {
         return -1;
     }
     g_set = s;
-    rc = webui_tile_remove_wait(WEBUI_PORT);
+    /* Asked for under g_set_mu (requests stay in saved-setting order), waited for without it: the
+     * page's /api/settings and the PC's tile poll take it, and would otherwise hang behind the Sony
+     * calls (#480). A toggle made meanwhile supersedes this request; the wait reports that as -1. */
+    gen = webui_tile_request(0, WEBUI_PORT);
     pthread_mutex_unlock(&g_set_mu);
+    rc = webui_tile_remove_wait(gen);
     return rc;
 }
 

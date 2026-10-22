@@ -112,6 +112,8 @@ export type MinionTileState =
       tile: boolean;
       tile_busy: boolean;
       tile_failed: boolean;
+      /** "added" | "removed" | "hidden" | "failed" | "" (#480); absent from older helpers. */
+      tile_result?: string;
     };
 export async function minionTile(
   host: string,
@@ -134,6 +136,7 @@ export async function minionTile(
     tile: b.tile,
     tile_busy: b.tile_busy,
     tile_failed: b.tile_failed,
+    ...(typeof b.tile_result === "string" ? { tile_result: b.tile_result } : {}),
   };
 }
 

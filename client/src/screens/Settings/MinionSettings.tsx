@@ -98,11 +98,17 @@ function MinionTileControl({ host, up }: { host: string; up: boolean }) {
                       undefined,
                       "Minion is set to appear on the home screen.",
                     )
-                  : tr(
-                      "cw_settings_off",
-                      undefined,
-                      "Minion is set to stay hidden.",
-                    )}
+                  : state.tile_result === "hidden"
+                    ? tr(
+                        "cw_settings_tile_hidden",
+                        undefined,
+                        "The PS5 kept its record of PS5Upload Minion, so its home-screen icon is hidden instead.",
+                      )
+                    : tr(
+                        "cw_settings_off",
+                        undefined,
+                        "Minion is set to stay hidden.",
+                      )}
           </p>
           <div className="flex flex-wrap gap-2">
             <Button

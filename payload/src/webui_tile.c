@@ -165,9 +165,11 @@ webui_tile_removal_t webui_tile_removal_verdict(int appdb_row, int sony_confirme
     return hidden ? WEBUI_TILE_HIDDEN : WEBUI_TILE_KEEP;
 }
 
-int webui_tile_remove_with(const webui_tile_remove_ops_t *o) {
+int webui_tile_remove_with(const webui_tile_remove_ops_t *o, webui_tile_removal_t *verdict) {
     int confirmed = 0, sony_ok = 0, c2 = 0, s2 = 0, row, hidden = 0, rc = 0;
     int staged = o->staged(o->ctx);
+    webui_tile_removal_t v;
+    if (verdict) *verdict = WEBUI_TILE_KEEP;
     /* The nullfs must be gone before the folder under it is deleted: on an unregister failure the
      * folders stay (a tile pointing at nothing is worse than a tile that still works). */
     if (o->unregister(o->ctx, &confirmed, &sony_ok) != 0) return -1;
@@ -189,7 +191,9 @@ int webui_tile_remove_with(const webui_tile_remove_ops_t *o) {
     }
     /* Sony keeps it: hide the icon the way the PC hides one (#407), and keep it hidden. */
     if (row == 1) hidden = o->hide(o->ctx) == 0;
-    if (webui_tile_removal_verdict(row, confirmed, hidden) == WEBUI_TILE_KEEP) return -1;
+    v = webui_tile_removal_verdict(row, confirmed, hidden);
+    if (verdict) *verdict = v;
+    if (v == WEBUI_TILE_KEEP) return -1;
     /* The staged /user/app copy goes too: on FW 13.x the next folder-game register runs
      * AppInstallAll, which would install the removed tile again. */
     if (o->delete_staged(o->ctx) != 0) rc = -1;
@@ -198,21 +202,107 @@ int webui_tile_remove_with(const webui_tile_remove_ops_t *o) {
     return rc;
 }
 
+const char *webui_tile_result_name(webui_tile_result_t r) {
+    switch (r) {
+    case WEBUI_TILE_RESULT_ADDED: return "added";
+    case WEBUI_TILE_RESULT_REMOVED: return "removed";
+    case WEBUI_TILE_RESULT_HIDDEN: return "hidden";
+    case WEBUI_TILE_RESULT_FAILED: return "failed";
+    default: return "";
+    }
+}
+
+int webui_tile_install_record(const webui_tile_seen_t *seen) {
+    if (seen->rows < 0) return -1;
+    return seen->content >= 0 ? seen->content : seen->rows;
+}
+
+webui_tile_sweep_t webui_tile_sweep_plan(int tile_on, const webui_tile_seen_t *seen, int registered,
+                                         int leftovers, int may_remove) {
+    if (tile_on) return WEBUI_TILE_SWEEP_NONE;        /* the user wants the tile: never fight it */
+    if (seen->rows < 0) return WEBUI_TILE_SWEEP_NONE; /* unreadable: never guess */
+    if (seen->rows == 0) return leftovers && !registered ? WEBUI_TILE_SWEEP_CLEAN : WEBUI_TILE_SWEEP_NONE;
+    /* app.db lists it. Our own tile (bound, or its files still there) is a removal to finish. */
+    if (registered || leftovers) return may_remove ? WEBUI_TILE_SWEEP_REMOVE : WEBUI_TILE_SWEEP_NONE;
+    /* Listed, nothing of ours behind it: a zombie when Sony still has an install record or an icon
+     * is still drawn. Only hidden icon rows left: nothing shows. */
+    if (seen->content == 1 || seen->icons_visible > 0) return WEBUI_TILE_SWEEP_ZOMBIE;
+    return WEBUI_TILE_SWEEP_NONE;
+}
+
+webui_tile_result_t webui_tile_fix_zombie(const webui_tile_sweep_ops_t *o, int *uninstalled) {
+    webui_tile_seen_t seen;
+    if (o->look(o->ctx, &seen) != 0 || seen.rows < 0) return WEBUI_TILE_RESULT_FAILED;
+    if (seen.content == 1 && !*uninstalled) {
+        /* Sony still counts it installed: ask it to uninstall once more, then look again. */
+        *uninstalled = 1;
+        (void)o->uninstall(o->ctx);
+        if (o->look(o->ctx, &seen) != 0 || seen.rows < 0) return WEBUI_TILE_RESULT_FAILED;
+    }
+    /* Whatever happens next, the icon keeper hides it again if the system shows it later. */
+    o->keep_hidden(o->ctx);
+    if (seen.rows == 0) return WEBUI_TILE_RESULT_REMOVED;
+    if (seen.icons_visible > 0 && o->hide(o->ctx) != 0) return WEBUI_TILE_RESULT_FAILED;
+    return WEBUI_TILE_RESULT_HIDDEN;
+}
+
+webui_tile_result_t webui_tile_sweep_once(const webui_tile_sweep_ops_t *o, int may_remove, int *uninstalled) {
+    webui_tile_seen_t seen;
+    if (o->tile_on(o->ctx)) return WEBUI_TILE_RESULT_NONE; /* checked first: no app.db read at all */
+    if (o->look(o->ctx, &seen) != 0) return WEBUI_TILE_RESULT_NONE;
+    switch (webui_tile_sweep_plan(o->tile_on(o->ctx), &seen, o->registered(o->ctx), o->leftovers(o->ctx),
+                                  may_remove)) {
+    case WEBUI_TILE_SWEEP_REMOVE:
+        return o->remove(o->ctx) == 0 ? WEBUI_TILE_RESULT_REMOVED : WEBUI_TILE_RESULT_FAILED;
+    case WEBUI_TILE_SWEEP_ZOMBIE:
+        /* A record Sony kept after one more uninstall, with every icon already hidden: done. */
+        if (*uninstalled && seen.icons_visible == 0) return WEBUI_TILE_RESULT_NONE;
+        return webui_tile_fix_zombie(o, uninstalled);
+    case WEBUI_TILE_SWEEP_CLEAN:
+        return o->clean(o->ctx) == 0 ? WEBUI_TILE_RESULT_REMOVED : WEBUI_TILE_RESULT_FAILED;
+    default:
+        return WEBUI_TILE_RESULT_NONE;
+    }
+}
+
+webui_tile_result_t webui_tile_settle_with(const webui_tile_sweep_ops_t *o, int *uninstalled) {
+    static const unsigned delays[] = WEBUI_TILE_SETTLE_DELAYS;
+    webui_tile_result_t last = WEBUI_TILE_RESULT_NONE;
+    size_t i;
+    for (i = 0; i < sizeof delays / sizeof delays[0]; i++) {
+        webui_tile_result_t r;
+        if (o->wait(o->ctx, delays[i])) break;
+        r = webui_tile_sweep_once(o, 0, uninstalled);
+        if (r != WEBUI_TILE_RESULT_NONE) last = r;
+    }
+    return last;
+}
+
 #ifndef WEBUI_TILE_HOST_TEST
 
 #include <pthread.h>
 #include <sys/mount.h>
 #include <sys/param.h>
+#include <time.h>
 
 #include "content_db.h"
 #include "icon_keeper.h"
 #include "proc_identity.h"
 #include "register.h"
+#include "unregister_outcome.h"
+#include "webui_settings.h"
 
 #define TILE_STACK (256u * 1024u)
 #define TILE_THREAD_NAME "ps5upload-tile"
 #define TILE_SYSTEM_EX "/system_ex/app/" WEBUI_TILE_TITLE_ID
 #define TILE_MOUNT_LNK "/user/app/" WEBUI_TILE_TITLE_ID "/mount.lnk"
+/* The tile's tracker while it is registered: mount.lnk under another name. ShadowMount+ 1.7 treats
+ * every /user/app/<id>/mount.lnk as one of its on-demand titles and unmounts its /system_ex/app
+ * bind a few seconds after it appears ("[LINK] runtime layers released: PSUP00001", measured on the
+ * Phat, FW 13.60, SMP v1.7beta7: the tile's bind lasted under 6 s with mount.lnk and 60 s+ without
+ * it). An unbound tile is the greyed-out icon that still opens the page (#480). unregister_title
+ * recognizes our registrations by mount.lnk, so it is put back just before an unregister. */
+#define TILE_OWN_LNK "/user/app/" WEBUI_TILE_TITLE_ID "/ps5upload.lnk"
 
 /* Serializes ensure and remove (Sony calls, the folder) whoever calls them. */
 static pthread_mutex_t g_op_mu = PTHREAD_MUTEX_INITIALIZER;
@@ -227,11 +317,13 @@ static int tile_mount_live(void) {
     return statfs(TILE_SYSTEM_EX, &sfs) == 0 && strcmp(sfs.f_mntonname, TILE_SYSTEM_EX) == 0;
 }
 
-/* /user/app/PSUP00001/mount.lnk (written by register_title_from_path) names WEBUI_TILE_DIR. */
+/* The tracker (TILE_OWN_LNK, or mount.lnk as register_title_from_path and older helpers left it)
+ * names WEBUI_TILE_DIR. */
 static int tile_lnk_ours(void) {
     char lnk[256];
     ssize_t n;
-    int fd = open(TILE_MOUNT_LNK, O_RDONLY);
+    int fd = open(TILE_OWN_LNK, O_RDONLY);
+    if (fd < 0) fd = open(TILE_MOUNT_LNK, O_RDONLY);
     if (fd < 0) return 0;
     n = read(fd, lnk, sizeof lnk - 1);
     close(fd);
@@ -244,6 +336,27 @@ static int tile_lnk_ours(void) {
 static int is_dir(const char *p) {
     struct stat st;
     return stat(p, &st) == 0 && S_ISDIR(st.st_mode);
+}
+
+/* What app.db says about PSUP00001, every titleId table looked at, logged so a bug report shows
+ * exactly which tables still held it at each step (#480). `step` names the step. */
+static void tile_look(webui_tile_seen_t *seen, const char *step) {
+    content_db_presence_t p;
+    if (content_db_title_presence(WEBUI_TILE_TITLE_ID, &p) != 0) {
+        seen->rows = -1;
+        seen->content = -1;
+        seen->icons_visible = 0;
+        fprintf(stderr, "webui tile: app.db %s: cannot be read\n", step);
+        return;
+    }
+    seen->rows = p.any;
+    seen->content = p.content;
+    seen->icons_visible = p.icons_visible;
+    if (p.any)
+        fprintf(stderr, "webui tile: app.db %s: %s in %s (%d tables; install record %d, icons %d, drawn %d)\n",
+                step, WEBUI_TILE_TITLE_ID, p.where, p.tables, p.content, p.icons, p.icons_visible);
+    else
+        fprintf(stderr, "webui tile: app.db %s: %s not listed (%d tables)\n", step, WEBUI_TILE_TITLE_ID, p.tables);
 }
 
 static int tile_register(void) {
@@ -261,22 +374,58 @@ static int tile_register(void) {
 /* The tile is on the home screen (again): remember that the helper put it there, stop the icon
  * keeper hiding it, and make its icon visible: an earlier removal may have only been able to hide
  * it, and a registered tile must never stay invisible. "No icon" (app.db not updated yet) is fine. */
+/* mount.lnk -> TILE_OWN_LNK (same directory), so ShadowMount+ leaves the bind alone; when it already
+ * released the bind in the seconds mount.lnk was there, bind it again. */
+static void tile_lnk_hide_from_smp(void) {
+    const char *err = NULL;
+    if (access(TILE_MOUNT_LNK, F_OK) == 0) {
+        if (rename(TILE_MOUNT_LNK, TILE_OWN_LNK) != 0) {
+            fprintf(stderr, "webui tile: cannot rename %s: %s\n", TILE_MOUNT_LNK, strerror(errno));
+            return;
+        }
+        fprintf(stderr, "webui tile: tracker kept as %s (ShadowMount+ releases titles with a mount.lnk)\n",
+                TILE_OWN_LNK);
+    }
+    if (!tile_mount_live()) {
+        if (register_remount_nullfs(WEBUI_TILE_TITLE_ID, WEBUI_TILE_DIR, &err) == 0)
+            fprintf(stderr, "webui tile: the bind was released meanwhile; bound again\n");
+        else
+            fprintf(stderr, "webui tile: the bind was released and re-binding failed: %s\n", err ? err : "unknown");
+    }
+}
+
+/* TILE_OWN_LNK -> mount.lnk, so unregister_title sees our registration (unmounts the bind, removes
+ * the appmeta copy). */
+static void tile_lnk_restore(void) {
+    if (access(TILE_OWN_LNK, F_OK) != 0) return;
+    if (access(TILE_MOUNT_LNK, F_OK) == 0) (void)unlink(TILE_OWN_LNK);
+    else if (rename(TILE_OWN_LNK, TILE_MOUNT_LNK) != 0)
+        fprintf(stderr, "webui tile: cannot restore %s: %s\n", TILE_MOUNT_LNK, strerror(errno));
+}
+
 static void tile_now_registered(void) {
     char why[160] = {0};
     int fd = open(WEBUI_TILE_MARKER, O_WRONLY | O_CREAT | O_TRUNC, 0666);
     if (fd >= 0) close(fd);
-    (void)icon_keeper_note(WEBUI_TILE_TITLE_ID, 0);
+    webui_tile_seen_t seen;
+    tile_lnk_hide_from_smp();
+    icon_keeper_note(WEBUI_TILE_TITLE_ID, 0);
     (void)content_db_icon_set_visible(WEBUI_TILE_TITLE_ID, 1, why, sizeof why);
+    tile_look(&seen, "registered");
 }
 
 int webui_tile_respect_outside_removal(void) {
+    webui_tile_seen_t seen;
     int out;
     if (access(WEBUI_TILE_MARKER, F_OK) != 0) return 0;
     pthread_mutex_lock(&g_op_mu);
-    out = webui_tile_removed_outside(1, register_appdb_has_title(WEBUI_TILE_TITLE_ID), tile_mount_live(),
-                                     tile_lnk_ours());
+    tile_look(&seen, "at start (tile on)");
+    /* Sony's install record decides: Options > Delete removes it, and an icon row it leaves behind
+     * is a leftover the sweep hides, not a reason to register the tile again. Without such a table
+     * (other firmware), any row counts. */
+    out = webui_tile_removed_outside(1, webui_tile_install_record(&seen), tile_mount_live(), tile_lnk_ours());
     if (out) {
-        fprintf(stderr, "webui tile: removed outside the helper (app.db has no %s); not registering it again\n",
+        fprintf(stderr, "webui tile: removed outside the helper (no install record for %s); not registering it again\n",
                 WEBUI_TILE_TITLE_ID);
         /* Left staged, FW 13.x AppInstallAll would install it again with the next folder game. The
          * folder stays while a bind still sits on it. */
@@ -293,6 +442,9 @@ int webui_tile_ensure(uint16_t port) {
     const char *err = NULL;
     int changed, rc = 0;
     pthread_mutex_lock(&g_op_mu);
+    /* First: a removal had the icon keeper keep PSUP00001 hidden, and the register below changes
+     * app.db, which wakes the keeper (seen on the Phat: it hid the new icon mid-register). */
+    icon_keeper_note(WEBUI_TILE_TITLE_ID, 0);
     changed = webui_tile_write_files(WEBUI_TILE_DIR, port);
     if (changed < 0) {
         fprintf(stderr, "webui tile: cannot write %s: %s\n", WEBUI_TILE_DIR, strerror(errno));
@@ -333,21 +485,24 @@ static int op_unregister(void *ctx, int *confirmed, int *sony_ok) {
     const char *err = NULL;
     unregister_outcome_t o;
     (void)ctx;
+    tile_lnk_restore();
     if (unregister_title(WEBUI_TILE_TITLE_ID, &err, &o) != 0) {
         fprintf(stderr, "webui tile: unregister failed: %s; keeping %s\n", err ? err : "unknown", WEBUI_TILE_DIR);
+        tile_lnk_hide_from_smp();
         return -1;
     }
     *confirmed = unregister_tile_confirmed(&o);
     *sony_ok = o.api_called && o.sony_rc == 0;
-    fprintf(stderr, "webui tile: uninstall rc=0x%08x\n", (unsigned)o.sony_rc);
+    fprintf(stderr, "webui tile: uninstall rc=0x%08x (ours %d, still listed %d)\n", (unsigned)o.sony_rc, o.ours,
+            o.still_present);
     return 0;
 }
 
 static int op_appdb_row(void *ctx) {
+    webui_tile_seen_t seen;
     (void)ctx;
-    int row = register_appdb_has_title(WEBUI_TILE_TITLE_ID);
-    if (row == 1) fprintf(stderr, "webui tile: app.db still lists %s\n", WEBUI_TILE_TITLE_ID);
-    return row;
+    tile_look(&seen, "after uninstall");
+    return seen.rows;
 }
 
 static int op_restage(void *ctx) {
@@ -365,7 +520,7 @@ static int op_hide(void *ctx) {
         fprintf(stderr, "webui tile: cannot hide the icon: %s\n", why);
         return -1;
     }
-    (void)icon_keeper_note(WEBUI_TILE_TITLE_ID, 1);
+    icon_keeper_note(WEBUI_TILE_TITLE_ID, 1);
     fprintf(stderr, "webui tile: the console keeps %s; its icon is hidden\n", WEBUI_TILE_TITLE_ID);
     return 0;
 }
@@ -394,31 +549,167 @@ static int op_unlink_marker(void *ctx) {
     return unlink(WEBUI_TILE_MARKER) == 0 || errno == ENOENT ? 0 : -1;
 }
 
-int webui_tile_remove(void) {
+/* The removal, and what it achieved for the page and the PC. */
+static webui_tile_result_t tile_remove(void) {
     static const webui_tile_remove_ops_t ops = {
         NULL, op_staged, op_unregister, op_appdb_row, op_restage, op_hide, op_delete_staged, op_delete_dir,
         op_unlink_marker,
     };
+    webui_tile_removal_t v = WEBUI_TILE_KEEP;
     int rc;
     pthread_mutex_lock(&g_op_mu);
-    rc = webui_tile_remove_with(&ops);
-    if (rc != 0) fprintf(stderr, "webui tile: removal not complete; the tile's files are kept where needed\n");
+    fprintf(stderr, "webui tile: removing %s\n", WEBUI_TILE_TITLE_ID);
+    rc = webui_tile_remove_with(&ops, &v);
+    /* Gone now; if the system lists it again later (app.db changes asynchronously), the icon keeper
+     * hides it again at once, and the watch that follows fixes it. Turning the tile on undoes this. */
+    if (v != WEBUI_TILE_KEEP) icon_keeper_note(WEBUI_TILE_TITLE_ID, 1);
     pthread_mutex_unlock(&g_op_mu);
-    return rc;
+    if (rc != 0) {
+        fprintf(stderr, "webui tile: removal not complete; the tile's files are kept where needed\n");
+        return WEBUI_TILE_RESULT_FAILED;
+    }
+    fprintf(stderr, "webui tile: removal done (%s)\n", v == WEBUI_TILE_HIDDEN ? "hidden" : "removed");
+    return v == WEBUI_TILE_HIDDEN ? WEBUI_TILE_RESULT_HIDDEN : WEBUI_TILE_RESULT_REMOVED;
 }
 
-/* One worker at a time applies the latest request: g_req_gen counts requests, the worker loops
- * until it has applied the newest one. */
+int webui_tile_remove(void) { return tile_remove() == WEBUI_TILE_RESULT_FAILED ? -1 : 0; }
+
+/* ---- the sweep and the post-removal watch (#480) ---- */
+
+/* The tile thread's request state; see webui_tile_request. */
 static pthread_mutex_t g_req_mu = PTHREAD_MUTEX_INITIALIZER;
-static pthread_cond_t g_req_done = PTHREAD_COND_INITIALIZER;
+static pthread_cond_t g_req_done = PTHREAD_COND_INITIALIZER; /* g_busy went to 0, or the worker ended */
+static pthread_cond_t g_req_new = PTHREAD_COND_INITIALIZER;  /* a request or sweep arrived */
 static unsigned g_req_gen;
 static int g_req_tile;
 static uint16_t g_req_port;
 static int g_worker_running;
-static int g_last_failed; /* the last ensure/remove the worker applied returned -1 */
+static int g_busy;          /* a request or the start sweep is being applied */
+static int g_sweep_pending; /* webui_tile_sweep_request not yet run */
+static int g_last_failed;   /* the last ensure/remove the worker applied returned -1 */
+static webui_tile_result_t g_last_result;
 
+/* The sweep's context: the request generation it runs under (a newer one stops it). */
+typedef struct {
+    unsigned gen;
+} sweep_ctx_t;
+
+/* Read from the file each time: the settings code saves it before it asks for anything. */
+static int sw_tile_on(void *ctx) {
+    webui_settings_t ws;
+    (void)ctx;
+    (void)webui_settings_load(WEBUI_SETTINGS_PATH, &ws);
+    return ws.tile;
+}
+
+static int sw_look(void *ctx, webui_tile_seen_t *seen) {
+    (void)ctx;
+    tile_look(seen, "check");
+    return 0;
+}
+
+static int sw_registered(void *ctx) {
+    (void)ctx;
+    return tile_mount_live() && tile_lnk_ours();
+}
+
+static int sw_leftovers(void *ctx) {
+    (void)ctx;
+    return is_dir(TILE_USER_APP) || is_dir(TILE_APPMETA) || is_dir(WEBUI_TILE_DIR) ||
+           access(WEBUI_TILE_MARKER, F_OK) == 0;
+}
+
+static int sw_uninstall(void *ctx) {
+    const char *err = NULL;
+    unregister_outcome_t o;
+    int rc;
+    (void)ctx;
+    pthread_mutex_lock(&g_op_mu);
+    fprintf(stderr, "webui tile: %s is listed but not registered and its files are gone; asking Sony to uninstall it\n",
+            WEBUI_TILE_TITLE_ID);
+    rc = unregister_title(WEBUI_TILE_TITLE_ID, &err, &o);
+    if (rc != 0) fprintf(stderr, "webui tile: uninstall failed: %s\n", err ? err : "unknown");
+    else fprintf(stderr, "webui tile: uninstall rc=0x%08x\n", (unsigned)o.sony_rc);
+    pthread_mutex_unlock(&g_op_mu);
+    return rc;
+}
+
+static int sw_hide(void *ctx) {
+    int rc;
+    pthread_mutex_lock(&g_op_mu);
+    rc = op_hide(ctx);
+    pthread_mutex_unlock(&g_op_mu);
+    return rc;
+}
+
+static void sw_keep_hidden(void *ctx) {
+    (void)ctx;
+    icon_keeper_note(WEBUI_TILE_TITLE_ID, 1);
+}
+
+static int sw_remove(void *ctx) {
+    (void)ctx;
+    fprintf(stderr, "webui tile: the tile is off but %s is still there; finishing its removal\n",
+            WEBUI_TILE_TITLE_ID);
+    return webui_tile_remove();
+}
+
+static int sw_clean(void *ctx) {
+    int rc = 0;
+    (void)ctx;
+    pthread_mutex_lock(&g_op_mu);
+    fprintf(stderr, "webui tile: app.db no longer lists %s; deleting what was left of it\n", WEBUI_TILE_TITLE_ID);
+    if (op_delete_staged(NULL) != 0) rc = -1;
+    if (op_delete_dir(NULL) != 0) rc = -1;
+    if (op_unlink_marker(NULL) != 0) rc = -1;
+    pthread_mutex_unlock(&g_op_mu);
+    return rc;
+}
+
+/* Sleeps `seconds`; returns 1 at once when a tile request newer than the sweep's arrives. */
+static int sw_wait(void *ctx, unsigned seconds) {
+    const sweep_ctx_t *c = ctx;
+    struct timespec until;
+    int newer;
+    clock_gettime(CLOCK_REALTIME, &until);
+    until.tv_sec += (time_t)seconds;
+    pthread_mutex_lock(&g_req_mu);
+    while (g_req_gen == c->gen) {
+        if (pthread_cond_timedwait(&g_req_new, &g_req_mu, &until) == ETIMEDOUT) break;
+    }
+    newer = g_req_gen != c->gen;
+    pthread_mutex_unlock(&g_req_mu);
+    return newer;
+}
+
+static void sweep_ops(webui_tile_sweep_ops_t *o, sweep_ctx_t *c) {
+    o->ctx = c;
+    o->tile_on = sw_tile_on;
+    o->look = sw_look;
+    o->registered = sw_registered;
+    o->leftovers = sw_leftovers;
+    o->uninstall = sw_uninstall;
+    o->hide = sw_hide;
+    o->keep_hidden = sw_keep_hidden;
+    o->remove = sw_remove;
+    o->clean = sw_clean;
+    o->wait = sw_wait;
+}
+
+/* Caller holds g_req_mu. */
+static void note_result(webui_tile_result_t r) {
+    if (r == WEBUI_TILE_RESULT_NONE) return;
+    g_last_result = r;
+    g_last_failed = r == WEBUI_TILE_RESULT_FAILED;
+}
+
+/* One worker at a time: it applies the newest request (repeating while new ones arrive), then a
+ * pending start sweep, then, after a removal or a sweep, watches app.db for a while
+ * (webui_tile_settle_with) until a new request stops it. g_busy covers the first two only: the
+ * page's spinner ends when the removal is done, not when the watch is. */
 static void *tile_worker(void *arg) {
     unsigned done = 0;
+    int watch = 0, uninstalled = 0;
     (void)arg;
     proc_name_set_self(TILE_THREAD_NAME);
     pthread_mutex_lock(&g_req_mu);
@@ -426,37 +717,76 @@ static void *tile_worker(void *arg) {
         unsigned gen = g_req_gen;
         int tile = g_req_tile;
         uint16_t port = g_req_port;
-        if (done == gen) break;
-        pthread_mutex_unlock(&g_req_mu);
-        int rc = tile ? webui_tile_ensure(port) : webui_tile_remove();
-        done = gen;
-        pthread_mutex_lock(&g_req_mu);
-        g_last_failed = rc != 0;
+        webui_tile_result_t r;
+        if (done != gen) {
+            g_busy = 1;
+            g_sweep_pending = 0; /* a request decides the tile now */
+            pthread_mutex_unlock(&g_req_mu);
+            if (tile) r = webui_tile_ensure(port) == 0 ? WEBUI_TILE_RESULT_ADDED : WEBUI_TILE_RESULT_FAILED;
+            else r = tile_remove();
+            pthread_mutex_lock(&g_req_mu);
+            done = gen;
+            note_result(r);
+            watch = !tile;
+            uninstalled = 0;
+            continue;
+        }
+        if (g_sweep_pending) {
+            sweep_ctx_t c = { done };
+            webui_tile_sweep_ops_t o;
+            g_sweep_pending = 0;
+            g_busy = 1;
+            pthread_mutex_unlock(&g_req_mu);
+            sweep_ops(&o, &c);
+            uninstalled = 0;
+            r = webui_tile_sweep_once(&o, 1, &uninstalled);
+            pthread_mutex_lock(&g_req_mu);
+            if (g_req_gen == done) note_result(r);
+            watch = 1;
+            continue;
+        }
+        g_busy = 0;
+        pthread_cond_broadcast(&g_req_done);
+        if (!watch) break;
+        watch = 0;
+        {
+            sweep_ctx_t c = { done };
+            webui_tile_sweep_ops_t o;
+            pthread_mutex_unlock(&g_req_mu);
+            sweep_ops(&o, &c);
+            fprintf(stderr, "webui tile: watching app.db for %s for a while\n", WEBUI_TILE_TITLE_ID);
+            r = webui_tile_settle_with(&o, &uninstalled);
+            pthread_mutex_lock(&g_req_mu);
+            if (g_req_gen == done) {
+                note_result(r);
+                fprintf(stderr, "webui tile: watch ended (%s)\n",
+                        r == WEBUI_TILE_RESULT_NONE ? "nothing to fix" : webui_tile_result_name(r));
+            }
+        }
     }
     g_worker_running = 0;
+    g_busy = 0;
     pthread_cond_broadcast(&g_req_done);
     pthread_mutex_unlock(&g_req_mu);
     return NULL;
 }
 
-void webui_tile_state(int *busy, int *failed) {
+void webui_tile_state(int *busy, int *failed, webui_tile_result_t *result) {
     pthread_mutex_lock(&g_req_mu);
-    *busy = g_worker_running;
+    *busy = g_busy;
     *failed = g_last_failed;
+    if (result) *result = g_last_result;
     pthread_mutex_unlock(&g_req_mu);
 }
 
-void webui_tile_request(int tile, uint16_t port) {
+/* Caller holds g_req_mu: wake the running worker, or start one. */
+static void kick_worker(void) {
     pthread_attr_t attr;
     pthread_t t;
     int rc = -1;
-    pthread_mutex_lock(&g_req_mu);
-    g_req_gen++;
-    if (g_req_gen == 0) g_req_gen = 1; /* 0 is the worker's "nothing applied yet" */
-    g_req_tile = tile ? 1 : 0;
-    g_req_port = port;
+    g_busy = 1;
     if (g_worker_running) {
-        pthread_mutex_unlock(&g_req_mu); /* the running worker picks this request up */
+        pthread_cond_broadcast(&g_req_new); /* the running worker (maybe watching) picks it up */
         return;
     }
     if (pthread_attr_init(&attr) == 0) {
@@ -467,19 +797,46 @@ void webui_tile_request(int tile, uint16_t port) {
     }
     if (rc == 0) g_worker_running = 1;
     else {
+        g_busy = 0;
         g_last_failed = 1;
+        g_last_result = WEBUI_TILE_RESULT_FAILED;
+        pthread_cond_broadcast(&g_req_done);
         fprintf(stderr, "webui tile: cannot start the tile thread (%d)\n", rc);
     }
+}
+
+unsigned webui_tile_request(int tile, uint16_t port) {
+    unsigned gen;
+    pthread_mutex_lock(&g_req_mu);
+    g_req_gen++;
+    if (g_req_gen == 0) g_req_gen = 1; /* 0 is the worker's "nothing applied yet" */
+    g_req_tile = tile ? 1 : 0;
+    g_req_port = port;
+    gen = g_req_gen;
+    kick_worker();
+    pthread_mutex_unlock(&g_req_mu);
+    return gen;
+}
+
+void webui_tile_sweep_request(void) {
+    pthread_mutex_lock(&g_req_mu);
+    g_sweep_pending = 1;
+    kick_worker();
     pthread_mutex_unlock(&g_req_mu);
 }
 
-/* The PC uninstall ACK means completed, unlike the Settings endpoint's explicit busy state.
- * Called with the settings mutex held, so another toggle cannot supersede this request. */
-int webui_tile_remove_wait(uint16_t port) {
-    webui_tile_request(0, port);
+/* The PC uninstall ACK means completed, unlike the Settings endpoint's explicit busy state. */
+int webui_tile_remove_wait(unsigned mine) {
+    struct timespec until;
+    int rc;
+    clock_gettime(CLOCK_REALTIME, &until);
+    until.tv_sec += WEBUI_TILE_WAIT_S;
     pthread_mutex_lock(&g_req_mu);
-    while (g_worker_running) pthread_cond_wait(&g_req_done, &g_req_mu);
-    int rc = g_last_failed || g_req_tile != 0 ? -1 : 0;
+    while (g_busy && g_req_gen == mine) {
+        if (pthread_cond_timedwait(&g_req_done, &g_req_mu, &until) == ETIMEDOUT) break;
+    }
+    rc = g_busy || g_last_failed || g_req_tile != 0 || g_req_gen != mine ? -1 : 0;
+    if (g_busy) fprintf(stderr, "webui tile: removal still running after %d s\n", WEBUI_TILE_WAIT_S);
     pthread_mutex_unlock(&g_req_mu);
     return rc;
 }
