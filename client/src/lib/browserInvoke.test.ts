@@ -220,6 +220,13 @@ describe("engine-backed commands the web UI depends on (#300)", () => {
     expect(JSON.parse(String(calls[1].init.body))).toEqual({ host: "10.0.0.2" });
   });
 
+  it("asks the engine to load a payload that is on the console", async () => {
+    const calls = captureFetch({ bytes: 1 });
+    await browserInvoke("ps5_payload_load_console", { host: "10.0.0.2", path: "/data/k.elf" });
+    expect(calls[0].url).toBe(`${B}/api/ps5/payload/load-console`);
+    expect(JSON.parse(String(calls[0].init.body))).toEqual({ host: "10.0.0.2", path: "/data/k.elf" });
+  });
+
   it("tells the estimate where the package would go", async () => {
     const calls = captureFetch({});
     await browserInvoke("fpkg_estimate", { source: "/g", outputDir: "/out" });

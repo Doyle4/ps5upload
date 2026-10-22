@@ -794,6 +794,9 @@ export async function browserInvoke<T>(
     case "ps5_elfldr_ensure": {
       return postJson<T>("/api/ps5/elfldr/ensure", { host: args["host"] });
     }
+    case "ps5_payload_load_console": {
+      return postJson<T>("/api/ps5/payload/load-console", { host: args["host"], path: args["path"] });
+    }
     case "fpkg_estimate": {
       return postJson<T>("/api/fpkg/estimate", {
         source: args["source"],

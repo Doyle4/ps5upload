@@ -105,6 +105,7 @@ import {
   fetchVolumes,
   generateTxIdHex,
   pathKind,
+  loadConsolePayload,
   type Volume,
 } from "../../api/ps5";
 import { kindsOf, namesPreview, planFsUpload } from "../../state/fsUploadPlan";
@@ -243,6 +244,22 @@ const isViewablePackage = (name: string) => /\.f?pkg$/i.test(name);
 
 /** What the package viewer can show: a package, a game image, or a folder named like a game
  *  (a title id, as dumps are). */
+/** Why a console payload load was refused, as a sentence (the engine's code, else its text). */
+export function loadPayloadErrorText(tr: (key: string, vars?: Record<string, string | number>, fallback?: string) => string, e: unknown): string {
+  const msg = e instanceof Error ? e.message : String(e);
+  if (/pkg_install_busy/.test(msg))
+    return tr("fs_load_payload_err_installing", undefined, "A package is being installed on this PS5. Load the payload after it finishes.");
+  if (/payload_is_helper/.test(msg))
+    return tr("fs_load_payload_err_helper", undefined, "This is a ps5upload helper. Use Connection to send or update the helper.");
+  if (/payload_not_elf|payload_not_payload/.test(msg))
+    return tr("fs_load_payload_err_not_elf", undefined, "This file is not an ELF payload.");
+  if (/payload_too_large/.test(msg))
+    return tr("fs_load_payload_err_too_large", undefined, "This file is too large to be a payload (over 64 MiB).");
+  if (/loader_unreachable/.test(msg))
+    return tr("fs_load_payload_err_loader", undefined, "The PS5's payload loader (port 9021) did not answer. Load the ELF loader again, then try again.");
+  return msg;
+}
+
 export function viewableEntry(name: string, isDir: boolean): boolean {
   if (isDir) return /^[A-Z]{4}\d{5}/.test(name);
   return isViewablePackage(name) || /\.(exfat|ffpkg|ffpfsc)$/i.test(name);
@@ -366,6 +383,9 @@ export default function FileSystemScreen() {
   );
   const pkgInstalling = usePkgLibrary(host, (s) => s.installing);
   const [installingPkgName, setInstallingPkgName] = useState<string | null>(
+    null,
+  );
+  const [loadingPayloadName, setLoadingPayloadName] = useState<string | null>(
     null,
   );
   // Restore the user's last-browsed path for THIS host. The lazy
@@ -844,6 +864,45 @@ export default function FileSystemScreen() {
       }
     } finally {
       setInstallingPkgName(null);
+    }
+  };
+
+  const runLoadPayload = async (entry: DirEntry) => {
+    if (!host) return;
+    const fullPath = joinPath(path, entry.name);
+    const ok = await confirmDialog({
+      title: tr(
+        "fs_load_payload_confirm_title",
+        { name: entry.name },
+        `Load "${entry.name}"?`,
+      ),
+      message: tr(
+        "fs_load_payload_confirm_body",
+        undefined,
+        "This sends the file to your PS5's payload loader (port 9021), which runs it at once. Only load payloads you trust.",
+      ),
+      confirmLabel: tr("fs_load_payload", undefined, "Load payload"),
+    });
+    if (!ok) return;
+    setLoadingPayloadName(entry.name);
+    try {
+      await loadConsolePayload(host, fullPath);
+      pushNotification(
+        "success",
+        tr(
+          "fs_load_payload_done",
+          { name: entry.name },
+          `Sent ${entry.name} to the payload loader`,
+        ),
+      );
+    } catch (e) {
+      pushNotification(
+        "error",
+        tr("fs_load_payload_failed", { name: entry.name }, `Could not load ${entry.name}`),
+        { body: loadPayloadErrorText(tr, e) },
+      );
+    } finally {
+      setLoadingPayloadName(null);
     }
   };
 
@@ -2451,6 +2510,8 @@ export default function FileSystemScreen() {
     crc32: (e) => void runCrc32(e),
     verify: (e) => void runVerify(e),
     install: (e) => void runInstallPkg(e),
+    loadPayload: (e) => void runLoadPayload(e),
+    loadingPayloadName,
     remove: (e) => void runDelete(e.name),
   };
   const actionsMenuEntry =

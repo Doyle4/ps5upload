@@ -335,6 +335,7 @@ pub fn run() {
             commands::fpkg_estimate,
             commands::ps5_elfldr_health,
             commands::ps5_elfldr_ensure,
+            commands::ps5_payload_load_console,
             commands::ffpfsc_compress,
             commands::exfat_build,
             commands::folder_build,

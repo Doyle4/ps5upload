@@ -2429,6 +2429,14 @@ pub async fn ps5_elfldr_ensure(host: String) -> Result<JsonValue, String> {
     post_json(&url, &serde_json::json!({ "host": host })).await
 }
 
+/// Send a payload already on the console to its loader. POST /api/ps5/payload/load-console.
+#[tauri::command]
+pub async fn ps5_payload_load_console(host: String, path: String) -> Result<JsonValue, String> {
+    let base = engine::url();
+    let url = format!("{base}/api/ps5/payload/load-console");
+    post_json(&url, &serde_json::json!({ "host": host, "path": path })).await
+}
+
 /// Package size and time at each compression level for a game. POST /api/fpkg/estimate.
 #[tauri::command]
 pub async fn fpkg_estimate(

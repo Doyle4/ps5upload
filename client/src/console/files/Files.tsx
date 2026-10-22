@@ -42,6 +42,8 @@ import { BulkRenameDialog } from "./BulkRenameDialog";
 import { runRenames, type RenameItem, type RenameResult, type RenameRow } from "./bulkRename";
 import { isFfpfsc, opCause, opResult, startOp, watchOp, type OpEnd } from "./opJob";
 import { UnpackDialog, unpackCauseText, unpackErrorText } from "./UnpackDialog";
+import { PkgDialog } from "./PkgDialog";
+import { installBusyText, installMessage, installPhaseText, installStoppable, isPayload, isPkg, loadPayload, payloadErrorText, startInstall } from "./pkg";
 import { VerifyDialog } from "./VerifyDialog";
 import {
   copyItems,
@@ -107,6 +109,12 @@ export type FilesAsk =
   | { kind: "verify"; name: string }
   /** Decompress a .ffpfsc next to it. */
   | { kind: "unpack"; name: string }
+  /** A .pkg's preview and Install. */
+  | { kind: "pkg"; name: string }
+  /** Install over a game that is installed already (Sony removes it first): asked once more. */
+  | { kind: "reinstall"; name: string; title: string }
+  /** Load a .elf/.bin into the console's payload loader. */
+  | { kind: "payload"; name: string }
   | { kind: "mkdir" }
   /** A new, empty file (then opened in the editor). */
   | { kind: "newfile" }
@@ -283,6 +291,10 @@ export interface FilesViewProps {
   onBulkRename?: (rows: RenameRow[]) => void;
   /** Decompress `name` (a .ffpfsc in the folder shown); `outName` = Keep both's name, else the image's own. */
   onUnpack?: (name: string, outName: string | null) => void;
+  /** Install `name` (a .pkg in the folder shown); `replace` over an installed game; `title` names it in the result line. */
+  onInstallPkg?: (name: string, replace: boolean, title: string) => void;
+  /** Send `name` (a .elf/.bin in the folder shown) to the console's payload loader. */
+  onLoadPayload?: (name: string) => void;
   onMkdir: (name: string) => void;
   onPicked: (op: "copy" | "move", names: string[], destDir: string) => void;
   /** Open `dir` in Files with `name` focused (a search result); null name: the folder itself. */
@@ -312,6 +324,10 @@ export function busyText(b: Busy | null): string | null {
     const pct = Math.min(100, Math.floor((done / total) * 100));
     return `${line} · ${t("cw_home_percent", { n: pct })} · ${formatBytes(done)} / ${formatBytes(total)}`;
   }
+  if (b.op === "install") {
+    const name = baseName(b.paths?.[0] ?? "");
+    return `${name}: ${installBusyText(installPhaseText(b.phase), b.bytesDone ?? 0, b.bytesTotal ?? 0)}`;
+  }
   return t("cw_files_batch_delete", { at, total: b.total });
 }
 
@@ -323,6 +339,8 @@ export function sheetActions(names: string[], entries: Entry[], pinned: boolean 
   if (names.length !== 1) return ["clipcopy", "cut", "copy", "move", "bulkrename", "fixperm", "delete"];
   const e = entries.find((x) => x.name === names[0]);
   const out: SheetAction[] = [];
+  if (e && e.kind === "file" && isPkg(e.name)) out.push("install");
+  if (e && e.kind === "file" && isPayload(e.name)) out.push("loadpayload");
   if (e && e.kind !== "dir" && viewKind(e.name)) out.push("view");
   // Any small file opens in the text editor (a .cfg, .conf, .sh…); a binary one says it cannot.
   if (e && e.kind === "file" && (e.size ?? 0) <= TEXT_SAVE_MAX) out.push("edit");
@@ -554,6 +572,10 @@ function askView(p: FilesViewProps) {
                 return p.onAsk({ kind: "view", name, type: "hex" });
               case "unpack":
                 return p.onAsk({ kind: "unpack", name });
+              case "install":
+                return p.onAsk({ kind: "pkg", name });
+              case "loadpayload":
+                return p.onAsk({ kind: "payload", name });
               case "mkdir":
                 return p.onAsk({ kind: "mkdir" });
               case "newfile":
@@ -658,6 +680,42 @@ function askView(p: FilesViewProps) {
           path={joinPath(path, a.name)}
           busy={p.busy != null}
           onStart={(outName) => p.onUnpack?.(a.name, outName)}
+          onCancel={p.onDismiss}
+        />
+      );
+    case "pkg":
+      return (
+        <PkgDialog
+          name={a.name}
+          path={joinPath(path, a.name)}
+          busy={p.busy != null}
+          onInstall={(replace, info) =>
+            replace ? p.onAsk({ kind: "reinstall", name: a.name, title: info.title || a.name }) : p.onInstallPkg?.(a.name, false, info.title || a.name)
+          }
+          onClose={p.onDismiss}
+        />
+      );
+    case "reinstall":
+      return (
+        <ConfirmDialog
+          title={t("cw_pkg_reinstall_title", { name: a.title })}
+          body={t("cw_pkg_installed_note")}
+          confirmLabel={t("cw_pkg_reinstall")}
+          danger
+          busy={p.busy != null}
+          onConfirm={() => p.onInstallPkg?.(a.name, true, a.title)}
+          onCancel={p.onDismiss}
+        />
+      );
+    case "payload":
+      return (
+        <ConfirmDialog
+          title={t("cw_payload_title", { name: a.name })}
+          body={t("cw_payload_body")}
+          confirmLabel={t("cw_payload_load")}
+          busy={!!p.askBusy}
+          error={p.askError}
+          onConfirm={() => p.onLoadPayload?.(a.name)}
           onCancel={p.onDismiss}
         />
       );
@@ -825,7 +883,7 @@ export function FilesView(p: FilesViewProps) {
       {status ? (
         <div className="cw-msg" role="status">
           {status}
-          {p.onStopBatch && p.busy && !p.busy.stopping && (p.busy.total > 1 || p.busy.op === "unpack") ? (
+          {p.onStopBatch && p.busy && !p.busy.stopping && (p.busy.total > 1 || p.busy.op === "unpack" || (p.busy.op === "install" && installStoppable(p.busy.phase))) ? (
             <button
               type="button"
               className="cw-focusable cw-button cw-msg-action"
@@ -1252,6 +1310,7 @@ export function Files({ ctx }: { ctx: SectionContext }) {
     (e: Entry) => {
       if (path == null) return;
       if (e.kind === "dir") return go(joinPath(path, e.name));
+      if (e.kind === "file" && isPkg(e.name)) return setAsk({ kind: "pkg", name: e.name });
       const type = viewKind(e.name);
       setAsk(type ? { kind: "view", name: e.name, type } : { kind: "sheet", names: [e.name] });
     },
@@ -1441,6 +1500,74 @@ export function Files({ ctx }: { ctx: SectionContext }) {
       );
     },
     [path, refresh],
+  );
+
+  const onInstallPkg = useCallback(
+    (name: string, replace: boolean, title: string) => {
+      if (path == null || currentBatch()) return;
+      const src = joinPath(path, name);
+      setAsk(null);
+      setMessage(null);
+      let end: OpEnd | { end: "error"; error: unknown } = { end: "gone" };
+      // Stop counts only while the package is being copied: once the console's installer has it, it cannot be stopped.
+      let phase: string | null = null;
+      const run = startBatch(
+        "install",
+        1,
+        async (ctl) => {
+          const r: BatchResult = { started: [], moved: [], failed: [], jobFailed: [], skipped: [] };
+          ctl.onProgress(1, 1);
+          try {
+            const job = await startInstall(src, replace);
+            r.started.push(job);
+            end = await watchOp(job, {
+              stopped: () => ctl.stopped() && installStoppable(phase),
+              onStatus: (s) => {
+                phase = s.message;
+                ctl.onPhase(s.message);
+                ctl.onBytes(s.bytes_done, s.bytes_total);
+              },
+            });
+          } catch (error) {
+            end = { end: "error", error };
+          }
+          return r;
+        },
+        [src, path],
+      );
+      run?.then(
+        () => {
+          if (!mounted.current) return;
+          setMessage(installMessage(end, title, filesErrorText));
+          refresh();
+        },
+        () => undefined,
+      );
+    },
+    [path, refresh],
+  );
+
+  /** Load: the dialog stays open (busy) until the helper has sent it; a refusal shows in it. */
+  const onLoadPayload = useCallback(
+    (name: string) => {
+      if (path == null) return;
+      setAskBusy(true);
+      setAskError(null);
+      loadPayload(joinPath(path, name)).then(
+        () => {
+          if (!mounted.current) return;
+          setAskBusy(false);
+          setAsk(null);
+          setMessage({ tone: "info", text: t("cw_payload_done", { name }) });
+        },
+        (e: unknown) => {
+          if (!mounted.current) return;
+          setAskBusy(false);
+          setAskError(payloadErrorText(e, filesErrorText) ?? t("cw_payload_err_send"));
+        },
+      );
+    },
+    [path],
   );
 
   const onMkdir = useCallback(
@@ -1780,6 +1907,8 @@ export function Files({ ctx }: { ctx: SectionContext }) {
         onRename={onRename}
         onBulkRename={onBulkRename}
         onUnpack={onUnpack}
+        onInstallPkg={onInstallPkg}
+        onLoadPayload={onLoadPayload}
         onMkdir={onMkdir}
         onNewFile={onNewFile}
         onDownload={remote ? onDownload : undefined}

@@ -487,6 +487,17 @@ export async function sendPayload(
   return { viaPayloadManager: sentViaPayloadManager(resp?.status) };
 }
 
+/**
+ * Send a payload that is already on the console (`path`, a .elf/.bin) to its
+ * loader on :9021: the engine reads it back through the helper and sends it
+ * under the same loader lock an install uses. Refused while an install runs on
+ * that console (`pkg_install_busy`), for a non-ELF (`payload_not_elf`) and for a
+ * ps5upload helper image (`payload_is_helper`).
+ */
+export async function loadConsolePayload(host: string, path: string): Promise<{ bytes: number }> {
+  return invoke<{ bytes: number }>("ps5_payload_load_console", { host, path });
+}
+
 /** Whether payload_send's status says the loader port was dead and the file
  *  was launched through Payload Manager instead (client/src-tauri probes.rs). */
 export function sentViaPayloadManager(status: string | undefined): boolean {
