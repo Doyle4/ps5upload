@@ -160,6 +160,26 @@ const char *webui_cheats_toggle_error(const char *cause, size_t n);
  * unmount, so a running game is never asked about: it would lose its image (ruling R20). */
 const char *webui_unmount_refusal(const char *p, int game_running);
 
+/* ---- games and processes (APP_LAUNCH / APP_UNREGISTER / APP_ICON_SET / PROCESS_LIST / PROCESS_KILL) ---- */
+
+/* Why the Games section may not act on `tid`, or NULL: "bad_title_id" (not 4-15 ASCII letters and
+ * digits), "own_tile" (the page's own tile, WEBUI_TILE_TITLE_ID, any case: Settings removes it), and
+ * for a `destructive` action (uninstall, hide) also "system_title" (NPXS...: the console's own apps,
+ * which the PC app never uninstalls on one confirm and never hides). */
+const char *webui_app_refusal(const char *tid, int destructive);
+
+/* From a PROCESS_LIST reply ({"processes":[{"pid":N,..,"title_id":"..","app_id":N,"kind":"app"|
+ * "payload"|"system","is_self":bool},...]}): why the page may not stop `pid`, or NULL. "not_running"
+ * when the pid is not listed (or the reply does not parse), "helper" for the helper's own process,
+ * "system" for anything not a game ("app") or a payload ("payload") and for pid 0/1. The PC app asks
+ * twice before a system kill; the console page, whose browser is itself a system process, never
+ * offers one. */
+const char *webui_proc_kill_refusal(const char *json, size_t n, uint64_t pid);
+
+/* From a PROCESS_LIST reply: 1 when a game ("app") process with title id `tid` runs (when
+ * `other` is set: a game with any OTHER title id), 0 when none, -1 when the reply does not parse. */
+int webui_proc_game_running(const char *json, size_t n, const char *tid, int other);
+
 /* ---- search index (INDEX_START / INDEX_STATUS / INDEX_SEARCH / INDEX_CANCEL, runtime.c) ----
  * The handlers read their bodies with a quote-to-quote scan (no JSON unescaping), so every string the
  * page sends is checked to hold no '"', no '\\' and no control character before it is put in one. */

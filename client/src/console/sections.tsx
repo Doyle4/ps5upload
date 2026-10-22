@@ -1,8 +1,10 @@
 import type { ReactNode } from "react";
-import { Folder, House, Settings, Sparkles, type LucideIcon } from "lucide-react";
+import { Activity, Folder, Gamepad2, House, Settings, Sparkles, type LucideIcon } from "lucide-react";
 import { Cheats } from "./cheats/Cheats";
 import { Files } from "./files/Files";
+import { Games } from "./games/Games";
 import { Home } from "./home/Home";
+import { Processes } from "./processes/Processes";
 import { Settings as SettingsSection } from "./settings/Settings";
 import type { ConsoleStatus } from "./shell/TopBar";
 
@@ -39,7 +41,7 @@ export interface Section {
   acceptsParams?: boolean;
 }
 
-// Registry: Home, Files, Cheats (the running game's), Settings. Files opens at ctx.params.path
+// Registry: Home, Games (installed titles), Files, Cheats (the running game's), Processes, Settings. Files opens at ctx.params.path
 // (acceptsParams), so Home's drive cards open it at a drive.
 export const SECTIONS: Section[] = [
   {
@@ -47,6 +49,12 @@ export const SECTIONS: Section[] = [
     icon: House,
     labelKey: "cw_nav_home",
     render: (ctx) => <Home ctx={ctx} />,
+  },
+  {
+    id: "games",
+    icon: Gamepad2,
+    labelKey: "cw_games_title",
+    render: (ctx) => <Games ctx={ctx} />,
   },
   {
     id: "files",
@@ -60,6 +68,12 @@ export const SECTIONS: Section[] = [
     icon: Sparkles,
     labelKey: "cw_cheats_title",
     render: () => <Cheats />,
+  },
+  {
+    id: "processes",
+    icon: Activity,
+    labelKey: "cw_procs_title",
+    render: (ctx) => <Processes ctx={ctx} />,
   },
   {
     id: "settings",
