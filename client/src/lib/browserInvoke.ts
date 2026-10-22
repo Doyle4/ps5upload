@@ -320,6 +320,20 @@ export async function browserInvoke<T>(
       return getJson<T>(url);
     }
 
+    case "ps5_disk_usage_start": {
+      const { addr, path } = args as { addr?: string | null; path: string };
+      return postJson<T>("/api/ps5/disk-usage", { addr: addr ?? null, path });
+    }
+
+    case "ps5_disk_usage_status":
+      return getJson<T>(`/api/ps5/disk-usage/${uenc(String(args["id"]))}`);
+
+    case "ps5_disk_usage_cancel":
+      return postJson<T>(
+        `/api/ps5/disk-usage/${uenc(String(args["id"]))}/cancel`,
+        {},
+      );
+
     case "ps5_fs_delete": {
       const { addr, path, op_id } = args["req"] as {
         addr?: string | null;
