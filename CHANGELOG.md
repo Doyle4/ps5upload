@@ -4,6 +4,29 @@ What's new in ps5upload, written for humans.
 
 ---
 
+## 7.1.14
+
+- **Convert reads more Kraken-compressed PS5 packages (#493).** Some packages stopped Convert
+  with "kraken: chunk too short": Sony stores long runs of zeros as a tiny chunk of a kind the
+  converter didn't read. Those chunks decode now. If a package still fails, the error names the
+  block's sizes so we can tell what it is.
+- **LZ4 images of Unreal Engine games launch.** Converting an Unreal Engine game to an LZ4 image
+  packed its project file, which the game can't read from there, so it quit at start. Unreal
+  games now compress only their big data files and keep everything else as normal files.
+- **Game images from archives.** "Make compressed image" was always greyed out for a .rar, .7z
+  or .zip source, and the queue only said "Skipped: 1". Convert now unpacks the archive first
+  and names the image after it; anything skipped says why.
+- **Removing the PS5Upload Minion tile leaves no grey icon (#480).** Removal now checks the
+  console's home screen data and only deletes the tile's files once its icon is really gone,
+  retrying and, as a last resort, hiding the icon. A tile you delete on the PS5 itself no longer
+  comes back when the helper restarts. Update the helper for this fix.
+- **○ on the first screen leaves PS5Upload Minion.** Pressing ○ on Home right after opening the
+  page now returns to the PS5 home screen.
+- **Builds use patched Node.** The app is built with Node releases that include the October 2026
+  security fixes. No released app or image contains Node.
+
+---
+
 ## 7.1.13
 
 - **SMB collection moves.** Close metadata readers before moving inspected game folders, and
