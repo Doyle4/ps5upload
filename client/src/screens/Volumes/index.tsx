@@ -3,13 +3,10 @@ import { useNavigate } from "react-router";
 import { HardDrive, FileArchive, Unplug, RefreshCw, PackageCheck } from "lucide-react";
 
 import { useConnectionStore } from "../../state/connection";
-import { pushNotification } from "../../state/notifications";
-import { withConsolePrefix } from "../../state/roster";
 import {
   fetchHwStorage,
   fetchVolumes,
   fsUnmount,
-  usbEject,
   volumeLikelyFitsBytes,
   type Volume,
 } from "../../api/ps5";
@@ -31,6 +28,7 @@ import { hostOf, transferAddr } from "../../lib/addr";
 import { useStaleHostGuard } from "../../lib/staleHostGuard";
 import { isInternalVolume, usePkgStorageStore } from "../../lib/pkgStorage";
 import { saveFsLastPath } from "../../lib/fsLastPath";
+import { canEjectUsb, useUsbEject } from "../../lib/useUsbEject";
 import { KeptByApp } from "./KeptByApp";
 
 /** Path prefix for volumes our FS_MOUNT creates. Showing an Unmount
@@ -58,7 +56,6 @@ export default function VolumesScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [unmountingPath, setUnmountingPath] = useState<string | null>(null);
-  const [ejectingPath, setEjectingPath] = useState<string | null>(null);
   // This console's default drive for install packages (null = internal).
   const packageDrive = usePkgStorageStore((s) => (host ? s.defaults[hostOf(host)] ?? null : null));
   const setPackageDrive = usePkgStorageStore((s) => s.setDefault);
@@ -101,72 +98,10 @@ export default function VolumesScreen() {
     }
   }, [host, guard]);
 
-  /** Safely remove a USB drive (`/mnt/usbN`): the helper unmounts it, never forced, so a
-   *  drive still in use stays mounted and the user is told to close what uses it. */
-  const handleEject = async (mountPoint: string) => {
-    if (!host?.trim()) return;
-    const probe = guard.capture();
-    const ok = await confirmDialog({
-      title: tr("volumes_eject_confirm_title", { path: mountPoint }, `Eject ${mountPoint}?`),
-      message: tr(
-        "volumes_eject_confirm_body",
-        undefined,
-        "The drive is unmounted so you can unplug it. Close any game or app on the PS5 that uses it first; the PS5 keeps a drive that is in use.",
-      ),
-      confirmLabel: tr("volumes_eject", undefined, "Eject"),
-    });
-    if (!ok) return;
-    if (probe.isStale()) return;
-    setEjectingPath(mountPoint);
-    setError(null);
-    const done = () => {
-      pushNotification(
-        "success",
-        withConsolePrefix(
-          probe.host,
-          tr("volumes_eject_done", { path: mountPoint }, `${mountPoint} ejected — safe to unplug`),
-        ),
-      );
-    };
-    try {
-      await usbEject(probe.host, mountPoint);
-      done();
-      await refresh();
-    } catch (e) {
-      const raw = e instanceof Error ? e.message : String(e);
-      if (!/usb_eject_busy/.test(raw)) {
-        setError(tr("volumes_eject_failed", { path: mountPoint, error: raw }, `Couldn't eject ${mountPoint}: ${raw}`));
-        setEjectingPath(null);
-        return;
-      }
-      // The PS5's own services usually keep a USB drive open, so a plain unmount is
-      // refused on every console tried. Forcing flushes the drive first; the only
-      // thing the user must rule out is a game or app reading from it right now.
-      setEjectingPath(null);
-      const force = await confirmDialog({
-        title: tr("volumes_eject_force_title", { path: mountPoint }, `${mountPoint} is still in use — eject anyway?`),
-        message: tr(
-          "volumes_eject_force_body",
-          undefined,
-          "The PS5 holds the drive open; its own services usually do. Ejecting anyway flushes the drive first, so it is safe as long as no game or app is reading from it right now.",
-        ),
-        confirmLabel: tr("volumes_eject_force", undefined, "Eject anyway"),
-        destructive: true,
-      });
-      if (!force || probe.isStale()) return;
-      setEjectingPath(mountPoint);
-      try {
-        await usbEject(probe.host, mountPoint, true);
-        done();
-        await refresh();
-      } catch (e2) {
-        const raw2 = e2 instanceof Error ? e2.message : String(e2);
-        setError(tr("volumes_eject_failed", { path: mountPoint, error: raw2 }, `Couldn't eject ${mountPoint}: ${raw2}`));
-      }
-    } finally {
-      setEjectingPath(null);
-    }
-  };
+  const { eject: handleEject, ejectingPath, dialog: ejectDialogNode } = useUsbEject({
+    onEjected: () => refresh(),
+    onError: setError,
+  });
 
   const handleUnmount = async (mountPoint: string) => {
     if (!host?.trim()) return;
@@ -255,6 +190,7 @@ export default function VolumesScreen() {
   return (
     <div className="app-page">
       {confirmDialogNode}
+      {ejectDialogNode}
       <PageHeader
         icon={HardDrive}
         title={tr("volumes", undefined, "Volumes")}
@@ -366,7 +302,7 @@ export default function VolumesScreen() {
                   onUseForPackages={() =>
                     host && setPackageDrive(host, isInternalVolume(v.path) ? null : v.path)
                   }
-                  onEject={/^\/mnt\/usb[0-7]$/.test(v.path) ? () => void handleEject(v.path) : undefined}
+                  onEject={canEjectUsb(v.path) ? () => void handleEject(v.path) : undefined}
                   ejecting={ejectingPath === v.path}
                 />
               ))}
