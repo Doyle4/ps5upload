@@ -1240,6 +1240,9 @@ const DEFAULT_LOOSE: &[&str] = &[
     "ampr_assets-*.pak",
     "ampr_commands.bin",
     "apr_emu.log",
+    // An Unreal project descriptor, opened through the engine's own file layer: packed, it
+    // stopped Star Wars Galactic Racer at boot ("Failed to open descriptor file"). Any case.
+    "*.[uU][pP][rR][oO][jJ][eE][cC][tT]",
     // Text configuration, which a title may open with ordinary file calls.
     "*.json",
     "*.ini",
@@ -1486,7 +1489,16 @@ mod tests {
         assert_eq!(default_profile_name(plain), "default");
         // So does an Unreal title without IoStore (.pak only): packing nothing gains nothing.
         let pak_only = ["game/game.uproject", "game/Content/Paks/pakchunk0-ps5.pak"];
-        assert_eq!(default_profile_for(pak_only, 9, 16), default_profile(9, 16));
+        let d = default_profile_for(pak_only, 9, 16);
+        assert_eq!(d, default_profile(9, 16));
+        // ...which still never packs a project descriptor, in any letter case.
+        for loose in ["game/game.uproject", "game/Game.UProject", "x.UPROJECT"] {
+            assert_eq!(d.select(loose).action, Action::Loose, "{loose}");
+        }
+        assert_eq!(
+            d.select("game/Content/Paks/pakchunk0-ps5.pak").action,
+            Action::Compress
+        );
     }
 
     /// The canonical document drakmor's packer hashes for the build id, for the default config
