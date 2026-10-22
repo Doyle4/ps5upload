@@ -4,6 +4,48 @@ What's new in ps5upload, written for humans.
 
 ---
 
+## 7.1.18
+
+Update the helper for everything below.
+
+- **Clean up: get space back on the PS5.** A new Clean up screen (desktop, browser and PS5Upload
+  Minion) finds what takes space for no reason: updates of games that are gone, leftover .pkg files
+  on any drive (your package library is skipped), PS5Upload's own temp files, download files of
+  removed games and leftovers of removed games. Updates of games you still have are listed too,
+  unticked, with a warning that the game goes back to its base version. You see sizes and a total
+  first, nothing is removed without a confirm, and saves are never touched.
+- **Fan control is safer and holds better.** The helper now changes only the target temperature in
+  the fan settings (it used to overwrite the rest with zeros), checks it took, and puts your target
+  back within about 2 seconds when the system resets it (it was up to 15). Targets go from 45 to
+  85 °C and never above the console's own. The fan speed shown was about 4× too high; it's right now.
+- **Minion: new Games page.** Start, close, hide or uninstall your games from the TV, with each
+  game's version, size and where it's stored.
+- **Minion: new Fan page.** Temperatures, fan speed, and the fan target as big buttons (Console
+  default, 85, 80, 75, 70, 65 °C) or one degree at a time.
+- **Minion: new Processes page.** See what's running and stop a game or payload. System processes
+  can't be stopped from here.
+- **Minion: install a .pkg from Files.** Pick a package on internal storage or USB to see its icon,
+  title, version and type, then install it. USB packages are copied to internal storage first and
+  the copy is removed afterwards.
+- **Minion: load a payload from Files.** Send an .elf or .bin on the console to the payload loader,
+  after a confirm.
+- **Extract archives on the PS5.** .zip, .7z, .rar (including multi-part) and .tar archives on the
+  console can be extracted into a folder there, from Minion Files and from File system on the
+  desktop. Password-protected .zip and .7z work; password-protected .rar can't be extracted on the
+  console.
+- **Minion: network shares.** Add an SMB share in Minion Files, browse it like a drive, and copy
+  files and folders between it and the PS5, without the desktop app.
+- **Load payload from File system.** The desktop's File system can send an .elf or .bin on the
+  console to the payload loader too.
+- **The PS5Upload tile no longer turns into a grey ghost (#480).** ShadowMount+ took the tile over
+  and unmounted it a few seconds after it was added; the helper now keeps it. Removing the tile
+  checks for longer, a grey tile left behind by an older helper is cleaned up when the helper
+  starts, and the result says whether the tile was removed or could only be hidden.
+- **Minion: Circle on Home.** When the PS5 browser won't let the page close itself, a note says to
+  press the PS button to go back to the home screen.
+
+---
+
 ## 7.1.17
 
 - **Disk usage counts everything inside a folder (#495).** A folder's size now includes all its
