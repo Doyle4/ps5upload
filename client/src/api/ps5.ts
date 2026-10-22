@@ -1643,7 +1643,8 @@ export interface HwTemps {
   product_shape: number;
   /** User-pinned fan threshold in °C. `0` = no custom threshold (firmware
    *  default). A positive value means a permanent fan speed is active and
-   *  auto-reapplied every 15s. Always present (even on basic read). */
+   *  put back within about 2 s whenever the system resets it. Always present
+   *  (even on basic read). */
   fan_pinned_c: number;
   /** The temperature the fan controller is working to now, read back from the console
    *  (°C). `-1` = not reported (an older helper) or unreadable. */
@@ -1651,6 +1652,17 @@ export interface HwTemps {
   /** The console's own value, as it was before ps5upload first changed it (°C). `0` =
    *  never seen. 91 on FW 13.60. */
   fan_stock_c?: number;
+  /** Targets the helper put back after the system reset them (a game starting or closing),
+   *  this helper session. Absent from an older helper. */
+  fan_restores?: number;
+  /** Seconds since the last of those; `-1` = never. */
+  fan_last_restore_s?: number;
+  /** The guard keeping the pinned target: "off" (nothing pinned), "ok", or "failing" (its writes
+   *  kept failing, so the console's own control is in charge until the next set). "" from an
+   *  older helper. */
+  fan_guard?: "off" | "ok" | "failing" | "";
+  /** The fan controller's filtered temperature (°C, one decimal), null when unreadable. */
+  fan_filtered_c?: number | null;
 }
 
 export interface HwPower {
@@ -3031,14 +3043,12 @@ export async function fsReadPreview(
 export const FAN_THRESHOLD_MIN_C = 45;
 /** Not a temperature: asks the helper to give the fan back to the console. */
 export const FAN_RESTORE_CONSOLE = 0;
-export const FAN_THRESHOLD_MAX_C = 80;
+export const FAN_THRESHOLD_MAX_C = 85;
 
-/** Set the PS5's fan-turbo threshold in °C. `/dev/icc_fan` ioctl —
- *  the canonical fan-threshold mechanism on PS5. Persists until the
- *  PS5 reboots — there is no read-back, so we can't verify the current
- *  setting, only write new ones. Since 2.13.0 the payload's background
- *  watcher re-applies the threshold every 15s to defeat the firmware
- *  reset on app/game launch — see `payload/src/hw_info.c` (fan watcher). */
+/** Set the PS5's fan target in °C (`/dev/icc_fan`), or `FAN_RESTORE_CONSOLE`
+ *  for the console's own setting. The helper writes it, reads it back, keeps
+ *  it across restarts, and puts it back within about 2 s when a game start
+ *  resets it — see `payload/src/hw_info.c` (fan guard). */
 export async function setFanThreshold(
   transferAddr: string,
   thresholdC: number,

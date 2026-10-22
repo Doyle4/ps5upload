@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
-import { Folder, House, Settings, Sparkles, type LucideIcon } from "lucide-react";
+import { Fan as FanIcon, Folder, House, Settings, Sparkles, type LucideIcon } from "lucide-react";
 import { Cheats } from "./cheats/Cheats";
+import { Fan } from "./fan/Fan";
 import { Files } from "./files/Files";
 import { Home } from "./home/Home";
 import { Settings as SettingsSection } from "./settings/Settings";
@@ -39,7 +40,7 @@ export interface Section {
   acceptsParams?: boolean;
 }
 
-// Registry: Home, Files, Cheats (the running game's), Settings. Files opens at ctx.params.path
+// Registry: Home, Files, Cheats (the running game's), Fan, Settings. Files opens at ctx.params.path
 // (acceptsParams), so Home's drive cards open it at a drive.
 export const SECTIONS: Section[] = [
   {
@@ -60,6 +61,12 @@ export const SECTIONS: Section[] = [
     icon: Sparkles,
     labelKey: "cw_cheats_title",
     render: () => <Cheats />,
+  },
+  {
+    id: "fan",
+    icon: FanIcon,
+    labelKey: "cw_fan_title",
+    render: () => <Fan />,
   },
   {
     id: "settings",
