@@ -32,6 +32,7 @@
 #include "path_policy.h"
 #include "proc_identity.h"
 #include "ps5_firmware.h"
+#include "storage_cleanup.h"
 #include "webui_cheats_store.h"
 #include "webui_codec.h"
 #include "webui_files.h"
@@ -1037,6 +1038,44 @@ static void r_files_handoff_put(const char *b, size_t n, uint8_t *out, int fd) {
     if (need_path(fd, b, n, "path", path, sizeof path) != 0) return;
     if (files_handoff_put(FILES_HANDOFF_TO_PC, path, files_handoff_now_ms()) != 0) send_bad(fd, "bad_path");
     else send_json(fd, 200, "{}", 2);
+}
+
+/* ---- console clean-up (storage_cleanup.c): the same calls the PC app makes ---- */
+
+static void send_cleanup(int fd, int len, const uint8_t *out) {
+    char tok[48];
+    int http = 500;
+    if (len <= 0) {
+        send_error(fd, 500, "internal", 8);
+        return;
+    }
+    if (!sc_reply_error((const char *)out, (size_t)len, tok, sizeof tok)) {
+        send_json(fd, 200, (const char *)out, (size_t)len);
+        return;
+    }
+    if (strcmp(tok, "busy") == 0 || strcmp(tok, "install_running") == 0 || strcmp(tok, "scan_not_done") == 0) http = 409;
+    else if (strcmp(tok, "unknown_scan") == 0 || strcmp(tok, "unknown_apply") == 0) http = 404;
+    else if (strcmp(tok, "scan_expired") == 0) http = 410;
+    else if (strcmp(tok, "bad_request") == 0) http = 400;
+    send_error(fd, http, tok, strlen(tok));
+}
+
+static void r_cleanup_scan(const char *b, size_t n, uint8_t *out, int fd) {
+    (void)b;
+    (void)n;
+    send_cleanup(fd, sc_scan_start((char *)out, API_OUT_MAX), out);
+}
+static void r_cleanup_status(const char *b, size_t n, uint8_t *out, int fd) {
+    send_cleanup(fd, sc_scan_status(b, n, (char *)out, API_OUT_MAX), out);
+}
+static void r_cleanup_apply(const char *b, size_t n, uint8_t *out, int fd) {
+    send_cleanup(fd, sc_apply_start(b, n, (char *)out, API_OUT_MAX), out);
+}
+static void r_cleanup_apply_status(const char *b, size_t n, uint8_t *out, int fd) {
+    send_cleanup(fd, sc_apply_status(b, n, (char *)out, API_OUT_MAX), out);
+}
+static void r_cleanup_cancel(const char *b, size_t n, uint8_t *out, int fd) {
+    send_cleanup(fd, sc_cancel(b, n, (char *)out, API_OUT_MAX), out);
 }
 
 /* ---- settings ---- */
@@ -2201,6 +2240,11 @@ static const struct {
     { "/api/index/status", r_index_status },
     { "/api/index/search", r_index_search },
     { "/api/index/cancel", r_index_cancel },
+    { "/api/cleanup/scan", r_cleanup_scan },
+    { "/api/cleanup/status", r_cleanup_status },
+    { "/api/cleanup/apply", r_cleanup_apply },
+    { "/api/cleanup/apply_status", r_cleanup_apply_status },
+    { "/api/cleanup/cancel", r_cleanup_cancel },
 };
 
 /* The page's own headers: same-origin fetches plus the two GitHub hosts the cheat finder reads

@@ -3,6 +3,7 @@
 
 #include "unregister_outcome.h"
 #include <stddef.h>
+#include <stdint.h>
 
 /*
  * App registration pipeline -- takes a game folder on PS5 (either a
@@ -101,6 +102,12 @@ int unregister_title(const char *title_id,
 /* Whether app.db (what the home screen draws) still has a row for `title_id`: 1, 0, or -1 when
  * app.db could not be read. Read-only. */
 int register_appdb_has_title(const char *title_id);
+
+/* Console clean-up: whether this firmware exports sceAppInstUtilAppUnInstallPat, and the call
+ * itself (serialized on sony_api_lock, ShellCore authid for the call). 0 = Sony accepted (the
+ * removal then runs asynchronously), -1 bad title id, -2 not exported, -3 Sony refused (*rc_out). */
+int uninstall_patch_available(void);
+int uninstall_patch(const char *title_id, uint32_t *rc_out);
 
 /* Re-establish only the nullfs bind /system_ex/app/<title_id> -> src_path
  * (step 4 of register_title_from_path, with its /system_ex rw remount and
