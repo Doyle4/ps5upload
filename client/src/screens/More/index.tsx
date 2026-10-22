@@ -10,6 +10,10 @@
  * Three zones: console switcher + search (sticky), the screen list
  * (grouped, or flat while searching), and a utility footer.
  *
+ * Every row can be pinned (phones too: Pinned shows here, under Bug report,
+ * as it does in the desktop sidebar); pinned rows move up/down here, which
+ * is the touch- and keyboard-friendly way to reorder them.
+ *
  * SCROLLING: this screen deliberately has NO scroll container of its own.
  * <main> in AppShell is already `overflow-y-auto` with the bottom-nav
  * padding applied; adding another would recreate the exact nested-scroll
@@ -18,7 +22,20 @@
  */
 import { useEffect, useMemo, useState } from "react";
 import { NavLink } from "react-router";
-import { ChevronRight, Eye, EyeOff, LayoutGrid, Moon, Search, Sun, X } from "lucide-react";
+import {
+  ArrowDown,
+  ArrowUp,
+  ChevronRight,
+  Eye,
+  EyeOff,
+  LayoutGrid,
+  Moon,
+  Pin,
+  PinOff,
+  Search,
+  Sun,
+  X,
+} from "lucide-react";
 
 import { PageHeader, Input, EmptyState } from "../../components";
 import { useTr } from "../../state/lang";
@@ -34,8 +51,10 @@ import { useBetaFeaturesStore } from "../../state/betaFeatures";
 import NotificationInbox from "../../layout/NotificationInbox";
 import {
   BUG_REPORT_NAV_ITEM,
-  isPinnedNav,
+  isFixedNav,
+  MAX_PINNED,
   NAV_ITEMS,
+  pinnedNavItems,
   groupNavItems,
   filterNavItems,
   navItemOffered,
@@ -72,7 +91,12 @@ export default function MoreScreen() {
     () => filterNavItems([BUG_REPORT_NAV_ITEM, ...visible], query, tr),
     [visible, query, tr],
   );
-  const groups = useMemo(() => groupNavItems(matches.filter((i) => !isPinnedNav(i.to))), [matches]);
+  const groups = useMemo(() => groupNavItems(matches.filter((i) => !isFixedNav(i.to))), [matches]);
+  const pinned = useNavSidebarStore((s) => s.pinned);
+  const pinnedItems = useMemo(
+    () => pinnedNavItems(pinned, betaEnabled, !isTauriEnv(), isMacOrLinuxDesktop()),
+    [pinned, betaEnabled],
+  );
   const searching = query.trim().length > 0;
   return (
     <div className="app-page max-w-4xl! pb-6!">
@@ -149,7 +173,7 @@ export default function MoreScreen() {
             <MoreRow
               key={item.to}
               item={item}
-              pinned={isPinnedNav(item.to)}
+              fixed={isFixedNav(item.to)}
               errorCount={errorCount}
               updateAvailable={updateAvailable}
             />
@@ -163,9 +187,29 @@ export default function MoreScreen() {
               item={BUG_REPORT_NAV_ITEM}
               errorCount={errorCount}
               updateAvailable={updateAvailable}
-              pinned
+              fixed
             />
           </ul>
+          {/* The user's pins, in pin order, like the sidebar's Pinned group; absent until
+              something is pinned. Each row also stays in its section below. */}
+          {pinnedItems.length > 0 && (
+            <section data-testid="more-pinned" className="mt-6">
+              <h2 className="px-4 pb-2 text-[0.6875rem] font-medium uppercase tracking-[0.08em] text-[var(--color-muted)]">
+                {tr("nav_section_pinned", undefined, "Pinned")}
+              </h2>
+              <ul className="surface-panel overflow-hidden p-1.5">
+                {pinnedItems.map((item, i) => (
+                  <MoreRow
+                    key={item.to}
+                    item={item}
+                    errorCount={errorCount}
+                    updateAvailable={updateAvailable}
+                    order={{ first: i === 0, last: i === pinnedItems.length - 1 }}
+                  />
+                ))}
+              </ul>
+            </section>
+          )}
           {groups.map((group) => (
             <section key={group.section.key} className="mt-6 first:mt-1">
               <h2 className="px-4 pb-2 text-[0.6875rem] font-medium uppercase tracking-[0.08em] text-[var(--color-muted)]">
@@ -225,20 +269,27 @@ export function MoreRow({
   item,
   errorCount,
   updateAvailable,
-  pinned = false,
+  fixed = false,
+  order,
 }: {
   item: NavItem;
   errorCount: number;
   updateAvailable: boolean;
-  /** Always in the sidebar: no hide switch. */
-  pinned?: boolean;
+  /** Home/Bug report, always in the sidebar: no hide or pin switch. */
+  fixed?: boolean;
+  /** A row of the Pinned group: offers Move up/down (not past the ends). */
+  order?: { first: boolean; last: boolean };
 }) {
   const tr = useTr();
   const Icon = item.icon;
   const showErrors = item.to === "/logs" && errorCount > 0;
   const showUpdate = item.to === "/settings" && updateAvailable;
-  const hidden = useNavSidebarStore((s) => !pinned && s.hidden.includes(item.to));
+  const hidden = useNavSidebarStore((s) => !fixed && s.hidden.includes(item.to));
   const toggleHidden = useNavSidebarStore((s) => s.toggleHidden);
+  const isPinned = useNavSidebarStore((s) => !fixed && s.pinned.includes(item.to));
+  const pinFull = useNavSidebarStore((s) => s.pinned.length >= MAX_PINNED);
+  const togglePinned = useNavSidebarStore((s) => s.togglePinned);
+  const movePinned = useNavSidebarStore((s) => s.movePinned);
   const label = tr(item.key, undefined, item.fallback);
   return (
     <li className="flex items-center">
@@ -296,9 +347,49 @@ export function MoreRow({
       </NavLink>
       {/* Sibling of the link, not a child: a <button> inside an <a> is
           invalid markup and the click would navigate instead of toggling. */}
+      {/* Pinned group only: reorder without dragging (touch, keyboard, screen readers). */}
+      {order && (
+        <>
+          <MoreIconButton
+            label={tr("nav_move_up_item", { name: label }, "Move {name} up")}
+            disabled={order.first}
+            onClick={() => movePinned(item.to, -1)}
+          >
+            <ArrowUp size={16} aria-hidden />
+          </MoreIconButton>
+          <MoreIconButton
+            label={tr("nav_move_down_item", { name: label }, "Move {name} down")}
+            disabled={order.last}
+            onClick={() => movePinned(item.to, 1)}
+          >
+            <ArrowDown size={16} aria-hidden />
+          </MoreIconButton>
+        </>
+      )}
+      {/* Pin: phones and desktop alike — the Pinned group is on this screen too. */}
+      {!fixed && (
+        <MoreIconButton
+          label={
+            isPinned
+              ? tr("nav_unpin_item", { name: label }, "Unpin {name}")
+              : tr("nav_pin_item", { name: label }, "Pin {name}")
+          }
+          title={
+            !isPinned && pinFull
+              ? tr("nav_pin_full", { max: MAX_PINNED }, "You can pin up to {max} screens")
+              : undefined
+          }
+          pressed={isPinned}
+          disabled={!isPinned && pinFull}
+          onClick={() => togglePinned(item.to)}
+          className={isPinned ? "text-[var(--color-accent)]" : "text-[var(--color-muted)]"}
+        >
+          {isPinned ? <PinOff size={16} aria-hidden /> : <Pin size={16} aria-hidden />}
+        </MoreIconButton>
+      )}
       {/* Desktop only: phones navigate by tabs and this list, and have no sidebar to change. A
-          pinned screen has no switch: it is always there. */}
-      {!pinned && (
+          fixed screen has no switch: it is always there. */}
+      {!fixed && !order && (
         <button
           type="button"
           onClick={() => toggleHidden(item.to)}
@@ -321,5 +412,38 @@ export function MoreRow({
         </button>
       )}
     </li>
+  );
+}
+
+/** A 44px round icon button at the end of a More row. */
+function MoreIconButton({
+  label,
+  title,
+  pressed,
+  disabled = false,
+  onClick,
+  className = "text-[var(--color-muted)]",
+  children,
+}: {
+  label: string;
+  title?: string;
+  pressed?: boolean;
+  disabled?: boolean;
+  onClick: () => void;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-pressed={pressed}
+      aria-label={label}
+      title={title ?? label}
+      className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition-colors hover:bg-[var(--color-surface-3)] disabled:opacity-35 disabled:hover:bg-transparent ${className}`}
+    >
+      {children}
+    </button>
   );
 }

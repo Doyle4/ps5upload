@@ -53,7 +53,7 @@ interface SettingsSnapshot {
     show_transfer_files?: boolean;
     bandwidth_cap_mbps?: number;
   };
-  /** The desktop sidebar: screens the user hid and sections they folded. Mirrored like every
+  /** The desktop sidebar: screens the user hid or pinned and sections they folded. Mirrored like every
    *  other preference so it survives a storage reset, a reinstall, or a hand-edit. */
   nav?: NavSettings;
   /** Older files may also hold density, screen_reader_hints and
@@ -84,6 +84,7 @@ function snapshotCurrent(): SettingsSnapshot {
     nav: {
       hidden: useNavSidebarStore.getState().hidden,
       closed_sections: useNavSidebarStore.getState().closedSections,
+      pinned: useNavSidebarStore.getState().pinned,
     },
     accessibility: {
       motion: useAccessibilityStore.getState().motion,
@@ -291,8 +292,12 @@ export async function hydrateFromUserConfig(): Promise<void> {
     // Compare by content, not identity — a no-op hydrate would re-fire the
     // mirror write on every launch.
     const same = (a: string[], b: string[]) => a.length === b.length && a.every((p, i) => p === b[i]);
-    if (!same(nav.hidden, ns.hidden) || !same(nav.closedSections, ns.closedSections)) {
-      ns.setAll(nav.hidden, nav.closedSections);
+    if (
+      !same(nav.hidden, ns.hidden) ||
+      !same(nav.closedSections, ns.closedSections) ||
+      (nav.pinned !== undefined && !same(nav.pinned, ns.pinned))
+    ) {
+      ns.setAll(nav.hidden, nav.closedSections, nav.pinned);
     }
   }
   if (data.accessibility) {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { NAV_ITEMS, PINNED_NAV_ITEMS, groupNavItems } from "./navItems";
+import { NAV_ITEMS, FIXED_NAV_ITEMS, groupNavItems } from "./navItems";
 import { tabForPath, type TabId } from "./TabNav";
 
 // The tabs must file every screen where the sidebar does: one section, one tab.
@@ -36,7 +36,7 @@ describe("TabNav groups follow the sidebar's sections", () => {
   });
 
   it("covers pinned items, redirects and sub-routes", () => {
-    for (const item of PINNED_NAV_ITEMS) expect(tabForPath(item.to), item.to).not.toBeNull();
+    for (const item of FIXED_NAV_ITEMS) expect(tabForPath(item.to), item.to).not.toBeNull();
     expect(tabForPath("/games/PPSA01234")).toBe("games");
     expect(tabForPath("/activity")).toBe("tasks");
     expect(tabForPath("/file-system")).toBe("files");
