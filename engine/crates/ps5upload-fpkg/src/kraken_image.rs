@@ -721,18 +721,22 @@ pub fn decode_described(image: &[u8], b: &DescribedBlock) -> Result<Vec<u8>> {
             Half::Lz(bytes.to_vec())
         }
     };
-    halves.push(if b.even_lz || (e.len() as u64) < even_logical {
-        lz(e, b.mode_bits & 1 != 0)
-    } else {
-        Half::Raw(e.to_vec())
-    });
+    // A half flagged LZ is an LZ chunk; one stored as long as it decodes is raw; one shorter
+    // without the LZ flag is a bare entropy array (Sony's all-zero halves, #493: reading those
+    // as LZ refused them as "chunk too short").
+    let half = |bytes: &[u8], is_lz: bool, delta: bool, logical: u64| {
+        if is_lz {
+            lz(bytes, delta)
+        } else if (bytes.len() as u64) < logical {
+            Half::Entropy(bytes.to_vec())
+        } else {
+            Half::Raw(bytes.to_vec())
+        }
+    };
+    halves.push(half(e, b.even_lz, b.mode_bits & 1 != 0, even_logical));
     if b.len > kraken::HALF as u64 {
         let odd_logical = b.len - kraken::HALF as u64;
-        halves.push(if b.odd_lz || (o.len() as u64) < odd_logical {
-            lz(o, b.mode_bits & 0b1000 != 0)
-        } else {
-            Half::Raw(o.to_vec())
-        });
+        halves.push(half(o, b.odd_lz, b.mode_bits & 0b1000 != 0, odd_logical));
     }
     kraken::decode_block(&halves, b.len as usize)
 }
@@ -1005,5 +1009,33 @@ mod tests {
             decode_described(&image, &block(0x100, 0, 0x100)).unwrap(),
             vec![0u8; 0x100]
         );
+    }
+
+    /// Sony's all-zero block (#493): two bare 8-byte Huffman arrays, neither half flagged LZ,
+    /// flags 0x04. Read as LZ chunks they were refused as "chunk too short".
+    #[test]
+    fn an_entropy_only_block_decodes() {
+        let half = [0x27, 0xff, 0xfc, 0x00, 0x03, 0x00, 0x40, 0x00];
+        let image = [half, half].concat();
+        let block = DescribedBlock {
+            logical: 0,
+            len: UBLOCK,
+            stored_at: 0,
+            even_len: 8,
+            stored_len: 16,
+            even_lz: false,
+            odd_lz: false,
+            mode_bits: 0x04,
+        };
+        assert_eq!(
+            decode_described(&image, &block).unwrap(),
+            vec![0u8; UBLOCK as usize]
+        );
+        // The same bytes in a block one byte shorter do not fill its odd half.
+        let short = DescribedBlock {
+            len: UBLOCK - 1,
+            ..block
+        };
+        assert!(decode_described(&image, &short).is_err());
     }
 }

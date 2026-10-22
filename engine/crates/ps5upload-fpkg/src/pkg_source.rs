@@ -555,7 +555,10 @@ impl PkgSource {
                 b.logical
             )));
         }
-        let compressed = blocks.iter().any(|b| b.even_lz || b.odd_lz);
+        // Entropy-only halves (stored shorter, no LZ flag) are compressed too.
+        let compressed = blocks
+            .iter()
+            .any(|b| b.even_lz || b.odd_lz || b.stored_len < b.len);
         self.layout = Layout::Blocks {
             blocks,
             cache: Lru::new(KRAKEN_CACHE),
@@ -589,9 +592,14 @@ impl PkgSource {
                 };
                 let plain = kraken_image::decode_described(&stored, &local).map_err(|e| {
                     bad(format!(
-                        "the block at {:#x} does not decode ({e}); the package is damaged or \
-                         compressed in a way this reader does not know",
-                        b.logical
+                        "the block at {:#x} does not decode ({e}; {:#x} bytes stored as \
+                         {:#x} + {:#x}, flags {:#04x}); the package is damaged or compressed \
+                         in a way this reader does not know",
+                        b.logical,
+                        b.len,
+                        b.even_len,
+                        b.stored_len.saturating_sub(b.even_len),
+                        b.mode_bits
                     ))
                 })?;
                 cache.insert(b.logical, plain);
