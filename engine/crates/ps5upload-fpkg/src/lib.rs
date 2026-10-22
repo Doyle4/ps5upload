@@ -16,6 +16,7 @@ pub mod exfat;
 pub mod exfat_write;
 pub mod ffpfsc;
 pub mod ffpfsc_block;
+pub mod ffpfsc_compat;
 pub mod fih;
 pub mod fih_write;
 pub mod flt;

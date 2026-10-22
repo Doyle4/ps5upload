@@ -11,6 +11,9 @@
 //! - the deflate writes into a buffer the size of what the block must beat;
 //! - [`Level::Smallest`] tries a second, stronger pass (libdeflate level 12, near-optimal
 //!   parsing) on every block level 9 shrank, and keeps whichever is shorter;
+//! - every stream is walked for the one header construct the console's decoder misreads
+//!   ([`crate::ffpfsc_compat`]); libdeflate writes it now and then (3 blocks in 273,001 at level
+//!   12 on a real game), and such a stream is replaced by the next candidate, zlib-rs last;
 //! - every block kept compressed is inflated again by a second implementation (zlib-rs) and
 //!   compared with its source before it is handed back, so a container never carries a block
 //!   that does not decode to its bytes.
@@ -22,8 +25,10 @@
 
 use std::io;
 
-use flate2::{Decompress, FlushDecompress, Status};
+use flate2::{Compress, Compression, Decompress, FlushCompress, FlushDecompress, Status};
 use libdeflater::{CompressionLvl, Compressor};
+
+use crate::ffpfsc_compat::console_safe;
 
 /// The PFSC block size.
 pub const BLOCK: usize = 0x10000;
@@ -133,8 +138,14 @@ pub enum Stored {
     /// Stored as it is (64 KiB). `prechecked`: the histogram ruled out a gain, so no deflate ran.
     Raw { prechecked: bool },
     /// A zlib stream shorter than 64 KiB that inflates back to the block. `strong`: the second
-    /// encoder's output was the shorter.
-    Zlib { bytes: Vec<u8>, strong: bool },
+    /// pass's output was the shorter. `refused`: a libdeflate stream for this block was turned
+    /// down as one the console misreads; `fallback`: so the stream is zlib-rs's.
+    Zlib {
+        bytes: Vec<u8>,
+        strong: bool,
+        refused: bool,
+        fallback: bool,
+    },
 }
 
 /// One worker's encoders and scratch space, reused block after block.
@@ -142,10 +153,20 @@ pub struct BlockEncoder {
     cap: usize,
     deflate: Compressor,
     strong: Option<Compressor>,
+    /// The fallback for a stream the console would misread.
+    zlib: Compress,
     inflate: Decompress,
     out: Vec<u8>,
     out2: Vec<u8>,
     back: Vec<u8>,
+}
+
+/// Which candidate a block's stream is.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Pick {
+    Main,
+    Strong,
+    Fallback,
 }
 
 fn compressor(level: u32) -> Compressor {
@@ -160,6 +181,7 @@ impl BlockEncoder {
             cap: opts.cap(),
             deflate: compressor(opts.level),
             strong: (opts.strong && opts.level < 12).then(|| compressor(12)),
+            zlib: Compress::new(Compression::new(opts.level.min(9)), true),
             inflate: Decompress::new(true),
             out: vec![0u8; BLOCK],
             out2: vec![0u8; BLOCK],
@@ -171,8 +193,8 @@ impl BlockEncoder {
     pub fn zero_block(&mut self) -> io::Result<Vec<u8>> {
         let zeros = vec![0u8; BLOCK];
         match self.compress(&zeros)? {
-            Some((bytes, _)) => Ok(bytes),
-            None => Err(io::Error::other("a block of zeros did not compress")),
+            Some(Stored::Zlib { bytes, .. }) => Ok(bytes),
+            _ => Err(io::Error::other("a block of zeros did not compress")),
         }
     }
 
@@ -190,30 +212,63 @@ impl BlockEncoder {
         if incompressible(block, self.cap) {
             return Ok(Stored::Raw { prechecked: true });
         }
-        Ok(match self.compress(block)? {
-            Some((bytes, strong)) => Stored::Zlib { bytes, strong },
-            None => Stored::Raw { prechecked: false },
-        })
+        Ok(self
+            .compress(block)?
+            .unwrap_or(Stored::Raw { prechecked: false }))
     }
 
-    /// The shortest zlib stream within the cap that inflates back to `block`, and whether the
-    /// strong pass made it; `None` when none fits.
-    fn compress(&mut self, block: &[u8]) -> io::Result<Option<(Vec<u8>, bool)>> {
+    /// The shortest stream within the cap that the console reads right and that inflates back
+    /// to `block` ([`Stored::Zlib`]); `None` when none fits.
+    fn compress(&mut self, block: &[u8]) -> io::Result<Option<Stored>> {
         let cap = self.cap;
         // Out of space means longer than the cap: not worth keeping.
         let Ok(n) = self.deflate.zlib_compress(block, &mut self.out[..cap]) else {
             return Ok(None);
         };
-        let strong = self.strong.as_mut().and_then(|c| {
-            c.zlib_compress(block, &mut self.out2[..n.saturating_sub(1)])
-                .ok()
-        });
-        let bytes = match strong {
-            Some(m) => self.out2[..m].to_vec(),
-            None => self.out[..n].to_vec(),
+        let mut refused = false;
+        let mut pick = None;
+        if console_safe(&self.out[..n]) {
+            pick = Some((Pick::Main, n));
+        } else {
+            refused = true;
+        }
+        // Where the first pass paid: the strong one must beat it.
+        let strong = self
+            .strong
+            .as_mut()
+            .and_then(|c| c.zlib_compress(block, &mut self.out2[..n - 1]).ok());
+        if let Some(m) = strong {
+            if console_safe(&self.out2[..m]) {
+                pick = Some((Pick::Strong, m));
+            } else {
+                refused = true;
+            }
+        }
+        if pick.is_none() {
+            self.zlib.reset();
+            let status = self
+                .zlib
+                .compress(block, &mut self.out2[..cap], FlushCompress::Finish)
+                .map_err(|e| io::Error::other(format!("zlib: {e}")))?;
+            let m = self.zlib.total_out() as usize;
+            if status == Status::StreamEnd && console_safe(&self.out2[..m]) {
+                pick = Some((Pick::Fallback, m));
+            }
+        }
+        let Some((from, len)) = pick else {
+            return Ok(None);
+        };
+        let bytes = match from {
+            Pick::Main => self.out[..len].to_vec(),
+            Pick::Strong | Pick::Fallback => self.out2[..len].to_vec(),
         };
         self.check(&bytes, block)?;
-        Ok(Some((bytes, strong.is_some())))
+        Ok(Some(Stored::Zlib {
+            bytes,
+            strong: from == Pick::Strong,
+            refused,
+            fallback: from == Pick::Fallback,
+        }))
     }
 
     /// `stored` inflates to exactly `block`.
@@ -438,6 +493,22 @@ mod tests {
         let mut longer = bytes.clone();
         longer.push(0);
         assert!(e.check(&longer, &a).is_err());
+    }
+
+    /// Whatever is stored is a stream the console reads right.
+    #[test]
+    fn every_stored_stream_is_console_safe() {
+        let mut e = BlockEncoder::new(Level::Smallest.options());
+        let t = text();
+        for seed in 1..60u32 {
+            let mut block = random(seed);
+            let cut = (seed as usize * 977) % BLOCK;
+            block[..cut].copy_from_slice(&t[..cut]);
+            if let Stored::Zlib { bytes, .. } = e.encode(&block).unwrap() {
+                assert!(console_safe(&bytes));
+                assert_eq!(inflate(&bytes), block);
+            }
+        }
     }
 
     #[test]

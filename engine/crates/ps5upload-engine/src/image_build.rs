@@ -883,9 +883,10 @@ fn wrap_log_line(
 ) -> String {
     let raw = w.blocks - w.compressed_blocks;
     format!(
-        "level={} min_gain={}% encoder={} threads={} blocks={} compressed={} raw={} zero={} prechecked_raw={} strong_wins={} raw_bytes={} stored_bytes={} feed_ms={} feed_wait_ms={} encode_ms={} write_ms={} stream_ms={}",
+        "level={} min_gain={}% encoder={} threads={} blocks={} compressed={} raw={} zero={} prechecked_raw={} strong_wins={} console_refused={} zlib_fallback={} raw_bytes={} stored_bytes={} feed_ms={} feed_wait_ms={} encode_ms={} write_ms={} stream_ms={}",
         o.level, o.min_block_gain, o.encoder(), w.threads, w.blocks, w.compressed_blocks, raw,
-        w.zero_blocks, w.prechecked_blocks, w.strong_blocks, w.raw_size, w.stored_size,
+        w.zero_blocks, w.prechecked_blocks, w.strong_blocks, w.refused_blocks, w.fallback_blocks,
+        w.raw_size, w.stored_size,
         w.feed.as_millis(), w.feed_wait.as_millis(), w.encode.as_millis(), w.write.as_millis(),
         w.wall.as_millis(),
     )

@@ -118,6 +118,10 @@ pub struct WrapReport {
     pub prechecked_blocks: u64,
     /// Compressed blocks the stronger encoder made shorter.
     pub strong_blocks: u64,
+    /// Blocks for which a libdeflate stream was turned down as one the console misreads.
+    pub refused_blocks: u64,
+    /// Of those, the blocks stored as zlib-rs's stream instead.
+    pub fallback_blocks: u64,
     pub threads: usize,
     /// The calling thread's time in the inner writer (reading the source and cutting blocks),
     /// less the time it waited for a free buffer.
@@ -400,9 +404,16 @@ fn write_blocks(
                     report.prechecked_blocks += u64::from(*prechecked);
                     &buf
                 }
-                Stored::Zlib { bytes, strong } => {
+                Stored::Zlib {
+                    bytes,
+                    strong,
+                    refused,
+                    fallback,
+                } => {
                     report.compressed_blocks += 1;
                     report.strong_blocks += u64::from(*strong);
+                    report.refused_blocks += u64::from(*refused);
+                    report.fallback_blocks += u64::from(*fallback);
                     bytes
                 }
             };
