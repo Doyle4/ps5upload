@@ -1149,27 +1149,38 @@ pub fn default_profile(level: u8, block_shift: u8) -> Config {
 /// The profile used when the user gives none, for a game with these files (paths relative to
 /// `/app0`).
 ///
-/// An Unreal Engine title gets [`unreal_profile`]: only its IoStore containers are packed.
-/// Everything else gets [`default_profile`].
+/// An Unreal Engine title with IoStore containers (`.ucas`) gets [`unreal_profile`]: only the
+/// containers are packed. Everything else, an Unreal title with `.pak` files only included,
+/// gets [`default_profile`], so the build still packs something.
 pub fn default_profile_for<'a>(
     paths: impl IntoIterator<Item = &'a str>,
     level: u8,
     block_shift: u8,
 ) -> Config {
-    if paths.into_iter().any(is_unreal_marker) {
+    if paths.into_iter().any(is_iostore_container) {
         unreal_profile(level, block_shift)
     } else {
         default_profile(level, block_shift)
     }
 }
 
-/// A file only an Unreal Engine build ships: its project descriptor or an IoStore table of
-/// contents or container.
-fn is_unreal_marker(path: &str) -> bool {
-    let lower = path.to_ascii_lowercase();
-    [".uproject", ".utoc", ".ucas"]
-        .iter()
-        .any(|ext| lower.ends_with(ext))
+/// An Unreal Engine IoStore container, in any letter case.
+fn is_iostore_container(path: &str) -> bool {
+    path.to_ascii_lowercase().ends_with(UCAS_EXT)
+}
+
+const UCAS_EXT: &str = ".ucas";
+/// `*.ucas` in any letter case: rules match case-sensitively.
+const UCAS_GLOB: &str = "*.[uU][cC][aA][sS]";
+
+/// Which built-in profile [`default_profile_for`] picks for these files: `"unreal"` or
+/// `"default"`.
+pub fn default_profile_name<'a>(paths: impl IntoIterator<Item = &'a str>) -> &'static str {
+    if paths.into_iter().any(is_iostore_container) {
+        "unreal"
+    } else {
+        "default"
+    }
 }
 
 /// The profile for an Unreal Engine title: its IoStore containers (`*.ucas`, nearly all of the
@@ -1193,7 +1204,7 @@ pub fn unreal_profile(level: u8, block_shift: u8) -> Config {
     c.rules = vec![
         Rule {
             action: Action::Compress,
-            include: vec!["*.ucas".into()],
+            include: vec![UCAS_GLOB.into()],
             layout: Layout::Mixed,
             ..base
         },
@@ -1463,15 +1474,19 @@ mod tests {
         ] {
             assert_eq!(c.select(loose).action, Action::Loose, "{loose}");
         }
+        // Detection and the rule agree on letter case.
+        let upper = ["D/X.UCAS"];
+        assert_eq!(default_profile_for(upper, 9, 16), unreal_profile(9, 16));
+        assert_eq!(default_profile_name(upper), "unreal");
+        assert_eq!(c.select("D/X.UCAS").action, Action::Compress);
+        assert_eq!(c.select("d/x.Ucas").action, Action::Compress);
         // A game of no known engine keeps the folder-wide default.
-        assert_eq!(
-            default_profile_for(["eboot.bin", "d/actor/x"], 9, 16),
-            default_profile(9, 16)
-        );
-        assert_eq!(
-            default_profile_for(["D/X.UCAS"], 9, 16),
-            unreal_profile(9, 16)
-        );
+        let plain = ["eboot.bin", "d/actor/x"];
+        assert_eq!(default_profile_for(plain, 9, 16), default_profile(9, 16));
+        assert_eq!(default_profile_name(plain), "default");
+        // So does an Unreal title without IoStore (.pak only): packing nothing gains nothing.
+        let pak_only = ["game/game.uproject", "game/Content/Paks/pakchunk0-ps5.pak"];
+        assert_eq!(default_profile_for(pak_only, 9, 16), default_profile(9, 16));
     }
 
     /// The canonical document drakmor's packer hashes for the build id, for the default config

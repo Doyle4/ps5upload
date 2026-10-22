@@ -831,13 +831,16 @@ pub(crate) fn build_packed(
     if let Some(why) = ampr_pack::image::refusal(source) {
         return Err(why);
     }
-    let config = packs.profile.clone().unwrap_or_else(|| {
-        ampr_pack::default_profile_for(
-            source.files().iter().map(|f| f.path.as_str()),
-            packs.level,
-            packs.block_shift,
-        )
-    });
+    let paths = || source.files().iter().map(|f| f.path.as_str());
+    let profile_name = if packs.profile.is_some() {
+        "given"
+    } else {
+        ampr_pack::default_profile_name(paths())
+    };
+    let config = packs
+        .profile
+        .clone()
+        .unwrap_or_else(|| ampr_pack::default_profile_for(paths(), packs.level, packs.block_shift));
     // Claimed by the caller like the image's `.partial`, so nothing else writes here.
     let spool = lz4_spool(output);
     let mtime = std::time::SystemTime::now()
@@ -869,6 +872,20 @@ pub(crate) fn build_packed(
     let _ = std::fs::remove_dir_all(&spool);
     let (mut built, report) = result?;
     let s = &report.stats;
+    if s.files_packed == 0 {
+        crate::log_warn!(
+            "lz4 packs: profile={profile_name} packed no files ({} loose) for {}",
+            s.files_loose,
+            output.display()
+        );
+    } else {
+        crate::log_info!(
+            "lz4 packs: profile={profile_name} packed {} files ({} loose) for {}",
+            s.files_packed,
+            s.files_loose,
+            output.display()
+        );
+    }
     built.detail.push_str(&format!(
         ", LZ4 packs: {} files packed into {} volume(s) ({} -> {} bytes, {} LZ4 / {} raw \
          chunks), {} loose",
