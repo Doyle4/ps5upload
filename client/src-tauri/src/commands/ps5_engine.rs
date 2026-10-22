@@ -2246,8 +2246,8 @@ pub async fn ps5_hw_drive_sensors(addr: Option<String>) -> Result<JsonValue, Str
 }
 
 /// Write the PS5 fan-turbo threshold. `threshold_c` is clamped on the
-/// engine side (returns 400 BAD_REQUEST if out of the safe [45, 80]
-/// range) before ever reaching the payload, so the UI gets a clear
+/// engine side (returns 400 BAD_REQUEST if out of the safe [45, 85]
+/// range; 0 asks for the console's own setting back) before ever reaching the payload, so the UI gets a clear
 /// error rather than a silent clamp.
 #[tauri::command]
 pub async fn ps5_hw_set_fan_threshold(

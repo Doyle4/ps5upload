@@ -74,7 +74,8 @@ pub struct HwTemps {
     pub product_shape: i32,
     /// User-pinned fan threshold (°C). `0` = no custom threshold set
     /// (fan runs at firmware default). A positive value means the user
-    /// has set a permanent fan speed that is auto-reapplied every 15s.
+    /// has set a permanent fan speed that the helper puts back within
+    /// about 2 s whenever the system resets it (a game starting or closing).
     /// Always available (even on basic read) since it's an in-process
     /// value, not a sensor syscall.
     #[serde(default)]
@@ -87,6 +88,22 @@ pub struct HwTemps {
     /// it (°C). `0` = never seen. 91 on FW 13.60, not the 60 this app long assumed.
     #[serde(default)]
     pub fan_stock_c: i32,
+    /// How many times this helper session put the pinned target back after the system reset
+    /// it. `0` also for an older helper.
+    #[serde(default)]
+    pub fan_restores: u32,
+    /// Seconds since the last of those restores; `-1` = never (or an older helper).
+    #[serde(default = "default_sensor_unavailable")]
+    pub fan_last_restore_s: i32,
+    /// The guard that keeps the pinned target: `"off"` (nothing pinned), `"ok"`, or
+    /// `"failing"` (its writes kept failing, so it stopped and the console's own control is in
+    /// charge until the next set). Empty from an older helper.
+    #[serde(default)]
+    pub fan_guard: String,
+    /// The fan controller's own filtered temperature (°C, one decimal). `None` when unreadable,
+    /// out of 20–110 °C, or from an older helper.
+    #[serde(default)]
+    pub fan_filtered_c: Option<f32>,
 }
 
 fn default_sensor_unavailable() -> i32 {
@@ -220,6 +237,10 @@ fn sanitize_temps(mut t: HwTemps) -> HwTemps {
     if !(0..=100).contains(&t.fan_duty_pct) {
         t.fan_duty_pct = -1;
     }
+    // -1 is "never"; anything else below 0 is not a time.
+    if t.fan_last_restore_s < -1 {
+        t.fan_last_restore_s = -1;
+    }
     t
 }
 
@@ -290,6 +311,19 @@ fn parse_hw_temps(body: &[u8]) -> HwTemps {
             .and_then(|v| v.parse().ok())
             .unwrap_or(-1),
         fan_stock_c: get("fan_stock_c").and_then(|v| v.parse().ok()).unwrap_or(0),
+        fan_restores: get("fan_restores")
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(0),
+        fan_last_restore_s: get("fan_last_restore_s")
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(-1),
+        fan_guard: get("fan_guard")
+            .filter(|v| matches!(*v, "off" | "ok" | "failing"))
+            .unwrap_or("")
+            .to_string(),
+        fan_filtered_c: get("fan_filtered_c")
+            .and_then(|v| v.parse::<f32>().ok())
+            .filter(|c| (20.0..=110.0).contains(c)), // the helper's own sanity range
     }
 }
 
@@ -374,7 +408,7 @@ pub fn hw_storage(addr: &str) -> Result<HwStorage> {
 /// callers that bypass this function still get a safe outcome. We
 /// enforce here mostly for clearer error surfacing.
 pub const FAN_THRESHOLD_MIN_C: u8 = 45;
-pub const FAN_THRESHOLD_MAX_C: u8 = 80;
+pub const FAN_THRESHOLD_MAX_C: u8 = 85;
 /// The "threshold" that means "restore the console's own fan setting".
 pub const FAN_RESTORE_CONSOLE: u8 = 0;
 
@@ -679,6 +713,7 @@ mod tests {
             fan_pinned_c: 0,
             fan_target_c: -1,
             fan_stock_c: 0,
+            ..Default::default()
         });
         assert_eq!(lo.cpu_temp, SENSOR_TEMP_MIN_C);
         assert_eq!(lo.soc_temp, SENSOR_TEMP_MAX_C);
@@ -702,6 +737,7 @@ mod tests {
             fan_pinned_c: 0,
             fan_target_c: -1,
             fan_stock_c: 0,
+            ..Default::default()
         });
         assert_eq!(hi.cpu_temp, 0, "one above max temp is rejected");
         assert_eq!(hi.soc_temp, 0);
@@ -725,6 +761,29 @@ mod tests {
         assert_eq!(t.fan_duty_pct, 55);
         assert_eq!(t.product_shape, 2);
         assert_eq!(t.fan_pinned_c, 65, "pinned fan threshold passes through");
+    }
+
+    #[test]
+    fn parse_hw_temps_fan_guard_fields() {
+        // The fan lines exactly as payload/src/hw_info.c hw_fan_status_text writes them.
+        let body = b"cpu_temp=52\nfan_duty_pct=19\nfan_pinned_c=75\nfan_target_c=75\nfan_stock_c=91\nfan_min_c=45\nfan_max_c=85\nfan_restores=3\nfan_last_restore_s=12\nfan_guard=ok\nfan_filtered_c=47.3\nfan_servo=00000000005b\n";
+        let t = sanitize_temps(parse_hw_temps(body));
+        assert_eq!(t.fan_restores, 3);
+        assert_eq!(t.fan_last_restore_s, 12);
+        assert_eq!(t.fan_guard, "ok");
+        assert_eq!(t.fan_filtered_c, Some(47.3));
+        // Never restored, unreadable filtered temperature, an unknown guard word.
+        let body = b"fan_restores=-2\nfan_last_restore_s=-7\nfan_guard=maybe\nfan_filtered_c=-1\n";
+        let t = sanitize_temps(parse_hw_temps(body));
+        assert_eq!(t.fan_restores, 0, "a negative count is not a count");
+        assert_eq!(t.fan_last_restore_s, -1);
+        assert_eq!(t.fan_guard, "");
+        assert_eq!(t.fan_filtered_c, None);
+        // An older helper sends none of them.
+        let t = parse_hw_temps(b"cpu_temp=36\n");
+        assert_eq!((t.fan_restores, t.fan_last_restore_s), (0, -1));
+        assert_eq!(t.fan_guard, "");
+        assert_eq!(t.fan_filtered_c, None);
     }
 
     #[test]
@@ -904,5 +963,13 @@ mod tests {
         // because nothing is listening.
         let restore = hw_set_fan_threshold("127.0.0.1:0", FAN_RESTORE_CONSOLE);
         assert!(!format!("{}", restore.unwrap_err()).contains("safe range"));
+
+        // 85 is the mildest target we set (still under the console's own 91); 86 is not.
+        let mild = hw_set_fan_threshold("127.0.0.1:0", 85);
+        assert!(!format!("{}", mild.unwrap_err()).contains("safe range"));
+        assert!(
+            format!("{}", hw_set_fan_threshold("127.0.0.1:0", 86).unwrap_err())
+                .contains("safe range")
+        );
     }
 }
