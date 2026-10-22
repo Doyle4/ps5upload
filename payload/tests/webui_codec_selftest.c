@@ -719,6 +719,54 @@ static void unmount_refusal(void) {
     CHECK(strcmp(webui_unmount_refusal(NULL, 0), "system_volume") == 0);
 }
 
+/* The Games and Processes sections' guards. */
+static void app_refusals(void) {
+    CHECK(webui_app_refusal("PPSA01650", 0) == NULL);
+    CHECK(webui_app_refusal("CUSA07842", 1) == NULL);
+    CHECK(strcmp(webui_app_refusal("PSUP00001", 0), "own_tile") == 0);
+    CHECK(strcmp(webui_app_refusal("psup00001", 1), "own_tile") == 0);
+    CHECK(webui_app_refusal("NPXS40001", 0) == NULL); /* launching a system app is fine */
+    CHECK(strcmp(webui_app_refusal("NPXS40001", 1), "system_title") == 0);
+    CHECK(strcmp(webui_app_refusal("npxs40001", 1), "system_title") == 0);
+    CHECK(strcmp(webui_app_refusal("", 0), "bad_title_id") == 0);
+    CHECK(strcmp(webui_app_refusal("PPSA\"0165", 0), "bad_title_id") == 0);
+    CHECK(strcmp(webui_app_refusal("PPSA01650/../x", 0), "bad_title_id") == 0);
+    CHECK(strcmp(webui_app_refusal(NULL, 0), "bad_title_id") == 0);
+}
+
+static void proc_guards(void) {
+    const char *j = "{\"ok\":true,\"procs\":["
+                    "{\"pid\":1,\"name\":\"init\",\"comm\":\"init\",\"title_id\":\"\",\"app_id\":0,\"memory_mib\":1.0,"
+                    "\"threads\":1,\"kind\":\"system\",\"is_self\":false},"
+                    "{\"pid\":88,\"name\":\"SceShellUI\",\"comm\":\"SceShellUI\",\"title_id\":\"NPXS40087\",\"app_id\":5,"
+                    "\"memory_mib\":300.0,\"threads\":90,\"kind\":\"system\",\"is_self\":false},"
+                    "{\"pid\":120,\"name\":\"eboot.bin\",\"comm\":\"eboot.bin\",\"title_id\":\"PPSA01650\",\"app_id\":77,"
+                    "\"memory_mib\":5000.5,\"threads\":40,\"kind\":\"app\",\"is_self\":false},"
+                    "{\"pid\":130,\"name\":\"kstuff.elf\",\"comm\":\"kstuff.elf\",\"title_id\":\"\",\"app_id\":0,"
+                    "\"memory_mib\":2.0,\"threads\":2,\"kind\":\"payload\",\"is_self\":false},"
+                    "{\"pid\":140,\"name\":\"ps5upload.elf\",\"comm\":\"ps5upload.elf\",\"title_id\":\"\",\"app_id\":0,"
+                    "\"memory_mib\":20.0,\"threads\":30,\"kind\":\"payload\",\"is_self\":true},"
+                    "{\"truncated\":true}]}";
+    size_t n = strlen(j);
+    CHECK(webui_proc_kill_refusal(j, n, 120) == NULL);
+    CHECK(webui_proc_kill_refusal(j, n, 130) == NULL);
+    CHECK(strcmp(webui_proc_kill_refusal(j, n, 140), "helper") == 0);
+    CHECK(strcmp(webui_proc_kill_refusal(j, n, 88), "system") == 0);
+    CHECK(strcmp(webui_proc_kill_refusal(j, n, 1), "system") == 0);
+    CHECK(strcmp(webui_proc_kill_refusal(j, n, 0), "system") == 0);
+    CHECK(strcmp(webui_proc_kill_refusal(j, n, 999), "not_running") == 0);
+    CHECK(strcmp(webui_proc_kill_refusal("{\"procs\":[{\"pid\":120", strlen("{\"procs\":[{\"pid\":120"), 120), "not_running") == 0);
+    CHECK(strcmp(webui_proc_kill_refusal("nope", 4, 120), "not_running") == 0);
+
+    CHECK(webui_proc_game_running(j, n, "PPSA01650", 0) == 1);
+    CHECK(webui_proc_game_running(j, n, "PPSA01650", 1) == 0); /* no OTHER game */
+    CHECK(webui_proc_game_running(j, n, "CUSA07842", 0) == 0);
+    CHECK(webui_proc_game_running(j, n, "CUSA07842", 1) == 1);
+    CHECK(webui_proc_game_running(j, n, "NPXS40087", 0) == 0); /* system apps are not games */
+    CHECK(webui_proc_game_running("{\"procs\":[]}", strlen("{\"procs\":[]}"), "X", 1) == 0);
+    CHECK(webui_proc_game_running("{\"x\":1}", 7, "X", 1) == -1);
+}
+
 static void array_strings(void) {
     const char *j = "{\"a\":[ \"/x\" , \"\\u5b8c \\\"q\\\"\" ],\"e\":[ ],\"m\":[\"ok\",3],\"z\":null,\"s\":\"null\"}";
     const char *v = NULL;
@@ -938,6 +986,8 @@ int main(void) {
     array_span();
     array_strings();
     unmount_refusal();
+    app_refusals();
+    proc_guards();
     surrogate_pair_decodes();
     missing_key_is_absent_not_empty();
     list_result_to_json();

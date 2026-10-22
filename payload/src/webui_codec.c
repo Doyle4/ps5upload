@@ -957,6 +957,101 @@ const char *webui_unmount_refusal(const char *p, int game_running) {
     return game_running ? "game_running" : NULL;
 }
 
+/* ---- games and processes ---- */
+
+const char *webui_app_refusal(const char *tid, int destructive) {
+    size_t i, n = sizeof WEBUI_TILE_TITLE_ID - 1;
+    int tile;
+    if (!webui_cheats_title_ok(tid)) return "bad_title_id";
+    tile = strlen(tid) == n;
+    for (i = 0; tile && i < n; i++) {
+        char c = tid[i];
+        if (c >= 'a' && c <= 'z') c = (char)(c - 'a' + 'A');
+        if (c != WEBUI_TILE_TITLE_ID[i]) tile = 0;
+    }
+    if (tile) return "own_tile";
+    if (destructive && (tid[0] == 'N' || tid[0] == 'n') && (tid[1] == 'P' || tid[1] == 'p') &&
+        (tid[2] == 'X' || tid[2] == 'x') && (tid[3] == 'S' || tid[3] == 's'))
+        return "system_title";
+    return NULL;
+}
+
+/* Calls fn(element, its length, ctx) for every object in PROCESS_LIST's "procs" array until fn
+ * returns non-zero (that value is returned). 0 when the walk ended, -1 when the reply does not parse. */
+static int each_process(const char *json, size_t n, int (*fn)(const char *el, size_t len, void *ctx), void *ctx) {
+    const char *arr, *q, *e;
+    size_t alen;
+    if (webui_json_array(json, n, "procs", &arr, &alen) != 1) return -1;
+    e = arr + alen;
+    q = arr + 1;
+    for (;;) {
+        const char *el, *end;
+        int rc;
+        q = ws(q, e);
+        if (q >= e) return -1;
+        if (*q == ']') return 0;
+        el = q;
+        end = skip_val(q, e);
+        if (!end) return -1;
+        if (*el == '{') {
+            rc = fn(el, (size_t)(end - el), ctx);
+            if (rc) return rc;
+        }
+        q = ws(end, e);
+        if (q < e && *q == ',') q++;
+    }
+}
+
+struct kill_find {
+    uint64_t pid;
+    const char *why;
+};
+
+static int kill_find_fn(const char *el, size_t len, void *ctx) {
+    struct kill_find *k = (struct kill_find *)ctx;
+    uint64_t pid;
+    char kind[16];
+    int self = 0;
+    if (webui_json_u64(el, len, "pid", &pid) != 1 || pid != k->pid) return 0;
+    if (webui_json_bool(el, len, "is_self", &self) == 1 && self) k->why = "helper";
+    else if (webui_json_str(el, len, "kind", kind, sizeof kind) != 1 ||
+             (strcmp(kind, "app") != 0 && strcmp(kind, "payload") != 0))
+        k->why = "system";
+    else k->why = NULL;
+    return 1;
+}
+
+const char *webui_proc_kill_refusal(const char *json, size_t n, uint64_t pid) {
+    struct kill_find k;
+    if (pid <= 1) return "system";
+    k.pid = pid;
+    k.why = "not_running";
+    if (each_process(json, n, kill_find_fn, &k) != 1) return "not_running";
+    return k.why;
+}
+
+struct game_find {
+    const char *tid;
+    int other;
+};
+
+static int game_find_fn(const char *el, size_t len, void *ctx) {
+    struct game_find *g = (struct game_find *)ctx;
+    char kind[16], tid[32];
+    int same;
+    if (webui_json_str(el, len, "kind", kind, sizeof kind) != 1 || strcmp(kind, "app") != 0) return 0;
+    if (webui_json_str(el, len, "title_id", tid, sizeof tid) != 1 || !tid[0]) return 0;
+    same = strcmp(tid, g->tid) == 0;
+    return g->other ? !same : same;
+}
+
+int webui_proc_game_running(const char *json, size_t n, const char *tid, int other) {
+    struct game_find g;
+    g.tid = tid ? tid : "";
+    g.other = other;
+    return each_process(json, n, game_find_fn, &g);
+}
+
 /* ---- search index ---- */
 
 /* 1-255 bytes with no '"', '\\' or control character (the index handlers scan quote to quote). */

@@ -134,14 +134,24 @@ static int call(uint16_t method, const uint8_t *req, size_t req_len, uint8_t *ou
 
 /* A MgmtText method: `body` (may be empty: the request is then empty, as the engine sends it) in,
  * the reply text out (a pointer into `out`). */
+static int call_text_more(uint16_t method, const char *body, size_t len, uint8_t *out, size_t *out_len,
+                          const uint8_t **text, size_t *text_len, int *more);
+
 static int call_text(uint16_t method, const char *body, size_t len, uint8_t *out, size_t *out_len, const uint8_t **text,
                      size_t *text_len) {
+    return call_text_more(method, body, len, out, out_len, text, text_len, NULL);
+}
+
+/* call_text, and *more (when given) set when a paged method's reply has entries after it. */
+static int call_text_more(uint16_t method, const char *body, size_t len, uint8_t *out, size_t *out_len,
+                          const uint8_t **text, size_t *text_len, int *more) {
     uint8_t *req = NULL;
     size_t req_len = 0;
     ava1_mgmt_text_t m;
     int st;
     *text = NULL;
     *text_len = 0;
+    if (more) *more = 0;
     if (len) {
         ava1_w_t w;
         memset(&m, 0, sizeof m);
@@ -165,6 +175,7 @@ static int call_text(uint16_t method, const char *body, size_t len, uint8_t *out
     }
     *text = m.body;
     *text_len = m.body_len;
+    if (more) *more = m.has_more && m.more;
     return AVA1_STATUS_OK;
 }
 
@@ -895,6 +906,265 @@ static void r_app_close(const char *b, size_t n, uint8_t *out, int fd) {
     st = call_text(AVA1_METHOD_APP_LIFECYCLE, req, (size_t)k, out, &ol, &t, &tl);
     if (st != AVA1_STATUS_OK) send_status_error(fd, st, out, ol);
     else send_json(fd, 200, (const char *)t, tl);
+}
+
+/* ---- games: the installed titles, through the methods the PC app's Games screen calls ----
+ *
+ * The page builds the installed list the way the engine does (ps5_apps_installed: /user/appmeta, the
+ * app folders, app.db and our registrations), from /api/fs/list and the routes below. Launch, uninstall
+ * and hide go to the same handlers the engine calls (APP_LAUNCH, APP_UNREGISTER, APP_ICON_SET); those
+ * take the Sony API lock themselves (mgmt_table.def MGMT_SONY; launch_title reads the foreground user
+ * under it). The page's own tile is never acted on here (Settings removes it), and the console's own
+ * apps (NPXS) are never uninstalled or hidden. */
+
+#define API_APPS_INFO_MAX 32u              /* titles one /api/apps/info asks about */
+#define API_APPS_INFO_JSON (128u * 1024u) /* 32 appinfo replies of a few hundred bytes, with headroom */
+
+/* A required title id the Games section may act on (webui_app_refusal); else 400 bad_title_id or
+ * 403 own_tile / system_title, and -1. */
+static int need_app(int fd, const char *b, size_t n, char *out, size_t cap, int destructive) {
+    const char *why;
+    if (webui_json_str(b, n, "title_id", out, cap) != 1) out[0] = '\0';
+    why = webui_app_refusal(out, destructive);
+    if (!why) return 0;
+    send_error(fd, strcmp(why, "bad_title_id") == 0 ? 400 : 403, why, strlen(why));
+    return -1;
+}
+
+/* A helper reply that is already the JSON the page reads. */
+static void send_text_reply(int fd, int st, uint8_t *out, size_t ol, const uint8_t *t, size_t tl) {
+    if (st != AVA1_STATUS_OK) send_status_error(fd, st, out, ol);
+    else if (!tl || t[0] != '{') send_error(fd, 500, "bad_reply", 9);
+    else send_json(fd, 200, (const char *)t, tl);
+}
+
+/* {offset?}: one page of app.db's titles (APP_DB_QUERY, paged since #473) as the helper answers it:
+ * {"apps":[{"title_id","app_id","name"}],"next":N,"more":bool,...} or {"err":..,"apps":[]}. */
+static void r_apps_db(const char *b, size_t n, uint8_t *out, int fd) {
+    char req[96];
+    const uint8_t *t;
+    size_t ol, tl;
+    uint64_t offset;
+    int k, st;
+    if (opt_u64(fd, b, n, "offset", 0, UINT32_MAX, &offset) != 0) return;
+    k = snprintf(req, sizeof req, "{\"offset\":%lu,\"limit\":500}", (unsigned long)offset);
+    st = call_text(AVA1_METHOD_APP_DB_QUERY, req, (size_t)k, out, &ol, &t, &tl);
+    send_text_reply(fd, st, out, ol, t, tl);
+}
+
+/* The titles we registered from a folder or an image (APP_LIST): {"more":bool,"reply":{"apps":[..]}}.
+ * `more` is set when the list did not fit one reply (the page then knows it is not whole). */
+static void r_apps_registered(const char *b, size_t n, uint8_t *out, int fd) {
+    const uint8_t *t;
+    size_t ol, tl, head;
+    int st, more = 0;
+    char *json;
+    (void)b;
+    (void)n;
+    st = call_text_more(AVA1_METHOD_APP_LIST, NULL, 0, out, &ol, &t, &tl, &more);
+    if (st != AVA1_STATUS_OK) {
+        send_status_error(fd, st, out, ol);
+        return;
+    }
+    if (!tl || t[0] != '{') {
+        send_error(fd, 500, "bad_reply", 9);
+        return;
+    }
+    json = malloc(tl + 32);
+    if (!json) {
+        send_error(fd, 500, "out_of_memory", 13);
+        return;
+    }
+    head = (size_t)snprintf(json, 32, "{\"more\":%s,\"reply\":", more ? "true" : "false");
+    memcpy(json + head, t, tl);
+    json[head + tl] = '}';
+    send_json(fd, 200, json, head + tl + 1);
+    free(json);
+}
+
+/* The titles whose home-screen icon is hidden (APP_HIDDEN_LIST): {"ok":true,"hidden":[..]}. */
+static void r_apps_hidden(const char *b, size_t n, uint8_t *out, int fd) {
+    const uint8_t *t;
+    size_t ol, tl;
+    int st;
+    (void)b;
+    (void)n;
+    st = call_text(AVA1_METHOD_APP_HIDDEN_LIST, NULL, 0, out, &ol, &t, &tl);
+    send_text_reply(fd, st, out, ol, t, tl);
+}
+
+/* {title_ids:[..]} (at most API_APPS_INFO_MAX): each title's appinfo.db fields the PC app's game page
+ * reads (APP_INFO_QUERY): {"apps":{"<id>":{"ok":true,"rows":[{"key","val"}]..},...}}. A title the
+ * query fails for is left out. */
+static void r_apps_info(const char *b, size_t n, uint8_t *out, int fd) {
+    const char *arr;
+    size_t alen, pos = 0, at = 0;
+    char tid[32], req[160];
+    char *json;
+    unsigned count = 0;
+    int first = 1;
+    if (webui_json_array(b, n, "title_ids", &arr, &alen) != 1) {
+        send_bad(fd, "bad_title_ids");
+        return;
+    }
+    json = malloc(API_APPS_INFO_JSON);
+    if (!json) {
+        send_error(fd, 500, "out_of_memory", 13);
+        return;
+    }
+    put_fmt(json, API_APPS_INFO_JSON, &at, "{\"apps\":{");
+    for (;;) {
+        const uint8_t *t;
+        size_t ol, tl;
+        int rc = webui_json_array_str(arr, alen, &pos, tid, sizeof tid), k, st;
+        if (rc == 0) break;
+        if (rc < 0 || webui_app_refusal(tid, 0) || ++count > API_APPS_INFO_MAX) {
+            free(json);
+            send_bad(fd, "bad_title_ids");
+            return;
+        }
+        k = snprintf(req, sizeof req,
+                     "{\"title_id\":\"%s\",\"keys\":\"CONTENT_VERSION,APP_VER,#_size,#_last_access_time,#_install_time\"}",
+                     tid); /* letters and digits only */
+        st = call_text(AVA1_METHOD_APP_INFO_QUERY, req, (size_t)k, out, &ol, &t, &tl);
+        if (st != AVA1_STATUS_OK || !tl || t[0] != '{') continue;
+        /* the whole reply or nothing: a cut one would not parse */
+        if (at + strlen(tid) + tl + 16 >= API_APPS_INFO_JSON) continue;
+        put_fmt(json, API_APPS_INFO_JSON, &at, "%s\"%s\":", first ? "" : ",", tid);
+        memcpy(json + at, t, tl);
+        at += tl;
+        json[at] = '\0';
+        first = 0;
+    }
+    put_fmt(json, API_APPS_INFO_JSON, &at, "}}");
+    send_json(fd, 200, json, at);
+    free(json);
+}
+
+/* PROCESS_LIST (the PC app's Processes screen): {"ok":true,"procs":[{pid,name,comm,title_id,app_id,memory_mib,
+ * threads,kind,is_self}],...}. In-process sysctl walk, no Sony API. */
+static void r_proc_list(const char *b, size_t n, uint8_t *out, int fd) {
+    const uint8_t *t;
+    size_t ol, tl;
+    int st;
+    (void)b;
+    (void)n;
+    st = call_text(AVA1_METHOD_PROC_PROCESS_LIST, NULL, 0, out, &ol, &t, &tl);
+    send_text_reply(fd, st, out, ol, t, tl);
+}
+
+/* Whether a game with title id `tid` (other != 0: any other game) runs, from PROCESS_LIST. A list that
+ * cannot be read counts as running: a guard never passes on a guess. */
+static int game_running(uint8_t *out, const char *tid, int other) {
+    const uint8_t *t;
+    size_t ol, tl;
+    if (call_text(AVA1_METHOD_PROC_PROCESS_LIST, NULL, 0, out, &ol, &t, &tl) != AVA1_STATUS_OK) return 1;
+    return webui_proc_game_running((const char *)t, tl, tid, other) != 0;
+}
+
+/* {title_id}: APP_LAUNCH as the engine sends it. The ack means Sony took the request, not that the game
+ * is up (the page watches the process list for it). Refused (409 other_game_running) while another game
+ * runs: a launch over a running game closes it and can fail (game-swap on FW 13.60), so the page asks for
+ * a Close first. The same title running is fine: launch_title brings it to the front, once. */
+static void r_apps_launch(const char *b, size_t n, uint8_t *out, int fd) {
+    char tid[32], req[64];
+    const uint8_t *t;
+    size_t ol, tl;
+    int k, st;
+    if (need_app(fd, b, n, tid, sizeof tid, 0) != 0) return;
+    if (game_running(out, tid, 1)) {
+        send_error(fd, 409, "other_game_running", 18);
+        return;
+    }
+    k = snprintf(req, sizeof req, "{\"title_id\":\"%s\"}", tid);
+    st = call_text(AVA1_METHOD_APP_LAUNCH, req, (size_t)k, out, &ol, &t, &tl);
+    if (st != AVA1_STATUS_OK) send_status_error(fd, st, out, ol);
+    else send_json(fd, 200, "{}", 2);
+}
+
+/* {title_id}: APP_UNREGISTER, the PC app's Uninstall. The helper judges the result itself (#476:
+ * unregister_outcome.h): {"sony_uninstall_rc":N,"still_present":false} when the title is gone,
+ * still_present:true when Sony accepted but its folders are still there (a big game takes minutes:
+ * the page keeps checking), an error ("uninstall_refused:0x..", "uninstall_unavailable") otherwise.
+ * Refused (409 game_running) while that game runs. */
+static void r_apps_uninstall(const char *b, size_t n, uint8_t *out, int fd) {
+    char tid[32], req[64];
+    const uint8_t *t;
+    size_t ol, tl;
+    int k, st;
+    if (need_app(fd, b, n, tid, sizeof tid, 1) != 0) return;
+    if (game_running(out, tid, 0)) {
+        send_error(fd, 409, "game_running", 12);
+        return;
+    }
+    k = snprintf(req, sizeof req, "{\"title_id\":\"%s\"}", tid);
+    st = call_text(AVA1_METHOD_APP_UNREGISTER, req, (size_t)k, out, &ol, &t, &tl);
+    send_text_reply(fd, st, out, ol, t, tl);
+}
+
+/* {title_id, hidden}: APP_ICON_SET (#407): only app.db's visible flag changes; the title stays
+ * installed. A refusal ({"ok":false,"err":..}) is 409 with the helper's reason. */
+static void r_apps_icon(const char *b, size_t n, uint8_t *out, int fd) {
+    char tid[32], req[96], err[API_CAUSE_MAX];
+    const uint8_t *t;
+    size_t ol, tl;
+    int hidden, ok = 0, k, st;
+    if (need_app(fd, b, n, tid, sizeof tid, 1) != 0) return;
+    if (webui_json_bool(b, n, "hidden", &hidden) != 1) {
+        send_bad(fd, "bad_hidden");
+        return;
+    }
+    k = snprintf(req, sizeof req, "{\"title_id\":\"%s\",\"hidden\":\"%s\"}", tid, hidden ? "1" : "0");
+    st = call_text(AVA1_METHOD_APP_ICON_SET, req, (size_t)k, out, &ol, &t, &tl);
+    if (st != AVA1_STATUS_OK) {
+        send_status_error(fd, st, out, ol);
+        return;
+    }
+    if (webui_json_bool((const char *)t, tl, "ok", &ok) == 1 && ok) {
+        send_json(fd, 200, hidden ? "{\"hidden\":true}" : "{\"hidden\":false}", hidden ? 15 : 16);
+        return;
+    }
+    if (webui_json_str((const char *)t, tl, "err", err, sizeof err) != 1 || !err[0]) snprintf(err, sizeof err, "icon_failed");
+    send_error(fd, 409, err, strlen(err));
+}
+
+/* {pid}: PROCESS_KILL (SIGKILL), as the PC app's Processes screen sends it, for a game or a payload only
+ * (webui_proc_kill_refusal: never the helper, never a system process, never a pid the list does not
+ * show). 409 kill_failed with the errno text when the kernel says no. */
+static void r_proc_kill(const char *b, size_t n, uint8_t *out, int fd) {
+    char req[48], reason[API_CAUSE_MAX];
+    const uint8_t *t;
+    size_t ol, tl;
+    uint64_t pid;
+    int ok = 0, k, st;
+    const char *why;
+    if (webui_json_u64(b, n, "pid", &pid) != 1 || pid > 0x7fffffffu) {
+        send_bad(fd, "bad_pid");
+        return;
+    }
+    st = call_text(AVA1_METHOD_PROC_PROCESS_LIST, NULL, 0, out, &ol, &t, &tl);
+    if (st != AVA1_STATUS_OK) {
+        send_status_error(fd, st, out, ol);
+        return;
+    }
+    why = webui_proc_kill_refusal((const char *)t, tl, pid);
+    if (why) {
+        send_error(fd, strcmp(why, "not_running") == 0 ? 404 : 403, why, strlen(why));
+        return;
+    }
+    k = snprintf(req, sizeof req, "{\"pid\":%lu}", (unsigned long)pid);
+    st = call_text(AVA1_METHOD_PROC_KILL, req, (size_t)k, out, &ol, &t, &tl);
+    if (st != AVA1_STATUS_OK) {
+        send_status_error(fd, st, out, ol);
+        return;
+    }
+    if (webui_json_bool((const char *)t, tl, "ok", &ok) == 1 && ok) {
+        send_json(fd, 200, "{}", 2);
+        return;
+    }
+    if (webui_json_str((const char *)t, tl, "reason", reason, sizeof reason) != 1 || !reason[0])
+        snprintf(reason, sizeof reason, "kill_failed");
+    send_error(fd, 409, reason, strlen(reason));
 }
 
 /* ---- volumes: eject a USB drive, unmount a mounted image ---- */
@@ -2264,6 +2534,15 @@ static const struct {
     { "/api/jobs/status", r_jobs_status },
     { "/api/jobs/cancel", r_jobs_cancel },
     { "/api/app/close", r_app_close },
+    { "/api/apps/db", r_apps_db },
+    { "/api/apps/registered", r_apps_registered },
+    { "/api/apps/hidden", r_apps_hidden },
+    { "/api/apps/info", r_apps_info },
+    { "/api/apps/launch", r_apps_launch },
+    { "/api/apps/uninstall", r_apps_uninstall },
+    { "/api/apps/icon", r_apps_icon },
+    { "/api/proc/list", r_proc_list },
+    { "/api/proc/kill", r_proc_kill },
     { "/api/settings", r_settings },
     { "/api/settings/set", r_settings_set },
     { "/api/input-log", r_input_log },
