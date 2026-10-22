@@ -807,6 +807,12 @@ int main(void) {
         if (webui_settings_load(WEBUI_SETTINGS_PATH, &ws) != 0)
             fprintf(stderr, "webui: %s missing or unreadable; using defaults\n", WEBUI_SETTINGS_PATH);
         webui_api_settings_init(&ws);
+        /* A tile the user deleted on the PS5 itself stays deleted (#480): the setting follows, before
+         * the page can be asked for it. */
+        if (ws.tile && webui_tile_respect_outside_removal()) {
+            webui_api_tile_forget();
+            ws.tile = 0;
+        }
         memset(&wc, 0, sizeof wc);
         wc.port = WEBUI_PORT;
         wc.lan = ws.lan;
@@ -815,9 +821,7 @@ int main(void) {
         wc.stream = webui_api_stream;
         if (webui_start(&wc) != 0) fprintf(stderr, "webui: server did not start\n");
         startup_trace("WEBUI_STARTED");
-        /* A tile the user deleted on the PS5 itself stays deleted (#480): the setting follows. */
-        if (ws.tile && webui_tile_respect_outside_removal()) webui_api_tile_forget();
-        else if (ws.tile) webui_tile_request(1, WEBUI_PORT);
+        if (ws.tile) webui_tile_request(1, WEBUI_PORT);
     }
 
     /* The AVA1 server runs on its own threads; this thread has nothing left to serve. It waits for

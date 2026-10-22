@@ -70,6 +70,27 @@ int webui_tile_removed_outside(int marker, int appdb_row, int mount_live, int ln
 typedef enum { WEBUI_TILE_GONE = 0, WEBUI_TILE_HIDDEN = 1, WEBUI_TILE_KEEP = 2 } webui_tile_removal_t;
 webui_tile_removal_t webui_tile_removal_verdict(int appdb_row, int sony_confirmed, int hidden);
 
+/* The steps of a removal, so the order is host-tested with fakes (webui_tile_remove passes the
+ * console's). Each returns 0 on success unless noted. */
+typedef struct {
+    void *ctx;
+    int (*staged)(void *ctx);        /* 1 when /user/app/PSUP00001 exists */
+    int (*unregister)(void *ctx, int *confirmed, int *sony_ok); /* unregister_title; *confirmed =
+                                      unregister_tile_confirmed, *sony_ok = Sony's call returned 0 */
+    int (*appdb_row)(void *ctx);     /* register_appdb_has_title: 1 / 0 / -1 */
+    int (*restage)(void *ctx);       /* write the folder and register it again */
+    int (*hide)(void *ctx);          /* visible = 0, and the icon keeper keeps it so */
+    int (*delete_staged)(void *ctx); /* /user/app/PSUP00001 and /user/appmeta/PSUP00001 */
+    int (*delete_dir)(void *ctx);    /* WEBUI_TILE_DIR; refuses (-1) while a nullfs is bound on it */
+    int (*unlink_marker)(void *ctx); /* WEBUI_TILE_MARKER */
+} webui_tile_remove_ops_t;
+
+/* unregister; while app.db keeps a row: once more if Sony said 0, restage + unregister when the
+ * staged files were already gone (an unregister failure after a restage stops there: -1, nothing
+ * deleted), then hide; then, unless webui_tile_removal_verdict is KEEP (-1, nothing deleted):
+ * delete_staged, delete_dir, unlink_marker. 0 when every step worked. */
+int webui_tile_remove_with(const webui_tile_remove_ops_t *ops);
+
 #ifndef WEBUI_TILE_HOST_TEST
 /* At helper start with the tile setting on: when webui_tile_removed_outside, deletes the tile's
  * files and marker (no Sony call) and returns 1: the caller saves tile:false instead of

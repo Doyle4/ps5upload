@@ -29,8 +29,10 @@
  * could leave the page from Home (#480). Once a level has added an entry
  * (env.length() > 1), the guard does stay up on the first screen and ○ there
  * calls onRoot (window.close(), which a PS5 browser that allows scripts to
- * close may honour). Escape, Backspace and a gamepad ○ take the same path
- * (requestBack → history.back()). If the page is still open after that, the
+ * close may honour). Escape, Backspace and a gamepad ○ take the same path:
+ * requestBack → history.back() while the guard is up, and onRoot directly on
+ * the first screen without one (window.close() is allowed then). onRoot runs
+ * once until a level opens again: if the page is still open after it, the
  * guard is left down so the next ○ does what the browser does by itself.
  *
  * WebKit can fire a popstate as the page loads that pops nothing. Such a pop
@@ -169,6 +171,12 @@ export function createBackHistory(env: HistoryEnv, runBack: () => void, opts: Ba
         return;
       }
       lastBackAt = env.now();
+      if (levels === 0 && opts.onRoot && !rootTried) {
+        // The first screen with no guard (a single-entry history): leave, as ○ would.
+        rootTried = true;
+        opts.onRoot();
+        return;
+      }
       runBack();
       schedule();
     },

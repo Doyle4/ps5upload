@@ -62,6 +62,13 @@ typedef struct {
 int content_db_apps(content_db_app_t *out, int max, const char **source);
 
 /*
+ * Whether any app.db title table (found by shape, like content_db_apps) has a
+ * row for `title_id`: one indexed lookup per table, not a walk of every row.
+ * Returns 1 / 0, or -1 when app.db could not be read (or has no such table).
+ */
+int content_db_has_title(const char *title_id);
+
+/*
  * Run a read-only SELECT and hand each row to `row_cb` as an array of
  * NUL-terminated column strings (NULL for SQL NULL). Return non-zero from
  * the callback to stop early.

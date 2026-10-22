@@ -320,6 +320,30 @@ describe("#480: ○ on the PS5's first screen leaves the page", () => {
     expect(f.browserBack()).toBe("left");
   });
 
+  it("Escape/Backspace/gamepad ○ on a fresh first screen leave too, once", () => {
+    const { f, h, onRoot, runBack } = ps5WithLength();
+    expect(f.entries).toEqual(["page"]); // no guard to pop
+    f.tick(2000);
+    h.requestBack();
+    expect(onRoot).toHaveBeenCalledTimes(1);
+    expect(f.env.back).not.toHaveBeenCalled();
+    expect(runBack).not.toHaveBeenCalled();
+    // Still open: a second press runs the page's own back action, not onRoot again.
+    f.tick(1000);
+    h.requestBack();
+    expect(onRoot).toHaveBeenCalledTimes(1);
+    expect(runBack).toHaveBeenCalledTimes(1);
+    // A level opened and closed again re-arms it (deep history: through the guard now).
+    const close = h.addLevel();
+    f.flush();
+    close();
+    f.flush();
+    f.tick(1000);
+    h.requestBack();
+    f.flush();
+    expect(onRoot).toHaveBeenCalledTimes(2);
+  });
+
   it("a section opened from a fresh page still steps back to Home with ○", () => {
     const { f, h, runBack, onRoot } = ps5WithLength();
     const close = h.addLevel();

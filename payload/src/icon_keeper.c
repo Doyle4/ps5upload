@@ -56,10 +56,9 @@ static void keeper_save(char ids[][16], int n) {
     else unlink(KEEPER_TMP);
 }
 
-int icon_keeper_note(const char *title_id, int hidden) {
+void icon_keeper_note(const char *title_id, int hidden) {
     static char ids[KEEPER_MAX][16];
-    int changed = 0;
-    if (!keeper_valid(title_id)) return 0;
+    if (!keeper_valid(title_id)) return;
     pthread_mutex_lock(&g_keeper_mu);
     int n = keeper_load(ids, KEEPER_MAX), at = -1;
     for (int i = 0; i < n; i++)
@@ -67,14 +66,11 @@ int icon_keeper_note(const char *title_id, int hidden) {
     if (hidden && at < 0 && n < KEEPER_MAX) {
         snprintf(ids[n++], 16, "%s", title_id);
         keeper_save(ids, n);
-        changed = 1;
     } else if (!hidden && at >= 0) {
         memmove(ids[at], ids[at + 1], (size_t)(n - at - 1) * sizeof ids[0]);
         keeper_save(ids, n - 1);
-        changed = 1;
     }
     pthread_mutex_unlock(&g_keeper_mu);
-    return changed;
 }
 
 /* app.db and its write-ahead log: the shell may write either. */

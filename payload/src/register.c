@@ -1444,19 +1444,7 @@ static void remove_our_appmeta(const char *title_id) {
 
 /* Whether app.db has a row for `title_id`: 1 / 0, or -1 when app.db could not be read. */
 int register_appdb_has_title(const char *title_id) {
-    enum { MAX_ROWS = 2048 };
-    content_db_app_t *rows = calloc(MAX_ROWS, sizeof(*rows));
-    if (!rows) return -1;
-    int n = content_db_apps(rows, MAX_ROWS, NULL);
-    int found = n < 0 ? -1 : 0;
-    for (int i = 0; i < n; i++) {
-        if (strcmp(rows[i].title_id, title_id) == 0) {
-            found = 1;
-            break;
-        }
-    }
-    free(rows);
-    return found;
+    return content_db_has_title(title_id);
 }
 
 /* Whether the PC app's installed list would still show `title_id` (see unregister_presence_t). */
