@@ -349,6 +349,28 @@ pub async fn ps5_list_dir(
     get_json(&url).await
 }
 
+/// Starts a recursive size walk of a console folder (Disk usage). The engine answers at
+/// once with the walk's id; `ps5_disk_usage_status` polls it.
+#[tauri::command]
+pub async fn ps5_disk_usage_start(path: String, addr: Option<String>) -> Result<JsonValue, String> {
+    let base = engine::url();
+    let body = serde_json::json!({ "path": path, "addr": addr });
+    post_json(&format!("{base}/api/ps5/disk-usage"), &body).await
+}
+
+#[tauri::command]
+pub async fn ps5_disk_usage_status(id: String) -> Result<JsonValue, String> {
+    let base = engine::url();
+    get_json(&format!("{base}/api/ps5/disk-usage/{}", urlencoding(&id))).await
+}
+
+#[tauri::command]
+pub async fn ps5_disk_usage_cancel(id: String) -> Result<JsonValue, String> {
+    let base = engine::url();
+    let url = format!("{base}/api/ps5/disk-usage/{}/cancel", urlencoding(&id));
+    post_json(&url, &serde_json::json!({})).await
+}
+
 // ── Transfer jobs ───────────────────────────────────────────────────────────
 
 #[derive(Debug, Deserialize)]

@@ -30,6 +30,7 @@
 //!   POST /api/ps5/cleanup             → recursively remove a path under PS5 allowlist
 //!   GET  /api/ps5/volumes             → list storage volumes detected by the payload
 //!   GET  /api/ps5/list-dir?path=...   → list immediate children of a directory on PS5
+//!   POST /api/ps5/disk-usage          → start a recursive size walk (see `disk_usage`)
 
 mod activity;
 mod ampr_trace;
@@ -44,6 +45,7 @@ mod console_files_api;
 mod console_read;
 mod console_snapshot;
 mod convert_source;
+mod disk_usage;
 mod elfldr_guard;
 mod engine_log;
 mod event_journal;
@@ -10519,6 +10521,9 @@ async fn run(cfg: EngineConfig) -> anyhow::Result<()> {
         .route("/api/ps5/pkg/scan-external", get(ps5_pkg_scan_external))
         .route("/api/ps5/pkg/metadata", get(ps5_pkg_metadata))
         .route("/api/ps5/list-dir", get(ps5_list_dir))
+        .route("/api/ps5/disk-usage", post(disk_usage::start))
+        .route("/api/ps5/disk-usage/{id}", get(disk_usage::status))
+        .route("/api/ps5/disk-usage/{id}/cancel", post(disk_usage::cancel))
         .route("/api/ava1/identity", get(ava1_api::identity_handler))
         .route("/api/ava1/pairing", get(ava1_api::pairing_handler))
         .route(
