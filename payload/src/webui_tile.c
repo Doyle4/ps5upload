@@ -594,12 +594,13 @@ typedef struct {
     unsigned gen;
 } sweep_ctx_t;
 
-/* Read from the file each time: the settings code saves it before it asks for anything. */
+/* Read from the file each time: the settings code saves it before it asks for anything. With
+ * Minion off the tile is not wanted, whatever its own setting says. */
 static int sw_tile_on(void *ctx) {
     webui_settings_t ws;
     (void)ctx;
     (void)webui_settings_load(WEBUI_SETTINGS_PATH, &ws);
-    return ws.tile;
+    return webui_settings_tile_wanted(&ws);
 }
 
 static int sw_look(void *ctx, webui_tile_seen_t *seen) {

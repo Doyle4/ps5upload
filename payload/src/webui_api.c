@@ -1564,9 +1564,10 @@ static void r_cleanup_cancel(const char *b, size_t n, uint8_t *out, int fd) {
 /* The live settings. g_set_mu is held across a save, so two /api/settings/set calls never write
  * the file at once and memory always matches what is on disk. */
 static pthread_mutex_t g_set_mu = PTHREAD_MUTEX_INITIALIZER;
-static webui_settings_t g_set = { 0, 1 };
-/* Serializes the LAN rebinds: each one reads the newest `lan` under it, so the last rebind to run
- * applies the last value saved, whatever order the threads ran in. */
+static webui_settings_t g_set = { 0, 1, 1 };
+/* Serializes the LAN rebinds and the server starts/stops for `enabled`: each one reads the newest
+ * setting under it, so the last one to run applies the last value saved, whatever order the
+ * threads ran in. */
 static pthread_mutex_t g_rebind_mu = PTHREAD_MUTEX_INITIALIZER;
 
 void webui_api_settings_init(const webui_settings_t *s) {
@@ -1580,18 +1581,21 @@ void webui_api_settings_init(const webui_settings_t *s) {
  * the last ensure/remove failed (webui_tile_state). tile_result: what the helper last did to the
  * tile ("added", "removed", "hidden", "failed" or ""; webui_tile_result_name). */
 /* `addr`: with LAN access on, the console's address a phone opens ("Continue on your phone"; the
- * page builds http://<addr>:<port>/ from it); "" when off or there is none. Dotted IPv4 only. */
+ * page builds http://<addr>:<port>/ from it); "" when off or there is none. Dotted IPv4 only.
+ * `enabled`: PS5Upload Minion as a whole (false only in the reply that turns it off: the page
+ * stops right after). */
 static void send_settings(int fd, const webui_settings_t *s) {
-    char json[288], addr[INET_ADDRSTRLEN];
+    char json[320], addr[INET_ADDRSTRLEN];
     int busy, failed, k;
     webui_tile_result_t result;
     webui_tile_state(&busy, &failed, &result);
     if (!s->lan || !webui_lan_addr(addr)) addr[0] = '\0';
     k = snprintf(json, sizeof json,
-                 "{\"lan\":%s,\"tile\":%s,\"tile_busy\":%s,\"tile_failed\":%s,\"tile_result\":\"%s\","
-                 "\"version\":\"%s\",\"addr\":\"%s\"}",
-                 s->lan ? "true" : "false", s->tile ? "true" : "false", busy ? "true" : "false",
-                 failed ? "true" : "false", webui_tile_result_name(result), PS5UPLOAD2_VERSION, addr);
+                 "{\"lan\":%s,\"tile\":%s,\"enabled\":%s,\"tile_busy\":%s,\"tile_failed\":%s,"
+                 "\"tile_result\":\"%s\",\"version\":\"%s\",\"addr\":\"%s\"}",
+                 s->lan ? "true" : "false", s->tile ? "true" : "false", s->enabled ? "true" : "false",
+                 busy ? "true" : "false", failed ? "true" : "false", webui_tile_result_name(result),
+                 PS5UPLOAD2_VERSION, addr);
     if (k < 0 || (size_t)k >= sizeof json) {
         send_error(fd, 500, "bad_settings_reply", 18);
         return;
@@ -1640,13 +1644,84 @@ static void spawn_lan_apply(void) {
     if (rc != 0) fprintf(stderr, "webui: cannot start the rebind thread (%d); LAN applies at the next start\n", rc);
 }
 
-/* {lan?, tile?}: saved first (the file is the truth at the next start), then answered with the
- * new settings, then applied: a `lan` change rebinds the listener on a thread of its own, a `tile`
- * change (or tile:true again) registers or removes the tile on the tile thread. A failed save
- * changes nothing. */
+/* Starts the :9180 server with the saved LAN setting (main.c at helper start, and turning Minion
+ * back on). 0 when it runs (or already ran), -1 when it could not start (logged). */
+int webui_api_server_start(void) {
+    webui_cfg_t wc;
+    int lan;
+    if (webui_running()) return 0;
+    pthread_mutex_lock(&g_set_mu);
+    lan = g_set.lan;
+    pthread_mutex_unlock(&g_set_mu);
+    memset(&wc, 0, sizeof wc);
+    wc.port = WEBUI_PORT;
+    wc.lan = lan;
+    wc.route = webui_api_route;
+    wc.stream_for = webui_api_stream_for;
+    wc.stream = webui_api_stream;
+    if (webui_start(&wc) != 0) {
+        if (webui_running()) return 0; /* another start won the race */
+        fprintf(stderr, "webui: server did not start\n");
+        return -1;
+    }
+    return 0;
+}
+
+/* Starts or stops the server for the saved `enabled`. Runs on its own thread, started after the
+ * reply was written: webui_stop joins the web workers (up to 2 s), which must never happen on a
+ * web worker (the page that turned Minion off is answered first) or on an AVA1 thread. */
+static void *server_apply_main(void *arg) {
+    int enabled;
+    (void)arg;
+    proc_name_set_self("ps5upload-web");
+    pthread_mutex_lock(&g_rebind_mu);
+    pthread_mutex_lock(&g_set_mu);
+    enabled = g_set.enabled;
+    pthread_mutex_unlock(&g_set_mu);
+    if (enabled) {
+        if (webui_api_server_start() == 0) fprintf(stderr, "webui: PS5Upload Minion turned on\n");
+    } else if (webui_running()) {
+        webui_stop();
+        fprintf(stderr, "webui: PS5Upload Minion turned off; the page is no longer served\n");
+    }
+    pthread_mutex_unlock(&g_rebind_mu);
+    return NULL;
+}
+
+static void spawn_server_apply(void) {
+    pthread_attr_t attr;
+    pthread_t t;
+    int rc = -1;
+    if (pthread_attr_init(&attr) == 0) {
+        if (pthread_attr_setstacksize(&attr, 256u * 1024u) == 0 &&
+            pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED) == 0)
+            rc = pthread_create(&t, &attr, server_apply_main, NULL);
+        pthread_attr_destroy(&attr);
+    }
+    if (rc != 0) fprintf(stderr, "webui: cannot start the server thread (%d); Minion on/off applies at the next start\n", rc);
+}
+
+/* Caller holds g_set_mu; `s` is saved and set. Asks the tile thread for what the change means:
+ * the tile wanted (Minion on and tile on) and it was not, or `retry` (the caller sent the tile
+ * setting again): add it; not wanted and it was, or `retry`: remove it; Minion just turned off
+ * with the tile already off: sweep what may be left of it (#480). Returns 1 when `enabled`
+ * changed: the caller then calls spawn_server_apply (after its reply). */
+static int apply_locked(const webui_settings_t *old, const webui_settings_t *s, int retry) {
+    int was = webui_settings_tile_wanted(old), want = webui_settings_tile_wanted(s);
+    if (want && (retry || !was)) webui_tile_request(1, WEBUI_PORT);
+    else if (!want && (was || retry)) webui_tile_request(0, WEBUI_PORT);
+    else if (!s->enabled && old->enabled) webui_tile_sweep_request();
+    return s->enabled != old->enabled;
+}
+
+/* {lan?, tile?, enabled?}: saved first (the file is the truth at the next start), then answered
+ * with the new settings, then applied: a `lan` change rebinds the listener on a thread of its own,
+ * a `tile` change (or tile:true again) registers or removes the tile on the tile thread, and
+ * enabled:false (Settings -> Turn off PS5Upload Minion) removes the tile and then stops this
+ * server, after the reply. A failed save changes nothing. */
 static void r_settings_set(const char *b, size_t n, uint8_t *out, int fd) {
     webui_settings_t old, s;
-    int lan, tile, has_lan, has_tile;
+    int lan, tile, enabled, has_lan, has_tile, has_enabled, server;
     (void)out;
     has_lan = webui_json_bool(b, n, "lan", &lan);
     if (has_lan < 0) {
@@ -1658,11 +1733,18 @@ static void r_settings_set(const char *b, size_t n, uint8_t *out, int fd) {
         send_bad(fd, "bad_tile");
         return;
     }
+    has_enabled = webui_json_bool(b, n, "enabled", &enabled);
+    if (has_enabled < 0) {
+        send_bad(fd, "bad_enabled");
+        return;
+    }
     pthread_mutex_lock(&g_set_mu);
     old = s = g_set;
     if (has_lan) s.lan = lan;
     if (has_tile) s.tile = tile;
-    if ((s.lan != old.lan || s.tile != old.tile) && webui_settings_save(WEBUI_SETTINGS_PATH, &s) != 0) {
+    if (has_enabled) s.enabled = enabled;
+    if ((s.lan != old.lan || s.tile != old.tile || s.enabled != old.enabled) &&
+        webui_settings_save(WEBUI_SETTINGS_PATH, &s) != 0) {
         pthread_mutex_unlock(&g_set_mu);
         send_error(fd, 500, "save_failed", 11);
         return;
@@ -1670,35 +1752,42 @@ static void r_settings_set(const char *b, size_t n, uint8_t *out, int fd) {
     g_set = s;
     /* Keep tile requests in saved-setting order, including calls from the paired PC.
      * tile:true also retries a failed ensure; removal runs only on a change. */
-    if (has_tile && (s.tile || s.tile != old.tile)) webui_tile_request(s.tile, WEBUI_PORT);
+    server = apply_locked(&old, &s, has_tile && tile);
     pthread_mutex_unlock(&g_set_mu);
     send_settings(fd, &s); /* written in full (or the deadline passed) before the rebind below runs */
-    if (s.lan != old.lan) spawn_lan_apply();
+    if (server) spawn_server_apply();
+    else if (s.lan != old.lan) spawn_lan_apply();
 }
 
 int webui_api_tile(const char *body, size_t len, char *out, size_t cap) {
-    webui_settings_t s;
-    int tile = 0, busy, failed, n;
+    webui_settings_t old, s;
+    int tile = 0, enabled = 0, busy, failed, n, server = 0;
     webui_tile_result_t result;
     int has = webui_json_bool(body, len, "tile", &tile);
+    int has_enabled = webui_json_bool(body, len, "enabled", &enabled);
     if (has < 0) return snprintf(out, cap, "{\"ok\":false,\"err\":\"bad_tile\"}");
+    if (has_enabled < 0) return snprintf(out, cap, "{\"ok\":false,\"err\":\"bad_enabled\"}");
     pthread_mutex_lock(&g_set_mu);
-    s = g_set;
-    if (has) {
-        s.tile = tile;
-        if (s.tile != g_set.tile && webui_settings_save(WEBUI_SETTINGS_PATH, &s) != 0) {
+    old = s = g_set;
+    if (has || has_enabled) {
+        if (has) s.tile = tile;
+        if (has_enabled) s.enabled = enabled;
+        if ((s.tile != old.tile || s.enabled != old.enabled) && webui_settings_save(WEBUI_SETTINGS_PATH, &s) != 0) {
             pthread_mutex_unlock(&g_set_mu);
             return snprintf(out, cap, "{\"ok\":false,\"err\":\"save_failed\"}");
         }
         g_set = s;
-        /* Also retries an interrupted registration/removal with an unchanged setting. */
-        webui_tile_request(s.tile, WEBUI_PORT);
+        /* `has` also retries an interrupted registration/removal with an unchanged setting. */
+        server = apply_locked(&old, &s, has);
     }
     webui_tile_state(&busy, &failed, &result);
-    n = snprintf(out, cap, "{\"tile\":%s,\"tile_busy\":%s,\"tile_failed\":%s,\"tile_result\":\"%s\"}",
-        s.tile ? "true" : "false", busy ? "true" : "false", failed ? "true" : "false",
-        webui_tile_result_name(result));
+    n = snprintf(out, cap,
+        "{\"tile\":%s,\"enabled\":%s,\"tile_busy\":%s,\"tile_failed\":%s,\"tile_result\":\"%s\"}",
+        s.tile ? "true" : "false", s.enabled ? "true" : "false", busy ? "true" : "false",
+        failed ? "true" : "false", webui_tile_result_name(result));
     pthread_mutex_unlock(&g_set_mu);
+    /* An AVA1 thread: the server start/stop (up to 2 s) runs on its own thread. */
+    if (server) spawn_server_apply();
     return n < 0 || (size_t)n >= cap ? -1 : n;
 }
 

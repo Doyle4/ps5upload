@@ -9,11 +9,22 @@
 
 #include "webui_codec.h"
 
-#define SETTINGS_MAX 4096 /* the file is ~30 bytes; anything this large is not ours */
+#define SETTINGS_MAX 4096 /* the file is ~45 bytes; anything this large is not ours */
 
 void webui_settings_defaults(webui_settings_t *out) {
     out->lan = 0;
     out->tile = 1;
+    out->enabled = 1;
+}
+
+int webui_settings_tile_wanted(const webui_settings_t *s) { return s->enabled && s->tile; }
+
+webui_startup_t webui_startup_plan(const webui_settings_t *s) {
+    webui_startup_t p;
+    p.serve = s->enabled ? 1 : 0;
+    p.tile_add = webui_settings_tile_wanted(s);
+    p.tile_sweep = !p.tile_add;
+    return p;
 }
 
 static int is_ws(char c) { return c == ' ' || c == '\t' || c == '\r' || c == '\n'; }
@@ -50,18 +61,22 @@ int webui_settings_load(const char *path, webui_settings_t *out) {
     rc = webui_json_bool(buf + a, b - a, "tile", &v);
     if (rc < 0) return 1;
     if (rc == 1) s.tile = v;
+    rc = webui_json_bool(buf + a, b - a, "enabled", &v);
+    if (rc < 0) return 1;
+    if (rc == 1) s.enabled = v;
     *out = s;
     return 0;
 }
 
 int webui_settings_save(const char *path, const webui_settings_t *s) {
-    char tmp[1024], text[64];
+    char tmp[1024], text[96];
     size_t len, done = 0;
     int fd, k;
 
     k = snprintf(tmp, sizeof tmp, "%s.tmp", path); /* same directory as `path`: the rename never crosses a mount */
     if (k < 0 || (size_t)k >= sizeof tmp) return -1;
-    k = snprintf(text, sizeof text, "{\"lan\":%s,\"tile\":%s}", s->lan ? "true" : "false", s->tile ? "true" : "false");
+    k = snprintf(text, sizeof text, "{\"lan\":%s,\"tile\":%s,\"enabled\":%s}", s->lan ? "true" : "false",
+                 s->tile ? "true" : "false", s->enabled ? "true" : "false");
     len = (size_t)k;
     fd = open(tmp, O_WRONLY | O_CREAT | O_TRUNC, 0666);
     if (fd < 0) return -1;

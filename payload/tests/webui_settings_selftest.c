@@ -63,10 +63,10 @@ static int count_entries(const char *dir) {
 
 static void missing_file_gives_defaults(void) {
     char p[512];
-    webui_settings_t s = { 7, 7 };
+    webui_settings_t s = { 7, 7, 7 };
     snprintf(p, sizeof p, "%s/none.json", g_dir);
     CHECK(webui_settings_load(p, &s) == 1);
-    CHECK(s.lan == 0 && s.tile == 1);
+    CHECK(s.lan == 0 && s.tile == 1 && s.enabled == 1);
 }
 
 static void garbled_file_gives_defaults(void) {
@@ -76,6 +76,7 @@ static void garbled_file_gives_defaults(void) {
         "{\"lan\":true",             /* cut short */
         "{\"lan\":1,\"tile\":true}", /* not a bool */
         "{\"lan\":true,\"tile\":\"no\"}",
+        "{\"lan\":true,\"tile\":true,\"enabled\":0}", /* not a bool */
         "[true,false]",
         "\x00\x01\x02",
     };
@@ -83,50 +84,104 @@ static void garbled_file_gives_defaults(void) {
     size_t i;
     snprintf(p, sizeof p, "%s/bad.json", g_dir);
     for (i = 0; i < sizeof bad / sizeof bad[0]; i++) {
-        webui_settings_t s = { 7, 7 };
+        webui_settings_t s = { 7, 7, 7 };
         put_file(p, bad[i]);
         CHECK(webui_settings_load(p, &s) == 1);
-        CHECK(s.lan == 0 && s.tile == 1);
+        CHECK(s.lan == 0 && s.tile == 1 && s.enabled == 1);
     }
     /* A valid object missing a key keeps that key's default. */
     {
-        webui_settings_t s = { 7, 7 };
+        webui_settings_t s = { 7, 7, 7 };
         put_file(p, "{\"lan\":true}");
         CHECK(webui_settings_load(p, &s) == 0);
         CHECK(s.lan == 1 && s.tile == 1);
         put_file(p, " {\"tile\":false}\n");
         CHECK(webui_settings_load(p, &s) == 0);
         CHECK(s.lan == 0 && s.tile == 0);
+        /* An older helper's file (no "enabled"): Minion stays on. */
+        put_file(p, "{\"lan\":false,\"tile\":true}");
+        CHECK(webui_settings_load(p, &s) == 0);
+        CHECK(s.lan == 0 && s.tile == 1 && s.enabled == 1);
+        put_file(p, "{\"lan\":true,\"tile\":true,\"enabled\":false}");
+        CHECK(webui_settings_load(p, &s) == 0);
+        CHECK(s.lan == 1 && s.tile == 1 && s.enabled == 0);
     }
     unlink(p);
 }
 
 static void save_then_load_round_trips(void) {
     char p[512], text[256], sub[512];
-    int lan, tile;
+    int lan, tile, enabled;
     snprintf(p, sizeof p, "%s/webui.json", g_dir);
     for (lan = 0; lan < 2; lan++)
-        for (tile = 0; tile < 2; tile++) {
-            webui_settings_t in = { lan, tile }, out = { 7, 7 };
-            CHECK(webui_settings_save(p, &in) == 0);
-            CHECK(webui_settings_load(p, &out) == 0);
-            CHECK(out.lan == lan && out.tile == tile);
-        }
+        for (tile = 0; tile < 2; tile++)
+            for (enabled = 0; enabled < 2; enabled++) {
+                webui_settings_t in = { lan, tile, enabled }, out = { 7, 7, 7 };
+                CHECK(webui_settings_save(p, &in) == 0);
+                CHECK(webui_settings_load(p, &out) == 0);
+                CHECK(out.lan == lan && out.tile == tile && out.enabled == enabled);
+            }
     /* The exact file text, and nothing left behind but the file itself. */
     {
-        webui_settings_t d = { 0, 1 };
+        webui_settings_t d = { 0, 1, 1 };
         CHECK(webui_settings_save(p, &d) == 0);
         CHECK(get_file(p, text, sizeof text) != (size_t)-1);
-        CHECK(strcmp(text, "{\"lan\":false,\"tile\":true}") == 0);
+        CHECK(strcmp(text, "{\"lan\":false,\"tile\":true,\"enabled\":true}") == 0);
+        d.enabled = 0;
+        CHECK(webui_settings_save(p, &d) == 0);
+        CHECK(get_file(p, text, sizeof text) != (size_t)-1);
+        CHECK(strcmp(text, "{\"lan\":false,\"tile\":true,\"enabled\":false}") == 0);
         CHECK(count_entries(g_dir) == 1);
     }
     /* A save that cannot happen leaves no file and says so. */
     {
-        webui_settings_t d = { 1, 0 };
+        webui_settings_t d = { 1, 0, 1 };
         snprintf(sub, sizeof sub, "%s/no-such-dir/webui.json", g_dir);
         CHECK(webui_settings_save(sub, &d) == -1);
     }
     unlink(p);
+}
+
+/* What the helper does at start, for every combination of the saved settings. */
+static void startup_plan_follows_enabled_and_tile(void) {
+    static const struct {
+        int tile, enabled, serve, add, sweep;
+    } cases[] = {
+        { 1, 1, 1, 1, 0 }, /* the default: page served, tile registered */
+        { 0, 1, 1, 0, 1 }, /* tile off: page served, tile swept away */
+        { 1, 0, 0, 0, 1 }, /* Minion off: no page, tile removed whatever its own setting */
+        { 0, 0, 0, 0, 1 },
+    };
+    size_t i;
+    int lan;
+    for (lan = 0; lan < 2; lan++)
+        for (i = 0; i < sizeof cases / sizeof cases[0]; i++) {
+            webui_settings_t s = { lan, cases[i].tile, cases[i].enabled };
+            webui_startup_t p = webui_startup_plan(&s);
+            CHECK(p.serve == cases[i].serve);
+            CHECK(p.tile_add == cases[i].add);
+            CHECK(p.tile_sweep == cases[i].sweep);
+            CHECK(webui_settings_tile_wanted(&s) == cases[i].add);
+        }
+    /* A file from an older helper plans exactly like before (enabled by default). */
+    {
+        char p[512];
+        webui_settings_t s;
+        webui_startup_t plan;
+        snprintf(p, sizeof p, "%s/old.json", g_dir);
+        put_file(p, "{\"lan\":false,\"tile\":true}");
+        CHECK(webui_settings_load(p, &s) == 0);
+        plan = webui_startup_plan(&s);
+        CHECK(plan.serve == 1 && plan.tile_add == 1 && plan.tile_sweep == 0);
+        /* Turned off, saved, read back at the next start: it stays off and the tile stays gone. */
+        s.enabled = 0;
+        CHECK(webui_settings_save(p, &s) == 0);
+        CHECK(webui_settings_load(p, &s) == 0);
+        plan = webui_startup_plan(&s);
+        CHECK(plan.serve == 0 && plan.tile_add == 0 && plan.tile_sweep == 1);
+        CHECK(s.tile == 1); /* kept for when Minion is turned back on */
+        unlink(p);
+    }
 }
 
 static void param_json_exact(void) {
@@ -583,6 +638,7 @@ int main(void) {
     missing_file_gives_defaults();
     garbled_file_gives_defaults();
     save_then_load_round_trips();
+    startup_plan_follows_enabled_and_tile();
     param_json_exact();
     tile_files_written_only_when_different();
     tile_plan_decides_rebind_or_register();
