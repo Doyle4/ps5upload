@@ -2,7 +2,7 @@ import { bundledPayloadPath, payloadCheck, sendPayload } from "../api/ps5";
 import { getAppVersion } from "./appVersion";
 import { isTauriEnv } from "./tauriEnv";
 import { restoreMainPayload } from "./restoreMainPayload";
-import { guardElfldr, STUCK_LOADER_MESSAGE, waitForLoader } from "./elfldrGuard";
+import { guardElfldr, LISTENER_LOADER_HINT, STUCK_LOADER_MESSAGE, waitForLoader } from "./elfldrGuard";
 import { resetHelperSendGate, sendHelperOnce, sentAgoMs } from "./helperSendGate";
 import { compareVersions } from "./semver";
 import { log } from "../state/logs";
@@ -151,7 +151,7 @@ async function ensurePayloadCurrentOnce(
   // A stuck elfldr takes the connection and never answers: sending would only add one more
   // it ignores. A patched one clears within 15 s; a stock one stays stuck until reloaded.
   if ((await waitForLoader(host)) === "stuck") {
-    log.error("payload", `not sending the helper to ${host}: ${STUCK_LOADER_MESSAGE}`);
+    log.error("payload", `not sending the helper to ${host}: ${STUCK_LOADER_MESSAGE} ${LISTENER_LOADER_HINT}`);
     return "no-push";
   }
   // Locate the bundled ELF + send it.

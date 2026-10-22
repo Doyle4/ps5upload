@@ -10,7 +10,10 @@ export type ChainPayload = "kstuff" | "shadowmount";
 
 /** The chain payloads present in `processes`. Matches on the thread and
  *  command names, case-insensitively: every kstuff build we have seen
- *  (kstuff.elf, kstuff-lite, Kstuff-NG) and shadowmountplus.elf. */
+ *  (kstuff.elf, kstuff-lite, Kstuff-NG), shadowmountplus.elf, and HyperHEN's
+ *  built-in ShadowMount+ engine, which names itself hyperhen_mount.elf (its
+ *  third_party/shadowmountplus/src/main.c PAYLOAD_NAME). HyperHEN's own process
+ *  (HyperHEN.elf) is not enough: on FW 13.40/13.42 it runs without automount. */
 export function runningChainPayloads(
   processes: ReadonlyArray<{ name: string; comm?: string }>,
 ): Set<ChainPayload> {
@@ -18,7 +21,7 @@ export function runningChainPayloads(
   for (const p of processes) {
     const names = `${p.name} ${p.comm ?? ""}`.toLowerCase();
     if (names.includes("kstuff")) found.add("kstuff");
-    if (names.includes("shadowmount")) found.add("shadowmount");
+    if (names.includes("shadowmount") || names.includes("hyperhen_mount")) found.add("shadowmount");
   }
   return found;
 }

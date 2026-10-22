@@ -52,6 +52,15 @@ export const STUCK_LOADER_MESSAGE =
   "stock elfldr does after a connection drops mid-send. Load elfldr again (or restart the " +
   "console); ps5upload then replaces it with a build that recovers by itself.";
 
+/** The other thing that looks exactly like a stuck elfldr from here: a jailbreak's own payload
+ *  listener on :9021 (WebKit-only setups) reads an ELF until the sender closes and never
+ *  replies, so the probe can't tell them apart. kstuff and ShadowMount+ run fine through such a
+ *  listener; the helper needs elfldr (a mewx report, 2026-10-20: loading elfldr-ps5.elf first
+ *  fixed it). Shown under the stuck message rather than guessed at. */
+export const LISTENER_LOADER_HINT =
+  "No elfldr loaded? A jailbreak's own payload listener on port 9021 behaves the same way. " +
+  "Send elfldr-ps5.elf to it first (Payloads → elfldr), then send the helper.";
+
 const lastAsked = new Map<string, number>();
 const GUARD_INTERVAL_MS = 10 * 60_000;
 

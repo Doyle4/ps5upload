@@ -1295,6 +1295,7 @@ connection_checking: "{target}:{port} পরীক্ষা করা হচ্�
 connection_sending_elf: "{elf} {host}:{port}-এ পাঠানো হচ্ছে…",
 "connection_checking_loader": "PS5-এর elfldr পরীক্ষা করা হচ্ছে…",
 "connection_elfldr_stuck": "PS5-এর elfldr (পোর্ট 9021) আটকে গেছে: সংযোগ গ্রহণ করে কিন্তু কখনো উত্তর দেয় না — পাঠানোর মাঝে সংযোগ কেটে গেলে মূল elfldr এমনই করে। elfldr আবার লোড করুন (বা কনসোল রিস্টার্ট করুন); এরপর ps5upload এটিকে এমন একটি সংস্করণ দিয়ে বদলে দেবে যা নিজে থেকেই ঠিক হয়ে যায়।",
+"connection_loader_listener_hint": "elfldr লোড করা নেই? পোর্ট 9021-এ জেলব্রেকের নিজস্ব পেলোড লিসেনারও একইভাবে আচরণ করে। আগে তাতে elfldr-ps5.elf পাঠান (পেলোড → elfldr), তারপর হেল্পার পাঠান।",
 connection_waiting_boot: "payload চালু হওয়ার অপেক্ষা করা হচ্ছে…",
 upload_zip_zipped: "জিপ করা",
 upload_zip_extracted: "নিষ্কাশিত",

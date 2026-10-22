@@ -1,7 +1,7 @@
 import { bundledPayloadPath, payloadCheck, sendPayload } from "../api/ps5";
 import { PS5_LOADER_PORT } from "../lib/addr";
 import { isNotPairedError, reportIfNotPaired } from "../lib/consoleSession";
-import { STUCK_LOADER_MESSAGE, waitForLoader } from "../lib/elfldrGuard";
+import { LISTENER_LOADER_HINT, STUCK_LOADER_MESSAGE, waitForLoader } from "../lib/elfldrGuard";
 import { useConnectionStore } from "./connection";
 import { clearHelperStopped } from "./helperStopped";
 import {
@@ -110,7 +110,11 @@ export function sendHelperTo(
         undefined,
         "Checking the PS5's elfldr…",
       ),
-      stuck: tr("connection_elfldr_stuck", undefined, STUCK_LOADER_MESSAGE),
+      stuck: `${tr("connection_elfldr_stuck", undefined, STUCK_LOADER_MESSAGE)}\n\n${tr(
+        "connection_loader_listener_hint",
+        undefined,
+        LISTENER_LOADER_HINT,
+      )}`,
       sending: (elf) =>
         tr(
           "connection_sending_elf",

@@ -43,6 +43,12 @@ Update the helper for everything below.
   starts, and the result says whether the tile was removed or could only be hidden.
 - **Minion: Circle on Home.** When the PS5 browser won't let the page close itself, a note says to
   press the PS button to go back to the home screen.
+- **HyperHEN's built-in ShadowMount+ counts everywhere.** 7.1.10 taught Installed games about it;
+  the setup wizard no longer sends a second ShadowMount+ on top of it, a refused launch no longer
+  says ShadowMount+ is missing, and the Payloads "On your PS5" card shows it running.
+- **"elfldr is stuck" now names the other cause.** A jailbreak's own payload listener on port 9021
+  looks the same from the app: the message now says to send elfldr-ps5.elf through it first
+  (Payloads → elfldr), then the helper.
 
 ---
 

@@ -7,7 +7,7 @@ vi.mock("./helperSend", async (importOriginal) => ({
 }));
 
 import { useHelperSendStore } from "./helperSend";
-import { loaderHint, sendHelperAndWait } from "./helperSendRuntime";
+import { loaderHint, sendHelperAndWait, sendHelperTo } from "./helperSendRuntime";
 import type { Translator } from "./lang";
 
 const tr = ((_k: string, a?: unknown, b?: string) =>
@@ -25,6 +25,16 @@ describe("loaderHint", () => {
     expect(loaderHint("the engine has no helper to send")).toBe(
       "the engine has no helper to send",
     );
+  });
+});
+
+describe("sendHelperTo", () => {
+  it("says a silent :9021 may be a jailbreak's own listener that needs elfldr first", async () => {
+    runHelperSend.mockResolvedValue("fail");
+    await sendHelperTo("192.168.0.9", tr);
+    const text = runHelperSend.mock.calls[0][2] as { stuck: string };
+    expect(text.stuck).toContain("stuck");
+    expect(text.stuck).toContain("elfldr-ps5.elf");
   });
 });
 

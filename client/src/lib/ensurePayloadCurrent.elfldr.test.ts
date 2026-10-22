@@ -19,6 +19,7 @@ vi.mock("./elfldrGuard", () => ({
   waitForLoader: (...a: unknown[]) => waitMock(...a),
   guardElfldr: (...a: unknown[]) => guardMock(...a),
   STUCK_LOADER_MESSAGE: "elfldr is stuck",
+  LISTENER_LOADER_HINT: "",
 }));
 vi.mock("../state/logs", () => ({ log: { info: vi.fn(), warn: vi.fn(), error: (...a: unknown[]) => errorLog(...a) } }));
 

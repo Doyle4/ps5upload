@@ -75,6 +75,16 @@ describe("On your PS5 detection", () => {
     expect(cards.find((c) => c.id === "proc:elfldr")!.name).toBe("elfldr.elf");
   });
 
+  it("shows HyperHEN's built-in ShadowMount+ engine on the ShadowMount+ card", () => {
+    const procs = [proc(140, "hyperhen_mount.elf"), proc(141, "HyperHEN.elf")];
+    for (const entries of [hubEntries(CATALOG), hubEntries(null)]) {
+      const cards = detectHubCards({ entries, processes: procs, markers: new Set() });
+      const smp = cards.find((c) => c.id === "shadowmountplus")!;
+      expect(smp.state).toBe("running");
+      expect(smp.processes.map((p) => p.pid)).toEqual([140]);
+    }
+  });
+
   it("never shows the helper itself or system processes", () => {
     const cards = detectHubCards({ entries: hubEntries(CATALOG), processes: PHAT, markers: new Set() });
     expect(cards.some((c) => c.processes.some((p) => p.is_self || p.kind === "system"))).toBe(false);

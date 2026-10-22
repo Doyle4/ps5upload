@@ -18,6 +18,7 @@ vi.mock("./elfldrGuard", () => ({
   waitForLoader: async () => "healthy",
   guardElfldr: async () => {},
   STUCK_LOADER_MESSAGE: "",
+  LISTENER_LOADER_HINT: "",
 }));
 vi.mock("./restoreMainPayload", () => ({
   restoreMainPayload: (...a: unknown[]) => restoreMock(...a),

@@ -49,6 +49,8 @@ const WEB_PORTS = new Set([8080, 8084, 8090]);
 /** Process names the catalogue doesn't carry (it has no hint for these), measured on the
  *  console's process list. */
 const EXTRA_PROCESS_NAMES: Record<string, string[]> = {
+  // HyperHEN's built-in ShadowMount+ engine (engine smp.rs is_mount_process).
+  shadowmountplus: ["hyperhen_mount"],
   "payload-manager": ["pldmgr"],
   "kstuff-echostretch": ["kstuff"],
   "kstuff-lite-drakmor": ["kstuff"],
@@ -60,7 +62,7 @@ export const BUILTIN_ENTRIES: readonly HubEntry[] = [
   {
     id: "shadowmountplus",
     name: "ShadowMount+",
-    processNames: ["shadowmountplus"],
+    processNames: ["shadowmountplus", "hyperhen_mount"],
     marker: "/data/shadowmount/debug.log",
     webPort: null,
     isCustom: false,

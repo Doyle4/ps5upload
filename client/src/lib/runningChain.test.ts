@@ -26,4 +26,17 @@ describe("runningChainPayloads", () => {
       ]).size,
     ).toBe(0);
   });
+
+  it("counts HyperHEN's built-in ShadowMount+ engine, not HyperHEN itself", () => {
+    // HyperHEN embeds ShadowMount+ and renames the process (PAYLOAD_NAME
+    // "hyperhen_mount.elf"); its kstuff is HyperCore's kstuff.elf.
+    const found = runningChainPayloads([
+      { name: "hyperhen_mount.elf", comm: "hyperhen_mount.elf" },
+      { name: "kstuff.elf" },
+    ]);
+    expect([...found].sort()).toEqual(["kstuff", "shadowmount"]);
+    expect(
+      runningChainPayloads([{ name: "HyperHEN.elf" }, { name: "hyperhen_elfldr.elf" }]).size,
+    ).toBe(0);
+  });
 });
