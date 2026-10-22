@@ -262,6 +262,7 @@ mod tests {
 pub(crate) struct MinionTileReq {
     addr: Option<String>,
     tile: Option<bool>,
+    enabled: Option<bool>,
 }
 
 pub(crate) async fn minion_tile_handler(
@@ -269,7 +270,7 @@ pub(crate) async fn minion_tile_handler(
     Json(req): Json<MinionTileReq>,
 ) -> axum::response::Response {
     let addr = console_addr_or_default(req.addr, &state.default_ps5_addr);
-    answer(move || cf::minion_tile(&addr, req.tile)).await
+    answer(move || cf::minion_tile(&addr, req.tile, req.enabled)).await
 }
 
 #[derive(Deserialize)]

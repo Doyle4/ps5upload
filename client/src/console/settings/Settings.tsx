@@ -19,7 +19,14 @@ export interface WebSettings {
   /** What the helper last did to the tile: "added", "removed", "hidden" (the PS5 kept its record,
    *  so the icon was hidden instead), "failed" or "" (#480; older helpers send none). */
   tile_result?: string;
+  /** PS5Upload Minion as a whole (#480); older helpers send none and cannot turn it off. */
+  enabled?: boolean;
   version: string;
+}
+
+/** Whether this helper can turn Minion off (it sends `enabled`). */
+export function canTurnOff(s: WebSettings | null): boolean {
+  return typeof s?.enabled === "boolean";
 }
 
 /** The note under the tile switch: says when removing the tile could only hide its icon. */
@@ -96,6 +103,25 @@ export interface SettingsViewProps {
   onShowTips?: () => void;
   /** Read /api/settings again after a failed load. */
   onRetry?: () => void;
+  /** Turn off PS5Upload Minion: the confirm dialog is open (askOff), and its answers. */
+  askOff?: boolean;
+  onTurnOff?: () => void;
+  onConfirmOff?: () => void;
+  onDismissOff?: () => void;
+  /** Minion was turned off from here: the page says so (and how to turn it back on) instead. */
+  turnedOff?: boolean;
+}
+
+/** What the page shows once Minion was turned off from it: the server stops right after. */
+export function TurnedOff() {
+  return (
+    <div className="cw-settings" data-setting="minion-off">
+      <h1 className="cw-h1">{t("cw_minion_off_title")}</h1>
+      <div className="cw-msg" role="status">
+        {t("cw_settings_minion_off_confirm_body")}
+      </div>
+    </div>
+  );
 }
 
 function Switch({
@@ -147,10 +173,12 @@ function ActionRow({ setting, label, note, onClick }: { setting: string; label: 
 /**
  * Settings without state: everything comes in through props (tests render it directly).
  * Order: Theme · Language · Full screen · Controls · Show tips again · Allow other devices ·
- * Show PS5Upload Minion on the home screen · About (each row carries data-setting).
+ * Show PS5Upload Minion on the home screen · Turn off PS5Upload Minion · About (each row carries
+ * data-setting).
  */
 export function SettingsView(p: SettingsViewProps) {
   const s = p.settings;
+  if (p.turnedOff) return <TurnedOff />;
   return (
     <div className="cw-settings">
       <h1 className="cw-h1">{t("cw_nav_settings")}</h1>
@@ -256,6 +284,13 @@ export function SettingsView(p: SettingsViewProps) {
                 note={tileNote(s)}
               />
             </div>
+            {canTurnOff(s) && p.onTurnOff ? (
+              <ActionRow
+                setting="minion-off"
+                label={t("cw_settings_minion_off")}
+                onClick={p.onTurnOff}
+              />
+            ) : null}
           </>
         ) : p.loadFailed ? (
           <div className="cw-msg is-error" role="alert">
@@ -289,6 +324,17 @@ export function SettingsView(p: SettingsViewProps) {
           onCancel={p.onDismissLan}
         />
       ) : null}
+      {p.askOff ? (
+        <ConfirmDialog
+          title={t("cw_settings_minion_off_confirm_title")}
+          body={t("cw_settings_minion_off_confirm_body")}
+          confirmLabel={t("cw_settings_minion_off_confirm")}
+          danger
+          busy={p.busy}
+          onConfirm={() => p.onConfirmOff?.()}
+          onCancel={() => p.onDismissOff?.()}
+        />
+      ) : null}
     </div>
   );
 }
@@ -298,6 +344,8 @@ export function Settings({ onOpenControls, onShowTips }: { onOpenControls?: () =
   const [settings, setSettings] = useState<WebSettings | null>(null);
   const [loadFailed, setLoadFailed] = useState(false);
   const [askLan, setAskLan] = useState(false);
+  const [askOff, setAskOff] = useState(false);
+  const [turnedOff, setTurnedOff] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [language, setLanguageState] = useState(storedLanguage);
@@ -342,6 +390,26 @@ export function Settings({ onOpenControls, onShowTips }: { onOpenControls?: () =
     return () => {
       live.current = false;
     };
+  }, []);
+
+  /** Turn off PS5Upload Minion: saved and answered before the helper stops this page. */
+  const turnOff = useCallback(() => {
+    setBusy(true);
+    setError(null);
+    call<WebSettings>("/api/settings/set", { enabled: false })
+      .then(
+        (s) => {
+          if (!live.current) return;
+          if (s.enabled === false) setTurnedOff(true);
+          else setError(t("cw_settings_err_save"));
+        },
+        (e: unknown) => setError(settingsErrorText(e)),
+      )
+      .finally(() => {
+        if (!live.current) return;
+        setBusy(false);
+        setAskOff(false);
+      });
   }, []);
 
   const save = useCallback((change: Partial<Pick<WebSettings, "lan" | "tile">>) => {
@@ -412,6 +480,17 @@ export function Settings({ onOpenControls, onShowTips }: { onOpenControls?: () =
       onOpenControls={onOpenControls}
       onShowTips={onShowTips}
       onRetry={() => setTick((n) => n + 1)}
+      askOff={askOff}
+      turnedOff={turnedOff}
+      onTurnOff={() => {
+        if (settings && !busy) setAskOff(true);
+      }}
+      onConfirmOff={() => {
+        if (!busy) turnOff();
+      }}
+      onDismissOff={() => {
+        if (!busy) setAskOff(false);
+      }}
       fullscreen={fullscreen}
       onToggleFullscreen={() => {
         if (fullscreen !== null) setFullscreenPref(!fullscreen);

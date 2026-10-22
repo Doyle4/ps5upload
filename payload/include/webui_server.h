@@ -43,6 +43,9 @@ typedef struct {
  * instance may still hold the port for a moment). */
 int webui_start(const webui_cfg_t *cfg);
 
+/* 1 while the server is started (webui_start .. webui_stop), else 0. */
+int webui_running(void);
+
 /* Close the listener and the queued connections, wake the workers and join
  * them within 2 s. A worker still inside route() after that is detached and
  * finishes on its own; it keeps the server state it needs alive. */

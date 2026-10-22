@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import de from "../locales/de.json";
 import { _setStringsLoaderForTests, chooseLanguage, getLanguage, storedLanguage, stringsReady, t } from "../strings";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
-import { lanToggleStep, SettingsView, tileNote, waitTileApplied, type SettingsViewProps, type WebSettings } from "./Settings";
+import { canTurnOff, lanToggleStep, SettingsView, TurnedOff, tileNote, waitTileApplied, type SettingsViewProps, type WebSettings } from "./Settings";
 
 function elements(node: ReactNode): ReactElement<Record<string, unknown>>[] {
   const out: ReactElement<Record<string, unknown>>[] = [];
@@ -61,6 +61,44 @@ describe("settings", () => {
     const lan = elements(SettingsView(idle)).find((e) => e.props.action === "lan");
     (lan?.props.onClick as () => void)();
     expect(idle.onToggleLan).toHaveBeenCalledTimes(1);
+  });
+
+  it("turn_off_minion_confirms_first_then_says_how_to_turn_it_back_on", () => {
+    // Older helpers send no `enabled`: no action, nothing to turn off.
+    expect(canTurnOff({ lan: false, tile: true, version: "7.1.0" })).toBe(false);
+    const old = base({ onTurnOff: vi.fn() });
+    expect(elements(SettingsView(old)).some((e) => e.props.setting === "minion-off")).toBe(false);
+
+    const onTurnOff = vi.fn();
+    const props = base({ settings: { lan: false, tile: true, enabled: true, version: "7.1.19" }, onTurnOff });
+    const row = elements(SettingsView(props)).find((e) => e.props.setting === "minion-off");
+    expect(row?.props.label).toBe("Turn off PS5Upload Minion");
+    (row?.props.onClick as () => void)();
+    expect(onTurnOff).toHaveBeenCalledTimes(1);
+
+    // Asking opens a confirm dialog; only confirming turns it off.
+    const onConfirmOff = vi.fn();
+    const asking = base({
+      settings: { lan: false, tile: true, enabled: true, version: "7.1.19" },
+      onTurnOff,
+      askOff: true,
+      onConfirmOff,
+    });
+    const dialog = elements(SettingsView(asking)).find(
+      (e) => e.type === ConfirmDialog && e.props.title === t("cw_settings_minion_off_confirm_title"),
+    );
+    expect(dialog?.props.danger).toBe(true);
+    expect(String(dialog?.props.body)).toContain("Settings → PS5Upload Minion");
+    expect(onConfirmOff).not.toHaveBeenCalled();
+    (dialog?.props.onConfirm as () => void)();
+    expect(onConfirmOff).toHaveBeenCalledTimes(1);
+
+    // Once off, the page says so and how to turn it back on, instead of the settings.
+    const off = elements(SettingsView(base({ turnedOff: true })));
+    expect(off.some((e) => e.type === TurnedOff)).toBe(true);
+    const msg = elements(TurnedOff());
+    expect(msg.some((e) => e.props.children === t("cw_minion_off_title"))).toBe(true);
+    expect(t("cw_settings_minion_off_confirm_body")).toContain("open the PS5Upload app on your PC");
   });
 
   it("tile_switch_waits_for_the_real_result", async () => {

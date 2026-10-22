@@ -800,33 +800,32 @@ int main(void) {
 
     /* Console web UI, after AVA1 is up. A bind failure is not fatal: the server's accept thread
      * retries every 5 s (a takeover's old instance may still hold the port for a moment). The
-     * settings file decides LAN access (a missing or garbled file: loopback only, tile on). The
-     * home-screen tile is registered on its own short-lived thread (Sony calls take seconds); a
-     * failure there is logged, never fatal. */
+     * settings file decides LAN access and whether PS5Upload Minion is on at all (a missing or
+     * garbled file: loopback only, tile on, Minion on). The home-screen tile is registered on its
+     * own short-lived thread (Sony calls take seconds); a failure there is logged, never fatal.
+     * Minion off (#480): no server on :9180, and the tile is swept away on every start. */
     {
-        webui_cfg_t wc;
         webui_settings_t ws;
+        webui_startup_t plan;
         if (webui_settings_load(WEBUI_SETTINGS_PATH, &ws) != 0)
             fprintf(stderr, "webui: %s missing or unreadable; using defaults\n", WEBUI_SETTINGS_PATH);
         webui_api_settings_init(&ws);
+        plan = webui_startup_plan(&ws);
         /* A tile the user deleted on the PS5 itself stays deleted (#480): the setting follows, before
          * the page can be asked for it. */
-        if (ws.tile && webui_tile_respect_outside_removal()) {
+        if (plan.tile_add && webui_tile_respect_outside_removal()) {
             webui_api_tile_forget();
             ws.tile = 0;
+            plan = webui_startup_plan(&ws);
         }
-        /* Tile off: whatever is left of it goes, and a greyed-out icon the console kept (#480) is
-         * uninstalled again or hidden; this also fixes a console already showing one. */
-        if (!ws.tile) webui_tile_sweep_request();
-        memset(&wc, 0, sizeof wc);
-        wc.port = WEBUI_PORT;
-        wc.lan = ws.lan;
-        wc.route = webui_api_route;
-        wc.stream_for = webui_api_stream_for;
-        wc.stream = webui_api_stream;
-        if (webui_start(&wc) != 0) fprintf(stderr, "webui: server did not start\n");
+        /* Tile not wanted: whatever is left of it goes, and a greyed-out icon the console kept (#480)
+         * is uninstalled again or hidden; this also fixes a console already showing one. */
+        if (plan.tile_sweep) webui_tile_sweep_request();
+        if (plan.serve) (void)webui_api_server_start();
+        else fprintf(stderr, "webui: PS5Upload Minion is off (%s enabled:false); the page is not served\n",
+                     WEBUI_SETTINGS_PATH);
         startup_trace("WEBUI_STARTED");
-        if (ws.tile) webui_tile_request(1, WEBUI_PORT);
+        if (plan.tile_add) webui_tile_request(1, WEBUI_PORT);
     }
 
     /* The AVA1 server runs on its own threads; this thread has nothing left to serve. It waits for

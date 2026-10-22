@@ -66,12 +66,24 @@ fn supported<T>(r: Result<T>) -> Result<Option<T>> {
     }
 }
 
-/// Get or update Minion's tile using the paired helper, independent of LAN web access.
-pub fn minion_tile(addr: &str, tile: Option<bool>) -> Result<serde_json::Value> {
-    let body = match tile {
-        Some(tile) => serde_json::json!({ "tile": tile }),
-        None => serde_json::json!({}),
-    };
+/// Get or update Minion using the paired helper, independent of LAN web access: `tile` shows or
+/// hides its home-screen tile, `enabled: Some(false)` turns PS5Upload Minion off as a whole (the
+/// helper removes the tile, keeps it removed and stops the console page; its tile setting is kept
+/// for when it is turned back on). A helper that predates the on/off switch answers without
+/// `enabled`; asking it to change `enabled` is refused here instead of silently doing nothing.
+pub fn minion_tile(
+    addr: &str,
+    tile: Option<bool>,
+    enabled: Option<bool>,
+) -> Result<serde_json::Value> {
+    let mut body = serde_json::Map::new();
+    if let Some(tile) = tile {
+        body.insert("tile".into(), tile.into());
+    }
+    if let Some(enabled) = enabled {
+        body.insert("enabled".into(), enabled.into());
+    }
+    let body = serde_json::Value::Object(body);
     match mgmt::call(addr, m::MINION_TILE, &serde_json::to_vec(&body)?) {
         Err(e) if is_unsupported(&e) => Ok(serde_json::json!({"supported":false})),
         Err(e) => Err(e),
@@ -81,6 +93,10 @@ pub fn minion_tile(addr: &str, tile: Option<bool>) -> Result<serde_json::Value> 
                 v.get("tile").and_then(|v| v.as_bool()).is_some(),
                 "Minion settings: {}",
                 v.get("err").unwrap_or(&v)
+            );
+            anyhow::ensure!(
+                enabled.is_none() || v.get("enabled").and_then(|v| v.as_bool()).is_some(),
+                "Update the helper to turn PS5Upload Minion off"
             );
             v["supported"] = true.into();
             Ok(v)
@@ -183,22 +199,47 @@ mod tests {
     fn minion_tile_uses_paired_transport_and_preserves_lan() {
         let f = fake(|_| Ok(br#"{"tile":true,"tile_busy":true,"tile_failed":false}"#.to_vec()));
         let _g = mgmt::scoped_transport(f.clone());
-        let state = minion_tile("h", Some(true)).unwrap();
+        let state = minion_tile("h", Some(true), None).unwrap();
         assert_eq!(state["supported"], true);
         assert_eq!(state["tile_busy"], true);
         assert_eq!(f.seen.lock().unwrap()[0], (152, r#"{"tile":true}"#.into()));
     }
 
     #[test]
+    fn minion_on_off_is_sent_and_needs_a_helper_that_knows_it() {
+        let f = fake(|_| {
+            Ok(br#"{"tile":true,"enabled":false,"tile_busy":true,"tile_failed":false,"tile_result":""}"#.to_vec())
+        });
+        let _g = mgmt::scoped_transport(f.clone());
+        let state = minion_tile("h", None, Some(false)).unwrap();
+        assert_eq!(state["enabled"], false);
+        assert_eq!(state["tile"], true);
+        assert_eq!(
+            f.seen.lock().unwrap()[0],
+            (152, r#"{"enabled":false}"#.into())
+        );
+        drop(_g);
+        // An older helper ignores "enabled": refuse rather than report a switch that did nothing.
+        let _g = mgmt::scoped_transport(fake(|_| {
+            Ok(br#"{"tile":true,"tile_busy":false,"tile_failed":false}"#.to_vec())
+        }));
+        assert!(minion_tile("h", None, Some(false)).is_err());
+        assert!(minion_tile("h", None, None)
+            .unwrap()
+            .get("enabled")
+            .is_none());
+    }
+
+    #[test]
     fn minion_tile_detects_older_helpers_and_save_failures() {
         let _g = mgmt::scoped_transport(fake(|_| Err(ERR_UNKNOWN_METHOD)));
-        assert_eq!(minion_tile("h", None).unwrap()["supported"], false);
+        assert_eq!(minion_tile("h", None, None).unwrap()["supported"], false);
         drop(_g);
         let _g =
             mgmt::scoped_transport(fake(
                 |_| Ok(br#"{"ok":false,"err":"save_failed"}"#.to_vec()),
             ));
-        assert!(minion_tile("h", Some(false)).is_err());
+        assert!(minion_tile("h", Some(false), None).is_err());
     }
 
     #[test]

@@ -114,14 +114,25 @@ export type MinionTileState =
       tile_failed: boolean;
       /** "added" | "removed" | "hidden" | "failed" | "" (#480); absent from older helpers. */
       tile_result?: string;
+      /** PS5Upload Minion as a whole: off = no tile, no page on the console (#480). Absent from
+       *  helpers that predate the on/off switch. */
+      enabled?: boolean;
     };
-export async function minionTile(
+
+/** A change to Minion: its home-screen tile, or Minion as a whole. */
+export interface MinionChange {
+  tile?: boolean;
+  enabled?: boolean;
+}
+
+export async function minionSet(
   host: string,
-  tile?: boolean,
+  change: MinionChange = {},
 ): Promise<MinionTileState> {
   const b = await post("/api/ps5/minion/tile", {
     addr: consoleAddr(host),
-    ...(tile === undefined ? {} : { tile }),
+    ...(change.tile === undefined ? {} : { tile: change.tile }),
+    ...(change.enabled === undefined ? {} : { enabled: change.enabled }),
   });
   if (b.supported === false) return { supported: false };
   if (
@@ -137,7 +148,15 @@ export async function minionTile(
     tile_busy: b.tile_busy,
     tile_failed: b.tile_failed,
     ...(typeof b.tile_result === "string" ? { tile_result: b.tile_result } : {}),
+    ...(typeof b.enabled === "boolean" ? { enabled: b.enabled } : {}),
   };
+}
+
+export function minionTile(
+  host: string,
+  tile?: boolean,
+): Promise<MinionTileState> {
+  return minionSet(host, tile === undefined ? {} : { tile });
 }
 
 export async function importLocalCheat(

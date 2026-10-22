@@ -797,6 +797,14 @@ fail_nomem:
     return -1;
 }
 
+int webui_running(void) {
+    int on;
+    pthread_mutex_lock(&g_mu);
+    on = g_srv != NULL;
+    pthread_mutex_unlock(&g_mu);
+    return on;
+}
+
 void webui_stop(void) {
     srv_t *s;
     pthread_mutex_lock(&g_life);
