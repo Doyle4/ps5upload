@@ -474,6 +474,7 @@ describe("fpkg pipeline", () => {
 
   it("sends the chosen .ffpfsc level with a compressed image", async () => {
     const buildImage = vi.fn().mockResolvedValue({ job_id: "lv" });
+    jobStatus.mockResolvedValue({ status: "done", dest: "/out/S.ffpfsc", bytes_sent: 1 });
     const { fpkg } = await import("../api/fpkg");
     (fpkg as unknown as { buildImage: unknown }).buildImage = buildImage;
     const { useConvertPrefs } = await import("./convertPrefs");
