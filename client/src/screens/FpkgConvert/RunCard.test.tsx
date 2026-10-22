@@ -204,7 +204,7 @@ describe("RunCard", () => {
       const out = idle({ make: "image" }, { canImage: false });
       expect(options(out, "After converting")).toEqual(["Keep the image", "Upload it to the PS5"]);
       expect(button(out, "Make game image")?.disabled).toBe(true);
-      expect(out).toContain("Only a game folder or game image (on this computer, a saved server or the PS5) can become a game image; unpack an archive first.");
+      expect(out).toContain("Only a game folder, game image or archive (.zip, .7z, .rar) with a game in it can become a game image");
       // Queueing still works: a folder of games can be queued as images.
       expect(button(out, "Add this game to the queue")?.disabled).toBe(false);
     });

@@ -777,6 +777,10 @@ pub(crate) struct ExfatBuildReq {
     /// folders are checked in full and a seeded sample of the data.
     #[serde(default)]
     full_verify: bool,
+    /// What to call the image instead of the source's own name: a game unpacked from an
+    /// archive is named after the archive (its unpack folder's name means nothing).
+    #[serde(default)]
+    name: Option<String>,
 }
 
 #[derive(Deserialize, Default)]
@@ -872,8 +876,21 @@ pub(crate) async fn exfat_build_handler(
             Err(e) => return json_err(StatusCode::BAD_REQUEST, e).into_response(),
         },
     };
+    let named = match req.name.as_deref().map(str::trim).filter(|n| !n.is_empty()) {
+        Some(n) => {
+            if let Some(why) = crate::folder_build::name_problem(n) {
+                return json_err(
+                    StatusCode::BAD_REQUEST,
+                    format!("the image name {n:?} {why}"),
+                )
+                .into_response();
+            }
+            PathBuf::from(n)
+        }
+        None => source.clone(),
+    };
     let out_dir = output_dir(req.output_dir.as_deref());
-    let (out_name, inner_name) = crate::image_build::output_names(&source, format, req.compress);
+    let (out_name, inner_name) = crate::image_build::output_names(&named, format, req.compress);
     let output = out_dir.join(out_name);
     if !remote
         && image_file
