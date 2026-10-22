@@ -45,9 +45,10 @@ const base = (over: Partial<ProcessesViewProps> = {}): ProcessesViewProps => ({
 const html = (over: Partial<ProcessesViewProps> = {}) => renderToStaticMarkup(<ProcessesView {...base(over)} />);
 
 describe("Processes section", () => {
-  it("is in the rail before Settings", () => {
+  it("is in the rail after Fan and before Settings", () => {
     const ids = SECTIONS.map((s) => s.id);
-    expect(ids.indexOf("processes")).toBe(ids.indexOf("settings") - 1);
+    expect(ids.indexOf("processes")).toBe(ids.indexOf("fan") + 1);
+    expect(ids.indexOf("processes")).toBeLessThan(ids.indexOf("settings"));
   });
 
   it("stops only games and payloads, never the helper or a system process", () => {

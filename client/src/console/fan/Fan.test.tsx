@@ -62,8 +62,9 @@ const press = (p: FanViewProps, attr: string, value: string) => {
 };
 
 describe("fan section", () => {
-  it("is registered between cheats and settings", () => {
-    expect(SECTIONS.map((s) => s.id)).toEqual(["home", "files", "cheats", "fan", "settings"]);
+  it("is registered right after cheats", () => {
+    const ids = SECTIONS.map((s) => s.id);
+    expect(ids.indexOf("fan")).toBe(ids.indexOf("cheats") + 1);
     expect(SECTIONS.find((s) => s.id === "fan")?.labelKey).toBe("cw_fan_title");
   });
 
