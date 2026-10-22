@@ -1,6 +1,6 @@
 /**
  * The helper's operation jobs the page starts on one file (Verify: HASH and
- * CRC32; Decompress: FFPFSC_UNPACK) and their outcome, read from
+ * CRC32; Decompress: FFPFSC_UNPACK; Extract: ARCHIVE_EXTRACT) and their outcome, read from
  * /api/jobs/status (progress, the operation's message, and its result once it
  * ended well). Reading a finished job there releases it (after a short grace),
  * so it never holds one of the job table's slots.
@@ -41,7 +41,10 @@ const defaultDeps: OpDeps = {
 };
 
 /** POST `route` {path, …} and return the job it started. */
-export async function startOp(route: "/api/fs/hash" | "/api/fs/crc32" | "/api/fs/unpack", body: { path: string; name?: string }): Promise<string> {
+export async function startOp(
+  route: "/api/fs/hash" | "/api/fs/crc32" | "/api/fs/unpack" | "/api/fs/extract",
+  body: { path: string; name?: string } | ExtractBody,
+): Promise<string> {
   const r = await call<{ job?: unknown }>(route, body);
   if (!r || typeof r.job !== "string") throw new ApiError(500, "bad_reply");
   return r.job;
@@ -142,4 +145,36 @@ export function unpackBlocker(info: UnpackInfo, name: string | null): "exists" |
   if (info.exists && (name == null || name === info.name)) return "exists";
   if (info.free != null && info.free < info.need) return "space";
   return null;
+}
+
+/* ---- extract an archive ---- */
+
+/** What /api/fs/extract is sent: the archive (its first volume), the folder, and how. */
+export interface ExtractBody {
+  path: string;
+  dest: string;
+  password?: string;
+  /** Write into `dest` although it is there; files already there are skipped unless `replace`. */
+  merge?: boolean;
+  replace?: boolean;
+}
+
+/** /api/fs/extract/info: where an extract would go, before it starts. */
+export interface ExtractInfo {
+  /** The default folder's name (the archive's name without its extensions). */
+  name: string;
+  /** The default folder's path, next to the archive. */
+  dest: string;
+  /** The archive's size, every volume of a split one. */
+  size: number;
+  volumes: number;
+  /** Free space beside it; null when the helper could not read it. */
+  free: number | null;
+  /** The default folder is already there. */
+  exists: boolean;
+  kind: string;
+}
+
+export async function extractInfo(path: string): Promise<ExtractInfo> {
+  return call<ExtractInfo>("/api/fs/extract/info", { path });
 }

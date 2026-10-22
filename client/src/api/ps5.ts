@@ -15,6 +15,7 @@ import { getEngineUrl } from "../state/engine";
 // Logging wrapper: every command leaves a trace breadcrumb + logs failures at
 // warn. See lib/invokeLogged.ts. (Channel still comes straight from core.)
 import { isTauriEnv } from "../lib/tauriEnv";
+import { toExtractResult, type ExtractResult } from "../lib/archiveName";
 import { invoke } from "../lib/invokeLogged";
 import { randomHexId } from "../lib/randomId";
 import { noteJobWatched } from "../lib/watchedJobIds";
@@ -1189,6 +1190,39 @@ export async function fsUnpack(
   const body = (await res.json().catch(() => ({}))) as { path?: string; size?: number; error?: string };
   if (!res.ok) throw new Error(body.error ?? `HTTP ${res.status}`);
   return { path: body.path ?? "", size: body.size ?? 0 };
+}
+
+/** Options of {@link fsExtract}. `merge`: write into `dest` although it exists (files already
+ *  there are skipped unless `replace`). */
+export interface FsExtractOptions {
+  password?: string;
+  merge?: boolean;
+  replace?: boolean;
+}
+
+/** Extract an archive on the console (.zip, .7z, .rar, tar.*, the first volume of a split one)
+ *  into the folder `dest` there, by the helper's extractor payload. Follow it with
+ *  `fsOpStatus(addr, opId)` and stop it with `fsOpCancel`. Throws "cancelled" when stopped,
+ *  else the helper's cause (`fs_extract_password_required`, `fs_extract_no_space: ...`, ...). */
+export async function fsExtract(
+  transferAddr: string,
+  path: string,
+  dest: string,
+  opId: number,
+  opts: FsExtractOptions = {},
+): Promise<ExtractResult> {
+  const body: Record<string, unknown> = { addr: toMgmtAddr(transferAddr), path, dest, op_id: opId };
+  if (opts.password) body.password = opts.password;
+  if (opts.merge) body.merge = true;
+  if (opts.replace) body.replace = true;
+  const res = await fetch(`${getEngineUrl()}/api/ps5/fs/extract`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const out = (await res.json().catch(() => ({}))) as Record<string, unknown> & { error?: string };
+  if (!res.ok) throw new Error(typeof out.error === "string" ? out.error : `HTTP ${res.status}`);
+  return toExtractResult(out);
 }
 
 export interface FsDirEntry {

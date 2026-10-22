@@ -75,6 +75,7 @@ const kindIconMap: Record<TaskKind, typeof Upload> = {
   "fs-move": FolderInput,
   "fs-rename": FolderInput,
   "fs-unpack": FolderInput,
+  "fs-extract": Archive,
   "pkg-install": Package,
   "pkg-dpi-install": Package,
   "save-backup": Save,

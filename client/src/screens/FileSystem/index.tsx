@@ -4,6 +4,8 @@ import { consoleAddr, hostOf } from "../../lib/addr";
 import { trStatic } from "../../lib/trStatic";
 import { rememberDestination } from "../../lib/moveTo";
 import { MoveToDialog, type MoveItem } from "./MoveToDialog";
+import { ExtractDialog, type ExtractChoice } from "./ExtractDialog";
+import { extractCause, isExtractableArchive, needsPassword } from "../../lib/archiveName";
 import { SendToConsoleDialog } from "./SendToConsoleDialog";
 import {
   RowActionButtons,
@@ -92,6 +94,7 @@ import { useConnectionStore } from "../../state/connection";
 import {
   fsDelete,
   fsUnpack,
+  fsExtract,
   fsMove,
   fsChmod,
   fsMkdir,
@@ -1713,6 +1716,122 @@ export default function FileSystemScreen() {
       // The helper also stops between blocks once the call above ends.
     }
   };
+  // Extracting an archive on the console (the helper's extractor payload): one at a time,
+  // followed by its op id like a decompress. The dialog asks where and how; a password-protected
+  // archive reopens it for the password and runs again with the same choice.
+  const [extractOp, setExtractOp] = useState<{
+    name: string;
+    opId: number;
+    done: number;
+    total: number;
+    stopping: boolean;
+  } | null>(null);
+  const [extractAsk, setExtractAsk] = useState<{
+    entry: DirEntry;
+    dir: string;
+    passwordAsk: "required" | "wrong" | null;
+    choice: ExtractChoice | null;
+  } | null>(null);
+  const extractNameTaken = (n: string) => !!entries?.some((e) => e.name === n);
+  const runExtract = async (entry: DirEntry, dir: string, choice: ExtractChoice) => {
+    if (!host?.trim() || extractOp) return;
+    const src = joinPath(dir, entry.name);
+    const dest = joinPath(dir, choice.folder);
+    const addr = consoleAddr(host);
+    const opId = Math.floor(Math.random() * Number.MAX_SAFE_INTEGER);
+    setExtractOp({ name: entry.name, opId, done: 0, total: 0, stopping: false });
+    const task = beginTask({
+      kind: "fs-extract",
+      origin: "files",
+      label: `Extract ${entry.name}`,
+      consoleId: host.trim(),
+    });
+    let stopped = false;
+    const poller = (async () => {
+      while (!stopped) {
+        try {
+          const snap = await fsOpStatus(addr, opId);
+          if (snap.total_bytes > 0) {
+            setExtractOp((o) =>
+              o && o.opId === opId ? { ...o, done: snap.bytes_copied, total: snap.total_bytes } : o,
+            );
+            task.report({
+              progress: { current: snap.bytes_copied, total: snap.total_bytes, unit: "bytes" },
+            });
+          }
+        } catch {
+          // Not registered yet, or already finished: the extract call below decides.
+        }
+        await new Promise((r) => setTimeout(r, 1000));
+      }
+    })();
+    try {
+      const out = await fsExtract(addr, src, dest, opId, {
+        password: choice.password || undefined,
+        merge: choice.merge,
+        replace: choice.replace,
+      });
+      task.done();
+      const extra = [
+        out.skipped > 0
+          ? tr("fs_extract_done_skipped", { n: out.skipped }, `${out.skipped} files already there were skipped.`)
+          : "",
+        out.unsafe > 0
+          ? tr("fs_extract_done_unsafe", { n: out.unsafe }, `${out.unsafe} entries with unsafe paths were not extracted.`)
+          : "",
+        out.links > 0
+          ? tr("fs_extract_done_links", { n: out.links }, `${out.links} links or special files were not extracted.`)
+          : "",
+      ].filter(Boolean);
+      pushNotification(
+        "success",
+        withConsolePrefix(host, tr("fs_extract_done", { name: entry.name }, `Extracted ${entry.name}`)),
+        {
+          body: [
+            tr("fs_extract_done_body", { n: out.files, path: out.path || dest }, `${out.files} files into ${out.path || dest}`),
+            ...extra,
+          ].join(" "),
+        },
+      );
+      void refresh();
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      if (msg.includes("cancelled")) {
+        task.done();
+        void refresh();
+      } else if (needsPassword(msg)) {
+        // Not a failure yet: ask for the password and run again with the same choice.
+        task.done();
+        setExtractAsk({
+          entry,
+          dir,
+          passwordAsk: extractCause(msg) === "fs_extract_wrong_password" ? "wrong" : "required",
+          choice,
+        });
+      } else {
+        task.fail(e);
+        pushNotification(
+          "error",
+          withConsolePrefix(host, tr("fs_extract_failed", { name: entry.name }, `Couldn't extract ${entry.name}`)),
+          { body: humanizePs5Error(msg) || msg },
+        );
+        void refresh();
+      }
+    } finally {
+      stopped = true;
+      await poller;
+      setExtractOp(null);
+    }
+  };
+  const stopExtract = async () => {
+    if (!extractOp || !host?.trim()) return;
+    setExtractOp((o) => (o ? { ...o, stopping: true } : o));
+    try {
+      await fsOpCancel(consoleAddr(host), extractOp.opId);
+    } catch {
+      // The helper also stops the extractor once the call above ends.
+    }
+  };
   const runChmod777 = async (list: DirEntry[] = selectedEntries) => {
     if (list.length === 0 || chmodBusy) return;
     setChmodBusy(true);
@@ -2581,6 +2700,16 @@ export default function FileSystemScreen() {
                   },
                 ]
               : []),
+            ...(menuEntry.kind === "file" && isExtractableArchive(menuEntry.name)
+              ? [
+                  {
+                    icon: FileArchive,
+                    label: tr("fs_extract_action", undefined, "Extract…"),
+                    run: () => setExtractAsk({ entry: menuEntry, dir: path, passwordAsk: null, choice: null }),
+                    disabled: extractOp !== null || !host?.trim(),
+                  },
+                ]
+              : []),
             {
               icon: Link2,
               label: tr("fs_menu_copy_path", undefined, "Copy path"),
@@ -2643,6 +2772,22 @@ export default function FileSystemScreen() {
         />
       )}
       {confirmDialogNode}
+      {extractAsk && (
+        <ExtractDialog
+          open
+          name={extractAsk.entry.name}
+          dir={extractAsk.dir}
+          exists={extractAsk.dir === path ? extractNameTaken : () => false}
+          passwordAsk={extractAsk.passwordAsk}
+          initial={extractAsk.choice}
+          onCancel={() => setExtractAsk(null)}
+          onConfirm={(choice) => {
+            const ask = extractAsk;
+            setExtractAsk(null);
+            void runExtract(ask.entry, ask.dir, choice);
+          }}
+        />
+      )}
       {ejectDialogNode}
       {conflictDialogNode}
       {alertDialogNode}
@@ -3172,6 +3317,20 @@ export default function FileSystemScreen() {
             </span>
             <Button variant="secondary" size="sm" disabled={unpackOp.stopping} onClick={() => void stopUnpack()}>
               {tr("fs_unpack_stop", undefined, "Stop")}
+            </Button>
+          </div>
+        )}
+
+        {extractOp && (
+          <div className="mb-3 flex flex-wrap items-center gap-3 rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-surface-2)] px-3 py-2 text-sm" data-testid="fs-extract">
+            <Spinner size={14} />
+            <span className="min-w-0 flex-1 truncate">
+              {tr("fs_extract_running", { name: extractOp.name }, `Extracting ${extractOp.name}`)}
+              {extractOp.total > 0 &&
+                ` · ${formatBytes(extractOp.done)} / ${formatBytes(extractOp.total)} (${Math.min(100, Math.floor((extractOp.done / extractOp.total) * 100))}%)`}
+            </span>
+            <Button variant="secondary" size="sm" disabled={extractOp.stopping} onClick={() => void stopExtract()}>
+              {tr("fs_extract_stop", undefined, "Stop")}
             </Button>
           </div>
         )}
