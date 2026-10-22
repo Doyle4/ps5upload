@@ -29,6 +29,9 @@ Files in `/data/ps5upload/extract/` (see `src/xreq.h` and `payload/src/archive_e
   folder it made removed at its next start;
 - `extractor.log` — the last run's stdout/stderr.
 
+The process is named `ps5u-extract`: never `ps5upload-*`, which the helper SIGKILLs as a stray
+instance of itself.
+
 ## Rules for what is written
 
 `src/xsink.c`:
