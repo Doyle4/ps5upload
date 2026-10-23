@@ -32,6 +32,7 @@
 #include <regex.h>
 #include "config.h"
 #include "webui_api.h"
+#include "webui_smb.h"
 #include "runtime.h"
 #include "sandbox_unmount.h"
 #include "instance_verdict.h"
@@ -294,6 +295,13 @@
 #define MGMT_FRAME_CLEANUP_APPLY_STATUS_ACK 297u
 #define MGMT_FRAME_CLEANUP_CANCEL 298u
 #define MGMT_FRAME_CLEANUP_CANCEL_ACK 299u
+/* the console's saved network shares, from the PC (webui_smb.c) */
+#define MGMT_FRAME_SMB_SHARES_LIST 310u
+#define MGMT_FRAME_SMB_SHARES_LIST_ACK 311u
+#define MGMT_FRAME_SMB_SHARES_SAVE 312u
+#define MGMT_FRAME_SMB_SHARES_SAVE_ACK 313u
+#define MGMT_FRAME_SMB_SHARES_REMOVE 314u
+#define MGMT_FRAME_SMB_SHARES_REMOVE_ACK 315u
 #define MGMT_FRAME_SDK_SCAN 214u
 #define MGMT_FRAME_SDK_SCAN_ACK 215u
 #define MGMT_FRAME_SDK_PATCH 216u
@@ -7967,6 +7975,39 @@ static int handle_cleanup_apply_status(runtime_state_t *state, const char *body,
 }
 static int handle_cleanup_cancel(runtime_state_t *state, const char *body, uint64_t body_len) {
     return cleanup_reply(state, MGMT_FRAME_CLEANUP_CANCEL_ACK, sc_cancel, body, body_len);
+}
+
+/* ── The console's saved network shares, from the PC (webui_smb.c, #498) ─────
+ * The same shares the console page's Files and Library read (smb_shares.c); a save signs in through
+ * the SMB daemon first, like the page's. A refusal is {"ok":false,"err":..}. */
+#define SMB_PC_OUT_MAX (64u * 1024u)
+
+static int smb_shares_list_call(const char *body, size_t n, char *out, size_t cap) {
+    (void)body;
+    (void)n;
+    return webui_smb_pc_list(out, cap);
+}
+
+static int smb_pc_reply(runtime_state_t *state, uint16_t ack, cleanup_call_fn fn, const char *body, uint64_t body_len) {
+    char *out;
+    int n, rc;
+    if (!state || body_len > 16u * 1024u) return mgmt_reply(MGMT_FRAME_ERROR, "bad_request", 11);
+    out = malloc(SMB_PC_OUT_MAX);
+    if (!out) return mgmt_reply(MGMT_FRAME_ERROR, "out_of_memory", 13);
+    n = fn(body ? body : "", (size_t)body_len, out, SMB_PC_OUT_MAX);
+    rc = mgmt_reply(ack, out, (uint64_t)(n > 0 ? n : 0));
+    free(out);
+    return rc;
+}
+
+static int handle_smb_shares_list(runtime_state_t *state, const char *body, uint64_t body_len) {
+    return smb_pc_reply(state, MGMT_FRAME_SMB_SHARES_LIST_ACK, smb_shares_list_call, body, body_len);
+}
+static int handle_smb_shares_save(runtime_state_t *state, const char *body, uint64_t body_len) {
+    return smb_pc_reply(state, MGMT_FRAME_SMB_SHARES_SAVE_ACK, webui_smb_pc_save, body, body_len);
+}
+static int handle_smb_shares_remove(runtime_state_t *state, const char *body, uint64_t body_len) {
+    return smb_pc_reply(state, MGMT_FRAME_SMB_SHARES_REMOVE_ACK, webui_smb_pc_remove, body, body_len);
 }
 
 /* ── Network round-trip ack ──────────────────────────────────────────── */

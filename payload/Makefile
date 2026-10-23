@@ -194,7 +194,8 @@ SMBD_ELF := $(SMBD_DIR)/ps5upload-smb.elf
 SMBD_ELF_C := build/smbd_elf.c
 SMBD_DEPS := $(wildcard $(SMBD_DIR)/*.c $(SMBD_DIR)/*.h) $(SMBD_DIR)/Makefile \
         $(wildcard third_party/libsmb2/lib/*.c third_party/libsmb2/lib/*.h third_party/libsmb2/include/*.h \
-                   third_party/libsmb2/include/smb2/*.h) third_party/libsmb2/config.h include/smbd_proto.h include/config.h
+                   third_party/libsmb2/include/smb2/*.h) third_party/libsmb2/config.h include/smbd_proto.h include/config.h \
+        src/pkg_info.c include/pkg_info.h
 CLIENT_DIR := ../client
 WEBUI_PAGE_DEPS := $(shell find $(CLIENT_DIR)/src/console -type f ! -name '*.test.ts' 2>/dev/null) \
         $(wildcard $(CLIENT_DIR)/src/i18n/locales/*.ts) $(CLIENT_DIR)/src/index.css \

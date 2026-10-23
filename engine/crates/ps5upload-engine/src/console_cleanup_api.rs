@@ -61,7 +61,7 @@ fn status_for(reason: &str) -> StatusCode {
 }
 
 /// The helper's token for an error: the cause of a refusal, `unsupported` for an older helper.
-fn reason_of(e: &anyhow::Error) -> String {
+pub(crate) fn reason_of(e: &anyhow::Error) -> String {
     if ps5upload_core::console_files::is_unsupported(e) {
         return "unsupported".into();
     }

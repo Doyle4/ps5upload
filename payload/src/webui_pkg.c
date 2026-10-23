@@ -584,7 +584,7 @@ static int watch_delivery(ava1_op_ctx_t *c, const char *job) {
 static int op_pkg_install(void *arg, ava1_op_ctx_t *c, const uint8_t *args, size_t n) {
     char *src = malloc(1024), *norm = malloc(1024), *staged = malloc(1024), *job = malloc(64), result[512];
     pkg_info_t info;
-    uint64_t size = 0, replace = 0;
+    uint64_t size = 0, replace = 0, remove_after = 0;
     const char *cause = NULL;
     const char *install_path;
     int st, status = AVA1_ERR_IO, delivered = 0, took = 0, rc;
@@ -604,11 +604,18 @@ static int op_pkg_install(void *arg, ava1_op_ctx_t *c, const uint8_t *args, size
         goto out;
     }
     (void)fsj_json_u64((const char *)args, "replace", &replace);
+    (void)fsj_json_u64((const char *)args, "remove_after", &remove_after);
     st = read_pkg(src, norm, 1024, &info, &size, NULL, &cause);
     if (st != 200) {
         ava1_op_message(c, "%s", cause);
         status = st == 403 ? AVA1_ERR_PATH : AVA1_ERR_IO;
         goto out;
+    }
+    if (remove_after && !pkg_needs_staging(norm) && !strncmp(norm, WEBUI_PKG_STAGE_DIR "/", sizeof WEBUI_PKG_STAGE_DIR) &&
+        !strchr(norm + sizeof WEBUI_PKG_STAGE_DIR, '/')) {
+        /* the Library's copy of a package from a share: removed like a staging copy, also when the
+         * install is refused (only a file directly in the staging folder, never any other package) */
+        snprintf(staged, 1024, "%s", norm);
     }
     {
         int expect = 0;

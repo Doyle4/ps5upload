@@ -134,6 +134,9 @@ ones (`ava1-ctest/tests/mgmt*.rs`, `ps5upload-ava1/tests/mgmt*.rs`). Methods 119
 | CleanupApply 294 | 162 `cleanup.apply` | `MgmtText` {scan_id, item_ids[]} -> {apply_id} | `src/runtime.c` `handle_cleanup_apply` | `ps5upload-core/src/cleanup.rs` | re-checks each item; updates go through sceAppInstUtilAppUnInstallPat under sony_api_lock |
 | CleanupApplyStatus 296 | 163 `cleanup.apply_status` | `MgmtText` {apply_id} -> {state, done[], skipped[], failed[], freed_bytes} | `src/runtime.c` `handle_cleanup_apply_status` | `ps5upload-core/src/cleanup.rs` |  |
 | CleanupCancel 298 | 164 `cleanup.cancel` | `MgmtText` {id} -> {} | `src/runtime.c` `handle_cleanup_cancel` | `ps5upload-core/src/cleanup.rs` | a scan stops at once, an apply after its current item |
+| SmbSharesList 310 | 170 `smb.shares_list` | `MgmtText` {} -> {ok, shares[], max} | `src/runtime.c` `handle_smb_shares_list` (`src/webui_smb.c`) | `ps5upload-core/src/console_shares.rs` | the shares the console page (Files, Library) uses; never a password (has_password) |
+| SmbSharesSave 312 | 171 `smb.shares_save` | `MgmtText` {id?, name, server, share, user, password?, domain, start_path} -> {ok, share, dialect} | `src/runtime.c` `handle_smb_shares_save` | `ps5upload-core/src/console_shares.rs` | signs in through the SMB daemon first; no password with an id keeps the saved one |
+| SmbSharesRemove 314 | 172 `smb.shares_remove` | `MgmtText` {id} -> {ok} | `src/runtime.c` `handle_smb_shares_remove` | `ps5upload-core/src/console_shares.rs` |  |
 | — | 21 `job.list` | empty -> `JobListResult` | `ava1/ava1_data.c` (the data plane) | none | `ava1-ctest/tests/job_run.rs` `repeat_job_run_is_idempotent`, `at_most_eight_operations_run_at_once_and_an_unknown_op_is_refused` (listing); no engine caller yet |
 | — | 34 `fs.stat` | `FsPath` -> `FsStat` | native `src/mgmt_fs.c` `mgmt_run_fs_stat` | none | host-tested |
 | — | 44 `fs.freespace` | `FsPath` -> `FsFreeSpace{usable, free, total, reserve, dev}`: the room an upload may fill on the drive holding the path (nearest existing ancestor): free less the working margin (1/64th, at most 1 GiB), never the memory admit budget or the hidden allocator pool; the engine's up-front space check (review 015 #02) | native `src/mgmt_fs.c` `mgmt_run_fs_freespace` | `ps5upload-core/src/volumes.rs` `free_space` (`ps5upload-ava1/src/space.rs`) | `ava1-ctest/tests/mgmt_fs.rs` `fs_freespace_is_the_post_reserve_figure_of_the_drive_holding_the_path`; engine `ps5upload-ava1/tests/mgmt.rs` |
@@ -171,6 +174,8 @@ detect truncation (SPEC §7.3): a buffer smaller than the answer is `ERR_INTERNA
 | cleanup.apply | <= 0.1 KiB | fits |
 | cleanup.apply_status | 224 KiB | fits |
 | cleanup.cancel | <= 0.1 KiB | fits |
+| smb.shares_list | <= 64 KiB (16 shares) | fits |
+| smb.shares_save, smb.shares_remove | <= 4 KiB | fits |
 | files.prefs_get, files.prefs_set | 64 KiB (`FILES_PREFS_FILE_MAX`) | fits |
 | files.handoff_put, files.handoff_take | <= 6.2 KiB (`FILES_HANDOFF_OUT_MAX`) | fits |
 | app.db_query | 64 KiB | fits |

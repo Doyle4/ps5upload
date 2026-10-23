@@ -66,16 +66,23 @@ function shrink(blob: Blob): Promise<string> {
 }
 
 /** The cover of `titleId` (cached), or null when it has none. */
-export async function loadCover(titleId: string): Promise<string | null> {
+export function loadCover(titleId: string): Promise<string | null> {
+  if (!TITLE_ID_RE.test(titleId)) return Promise.resolve(null);
+  // appmeta first; a title a homebrew installer put on FW 13.60 has only its app folder (the engine's order).
+  return loadImage(titleId, [`/user/appmeta/${titleId}/icon0.png`, `/user/app/${titleId}/sce_sys/icon0.png`]);
+}
+
+/** The first of `paths` that reads as a PNG/JPEG, drawn down and cached under `key`; null when none does. */
+export async function loadImage(key: string, paths: string[]): Promise<string | null> {
+  const titleId = key;
   const hit = cache.get(titleId);
   if (hit) return hit;
-  if (missing.has(titleId) || !TITLE_ID_RE.test(titleId)) return null;
+  if (missing.has(titleId) || !paths.length) return null;
   return slot(async () => {
     const again = cache.get(titleId);
     if (again) return again;
-    // appmeta first; a title a homebrew installer put on FW 13.60 has only its app folder (the engine's order).
     let b: Blob | null = null;
-    for (const path of [`/user/appmeta/${titleId}/icon0.png`, `/user/app/${titleId}/sce_sys/icon0.png`]) {
+    for (const path of paths) {
       try {
         const got = await callBlob("/api/fs/read", { path });
         if (/^image\/(png|jpeg)$/.test(got.type)) {
@@ -106,6 +113,15 @@ export async function loadCover(titleId: string): Promise<string | null> {
 
 /** The cover once `ref`'s element has been on screen (at once where IntersectionObserver is missing). */
 export function useLazyCover(titleId: string, ref: RefObject<Element | null>): string | null {
+  return useLazyImage(titleId, ref, loadCover);
+}
+
+/** useLazyCover for any image: `load(key)` runs once the element has been on screen. */
+export function useLazyImage(
+  titleId: string,
+  ref: RefObject<Element | null>,
+  load: (key: string) => Promise<string | null>,
+): string | null {
   const [url, setUrl] = useState<string | null>(() => cache.get(titleId) ?? null);
   const asked = useRef(false);
   useEffect(() => {
@@ -115,7 +131,7 @@ export function useLazyCover(titleId: string, ref: RefObject<Element | null>): s
     const ask = () => {
       if (asked.current) return;
       asked.current = true;
-      void loadCover(titleId).then((u) => {
+      void load(titleId).then((u) => {
         if (live) setUrl(u);
       });
     };
@@ -140,6 +156,6 @@ export function useLazyCover(titleId: string, ref: RefObject<Element | null>): s
       live = false;
       io.disconnect();
     };
-  }, [titleId, ref]);
+  }, [titleId, ref, load]);
   return url;
 }

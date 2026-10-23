@@ -414,6 +414,16 @@ const char *pkg_info_read(pkg_read_fn rd, void *ctx, uint64_t size, pkg_info_t *
     return NULL;
 }
 
+void pkg_info_from_meta(const uint8_t *b, size_t n, int is_json, pkg_info_t *o) {
+    uint32_t sys_ver = 0;
+    memset(o, 0, sizeof *o);
+    if (is_json) parse_param_json((const char *)b, n, o, &sys_ver);
+    else parse_sfo(b, n, o, &sys_ver);
+    title_from_content(o);
+    derive_platform(o);
+    pkg_info_fw_text(sys_ver, o->fw, sizeof o->fw);
+}
+
 const char *pkg_info_kind(const pkg_info_t *p) {
     char c[8];
     size_t i;

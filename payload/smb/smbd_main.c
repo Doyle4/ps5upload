@@ -12,6 +12,9 @@
  *   mkdir   path             -> {"ok":true}
  *   copy    dir src dest overwrite -> {"job"}  dir "down": share src -> console dest; "up": back
  *   remove  path             -> {"job"}  (a file or folder tree on the share)
+ *   scan    source (path | local:true) -> {"job"}  a game library scan (smbd_library.h) of the folder
+ *                            on the share, or of the console's drives; for its job, files_done counts
+ *                            entries looked at and files_total games found
  *   job     job              -> the job's status;  cancel job -> {"ok":true};  jobs -> {"jobs":[..]}
  * Errors: {"error":"<token>","detail":".."} (smbd_path.h smbp_err_token). */
 #include <errno.h>
@@ -34,6 +37,7 @@
 #include "config.h"
 #include "smbd_fs.h"
 #include "smbd_jobs.h"
+#include "smbd_library.h"
 #include "smbd_json.h"
 #include "smbd_log.h"
 #include "smbd_path.h"
@@ -465,6 +469,32 @@ bad:
     reply_err(b, rc, NULL);
 }
 
+static void op_scan(const char *r, size_t n, sj_buf_t *b) {
+    smbconn_t c;
+    char source[LIB_SOURCE_MAX], path[SMBP_PATH_MAX], id[33];
+    int rc, local = 0;
+    memset(&c, 0, sizeof c);
+    path[0] = '\0';
+    if (sj_str(r, n, "source", source, sizeof source) != 1 || !lib_source_ok(source) || sj_bool(r, n, "local", &local) < 0) {
+        reply_err(b, XE_BAD_REQUEST, NULL);
+        return;
+    }
+    if (!local && ((rc = conn_from(r, n, &c, 1)) != 0 || (rc = rel_from(r, n, "path", path, sizeof path)) != 0)) {
+        smbconn_clear(&c);
+        reply_err(b, rc, NULL);
+        return;
+    }
+    rc = jobs_start(local ? JOB_SCAN_LOCAL : JOB_SCAN_SMB, &c, path, source, 0, id);
+    smbconn_clear(&c);
+    if (rc != 0) {
+        reply_err(b, rc, NULL);
+        return;
+    }
+    sj_raw(b, "{");
+    sj_kv_str(b, 0, "job", id);
+    sj_raw(b, "}");
+}
+
 static void handle(const char *r, size_t n, sj_buf_t *b) {
     char key[SMBD_KEY_HEX + 8], op[16], job[40];
     if (sj_str(r, n, "key", key, sizeof key) != 1 || !key_ok(key)) {
@@ -496,6 +526,8 @@ static void handle(const char *r, size_t n, sj_buf_t *b) {
         op_copy(r, n, b, 0);
     } else if (strcmp(op, "remove") == 0) {
         op_copy(r, n, b, 1);
+    } else if (strcmp(op, "scan") == 0) {
+        op_scan(r, n, b);
     } else if (strcmp(op, "job") == 0 || strcmp(op, "cancel") == 0) {
         int rc;
         if (sj_str(r, n, "job", job, sizeof job) != 1) {

@@ -39,6 +39,10 @@ typedef struct {
  * answers NULL with what the header gave (the content id), like the engine's parser. */
 const char *pkg_info_read(pkg_read_fn rd, void *ctx, uint64_t file_size, pkg_info_t *out);
 
+/* A folder dump's sce_sys/param.json (`is_json`) or param.sfo, read on its own: the same fields
+ * as from a package (title, ids, version, category, platform, firmware). */
+void pkg_info_from_meta(const uint8_t *b, size_t n, int is_json, pkg_info_t *out);
+
 /* "game", "patch", "dlc", "app" or "other", from the category. */
 const char *pkg_info_kind(const pkg_info_t *p);
 

@@ -27,6 +27,15 @@ Update the helper for everything below.
   folder to the computer (checked against the image). For images (not packages) you can also add,
   replace or delete files and write an edited copy next to the original; the copy is read back
   and checked, and the image you opened is never changed.
+- **Game Library on the PS5 (#498).** PS5Upload Minion has a new Library section: press Scan and it
+  looks through your network shares (NAS or PC) and this PS5's drives for games — .pkg files,
+  game folders and disk images — and shows them as a cover grid with title, version, type and the
+  system software they need. From the TV, install a package (from a share it is copied to the PS5
+  first and the copy removed after), or copy a game folder or image to a drive's homebrew folder and
+  add the folder to the home screen. Results are kept on the PS5 so the grid opens at once; scans
+  stop at a size limit so a huge share cannot hang them. On the PC, the Servers screen has a new
+  "Shares on the PS5" card to add, edit and remove the shares Minion uses, or copy a server you
+  already saved.
 
 ## 7.1.18
 

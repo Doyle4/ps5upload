@@ -194,49 +194,43 @@ void webui_smb_shares(const char *b, size_t n, uint8_t *out, int fd) {
     sj_free(&r);
 }
 
-/* The "server" text the page sends, as a host and port (and a share / folder when it carried one). */
-static int server_of(int fd, const char *b, size_t n, smb_share_t *s) {
+/* The "server" text the page sends, as a host and port (and a share / folder when it carried one).
+ * NULL, or the refusal's token. */
+static const char *server_of(const char *b, size_t n, smb_share_t *s) {
     char text[SMBP_PATH_MAX + SMBP_HOST_MAX], share[SMBP_SHARE_MAX], path[SMBP_PATH_MAX];
     if (sj_str(b, n, "server", text, sizeof text) != 1 ||
-        smbp_parse_server(text, s->host, sizeof s->host, &s->port, share, sizeof share, path, sizeof path) != 0) {
-        fail(fd, "bad_host", NULL);
-        return -1;
-    }
+        smbp_parse_server(text, s->host, sizeof s->host, &s->port, share, sizeof share, path, sizeof path) != 0)
+        return "bad_host";
     if (!s->share[0] && share[0]) snprintf(s->share, sizeof s->share, "%s", share);
     if (!s->start_path[0] && path[0]) snprintf(s->start_path, sizeof s->start_path, "%s", path);
-    return 0;
+    return NULL;
 }
 
-static int creds_of(int fd, const char *b, size_t n, smb_share_t *s, int *password_given) {
+static const char *creds_of(const char *b, size_t n, smb_share_t *s, int *password_given) {
     int rc;
-    if (sj_str(b, n, "user", s->user, sizeof s->user) < 0) {
-        fail(fd, "bad_user", NULL);
-        return -1;
-    }
-    if (sj_str(b, n, "domain", s->domain, sizeof s->domain) < 0) {
-        fail(fd, "bad_domain", NULL);
-        return -1;
-    }
+    if (sj_str(b, n, "user", s->user, sizeof s->user) < 0) return "bad_user";
+    if (sj_str(b, n, "domain", s->domain, sizeof s->domain) < 0) return "bad_domain";
     rc = sj_str(b, n, "password", s->password, sizeof s->password);
-    if (rc < 0) {
-        fail(fd, "bad_password", NULL);
-        return -1;
-    }
+    if (rc < 0) return "bad_password";
     if (password_given) *password_given = rc == 1;
-    return 0;
+    return NULL;
 }
 
 void webui_smb_discover(const char *b, size_t n, uint8_t *out, int fd) {
     smb_share_t *s = calloc(1, sizeof *s);
     sj_buf_t req, r;
     char *rep, *arr;
+    const char *why;
     size_t rl;
     (void)out;
     if (!s) {
         fail(fd, "out_of_memory", NULL);
         return;
     }
-    if (server_of(fd, b, n, s) != 0 || creds_of(fd, b, n, s, NULL) != 0) goto done;
+    if ((why = server_of(b, n, s)) != NULL || (why = creds_of(b, n, s, NULL)) != NULL) {
+        fail(fd, why, NULL);
+        goto done;
+    }
     if (enter(fd) != 0) goto done;
     sj_init(&req, 0);
     sj_raw(&req, "\"op\":\"shares\"");
@@ -272,69 +266,99 @@ done:
     free(s);
 }
 
-void webui_smb_save(const char *b, size_t n, uint8_t *out, int fd) {
+/* Save (add, or replace by id) a share after signing in to it and opening its start folder: 200
+ * with *res = {"share":share,"dialect"}; else the HTTP status with `tok` set, and *res the daemon's
+ * own {"error","detail"} when it answered one (empty otherwise). *res is always set up: free it.
+ * The page's /api/smb/save and the PC's smb.shares_save both come here. */
+static int save_core(const char *b, size_t n, sj_buf_t *res, char *tok, size_t tok_cap) {
     smb_share_t *s = calloc(1, sizeof *s), *old = calloc(1, sizeof *old);
-    sj_buf_t req, r;
-    char *rep = NULL, dialect[16] = "";
+    sj_buf_t req;
+    char *rep = NULL, dialect[16] = "", err[48] = "";
     const char *why = NULL;
-    int given = 0, rc;
-    (void)out;
+    int given = 0, rc, st = 500;
+    sj_init(res, 0);
+    tok[0] = '\0';
     if (!s || !old) {
-        fail(fd, "out_of_memory", NULL);
+        why = "out_of_memory";
         goto done;
     }
     if (sj_str(b, n, "id", s->id, sizeof s->id) < 0) {
-        fail(fd, "bad_id", NULL);
+        why = "bad_id";
         goto done;
     }
     if (s->id[0] && smb_shares_get(s->id, old) != 0) {
-        fail(fd, "unknown_share", NULL);
+        why = "unknown_share";
         goto done;
     }
     if (sj_str(b, n, "name", s->name, sizeof s->name) < 0 || sj_str(b, n, "share", s->share, sizeof s->share) < 0 ||
         sj_str(b, n, "start_path", s->start_path, sizeof s->start_path) < 0) {
-        fail(fd, "bad_request", NULL);
+        why = "bad_request";
         goto done;
     }
-    if (server_of(fd, b, n, s) != 0 || creds_of(fd, b, n, s, &given) != 0) goto done;
+    if ((why = server_of(b, n, s)) != NULL || (why = creds_of(b, n, s, &given)) != NULL) goto done;
     /* editing without retyping the password keeps the saved one (for the same server and user) */
     if (s->id[0] && !given && !strcmp(old->host, s->host) && !strcmp(old->user, s->user))
         memcpy(s->password, old->password, sizeof s->password);
-    if (smb_share_check(s, &why) != 0) {
-        fail(fd, why, NULL);
+    if (smb_share_check(s, &why) != 0) goto done;
+    pthread_mutex_lock(&g_mu);
+    rc = g_inflight < SMB_INFLIGHT_MAX;
+    if (rc) g_inflight++;
+    pthread_mutex_unlock(&g_mu);
+    if (!rc) {
+        why = "busy";
         goto done;
     }
-    if (enter(fd) != 0) goto done;
     sj_init(&req, 0);
     sj_raw(&req, "\"op\":\"probe\"");
     conn_fields(&req, s);
     sj_kv_str(&req, 1, "path", s->start_path);
-    rep = ask(fd, &req, SMB_WAIT_MS, 1);
+    rc = req.err || !req.buf ? -1 : smbc_request(req.buf, req.len, SMB_WAIT_MS, 1, &rep, err, sizeof err);
+    if (req.buf) crypto_wipe(req.buf, req.cap);
+    sj_free(&req);
     leave();
-    if (!rep) goto done;
-    if (sj_str(rep, strlen(rep), "error", dialect, sizeof dialect) == 1) {
-        relay(fd, rep);
+    if (rc != 0) {
+        snprintf(tok, tok_cap, "%s", err[0] ? err : "smb_daemon_unavailable");
+        st = webui_smb_http_status(tok);
+        goto done;
+    }
+    if (sj_str(rep, strlen(rep), "error", tok, tok_cap) == 1) {
+        if (!strcmp(tok, "key")) snprintf(tok, tok_cap, "smb_daemon_unavailable");
+        else sj_raw(res, rep);
+        st = webui_smb_http_status(tok);
         goto done;
     }
     (void)sj_str(rep, strlen(rep), "dialect", dialect, sizeof dialect);
     rc = smb_shares_put(s);
     if (rc != 0) {
-        fail(fd, rc == SMB_SHARES_E_FULL ? "shares_full" : "io_error", NULL);
+        why = rc == SMB_SHARES_E_FULL ? "shares_full" : "io_error";
         goto done;
     }
-    sj_init(&r, 0);
-    sj_raw(&r, "{\"share\":");
-    share_json(&r, s);
-    sj_kv_str(&r, 1, "dialect", dialect);
-    sj_raw(&r, "}");
-    reply(fd, 200, &r);
-    sj_free(&r);
+    sj_raw(res, "{\"share\":");
+    share_json(res, s);
+    sj_kv_str(res, 1, "dialect", dialect);
+    sj_raw(res, "}");
+    st = 200;
 done:
+    if (why) {
+        snprintf(tok, tok_cap, "%s", why);
+        st = webui_smb_http_status(tok);
+    }
     free(rep);
     if (s) wipe_share(s);
     if (old) wipe_share(old);
     free(s);
     free(old);
+    return st;
+}
+
+void webui_smb_save(const char *b, size_t n, uint8_t *out, int fd) {
+    sj_buf_t r;
+    char tok[64];
+    int st = save_core(b, n, &r, tok, sizeof tok);
+    (void)out;
+    if (st == 200 || (r.buf && r.len && !r.err)) reply(fd, st, &r);
+    else fail(fd, tok[0] ? tok : "internal", NULL);
+    sj_free(&r);
 }
 
 void webui_smb_remove(const char *b, size_t n, uint8_t *out, int fd) {
@@ -543,4 +567,122 @@ void webui_smb_jobs(const char *b, size_t n, uint8_t *out, int fd) {
     }
     relay(fd, r);
     free(r);
+}
+
+/* ---- the game library (#498) ---- */
+
+void webui_library_scan(const char *b, size_t n, uint8_t *out, int fd) {
+    smb_share_t *s = NULL;
+    char source[SMB_ID_LEN + 8];
+    sj_buf_t req;
+    (void)out;
+    if (sj_str(b, n, "source", source, sizeof source) != 1) {
+        fail(fd, "bad_source", NULL);
+        return;
+    }
+    sj_init(&req, 0);
+    sj_raw(&req, "\"op\":\"scan\"");
+    sj_kv_str(&req, 1, "source", source);
+    if (!strcmp(source, "console")) {
+        sj_raw(&req, ",\"local\":true");
+    } else {
+        int rc;
+        s = calloc(1, sizeof *s);
+        if (!s) {
+            sj_free(&req);
+            fail(fd, "out_of_memory", NULL);
+            return;
+        }
+        rc = strlen(source) == SMB_ID_LEN ? smb_shares_get(source, s) : SMB_SHARES_E_NOT_FOUND;
+        if (rc != 0) {
+            sj_free(&req);
+            free(s);
+            fail(fd, rc == SMB_SHARES_E_NOT_FOUND ? "unknown_share" : "io_error", NULL);
+            return;
+        }
+        conn_fields(&req, s);
+        sj_kv_str(&req, 1, "path", s->start_path);
+        fprintf(stderr, "[smb] library scan of %s share %s\n", s->host, s->share);
+    }
+    (void)ask(fd, &req, SMB_QUICK_MS, 0);
+    if (s) wipe_share(s);
+    free(s);
+}
+
+/* ---- the PC app (mgmt smb.shares_*) ---- */
+
+/* `json` into out as the method's reply. */
+static int pc_out(char *out, size_t cap, const char *json, size_t len) {
+    if (len + 1 > cap) return snprintf(out, cap, "{\"ok\":false,\"err\":\"too_large\"}");
+    memcpy(out, json, len);
+    out[len] = '\0';
+    return (int)len;
+}
+
+/* A refusal: {"ok":false,"err":token[,"detail"]}. */
+static int pc_err(char *out, size_t cap, const char *tok, const char *detail) {
+    sj_buf_t b;
+    int k;
+    sj_init(&b, 4096);
+    sj_raw(&b, "{\"ok\":false");
+    sj_kv_str(&b, 1, "err", tok);
+    if (detail && detail[0]) sj_kv_str(&b, 1, "detail", detail);
+    sj_raw(&b, "}");
+    k = b.buf && !b.err ? pc_out(out, cap, b.buf, b.len) : snprintf(out, cap, "{\"ok\":false,\"err\":\"out_of_memory\"}");
+    sj_free(&b);
+    return k;
+}
+
+int webui_smb_pc_list(char *out, size_t cap) {
+    smb_share_t *v = calloc(SMB_SHARES_MAX, sizeof *v);
+    sj_buf_t r;
+    int cnt, i, k;
+    if (!v) return pc_err(out, cap, "out_of_memory", NULL);
+    cnt = smb_shares_load(v, SMB_SHARES_MAX);
+    if (cnt < 0) {
+        free(v);
+        return pc_err(out, cap, "io_error", NULL);
+    }
+    sj_init(&r, 0);
+    sj_raw(&r, "{\"ok\":true,\"shares\":[");
+    for (i = 0; i < cnt; i++) {
+        if (i) sj_raw(&r, ",");
+        share_json(&r, &v[i]);
+    }
+    sj_fmt(&r, "],\"max\":%d}", SMB_SHARES_MAX);
+    crypto_wipe(v, SMB_SHARES_MAX * sizeof *v);
+    free(v);
+    k = r.buf && !r.err ? pc_out(out, cap, r.buf, r.len) : pc_err(out, cap, "out_of_memory", NULL);
+    sj_free(&r);
+    return k;
+}
+
+int webui_smb_pc_save(const char *b, size_t n, char *out, size_t cap) {
+    sj_buf_t r;
+    char tok[64], detail[160] = "";
+    int k, st = save_core(b, n, &r, tok, sizeof tok);
+    if (st == 200 && r.buf && r.len > 1) {
+        /* {"share":..} -> {"ok":true,"share":..} */
+        sj_buf_t o;
+        sj_init(&o, 0);
+        sj_raw(&o, "{\"ok\":true,");
+        sj_raw(&o, r.buf + 1);
+        k = o.buf && !o.err ? pc_out(out, cap, o.buf, o.len) : pc_err(out, cap, "out_of_memory", NULL);
+        sj_free(&o);
+    } else {
+        if (r.buf && r.len) (void)sj_str(r.buf, r.len, "detail", detail, sizeof detail);
+        k = pc_err(out, cap, tok[0] ? tok : "internal", detail);
+    }
+    sj_free(&r);
+    return k;
+}
+
+int webui_smb_pc_remove(const char *b, size_t n, char *out, size_t cap) {
+    char id[SMB_ID_LEN + 2];
+    int rc;
+    if (sj_str(b, n, "id", id, sizeof id) != 1 || strlen(id) != SMB_ID_LEN) return pc_err(out, cap, "bad_id", NULL);
+    rc = smb_shares_remove(id);
+    if (rc == SMB_SHARES_E_NOT_FOUND) return pc_err(out, cap, "unknown_share", NULL);
+    if (rc != 0) return pc_err(out, cap, "io_error", NULL);
+    return snprintf(out, cap, "{\"ok\":true}");
 }

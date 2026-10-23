@@ -179,6 +179,53 @@ static void t_save_list_remove(void) {
     CHECK(strcmp(g_body, "{\"shares\":[]}") == 0);
 }
 
+/* The PC app's smb.shares_* and the Library's scan route (#498). */
+static void t_pc_and_library(void) {
+    char *out = malloc(65536), id[16], body[512];
+    int n;
+    n = webui_smb_pc_save("{\"server\":\"nas\",\"share\":\"Games\",\"user\":\"amy\",\"password\":\"pw-秘\",\"start_path\":\"PS5\"}",
+                          strlen("{\"server\":\"nas\",\"share\":\"Games\",\"user\":\"amy\",\"password\":\"pw-秘\",\"start_path\":\"PS5\"}"), out,
+                          65536);
+    CHECK(n > 0 && strncmp(out, "{\"ok\":true,\"share\":{", 20) == 0 && strstr(out, "\"dialect\":\"3.1.1\""));
+    CHECK(strstr(out, "pw-") == NULL && strstr(out, "\"has_password\":true"));
+    id_of(out, id);
+    CHECK(strlen(id) == 8);
+    n = webui_smb_pc_list(out, 65536);
+    CHECK(n > 0 && strstr(out, "{\"ok\":true,\"shares\":[") == out && strstr(out, id) && !strstr(out, "pw-") &&
+          strstr(out, "\"max\":16"));
+    /* a refused sign-in: the daemon's token (and detail) as the method's refusal */
+    g_next_reply = "{\"error\":\"smb_auth\",\"detail\":\"STATUS_LOGON_FAILURE\"}";
+    n = webui_smb_pc_save("{\"server\":\"nas\",\"share\":\"x\"}", 29, out, 65536);
+    g_next_reply = NULL;
+    CHECK(n > 0 && strstr(out, "\"ok\":false") && strstr(out, "\"err\":\"smb_auth\"") && strstr(out, "LOGON_FAILURE"));
+    n = webui_smb_pc_save("{\"server\":\"u:p@nas\",\"share\":\"x\"}", 32, out, 65536);
+    CHECK(n > 0 && strstr(out, "\"err\":\"bad_host\""));
+
+    /* the library scan: a share walks its start folder with its sign-in; the console its drives */
+    snprintf(body, sizeof body, "{\"source\":\"%s\"}", id);
+    g_next_reply = "{\"job\":\"0123456789abcdef0123456789abcdef\"}";
+    call(webui_library_scan, body);
+    CHECK(g_status == 200 && strstr(g_body, "\"job\""));
+    CHECK(strstr(g_req, "\"op\":\"scan\"") && strstr(g_req, "\"path\":\"PS5\"") && strstr(g_req, "\"password\":\"pw-秘\"") &&
+          strstr(g_req, "\"share\":\"Games\""));
+    call(webui_library_scan, "{\"source\":\"console\"}");
+    CHECK(g_status == 200 && strstr(g_req, "\"local\":true") && !strstr(g_req, "password"));
+    g_next_reply = NULL;
+    call(webui_library_scan, "{\"source\":\"deadbeef\"}");
+    CHECK(g_status == 404 && strstr(g_body, "unknown_share"));
+    call(webui_library_scan, "{\"source\":\"../etc\"}");
+    CHECK(g_status == 404);
+    call(webui_library_scan, "{}");
+    CHECK(g_status == 400 && strstr(g_body, "bad_source"));
+
+    snprintf(body, sizeof body, "{\"id\":\"%s\"}", id);
+    n = webui_smb_pc_remove(body, strlen(body), out, 65536);
+    CHECK(n > 0 && strcmp(out, "{\"ok\":true}") == 0);
+    n = webui_smb_pc_remove(body, strlen(body), out, 65536);
+    CHECK(n > 0 && strstr(out, "\"err\":\"unknown_share\""));
+    free(out);
+}
+
 static void t_paths_and_copy(void) {
     char id[16], body[512];
     call(webui_smb_save, "{\"server\":\"nas\",\"share\":\"Media\",\"user\":\"\",\"password\":\"\"}");
@@ -310,6 +357,7 @@ int main(void) {
     g_cfg.may_read = allow_read;
     t_lines();
     t_save_list_remove();
+    t_pc_and_library();
     t_paths_and_copy();
     t_status();
     unlink(g_file);
