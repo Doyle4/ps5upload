@@ -13,7 +13,7 @@ ps5upload-core = { path = "../ps5upload-core" }
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
-zip = { version = "8", default-features = false, features = ["deflate"] }
+zip = { version = "9", default-features = false, features = ["deflate"] }
 flate2 = "1"
 crc32fast = "1"
 # Same pin and feature set as ps5upload-core (decode only; the writer is a dev-dependency).

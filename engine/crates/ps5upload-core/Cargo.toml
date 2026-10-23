@@ -28,7 +28,7 @@ serde_json.workspace = true
 # shard pipeline (transfer.rs `transfer_zip`). Deflate-only, matching the
 # pin already vetted in client/src-tauri (save_archive.rs) — no bzip2/zstd
 # C libs.
-zip = { version = "8", default-features = false, features = ["deflate"] }
+zip = { version = "9", default-features = false, features = ["deflate"] }
 # Read .7z game dumps (commonly a single .exfat image) the same way — host
 # decompress + stream into the shard pipeline (transfer.rs `transfer_7z`).
 # `default-features = false` keeps ONLY the always-on pure-Rust LZMA/LZMA2
