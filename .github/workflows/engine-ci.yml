@@ -28,6 +28,14 @@ permissions:
 
 env:
   CARGO_TERM_COLOR: always
+  # No incremental artifacts in CI: they only pay off when the same tree is
+  # rebuilt on one machine, and here every job starts from a cache saved by a
+  # different commit. They were a large share of the 1-3 GiB per-job caches
+  # (restores took 190-200 s on the test, desktop and android jobs) and the
+  # repository sat at the 10 GiB cache cap, evicting the lint/test/ctest
+  # caches so those jobs compiled cold. Same code, same tests, same flags
+  # otherwise (the profiles in engine/Cargo.toml still apply).
+  CARGO_INCREMENTAL: "0"
 
 jobs:
   # ─────────────────────────────────────────────────────────────────────
@@ -86,9 +94,13 @@ jobs:
         working-directory: engine
         run: cargo fmt --all -- --check
 
+      # --locked: Cargo.lock must already satisfy every Cargo.toml. Two green
+      # PRs that each touched the lockfile squash-merged into a main where
+      # Cargo.toml asked for a version the lock did not have; nothing here
+      # noticed because cargo quietly re-resolved. Costs nothing on a good tree.
       - name: cargo clippy
         working-directory: engine
-        run: cargo clippy --workspace -- -D warnings
+        run: cargo clippy --locked --workspace -- -D warnings
 
       # The webui feature (rust-embed + static serving) is only enabled
       # in the Docker webui build, not the default workspace clippy/test
@@ -582,9 +594,10 @@ jobs:
           printf 'engine stub for CI\n' > "$exe"
 
       # No separate `cargo check --all-targets`: clippy --all-targets type-checks the same code.
+      # --locked for the same reason as the engine workspace's clippy step.
       - name: cargo clippy
         working-directory: client/src-tauri
-        run: cargo clippy --all-targets -- -D warnings
+        run: cargo clippy --locked --all-targets -- -D warnings
 
       - name: cargo test
         working-directory: client/src-tauri
@@ -749,11 +762,17 @@ jobs:
 
   # ─────────────────────────────────────────────────────────────────────
   # Payload ELF — compile against the ps5-payload-sdk so we catch any
-  # breakage to the C code. Doesn't upload artifacts; publish.yml does
-  # that on tagged runs. Keeps PR feedback loop tight.
+  # breakage to the C code, then `make test-payload`: the ~50 host self-tests
+  # in payload/tests (built with the runner's cc, -Wall -Wextra -Werror), the
+  # archive extractor's host tests, check-per-console-isolation.sh and
+  # check-sony-api-lock.sh — the same gate CONTRIBUTING.md asks for locally,
+  # which CI only claimed to run until 7.1.19. Plus the lockfile guard
+  # (make test-root) and the Linux launcher self-test, which validate-repo
+  # runs and CI did not. Doesn't upload artifacts; publish.yml does that on
+  # tagged runs. Keeps PR feedback loop tight.
   # ─────────────────────────────────────────────────────────────────────
   payload:
-    name: payload (ELF)
+    name: payload (ELF + host self-tests)
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -811,13 +830,21 @@ jobs:
       - name: Install pinned PS5 Payload SDK
         run: sudo env PS5_SDK_INSTALL_DIR=/opt/ps5-payload-sdk bash scripts/install-ps5-sdk.sh
 
-      - name: Build payload
+      # `test-payload` depends on `payload`, so this builds both ELFs and
+      # then runs every host self-test and check script against them.
+      - name: Build payload + host self-tests
         env:
           PS5_PAYLOAD_SDK: /opt/ps5-payload-sdk
           # SDK v0.42's prospero-llvm-config candidate search maxes at 21,
           # so point it at the CI-installed LLVM 22 explicitly.
           LLVM_CONFIG: /usr/bin/llvm-config-22
-        run: make payload
+        run: make test-payload
+
+      - name: Lockfile guard (client/package-lock.json keeps its libc fields)
+        run: make test-root
+
+      - name: Linux launcher self-test
+        run: sh scripts/release/linux-launcher-selftest.sh
 
       - name: Verify ELF
         run: |
