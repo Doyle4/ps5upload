@@ -122,3 +122,27 @@ export function loaderSettled(input: {
   const since = input.firstOpenAt ?? input.now;
   return input.now - since >= LOADER_SETTLE_MS ? "send" : "settle";
 }
+
+/** What the loop sends to a down console whose loader has settled.
+ *
+ * - `bring-up` — Quick bring-up (bring-up playlist, then the helper): the "Bring up
+ *   automatically" setting is on and the helper has not been up since the console last
+ *   started (#479). Once per boot: re-sending kstuff/ShadowMount+ to a console that already
+ *   runs them is not something to do unasked.
+ * - `helper` — just the helper, the reconnect setting's job (rest mode, a crash, a drop).
+ * - `none` — neither setting covers this case.
+ */
+export type RedeployAction = "bring-up" | "helper" | "none";
+
+export function redeployAction(input: {
+  /** Settings → Bring up automatically (default off). */
+  autoBringUp: boolean;
+  /** Settings → Reconnect automatically after rest mode / network drops (default on). */
+  autoRedeploy: boolean;
+  /** The helper read up on this console since it was last seen switched off (or since the
+   *  app started). */
+  upThisBoot: boolean;
+}): RedeployAction {
+  if (input.autoBringUp && !input.upThisBoot) return "bring-up";
+  return input.autoRedeploy ? "helper" : "none";
+}

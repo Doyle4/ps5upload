@@ -10,6 +10,17 @@ Update the helper for everything below.
 
 - **Files on a disc download now (#497).** Downloading a file from a data DVD or Blu-ray in the drive
   (/mnt/disc) failed with "not allowed". It works now; the disc stays read-only.
+- **Bring up automatically (#479, desktop).** A new switch on Connection's Quick bring-up (and in
+  Settings → Console) lets the app connect a saved PS5 by itself: when the console's loader
+  (elfldr) is up and the helper isn't running, it runs your bring-up playlist, sends the helper
+  and runs your auto-loader, with no clicks. Once each time the console starts, about 90 seconds
+  after the loader appears so the console's own autoloader finishes first; after rest mode only
+  the helper is sent again. Off by default.
+- **Stream several packages at once everywhere (#479).** Picking a game, its update and DLC
+  together now also works from a saved server, on Android and from "From this device" in the
+  browser, and they are queued base game first, then the update, then DLC.
+- **Queue icons show right away (#479).** An install that starts as soon as you add it now shows
+  the game's icon and name while it runs, not only after it finishes.
 
 ## 7.1.18
 

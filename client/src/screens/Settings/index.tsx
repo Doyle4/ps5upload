@@ -446,6 +446,7 @@ export default function SettingsScreen() {
     autoResume,
     keepPs5AwakeMode,
     autoRedeployOnWake,
+    autoBringUp,
     systemFileRead,
     bandwidthCapMbps,
     setAlwaysOverwrite,
@@ -454,6 +455,7 @@ export default function SettingsScreen() {
     setKeepPs5AwakeMode,
     setBandwidthCapMbps,
     setAutoRedeployOnWake,
+    setAutoBringUp,
     setSystemFileRead,
   } = useUploadSettingsStore();
   const restAfterUpload = useRestAfterUploadStore((s) => s.enabled);
@@ -622,6 +624,24 @@ export default function SettingsScreen() {
         <GroupHeading>
           {tr("settings_group_console", undefined, "Console")}
         </GroupHeading>
+
+        {show.reconnectAfterRest && (
+          <Section
+            title={tr("settings_card_console_connect", undefined, "Connecting")}
+            full
+          >
+            <Toggle
+              checked={autoBringUp}
+              onChange={(checked) => setAutoBringUp(checked)}
+              label={tr("auto_bringup_label", undefined, "Bring up automatically")}
+              hint={tr(
+                "auto_bringup_hint",
+                undefined,
+                "When a saved PS5's loader (elfldr, port 9021) is up and the helper isn't running, the app runs Quick bring-up by itself: your bring-up playlist if you set one, then the helper, then your auto-loader playlist. Once each time the console starts; after rest mode only the helper is sent again. It waits about 90 seconds after the loader appears, so the console's own autoloader can finish first. Off by default.",
+              )}
+            />
+          </Section>
+        )}
 
         <Section
           title={tr("settings_card_console_rest", undefined, "Rest mode")}

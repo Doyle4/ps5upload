@@ -718,10 +718,18 @@ export function QueueRow({
   const isPendingRow = item.status === "pending";
   // The source's own art and identity, read lazily: only while the row waits and is on screen.
   const artPath = queueArtSourcePath(item);
-  const [rowRef, onScreen] = useOnScreen<HTMLLIElement>(isPendingRow && !!artPath);
+  const isRunningRow = item.status === "running";
+  const [rowRef, onScreen] = useOnScreen<HTMLLIElement>(
+    (isPendingRow || isRunningRow) && !!artPath,
+  );
   const art = useSourceArt(
     artPath,
-    shouldReadSourceArt(artPath, { pending: isPendingRow, visible: onScreen, busy }),
+    shouldReadSourceArt(artPath, {
+      pending: isPendingRow,
+      running: isRunningRow,
+      visible: onScreen,
+      busy,
+    }),
   );
   const noteSourceSize = useUploadQueueStore((s) => s.noteSourceSize);
   const artSize = art?.size ?? 0;
