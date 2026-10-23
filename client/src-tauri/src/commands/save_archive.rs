@@ -187,11 +187,15 @@ fn zip_folder(src_dir: &Path, inner_root: &str, dest_zip: &Path) -> Result<()> {
     // Distinct file vs. directory modes. Unix dirs need the execute bit
     // to be traversable — using 0o644 for both (as we did originally)
     // produces `drw-r--r--` entries that reject `cd` after extraction.
+    // zip 9 marks entries written on Windows as DOS-made, and readers then ignore these modes;
+    // pin Unix so a backup made on Windows keeps them too.
     let file_opts = SimpleFileOptions::default()
         .compression_method(CompressionMethod::Deflated)
+        .system(zip::System::Unix)
         .unix_permissions(0o644);
     let dir_opts = SimpleFileOptions::default()
         .compression_method(CompressionMethod::Stored)
+        .system(zip::System::Unix)
         .unix_permissions(0o755);
 
     let mut buf = vec![0u8; 64 * 1024];
