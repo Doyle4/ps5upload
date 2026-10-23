@@ -115,11 +115,12 @@ function Sheet({ e, p }: { e: Entry; p: LibraryViewProps }) {
             </button>
           ) : null}
           {onShare && e.kind !== "pkg"
-            ? p.drives.map((d) => (
+            ? p.drives.map((d, i) => (
                 <button
                   key={d.path}
                   type="button"
                   className="cw-focusable cw-sheet-item"
+                  data-nav-default={i === 0 ? "" : undefined}
                   disabled={busy}
                   onClick={() => p.onCopy(e, d.path)}
                 >
@@ -305,7 +306,15 @@ export function Library() {
     stop.current = false;
     setMessage(null);
     const failed: string[] = [];
-    for (const s of sources) {
+    let list = sources;
+    try {
+      // the shares as they are now (one may have been added in Files or from the PC since)
+      list = [{ id: CONSOLE_SOURCE, name: t("cw_lib_this_console") }, ...(await listShares()).map((s) => ({ id: s.id, name: s.name }))];
+      if (live.current) setSources(list);
+    } catch {
+      // keep the list we have
+    }
+    for (const s of list) {
       if (stopped()) break;
       setTask({ key: "scan", text: t("cw_lib_scanning", { name: s.name, n: 0 }) });
       try {
