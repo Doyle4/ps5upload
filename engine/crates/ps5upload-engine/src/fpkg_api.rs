@@ -1762,6 +1762,14 @@ fn is_our_partial(name: &str) -> bool {
     .any(|ext| name.to_ascii_lowercase().ends_with(ext))
 }
 
+/// A `<name>.partial` with `<name>.partial.json` next to it is a link download in progress
+/// (see `remote_download`), kept so it can resume.
+fn has_download_sidecar(partial: &Path) -> bool {
+    let mut name = partial.file_name().unwrap_or_default().to_os_string();
+    name.push(".json");
+    partial.with_file_name(name).is_file()
+}
+
 /// Removes a file, trying again for a few seconds while something holds it: on Windows an
 /// antivirus or the indexer often has a just-written file open, and one failed attempt left a
 /// failed build's whole image on the drive (#432).
@@ -1796,7 +1804,11 @@ pub(crate) fn sweep_output_leftovers(out: &Path) {
             .filter(|e| {
                 let name = e.file_name().to_string_lossy().to_ascii_lowercase();
                 match e.file_type() {
-                    Ok(t) if t.is_file() => is_our_partial(&name),
+                    // A link download writes `<name>.pkg.partial` with a `.partial.json`
+                    // resume sidecar beside it; that one is resumable and not ours to sweep.
+                    Ok(t) if t.is_file() => {
+                        is_our_partial(&name) && !has_download_sidecar(&e.path())
+                    }
                     // An LZ4 image build's pack volumes, `<name>.exfat.lz4spool/`, and a
                     // folder build's unfinished folder (marked, so a user's own is kept).
                     Ok(t) if t.is_dir() => {

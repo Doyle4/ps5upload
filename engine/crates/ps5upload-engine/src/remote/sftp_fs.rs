@@ -66,11 +66,7 @@ fn addr_of(conn: &Connection) -> String {
         .trim_start_matches("ssh://");
     let h = h.split('/').next().unwrap_or(h);
     let h = h.rsplit_once('@').map(|(_, h)| h).unwrap_or(h);
-    if h.matches(':').count() > 1 && !h.starts_with('[') {
-        format!("[{h}]:{}", conn.port)
-    } else {
-        format!("{}:{}", h.split(':').next().unwrap_or(h), conn.port)
-    }
+    super::ftp_fs::host_port(h, conn.port)
 }
 
 fn sftp_err(host: &str, e: russh_sftp::client::error::Error) -> RemoteError {

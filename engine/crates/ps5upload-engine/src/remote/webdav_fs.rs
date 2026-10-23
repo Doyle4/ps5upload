@@ -273,7 +273,12 @@ pub(crate) fn decode_percent(s: &str) -> String {
     let mut i = 0;
     while i < bytes.len() {
         if bytes[i] == b'%' && i + 2 < bytes.len() {
-            if let Ok(v) = u8::from_str_radix(&s[i + 1..i + 3], 16) {
+            // `get` rather than a slice: a literal `%` followed by a multibyte character
+            // would otherwise cut inside the character and panic.
+            if let Some(v) = s
+                .get(i + 1..i + 3)
+                .and_then(|h| u8::from_str_radix(h, 16).ok())
+            {
                 out.push(v);
                 i += 3;
                 continue;

@@ -90,10 +90,20 @@ fn addr_of(conn: &Connection) -> String {
         .trim_start_matches("ftp://")
         .trim_start_matches("ftps://");
     let h = h.split('/').next().unwrap_or(h);
-    if h.matches(':').count() > 1 && !h.starts_with('[') {
-        format!("[{h}]:{}", conn.port)
+    host_port(h, conn.port)
+}
+
+/// `host:port` for a dialer: a bare IPv6 address gets its brackets, an already
+/// bracketed one keeps them (and loses any port typed after them), anything
+/// else loses a typed port in favour of the saved one.
+pub(crate) fn host_port(h: &str, port: u16) -> String {
+    if h.starts_with('[') {
+        let end = h.find(']').map(|i| i + 1).unwrap_or(h.len());
+        format!("{}:{port}", &h[..end])
+    } else if h.matches(':').count() > 1 {
+        format!("[{h}]:{port}")
     } else {
-        format!("{}:{}", h.split(':').next().unwrap_or(h), conn.port)
+        format!("{}:{port}", h.split(':').next().unwrap_or(h))
     }
 }
 

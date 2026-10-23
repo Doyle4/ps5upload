@@ -22,7 +22,7 @@ use std::sync::{Arc, Mutex};
 use axum::{
     body::Body,
     extract::{DefaultBodyLimit, Path as AxumPath, Query, State},
-    http::{header, HeaderMap, Response, StatusCode},
+    http::{header, HeaderMap, Method, Response, StatusCode},
     routing::{delete, get, post},
     Json, Router,
 };
@@ -676,6 +676,11 @@ fn mark_released(map: &mut HashMap<String, InstallSession>, sid: &str) -> bool {
     match map.get_mut(sid) {
         Some(s) => {
             s.cancelled = true;
+            // A released session answers every fetch with 410, so nothing reads the origin
+            // again: drop it now, or its window cache, SMB handle and FTP sessions would
+            // stay open until the 2 h idle prune. A body still streaming holds its own
+            // clone of the session and finishes on that.
+            s.remote = None;
             true
         }
         None => false,
@@ -2637,8 +2642,14 @@ async fn serve_handler(
     // fetch and BGFT sees 0x80B22404 PlayGo HTTP 404 (Round-1 v2.16.1 audit).
     AxumPath((session, filename)): AxumPath<(String, String)>,
     axum::extract::ConnectInfo(peer): axum::extract::ConnectInfo<std::net::SocketAddr>,
+    method: Method,
     headers: HeaderMap,
 ) -> Response<Body> {
+    // axum routes HEAD to the GET handler and strips the body afterwards. A HEAD
+    // must not count as delivery: a bare one spans the whole file, and marking
+    // that as served would report the install complete and release the session
+    // before the console fetched a byte (its real GETs would then get 410).
+    let is_head = method == Method::HEAD;
     // Log every PS5-side fetch attempt. Critical for diagnosing the
     // SCE_PLAYGO_ERROR_CORE_HTTP_STATUS_CODE_404_NOT_FOUND (0x80B22404)
     // class of failures: Sony's PlayGo HTTP client got a 404 from us
@@ -2685,8 +2696,7 @@ async fn serve_handler(
     // plaintext HTTP. Any host on the LAN that can passively observe
     // the PS5↔engine TCP stream (promiscuous WiFi, ARP-spoof, SOHO
     // router admin) recovers the UUID from the first GET and can then
-    // hammer the URL with Range requests to drive a 16 MiB allocation
-    // per call — DoS the engine, possibly OOM the whole Tauri shell.
+    // hammer the URL with Range requests and read the whole package.
     //
     // Defense: refuse any source IP that isn't the PS5 the session
     // belongs to. The session records `ps5_mgmt_addr` as `ip:port` at
@@ -2791,7 +2801,7 @@ async fn serve_handler(
     // reactor for the same reason as before: they are synchronous disk (or
     // proxied network) I/O and would otherwise park reactor workers.
     let len = end - start + 1;
-    {
+    if !is_head {
         let mut sessions = state.sessions.lock().unwrap_or_else(|e| e.into_inner());
         if let Some(active) = sessions.get_mut(&served_session_id) {
             // Every served range is a sign of life; without this the session
@@ -2844,13 +2854,10 @@ async fn serve_handler(
         .header(header::LAST_MODIFIED, PKG_HOST_LAST_MODIFIED);
 
     // Respond 206 + Content-Range whenever the body is a *subset* of the
-    // file — i.e. there was a Range header, OR a bare GET whose body the
-    // 16 MiB cap trimmed below `total` (`end + 1 < total`). The bare-GET
-    // case is the important one: without Content-Range, a plain
-    // `GET` on a >16 MiB pkg returned `200 OK` + `Content-Length: 16 MiB`
-    // and no signal that more bytes existed — any non-Range consumer would
-    // treat a truncated package as complete. Only a body that covers the
-    // whole file gets a bare `200 OK`.
+    // file: there was a Range header, or the body stops short of `total`
+    // (`end + 1 < total`). Only a body that covers the whole file gets a bare
+    // `200 OK`; a shorter one without Content-Range would make a non-Range
+    // consumer treat a truncated package as complete.
     let has_range = headers.contains_key(header::RANGE);
     let is_partial = serve_is_partial(has_range, end, total);
     if is_partial {
@@ -2862,9 +2869,12 @@ async fn serve_handler(
         builder = builder.status(StatusCode::OK);
     }
 
-    builder
-        .body(range_body(session, source, start, end))
-        .unwrap_or_else(builder_failed_response)
+    let body = if is_head {
+        Body::empty()
+    } else {
+        range_body(session, source, start, end)
+    };
+    builder.body(body).unwrap_or_else(builder_failed_response)
 }
 
 /// Bytes read per chunk while streaming a range response. Small enough that a
@@ -3423,14 +3433,6 @@ async fn resolve_parts_and_meta(req: &InstallStartRequest) -> Result<ResolvedSou
     }
 }
 
-/// Per-response byte cap. A LAN client (or a misbehaving BGFT) that
-/// requests `bytes=0-{total-1}` on a 50 GB pkg would otherwise force the
-/// engine to allocate ~50 GB and OOM. Sony's real BGFT fetches in
-/// MB-sized chunks, so this cap is only ever hit by abuse cases. When a
-/// requested range exceeds the cap, we trim `end` to `start + CAP - 1`
-/// and return that prefix; HTTP Range semantics let the client follow
-/// up with a `bytes=(end+1)-...` request, which is what BGFT already
-/// does for legitimate chunked fetches.
 /// Fixed `Last-Modified` validator for every pkg-host response. Constant on
 /// purpose: see the header comment in `serve_handler`.
 const PKG_HOST_LAST_MODIFIED: &str = "Wed, 01 Jan 2025 00:00:00 GMT";

@@ -23,7 +23,7 @@ fn sha256_hex(bytes: &[u8]) -> String {
 fn main() -> ps5upload_fpkg::Result<()> {
     let args: Vec<String> = std::env::args().skip(1).collect();
     assert!(
-        args.len() >= 5 && (args.len() - 2) % 3 == 0,
+        args.len() >= 5 && (args.len() - 2).is_multiple_of(3),
         "usage: roundtrip_stage <pkg> <expected-file> \
          <path> <offset> <length> [<path> <offset> <length> ...]"
     );
@@ -37,7 +37,7 @@ fn main() -> ps5upload_fpkg::Result<()> {
         println!("package entry: {} ({:#x} bytes)", file.path, file.size);
     }
     let mut actual = Vec::with_capacity(expected.len());
-    for range in args[2..].chunks_exact(3) {
+    for range in args[2..].as_chunks::<3>().0 {
         let bytes = tree.read_range(&range[0], hex(&range[1]), hex(&range[2]) as usize)?;
         println!(
             "read {} bytes from {} at {}",
