@@ -5125,6 +5125,42 @@ export async function localImageStatus(): Promise<LocalImageStatus> {
   return invoke("local_image_status");
 }
 
+/** ── Looking inside a game image on this computer (#479) ──────────────
+ *
+ *  Every image kind ps5upload reads (.exfat, .ffpkg, .ffpfs, .ffpfsc and a
+ *  debug-key .pkg) is listed by the engine's own readers, one folder at a
+ *  time, on every OS and in the browser build. Nothing is mounted. */
+export interface ImageBrowseEntry {
+  name: string;
+  is_dir: boolean;
+  /** A file's size; a folder's is the sum of every file under it. */
+  size: number;
+  /** Files under a folder (1 for a file). */
+  files: number;
+}
+
+export interface ImageBrowseListing {
+  /** The filesystem inside (a .ffpfsc's inner one). */
+  filesystem: "exfat" | "ufs2" | "pfs" | "pkg";
+  /** A .ffpfsc: the image is in a compressed container. */
+  compressed: boolean;
+  /** An edited copy can be written (every kind but a package). */
+  editable: boolean;
+  /** The folder listed, "" at the root. */
+  dir: string;
+  entries: ImageBrowseEntry[];
+  total_files: number;
+  total_bytes: number;
+  label: string;
+}
+
+export async function imageBrowse(
+  path: string,
+  dir = "",
+): Promise<ImageBrowseListing> {
+  return invoke("image_browse", { path, dir });
+}
+
 export interface ActivityResetResult {
   ok: boolean;
   removed: number;

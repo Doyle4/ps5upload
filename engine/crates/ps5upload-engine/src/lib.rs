@@ -61,6 +61,7 @@ mod hearbridge_api;
 mod helper_mirror;
 mod helper_stop;
 mod icon_cache;
+mod image_browse;
 mod image_build;
 mod inspect;
 mod install;
@@ -10687,6 +10688,10 @@ async fn run(cfg: EngineConfig) -> anyhow::Result<()> {
         )
         .route("/api/exfat/build", post(fpkg_api::exfat_build_handler))
         .route("/api/folder/build", post(fpkg_api::folder_build_handler))
+        .route(
+            "/api/image/browse",
+            post(image_browse::image_browse_handler),
+        )
         .route(
             "/api/collection/settings",
             get(collection_api::get_settings).put(collection_api::put_settings),

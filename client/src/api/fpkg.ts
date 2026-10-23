@@ -165,6 +165,26 @@ export const fpkg = {
    *  key into a plain folder in the output folder, named after the source (or `name`). One
    *  job: written, read back (sizes, and SHA-256 of a sample or of every file), then given its
    *  name; the job's `dest` is the folder. */
-  buildFolder: (source: string, outputDir?: string, name?: string, fullVerify = false) =>
-    invoke<{ job_id: string }>("folder_build", { source, outputDir, name, fullVerify }),
+  buildFolder: (
+    source: string,
+    outputDir?: string,
+    name?: string,
+    fullVerify = false,
+    /** Only this file or folder of the image, by its path inside it (the image browser's
+     *  Save): a folder becomes a folder named after it, a file a file. */
+    entry?: string,
+  ) =>
+    invoke<{ job_id: string }>("folder_build", { source, outputDir, name, fullVerify, entry }),
+  /** Write an edited COPY of a game image (#479): the image's files with `edits` applied,
+   *  as the same kind of image (.exfat, .ffpkg, .ffpfs or .ffpfsc), read back and checked,
+   *  named `<name>-edited` next to it unless `outputDir`/`name` say otherwise. The image
+   *  itself is only read. One job, like an image build. */
+  editImage: (source: string, edits: ImageEdit[], outputDir?: string, name?: string, fullVerify = false) =>
+    invoke<{ job_id: string }>("exfat_build", { source, outputDir, name, fullVerify, edits }),
 };
+
+/** One change for an edited copy: delete a file or folder, or put a file (or a folder's
+ *  contents) from this computer at `path`, replacing what is there. */
+export type ImageEdit =
+  | { op: "delete"; path: string }
+  | { op: "put"; path: string; from: string };

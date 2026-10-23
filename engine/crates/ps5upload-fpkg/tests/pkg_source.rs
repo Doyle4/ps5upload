@@ -343,3 +343,39 @@ fn a_large_file_streams_in_bounded_memory() {
         let _: &PkgSource = &tree;
     }
 }
+
+/// The image browser (#479) opens a debug package as a read-only tree: its folders list with
+/// their totals, and one folder of it reads back as a tree of its own.
+#[test]
+fn a_package_browses_read_only() {
+    use ps5upload_fpkg::browse::{self, Filesystem, Index, Kind, Subtree};
+    let src = TempDir::new("browse-src");
+    let out = TempDir::new("browse-out");
+    write_game(src.path(), 300 * 1024);
+    let pkg = build(&request(src.path(), out.path()));
+    let opened = browse::open(&pkg).unwrap();
+    assert_eq!(opened.filesystem, Filesystem::Pkg);
+    assert!(!opened.filesystem.editable() && !opened.compressed);
+    let index = Index::new(&*opened.tree);
+    let nested: Vec<(String, bool)> = index
+        .list("data/nested")
+        .unwrap()
+        .into_iter()
+        .map(|e| (e.name, e.is_dir))
+        .collect();
+    assert_eq!(
+        nested,
+        [
+            ("deep".to_string(), true),
+            ("hollow".to_string(), true),
+            ("odd.bin".to_string(), false)
+        ]
+    );
+    assert_eq!(index.kind("data/nested/odd.bin"), Some(Kind::File(65_537)));
+    let mut sub = Subtree::new(opened.tree, "data/nested").unwrap();
+    assert_eq!(
+        sub.read("deep/leaf.txt").unwrap(),
+        std::fs::read(src.path().join("data/nested/deep/leaf.txt")).unwrap()
+    );
+    assert_eq!(sub.empty_dirs(), ["hollow"]);
+}

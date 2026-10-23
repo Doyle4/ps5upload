@@ -835,6 +835,7 @@ export async function browserInvoke<T>(
         full_verify: args["fullVerify"] ?? false,
         name: args["name"],
         ffpfsc_level: args["ffpfscLevel"],
+        edits: args["edits"] ?? [],
       });
     }
     case "folder_build": {
@@ -843,6 +844,13 @@ export async function browserInvoke<T>(
         output_dir: args["outputDir"],
         name: args["name"],
         full_verify: args["fullVerify"] ?? false,
+        entry: args["entry"],
+      });
+    }
+    case "image_browse": {
+      return postJson<T>("/api/image/browse", {
+        path: args["path"],
+        dir: args["dir"],
       });
     }
     case "job_status": {

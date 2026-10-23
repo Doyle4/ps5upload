@@ -1060,6 +1060,18 @@ pub async fn local_image_status() -> Result<JsonValue, String> {
     get_json(&format!("{base}/api/local/image/status")).await
 }
 
+/// One folder of a game image or debug package on this computer (#479): its entries, sizes,
+/// and what kind of image it is.
+#[tauri::command]
+pub async fn image_browse(path: String, dir: Option<String>) -> Result<JsonValue, String> {
+    let base = engine::url();
+    post_json(
+        &format!("{base}/api/image/browse"),
+        &serde_json::json!({ "path": path, "dir": dir }),
+    )
+    .await
+}
+
 #[tauri::command]
 pub async fn activity_reset(addr: Option<String>) -> Result<JsonValue, String> {
     let base = engine::url();
@@ -2529,6 +2541,8 @@ pub async fn exfat_build(
     name: Option<String>,
     // How hard a .ffpfsc is compressed: fast, balanced or smallest; the engine's default when absent.
     ffpfsc_level: Option<String>,
+    // An edited copy of the image `source`: [{op: "delete"|"put", path, from?}], passed through.
+    edits: Option<JsonValue>,
 ) -> Result<JsonValue, String> {
     let base = engine::url();
     let url = format!("{base}/api/exfat/build");
@@ -2544,6 +2558,7 @@ pub async fn exfat_build(
             "full_verify": full_verify.unwrap_or(false),
             "name": name,
             "ffpfsc_level": ffpfsc_level,
+            "edits": edits.unwrap_or_else(|| serde_json::json!([])),
         }),
     )
     .await
@@ -2556,6 +2571,8 @@ pub async fn folder_build(
     output_dir: Option<String>,
     name: Option<String>,
     full_verify: Option<bool>,
+    // Only this file or folder of the image (the image browser's Save).
+    entry: Option<String>,
 ) -> Result<JsonValue, String> {
     let base = engine::url();
     let url = format!("{base}/api/folder/build");
@@ -2566,6 +2583,7 @@ pub async fn folder_build(
             "output_dir": output_dir,
             "name": name,
             "full_verify": full_verify.unwrap_or(false),
+            "entry": entry,
         }),
     )
     .await

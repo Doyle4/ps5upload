@@ -135,27 +135,36 @@ pub(crate) fn ffpfsc_tree(
     open: &dyn Fn() -> Result<Box<dyn crate::ReadSeek>>,
     label: &str,
 ) -> Result<Box<dyn SourceTree>> {
+    ffpfsc_tree_of(open, label).map(|(tree, _)| tree)
+}
+
+/// [`ffpfsc_tree`], with the filesystem the image inside turned out to be.
+pub(crate) fn ffpfsc_tree_of(
+    open: &dyn Fn() -> Result<Box<dyn crate::ReadSeek>>,
+    label: &str,
+) -> Result<(Box<dyn SourceTree>, crate::browse::Filesystem)> {
+    use crate::browse::Filesystem;
     use crate::pfsc_reader::PfscReader;
+    type Tree = (Box<dyn SourceTree>, Filesystem);
     let pfsc = |r: Box<dyn crate::ReadSeek>| {
         PfscReader::new(r).map_err(|e| crate::Error::Format(format!("{label}: {e}")))
     };
     let reader = pfsc(open()?)?;
     let inner = reader.inner_name().to_ascii_lowercase();
     let label = format!("{label} ({})", reader.inner_name());
-    let exfat = |r: PfscReader<Box<dyn crate::ReadSeek>>| {
+    let exfat = |r: PfscReader<Box<dyn crate::ReadSeek>>| -> Result<Tree> {
         let len = r.len();
         crate::remote_source::exfat_tree(Box::new(r), len, label.clone())
+            .map(|t| (t, Filesystem::Exfat))
     };
-    let ufs2 = |r: PfscReader<Box<dyn crate::ReadSeek>>| -> Result<Box<dyn SourceTree>> {
-        Ok(Box::new(crate::ufs2_source::Ufs2Source::from_reader(
-            Box::new(r),
-            label.clone(),
-        )?))
+    let ufs2 = |r: PfscReader<Box<dyn crate::ReadSeek>>| -> Result<Tree> {
+        let tree = crate::ufs2_source::Ufs2Source::from_reader(Box::new(r), label.clone())?;
+        Ok((Box::new(tree), Filesystem::Ufs2))
     };
     // A nested PFS image (a `pfs_image.dat` inside a `.ffpfsc`) is a third kind of image.
     let mut reader = reader;
     if crate::pfs_source::is_pfs_image(&mut reader) {
-        return crate::pfs_source::open(Box::new(reader), label);
+        return crate::pfs_source::open(Box::new(reader), label).map(|t| (t, Filesystem::Pfs));
     }
     if inner.ends_with(".exfat") {
         return exfat(reader);
