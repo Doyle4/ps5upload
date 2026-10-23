@@ -162,7 +162,13 @@ fn extract_zip(archive: &Path, sink: &mut Sink) -> Result<()> {
             }
             Err(e) => return Err(anyhow!("read zip entry {i}: {e}")),
         };
-        let name = crate::transfer::zip_entry_name(e.name_raw(), e.name());
+        // zip 9 returns an error when the declared encoding can't decode the bytes; fall back to a
+        // lossy read so one odd name doesn't stop the whole archive.
+        let decoded = e
+            .name()
+            .map(|n| n.into_owned())
+            .unwrap_or_else(|_| String::from_utf8_lossy(e.name_raw()).into_owned());
+        let name = crate::transfer::zip_entry_name(e.name_raw(), &decoded);
         let Some(rel) = sanitize_zip_entry(&name) else {
             if e.is_dir() && name.trim_matches('/').is_empty() {
                 continue;

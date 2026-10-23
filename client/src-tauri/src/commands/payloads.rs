@@ -1248,7 +1248,10 @@ fn extract_payload_elf_from_zip(
         if !e.is_file() {
             continue;
         }
-        let name = e.name().to_ascii_lowercase();
+        let name = e
+            .name()
+            .map_err(|e| format!("zip entry {i} name: {e}"))?
+            .to_ascii_lowercase();
         if !name.ends_with(".elf") {
             continue;
         }

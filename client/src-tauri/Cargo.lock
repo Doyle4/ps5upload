@@ -4214,7 +4214,7 @@ dependencies = [
  "sevenz-rust2",
  "thiserror 2.0.21",
  "tokio",
- "zip 8.6.0",
+ "zip",
 ]
 
 [[package]]
@@ -4236,7 +4236,7 @@ dependencies = [
  "sha2 0.11.0",
  "unrar",
  "ureq",
- "zip 8.6.0",
+ "zip",
 ]
 
 [[package]]
@@ -4270,7 +4270,7 @@ dependencies = [
  "tauri-plugin-opener",
  "tauri-plugin-single-instance",
  "tokio",
- "zip 9.0.5",
+ "zip",
 ]
 
 [[package]]
@@ -4309,7 +4309,7 @@ dependencies = [
  "unicode-normalization",
  "ureq",
  "uuid",
- "zip 8.6.0",
+ "zip",
 ]
 
 [[package]]
@@ -7907,20 +7907,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.119",
-]
-
-[[package]]
-name = "zip"
-version = "8.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2d04a6b5381502aa6087c94c669499eb1602eb9c5e8198e534de571f7154809b"
-dependencies = [
- "crc32fast",
- "flate2",
- "indexmap 2.14.0",
- "memchr",
- "typed-path",
- "zopfli",
 ]
 
 [[package]]

@@ -706,7 +706,7 @@ fn unzip_strict(
     let mut root_dirs: BTreeSet<String> = BTreeSet::new();
     for i in 0..archive.len() {
         let entry = archive.by_index(i).context("read zip entry")?;
-        let name = entry.name().to_string();
+        let name = entry.name().context("read zip entry name")?.into_owned();
         if is_finder_noise(&name) {
             continue;
         }
@@ -743,7 +743,7 @@ fn unzip_strict(
     let mut count = 0u32;
     for i in 0..archive.len() {
         let mut entry = archive.by_index(i).context("read zip entry")?;
-        let name = entry.name().to_string();
+        let name = entry.name().context("read zip entry name")?.into_owned();
         if is_finder_noise(&name) {
             continue;
         }
@@ -955,7 +955,7 @@ mod tests {
         let mut out = BTreeMap::new();
         for i in 0..a.len() {
             let e = a.by_index(i).unwrap();
-            out.insert(e.name().to_string(), (e.is_dir(), e.size()));
+            out.insert(e.name().unwrap().into_owned(), (e.is_dir(), e.size()));
         }
         out
     }
@@ -1589,7 +1589,7 @@ mod tests {
                 assert!(
                     mode & 0o111 != 0,
                     "directory `{}` has no execute bit (mode {:o})",
-                    entry.name(),
+                    entry.name().unwrap(),
                     mode
                 );
                 assert_eq!(mode, 0o755, "directory mode should be 0o755");

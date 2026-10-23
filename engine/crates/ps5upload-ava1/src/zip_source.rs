@@ -59,7 +59,8 @@ impl ZipSource {
         let mut dirs = BTreeSet::new();
         for i in 0..zip.len() {
             let entry = zip.by_index_raw(i).map_err(invalid_zip)?;
-            let name = entry.name().trim_end_matches('/');
+            let full = entry.name().map_err(invalid_zip)?.into_owned();
+            let name = full.trim_end_matches('/');
             if name.is_empty() {
                 continue;
             }

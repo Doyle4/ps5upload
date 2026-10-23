@@ -860,7 +860,7 @@ mod tests {
         // Re-open and verify names + that the OLD log line was excluded.
         let mut zip = zip::ZipArchive::new(std::fs::File::open(&dest).unwrap()).unwrap();
         let names: Vec<String> = (0..zip.len())
-            .map(|i| zip.by_index(i).unwrap().name().to_string())
+            .map(|i| zip.by_index(i).unwrap().name().unwrap().into_owned())
             .collect();
         for expect in [
             "report.json",

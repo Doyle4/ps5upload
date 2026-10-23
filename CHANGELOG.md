@@ -36,6 +36,10 @@ Update the helper for everything below.
   stop at a size limit so a huge share cannot hang them. On the PC, the Servers screen has a new
   "Shares on the PS5" card to add, edit and remove the shares Minion uses, or copy a server you
   already saved.
+- **Sort screenshots and clips (#499).** Both tabs in Screenshots & clips can be sorted by date
+  (newest or oldest first) or size. Thanks @tanner02.
+- **Dependencies updated**, including the zip library (8 → 9); zip entries whose names can't be
+  decoded are now read with a best-effort name instead of stopping the archive.
 
 ## 7.1.18
 

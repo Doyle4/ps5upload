@@ -218,7 +218,7 @@ fn zip_entries(path: &Path) -> BTreeMap<String, Vec<u8>> {
         let mut buf = Vec::new();
         f.read_to_end(&mut buf).unwrap();
         assert!(
-            out.insert(f.name().to_string(), buf).is_none(),
+            out.insert(f.name().unwrap().into_owned(), buf).is_none(),
             "duplicate entry"
         );
     }
