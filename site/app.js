@@ -253,7 +253,7 @@ function renderHero(rel, stable, groups, mine) {
     lead.insertAdjacentHTML("beforeend", ` <a href="${esc(stable.url)}">Get ${esc(stable.tag)}</a>`);
   }
   document.getElementById("docker-cmd").textContent =
-    `docker run -d --name ps5upload --network host -v ps5upload-data:/data ghcr.io/${REPO.split("/")[0]}/ps5upload-engine-webui:${rel.tag.replace(/^v/, "")}`;
+    `docker run -d --name ps5upload --network host -v ps5upload-data:/data -e PS5_ADDR=<your PS5's IP> -e PS5UPLOAD_ALLOW_IP=<your LAN, e.g. 192.168.1.0/24> ghcr.io/${REPO.split("/")[0]}/ps5upload-engine-webui:${rel.tag.replace(/^v/, "")}`;
 }
 
 function renderNews(list) {

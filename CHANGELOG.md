@@ -93,6 +93,13 @@ What's new in ps5upload, written for humans.
   under another console's card; adding a game to the home screen while ShadowMount+ runs no longer
   registers it a second time when handing it to ShadowMount+ fails; the command palette's Games
   heading is translated.
+- **Docker `:latest` means a tested release.** The engine images on GHCR are tagged `:latest` and
+  `:<major.minor>` only when a release is promoted from pre-release to release on GitHub; a new
+  tag publishes `:<version>` alone. `docker pull ...:latest` no longer gets a build nobody has run
+  on a console (the same rule as the app's stable update channel).
+- **Docker instructions you can paste.** The website's `docker run` line and `make docker-engine-run`
+  now set `PS5_ADDR` and `PS5UPLOAD_ALLOW_IP`; without them every request from another machine
+  was refused with "403 loopback only".
 
 ## 7.1.19
 

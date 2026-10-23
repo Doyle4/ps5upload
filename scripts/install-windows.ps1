@@ -219,8 +219,10 @@ if (Test-Path $clientDir) {
   Log "Installing client npm dependencies"
   Push-Location $clientDir
   try {
-    & npm install --no-audit --no-fund
-    if ($LASTEXITCODE -ne 0) { Die "npm install failed" }
+    # `npm ci`, never `npm install`: see NPM_INSTALL in the root Makefile (npm 10
+    # strips the lockfile's libc fields that the Alpine web UI image relies on).
+    & npm ci --no-audit --no-fund
+    if ($LASTEXITCODE -ne 0) { Die "npm ci failed" }
     Ok "client/node_modules ready"
   } finally {
     Pop-Location

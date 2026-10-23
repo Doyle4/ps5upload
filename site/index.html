@@ -139,10 +139,10 @@
       <div class="card docker">
         <div>
           <h3>Docker (web UI on your NAS or server)</h3>
-          <p class="muted">Serves the full app as a web page on your network. Open port 19113 in a browser.</p>
+          <p class="muted">Serves the full app as a web page on your network. Open port 19113 in a browser. Fill in your PS5's IP and the LAN range allowed to use it (the engine has no password), or start from <a href="https://github.com/phantomptr/ps5upload/blob/main/engine/compose.yaml">engine/compose.yaml</a>.</p>
         </div>
         <div class="copy">
-          <code id="docker-cmd">docker run -d --name ps5upload --network host -v ps5upload-data:/data ghcr.io/phantomptr/ps5upload-engine-webui:latest</code>
+          <code id="docker-cmd">docker run -d --name ps5upload --network host -v ps5upload-data:/data -e PS5_ADDR=&lt;your PS5's IP&gt; -e PS5UPLOAD_ALLOW_IP=&lt;your LAN, e.g. 192.168.1.0/24&gt; ghcr.io/phantomptr/ps5upload-engine-webui:latest</code>
           <button class="btn small" type="button" data-copy="docker-cmd">Copy</button>
         </div>
       </div>

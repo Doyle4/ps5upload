@@ -119,7 +119,9 @@ PS5_SDK_INSTALL_DIR="$SDK_DIR" "$REPO_ROOT/scripts/install-ps5-sdk.sh"
 # ─── 5. client npm deps ────────────────────────────────────────────────────────
 if [ -d "$REPO_ROOT/client" ]; then
   log "Installing client npm dependencies"
-  (cd "$REPO_ROOT/client" && npm install --no-audit --no-fund)
+  # `npm ci`, never `npm install`: see NPM_INSTALL in the root Makefile (npm 10
+  # strips the lockfile's libc fields that the Alpine web UI image relies on).
+  (cd "$REPO_ROOT/client" && npm ci --no-audit --no-fund)
   ok "client/node_modules ready"
 fi
 
