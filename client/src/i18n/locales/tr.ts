@@ -5116,6 +5116,8 @@ library_compressed_hint: "Sıkıştırılmış kalıpları oynatmak için Shadow
   "disk_usage_summary": "{dirs} klasörde {files} dosya",
   "disk_usage_partial": "Sayım tüm klasörlere ulaşmadan durdu, bu yüzden bu boyutlar gerçek boyutlardan küçük.",
   "disk_usage_skipped": "{count} klasör sayılmadı: okunamadılar, sisteme ait ya da başka bir sürücüdeler.",
+  captures_sort_newest: "Tarih: Önce en yeni",
+  captures_sort_oldest: "Tarih: Önce en eski",
 };
 
 export default tr;

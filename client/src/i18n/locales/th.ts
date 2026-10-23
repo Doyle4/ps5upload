@@ -5118,6 +5118,8 @@ library_compressed_hint: "อิมเมจที่บีบอัดต้อ
   "disk_usage_summary": "{files} ไฟล์ใน {dirs} โฟลเดอร์",
   "disk_usage_partial": "การนับหยุดก่อนจะถึงทุกโฟลเดอร์ ขนาดเหล่านี้จึงน้อยกว่าขนาดจริง",
   "disk_usage_skipped": "มี {count} โฟลเดอร์ที่ไม่ได้นับ: อ่านไม่ได้ เป็นของระบบ หรืออยู่บนไดรฟ์อื่น",
+  captures_sort_newest: "วันที่: ใหม่ที่สุดก่อน",
+  captures_sort_oldest: "วันที่: เก่าที่สุดก่อน",
 };
 
 export default th;

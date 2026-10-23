@@ -5065,6 +5065,8 @@ library_compressed_hint: "压缩镜像需要 ShadowMount+ 才能游玩。如需�
   "disk_usage_summary": "{dirs} 个文件夹中的 {files} 个文件",
   "disk_usage_partial": "统计在到达所有文件夹之前就停止了，因此这些大小小于实际大小。",
   "disk_usage_skipped": "有 {count} 个文件夹未计入：无法读取、属于系统，或位于另一个驱动器上。",
+  captures_sort_newest: "日期：最新优先",
+  captures_sort_oldest: "日期：最旧优先",
 };
 
 export default zh_CN;

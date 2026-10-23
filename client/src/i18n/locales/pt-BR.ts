@@ -5126,6 +5126,8 @@ library_compressed_hint: "Imagens compactadas precisam do ShadowMount+ para joga
   "disk_usage_summary": "{files} arquivos em {dirs} pastas",
   "disk_usage_partial": "A contagem parou antes de chegar a todas as pastas, então estes tamanhos são menores que os reais.",
   "disk_usage_skipped": "{count} pastas não foram contadas: não puderam ser lidas, pertencem ao sistema ou estão em outra unidade.",
+  captures_sort_newest: "Data: Mais recentes primeiro",
+  captures_sort_oldest: "Data: Mais antigos primeiro",
 };
 
 export default pt_BR;

@@ -5059,6 +5059,8 @@ library_compressed_hint: "壓縮映像需要 ShadowMount+ 才能遊玩。如需�
   "disk_usage_summary": "{dirs} 個資料夾中的 {files} 個檔案",
   "disk_usage_partial": "統計在到達所有資料夾之前就停止了，因此這些大小小於實際大小。",
   "disk_usage_skipped": "有 {count} 個資料夾未計入：無法讀取、屬於系統，或位於另一個磁碟機上。",
+  captures_sort_newest: "日期：最新優先",
+  captures_sort_oldest: "日期：最舊優先",
 };
 
 export default zh_TW;

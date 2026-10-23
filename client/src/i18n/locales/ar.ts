@@ -5109,6 +5109,8 @@ library_compressed_hint: "تحتاج الصور المضغوطة إلى ShadowMo
   "disk_usage_summary": "{files} ملف في {dirs} مجلد",
   "disk_usage_partial": "توقف العد قبل الوصول إلى كل المجلدات، لذا هذه الأحجام أقل من الأحجام الفعلية.",
   "disk_usage_skipped": "لم يُحتسب {count} مجلد: تعذرت قراءتها، أو تخص النظام، أو موجودة على محرك آخر.",
+  captures_sort_newest: "التاريخ: الأحدث أولاً",
+  captures_sort_oldest: "التاريخ: الأقدم أولاً",
 };
 
 export default ar;

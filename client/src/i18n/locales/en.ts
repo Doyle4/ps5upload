@@ -5432,6 +5432,8 @@ library_compressed_hint: "Compressed images need ShadowMount+ to play. To edit, 
   "disk_usage_summary": "{files} files in {dirs} folders",
   "disk_usage_partial": "Counting stopped before it reached every folder, so these sizes are lower than the real ones.",
   "disk_usage_skipped": "{count} folders were not counted: they could not be read, belong to the system, or are on another drive.",
+  captures_sort_newest: "Date: Newest first",
+  captures_sort_oldest: "Date: Oldest first",
 };
 
 export default en;

@@ -5410,6 +5410,8 @@ library_compressed_hint: "برای اجرای ایمیج فشرده به ShadowM
   "disk_usage_summary": "{files} فایل در {dirs} پوشه",
   "disk_usage_partial": "شمارش پیش از رسیدن به همه‌ی پوشه‌ها متوقف شد، پس این اندازه‌ها از مقدار واقعی کمترند.",
   "disk_usage_skipped": "{count} پوشه شمرده نشد: خوانده نشدند، متعلق به سیستم هستند یا روی درایو دیگری قرار دارند.",
+  captures_sort_newest: "تاریخ: جدیدترین ابتدا",
+  captures_sort_oldest: "تاریخ: قدیمی‌ترین ابتدا",
 };
 
 export default fa;

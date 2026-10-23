@@ -5127,6 +5127,8 @@ library_compressed_hint: "Les images compressées nécessitent ShadowMount+ pour
   "disk_usage_summary": "{files} fichiers dans {dirs} dossiers",
   "disk_usage_partial": "Le comptage s'est arrêté avant d'atteindre tous les dossiers ; ces tailles sont donc inférieures aux tailles réelles.",
   "disk_usage_skipped": "{count} dossiers n'ont pas été comptés : ils étaient illisibles, appartiennent au système ou se trouvent sur un autre disque.",
+  captures_sort_newest: "Date : Les plus récents",
+  captures_sort_oldest: "Date : Les plus anciens",
 };
 
 export default fr;

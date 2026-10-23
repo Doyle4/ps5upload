@@ -5109,6 +5109,8 @@ library_compressed_hint: "সংকুচিত ইমেজ চালাতে 
   "disk_usage_summary": "{dirs}টি ফোল্ডারে {files}টি ফাইল",
   "disk_usage_partial": "সব ফোল্ডারে পৌঁছানোর আগেই গণনা থেমে গেছে, তাই এই আকারগুলো আসলের চেয়ে কম।",
   "disk_usage_skipped": "{count}টি ফোল্ডার গণনা করা হয়নি: সেগুলো পড়া যায়নি, সিস্টেমের, অথবা অন্য ড্রাইভে আছে।",
+  captures_sort_newest: "তারিখ: নতুন আগে",
+  captures_sort_oldest: "তারিখ: পুরোনো আগে",
 };
 
 export default bn;

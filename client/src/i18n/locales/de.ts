@@ -5117,6 +5117,8 @@ library_compressed_hint: "Komprimierte Images benötigen ShadowMount+ zum Spiele
   "disk_usage_summary": "{files} Dateien in {dirs} Ordnern",
   "disk_usage_partial": "Das Zählen wurde beendet, bevor alle Ordner erreicht waren, daher sind diese Größen kleiner als die tatsächlichen.",
   "disk_usage_skipped": "{count} Ordner wurden nicht gezählt: Sie ließen sich nicht lesen, gehören zum System oder liegen auf einem anderen Laufwerk.",
+  captures_sort_newest: "Datum: Neueste zuerst",
+  captures_sort_oldest: "Datum: Älteste zuerst",
 };
 
 export default de;
