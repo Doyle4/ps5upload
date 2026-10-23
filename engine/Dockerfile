@@ -66,7 +66,9 @@ COPY third_party third_party
 # `make payload` first (it needs the PS5 payload SDK).
 COPY payload payload
 WORKDIR /build/engine
-RUN cargo build --release -p ps5upload-engine
+# --locked: the image is built from a tag; the lockfile must already satisfy
+# Cargo.toml (a stale lock after a squash merge fails here, not re-resolves).
+RUN cargo build --locked --release -p ps5upload-engine
 
 # The runtime image is `scratch`, which has no /tmp and no home: the engine
 # could not stage an uploaded package ("could not create upload dir:
