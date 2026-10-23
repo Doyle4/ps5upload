@@ -79,6 +79,17 @@ pub async fn spa_fallback(req: Request) -> Response {
         return spa_response("index.html");
     }
 
+    // An API path no route serves is not a page: a client (or an older/newer one) asking for
+    // a route this engine lacks must see a 404, not the SPA shell with status 200.
+    if path.starts_with("api/") {
+        return (
+            axum::http::StatusCode::NOT_FOUND,
+            [(header::CONTENT_TYPE, "application/json")],
+            serde_json::json!({ "error": format!("no such route: {raw}") }).to_string(),
+        )
+            .into_response();
+    }
+
     // Try the exact path first (for assets, favicon, etc.).
     if let Some(resp) = asset_response(path) {
         return resp;

@@ -1307,17 +1307,15 @@ export async function browserInvoke<T>(
       );
 
     case "cheats_delete":
-      return getJson<T>(
-        qs("/api/ps5/cheats/delete", {
-          addr: args["req"]?.addr,
-          title_id: args["req"]?.title_id,
-        }),
-      );
+      return postJson<T>("/api/ps5/cheats/delete", {
+        addr: args["req"]?.addr,
+        title_id: args["req"]?.title_id,
+      });
 
     case "cheats_reload":
-      return getJson<T>(
-        qs("/api/ps5/cheats/reload", { addr: args["req"]?.addr }),
-      );
+      return postJson<T>("/api/ps5/cheats/reload", {
+        addr: args["req"]?.addr,
+      });
 
     case "cheats_status":
       return getJson<T>(

@@ -1192,28 +1192,19 @@ pub async fn cheats_toggle(req: CheatsToggleReq) -> Result<JsonValue, String> {
 #[tauri::command]
 pub async fn cheats_delete(req: CheatsDeleteReq) -> Result<JsonValue, String> {
     let base = engine::url();
-    let mut url = format!("{base}/api/ps5/cheats/delete");
-    let mut params = Vec::new();
-    if let Some(ref addr) = req.addr {
-        params.push(format!("addr={}", urlencoding(addr)));
-    }
-    params.push(format!("title_id={}", urlencoding(&req.title_id)));
-    if !params.is_empty() {
-        url.push('?');
-        url.push_str(&params.join("&"));
-    }
-    get_json(&url).await
+    let url = format!("{base}/api/ps5/cheats/delete");
+    post_json(
+        &url,
+        &serde_json::json!({ "addr": req.addr, "title_id": req.title_id }),
+    )
+    .await
 }
 
 #[tauri::command]
 pub async fn cheats_reload(req: CheatsAddrReq) -> Result<JsonValue, String> {
     let base = engine::url();
-    let mut url = format!("{base}/api/ps5/cheats/reload");
-    if let Some(ref addr) = req.addr {
-        url.push('?');
-        url.push_str(&format!("addr={}", urlencoding(addr)));
-    }
-    get_json(&url).await
+    let url = format!("{base}/api/ps5/cheats/reload");
+    post_json(&url, &serde_json::json!({ "addr": req.addr })).await
 }
 
 #[tauri::command]

@@ -3250,11 +3250,12 @@ async fn ps5_hw_power(
 #[derive(Debug, serde::Deserialize)]
 struct TimeSyncReq {
     addr: Option<String>,
-    /// Target wall-clock time as unix seconds (UTC). Used when
-    /// `use_ntp` is false (or absent). Ignored when `use_ntp` is true,
-    /// so an NTP sync may omit it entirely.
+    /// Target wall-clock time as unix seconds (UTC). Required when
+    /// `use_ntp` is false (or absent): a missing one is a 400, never a
+    /// clock set to 1970. Ignored when `use_ntp` is true, so an NTP sync
+    /// may omit it entirely.
     #[serde(default)]
-    target_unix_seconds: i64,
+    target_unix_seconds: Option<i64>,
     /// When true, the engine queries an NTP server (Cloudflare/Google/
     /// pool.ntp.org) for the current time instead of using the client-
     /// provided `target_unix_seconds`. This avoids PC-clock drift and
@@ -3336,7 +3337,16 @@ async fn ps5_time_sync_route(
             }
         }
     } else {
-        (req.target_unix_seconds, "client", None)
+        match req.target_unix_seconds {
+            Some(t) if t > 0 => (t, "client", None),
+            _ => {
+                return json_err(
+                    StatusCode::BAD_REQUEST,
+                    "target_unix_seconds is required unless use_ntp is set",
+                )
+                .into_response();
+            }
+        }
     };
 
     let target_final = target;
@@ -5250,20 +5260,12 @@ async fn ps5_apps_installed(
             };
 
             let mut appdb = AppDbOnce::new(&addr);
-            // Full installed set: every /user/appmeta/<title_id>/ dir.
-            let listing = list_dir(
-                &addr,
-                "/user/appmeta",
-                ListDirOptions {
-                    offset: 0,
-                    limit: 512,
-                },
-            )?;
+            // Full installed set: every /user/appmeta/<title_id>/ dir, page by page (the
+            // helper clamps a page to 256 entries, so one page is not the whole set).
+            let (listing, listing_whole) = list_dir_whole(&addr, "/user/appmeta")?;
 
-            // A full page may have more behind it: then the list is not the whole set.
-            let listing_whole = listing.entries.len() < 512;
             let mut titles: Vec<InstalledApp> = Vec::new();
-            for e in listing.entries {
+            for e in listing {
                 if !looks_like_title_id(&e.name) || is_console_webui_tile(&e.name) {
                     continue;
                 }
@@ -5319,25 +5321,19 @@ async fn ps5_apps_installed(
             // Whether the list below is the console's whole installed set.
             let mut complete = listing_whole;
             let mut app_dirs: std::collections::HashSet<String> = std::collections::HashSet::new();
-            // The internal drive's listing: None when it could not be read.
-            let mut internal_listing: Option<usize> = None;
+            // Whether the internal drive's listing was read whole: None when it could not be
+            // read at all.
+            let mut internal_whole: Option<bool> = None;
             for root in ["/user/app", "/mnt/ext0/user/app", "/mnt/ext1/user/app"] {
-                if let Ok(l) = list_dir(
-                    &addr,
-                    root,
-                    ListDirOptions {
-                        offset: 0,
-                        limit: 512,
-                    },
-                ) {
+                if let Ok((entries, whole)) = list_dir_whole(&addr, root) {
                     if root == "/user/app" {
-                        internal_listing = Some(l.entries.len());
+                        internal_whole = Some(whole);
                     }
-                    app_dirs.extend(l.entries.into_iter().map(|e| e.name));
+                    app_dirs.extend(entries.into_iter().map(|e| e.name));
                 }
             }
             complete = complete
-                && crate::console_snapshot::app_folders_whole(internal_listing, app_dirs.len());
+                && crate::console_snapshot::app_folders_whole(internal_whole, app_dirs.len());
             if !app_dirs.is_empty() {
                 // Whether app.db answered in full: only then is a folder it does not list
                 // known not to be an installed title.
@@ -5597,8 +5593,41 @@ fn skip_in_external_scan(drive: &str, depth: u32, name: &str) -> bool {
             || (drive.starts_with("/mnt/ext") && name.eq_ignore_ascii_case("user")))
 }
 
+/// Pages a listing is read in: the helper clamps every `fs.list` page to this many entries
+/// whatever limit is asked for, so a bigger limit never makes one page the whole folder.
+const LIST_DIR_PAGE: u64 = 256;
+/// Pages read before a folder is given up as not whole (16k entries).
+const LIST_DIR_MAX_PAGES: usize = 64;
+
+/// Every entry of a console folder, page by page, and whether the folder was read whole
+/// (`false` when it has more pages than [`LIST_DIR_MAX_PAGES`]). A listing that fails on any
+/// page is an error: a busy console must not read as a shorter folder.
+fn list_dir_whole(
+    addr: &str,
+    path: &str,
+) -> anyhow::Result<(Vec<ps5upload_core::fs_ops::DirEntry>, bool)> {
+    let mut out = Vec::new();
+    let mut offset = 0u64;
+    for _ in 0..LIST_DIR_MAX_PAGES {
+        let page = list_dir(
+            addr,
+            path,
+            ListDirOptions {
+                offset,
+                limit: LIST_DIR_PAGE,
+            },
+        )?;
+        let n = page.entries.len() as u64;
+        out.extend(page.entries);
+        if !page.truncated || n == 0 {
+            return Ok((out, true));
+        }
+        offset += n;
+    }
+    Ok((out, false))
+}
+
 pub fn scan_external_pkgs(addr: &str) -> anyhow::Result<Vec<ExternalPkg>> {
-    use ps5upload_core::fs_ops::{fs_read, list_dir, ListDirOptions};
     const MAX_DEPTH: u32 = 5;
     const MAX_DIRS: usize = 600;
     const MAX_PKGS: usize = 256;
@@ -5622,11 +5651,12 @@ pub fn scan_external_pkgs(addr: &str) -> anyhow::Result<Vec<ExternalPkg>> {
                 break;
             }
             dirs_visited += 1;
-            let listing = match list_dir(addr, &dir, ListDirOptions::default()) {
-                Ok(l) => l,
+            // Every page: a folder of more than 256 packages used to stop at the first.
+            let entries = match list_dir_whole(addr, &dir) {
+                Ok((entries, _)) => entries,
                 Err(_) => continue,
             };
-            for e in listing.entries {
+            for e in entries {
                 let lower = e.name.to_ascii_lowercase();
                 let is_package = lower.ends_with(".pkg") || lower.ends_with(".fpkg");
                 if e.kind == "dir" {
@@ -6276,6 +6306,8 @@ async fn transfer_file_handler(
     );
 
     let bandwidth_cap = req.bandwidth_cap_mbps;
+    // Registered before the task so a cancel that arrives before the transfer starts is kept.
+    let cancel = register_transfer_cancel(job_id);
     tokio::task::spawn_blocking(move || {
         // Marks the console busy for the job: a helper stop is refused meanwhile.
         let _busy = helper_stop::enter(&addr);
@@ -6291,9 +6323,8 @@ async fn transfer_file_handler(
         let mut fail_guard =
             JobFailOnDropGuard::new(Arc::clone(&jobs), events_tx.clone(), job_id, started_at_ms);
         let mut cfg = make_transfer_config(&addr);
-        // Make this transfer cancellable: register a flag the core checks at
-        // every shard boundary, flipped by POST /api/jobs/{id}/cancel.
-        cfg.cancel = Some(register_transfer_cancel(job_id));
+        // The flag registered before the task: the core checks it at every shard boundary.
+        cfg.cancel = Some(cancel);
         cfg.progress_bytes = Some(Arc::clone(&progress));
         cfg.progress_files = Some(Arc::clone(&progress_files));
         cfg.progress_files_finalized = Some(Arc::clone(&progress_files_finalized));
@@ -6457,6 +6488,10 @@ async fn transfer_dir_handler(
 
     let jobs = Arc::clone(&state.jobs);
     let events_tx = state.events_tx.clone();
+    // Registered before the id goes out, not after the walk: the walk is the long part of a
+    // big folder, and a cancel that arrives during it used to find no flag (`cancelled:false`)
+    // and the whole folder uploaded anyway.
+    let cancel = register_transfer_cancel(job_id);
 
     tokio::task::spawn_blocking(move || {
         // Marks the console busy for the job: a helper stop is refused meanwhile.
@@ -6550,6 +6585,24 @@ async fn transfer_dir_handler(
             files_sent_count,
             total_bytes
         );
+        // A cancel during the walk ends the job here, as the core would at its first check,
+        // without the readiness round trip; one that lands later is caught by the core
+        // before anything is sent.
+        if cancel.load(Ordering::Relaxed) {
+            let completed_at_ms = now_ms();
+            set_job(
+                &jobs,
+                &events_tx,
+                job_id,
+                job_failed_from_err(
+                    started_at_ms,
+                    completed_at_ms,
+                    &anyhow::anyhow!("transfer_cancelled"),
+                ),
+            );
+            fail_guard.mark_succeeded();
+            return;
+        }
         if fail_job_unless_console_ready(&jobs, &events_tx, job_id, started_at_ms, &addr) {
             fail_guard.mark_succeeded();
             return;
@@ -6604,9 +6657,8 @@ async fn transfer_dir_handler(
         let _stop_guard = TickerStopGuard::new(stop_ticker);
         let mut cfg = make_transfer_config(&addr);
         cfg.source_fs = source_fs;
-        // Make this transfer cancellable: register a flag the core checks at
-        // every shard boundary, flipped by POST /api/jobs/{id}/cancel.
-        cfg.cancel = Some(register_transfer_cancel(job_id));
+        // The flag registered above: the core checks it at every shard boundary.
+        cfg.cancel = Some(cancel);
         cfg.excludes = req.excludes;
         cfg.renames = renames;
         cfg.progress_bytes = Some(Arc::clone(&progress));
@@ -6641,8 +6693,14 @@ async fn transfer_dir_handler(
             ),
             None => ps5upload_ava1::upload::upload_dir(&cfg, tx_id, &req.dest_root, &src_path),
         };
-        let skipped_files_count: u64 = 0;
-        let skipped_bytes_count: u64 = 0;
+        // What the console already had (skip policies, SPEC §11.4) and the files actually
+        // sent, from the commit ack, as the single-file route reports them; the plan's
+        // count when the ack has none.
+        let (skipped_files_count, skipped_bytes_count, files_sent_count) = result
+            .as_ref()
+            .ok()
+            .and_then(|r| ava1_skip_counts(&r.commit_ack_body))
+            .unwrap_or((0, 0, files_sent_count));
         match result {
             Ok(r) => {
                 let completed_at_ms = now_ms();
@@ -7134,6 +7192,8 @@ async fn transfer_zip_handler(
         Arc::clone(&progress_bytes_finalized),
     );
 
+    // Registered before the task so a cancel that arrives before the transfer starts is kept.
+    let cancel = register_transfer_cancel(job_id);
     tokio::task::spawn_blocking(move || {
         // Marks the console busy for the job: a helper stop is refused meanwhile.
         let _busy = helper_stop::enter(&addr);
@@ -7145,9 +7205,8 @@ async fn transfer_zip_handler(
             return;
         }
         let mut cfg = make_transfer_config(&addr);
-        // Make this transfer cancellable: register a flag the core checks at
-        // every shard boundary, flipped by POST /api/jobs/{id}/cancel.
-        cfg.cancel = Some(register_transfer_cancel(job_id));
+        // The flag registered before the task: the core checks it at every shard boundary.
+        cfg.cancel = Some(cancel);
         cfg.excludes = req.excludes;
         cfg.progress_bytes = Some(Arc::clone(&progress));
         cfg.progress_files = Some(Arc::clone(&progress_files));
@@ -7541,7 +7600,18 @@ async fn profile_activate_handler(
         return missing_console_addr();
     };
     let slot = req.slot;
-    let id = req.id.as_ref().and_then(AccountIdInput::to_u64);
+    // No id (or a blank one) derives the id from the slot; a given id that does not parse is
+    // refused rather than quietly replaced by the derived one.
+    let id = match req.id.as_ref() {
+        None => None,
+        Some(AccountIdInput::Str(s)) if s.trim().is_empty() => None,
+        Some(given) => match given.to_u64() {
+            Some(id) => Some(id),
+            None => {
+                return json_err(StatusCode::BAD_REQUEST, "not a valid account id").into_response();
+            }
+        },
+    };
     let r = tokio::task::spawn_blocking(move || {
         ps5upload_core::profile::profile_activate(&addr, slot, id)
     })
@@ -8052,9 +8122,11 @@ async fn cheats_toggle_handler(
     }
 }
 
+/// POST /api/ps5/cheats/delete `{addr, title_id}`. A POST, like every other call that changes
+/// the console: a GET could be issued by any page in a browser without Fetch Metadata.
 async fn cheats_delete_handler(
     State(_state): State<AppState>,
-    Query(q): Query<CheatsDeleteQuery>,
+    Json(q): Json<CheatsDeleteQuery>,
 ) -> impl IntoResponse {
     // Destructive: acts only on the console the request names, never the default one.
     let Some(addr) = required_console_addr(q.addr) else {
@@ -8073,9 +8145,10 @@ async fn cheats_delete_handler(
     }
 }
 
+/// POST /api/ps5/cheats/reload `{addr}` (a POST for the same reason as delete).
 async fn cheats_reload_handler(
     State(state): State<AppState>,
-    Query(q): Query<CheatsAddrQuery>,
+    Json(q): Json<CheatsAddrQuery>,
 ) -> impl IntoResponse {
     let addr = console_addr_or_default(q.addr, &state.default_ps5_addr);
     let r = tokio::task::spawn_blocking(move || ps5upload_core::cheats::cheats_reload(&addr))
@@ -8538,6 +8611,8 @@ async fn transfer_7z_handler(
         Arc::clone(&progress_bytes_finalized),
     );
 
+    // Registered before the task so a cancel that arrives before the transfer starts is kept.
+    let cancel = register_transfer_cancel(job_id);
     tokio::task::spawn_blocking(move || {
         // Marks the console busy for the job: a helper stop is refused meanwhile.
         let _busy = helper_stop::enter(&addr);
@@ -8545,9 +8620,8 @@ async fn transfer_7z_handler(
         let mut fail_guard =
             JobFailOnDropGuard::new(Arc::clone(&jobs), events_tx.clone(), job_id, started_at_ms);
         let mut cfg = make_transfer_config(&addr);
-        // Make this transfer cancellable: register a flag the core checks at
-        // every shard boundary, flipped by POST /api/jobs/{id}/cancel.
-        cfg.cancel = Some(register_transfer_cancel(job_id));
+        // The flag registered before the task: the core checks it at every shard boundary.
+        cfg.cancel = Some(cancel);
         cfg.excludes = req.excludes;
         cfg.progress_bytes = Some(Arc::clone(&progress));
         cfg.progress_files = Some(Arc::clone(&progress_files));
@@ -8759,6 +8833,8 @@ async fn transfer_rar_handler(
         Arc::clone(&progress_bytes_finalized),
     );
 
+    // Registered before the task so a cancel that arrives before the transfer starts is kept.
+    let cancel = register_transfer_cancel(job_id);
     tokio::task::spawn_blocking(move || {
         // Marks the console busy for the job: a helper stop is refused meanwhile.
         let _busy = helper_stop::enter(&addr);
@@ -8770,9 +8846,8 @@ async fn transfer_rar_handler(
             return;
         }
         let mut cfg = make_transfer_config(&addr);
-        // Make this transfer cancellable: register a flag the core checks at
-        // every shard boundary, flipped by POST /api/jobs/{id}/cancel.
-        cfg.cancel = Some(register_transfer_cancel(job_id));
+        // The flag registered before the task: the core checks it at every shard boundary.
+        cfg.cancel = Some(cancel);
         cfg.excludes = req.excludes;
         cfg.progress_bytes = Some(Arc::clone(&progress));
         cfg.progress_files = Some(Arc::clone(&progress_files));
@@ -9109,6 +9184,8 @@ async fn link_download_handler(
         Arc::clone(&progress_bytes_finalized),
     );
 
+    // Registered before the task so a cancel that arrives before the transfer starts is kept.
+    let cancel = register_transfer_cancel(job_id);
     tokio::task::spawn_blocking(move || {
         // Marks the console busy for the job: a helper stop is refused meanwhile.
         let _busy = helper_stop::enter(&addr);
@@ -9120,7 +9197,7 @@ async fn link_download_handler(
             return;
         }
         let mut cfg = make_transfer_config(&addr);
-        cfg.cancel = Some(register_transfer_cancel(job_id));
+        cfg.cancel = Some(cancel);
         cfg.progress_bytes = Some(Arc::clone(&progress));
         cfg.progress_files = Some(Arc::clone(&progress_files));
         cfg.progress_files_finalized = Some(Arc::clone(&progress_files_finalized));
@@ -9267,28 +9344,30 @@ async fn transfer_file_list_handler(
         let dest_root = req.dest_root.clone();
         match tokio::task::spawn_blocking(move || {
             let mut planner_skipped: Vec<(String, String)> = Vec::new();
-            let files: Vec<PlannedFile> = entries
-                .iter()
-                .filter_map(|e| {
-                    let size = match std::fs::metadata(&e.src) {
-                        Ok(m) => m.len(),
-                        Err(err) => {
-                            planner_skipped.push((e.src.clone(), err.to_string()));
-                            return None;
-                        }
-                    };
-                    let rel = std::path::Path::new(&e.dest)
-                        .strip_prefix(std::path::Path::new(&dest_root))
-                        .map(|p| p.to_string_lossy().into_owned())
-                        .unwrap_or_else(|_| e.dest.clone())
-                        .replace(std::path::MAIN_SEPARATOR, "/");
-                    Some(PlannedFile {
-                        rel_path: rel,
-                        size,
-                    })
-                })
-                .collect();
-            (entries, files, planner_skipped)
+            // A file whose metadata fails leaves the plan AND the transfer list: sent on, the
+            // core stats it again and the whole job fails on it.
+            let mut kept = Vec::with_capacity(entries.len());
+            let mut files: Vec<PlannedFile> = Vec::with_capacity(entries.len());
+            for e in entries {
+                let size = match std::fs::metadata(&e.src) {
+                    Ok(m) => m.len(),
+                    Err(err) => {
+                        planner_skipped.push((e.src.clone(), err.to_string()));
+                        continue;
+                    }
+                };
+                let rel = std::path::Path::new(&e.dest)
+                    .strip_prefix(std::path::Path::new(&dest_root))
+                    .map(|p| p.to_string_lossy().into_owned())
+                    .unwrap_or_else(|_| e.dest.clone())
+                    .replace(std::path::MAIN_SEPARATOR, "/");
+                files.push(PlannedFile {
+                    rel_path: rel,
+                    size,
+                });
+                kept.push(e);
+            }
+            (kept, files, planner_skipped)
         })
         .await
         {
@@ -9306,6 +9385,15 @@ async fn transfer_file_list_handler(
         for (src, err) in &planner_skipped {
             log_warn!("planner: skipped {} (metadata failed: {})", src, err);
         }
+    }
+    if entries.is_empty() {
+        // Nothing readable: no job, the first reason tells the user what is wrong.
+        let (src, err) = &planner_skipped[0];
+        return json_err(
+            StatusCode::BAD_REQUEST,
+            format!("no readable file in the list: {src}: {err}"),
+        )
+        .into_response();
     }
     let total_bytes: u64 = files.iter().map(|f| f.size).sum();
     let files_sent_count = files.len() as u64;
@@ -9360,6 +9448,8 @@ async fn transfer_file_list_handler(
         Arc::clone(&progress_bytes_finalized),
     );
 
+    // Registered before the task so a cancel that arrives before the transfer starts is kept.
+    let cancel = register_transfer_cancel(job_id);
     tokio::task::spawn_blocking(move || {
         // Marks the console busy for the job: a helper stop is refused meanwhile.
         let _busy = helper_stop::enter(&addr);
@@ -9371,9 +9461,8 @@ async fn transfer_file_list_handler(
             return;
         }
         let mut cfg = make_transfer_config(&addr);
-        // Make this transfer cancellable: register a flag the core checks at
-        // every shard boundary, flipped by POST /api/jobs/{id}/cancel.
-        cfg.cancel = Some(register_transfer_cancel(job_id));
+        // The flag registered before the task: the core checks it at every shard boundary.
+        cfg.cancel = Some(cancel);
         cfg.progress_bytes = Some(Arc::clone(&progress));
         cfg.progress_files = Some(Arc::clone(&progress_files));
         cfg.progress_files_finalized = Some(Arc::clone(&progress_files_finalized));
@@ -9384,8 +9473,12 @@ async fn transfer_file_list_handler(
         // Resume is by job_id (the sender reopens with JobOpen); retries live in the adapter's
         // loop. A list that names several directories becomes one job per directory.
         let result = ps5upload_ava1::upload::upload_list(&cfg, tx_id, &req.dest_root, &entries);
-        let skipped_files_count: u64 = 0;
-        let skipped_bytes_count: u64 = 0;
+        // Skip and sent counts from the commit ack when it has them (as the dir route).
+        let (skipped_files_count, skipped_bytes_count, files_sent_count) = result
+            .as_ref()
+            .ok()
+            .and_then(|r| ava1_skip_counts(&r.commit_ack_body))
+            .unwrap_or((0, 0, files_sent_count));
         match result {
             Ok(r) => {
                 let completed_at_ms = now_ms();
@@ -10914,8 +11007,8 @@ async fn run(cfg: EngineConfig) -> anyhow::Result<()> {
         .route("/api/ps5/cheats/list", get(cheats_list_handler))
         .route("/api/ps5/cheats/get", get(cheats_get_handler))
         .route("/api/ps5/cheats/toggle", post(cheats_toggle_handler))
-        .route("/api/ps5/cheats/delete", get(cheats_delete_handler))
-        .route("/api/ps5/cheats/reload", get(cheats_reload_handler))
+        .route("/api/ps5/cheats/delete", post(cheats_delete_handler))
+        .route("/api/ps5/cheats/reload", post(cheats_reload_handler))
         .route("/api/ps5/cheats/status", get(cheats_status_handler))
         .route(
             "/api/ps5/cheats/engine-set",
@@ -11274,6 +11367,15 @@ async fn run(cfg: EngineConfig) -> anyhow::Result<()> {
         return Err(anyhow::anyhow!("axum serve terminated: {e}"));
     }
     Ok(())
+}
+
+/// The message a caught panic carried (`catch_unwind`'s payload), for an error text.
+pub(crate) fn panic_text(payload: &(dyn std::any::Any + Send)) -> String {
+    payload
+        .downcast_ref::<&str>()
+        .map(|s| s.to_string())
+        .or_else(|| payload.downcast_ref::<String>().cloned())
+        .unwrap_or_else(|| "<non-string panic payload>".to_string())
 }
 
 /// Desktop sidecar entry point. Reads `PS5UPLOAD_ENGINE_PORT` /

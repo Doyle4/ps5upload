@@ -244,8 +244,16 @@ pub async fn start_scan(Json(req): Json<ScanRequest>) -> impl IntoResponse {
         titles_total: req.titles.len(),
         ..Default::default()
     }));
-    registry().lock().unwrap().insert(id, Arc::clone(&state));
-    tokio::task::spawn_blocking(move || run_scan(req, state));
+    registry()
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .insert(id, Arc::clone(&state));
+    tokio::task::spawn_blocking(move || {
+        // Ends the scan however the thread leaves: a panic used to keep it "running"
+        // forever, and a lock it poisoned failed every later status read.
+        let _done = ScanDone(Arc::clone(&state));
+        run_scan(req, state)
+    });
     (
         StatusCode::OK,
         Json(serde_json::json!({ "scan_id": id.to_string() })),
@@ -253,16 +261,37 @@ pub async fn start_scan(Json(req): Json<ScanRequest>) -> impl IntoResponse {
         .into_response()
 }
 
+/// Marks a scan done when its thread ends, with an error when it ended by panicking.
+struct ScanDone(Arc<Mutex<ScanState>>);
+
+impl Drop for ScanDone {
+    fn drop(&mut self) {
+        let mut s = self.0.lock().unwrap_or_else(|e| e.into_inner());
+        if std::thread::panicking() && s.error.is_none() {
+            s.error = Some("the scan stopped unexpectedly".to_string());
+        }
+        s.current.clear();
+        s.done = true;
+    }
+}
+
 pub async fn scan_status(AxumPath(id): AxumPath<String>) -> impl IntoResponse {
     let Ok(id) = id.parse::<Uuid>() else {
         return err(StatusCode::BAD_REQUEST, "not a scan id");
     };
-    let state = registry().lock().unwrap().get(&id).cloned();
+    let state = registry()
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .get(&id)
+        .cloned();
     match state {
         Some(s) => {
-            let snapshot = s.lock().unwrap().clone();
+            let snapshot = s.lock().unwrap_or_else(|e| e.into_inner()).clone();
             if snapshot.done {
-                registry().lock().unwrap().remove(&id);
+                registry()
+                    .lock()
+                    .unwrap_or_else(|e| e.into_inner())
+                    .remove(&id);
             }
             (StatusCode::OK, Json(snapshot)).into_response()
         }

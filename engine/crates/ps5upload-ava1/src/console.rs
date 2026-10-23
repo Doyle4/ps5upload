@@ -61,11 +61,12 @@ fn helper_not_ava1_because(detail: &'static str) -> UploadFailure {
 /// Whether a payload loader answers on the console's port 9021 (one connect, a second at
 /// most): tells "no helper, send it" from "no jailbreak loader up at all" (#447).
 fn loader_listening(addr: &str) -> bool {
-    let host = addr.rsplit_once(':').map_or(addr, |(h, _)| h);
-    let Ok(mut it) = std::net::ToSocketAddrs::to_socket_addrs(&(
-        host,
+    // `host_of` keeps an IPv6 literal whole (`rsplit_once(':')` cut `[fe80::1]` to `[fe80:`).
+    let target = ps5upload_core::payload_lifecycle::join_host_port(
+        &crate::pool::host_of(addr),
         ps5upload_core::payload_lifecycle::PS5_LOADER_PORT,
-    )) else {
+    );
+    let Ok(mut it) = std::net::ToSocketAddrs::to_socket_addrs(target.as_str()) else {
         return false;
     };
     it.any(|a| std::net::TcpStream::connect_timeout(&a, Duration::from_secs(1)).is_ok())

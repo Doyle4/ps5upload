@@ -331,13 +331,24 @@ fn enforce_size_cap() -> Option<u64> {
 /// of the negative TTL after one dropped connection.
 ///
 /// `fs_read` reports the first case by wrapping the payload's own
-/// rejection (`fs_ops.rs`), and the second as a connection or timeout
-/// error. There is no typed error to match on, so this matches that
-/// prefix. If the wording ever changes the effect is simply that we stop
-/// remembering absent artwork — a small cost, never a wrong answer, which
-/// is the right way round for a guess like this to fail.
+/// rejection (`fs_ops.rs`) with a not-found cause, and the second as a
+/// connection or timeout error. A refusal the engine itself raises before
+/// asking (`helper_not_ava1`, `console_rest_mode`, `ava1_unreachable`:
+/// status 0 in `MgmtError`) wears the same `payload rejected` prefix and
+/// must not count either — while the helper was down it made every title
+/// "have no artwork" for the negative TTL. So the prefix alone is not
+/// enough: the cause has to be a real not-found. If the wording ever
+/// changes the effect is simply that we stop remembering absent artwork —
+/// a small cost, never a wrong answer, which is the right way round for a
+/// guess like this to fail.
 pub fn is_console_said_no(e: &anyhow::Error) -> bool {
-    format!("{e:#}").contains("payload rejected FS_READ")
+    if e.downcast_ref::<ps5upload_core::mgmt::MgmtError>()
+        .is_some_and(|m| m.status == 0)
+    {
+        return false;
+    }
+    let text = format!("{e:#}");
+    text.contains("payload rejected FS_READ") && ps5upload_core::fs_ops::is_not_found(&text)
 }
 
 /// True when a request's `If-None-Match` matches what we hold.
@@ -495,6 +506,15 @@ mod tests {
         let said_no =
             anyhow::anyhow!("payload rejected FS_READ(/user/appmeta/NPXS40172/icon0.png): ENOENT");
         assert!(is_console_said_no(&said_no));
+        // The helper's own wording for a missing file (mgmt_fs.c), as the AVA1 transport
+        // carries it.
+        let helper_said_no: anyhow::Error = ps5upload_core::mgmt::MgmtError {
+            label: "FS_READ(/user/app/PPSA00001/sce_sys/icon0.png)".into(),
+            status: 7,
+            cause: "fs_read_stat_failed".into(),
+        }
+        .into();
+        assert!(is_console_said_no(&helper_said_no));
 
         // We never reached it — remembering this would blank every cover
         // on the next render for the length of the negative TTL.
@@ -508,6 +528,30 @@ mod tests {
                 "must not treat {unreachable:?} as absent artwork"
             );
         }
+        // A refusal raised before the console was asked wears the same prefix
+        // (status 0): a helper that is down or a console in rest mode is not a
+        // title without artwork.
+        for local in [
+            ps5upload_core::mgmt::helper_not_ava1("FS_READ(/user/appmeta/X/icon0.png)"),
+            ps5upload_core::mgmt::console_unusable(
+                "FS_READ(/user/appmeta/X/icon0.png)",
+                ps5upload_core::mgmt::CONSOLE_REST_MODE,
+                ps5upload_core::mgmt::CONSOLE_REST_MODE_MESSAGE,
+            ),
+        ] {
+            assert!(
+                !is_console_said_no(&local),
+                "must not treat {local:#} as absent artwork"
+            );
+        }
+        // The console answered, but with something other than "not there" (busy, denied).
+        let refused: anyhow::Error = ps5upload_core::mgmt::MgmtError {
+            label: "FS_READ(/user/appmeta/X/icon0.png)".into(),
+            status: 7,
+            cause: "fs_read_open_failed".into(),
+        }
+        .into();
+        assert!(!is_console_said_no(&refused));
     }
 
     #[test]
