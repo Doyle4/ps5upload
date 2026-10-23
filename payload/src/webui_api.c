@@ -1022,15 +1022,21 @@ static void r_pkg_icon(const char *b, size_t n, uint8_t *out, int fd) {
     free(png);
 }
 
-/* {"path"[,"replace":true]}: checked here first (a full game already installed answers 409
- * pkg_install_already_installed, so the page can ask before Sony removes it), then the job. */
+/* {"path"[,"replace":true][,"remove_after":true]}: checked here first (a full game already installed
+ * answers 409 pkg_install_already_installed, so the page can ask before Sony removes it), then the
+ * job. remove_after (the Library's copy of a package from a share, in WEBUI_PKG_STAGE_DIR) has the
+ * job remove the package like its own staging copy. */
 static void r_pkg_install(const char *b, size_t n, uint8_t *out, int fd) {
-    char path[API_PATH];
+    char path[API_PATH], tail[48];
     const char *cause = "internal";
-    int replace = 0, st;
+    int replace = 0, remove_after = 0, st;
     if (need_path(fd, b, n, "path", path, sizeof path) != 0) return;
     if (webui_json_bool(b, n, "replace", &replace) < 0) {
         send_bad(fd, "bad_replace");
+        return;
+    }
+    if (webui_json_bool(b, n, "remove_after", &remove_after) < 0) {
+        send_bad(fd, "bad_remove_after");
         return;
     }
     st = webui_pkg_install_check(path, replace, &cause);
@@ -1038,7 +1044,8 @@ static void r_pkg_install(const char *b, size_t n, uint8_t *out, int fd) {
         send_error(fd, st, cause, strlen(cause));
         return;
     }
-    start_path_job(fd, out, AVA1_JOB_OP_PKG_INSTALL, path, NULL, replace ? ",\"replace\":true" : "");
+    snprintf(tail, sizeof tail, "%s%s", replace ? ",\"replace\":true" : "", remove_after ? ",\"remove_after\":1" : "");
+    start_path_job(fd, out, AVA1_JOB_OP_PKG_INSTALL, path, NULL, tail);
 }
 
 static void r_payload_load(const char *b, size_t n, uint8_t *out, int fd) {
@@ -1249,6 +1256,33 @@ static void r_apps_uninstall(const char *b, size_t n, uint8_t *out, int fd) {
     }
     k = snprintf(req, sizeof req, "{\"title_id\":\"%s\"}", tid);
     st = call_text(AVA1_METHOD_APP_UNREGISTER, req, (size_t)k, out, &ol, &t, &tl);
+    send_text_reply(fd, st, out, ol, t, tl);
+}
+
+/* {path}: APP_REGISTER, the PC app's Register of a game folder (the Library offers it after it copied
+ * a folder dump to the console) -> {"title_id","title_name","used_nullfs"}; a refusal is the
+ * helper's register_* token. */
+static void r_apps_register(const char *b, size_t n, uint8_t *out, int fd) {
+    char path[API_PATH], *req;
+    const uint8_t *t;
+    size_t ol, tl, k;
+    int st;
+    if (need_path(fd, b, n, "path", path, sizeof path) != 0) return;
+    req = malloc(2 * API_PATH + 32);
+    if (!req) {
+        send_error(fd, 500, "out_of_memory", 13);
+        return;
+    }
+    k = (size_t)snprintf(req, 2 * API_PATH + 32, "{\"src_path\":\"");
+    k += webui_json_escape(req + k, 2 * API_PATH + 32 - k, path, strlen(path));
+    if (k + 3 > 2 * API_PATH + 32) {
+        free(req);
+        send_bad(fd, "bad_path");
+        return;
+    }
+    memcpy(req + k, "\"}", 3);
+    st = call_text(AVA1_METHOD_APP_REGISTER, req, k + 2, out, &ol, &t, &tl);
+    free(req);
     send_text_reply(fd, st, out, ol, t, tl);
 }
 
@@ -2850,6 +2884,8 @@ static const struct {
     { "/api/smb/job", webui_smb_job },
     { "/api/smb/cancel", webui_smb_cancel },
     { "/api/smb/jobs", webui_smb_jobs },
+    { "/api/library/scan", webui_library_scan },
+    { "/api/apps/register", r_apps_register },
     { "/api/cleanup/scan", r_cleanup_scan },
     { "/api/cleanup/status", r_cleanup_status },
     { "/api/cleanup/apply", r_cleanup_apply },

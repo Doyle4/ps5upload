@@ -958,6 +958,13 @@ test-payload: payload
 		$(PAYLOAD_DIR)/smb/smbd_copy.c $(PAYLOAD_DIR)/smb/smbd_path.c $(PAYLOAD_DIR)/smb/smbd_localfs.c
 	@/tmp/ps5upload-smbd-copy-selftest
 	@echo "✓ share copies go through a part file, survive a dropped server, cancel and refuse cleanly"
+	@echo "Running game library scan self-test (host build)..."
+	@cc -O2 -Wall -Wextra -Werror -I$(PAYLOAD_DIR)/smb -I$(PAYLOAD_DIR)/include \
+		-o /tmp/ps5upload-smbd-library-selftest $(PAYLOAD_DIR)/tests/smbd_library_selftest.c \
+		$(PAYLOAD_DIR)/smb/smbd_library.c $(PAYLOAD_DIR)/smb/smbd_localfs.c $(PAYLOAD_DIR)/smb/smbd_path.c \
+		$(PAYLOAD_DIR)/smb/smbd_json.c $(PAYLOAD_DIR)/src/pkg_info.c
+	@/tmp/ps5upload-smbd-library-selftest
+	@echo "✓ the library scan finds packages, folder dumps and images with their covers, stays inside its limits and never walks a dump"
 	@echo "Running console page network-share routes self-test (host build)..."
 	@cc -O2 -Wall -Wextra -Werror -pthread -I$(PAYLOAD_DIR)/include -I$(PAYLOAD_DIR)/smb \
 		-I$(PAYLOAD_DIR)/ava1 -I$(PAYLOAD_DIR)/ava1/gen -I$(PAYLOAD_DIR)/third_party/monocypher \

@@ -1124,6 +1124,18 @@ name = "METHOD_CLEANUP_CANCEL"
 ty = "u16"
 value = 164
 [[const]]
+name = "METHOD_SMB_SHARES_LIST"
+ty = "u16"
+value = 170
+[[const]]
+name = "METHOD_SMB_SHARES_SAVE"
+ty = "u16"
+value = 171
+[[const]]
+name = "METHOD_SMB_SHARES_REMOVE"
+ty = "u16"
+value = 172
+[[const]]
 name = "JOB_OP_DELETE"
 ty = "u8"
 value = 1

@@ -19,6 +19,14 @@
 #define SMBD_DIR "/data/ps5upload/smb"
 #endif
 #define SMBD_KEY_PATH SMBD_DIR "/daemon.key"
+/* The game library cache (#498, smb/smbd_library.h): the daemon writes <source>.json and icons/ here,
+ * the console page reads them through /api/fs/read. */
+#ifndef SMBD_LIB_DIR
+#define SMBD_LIB_DIR "/data/ps5upload/library"
+#endif
+/* What a scan of the console's own drives walks, and the folder it never walks into. */
+#define SMBD_LIB_CONSOLE_ROOTS "/data\n/mnt/usb0\n/mnt/usb1\n/mnt/usb2\n/mnt/usb3\n/mnt/ext0\n/mnt/ext1"
+#define SMBD_LIB_CONSOLE_SKIP "/data/ps5upload"
 #define SMBD_LOG_PATH SMBD_DIR "/smbd.log"
 #define SMBD_KEY_HEX 64
 #define SMBD_REQ_MAX (64u * 1024u)    /* one request line */

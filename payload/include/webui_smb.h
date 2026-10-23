@@ -38,6 +38,20 @@ void webui_smb_job(const char *b, size_t n, uint8_t *out, int fd);
 void webui_smb_cancel(const char *b, size_t n, uint8_t *out, int fd);
 void webui_smb_jobs(const char *b, size_t n, uint8_t *out, int fd);
 
+/* The game library (#498): POST /api/library/scan {source} starts the daemon's scan of a saved share
+ * (source = its id; the share's start_path is walked) or of the console's drives (source "console")
+ * -> {"job"}, read and cancelled like a copy (/api/smb/job, /api/smb/cancel). The result is
+ * SMBD_LIB_DIR/<source>.json and its covers (smb/smbd_library.h), read by the page with /api/fs/read. */
+void webui_library_scan(const char *b, size_t n, uint8_t *out, int fd);
+
+/* The PC app's side of the same saved shares (mgmt smb.shares_list / _save / _remove): the reply
+ * JSON into out, its length. {"ok":true,"shares":[share...],"max"} | {"ok":true,"share":share,
+ * "dialect"} (after the same sign-in check as /api/smb/save) | {"ok":true}; a refusal is
+ * {"ok":false,"err":token[,"detail"]}. Never a password. */
+int webui_smb_pc_list(char *out, size_t cap);
+int webui_smb_pc_save(const char *b, size_t n, char *out, size_t cap);
+int webui_smb_pc_remove(const char *b, size_t n, char *out, size_t cap);
+
 /* The HTTP status for a daemon / route error token (pure, host-tested). */
 int webui_smb_http_status(const char *token);
 

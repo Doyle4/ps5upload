@@ -8,7 +8,9 @@
 #include <time.h>
 #include <unistd.h>
 
+#include "smbd_library.h"
 #include "smbd_log.h"
+#include "smbd_proto.h"
 
 #define JOB_STACK (512u * 1024u)
 /* Room a copy leaves on the console's disk beyond what it writes. */
@@ -37,7 +39,7 @@ static pthread_mutex_t g_mu = PTHREAD_MUTEX_INITIALIZER;
 static job_t g_jobs[SMBD_JOBS_MAX];
 
 static const char *kind_name(job_kind_t k) {
-    return k == JOB_DOWN ? "download" : k == JOB_UP ? "upload" : "remove";
+    return k == JOB_DOWN ? "download" : k == JOB_UP ? "upload" : k == JOB_REMOVE ? "remove" : "scan";
 }
 
 static const char *state_name(job_state_t s) {
@@ -56,8 +58,9 @@ static void *job_main(void *arg) {
     smbd_name_thread();
     localfs_init(&local);
     memset(&smb, 0, sizeof smb);
-    rc = smbfs_open(&smb, &j->conn, j->detail, sizeof j->detail);
-    if (rc == 0) {
+    if (j->kind == JOB_SCAN_LOCAL) {
+        rc = lib_scan(&local, j->dst, SMBD_LIB_CONSOLE_ROOTS, SMBD_LIB_CONSOLE_SKIP, SMBD_LIB_DIR, NULL, &j->pr);
+    } else if ((rc = smbfs_open(&smb, &j->conn, j->detail, sizeof j->detail)) == 0) {
         copy_opts_t o;
         memset(&o, 0, sizeof o);
         j->dialect = smbfs_dialect(&smb);
@@ -68,6 +71,8 @@ static void *job_main(void *arg) {
             rc = copy_run(&smb, j->src, &local, j->dst, &o, &j->pr, j->failed, sizeof j->failed);
         } else if (j->kind == JOB_UP) {
             rc = copy_run(&local, j->src, &smb, j->dst, &o, &j->pr, j->failed, sizeof j->failed);
+        } else if (j->kind == JOB_SCAN_SMB) {
+            rc = lib_scan(&smb, j->dst, j->src, NULL, SMBD_LIB_DIR, NULL, &j->pr);
         } else {
             rc = copy_remove_tree(&smb, j->src, &j->pr);
         }
@@ -124,6 +129,15 @@ int jobs_start(job_kind_t kind, const smbconn_t *c, const char *src, const char 
     if (running_locked() >= SMBD_JOBS_RUNNING_MAX || !(j = slot_locked())) {
         pthread_mutex_unlock(&g_mu);
         return XE_BUSY;
+    }
+    if (kind == JOB_SCAN_SMB || kind == JOB_SCAN_LOCAL) {
+        for (i = 0; i < SMBD_JOBS_MAX; i++) {
+            const job_t *o = &g_jobs[i];
+            if (o->state == ST_RUNNING && (o->kind == JOB_SCAN_SMB || o->kind == JOB_SCAN_LOCAL) && strcmp(o->dst, dst) == 0) {
+                pthread_mutex_unlock(&g_mu);
+                return XE_BUSY;
+            }
+        }
     }
     memset(j, 0, sizeof *j);
     arc4random_buf(raw, sizeof raw);
