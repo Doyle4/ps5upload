@@ -8,6 +8,7 @@ use std::path::Path;
 
 pub mod ampr_index;
 pub mod ampr_pack;
+pub mod browse;
 pub mod build;
 pub mod cnt;
 pub mod cnt_write;

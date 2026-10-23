@@ -21,6 +21,7 @@ import {
   type LocalImageStatus,
 } from "../../api/ps5";
 import { LOCAL_IMAGE_EXTENSIONS } from "./imageTypes";
+import { ImageBrowser } from "./ImageBrowser";
 
 function basename(p: string): string {
   const parts = p.split(/[\\/]/);
@@ -136,6 +137,8 @@ export default function LocalImageScreen() {
           onDismiss={() => setError(null)}
         />
       )}
+
+      <ImageBrowser />
 
       {unsupported && (
         <Callout

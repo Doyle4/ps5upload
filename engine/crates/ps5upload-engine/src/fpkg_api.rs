@@ -784,6 +784,68 @@ pub(crate) struct ExfatBuildReq {
     /// archive is named after the archive (its unpack folder's name means nothing).
     #[serde(default)]
     name: Option<String>,
+    /// Write an edited COPY of the image `source` (#479): its files with these changes, as an
+    /// image of the same kind (format and compression are the source's; `format`/`compress`
+    /// are ignored), named `<name>-edited` and put next to it unless `name`/`output_dir` say
+    /// otherwise. The source image is only read.
+    #[serde(default)]
+    edits: Vec<ImageEditReq>,
+}
+
+/// One change for an edited copy of an image: `{"op":"delete","path":…}` removes a file or
+/// folder; `{"op":"put","path":…,"from":…}` puts a file (or a folder's contents) from this
+/// computer at `path`, replacing what is there.
+#[derive(Deserialize, Debug)]
+#[serde(tag = "op", rename_all = "snake_case")]
+pub(crate) enum ImageEditReq {
+    Delete { path: String },
+    Put { path: String, from: String },
+}
+
+impl ImageEditReq {
+    fn edit(&self) -> ps5upload_fpkg::browse::Edit {
+        use ps5upload_fpkg::browse::Edit;
+        match self {
+            Self::Delete { path } => Edit::Delete { path: path.clone() },
+            Self::Put { path, from } => Edit::Put {
+                path: path.clone(),
+                from: resolve_engine_path(from),
+            },
+        }
+    }
+}
+
+/// An edited copy's tree, and the image kind it is written as (the source's).
+pub(crate) struct EditedImage {
+    pub(crate) tree: Box<dyn ps5upload_fpkg::source::SourceTree>,
+    pub(crate) format: crate::image_build::ImageFormat,
+    pub(crate) compress: bool,
+}
+
+/// Opens the image at `source` with `edits` applied, refusing a package (no image writer).
+pub(crate) fn open_edited(source: &Path, edits: &[ImageEditReq]) -> Result<EditedImage, String> {
+    use crate::image_build::ImageFormat;
+    use ps5upload_fpkg::browse::{self, Edited, Filesystem};
+    let opened = browse::open(source).map_err(|e| e.to_string())?;
+    let format = match opened.filesystem {
+        Filesystem::Exfat => ImageFormat::Exfat,
+        Filesystem::Ufs2 => ImageFormat::Ffpkg,
+        Filesystem::Pfs => ImageFormat::Ffpfs,
+        Filesystem::Pkg => {
+            return Err(
+                "a package cannot be edited here: unpack it to a folder, change that, and \
+                 build a new package with Convert"
+                    .into(),
+            )
+        }
+    };
+    let edits: Vec<_> = edits.iter().map(ImageEditReq::edit).collect();
+    let tree = Edited::new(opened.tree, &edits).map_err(|e| e.to_string())?;
+    Ok(EditedImage {
+        tree: Box::new(tree),
+        format,
+        compress: opened.compressed,
+    })
 }
 
 #[derive(Deserialize, Default)]
@@ -835,7 +897,7 @@ impl AmprLz4Req {
 /// exFAT reader (every file's path and size must match the folder) and only then renamed.
 pub(crate) async fn exfat_build_handler(
     State(state): State<AppState>,
-    Json(req): Json<ExfatBuildReq>,
+    Json(mut req): Json<ExfatBuildReq>,
 ) -> impl IntoResponse {
     let source = resolve_engine_path(&req.source);
     // A game folder on this computer, on a saved server (`remote://`) or on a console
@@ -851,10 +913,43 @@ pub(crate) async fn exfat_build_handler(
         )
         .into_response();
     }
-    let format = match crate::image_build::ImageFormat::parse(req.format.as_deref()) {
-        Ok(f) => f,
-        Err(e) => return json_err(StatusCode::BAD_REQUEST, e).into_response(),
+    // An edited copy (#479): the image on this computer, opened with the changes applied, is
+    // written out again as the same kind of image.
+    let edited = if req.edits.is_empty() {
+        None
+    } else {
+        if remote || !image_file {
+            return json_err(
+                StatusCode::BAD_REQUEST,
+                format!("{} is not a game image on this computer", source.display()),
+            )
+            .into_response();
+        }
+        if req.ampr_lz4.is_some() {
+            return json_err(
+                StatusCode::BAD_REQUEST,
+                "an edited copy is written as the image was: LZ4 asset packs are not made here",
+            )
+            .into_response();
+        }
+        let (edit_source, edits) = (source.clone(), std::mem::take(&mut req.edits));
+        match tokio::task::spawn_blocking(move || open_edited(&edit_source, &edits)).await {
+            Ok(Ok(e)) => Some(e),
+            Ok(Err(e)) => return json_err(StatusCode::BAD_REQUEST, e).into_response(),
+            Err(e) => {
+                return json_err(StatusCode::INTERNAL_SERVER_ERROR, format!("{e:#}"))
+                    .into_response()
+            }
+        }
     };
+    let format = match &edited {
+        Some(e) => e.format,
+        None => match crate::image_build::ImageFormat::parse(req.format.as_deref()) {
+            Ok(f) => f,
+            Err(e) => return json_err(StatusCode::BAD_REQUEST, e).into_response(),
+        },
+    };
+    let compress = edited.as_ref().map_or(req.compress, |e| e.compress);
     let level = match ps5upload_fpkg::ffpfsc_block::Level::parse(req.ffpfsc_level.as_deref()) {
         Ok(l) => l,
         Err(e) => return json_err(StatusCode::BAD_REQUEST, e).into_response(),
@@ -870,7 +965,7 @@ pub(crate) async fn exfat_build_handler(
     );
     let packs = match &req.ampr_lz4 {
         None => None,
-        Some(_) if format != crate::image_build::ImageFormat::Exfat || req.compress => {
+        Some(_) if format != crate::image_build::ImageFormat::Exfat || compress => {
             return json_err(
                 StatusCode::BAD_REQUEST,
                 "LZ4 asset packs go into a plain exFAT image: choose exFAT and turn off .ffpfsc \
@@ -894,10 +989,20 @@ pub(crate) async fn exfat_build_handler(
             }
             PathBuf::from(n)
         }
+        // An edited copy is told from its source by name.
+        None if edited.is_some() => {
+            PathBuf::from(format!("{}-edited", crate::image_build::stem_of(&source)))
+        }
         None => source.clone(),
     };
-    let out_dir = output_dir(req.output_dir.as_deref());
-    let (out_name, inner_name) = crate::image_build::output_names(&named, format, req.compress);
+    // An edited copy goes next to its source unless told otherwise.
+    let out_dir = match (&edited, req.output_dir.as_deref().map(str::trim)) {
+        (Some(_), None | Some("")) => source
+            .parent()
+            .map_or_else(default_output_dir, Path::to_path_buf),
+        _ => output_dir(req.output_dir.as_deref()),
+    };
+    let (out_name, inner_name) = crate::image_build::output_names(&named, format, compress);
     let output = out_dir.join(out_name);
     if !remote
         && image_file
@@ -927,7 +1032,12 @@ pub(crate) async fn exfat_build_handler(
     let scan_source = source.clone();
     let check_packs = packs.is_some();
     let install_runtime = req.ampr_lz4.as_ref().is_some_and(|r| r.install_runtime);
+    let edited_tree = edited.map(|e| e.tree);
     let scanned = tokio::task::spawn_blocking(move || {
+        // An edited copy keeps the image's own names: only the user's changes are made.
+        if let Some(tree) = edited_tree {
+            return Ok(tree);
+        }
         // A UFS2 image (.ffpkg) is case-sensitive like /data: give modules the eboot's spelling.
         let (mut tree, renamed) =
             ps5upload_fpkg::module_case::open(&scan_source).map_err(|e| e.to_string())?;
@@ -1202,6 +1312,39 @@ pub(crate) struct FolderBuildReq {
     /// Compare every file by SHA-256. Off (the default): every size, and a seeded sample.
     #[serde(default)]
     full_verify: bool,
+    /// Save only this file or folder of the image (#479, the image browser's Save), by its
+    /// path inside the image: a folder becomes a folder named after it, a file a file. Its
+    /// name is the entry's own unless `name` says otherwise.
+    #[serde(default)]
+    entry: Option<String>,
+}
+
+/// What a folder build reads: the whole image, one folder of it, or one file.
+enum Unpacked {
+    Tree(Box<dyn ps5upload_fpkg::source::SourceTree>),
+    File {
+        tree: Box<dyn ps5upload_fpkg::source::SourceTree>,
+        path: String,
+        size: u64,
+    },
+}
+
+/// The file or folder `entry` (a normalized path inside it) of the image at `source`, read as
+/// the image spells it.
+fn open_entry(source: &Path, entry: &str) -> Result<Unpacked, String> {
+    use ps5upload_fpkg::browse::{Index, Kind, Subtree};
+    let tree = ps5upload_fpkg::source::open(source).map_err(|e| e.to_string())?;
+    match Index::new(&*tree).kind(entry) {
+        Some(Kind::File(size)) => Ok(Unpacked::File {
+            tree,
+            path: entry.to_string(),
+            size,
+        }),
+        Some(Kind::Dir) => Ok(Unpacked::Tree(Box::new(
+            Subtree::new(tree, entry).map_err(|e| e.to_string())?,
+        ))),
+        None => Err(format!("{entry} is not in {}", source.display())),
+    }
 }
 
 /// POST /api/folder/build — unpack a game image or a debug-key package into a plain folder
@@ -1234,19 +1377,36 @@ pub(crate) async fn folder_build_handler(
         )
         .into_response();
     }
-    let name = match req.name.as_deref().map(str::trim).filter(|n| !n.is_empty()) {
-        Some(n) => {
-            if let Some(why) = folder_build::name_problem(n) {
+    // One file or folder of the image (the browser's Save), or "" / absent for all of it.
+    let entry = match req.entry.as_deref() {
+        None => None,
+        Some(raw) => match ps5upload_fpkg::browse::normalize(raw) {
+            Some(p) if p.is_empty() => None,
+            Some(p) => Some(p),
+            None => {
                 return json_err(
                     StatusCode::BAD_REQUEST,
-                    format!("the folder name {n:?} {why}"),
+                    format!("{raw:?} is not a path inside the image"),
                 )
-                .into_response();
+                .into_response()
             }
-            n.to_string()
-        }
-        None => crate::image_build::stem_of(&source),
+        },
     };
+    // The source's stem is made safe already; a given name or an entry's own may not be.
+    let (name, check) = match req.name.as_deref().map(str::trim).filter(|n| !n.is_empty()) {
+        Some(n) => (n.to_string(), true),
+        None => match &entry {
+            Some(e) => (e.rsplit('/').next().unwrap_or(e).to_string(), true),
+            None => (crate::image_build::stem_of(&source), false),
+        },
+    };
+    if let Some(why) = check.then(|| folder_build::name_problem(&name)).flatten() {
+        return json_err(
+            StatusCode::BAD_REQUEST,
+            format!("the folder name {name:?} {why}"),
+        )
+        .into_response();
+    }
     let out_dir = output_dir(req.output_dir.as_deref());
     let target = out_dir.join(&name);
     if tokio::fs::try_exists(&target).await.unwrap_or(false) {
@@ -1256,7 +1416,8 @@ pub(crate) async fn folder_build_handler(
         )
         .into_response();
     }
-    // A `<name>.partial` that is not one of ours is the user's: never cleared, never used.
+    // A `<name>.partial` that is not one of ours is the user's: never cleared, never used. A
+    // saved file's `.partial` is a file, which cannot be told from a user's: it is refused too.
     let partial = folder_build::partial_of(&target);
     if tokio::fs::try_exists(&partial).await.unwrap_or(false)
         && !folder_build::is_our_partial_dir(&partial)
@@ -1275,7 +1436,12 @@ pub(crate) async fn folder_build_handler(
         .into_response();
     }
     let scan_source = source.clone();
+    let scan_entry = entry.clone();
     let scanned = tokio::task::spawn_blocking(move || {
+        if let Some(entry) = scan_entry {
+            // A part of the image is saved as the image spells it, as the browser listed it.
+            return open_entry(&scan_source, &entry);
+        }
         // An image ignores letter case and /data does not: a Unity dump whose
         // Il2cppUserAssemblies.prx the eboot loads as Il2CppUserAssemblies.prx plays from the
         // image and crashes a second in from the folder. The folder takes the eboot's spelling.
@@ -1287,24 +1453,33 @@ pub(crate) async fn folder_build_handler(
                 ps5upload_fpkg::module_case::describe(&renamed)
             );
         }
-        Ok::<_, String>(tree)
+        Ok::<_, String>(Unpacked::Tree(tree))
     })
     .await;
-    let tree = match scanned {
+    let unpacked = match scanned {
         Ok(Ok(t)) => t,
         Ok(Err(e)) => return json_err(StatusCode::BAD_REQUEST, e).into_response(),
         Err(e) => {
             return json_err(StatusCode::INTERNAL_SERVER_ERROR, format!("{e:#}")).into_response()
         }
     };
-    if tree.files().is_empty() {
-        return json_err(
-            StatusCode::BAD_REQUEST,
-            format!("{} has no files in it", source.display()),
-        )
-        .into_response();
-    }
-    let total: u64 = tree.files().iter().map(|f| f.size).sum();
+    let total: u64 = match &unpacked {
+        Unpacked::Tree(tree) => {
+            if tree.files().is_empty() {
+                let what = match &entry {
+                    Some(e) => e.clone(),
+                    None => source.display().to_string(),
+                };
+                return json_err(
+                    StatusCode::BAD_REQUEST,
+                    format!("{what} has no files in it"),
+                )
+                .into_response();
+            }
+            tree.files().iter().map(|f| f.size).sum()
+        }
+        Unpacked::File { size, .. } => *size,
+    };
     if let Some(why) =
         build::free_bytes(&out_dir).and_then(|free| folder_build::shortfall(free, total, &out_dir))
     {
@@ -1375,8 +1550,12 @@ pub(crate) async fn folder_build_handler(
             job_id,
             started_at_ms,
         );
-        sweep_output_leftovers(&out_dir);
-        let mut tree = tree;
+        // A part of an image is saved wherever the user chose: that folder is theirs, and its
+        // leftovers are not swept.
+        let sweep = entry.is_none();
+        if sweep {
+            sweep_output_leftovers(&out_dir);
+        }
         const STAGES: [&str; 2] = ["write", "verify"];
         let mut report = |id: &str, done: u64, total: u64| {
             if id == "write" {
@@ -1392,16 +1571,37 @@ pub(crate) async fn folder_build_handler(
             });
         };
         let reopen_source = source.clone();
-        // Verification reads the source afresh by the folder's names, so with the same renames.
-        let reopen = move || {
-            ps5upload_fpkg::module_case::open(&reopen_source)
+        let reopen_entry = entry.clone();
+        // Verification reads the source afresh by the folder's names, so with the same renames
+        // (or, for a part of the image, the same part).
+        let reopen = move || match &reopen_entry {
+            Some(e) => open_entry(&reopen_source, e).map(|u| match u {
+                Unpacked::Tree(t) | Unpacked::File { tree: t, .. } => t,
+            }),
+            None => ps5upload_fpkg::module_case::open(&reopen_source)
                 .map(|(t, _)| t)
-                .map_err(|e| e.to_string())
+                .map_err(|e| e.to_string()),
         };
-        let outcome = folder_build::build(&mut *tree, &reopen, &target, mode, &cancel, &mut report);
-        drop(tree);
+        let outcome = match unpacked {
+            Unpacked::Tree(mut tree) => {
+                folder_build::build(&mut *tree, &reopen, &target, mode, &cancel, &mut report)
+            }
+            Unpacked::File {
+                mut tree,
+                path,
+                size,
+            } => folder_build::extract_file(
+                &mut *tree,
+                &path,
+                size,
+                &reopen,
+                &target,
+                &cancel,
+                &mut report,
+            ),
+        };
         drop(writing);
-        if outcome.is_err() {
+        if outcome.is_err() && sweep {
             sweep_output_leftovers(&out_dir);
         }
         let completed_at_ms = now_ms();

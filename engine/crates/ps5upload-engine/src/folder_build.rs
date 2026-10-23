@@ -457,6 +457,71 @@ pub(crate) fn build(
     }
 }
 
+/// Saves the one file `path` (`size` bytes) of `tree` as the file `target` (#479, the image
+/// browser's Save): written as `<target>.partial`, its SHA-256 compared in full with the same
+/// file read from a source `reopen` opens afresh, then renamed. `stage` reports `write` and
+/// `verify`. The caller has claimed the `.partial`; on any failure it is removed here.
+pub(crate) fn extract_file(
+    tree: &mut dyn SourceTree,
+    path: &str,
+    size: u64,
+    reopen: &dyn Fn() -> Result<Box<dyn SourceTree>, String>,
+    target: &Path,
+    cancel: &AtomicBool,
+    stage: &mut dyn FnMut(&str, u64, u64),
+) -> Result<FolderBuilt, String> {
+    if target.exists() {
+        return Err(format!("{} already exists", target.display()));
+    }
+    let partial = partial_of(target);
+    let result = (|| -> Result<FolderBuilt, String> {
+        let mut written = 0u64;
+        stage("write", 0, size);
+        copy_file(tree, path, size, &partial, cancel, &mut |n| {
+            written += n;
+            stage("write", written, size);
+        })?;
+        if cancel.load(Ordering::Relaxed) {
+            return Err("cancelled".into());
+        }
+        let got_len = std::fs::metadata(&partial)
+            .map_err(|e| format!("{path} did not read back: {e}"))?
+            .len();
+        if got_len != size {
+            return Err(format!(
+                "{path} is {got_len} bytes on this computer and {size} in the image"
+            ));
+        }
+        stage("verify", 0, size);
+        let mut fresh = reopen()?;
+        let want = hash_source(&mut *fresh, path, 0, size, cancel)?;
+        let got = hash_written(&partial, 0, size, cancel)?;
+        if want != got {
+            return Err(format!("{path} differs between the copy and the image"));
+        }
+        stage("verify", size, size);
+        if target.exists() {
+            return Err(format!(
+                "{} appeared while it was written",
+                target.display()
+            ));
+        }
+        std::fs::rename(&partial, target).map_err(|e| e.to_string())?;
+        Ok(FolderBuilt {
+            files: 1,
+            bytes: size,
+            detail: format!("1 file, {size} bytes, SHA-256 checked in full"),
+        })
+    })();
+    if result.is_err() {
+        let _ = std::fs::remove_file(&partial);
+    }
+    match result {
+        Err(_) if cancel.load(Ordering::Relaxed) => Err("cancelled".into()),
+        r => r,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

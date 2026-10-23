@@ -273,6 +273,7 @@ pub fn run() {
             commands::local_image_attach,
             commands::local_image_detach,
             commands::local_image_status,
+            commands::image_browse,
             commands::cheats_list,
             commands::cheats_get,
             commands::cheats_toggle,

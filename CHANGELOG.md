@@ -21,6 +21,12 @@ Update the helper for everything below.
   browser, and they are queued base game first, then the update, then DLC.
 - **Queue icons show right away (#479).** An install that starts as soon as you add it now shows
   the game's icon and name while it runs, not only after it finishes.
+- **Look inside any game image on your computer (#479).** Edit image on this computer now opens
+  every kind ps5upload reads (.exfat, .ffpkg, .ffpfs, .ffpfsc and debug .pkg) without mounting it,
+  on Windows too and in the browser version. Browse folders with their sizes and save any file or
+  folder to the computer (checked against the image). For images (not packages) you can also add,
+  replace or delete files and write an edited copy next to the original; the copy is read back
+  and checked, and the image you opened is never changed.
 
 ## 7.1.18
 
