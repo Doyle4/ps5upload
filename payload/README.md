@@ -5,9 +5,14 @@ The C payload that runs on the PS5. Built with the
 in [`../scripts/ps5-sdk.env`](../scripts/ps5-sdk.env)), sent to the
 console's ELF loader, and left resident until reboot or rest mode.
 
-It listens on one port, **9120**, for AVA1 (`protocol/ava1/SPEC.md`):
-transfers, status, filesystem, mount, app, hardware, package and shell
-calls all travel over one encrypted session with up to 8 data lanes.
+Its main port is **9120**, AVA1 (`protocol/ava1/SPEC.md`): transfers,
+status, filesystem, mount, app, hardware, package and shell calls all
+travel over one encrypted session with up to 8 data lanes. It also serves
+PS5Upload Minion, the console's own web page, on **9180** (`WEBUI_PORT` in
+`include/config.h`; off when `webui.json` says `enabled:false`), and starts
+companion daemons on demand through the console's `:9021` loader: the
+installer on **9115**, the SMB daemon (`smb/`, loopback-only on 9183) and
+the short-lived archive extractor (`extractor/`, no socket).
 
 ## Layout
 

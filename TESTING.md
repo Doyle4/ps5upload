@@ -20,8 +20,9 @@ npm run validate      # or: make quality
 Runs, and fails on any of: version drift against `VERSION`; script syntax
 (Node, Bash, Python, and PowerShell when `pwsh` is present); the script
 inventory audit; `git whitespace` (`git diff --check`); **engine fmt**,
-**engine clippy** (`-D warnings`) and **engine tests**; **desktop cargo
-check**, **desktop clippy** and **desktop tests**; **client typecheck**,
+**engine clippy** (`-D warnings`) and **engine tests**; **desktop clippy**
+(`--all-targets`, which type-checks everything a `cargo check` would) and
+**desktop tests**; **client typecheck**,
 **client lint**, **client tests** and **client vite build**; and **i18n
 coverage**.
 
@@ -203,8 +204,8 @@ npm run i18n:report       # same, always prints the per-language summary
 ```
 
 `client/src/i18n/locales/en.ts` is the source of truth. A new `tr()` key
-must exist there or the gate fails. Then either translate it into the 18
-locales or add it to `scripts/i18n-known-missing.json` as a deliberate,
+must exist there or the gate fails. Then either translate it into the 20
+other locales (21 locale files in all) or add it to `scripts/i18n-known-missing.json` as a deliberate,
 scoped deferral.
 
 **Do not run `i18n:bootstrap`.** It rewrites the allowlist to the current

@@ -37,8 +37,11 @@ ps5upload talks to a **jailbroken PS5 over a LAN**. The AVA1 protocol
 every byte; the console only accepts devices that were paired by comparing
 a six-digit code, or the engine that launched it. Weaknesses in pairing,
 the handshake, or AVA1's message parsers are squarely in scope. The
-local engine binds loopback (`127.0.0.1:19113`) and rejects non-loopback
-callers except the PS5-facing `/pkg-host/` route. Reports most in scope:
+local engine binds every interface (`0.0.0.0:19113`) so the PS5 can fetch
+packages from the `/pkg-host/` route; a guard rejects every other request
+unless it comes from loopback or from an address listed in
+`PS5UPLOAD_ALLOW_IP` (the Android build binds loopback only). A way past
+that guard is in scope. Reports most in scope:
 
 - the desktop/Android client and the local engine service,
 - the PS5 payload's network-facing handlers,
