@@ -32,6 +32,7 @@
 //!   GET  /api/ps5/list-dir?path=...   → list immediate children of a directory on PS5
 //!   POST /api/ps5/disk-usage          → start a recursive size walk (see `disk_usage`)
 //!   POST /api/ps5/cleanup/scan        → console clean-up scan / apply (see `console_cleanup_api`)
+//!   GET  /api/ps5/console-shares      → the console's own saved network shares (see `console_shares_api`)
 
 mod activity;
 mod ampr_trace;
@@ -46,6 +47,7 @@ mod console_cleanup_api;
 mod console_files_api;
 mod console_payload;
 mod console_read;
+mod console_shares_api;
 mod console_snapshot;
 mod convert_source;
 mod disk_usage;
@@ -10637,6 +10639,15 @@ async fn run(cfg: EngineConfig) -> anyhow::Result<()> {
             get(console_cleanup_api::apply_status),
         )
         .route("/api/ps5/cleanup/cancel", post(console_cleanup_api::cancel))
+        .route("/api/ps5/console-shares", get(console_shares_api::list))
+        .route(
+            "/api/ps5/console-shares/save",
+            post(console_shares_api::save),
+        )
+        .route(
+            "/api/ps5/console-shares/remove",
+            post(console_shares_api::remove),
+        )
         .route("/api/ava1/identity", get(ava1_api::identity_handler))
         .route("/api/ava1/pairing", get(ava1_api::pairing_handler))
         .route(
