@@ -1,4 +1,4 @@
-import { planStreamSelection } from "../../lib/streamSelection";
+import { planStreamSelection, type StreamSelectionItem } from "../../lib/streamSelection";
 import { invoke } from "../../lib/invokeLogged";
 import { formatDate } from "../../lib/formatDate";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -36,7 +36,7 @@ import {
 } from "lucide-react";
 
 import { isAndroid } from "../../lib/platform";
-import { pickPath } from "../../lib/pickPath";
+import { pickPath, pickPaths } from "../../lib/pickPath";
 import { isTauriEnv, safeUnlisten } from "../../lib/tauriEnv";
 import { engineIsOnThisDevice } from "../../state/engine";
 import {
@@ -881,9 +881,21 @@ export default function InstallPackageScreen() {
   async function runStreamInstall(
     sourcePath: string,
     streamName: string,
-    opts?: { ephemeral?: boolean },
+    opts?: { ephemeral?: boolean; item?: StreamSelectionItem },
   ) {
-    const r = await installStream(sourcePath, host);
+    const item = opts?.item;
+    const r = await installStream(
+      sourcePath,
+      host,
+      item
+        ? {
+            displayName: streamName,
+            category: item.category,
+            contentId: item.contentId,
+            sizeBytes: item.size ?? null,
+          }
+        : undefined,
+    );
     // The outcome lives on the item's queue row — including its error and
     // Retry via upload. Only a browser upload's row is dropped on failure (its
     // staged copy is deleted, so it could never be retried): say it here.
@@ -899,59 +911,68 @@ export default function InstallPackageScreen() {
     }
   }
 
-  async function handleBrowserStreamFile(file: File) {
+  /** Packages picked from the device this browser runs on (#479: several at once, like the
+   *  desktop picker). All are uploaded first, so the queue can order them base game → update
+   *  → DLC whatever order they were picked in. */
+  async function handleBrowserStreamFiles(files: File[]) {
     setPickError(null);
-    let uploadId: string | null = null;
+    const uploadIds: string[] = [];
     try {
-      const staged = await stageBrowserPkg(file);
-      uploadId = staged.uploadId;
-      await runStreamInstall(staged.path, staged.filename || file.name, { ephemeral: true });
+      const names: Record<string, string> = {};
+      const paths: string[] = [];
+      for (const file of files) {
+        const staged = await stageBrowserPkg(file);
+        uploadIds.push(staged.uploadId);
+        names[staged.path] = staged.filename || file.name;
+        paths.push(staged.path);
+      }
+      await queueStreamPaths(paths, { names, ephemeral: true });
     } catch (e) {
       setPickError(`${e}`);
     } finally {
-      if (uploadId) {
-        // Best effort: a stale-upload sweep also catches browser crashes.
-        await deleteBrowserPkgUpload(uploadId).catch(() => {});
-      }
+      // Best effort: a stale-upload sweep also catches browser crashes.
+      for (const id of uploadIds) await deleteBrowserPkgUpload(id).catch(() => {});
     }
   }
 
-  /** A package picked on a saved server: the engine streams it straight to the console. */
-  async function streamFromServer(path: string) {
+  /** Packages picked on a saved server: the engine streams them straight to the console. */
+  async function streamFromServer(paths: string[]) {
     setPickError(null);
     if (!host?.trim()) {
       setPickError(tr("install.error.noHost", "Set a PS5 host on the Connection screen first."));
       return;
     }
-    if (!isInstallPackagePath(path)) {
-      setPickError(tr("pkglib.stream.notPkg", undefined, "Pick a .pkg or .fpkg file."));
-      return;
-    }
     try {
-      await runStreamInstall(path, path.split("/").pop() ?? path);
+      await queueStreamPaths(paths);
     } catch (e) {
       setPickError(`${e}`);
     }
   }
 
-  async function queueStreamPaths(paths: string[]) {
+  /** Read every picked package's header, then queue them base game → update → DLC. */
+  async function queueStreamPaths(
+    paths: string[],
+    opts?: { names?: Record<string, string>; ephemeral?: boolean },
+  ) {
     if (!paths.length) return;
-    if (paths.some((path) => !isInstallPackagePath(path))) {
+    if (!opts?.ephemeral && paths.some((path) => !isInstallPackagePath(path))) {
       setPickError(tr("pkglib.stream.notPkg", undefined, "Pick a .pkg or .fpkg file."));
       return;
     }
-    const targetHost = host;
-    const plan = await planStreamSelection(paths,
-      (path) => invoke("pkg_metadata_split", { path }));
+    const plan = (
+      await planStreamSelection(paths, (path) => invoke("pkg_metadata_split", { path }))
+    ).map((item) => ({ ...item, name: opts?.names?.[item.path] ?? item.name }));
     if (plan.length > 1 && !await confirm({
       title: tr("queue_title", undefined, "Queue"),
       message: plan.map((item) => `${item.name}${item.category ? ` (${item.category})` : ""}`).join("\n"),
       confirmLabel: tr("pkglib.url.confirm", "Start install"),
     })) return;
-    await Promise.all(plan.map((item) => installStream(item.path, targetHost, {
-      displayName: item.name, category: item.category, contentId: item.contentId,
-      sizeBytes: item.size ?? null,
-    })));
+    // Queued in plan order: each install joins the console queue before the next is added.
+    await Promise.all(
+      plan.map((item) =>
+        runStreamInstall(item.path, item.name, { ephemeral: opts?.ephemeral, item }),
+      ),
+    );
   }
 
   async function handleStreamPick() {
@@ -995,16 +1016,14 @@ export default function InstallPackageScreen() {
     // route. Keeping a `destructive: true` confirm on the safe path while
     // the unsafe one was one click away was the wrong way round.
     try {
-      const sel = isAndroid()
-        ? await pickPath({
-            mode: "file",
-            filters: [{ name: "PlayStation Package", extensions: ["pkg", "fpkg"] }],
-          })
-        : await openDialog({
-            multiple: true,
-            filters: [{ name: "PlayStation Package", extensions: ["pkg", "fpkg"] }],
-          });
-      if (sel) await queueStreamPaths(Array.isArray(sel) ? sel : [sel]);
+      // Several at once everywhere (#479): the system dialog on desktop, ticked rows in the
+      // in-app browser on Android.
+      await queueStreamPaths(
+        await pickPaths({
+          mode: "file",
+          filters: [{ name: "PlayStation Package", extensions: ["pkg", "fpkg"] }],
+        }),
+      );
     } catch (e) {
       setPickError(`${e}`);
     }
@@ -1616,19 +1635,21 @@ export default function InstallPackageScreen() {
                         )
                   }
                   onMainClick={() => void handleStreamPick()}
-                  onPick={(p) => void streamFromServer(p)}
+                  onPick={(p) => void streamFromServer([p])}
+                  onPickMany={(paths) => void streamFromServer(paths)}
                 />
                 {!engineIsOnThisDevice() && (
                   <input
                     ref={browserPkgInputRef}
                     type="file"
                     accept=".pkg,.fpkg"
+                    multiple
                     className="hidden"
                     onChange={(event) => {
-                      const file = event.currentTarget.files?.[0];
+                      const files = Array.from(event.currentTarget.files ?? []);
                       // Selecting the same file again must fire another change.
                       event.currentTarget.value = "";
-                      if (file) void handleBrowserStreamFile(file);
+                      if (files.length) void handleBrowserStreamFiles(files);
                     }}
                   />
                 )}

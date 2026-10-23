@@ -39,8 +39,10 @@ export type BringUpStatus =
 interface BringUpState {
   /** Keyed by bare host. A console with no entry is idle. */
   byHost: Record<string, BringUpStatus>;
-  /** Run the full bring-up chain against `host` (a bare ip or ip:port). */
-  run: (host: string, tr: Translator) => Promise<void>;
+  /** Run the full bring-up chain against `host` (a bare ip or ip:port). `autoLoader: false`
+   *  leaves the post-helper playlist to AppShell's down-to-up edge, which first checks that it
+   *  is not loaded already (the unattended bring-up: its console always reads down first). */
+  run: (host: string, tr: Translator, opts?: { autoLoader?: boolean }) => Promise<void>;
   reset: (host: string) => void;
 }
 
@@ -60,7 +62,7 @@ export const useBringUpStore = create<BringUpState>((set, get) => ({
       return { byHost: next };
     }),
 
-  async run(host, tr) {
+  async run(host, tr, opts) {
     const h = host.trim();
     if (!h) return;
     const bare = hostOf(h);
@@ -102,7 +104,7 @@ export const useBringUpStore = create<BringUpState>((set, get) => ({
       const post = auto.playlistId
         ? plg.playlists.find((p) => p.id === auto.playlistId)
         : undefined;
-      if (auto.enabled && post && post.steps.length > 0) {
+      if (opts?.autoLoader !== false && auto.enabled && post && post.steps.length > 0) {
         log.info(
           "connection",
           `bring-up: running auto-loader "${post.name}" on ${h}`,

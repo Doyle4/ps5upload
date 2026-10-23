@@ -6,7 +6,7 @@ import { useNavigate } from "react-router";
 import { ChevronDown, FolderOpen, HardDrive, Plus, Server } from "lucide-react";
 
 import type { Connection } from "../api/remote";
-import { pickPath, type PickPathOptions } from "../lib/pickPath";
+import { pickPath, pickPaths, type PickPathOptions } from "../lib/pickPath";
 import { displayPath, isRemotePath } from "../lib/remotePath";
 import { useConnectionsStore, type ConnStatus } from "../state/connections";
 import { Spinner } from "./Spinner";
@@ -41,6 +41,9 @@ export interface BrowseButtonProps {
    *  from servers and hands the path to `onPick`. */
   onMainClick?: () => void;
   onPick: (path: string) => void;
+  /** Files only: pick several at once (ticked rows in the in-app browser, the system dialog's
+   *  multi-select) and hand them here instead of to `onPick`. */
+  onPickMany?: (paths: string[]) => void;
 }
 
 export function BrowseMenu(props: {
@@ -124,6 +127,16 @@ export function BrowseButton(props: BrowseButtonProps) {
 
   const pick = async (source?: { connectionId: string }) => {
     setOpen(false);
+    if (props.onPickMany && props.mode === "file") {
+      const paths = await pickPaths({
+        mode: "file",
+        title: props.title,
+        filters: props.filters,
+        source,
+      });
+      if (paths.length) props.onPickMany(paths);
+      return;
+    }
     const path = await pickPath({
       mode: props.mode,
       title: props.title,

@@ -7,6 +7,7 @@ import {
   loaderSettled,
   MAX_LIVE_HELPER_HOLDS,
   MAX_REDEPLOYS_WITHOUT_RECOVERY,
+  redeployAction,
 } from "../lib/autoRedeploy";
 import { useTransferStore } from "../state/transfer";
 import { useUploadQueueStore } from "../state/uploadQueue";
@@ -181,6 +182,35 @@ describe("loaderSettled", () => {
     ).toBe("settle");
     expect(loaderSettled({ loaderOpen: true, firstOpenAt: now - LOADER_SETTLE_MS, now })).toBe(
       "send",
+    );
+  });
+});
+
+/** #479: "Bring up automatically" runs the whole Quick bring-up once per console boot; after
+ *  that a lost helper is only re-sent (and only when the reconnect setting is on). */
+describe("redeployAction", () => {
+  it("brings a console up once per boot when the setting is on", () => {
+    expect(redeployAction({ autoBringUp: true, autoRedeploy: true, upThisBoot: false })).toBe(
+      "bring-up",
+    );
+    expect(redeployAction({ autoBringUp: true, autoRedeploy: false, upThisBoot: false })).toBe(
+      "bring-up",
+    );
+  });
+  it("only re-sends the helper once it has been up this boot", () => {
+    expect(redeployAction({ autoBringUp: true, autoRedeploy: true, upThisBoot: true })).toBe(
+      "helper",
+    );
+    expect(redeployAction({ autoBringUp: true, autoRedeploy: false, upThisBoot: true })).toBe(
+      "none",
+    );
+  });
+  it("keeps the old helper-only behaviour with the setting off (the default)", () => {
+    expect(redeployAction({ autoBringUp: false, autoRedeploy: true, upThisBoot: false })).toBe(
+      "helper",
+    );
+    expect(redeployAction({ autoBringUp: false, autoRedeploy: false, upThisBoot: false })).toBe(
+      "none",
     );
   });
 });

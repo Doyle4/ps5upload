@@ -22,6 +22,7 @@ const KEY_BANDWIDTH_CAP = "ps5upload.bandwidth_cap_mbps";
 const KEY_AUTO_RESUME = "ps5upload.auto_resume";
 const KEY_KEEP_PS5_AWAKE = "ps5upload.keep_ps5_awake";
 const KEY_AUTO_REDEPLOY_ON_WAKE = "ps5upload.auto_redeploy_on_wake";
+const KEY_AUTO_BRING_UP = "ps5upload.auto_bring_up";
 const KEY_SYSTEM_FILE_READ = "ps5upload.system_file_read";
 
 // 6.0 upgrade: 5.x saved a user-picked stream count here. AVA1 sizes its lanes itself, so the
@@ -121,6 +122,14 @@ function loadAutoRedeployOnWake(): boolean {
   return safeGetItem(KEY_AUTO_REDEPLOY_ON_WAKE) !== "false";
 }
 
+/** Bring a saved console up by itself (#479): once its loader (:9021) has settled and the
+ *  helper is not running, run Quick bring-up (bring-up playlist → helper) unasked. Default
+ *  OFF: it sends payloads nobody clicked. Stored as "true" only when the user opts in. */
+function loadAutoBringUp(): boolean {
+  if (typeof window === "undefined") return false;
+  return safeGetItem(KEY_AUTO_BRING_UP) === "true";
+}
+
 /** Allow reading/downloading system files outside the normal allow-list
  *  (/data, /user, /mnt). Default OFF: reading /system, /system_data, etc.
  *  is useful for power users (dumping fonts, examining configs) but
@@ -160,6 +169,9 @@ interface UploadSettingsState {
    *  threshold and the upload port without a manual click. See
    *  loadAutoRedeployOnWake. */
   autoRedeployOnWake: boolean;
+  /** Run Quick bring-up by itself on a saved console whose loader is up and whose helper is
+   *  not running, once per console boot (#479). See loadAutoBringUp. */
+  autoBringUp: boolean;
   /** Allow reading/downloading system files (/system, /system_data, etc.)
    *  that are normally outside the payload's path allow-list. Opt-in,
    *  read-only — destructive operations are never affected. See
@@ -171,6 +183,7 @@ interface UploadSettingsState {
   setAutoResume: (on: boolean) => void;
   setKeepPs5AwakeMode: (mode: KeepPs5AwakeMode) => void;
   setAutoRedeployOnWake: (on: boolean) => void;
+  setAutoBringUp: (on: boolean) => void;
   setSystemFileRead: (on: boolean) => void;
 }
 
@@ -182,6 +195,7 @@ export const useUploadSettingsStore = create<UploadSettingsState>((set) => ({
   autoResume: loadAutoResume(),
   keepPs5AwakeMode: loadKeepPs5AwakeMode(),
   autoRedeployOnWake: loadAutoRedeployOnWake(),
+  autoBringUp: loadAutoBringUp(),
   systemFileRead: loadSystemFileRead(),
   setAlwaysOverwrite: (alwaysOverwrite) => {
     safeSetItem(
@@ -228,6 +242,10 @@ export const useUploadSettingsStore = create<UploadSettingsState>((set) => ({
       autoRedeployOnWake ? "true" : "false",
     );
     set({ autoRedeployOnWake });
+  },
+  setAutoBringUp: (autoBringUp) => {
+    safeSetItem(KEY_AUTO_BRING_UP, autoBringUp ? "true" : "false");
+    set({ autoBringUp });
   },
   setSystemFileRead: (systemFileRead) => {
     safeSetItem(

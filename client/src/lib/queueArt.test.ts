@@ -79,6 +79,11 @@ describe("which rows read their source", () => {
     expect(shouldReadSourceArt("/pc/a.pkg", { ...ok, visible: false })).toBe(false);
     expect(shouldReadSourceArt("/pc/a.pkg", { ...ok, pending: false })).toBe(false);
     expect(shouldReadSourceArt(null, ok)).toBe(false);
+    // #479: a row that started at once still shows its game, read from this computer only.
+    const running = { pending: false, running: true, visible: true, busy };
+    expect(shouldReadSourceArt("/pc/a.pkg", running)).toBe(true);
+    expect(shouldReadSourceArt("remote://other/a.pkg", running)).toBe(false);
+    expect(shouldReadSourceArt("/pc/a.pkg", { ...running, visible: false })).toBe(false);
   });
 });
 

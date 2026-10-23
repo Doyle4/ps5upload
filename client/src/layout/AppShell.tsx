@@ -70,7 +70,10 @@ import {
   loaderSettled,
   LOADER_SETTLE_MS,
   MAX_REDEPLOYS_WITHOUT_RECOVERY,
+  redeployAction,
+  type RedeployAction,
 } from "../lib/autoRedeploy";
+import { bringUpStatusFor, useBringUpStore } from "../state/bringUp";
 import { CommandPalette, openCommandPalette } from "../components/CommandPalette";
 import { AppLogo } from "../components/AppLogo";
 import { CaptureViewer } from "../components/CaptureViewer";
@@ -735,12 +738,22 @@ function useAutoRedeployDownHelpers() {
   const liveHoldsRef = useRef<Record<string, number>>({});
   // When :9021 was first seen open on a down console (see loaderSettled).
   const loaderFirstOpenRef = useRef<Record<string, number>>({});
+  // Consoles whose helper read up since they were last seen switched off (or since the app
+  // started): "Bring up automatically" runs the whole bring-up only for the others (#479).
+  const upThisBootRef = useRef<Record<string, boolean>>({});
+  const unreachableTicksRef = useRef<Record<string, number>>({});
+  // The bring-up's own messages (pairing, loader stuck) in the user's language.
+  const tr = useTr();
+  const trRef = useRef(tr);
+  useEffect(() => {
+    trRef.current = tr;
+  }, [tr]);
   useEffect(() => {
     if (!visible) return;
     if (!isTauriEnv()) return;
     let cancelled = false;
 
-    const tryRedeploy = async (host: string) => {
+    const tryRedeploy = async (host: string, action: Exclude<RedeployAction, "none">) => {
       const key = hostOf(host) || host;
       if (inFlightRef.current[key]) return;
       const now = Date.now();
@@ -842,20 +855,39 @@ function useAutoRedeployDownHelpers() {
           }
           return;
         }
-        // ensurePayloadCurrent(force=true) probes, then sends + polls up to
-        // ~30s. While the PS5 is in rest mode the probe/send fails fast; once
-        // awake it lands and boots. Either way it never throws.
-        log.info(
-          "connection",
-          `auto-redeploy: attempting helper restore on ${host}`,
-        );
-        const result = await ensurePayloadCurrent(host, () => cancelled, true);
-        // "pushed"/"stale-ok" both mean an ELF reached the loader. If a
-        // console takes MAX_REDEPLOYS_WITHOUT_RECOVERY of them and still
+        let delivered: boolean;
+        if (action === "bring-up") {
+          // "Bring up automatically" (#479): the same chain as Connection → Bring up PS5
+          // (bring-up playlist, then the shared helper send, which opens pairing when the
+          // console asks for it). The auto-loader is left to the down→up edge, which checks
+          // its payloads are not loaded already. A bring-up the user started is left alone.
+          const bringUp = useBringUpStore.getState();
+          if (bringUpStatusFor(bringUp, host).kind === "running") return;
+          log.info(
+            "connection",
+            `auto bring-up: ${host}'s loader is up and its helper is not running — bringing it up`,
+          );
+          await bringUp.run(host, trRef.current, { autoLoader: false });
+          // Payloads may have reached the loader even when it failed: count every attempt
+          // against the brake below.
+          delivered = true;
+        } else {
+          // ensurePayloadCurrent(force=true) probes, then sends + polls up to
+          // ~30s. While the PS5 is in rest mode the probe/send fails fast; once
+          // awake it lands and boots. Either way it never throws.
+          log.info(
+            "connection",
+            `auto-redeploy: attempting helper restore on ${host}`,
+          );
+          const result = await ensurePayloadCurrent(host, () => cancelled, true);
+          // "pushed"/"stale-ok" both mean an ELF reached the loader.
+          delivered = result === "pushed" || result === "stale-ok";
+        }
+        // If a console takes MAX_REDEPLOYS_WITHOUT_RECOVERY deliveries and still
         // reads down, pushing more cannot help — it only keeps killing
         // whatever helper manages to start. Stop and say so, loudly enough
         // to find in a bug report. Resets the moment the console reports up.
-        if (result === "pushed" || result === "stale-ok") {
+        if (delivered) {
           const n = (deliveredRef.current[key] ?? 0) + 1;
           deliveredRef.current[key] = n;
           if (n >= MAX_REDEPLOYS_WITHOUT_RECOVERY) {
@@ -874,7 +906,8 @@ function useAutoRedeployDownHelpers() {
 
     const tick = () => {
       if (cancelled) return;
-      if (!useUploadSettingsStore.getState().autoRedeployOnWake) return;
+      const { autoRedeployOnWake, autoBringUp } = useUploadSettingsStore.getState();
+      if (!autoRedeployOnWake && !autoBringUp) return;
       const { runtimeByHost } = useConnectionStore.getState();
       const roster = useRosterStore.getState();
       for (const p of roster.profiles) {
@@ -897,7 +930,17 @@ function useAutoRedeployDownHelpers() {
           stopped: isHelperStopped(h),
           power: runtimeByHost[key]?.power,
         });
+        // Switched off: the next time it answers it has booted again (not woken from rest).
+        // Two ticks in a row, so one dropped probe on a busy network is not a reboot.
+        if (runtimeByHost[key]?.power === "unreachable") {
+          const n = (unreachableTicksRef.current[key] ?? 0) + 1;
+          unreachableTicksRef.current[key] = n;
+          if (n >= 2) delete upThisBootRef.current[key];
+        } else {
+          delete unreachableTicksRef.current[key];
+        }
         if (decision === "rearm") {
+          upThisBootRef.current[key] = true;
           liveHoldsRef.current[key] = 0;
           delete loaderFirstOpenRef.current[key];
           if ((deliveredRef.current[key] ?? 0) > 0) {
@@ -905,7 +948,12 @@ function useAutoRedeployDownHelpers() {
             log.info("connection", `auto-redeploy: ${h} is back up — re-armed`);
           }
         } else if (decision === "redeploy") {
-          void tryRedeploy(h);
+          const action = redeployAction({
+            autoBringUp,
+            autoRedeploy: autoRedeployOnWake,
+            upThisBoot: upThisBootRef.current[key] === true,
+          });
+          if (action !== "none") void tryRedeploy(h, action);
         }
       }
     };

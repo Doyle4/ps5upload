@@ -1,6 +1,6 @@
 import { CheckCircle2, Zap } from "lucide-react";
 
-import { Button, Spinner, ErrorCard } from "../../components";
+import { Button, Spinner, ErrorCard, Toggle } from "../../components";
 import { useConnectionStore } from "../../state/connection";
 import {
   bringUpStatusFor,
@@ -10,6 +10,7 @@ import {
 import { helperSendFor, useHelperSendStore } from "../../state/helperSend";
 import { usePayloadPlaylistsStore } from "../../state/payloadPlaylists";
 import { useTr } from "../../state/lang";
+import { useUploadSettingsStore } from "../../state/uploadSettings";
 
 /**
  * Quick bring-up panel for the Connection screen. One tap runs the configured
@@ -30,6 +31,10 @@ export function BringUpPanel() {
   const bringUpPlaylist = bringUpId
     ? playlists.find((p) => p.id === bringUpId)
     : undefined;
+
+  // Settings -> Bring up automatically (#479), here too: this is where people connect.
+  const autoBringUp = useUploadSettingsStore((s) => s.autoBringUp);
+  const setAutoBringUp = useUploadSettingsStore((s) => s.setAutoBringUp);
 
   const running = status.kind === "running";
   const canRun = !!host.trim() && !running;
@@ -82,6 +87,18 @@ export function BringUpPanel() {
           {tr("bringup_run", undefined, "Bring up PS5")}
         </Button>
       </header>
+
+      <Toggle
+        className="mb-3"
+        checked={autoBringUp}
+        onChange={setAutoBringUp}
+        label={tr("auto_bringup_label", undefined, "Bring up automatically")}
+        hint={tr(
+          "bringup_auto_hint_short",
+          undefined,
+          "Runs this by itself when the PS5's loader is up and the helper isn't, about 90 seconds after the loader appears. Once each time the console starts.",
+        )}
+      />
 
       {status.kind !== "idle" && <BringUpStatusLine status={status} host={host} />}
     </section>

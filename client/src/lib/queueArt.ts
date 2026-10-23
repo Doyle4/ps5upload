@@ -3,8 +3,9 @@
 // engine inspection the package viewer uses (`/api/game/inspect` → `icon0.png`).
 //
 // Kept in memory only, keyed by source path, and never written into the saved queue. Reads are
-// lazy (a row asks only while it is waiting and on screen), at most two at a time, and at most
-// one at a time from saved servers, so a long queue never floods the engine or a NAS.
+// lazy (a row asks only while it is on screen and waiting, or running from this computer), at
+// most two at a time, and at most one at a time from saved servers, so a long queue never floods
+// the engine or a NAS.
 
 import { useEffect, useSyncExternalStore } from "react";
 
@@ -232,14 +233,18 @@ export function busyServers(items: readonly QueueItem[]): Set<string> {
   return out;
 }
 
-/** May this row read its source now? Only while it waits and is on screen, and a saved-server
- *  source only while no transfer is reading from that server. */
+/** May this row read its source now? Only while it is on screen and waits, or runs from this
+ *  computer (#479: a row added to an idle queue starts at once, and must not wait for the
+ *  install to finish before it shows its game). A saved-server source is read only while it
+ *  waits and no transfer is reading from that server. */
 export function shouldReadSourceArt(
   path: string | null,
-  opts: { pending: boolean; visible: boolean; busy: ReadonlySet<string> },
+  opts: { pending: boolean; running?: boolean; visible: boolean; busy: ReadonlySet<string> },
 ): boolean {
-  if (!path || !opts.pending || !opts.visible) return false;
+  if (!path || !opts.visible) return false;
   const parsed = parseRemotePath(path);
+  if (opts.running && !parsed) return true;
+  if (!opts.pending) return false;
   return !parsed || !opts.busy.has(parsed.connectionId);
 }
 
