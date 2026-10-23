@@ -59,7 +59,10 @@ environment:
 ```
 
 Merge these environment values with the existing configuration (PS5_ADDR,
-PS5UPLOAD_BROWSE_ROOTS, etc.). Publish the same engine port: the package URL uses
+PS5UPLOAD_BROWSE_ROOTS, etc.). `PS5_ADDR` (your console's IP) and `PS5UPLOAD_ALLOW_IP` are
+required whenever the web UI is used from another device: the engine answers only loopback
+callers and the addresses in the allowlist, so a proxy or a browser that is not listed gets a
+`403`. Publish the same engine port: the package URL uses
 that port. The proxy must reach the published address or the container service
 name on their shared Docker network. Include the PS5's IP in the engine allowlist
 for direct package fetches. Persist `/data` and mount your game directories as

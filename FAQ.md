@@ -100,6 +100,14 @@ Open ps5upload → **Connection** tab → enter your PS5's IP → click
 **Check**, then **Send payload**. The app waits up to 20 seconds
 for the payload to come up, then unlocks the rest of the tabs.
 
+**Q: Can the app load everything by itself after the console starts?**
+Yes, on the desktop. **Quick bring-up** on the Connection screen runs your bring-up playlist,
+sends the helper and runs your auto-loader playlist in one click, once your playlists are set.
+Its **Bring up automatically** switch (also in **Settings → Connecting**) does that with no
+clicks: when a saved PS5's loader (elfldr, port 9021) is up and the helper isn't running, the
+app waits about 90 seconds so the console's own autoloader can finish, then brings it up. Once
+each time the console starts; after rest mode only the helper is sent again. Off by default.
+
 **Q: How do I send a different payload (kstuff, kernel patches,
 plugin scripts, etc)?**
 Open the **Send payload** tab, click **Choose**, pick any `.elf`,
@@ -136,11 +144,12 @@ straight to the console is a Public network.
 | 9021 TCP | PS5 | ELF loader: sending the helper |
 | 9115 TCP | PS5 | The installer the helper starts |
 | 8084 TCP | PS5 | Payload Manager, when there is no ELF loader |
+| 9180 TCP | PS5 | PS5Upload Minion, the page the helper serves to the PS5's browser (and to your phone or PC once you allow other devices) |
 | 19113 TCP | this computer | The engine: the PS5 fetches packages from it during Stream & install |
 | 9295, 9302 | PS5 | Remote Play pairing and wake |
 
-To see every port in use on your PS5, and which payload usually sits on it, open **Payloads →
-Ports** (7.0.24 and later).
+To see every port in use on your PS5, and which payload usually sits on it, open **Processes &
+ports → Ports**.
 
 Every connection is encrypted and each computer pairs with the console once. A helper
 the app launched pairs by itself; one loaded another way shows a 6-digit code on the console,
@@ -150,8 +159,7 @@ the old one and pair again.
 **Q: The web UI says it isn't paired, and no code shows on the console.**
 The console only shows a code to a new device for a short while after its helper starts, and
 not at all while another device is paired. On the Connection screen press **Send helper**: the
-engine sends its own helper, which pairs the web UI by itself (6.5.0 and later). Your desktop
-app stays paired.
+engine sends its own helper, which pairs the web UI by itself. Your desktop app stays paired.
 
 **Q: I updated to 6.0 and the app says the helper is old.**
 6.0 and v5.x cannot talk to each other. Click **Update helper** on the Connection screen (or
@@ -160,14 +168,16 @@ console and try again.
 
 **Q: How do I cap the upload speed?**
 Set `PS5UPLOAD_BANDWIDTH_MBPS` (megabytes per second) before starting the app or engine. Unset or
-zero means no cap. The pre-6.0 name of this variable still works for one release.
+zero means no cap. The pre-6.0 name of this variable still works as an alias.
 
 **Q: Can I run the engine on a different machine (self-hosted)?**
 Yes. Run it on a server or NAS and point the app at it in **Settings → Engine URL**. For a
 step-by-step guide that ends with the app open on a phone, see "How do I use PS5Upload from my phone
 or another computer?" below. Images:
 `ghcr.io/phantomptr/ps5upload-engine` (engine only) and `ghcr.io/phantomptr/ps5upload-engine-webui`
-(full web UI), tagged `:latest` or `:<version>`.
+(full web UI). Every release tag pushes `:<version>`; `:latest` and `:<major.minor>` (for example
+`:7.1`) move only when a pre-release is promoted to a release, so `:latest` never points at a
+pre-release.
 
 - The API has **no password**. Set `PS5UPLOAD_ALLOW_IP` to the IPs or ranges allowed to use it
   (`192.168.1.0/24`); anything else gets a `403` naming the refused address. Trusted LAN only,
@@ -310,6 +320,12 @@ Yes. Add each console from **Connection** or the **+** on the console tab strip.
 its own tab, status dot, upload queue and installs, which run independently and in parallel;
 switching tabs only changes what you see. On the console side, low-level operations are serialized,
 so overlapping work (a temperature read during an install) cannot crash the helper.
+
+**Q: Can I pin the screens I use most?**
+Yes. Hover a screen in the sidebar and press the pin, use the pin on its row in **More**, or
+"Pin …" in the command palette (Cmd/Ctrl + K). Pinned screens appear in a **Pinned** group near
+the top, in the order you pinned them; drag them in the sidebar, or use **Edit** in More, to
+reorder. Up to 12. Nothing changes until you pin something.
 
 ---
 
@@ -745,9 +761,13 @@ entry → IPv4 → Method: Manual, same values; under "Routes…" check
 sudo firewall-cmd --zone=trusted --add-interface=eth0 --permanent
 sudo firewall-cmd --reload
 ```
-On Ubuntu with `ufw` the default is allow-outbound / deny-inbound;
-nothing extra needed since ps5upload only makes outbound
-connections to the PS5.
+On Ubuntu with `ufw` the default is allow-outbound / deny-inbound.
+Browsing and uploads need nothing extra (outbound only), but **Stream
+& install** has the PS5 connect back to the engine on 19113, so allow
+that from the console:
+```bash
+sudo ufw allow from 192.168.88.2 to any port 19113 proto tcp
+```
 
 ### Step 3 — Configure the PS5
 
@@ -816,6 +836,10 @@ In **Files**, select it and choose **Move to…**, then pick the drive's homebre
 folder). It says first whether the move is instant (same drive) or a copy to the other drive,
 and whether it fits; a copy removes the original only after checking it. **Set permissions
 (777)** in the same menu makes files and folders readable and runnable.
+
+**Q: Can I copy files off a disc in the PS5's drive?**
+Yes. A data DVD or Blu-ray in the drive shows up in **File System** at `/mnt/disc`; browse it
+and download or copy files from it like any other drive. The disc stays read-only.
 
 **Q: I cancelled a download on the PS5, but the app still shows the install running.**
 The app can't see the PS5's download list; it only notices the console stopped asking for data.
@@ -1027,7 +1051,8 @@ ways forward:
   is blank, enable the ShadowMount+ metadata healer in ps5upload.
 - **Give ShadowMount+ an image.** Upload the game as an `.exfat` or `.ffpkg` image.
 
-**Games → Game files → ShadowMount+ panel → debug log** shows why a given item did not mount.
+**Payloads → On your PS5 → ShadowMount+ → Manage** shows its `debug.log`, which says why a given
+item did not mount.
 
 **Q: How do I find one game in a long library?**
 Use the search bar in **Games → Game files**: a name fragment, a title ID prefix (`PPSA…`, `CUSA…`) or a path
@@ -1099,6 +1124,14 @@ original file and requires space for the full extracted image. The direct Edit f
 is not offered for compressed containers. A successful read-only mount does not establish
 that a firmware permits writable mounting.
 
+**Q: Can I look inside a game image without mounting it on the PS5?**
+Yes: **Edit image on this computer** opens any image ps5upload reads (`.exfat`, `.ffpkg`,
+`.ffpfs`, `.ffpfsc` and debug `.pkg`) that is on the machine the engine runs on, without a
+mount, wherever the engine runs. Browse its folders with their sizes and save any file or
+folder to the computer (checked against the image). For images (not packages) you can also add,
+replace or delete files and write an edited copy next to the original; the copy is read back
+and checked, and the image you opened is never changed.
+
 **Q: Can I queue more files or convert a folder of packages?**
 
 In Files, Add files and Add folder remain available while a copy runs. Further picks keep
@@ -1108,8 +1141,11 @@ Pending picks can be removed. After an app restart, review the saved queue and p
 Convert → Queue → Add games from a folder accepts `PS5 Games/<game>/game.pkg`, alongside
 actual game folders and supported images/archives. Generic `game.pkg` outputs use the parent
 folder's name. Review the queue before starting; unsupported/encrypted inputs fail individually,
-and existing output files are not overwritten. Desktop Stream & install accepts multiple
-packages, reads their headers first, and queues bases before updates and DLC.
+and existing output files are not overwritten. Stream & install accepts multiple packages
+(from this computer, a saved server, a phone, or **From this device** in the browser), reads
+their headers first, and queues bases before updates and DLC. Each queued item shows the game's
+icon and name from the moment it is added, and the queue header says how much is waiting and
+whether it fits on the drive it installs to (an estimate; each install still checks).
 
 **Q: A transfer or conversion gets slow near the end. What should I report?**
 
@@ -1198,7 +1234,7 @@ is PS Game Library, built into ps5upload: if you used it, **Import from PS Game 
 **⋯** menu brings its index over.
 
 **Q: Can the Collection read my NAS without mounting it?**
-Yes. Save the server under **Connections** (SMB, FTP, FTPS or SFTP), then in **Collection →
+Yes. Save the server under **Servers** (SMB, FTP, FTPS, SFTP or WebDAV), then in **Collection →
 Folders** press **Add a folder on <server>** and pick the folder. It is scanned where it is:
 packages, game folders and covers are read over the network, and nothing is copied to this
 computer. Its games install straight from the server, and **Convert…** reads them in place.
@@ -1372,14 +1408,22 @@ instead of a package" choose the format, then **Make game image**:
   kept to 63 characters, the longest ShadowMount+ mounts.
 - **Compress it into a .ffpfsc** (any format): usually 40–60% smaller, slower to make, and
   always mounted read-only. It is compressed as it is written, so only the compressed file is
-  ever on disk.
+  ever on disk. Three levels: **Fast** (quickest, a little larger), **Balanced** (the default:
+  almost as small, several times faster to make) and **Smallest** (a second, stronger encoder on
+  every block, several times slower for a little more).
+- **AMPR LZ4 asset packs** (`.exfat` only, not with `.ffpfsc`): for games that read their files
+  through AMPR, the data is packed into LZ4 asset packs that the game's own `ampr_emu`
+  (`fakelib/libSceAmpr.sprx`) reads back, so the image is smaller while executables, system
+  files and already-compressed media stay as they are. The option says when a game cannot use
+  it; compress those into a `.ffpfsc` instead.
 
 `.ffpkg` and `.exfat` images keep some free space (0.5% of the game, between 64 and 512 MiB)
 so a read-write mount has room for saves or a small patch.
 
 Every image is checked twice: before writing (names and size), and after: it is read back
-through its own reader and every file's contents are compared with the folder (BLAKE3), not
-just the names and sizes. Only then does it get its name.
+through its own reader, every name, size and folder is checked in full, and a seeded sample of
+the file data (about 1%) is compared byte for byte with the source. Only then does it get its
+name. Tick **Full verification** to re-read every byte of the output instead; it takes longer.
 
 Nothing is installed. Copy the image to a folder ShadowMount+ watches on the PS5 (for example
 `/data/homebrew`, with **Upload**), and ShadowMount+ mounts it and puts the game on the home
@@ -1390,8 +1434,8 @@ compressed `.ffpfsc` mounted, registered and ran its game. A folder that is on t
 a saved server cannot be made into an image from here; copy it to this computer first.
 
 **Q: Can I install a package that is already on a USB drive?**
-Yes. Plug the drive into the PS5; packages on it show in **Install Package → External Packages**
-with an **Install** button. The app first copies the package to internal storage on the console
+Yes. Plug the drive into the PS5; packages on it show in **Install Package → Install from USB /
+external drive** with an **Install** button. The app first copies the package to internal storage on the console
 (drive to drive, fast), because Sony's installer cannot read the exFAT USB mount directly.
 
 **Q: What is the difference between `.pkg`, `.fpkg`, and `.ffpkg` here?**
@@ -1498,6 +1542,14 @@ deleted. **Health Check → Leftover files** also removes unfinished files from 
 transfers, package temp copies older than an hour and old speed-test files, and shows the list
 before deleting anything.
 
+**Q: How do I get space back on the PS5?**
+Open **Clean up** (in the sidebar; also in PS5Upload Minion on the console). It finds what takes
+space for no reason: updates of games that are gone, leftover `.pkg` files on any drive (your
+package library is skipped), ps5upload's own temp files, download files of removed games and
+leftovers of removed games. Updates of games you still have are listed too, unticked, with a
+warning that the game goes back to its base version. You see sizes and a total first, nothing
+is removed without a confirm, and saves are never touched.
+
 ---
 
 ## Install routes: what works for what (support matrix)
@@ -1596,7 +1648,8 @@ Firmware notes:
 
 **Q: Where are my PS5 screenshots and video clips?**
 In **Screenshots & clips**: one screen with a tab for each. Preview and download them to your
-computer; to delete one, use **Files**.
+computer, and sort either tab by date (newest or oldest first) or by size; to delete one, use
+**Files**.
 
 **Q: What does the Game Activity Tracker actually track?**
 Any game you launch, however you launch it — with your controller, from
@@ -1647,13 +1700,13 @@ in its `config.ini`); use one or the other, or each overwrites the other.
 A small DNS server that runs **on the console** (from the Payloads
 catalogue, not built in). It blocks PSN and update domains by default and
 can redirect any domain to a machine on your LAN — useful for staying
-offline-friendly while jailbroken. This app's nanoDNS screen edits its
+offline-friendly while jailbroken. Its card on **Payloads → On your PS5** (**Manage**) edits its
 config: it detects which version is running and preserves your existing
 rules, comments and custom resolvers rather than rewriting the file.
 
 Point the console's DNS at it once it's running.
 
-**Q: What is the Backup screen?**
+**Q: What is the Console snapshots screen?**
 It snapshots console-side files to a tagged copy on the PS5 and restores
 them later. It is meant for the small, breakable things — app database
 state and configuration — before a bulk operation, not as a game backup.
@@ -1664,10 +1717,33 @@ For save data specifically, use the Save data screen.
 ## PS5Upload Minion (on the console)
 
 **Q: What is PS5Upload Minion?**
-A file manager that runs on the PS5 itself, in the PS5's web browser, for when your PC isn't
-nearby. It has four sections: **Home** (the running game, running tasks and your drives),
-**Files** (browse, copy, move, rename, delete, view, verify, search and more), **Cheats** for the
-running game, and **Settings**. The PS5Upload helper serves it on port 9180.
+A page that runs on the PS5 itself, in the PS5's web browser, for when your PC isn't nearby.
+The PS5Upload helper serves it on port 9180. It has nine sections, on the left:
+
+- **Home**: the running game (with Close game), the tasks that are running (with Cancel) and
+  your drives.
+- **Games**: start, close, hide or uninstall your games, with each game's version, size and
+  where it is stored.
+- **Library**: press **Scan** and it looks through your network shares and this PS5's drives for
+  games (`.pkg` files, game folders and disk images) and shows them as a cover grid with title,
+  version, type and the system software they need. Install a package from the TV (one on a
+  share is copied to the PS5 first and the copy removed afterwards), or copy a game folder or
+  image to a drive's `homebrew` folder and add it to the home screen. Results are kept on the
+  PS5, and a scan stops at a size limit so a huge share cannot hang it.
+- **Files**: browse, copy, move, rename, delete, view, verify and search; set permissions, make
+  and edit text files. **Network shares** adds an SMB share (a PC or NAS) you can browse like a
+  drive and copy to and from. **Extract** unpacks a `.zip`, `.7z`, `.rar` (multi-part too) or
+  `.tar` on the console into a folder there (password-protected `.zip` and `.7z` work,
+  password-protected `.rar` does not). Pick a `.pkg` on internal storage or USB to see its icon,
+  title, version and type and **Install** it (a USB package is copied to internal storage first,
+  then the copy removed). **Load payload** sends an `.elf` or `.bin` on the console to the
+  payload loader, after a confirm.
+- **Cheats** for the running game, including **Find cheats** to download them to the console.
+- **Fan**: temperatures, fan speed and the fan target.
+- **Processes**: what runs now; stop a game or a payload (system processes cannot be stopped).
+- **Clean up**: get space back from updates of removed games, leftover packages, temp files
+  and leftovers of removed games (the same as the desktop's Clean up screen).
+- **Settings**: theme, language, full screen, the tips, and the switches below.
 
 **Q: How do I open it?**
 Pick the **PS5Upload Minion** tile on the PS5 home screen. You can also open
@@ -1703,6 +1779,18 @@ switch it on again to bring it back. With the tile hidden you can still open
 `http://127.0.0.1:9180/` in the PS5's browser. The tile (title id `PSUP00001`) is left out of
 the app's game list; an older engine or Docker image may still list it.
 
+**Q: How do I turn PS5Upload Minion off completely?**
+On the console, **Settings → Turn off PS5Upload Minion**; in the app on your PC, **Settings →
+PS5Upload Minion** has the same On/Off switch. Off removes the home-screen tile and stops the
+page on port 9180, and it stays off after a restart (the helper keeps the choice in its
+`webui.json`). The PC app keeps working, and only it can turn Minion back on.
+
+**Q: Which network shares does the Library see, and where do I set them up?**
+The SMB shares kept on the PS5: add them in Minion's **Files → Network shares**, or from the
+PC in **Servers → Shares on the PS5**, which adds, edits and removes them and can copy a server
+you already saved (type the password again: the PS5 keeps its own encrypted copy). Minion
+browses them in Files and its Library shows the games on them.
+
 ---
 
 ## Servers, safe moves, and backport helpers
@@ -1720,11 +1808,12 @@ screens copies the file to the other drive, checks the copy is whole, then
 deletes the original; `mv` in the Shell screen refuses a cross-drive rename.
 Renaming *within* one drive works normally.
 
-**Q: What is the Connections screen for?**
-It keeps your **NAS and servers** (SMB, FTP, FTPS, SFTP) in one place. Anywhere you browse for a
-game or file, pick from them with the ▾ next to **Browse**: upload a file or folder from a share
-straight to the PS5, or install a package from it, without copying it to this computer first.
-The Collection can also scan a saved server in place.
+**Q: What is the Servers screen for?**
+It keeps your **NAS and servers** (SMB, FTP, FTPS, SFTP, WebDAV) in one place. Anywhere you
+browse for a game or file, pick from them with the ▾ next to **Browse**: upload a file or folder
+from a share straight to the PS5, or install a package from it, without copying it to this
+computer first. The Collection can also scan a saved server in place. Its **Shares on the PS5**
+card manages the SMB shares PS5Upload Minion uses on the console (see "PS5Upload Minion").
 
 **Q: SDK Changer vs Fakelib / BackPork — is that “backport”?**
 Related halves of a workflow, not one magic button:
@@ -1744,9 +1833,11 @@ title will boot on an older console.
 ## Advanced
 
 **Q: Can I run the engine standalone (without the desktop app)?**
-Yes — `ps5upload-engine` is a self-contained HTTP server listening
-on `localhost:19113`. The desktop app uses it under the hood; CLI
-users can hit the `/api/*` endpoints directly.
+Yes — `ps5upload-engine` is a self-contained HTTP server on port 19113. It binds every
+interface (`0.0.0.0:19113`, so the PS5 can fetch packages from `/pkg-host/` during a Stream
+install), but everything else answers only loopback callers and the addresses in
+`PS5UPLOAD_ALLOW_IP`; any other source gets a `403`. The desktop app uses it under the hood;
+CLI users can hit the `/api/*` endpoints directly.
 
 **Q: Can I write my own client against the payload?**
 Yes. AVA1 is specified in [`protocol/ava1/SPEC.md`](protocol/ava1/SPEC.md); every message is

@@ -41,6 +41,10 @@
   and playlists, and backport tools.
 - **Power.** Rest mode, reboot, shut down, and wake over the network (optionally straight
   into your signed-in user).
+- **PS5Upload Minion.** A page the helper serves to the PS5's own browser (a tile on the home
+  screen, port 9180), made for the controller: games, a library scanned from your network shares
+  and drives, files (SMB shares, archive extraction, package install, payload loading), cheats,
+  fan, processes, clean-up and settings, with no PC nearby.
 - **Runs everywhere:** macOS, Windows, Linux, Android, or any browser through the self-hosted
   Docker web UI ([compose file](engine/compose.yaml), see
   [Self-hosted engine and web UI](#self-hosted-engine-and-web-ui)). 21 languages.
@@ -63,7 +67,7 @@ Pre-built downloads land on the
 | Platform | File | How to install |
 |---|---|---|
 | macOS (Apple Silicon / Intel) | `PS5Upload-<ver>-mac-{arm64,x64}.dmg` | Open the `.dmg`, drag PS5Upload into Applications. See **First launch on macOS** below — Gatekeeper blocks downloaded apps the first time. |
-| Windows (x64 / ARM64) | `PS5Upload-<ver>-win-{x64,arm64}.zip` | Unzip, double-click `PS5Upload.exe` — portable, no installer. See **First launch on Windows** — SmartScreen warns on first run. |
+| Windows (x64 / ARM64) | `PS5Upload-<ver>-win-{x64,arm64}-setup.exe` or `PS5Upload-<ver>-win-{x64,arm64}.zip` | Run the `-setup.exe` installer (it updates itself later), or unzip the `.zip` and double-click `PS5Upload.exe` — portable, no installer. See **First launch on Windows** — SmartScreen warns on first run. |
 | Linux — Debian / Ubuntu (x64 / ARM64) | `PS5Upload-<ver>-linux-{x64,arm64}.deb` | `sudo apt install ./PS5Upload-<ver>-linux-<arch>.deb` — installs a normal app with a menu entry; pulls in the WebKitGTK deps automatically. |
 | Linux — Fedora / RHEL / Bazzite (x64 / ARM64) | `PS5Upload-<ver>-linux-{x64,arm64}.rpm` | `sudo dnf install ./PS5Upload-<ver>-linux-<arch>.rpm` (Bazzite/Silverblue: `rpm-ostree install`; to update, `rpm-ostree uninstall ps5-upload --install ./<new>.rpm` and reboot, which Settings → Updates shows ready to copy) — menu entry + auto deps. |
 | Linux — any distro (x64 / ARM64) | `PS5Upload-<ver>-linux-{x64,arm64}.zip` | Universal fallback (no install). Unzip, then `chmod +x PS5Upload.sh PS5Upload.AppImage` and run **`./PS5Upload.sh`** (the wrapper — handles the FUSE-less and WebKit white-screen cases for you). Running `./PS5Upload.AppImage` directly also works if your system has libfuse2 and a happy WebKitGTK. |
@@ -259,7 +263,7 @@ All workflows go through the root `Makefile` (`make help`).
 |---|---|
 | `make build` | Payload + engine + client |
 | `make run-client` | Tauri dev app |
-| `make run-engine` | Engine on `localhost:19113` |
+| `make run-engine` | Engine on port 19113 (binds all interfaces; answers loopback, `PS5UPLOAD_ALLOW_IP` and the PS5-facing `/pkg-host/` only) |
 | `make test-engine` | Rust tests, no PS5 needed |
 | `make test-payload` | Console C code compiled and run on the host |
 | `npm run validate` | Full non-hardware gate |
@@ -291,9 +295,12 @@ Run the engine on a NAS or server and use it from a browser, or point the deskto
 with **Settings → Engine URL**.
 
 - Images: `ghcr.io/phantomptr/ps5upload-engine-webui` (full web UI) and
-  `ghcr.io/phantomptr/ps5upload-engine` (engine only), tagged `:latest` or `:<version>`.
+  `ghcr.io/phantomptr/ps5upload-engine` (engine only). Every release tag pushes `:<version>`;
+  `:latest` and `:<major.minor>` move only when a pre-release is promoted to a release.
 - Start from [`engine/compose.yaml`](engine/compose.yaml). It uses host networking (stream
-  installs need the PS5 to reach the engine). Set `PS5_ADDR` and `PS5UPLOAD_ALLOW_IP`.
+  installs need the PS5 to reach the engine). `PS5_ADDR` (the console) and `PS5UPLOAD_ALLOW_IP`
+  (who may use the page) are required for a web UI used from other devices on the LAN; without
+  the allowlist every browser but the host's own gets a `403`.
 - Open `http://<host>:19113`. The file picker browses the engine's disk; mount your games
   folder into the container and set `PS5UPLOAD_BROWSE_ROOTS`.
 - Map `/data` to a host folder (on Unraid, `/mnt/user/appdata/ps5upload`): it holds the pairing

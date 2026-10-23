@@ -35,7 +35,8 @@ specific one, `SDK_CHECK=1` to only check); see TESTING.md, Layer 2.
 
 ## Quality gate: run before opening a PR
 
-CI runs the same checks; running them locally first saves a round-trip.
+CI runs the same checks, including the host-side payload self-tests (`make test-payload`;
+nothing in CI runs on a console); running them locally first saves a round-trip.
 `npm run validate` runs most of it in one command (version sync, script checks, i18n,
 engine and desktop fmt/clippy/tests, client typecheck/lint/tests/build). The complete gate is
 these, and `cargo fmt --check` must pass in BOTH `engine/` and `client/src-tauri`:
