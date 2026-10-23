@@ -11,6 +11,7 @@ import { remoteApi, type Connection, type TestResult } from "../../api/remote";
 import { useConnectionsStore, type ConnStatus } from "../../state/connections";
 import { useTr } from "../../state/lang";
 import { browseServer } from "../../lib/browseServer";
+import { ConsoleShares } from "./ConsoleShares";
 import {
   ConnectionFormView,
   DEFAULT_PORT,
@@ -341,6 +342,7 @@ export default function ConnectionsScreen() {
           ))}
         </ul>
       )}
+      <ConsoleShares pcServers={connections} />
     </div>
   );
 }
