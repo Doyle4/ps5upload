@@ -5516,6 +5516,8 @@ library_compressed_hint: "A tömörített képfájlok futtatásához ShadowMount
   "disk_usage_summary": "{files} fájl {dirs} mappában",
   "disk_usage_partial": "A számolás leállt, mielőtt minden mappát elért volna, ezért ezek a méretek kisebbek a valódiaknál.",
   "disk_usage_skipped": "{count} mappa nem lett beszámolva: nem lehetett olvasni őket, a rendszerhez tartoznak, vagy másik meghajtón vannak.",
+  captures_sort_newest: "Dátum: Legújabb elöl",
+  captures_sort_oldest: "Dátum: Legrégebbi elöl",
 };
 
 export default hu;

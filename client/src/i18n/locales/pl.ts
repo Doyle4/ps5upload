@@ -5456,6 +5456,8 @@ library_compressed_hint: "Skompresowane obrazy wymagają ShadowMount+, aby grać
   "disk_usage_summary": "Pliki: {files} w folderach: {dirs}",
   "disk_usage_partial": "Liczenie zatrzymało się przed dotarciem do wszystkich folderów, więc te rozmiary są mniejsze od rzeczywistych.",
   "disk_usage_skipped": "Nie policzono folderów: {count}. Nie dało się ich odczytać, należą do systemu albo są na innym dysku.",
+  captures_sort_newest: "Data: Od najnowszych",
+  captures_sort_oldest: "Data: Od najstarszych",
 };
 
 export default pl;

@@ -5222,6 +5222,8 @@ library_compressed_hint: "圧縮イメージのプレイには ShadowMount+ が�
   "disk_usage_summary": "{dirs} フォルダー内に {files} ファイル",
   "disk_usage_partial": "すべてのフォルダーに届く前に集計が止まったため、これらのサイズは実際より小さくなっています。",
   "disk_usage_skipped": "{count} 個のフォルダーは数えられていません：読み取れなかった、システムのもの、または別のドライブにあるものです。",
+  captures_sort_newest: "日付: 新しい順",
+  captures_sort_oldest: "日付: 古い順",
 };
 
 export default ja;

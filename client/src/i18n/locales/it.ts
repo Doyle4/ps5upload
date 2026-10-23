@@ -5151,6 +5151,8 @@ library_compressed_hint: "Le immagini compresse richiedono ShadowMount+ per gioc
   "disk_usage_summary": "{files} file in {dirs} cartelle",
   "disk_usage_partial": "Il conteggio si è fermato prima di raggiungere tutte le cartelle, quindi queste dimensioni sono inferiori a quelle reali.",
   "disk_usage_skipped": "{count} cartelle non sono state contate: non è stato possibile leggerle, appartengono al sistema o si trovano su un'altra unità.",
+  captures_sort_newest: "Data: Più recenti prima",
+  captures_sort_oldest: "Data: Più vecchi prima",
 };
 
 export default it;

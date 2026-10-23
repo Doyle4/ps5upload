@@ -5151,6 +5151,8 @@ library_compressed_hint: "Для запуска сжатых образов ну
   "disk_usage_summary": "Файлов: {files}, папок: {dirs}",
   "disk_usage_partial": "Подсчёт остановился, не дойдя до всех папок, поэтому эти размеры меньше настоящих.",
   "disk_usage_skipped": "Не учтено папок: {count}. Их не удалось прочитать, они системные или находятся на другом диске.",
+  captures_sort_newest: "Дата: Сначала новые",
+  captures_sort_oldest: "Дата: Сначала старые",
 };
 
 export default ru;

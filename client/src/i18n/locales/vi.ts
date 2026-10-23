@@ -5203,6 +5203,8 @@ library_compressed_hint: "Ảnh đĩa nén cần ShadowMount+ để chơi. Để
   "disk_usage_summary": "{files} tệp trong {dirs} thư mục",
   "disk_usage_partial": "Việc đếm đã dừng trước khi đến mọi thư mục, nên các kích thước này nhỏ hơn thực tế.",
   "disk_usage_skipped": "{count} thư mục không được tính: không đọc được, thuộc về hệ thống, hoặc nằm trên ổ khác.",
+  captures_sort_newest: "Ngày: Mới nhất trước",
+  captures_sort_oldest: "Ngày: Cũ nhất trước",
 };
 
 export default vi;

@@ -5220,6 +5220,8 @@ library_compressed_hint: "압축 이미지를 플레이하려면 ShadowMount+가
   "disk_usage_summary": "폴더 {dirs}개에 파일 {files}개",
   "disk_usage_partial": "모든 폴더에 도달하기 전에 계산이 멈춰서, 이 크기는 실제보다 작습니다.",
   "disk_usage_skipped": "폴더 {count}개는 계산되지 않았습니다: 읽을 수 없거나, 시스템 폴더이거나, 다른 드라이브에 있습니다.",
+  captures_sort_newest: "날짜: 최신순",
+  captures_sort_oldest: "날짜: 오래된순",
 };
 
 export default ko;

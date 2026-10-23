@@ -5217,6 +5217,8 @@ library_compressed_hint: "संपीड़ित इमेज चलाने 
   "disk_usage_summary": "{dirs} फ़ोल्डरों में {files} फ़ाइलें",
   "disk_usage_partial": "गिनती हर फ़ोल्डर तक पहुँचने से पहले रुक गई, इसलिए ये आकार असल से कम हैं।",
   "disk_usage_skipped": "{count} फ़ोल्डर नहीं गिने गए: वे पढ़े नहीं जा सके, सिस्टम के हैं, या किसी दूसरी ड्राइव पर हैं।",
+  captures_sort_newest: "तारीख: सबसे नए पहले",
+  captures_sort_oldest: "तारीख: सबसे पुराने पहले",
 };
 
 export default hi;

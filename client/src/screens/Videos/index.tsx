@@ -29,6 +29,8 @@ import {
   Spinner,
   ConnectionGate,
 } from "../../components";
+import { CaptureSortSelect } from "../Captures/CaptureSortSelect";
+import { sortCaptures, type CaptureSort } from "../Captures/sortCaptures";
 import { CaptureToolbar } from "../Captures/CaptureToolbar";
 import { useCaptureDelete } from "../Captures/useCaptureDelete";
 import { humanizePs5Error } from "../../lib/humanizeError";
@@ -67,6 +69,8 @@ export default function VideosScreen({ tabs }: { tabs?: ReactNode } = {}) {
   const guard = useStaleHostGuard();
 
   const [items, setItems] = useState<ScreenshotEntry[] | null>(null);
+  const [sort, setSort] = useState<CaptureSort>("newest");
+  const sortedItems = useMemo(() => sortCaptures(items ?? [], sort), [items, sort]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -303,6 +307,7 @@ export default function VideosScreen({ tabs }: { tabs?: ReactNode } = {}) {
         }
         right={
           <>
+            <CaptureSortSelect value={sort} onChange={setSort} />
             {selected.size > 0 && (
               <Button
                 variant="primary"
@@ -391,7 +396,7 @@ export default function VideosScreen({ tabs }: { tabs?: ReactNode } = {}) {
             </button>
           )}
           <ul className="space-y-2">
-            {items?.map((item) => {
+            {sortedItems.map((item) => {
               const isSelected = selected.has(item.path);
               const rowBusy = busyPaths.has(item.path);
               return (

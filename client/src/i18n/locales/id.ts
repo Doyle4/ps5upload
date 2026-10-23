@@ -5210,6 +5210,8 @@ library_compressed_hint: "Image terkompresi memerlukan ShadowMount+ untuk bermai
   "disk_usage_summary": "{files} file dalam {dirs} folder",
   "disk_usage_partial": "Penghitungan berhenti sebelum mencapai semua folder, jadi ukuran ini lebih kecil dari yang sebenarnya.",
   "disk_usage_skipped": "{count} folder tidak dihitung: tidak dapat dibaca, milik sistem, atau berada di drive lain.",
+  captures_sort_newest: "Tanggal: Terbaru dahulu",
+  captures_sort_oldest: "Tanggal: Terlama dahulu",
 };
 
 export default id;
