@@ -2087,6 +2087,19 @@ static int is_profile_avatar_read_path(const char *p) {
            (n >= 12 && strcmp(p + n - 12, "/picture.png") == 0);
 }
 
+/* READ-ONLY exception for an inserted data disc (#497): the File System browser lists /mnt/disc, so
+ * downloading a file burnt to a DVD/BD must work too. Not in is_path_allowed, so writes, deletes and
+ * moves stay refused even though the optical mount would fail them anyway. */
+static int is_disc_lexical(const char *p) {
+    return (strcmp(p, "/mnt/disc") == 0 || strncmp(p, "/mnt/disc/", 10) == 0) && !path_has_dotdot_component(p);
+}
+static int is_disc_read_path(const char *p) {
+    if (!is_disc_lexical(p)) return 0;
+    /* A UDF disc can carry symlinks: the canonical form must stay on the disc too. */
+    char resolved[PATH_MAX];
+    return realpath(p, resolved) == NULL || is_disc_lexical(resolved);
+}
+
 /* Validate a path for unsafe read mode. This relaxes the writable-root
  * allowlist so system partitions become readable, but three guards stay:
  *   (1) Path must be absolute, no dotdot, no relative segments.
@@ -8831,7 +8844,7 @@ __thread volatile unsigned int g_inflight_frame_type = 0;
 static runtime_state_t *g_mgmt_fs_state;
 
 static int mgmt_fs_read_allowed(const char *path, int unsafe_read) {
-    return is_path_allowed(path) || is_profile_avatar_read_path(path) ||
+    return is_path_allowed(path) || is_profile_avatar_read_path(path) || is_disc_read_path(path) ||
            (unsafe_read && is_safe_unsafe_read_path(path));
 }
 

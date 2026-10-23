@@ -4,6 +4,13 @@ What's new in ps5upload, written for humans.
 
 ---
 
+## Unreleased
+
+Update the helper for everything below.
+
+- **Files on a disc download now (#497).** Downloading a file from a data DVD or Blu-ray in the drive
+  (/mnt/disc) failed with "not allowed". It works now; the disc stays read-only.
+
 ## 7.1.18
 
 Update the helper for everything below.
