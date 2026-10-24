@@ -6,6 +6,8 @@ What's new in ps5upload, written for humans.
 
 ## Unreleased
 
+- **Built on PS5 Payload SDK v0.45.** The SDK now knows firmware 14.00 and 14.10, so the helper can
+  start there too. Not tested on 14.x yet; tested on 5.10, 9.60 and 13.60.
 - **Covers stay while the helper is down.** When the helper was not running (or the console was in
   rest mode), every cover asked for in that moment was remembered as "no artwork" for 15 minutes.
   Only a real "not there" answer from the console is remembered now.

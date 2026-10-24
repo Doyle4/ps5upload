@@ -169,7 +169,7 @@ function buildReddit() {
     "",
     ...START.map((s, i) => `${i + 1}. ${s}`),
     "",
-    "Supported firmware: 1.00 to 13.60 (tested on 5.10, 9.60 and 13.60). In practice the limit is your jailbreak's ELF loader.",
+    "Supported firmware: 1.00 to 14.10 (tested on 5.10, 9.60 and 13.60; 14.x untested). In practice the limit is your jailbreak's ELF loader.",
     "",
     "### Links",
     "",

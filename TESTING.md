@@ -63,7 +63,7 @@ Each self-test lives in `payload/tests/*_selftest.c` (hardware guards, ptrace re
 AVA1 C itself is tested by `ava1-ctest`, which compiles it on the host and checks it against the
 Rust side (see the full gate below).
 
-The SDK version is pinned in `scripts/ps5-sdk.env` (currently **v0.44**)
+The SDK version is pinned in `scripts/ps5-sdk.env` (currently **v0.45**)
 and verified by checksum. Local installers and CI read the same file.
 
 To move to a newer SDK release, run `make update-sdk` (or

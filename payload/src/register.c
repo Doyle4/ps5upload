@@ -245,7 +245,7 @@ static void register_module_init_impl(void) {
      *     blocks the path where Sony brings a renamed API back, or
      *     where a patched kernel/sprx restores the old names.
      *
-     * Net: this runs on every firmware the SDK supports (1.00–13.60).
+     * Net: this runs on every firmware the SDK supports (1.00–14.10 as of v0.45).
      * Install requests fail cleanly on any firmware where the API
      * isn't actually exported. */
     reg_dlopen_sideload(REG_LIB_APPINSTUTIL);

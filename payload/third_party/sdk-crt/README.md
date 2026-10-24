@@ -1,7 +1,7 @@
 # sdk-crt
 
 The startup code (`crt/`) of [ps5-payload-sdk](https://github.com/ps5-payload-dev/sdk) v0.43
-(identical in v0.44),
+(identical in v0.44; v0.45 only adds the kernel offsets for FW 14.00 and 14.10, re-vendored here),
 GPLv3 (see `LICENSE`), built by `payload/sdk-crt.mk` and linked into the helper, the installer
 daemon and the patched elfldr in place of the SDK's own `crt1.o`.
 

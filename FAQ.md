@@ -354,8 +354,9 @@ reorder. Up to 12. Nothing changes until you pin something.
 There is no 32-bit x86 (i386 / i686) build for any desktop OS.
 
 **Q: Which PS5 firmware works?**
-The helper is built against PS5 Payload SDK v0.44 and the same binary runs on **1.00 to 13.60**.
-Tested on 5.10, 9.60 and 13.60 (and confirmed by users on 12.20). In practice the limit is the
+The helper is built against PS5 Payload SDK v0.45 and the same binary runs on **1.00 to 14.10**.
+Tested on 5.10, 9.60 and 13.60 (and confirmed by users on 12.20); 14.00 and 14.10 are new in
+SDK v0.45 and not tested yet. In practice the limit is the
 **ELF loader** on port 9021, a third-party component; loader coverage is roughly 4.x to 12.x.
 
 `.pkg` install also needs live kernel patches (kstuff / fpkg-enable). Where they are not active,
