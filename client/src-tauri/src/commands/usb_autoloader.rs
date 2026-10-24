@@ -382,17 +382,17 @@ fn resolve_local_payload(app: &AppHandle, id: &str) -> Option<PathBuf> {
     None
 }
 
-/// Locate our own bundled payload. Reuses the same hash-stamped
-/// extraction `probes.rs::payload_bundled_path` performs, going
-/// through that command would require a full Tauri invoke round-trip;
-/// instead we derive the path the same way it does.
+/// Locate our own bundled payload through the same hash-stamped
+/// extraction the Connection screen uses, so the stick gets this
+/// version's helper even when nothing has extracted it yet since an
+/// app update (a bare `exists()` check handed out the previous one).
 fn resolve_bundled_ps5upload(app: &AppHandle) -> Option<PathBuf> {
-    let root = app.path().app_local_data_dir().ok()?;
-    let p = root.join("payload").join("ps5upload.elf");
-    if p.exists() {
-        Some(p)
-    } else {
-        None
+    match super::probes::find_bundled_payload(app) {
+        Ok(p) => Some(p),
+        Err(e) => {
+            eprintln!("[usb-autoloader] bundled payload: {e}");
+            None
+        }
     }
 }
 

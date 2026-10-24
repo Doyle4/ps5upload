@@ -31,7 +31,9 @@ const SECRET_JSON_ESCAPED = new RegExp(`(\\\\"(?:${SECRET_KEYS})\\\\"\\s*:\\s*\\
 const SECRET_KV = new RegExp(`\\b((?:${SECRET_KEYS})=)([^\\s&"]+)`, "gi");
 const SERIAL_JSON = /("serial"\s*:\s*")([^"]*)(")/gi;
 const HOME_POSIX = /\/(?:Users|home)\/[^/\s"\\]+/g;
-const HOME_WIN = /[A-Za-z]:\\Users\\[^\\\s"]+/g;
+// The separator is one backslash, or the same run of them on both sides of `Users` when the path
+// is JSON-escaped (`C:\\Users\\bob` in report.json, `C:\\\\Users\\\\bob` in a stored JSON string).
+const HOME_WIN = /[A-Za-z]:(\\+)Users\1[^\\\s"]+/g;
 const MAC = /\b[0-9a-fA-F]{2}(?::[0-9a-fA-F]{2}){5}\b/g;
 const IPV6_BRACKETED = /\[([0-9a-fA-F]*:[0-9a-fA-F:]*)\]/g;
 // An address is four 1-3 digit parts not inside a longer dotted number ("1.2.3.4.5", "6.5.2.1.0"):

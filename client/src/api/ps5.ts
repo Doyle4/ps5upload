@@ -2630,17 +2630,19 @@ export async function saveArchiveMakeTemp(prefix: string): Promise<string> {
   return invoke<string>("save_archive_make_temp", { prefix });
 }
 
-/** Where the next automatic backup of a save goes. Makes `<dir>/<titleId>/` and removes that
- *  save's oldest automatic backups so `keep` remain with the new one. Desktop only. */
+/** Where the next automatic backup of a save goes. Makes `<dir>/<titleId>/`; called again with
+ *  `prune` once the zip is written, removes that save's oldest automatic backups so `keep`
+ *  remain. Desktop only. */
 export async function saveAutoBackupSlot(
   dir: string,
   titleId: string,
   userId: number,
   stamp: string,
   keep: number,
+  prune = false,
 ): Promise<string> {
   return invoke<string>("save_auto_backup_slot", {
-    req: { dir, title_id: titleId, user_id: userId, stamp, keep },
+    req: { dir, title_id: titleId, user_id: userId, stamp, keep, prune },
   });
 }
 

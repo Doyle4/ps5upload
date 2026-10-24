@@ -385,8 +385,8 @@ pub struct ResumeTxidRememberReq {
 /// Upsert the tx_id for (host, src, dest). Called when the client starts
 /// an upload and needs to remember its client-generated tx_id for a
 /// possible future resume. Also bumps `last_seen_ms` so Resume is
-/// available even days after the initial attempt (subject to the 24 h
-/// TTL from last contact, not original creation).
+/// available even days after the initial attempt (subject to the
+/// `RESUME_TXID_TTL_MS` 7-day TTL from last contact, not original creation).
 #[tauri::command]
 pub async fn resume_txid_remember(
     app: AppHandle,

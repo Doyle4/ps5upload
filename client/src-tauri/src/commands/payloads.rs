@@ -987,8 +987,16 @@ pub async fn payloads_add_custom_repo(
     let asset_name_hint = asset_hint.map(|s| s.trim().to_string()).unwrap_or_default();
 
     let mut repos = load_custom_repos(&app);
-    if let Some(existing) = repos.iter().find(|r| r.id == id) {
-        return Ok(PayloadInfo::from(existing));
+    if let Some(existing) = repos.iter_mut().find(|r| r.id == id) {
+        // Re-adding a repo is how a name or asset hint gets corrected.
+        if existing.display_name != display_name || existing.asset_name_hint != asset_name_hint {
+            existing.display_name = display_name;
+            existing.asset_name_hint = asset_name_hint;
+            let info = PayloadInfo::from(&*existing);
+            save_custom_repos(&app, &repos)?;
+            return Ok(info);
+        }
+        return Ok(PayloadInfo::from(&*existing));
     }
     let repo = CustomRepo {
         id,
@@ -1617,6 +1625,26 @@ pub struct LocalInventoryEntry {
     mtime: i64,
 }
 
+/// The file name a downloaded payload is cached under: the asset hint when it is a
+/// plain name, else `<id>.elf`. A custom repo's hint is user text, so anything that
+/// could name a path (`/`, `..`, `:`) falls back to the id instead of being joined.
+fn cached_elf_name(id: &str, asset_name_hint: &str) -> String {
+    let base = asset_name_hint
+        .trim()
+        .trim_end_matches(".elf")
+        .trim_matches(|c: char| !c.is_alphanumeric());
+    let plain = !base.is_empty()
+        && base
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-'))
+        && !base.contains("..");
+    if plain {
+        format!("{base}.elf")
+    } else {
+        format!("{id}.elf")
+    }
+}
+
 /// Per-payload cache root. `~/.../payloads/<id>/` holds the latest
 /// downloaded binary (we only keep one version at a time — older
 /// ones would just bloat the cache).
@@ -1754,14 +1782,7 @@ pub async fn payloads_download(
     // We can't ELF-check the first chunk inline anymore (a zip starts
     // with "PK\x03\x04"), so buffer fully — assets are well under the
     // few-MB cap — and branch on the magic.
-    let asset_basename = entry
-        .asset_name_hint
-        .trim_matches(|c: char| !c.is_alphanumeric());
-    let final_name = if asset_basename.is_empty() {
-        format!("{}.elf", entry.id)
-    } else {
-        format!("{asset_basename}.elf")
-    };
+    let final_name = cached_elf_name(&entry.id, &entry.asset_name_hint);
     let final_path = dir.join(&final_name);
     let dl_tmp = final_path.with_extension("download.tmp");
     let elf_tmp = final_path.with_extension("elf.tmp");
@@ -1891,6 +1912,34 @@ pub async fn payloads_local_path(app: AppHandle, id: String) -> Option<String> {
 }
 
 use std::io::Write;
+
+#[cfg(test)]
+mod cache_name_tests {
+    use super::cached_elf_name;
+
+    #[test]
+    fn a_custom_hint_cannot_name_a_path() {
+        assert_eq!(cached_elf_name("custom-0a", "kstuff"), "kstuff.elf");
+        assert_eq!(
+            cached_elf_name("custom-0a", "elfldr-ps5.elf"),
+            "elfldr-ps5.elf"
+        );
+        assert_eq!(
+            cached_elf_name("custom-0a", "HearBridge-"),
+            "HearBridge.elf"
+        );
+        assert_eq!(cached_elf_name("custom-0a", ""), "custom-0a.elf");
+        // Leading and trailing punctuation is trimmed as before; only interior path text falls back.
+        assert_eq!(cached_elf_name("custom-0a", "..\\x"), "x.elf");
+        for hint in ["a/../../b", "C:evil", "sub/dir", "a..b", "a\\b"] {
+            assert_eq!(
+                cached_elf_name("custom-0a", hint),
+                "custom-0a.elf",
+                "{hint}"
+            );
+        }
+    }
+}
 
 #[cfg(test)]
 mod tests {

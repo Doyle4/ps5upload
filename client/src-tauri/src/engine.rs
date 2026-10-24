@@ -9,7 +9,7 @@
 //! diagnostic endpoints that don't.
 
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, OnceLock, RwLock};
 use std::time::Duration;
 
@@ -26,6 +26,9 @@ const READINESS_PROBE: &str = "/api/jobs";
 const READINESS_TIMEOUT: Duration = Duration::from_secs(30);
 const READINESS_POLL: Duration = Duration::from_millis(200);
 const SHUTDOWN_GRACE: Duration = Duration::from_secs(5);
+/// How long `stop()` gives the engine to exit on its own after its stdin
+/// closes before killing it.
+const SHUTDOWN_EOF_GRACE: Duration = Duration::from_secs(2);
 
 static CHILD: OnceCell<tokio::sync::Mutex<Option<Child>>> = OnceCell::const_new();
 
@@ -36,6 +39,36 @@ static CHILD: OnceCell<tokio::sync::Mutex<Option<Child>>> = OnceCell::const_new(
 /// is running. Used to stop a settings-sync from relocating a running
 /// sidecar off its (possibly fallback) port.
 static LOCAL_CHILD_RUNNING: AtomicBool = AtomicBool::new(false);
+
+/// Where the sidecar this shell spawned (or is about to spawn) listens.
+/// Pinned before `start()` points the proxies at it, so a settings push
+/// that lands between that and the spawn cannot move them; cleared with
+/// `LOCAL_CHILD_RUNNING`. `set_url` lets a loopback URL through only when
+/// it is this one, so Settings can come back from a remote engine to the
+/// sidecar without a restart.
+static SIDECAR_URL: RwLock<Option<String>> = RwLock::new(None);
+
+/// Bumped every time a child is put in the slot. The stderr watcher of an
+/// earlier child compares it before taking "its" child out of the slot, so
+/// a watcher waking up after a restart cannot take the newer child.
+static SPAWN_GENERATION: AtomicU64 = AtomicU64::new(0);
+
+fn set_sidecar_url(url: Option<String>) {
+    *SIDECAR_URL.write().unwrap_or_else(|e| e.into_inner()) = url;
+}
+
+fn sidecar_url() -> Option<String> {
+    SIDECAR_URL
+        .read()
+        .unwrap_or_else(|e| e.into_inner())
+        .clone()
+}
+
+/// The sidecar is gone (taken, killed or exited): clear both marks.
+fn mark_sidecar_stopped() {
+    LOCAL_CHILD_RUNNING.store(false, Ordering::SeqCst);
+    set_sidecar_url(None);
+}
 
 async fn child_lock() -> &'static tokio::sync::Mutex<Option<Child>> {
     CHILD
@@ -413,40 +446,88 @@ const ENGINE_LOG_MAX_BYTES: u64 = 1024 * 1024;
 /// failure we attach the path to the error so users have something
 /// concrete to share in bug reports.
 ///
-/// Rotates when the existing file exceeds `ENGINE_LOG_MAX_BYTES` —
-/// previous file moves to `<name>.old` (single rotation generation
-/// is enough; the most recent failure is what users need).
+/// Rotates when the file exceeds `ENGINE_LOG_MAX_BYTES` — at open and
+/// again whenever a line written during the session takes it past the
+/// cap, so a long session cannot grow it without bound. The previous
+/// file moves to `<name>.old` (single rotation generation is enough;
+/// the most recent failure is what users need).
 ///
 /// Logs the failure to `eprintln!` if open fails, so a developer
 /// running `cargo tauri dev` from a console at least sees why
 /// log capture didn't engage. Returns None on failure rather than
 /// erroring — a missing log file shouldn't block engine startup.
-fn open_engine_log(path: &Path) -> Option<Arc<Mutex<std::fs::File>>> {
-    use std::fs::OpenOptions;
-    if let Ok(meta) = std::fs::metadata(path) {
-        if meta.len() > ENGINE_LOG_MAX_BYTES {
-            let old = path.with_extension("log.old");
-            // Best-effort rotate: if the rename fails (Windows lock
-            // on the .old file from a previous instance, etc.), fall
-            // through to opening the existing log in append mode and
-            // let it grow a little past the cap. Worst case is a
-            // larger log file, which is recoverable; the alternative
-            // of failing to open at all loses diagnostics entirely.
-            let _ = std::fs::remove_file(&old);
-            if let Err(e) = std::fs::rename(path, &old) {
-                eprintln!(
-                    "[engine-log] rotate {} -> {} failed: {e} (continuing)",
-                    path.display(),
-                    old.display()
-                );
-            }
-        }
+fn open_engine_log(path: &Path) -> Option<Arc<Mutex<EngineLog>>> {
+    let len = std::fs::metadata(path).map(|m| m.len()).unwrap_or(0);
+    if len > ENGINE_LOG_MAX_BYTES {
+        rotate_engine_log(path);
     }
-    match OpenOptions::new().create(true).append(true).open(path) {
-        Ok(f) => Some(Arc::new(Mutex::new(f))),
+    match EngineLog::open(path) {
+        Ok(log) => Some(Arc::new(Mutex::new(log))),
         Err(e) => {
             eprintln!("[engine-log] cannot open {}: {e}", path.display());
             None
+        }
+    }
+}
+
+/// Best-effort rotate: if the rename fails (Windows lock on the .old
+/// file from a previous instance, etc.), the caller goes on appending
+/// to the existing log and lets it grow past the cap. Worst case is a
+/// larger log file, which is recoverable; the alternative of failing
+/// to open at all loses diagnostics entirely.
+fn rotate_engine_log(path: &Path) {
+    let old = path.with_extension("log.old");
+    let _ = std::fs::remove_file(&old);
+    if let Err(e) = std::fs::rename(path, &old) {
+        eprintln!(
+            "[engine-log] rotate {} -> {} failed: {e} (continuing)",
+            path.display(),
+            old.display()
+        );
+    }
+}
+
+/// The engine log file with the size it has reached, so a line that takes
+/// it past the cap rotates it in place (the file is reopened afterwards).
+struct EngineLog {
+    path: PathBuf,
+    file: std::fs::File,
+    len: u64,
+}
+
+impl EngineLog {
+    fn open(path: &Path) -> std::io::Result<Self> {
+        let file = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(path)?;
+        let len = file.metadata().map(|m| m.len()).unwrap_or(0);
+        Ok(Self {
+            path: path.to_path_buf(),
+            file,
+            len,
+        })
+    }
+
+    /// Append one line (a newline is added) and rotate when the cap is passed.
+    fn write_line(&mut self, line: &str) {
+        use std::io::Write;
+        let _ = writeln!(self.file, "{line}");
+        let _ = self.file.flush();
+        self.len = self.len.saturating_add(line.len() as u64 + 1);
+        if self.len > ENGINE_LOG_MAX_BYTES {
+            // Reopen first so a failed rotation keeps appending to the same file.
+            rotate_engine_log(&self.path);
+            match Self::open(&self.path) {
+                Ok(next) => *self = next,
+                Err(e) => {
+                    eprintln!(
+                        "[engine-log] reopen {} after rotation failed: {e}",
+                        self.path.display()
+                    );
+                    self.len = 0;
+                }
+            }
         }
     }
 }
@@ -503,14 +584,22 @@ pub async fn start(app: &AppHandle) -> Result<String> {
         let client = engine_probe_client();
         let port_responds = probe(&preferred_url, &client).await;
 
-        if guard.is_some() && port_responds {
+        if port_responds {
             // The port responds, but it might be a stale-version
             // engine left behind by a previous app instance (the
             // process didn't reap on crash, so we inherited it
             // on next start). Verify the version matches the
             // shell's expectation; if not, kill it and respawn
-            // from the bundled bytes.
+            // from the bundled bytes. A matching engine that is not
+            // our child — one the user runs themselves, or a sidecar
+            // whose shell died — is used as it is rather than killed:
+            // the reaper below is only for an engine we cannot use.
             if engine_version_matches(&preferred_url, &client).await {
+                if guard.is_none() {
+                    eprintln!(
+                        "[engine] using the engine already answering on {preferred_url} (not started by this app)",
+                    );
+                }
                 return Ok(preferred_url);
             }
             eprintln!(
@@ -526,7 +615,7 @@ pub async fn start(app: &AppHandle) -> Result<String> {
         if let Some(mut child) = guard.take() {
             let _ = child.kill().await;
             let _ = child.wait().await;
-            LOCAL_CHILD_RUNNING.store(false, Ordering::SeqCst);
+            mark_sidecar_stopped();
         }
 
         // Belt-and-braces: even if our child handle was empty (no
@@ -566,13 +655,15 @@ pub async fn start(app: &AppHandle) -> Result<String> {
         // and let the readiness path surface a clear error.
         (preferred_url, preferred_port)
     };
+    let binary = find_engine_binary(app).context("locating ps5upload-engine binary")?;
     // Point the whole app at wherever the engine actually landed. The
     // renderer's command proxies read engine::url() fresh on every call,
     // so this reroutes them with no renderer-side change. In-memory only
-    // — next launch re-tries the preferred port first.
+    // — next launch re-tries the preferred port first. Pinned first, so
+    // a settings push arriving before the child is marked running cannot
+    // move the proxies back to the preferred port.
+    set_sidecar_url(Some(engine_url.clone()));
     set_url(engine_url.clone());
-
-    let binary = find_engine_binary(app).context("locating ps5upload-engine binary")?;
     // Log alongside the extracted binary so the user can reach it via
     // the same path that the engine binary lives at — surfaced in the
     // readiness-timeout error so support requests can include it.
@@ -586,13 +677,11 @@ pub async fn start(app: &AppHandle) -> Result<String> {
         // visually distinct; reading the bottom of the file gives the
         // most recent attempt.
         if let Ok(mut f) = writer.lock() {
-            use std::io::Write;
-            let _ = writeln!(
-                f,
+            f.write_line(&format!(
                 "\n=== engine start @ {} (binary: {}) ===",
                 chrono_like_now(),
                 binary.display()
-            );
+            ));
         }
     }
 
@@ -646,14 +735,23 @@ pub async fn start(app: &AppHandle) -> Result<String> {
         cmd.creation_flags(CREATE_NO_WINDOW);
     }
 
-    let child = cmd
-        .spawn()
-        .with_context(|| format!("spawning engine: {}", binary.display()))?;
+    let child = match cmd.spawn() {
+        Ok(c) => c,
+        Err(e) => {
+            set_sidecar_url(None);
+            return Err(e).with_context(|| format!("spawning engine: {}", binary.display()));
+        }
+    };
 
     // Store the child immediately so shutdown can reach it even if
     // readiness never arrives.
-    *child_lock().await.lock().await = Some(child);
-    LOCAL_CHILD_RUNNING.store(true, Ordering::SeqCst);
+    let generation;
+    {
+        let mut guard = child_lock().await.lock().await;
+        *guard = Some(child);
+        generation = SPAWN_GENERATION.fetch_add(1, Ordering::SeqCst) + 1;
+        LOCAL_CHILD_RUNNING.store(true, Ordering::SeqCst);
+    }
 
     // Pipe engine stdout/stderr to our stderr with a tag AND tee to
     // the persistent log file. `take()` grabs the handles out of the
@@ -676,14 +774,22 @@ pub async fn start(app: &AppHandle) -> Result<String> {
                     pipe_tagged(err, "[engine:err] ", lw).await;
                     // Take the child out (deadlock-free: stderr EOF means it's
                     // already exiting, so wait() returns promptly) and read its
-                    // status. If shutdown already took it, that's fine.
-                    let child_opt = { child_lock().await.lock().await.take() };
+                    // status. If shutdown already took it, that's fine. After a
+                    // restart the slot holds a newer child: that one is left
+                    // alone, and its exit is not this child's.
+                    let child_opt = {
+                        let mut guard = child_lock().await.lock().await;
+                        if SPAWN_GENERATION.load(Ordering::SeqCst) != generation {
+                            return;
+                        }
+                        guard.take()
+                    };
                     let code = if let Some(mut c) = child_opt {
                         c.wait().await.ok().and_then(|s| s.code())
                     } else {
                         None
                     };
-                    LOCAL_CHILD_RUNNING.store(false, Ordering::SeqCst);
+                    mark_sidecar_stopped();
                     eprintln!("[engine-watch] engine process exited (code {code:?})");
                     let _ = app_exit.emit("ps5upload-engine-exit", code);
                 });
@@ -735,7 +841,7 @@ pub async fn start(app: &AppHandle) -> Result<String> {
             let _ = child.kill().await;
             let _ = child.wait().await;
         }
-        LOCAL_CHILD_RUNNING.store(false, Ordering::SeqCst);
+        mark_sidecar_stopped();
     }
     Err(anyhow!(
         "engine did not become ready at {engine_url}{READINESS_PROBE} within {:?}.\n  last probe error: {last_probe_error}\n  log: {}\n  {}",
@@ -767,22 +873,32 @@ fn chrono_like_now() -> String {
     format!("epoch {secs}")
 }
 
-/// Tear down the engine child. SIGTERM then SIGKILL after a grace period.
-/// Idempotent — safe to call twice, safe to call when nothing is running.
+/// Tear down the engine child: close its stdin so its parent watch shuts
+/// it down in an orderly way, then kill it if it is still there after
+/// `SHUTDOWN_EOF_GRACE`. Idempotent — safe to call twice, safe to call
+/// when nothing is running.
 pub async fn stop() {
     let lock = child_lock().await;
     let mut guard = lock.lock().await;
     let Some(mut child) = guard.take() else {
         return;
     };
-    LOCAL_CHILD_RUNNING.store(false, Ordering::SeqCst);
+    mark_sidecar_stopped();
 
-    // Best-effort graceful shutdown. On UNIX we could SIGTERM; tokio's
-    // Child::kill() maps to SIGKILL on unix and TerminateProcess on Windows.
-    // We time-box the wait in case the child ignores signals.
+    // The engine's parent watch (PS5UPLOAD_PARENT_WATCH) exits on stdin
+    // EOF, the same signal it gets when this process dies, so dropping
+    // our end lets it finish in-flight work on its own terms. Child::kill()
+    // is SIGKILL on unix and TerminateProcess on Windows: the backstop, and
+    // the whole stop is time-boxed in case the child ignores both.
+    drop(child.stdin.take());
     let _ = tokio::time::timeout(SHUTDOWN_GRACE, async {
-        let _ = child.kill().await;
-        let _ = child.wait().await;
+        if tokio::time::timeout(SHUTDOWN_EOF_GRACE, child.wait())
+            .await
+            .is_err()
+        {
+            let _ = child.kill().await;
+            let _ = child.wait().await;
+        }
     })
     .await;
 }
@@ -875,7 +991,7 @@ fn line_is_pre_tagged(line: &str) -> bool {
     line.trim_start().starts_with("[engine")
 }
 
-async fn pipe_tagged<R>(mut reader: R, tag: &'static str, log: Option<Arc<Mutex<std::fs::File>>>)
+async fn pipe_tagged<R>(mut reader: R, tag: &'static str, log: Option<Arc<Mutex<EngineLog>>>)
 where
     R: tokio::io::AsyncRead + Unpin + Send + 'static,
 {
@@ -899,20 +1015,18 @@ where
         // already states its level is passed through untouched; only
         // genuinely untagged output (a panic, a linker message) still gets
         // the pipe's tag, which is exactly the case the tag is for.
-        let pre_tagged = line_is_pre_tagged(&s);
-        if pre_tagged {
-            eprintln!("{s}");
+        let line = if line_is_pre_tagged(&s) {
+            s.into_owned()
         } else {
-            eprintln!("{tag}{s}");
-        }
+            format!("{tag}{s}")
+        };
+        // Not eprintln!: that panics when our own stderr is a closed pipe,
+        // which would end this drain and leave the engine blocked on a
+        // full pipe (see the parent-watch history in the engine).
+        let _ = writeln!(std::io::stderr(), "{line}");
         if let Some(writer) = &log {
             if let Ok(mut f) = writer.lock() {
-                let _ = if pre_tagged {
-                    writeln!(f, "{s}")
-                } else {
-                    writeln!(f, "{tag}{s}")
-                };
-                let _ = f.flush();
+                f.write_line(&line);
             }
         }
     };
@@ -975,16 +1089,18 @@ pub fn set_url(url: String) {
     // loopback port because 19113 was occupied, honoring that push would
     // point the command proxies at the wrong (empty) port. A running
     // sidecar lives where it bound and can only move on restart — so
-    // ignore a *loopback* rewrite while it's up. Remote (non-loopback)
-    // URLs still switch the target, and start()'s own set_url runs before
-    // the child is marked running, so the fallback URL still takes hold.
-    // `self::url()` — the local `url` param shadows the module fn by bare name.
-    let current = self::url();
-    if LOCAL_CHILD_RUNNING.load(Ordering::SeqCst) && is_loopback_url(&next) && next != current {
-        eprintln!(
-            "[engine] ignoring engine-URL change to {next} — a local sidecar is running on {current} (moving it needs a restart)",
-        );
-        return;
+    // ignore a *loopback* rewrite to anywhere but the sidecar itself
+    // while it's up. Remote (non-loopback) URLs still switch the target,
+    // and the sidecar's own URL is always accepted, so Settings can come
+    // back from a remote engine to the sidecar. start() pins the sidecar
+    // URL before its own set_url, so the fallback URL takes hold.
+    if let Some(sidecar) = sidecar_url() {
+        if is_loopback_url(&next) && next != sidecar {
+            eprintln!(
+                "[engine] ignoring engine-URL change to {next} — a local sidecar is running on {sidecar} (moving it needs a restart)",
+            );
+            return;
+        }
     }
     *engine_url_cell().write().unwrap_or_else(|e| e.into_inner()) = next;
 }
@@ -1041,6 +1157,37 @@ mod log_tag_tests {
         ] {
             assert!(!line_is_pre_tagged(line), "must be tagged: {line}");
         }
+    }
+}
+
+#[cfg(test)]
+mod engine_log_tests {
+    use super::{EngineLog, ENGINE_LOG_MAX_BYTES};
+
+    #[test]
+    fn a_long_session_rotates_the_log_at_the_cap() {
+        let dir = std::env::temp_dir().join(format!("ps5upload-englog-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("engine.log");
+        let mut log = EngineLog::open(&path).unwrap();
+        let line = "x".repeat(1023);
+        let per_file = (ENGINE_LOG_MAX_BYTES / 1024) as usize;
+        for _ in 0..per_file {
+            log.write_line(&line);
+        }
+        // Exactly at the cap: nothing rotated yet.
+        assert!(!path.with_extension("log.old").exists());
+        log.write_line("one more");
+        let old = path.with_extension("log.old");
+        assert_eq!(
+            std::fs::metadata(&old).unwrap().len(),
+            ENGINE_LOG_MAX_BYTES + 9
+        );
+        assert_eq!(std::fs::metadata(&path).unwrap().len(), 0);
+        log.write_line("after");
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "after\n");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }
 

@@ -833,6 +833,10 @@ pub struct SaveAutoBackupSlotReq {
     pub stamp: String,
     /// How many backups of one save to keep, this one included (at least 1).
     pub keep: u32,
+    /// True once this slot's zip has been written: this save's backups beyond `keep` are
+    /// then removed. False beforehand, so a failed backup never costs an old one.
+    #[serde(default)]
+    pub prune: bool,
 }
 
 /// The name stem every automatic backup of one user's save of one title carries.
@@ -840,23 +844,23 @@ fn auto_backup_stem(title_id: &str, user_id: u32) -> String {
     format!("{title_id}_user{user_id:08x}_")
 }
 
-/// Which of `existing` (file names in the title's folder) to delete so that, with one more
-/// about to be written, `keep` remain: the oldest of this save's own backups. Names sort by
-/// their timestamp. Files that are not this save's backups are never listed.
+/// Which of `existing` (file names in the title's folder, the backup just written among them)
+/// to delete so that `keep` remain: the oldest of this save's own backups. Names sort by their
+/// timestamp. Files that are not this save's backups are never listed.
 pub fn auto_backups_to_prune(existing: &[String], stem: &str, keep: u32) -> Vec<String> {
     let mut mine: Vec<&String> = existing
         .iter()
         .filter(|n| n.starts_with(stem) && n.ends_with(".zip"))
         .collect();
     mine.sort();
-    let keep_old = keep.max(1) as usize - 1;
-    let drop = mine.len().saturating_sub(keep_old);
+    let drop = mine.len().saturating_sub(keep.max(1) as usize);
     mine.into_iter().take(drop).cloned().collect()
 }
 
 /// Where the next automatic backup of a save goes: `<dir>/<title_id>/<stem><stamp>.zip`. Makes
-/// the folder and removes this save's oldest backups beyond `keep`. Only plain names are
-/// accepted for the title and the stamp, so nothing outside `dir` can be reached.
+/// the folder; called again with `prune` once the zip is there, it removes this save's oldest
+/// backups beyond `keep`. Only plain names are accepted for the title and the stamp, so nothing
+/// outside `dir` can be reached.
 #[tauri::command]
 pub async fn save_auto_backup_slot(req: SaveAutoBackupSlotReq) -> Result<String, String> {
     let plain = |s: &str| {
@@ -875,13 +879,15 @@ pub async fn save_auto_backup_slot(req: SaveAutoBackupSlotReq) -> Result<String,
         std::fs::create_dir_all(&folder)
             .map_err(|e| format!("create {}: {e}", folder.display()))?;
         let stem = auto_backup_stem(&req.title_id, req.user_id);
-        let existing: Vec<String> = std::fs::read_dir(&folder)
-            .map_err(|e| format!("read {}: {e}", folder.display()))?
-            .filter_map(|e| e.ok())
-            .filter_map(|e| e.file_name().into_string().ok())
-            .collect();
-        for old in auto_backups_to_prune(&existing, &stem, req.keep) {
-            let _ = std::fs::remove_file(folder.join(old));
+        if req.prune {
+            let existing: Vec<String> = std::fs::read_dir(&folder)
+                .map_err(|e| format!("read {}: {e}", folder.display()))?
+                .filter_map(|e| e.ok())
+                .filter_map(|e| e.file_name().into_string().ok())
+                .collect();
+            for old in auto_backups_to_prune(&existing, &stem, req.keep) {
+                let _ = std::fs::remove_file(folder.join(old));
+            }
         }
         Ok(folder
             .join(format!("{stem}{}.zip", req.stamp))
@@ -911,16 +917,16 @@ mod auto_backup_tests {
         .iter()
         .map(|s| s.to_string())
         .collect();
-        // Keep 3 with one more about to be written: the oldest of ours goes.
+        // The newest of ours is the one just written. Keep 2: the oldest of ours goes.
         assert_eq!(
-            auto_backups_to_prune(&names, &stem, 3),
+            auto_backups_to_prune(&names, &stem, 2),
             vec!["CUSA00900_user12345678_2026-10-01_090000.zip".to_string()]
         );
         // Room for all: nothing goes.
-        assert!(auto_backups_to_prune(&names, &stem, 4).is_empty());
+        assert!(auto_backups_to_prune(&names, &stem, 3).is_empty());
         // Keep 1: every earlier one of ours goes, and nothing that is not ours.
-        assert_eq!(auto_backups_to_prune(&names, &stem, 1).len(), 3);
-        assert_eq!(auto_backups_to_prune(&names, &stem, 0).len(), 3);
+        assert_eq!(auto_backups_to_prune(&names, &stem, 1).len(), 2);
+        assert_eq!(auto_backups_to_prune(&names, &stem, 0).len(), 2);
     }
 }
 

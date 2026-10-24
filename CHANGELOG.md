@@ -6,6 +6,35 @@ What's new in ps5upload, written for humans.
 
 ## Unreleased
 
+- **Bug reports hide Windows user names (desktop).** With "Remove personal details" on, a path
+  like `C:\Users\<name>` inside the report's JSON files (where backslashes are doubled) was left
+  as it was. It is now shortened to `~` like every other home folder. The engine log in a report
+  is also capped at its last 4 MB, so a report cannot take minutes on a very long session.
+- **The app no longer kills an engine you run yourself (desktop).** At start-up, an engine of the
+  same version already answering on the app's port (one you started by hand, or in Docker) is used
+  as it is; only an engine of a different version is replaced. The engine's log file now also
+  rotates during a long session instead of growing without bound.
+- **Settings → Engine URL can come back to the built-in engine (desktop).** Switching from a
+  remote engine back to the default local address used to be ignored until the app restarted.
+- **Reset all app data removes everything (desktop).** The upload queue, payload playlists, the
+  downloaded-payload cache and custom payload repos were left behind, and the engine could write
+  its connections back after the wipe. The engine is now stopped for the wipe and started again.
+- **Sending a payload to a console by host name.** The name is looked up before the 3-second
+  connection timeout starts, so a slow DNS answer no longer makes the send fail.
+- **Sending a payload labels the right files.** A cached catalogue payload was reported as a
+  ps5upload helper because the app's own data folder has "ps5upload" in its name.
+- **Save backups: a failed backup no longer costs an old one.** Older automatic backups are
+  removed only after the new one has been written.
+- **A failed bug report leaves no half-written zip behind.**
+- **USB autoloader gets this version's helper.** Right after an app update, "Prepare USB stick"
+  could copy the previous version's helper if the Connection screen had not yet extracted the new
+  one.
+- **Custom payload repos: a corrected asset name is kept.** Re-adding a repo you already added
+  now updates its name and asset hint instead of returning the old entry, and an asset hint that
+  looks like a path is no longer used as a file name.
+- **Restart engine starts the background activity watch.** When the engine failed at launch and
+  was then restarted from Settings, finished jobs were not announced until the app restarted.
+
 ## 7.1.19
 
 Update the helper for everything below.
