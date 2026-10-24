@@ -119,7 +119,8 @@ import {
   FS_DEFAULT_PATH,
 } from "../../lib/fsLastPath";
 import { useFsNavStore } from "../../state/fsNavigation";
-import { dragOut, dragOutAvailable } from "../../lib/dragOut";
+import { stageBrowserFile } from "../../api/pkgUpload";
+import { dragOut, dragOutAvailable, isDragOutCopy } from "../../lib/dragOut";
 import { beginTask, trackTask } from "../../state/trackTask";
 import { useActivityHistoryStore } from "../../state/activityHistory";
 import { audit } from "../../state/auditLog";
@@ -1314,10 +1315,61 @@ export default function FileSystemScreen() {
 
   // Files and folders dragged in from the computer's file manager land in this folder
   // (a .pkg too: this screen copies it, it does not offer to install it).
-  const dropActive = useWebviewDropAll(
-    (paths) => void addPicked(paths),
-    !loading && !!host?.trim() && localBusy === null,
+  const canDropHere = !loading && !!host?.trim() && localBusy === null;
+  const webviewDropActive = useWebviewDropAll(
+    // A copy this screen made for a drag out, dropped back on the window, is not copied again.
+    (paths) => void addPicked(paths.filter((p) => !isDragOutCopy(p))),
+    canDropHere,
   );
+  // The web UI gets the browser's own file drop instead: each file goes up to the server the
+  // engine runs on, then into this folder like any picked file. A folder cannot be read that way.
+  const [browserDropOver, setBrowserDropOver] = useState(false);
+  const browserDrop = !isTauriEnv()
+    ? {
+        onDragOver: (ev: React.DragEvent) => {
+          if (!canDropHere || !ev.dataTransfer.types.includes("Files")) return;
+          ev.preventDefault();
+          ev.dataTransfer.dropEffect = "copy";
+          if (!browserDropOver) setBrowserDropOver(true);
+        },
+        onDragLeave: (ev: React.DragEvent) => {
+          if (ev.currentTarget === ev.target) setBrowserDropOver(false);
+        },
+        onDrop: (ev: React.DragEvent) => {
+          if (!ev.dataTransfer.types.includes("Files")) return;
+          ev.preventDefault();
+          setBrowserDropOver(false);
+          if (!canDropHere) return;
+          const entries = Array.from(ev.dataTransfer.items ?? []);
+          const files = Array.from(ev.dataTransfer.files).filter(
+            (_, i) => !entries[i]?.webkitGetAsEntry?.()?.isDirectory,
+          );
+          if (files.length < ev.dataTransfer.files.length)
+            pushNotification(
+              "info",
+              tr("fs_browser_drop_folder", undefined, "Folders can't be dropped in a browser"),
+              {
+                body: tr(
+                  "fs_browser_drop_folder_body",
+                  undefined,
+                  "Drop the files inside it, or use the desktop app to copy whole folders.",
+                ),
+              },
+            );
+          if (files.length === 0) return;
+          void (async () => {
+            const paths: string[] = [];
+            try {
+              for (const f of files) paths.push((await stageBrowserFile(f)).path);
+            } catch (e) {
+              setError(e instanceof Error ? e.message : String(e));
+            }
+            if (paths.length > 0) await addPicked(paths, "file");
+          })();
+        },
+      }
+    : {};
+  const dropActive = webviewDropActive || browserDropOver;
 
   /** Upload picked files and folders (local or on a saved server) into this folder.
    *
@@ -1643,13 +1695,42 @@ export default function FileSystemScreen() {
   };
   // Drag rows onto a folder (or a breadcrumb) to move them there, like the console's own web
   // file manager (Reddit ask). The move is the same cut-and-paste as Move to…, so a drop on
-  // another drive copies and then removes. On the desktop a dragged FILE still goes out to this
-  // computer (that drag is native), so files move this way where there is no drag-out.
+  // another drive copies and then removes. In the desktop app a drag takes the rows out to this
+  // computer instead (files and folders, copied), and holding Alt/Option moves them here.
   const [dropTarget, setDropTarget] = useState<string | null>(null);
   // The Windows app's window takes every drag for its own file drop (uploads), so no in-page
   // drag reaches a row there: offer none rather than one that does nothing.
   const dragMoveWorks = !(isTauriEnv() && isWindows());
-  const movesByDrag = (e: DirEntry) => dragMoveWorks && (e.kind === "dir" || !canDragOut);
+  const dragStart = (e: DirEntry, isSelected: boolean) => (ev: React.DragEvent) => {
+    const names = isSelected ? [...selected] : [e.name];
+    if (canDragOut && !(ev.altKey && dragMoveWorks)) {
+      ev.preventDefault();
+      const byName = new Map((entries ?? []).map((x) => [x.name, x]));
+      dragOut(
+        {
+          addr: consoleAddr(host),
+          items: names
+            .map((n) => byName.get(n))
+            .filter((x): x is DirEntry => !!x && (x.kind === "file" || x.kind === "dir"))
+            .map((x) => ({
+              remotePath: joinPath(path, x.name),
+              kind: x.kind === "dir" ? ("dir" as const) : ("file" as const),
+              size: x.kind === "dir" ? 0 : x.size,
+              mtime: x.mtime,
+            })),
+          unsafeRead: systemFileRead,
+        },
+        tr,
+      );
+      return;
+    }
+    if (!dragMoveWorks) {
+      ev.preventDefault();
+      return;
+    }
+    ev.dataTransfer.setData(FS_DRAG_MIME, JSON.stringify(names));
+    ev.dataTransfer.effectAllowed = "move";
+  };
   const dropProps = (dest: string) => ({
     onDragOver: (ev: React.DragEvent) => {
       if (!ev.dataTransfer.types.includes(FS_DRAG_MIME)) return;
@@ -2642,7 +2723,7 @@ export default function FileSystemScreen() {
   const menuEntry = rowMenu?.entry ?? null;
 
   return (
-    <div className="app-page">
+    <div className="app-page" {...browserDrop}>
       {properties && (
         <FileProperties
           key={`${properties.host}:${properties.path}`}
@@ -3601,32 +3682,11 @@ export default function FileSystemScreen() {
               return (
                 <li
                   key={e.name}
-                  // Drag a file out of the window onto this computer (desktop app only); a
-                  // folder (or, without drag-out, a file) drags onto another folder to move.
-                  draggable={movesByDrag(e) || canDragOut}
+                  // Drag rows out of the window onto this computer (desktop app), or onto
+                  // another folder here to move them (Alt/Option in the desktop app).
+                  draggable={canDragOut || dragMoveWorks}
                   {...(isDir ? dropProps(joinPath(path, e.name)) : {})}
-                  onDragStart={
-                    movesByDrag(e)
-                      ? (ev) => {
-                          const names = isSelected ? [...selected] : [e.name];
-                          ev.dataTransfer.setData(FS_DRAG_MIME, JSON.stringify(names));
-                          ev.dataTransfer.effectAllowed = "move";
-                        }
-                      : !isDir && canDragOut
-                      ? (ev) => {
-                          ev.preventDefault();
-                          dragOut(
-                            {
-                              addr: consoleAddr(host),
-                              remotePath: joinPath(path, e.name),
-                              size: e.size,
-                              unsafeRead: systemFileRead,
-                            },
-                            tr,
-                          );
-                        }
-                      : undefined
-                  }
+                  onDragStart={dragStart(e, isSelected)}
                   onDoubleClick={(ev) => {
                     if ((ev.target as HTMLElement).closest("input,button"))
                       return;
@@ -3721,6 +3781,21 @@ export default function FileSystemScreen() {
               );
             })}
           </ul>
+          {canDragOut && sortedEntries.length > 0 && (
+            <p className="mt-2 text-xs text-[var(--color-muted)]" data-testid="fs-drag-hint">
+              {dragMoveWorks
+                ? tr(
+                    "fs_drag_hint_move",
+                    undefined,
+                    "Drag files and folders out of the window to copy them to this computer, or drag them in to copy them here. Hold Alt (⌥ Option on a Mac) while dragging to move them into a folder here.",
+                  )
+                : tr(
+                    "fs_drag_hint",
+                    undefined,
+                    "Drag files and folders out of the window to copy them to this computer, or drag them in to copy them here.",
+                  )}
+            </p>
+          )}
         </div>
         {preview && (
           <div
