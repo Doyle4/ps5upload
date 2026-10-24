@@ -45,6 +45,7 @@ import { OptionsCard } from "./OptionsCard";
 import { RunCard, lz4Active, type Lz4Choice } from "./RunCard";
 import { SwapJournals } from "./SwapJournals";
 import { QueueCard } from "./QueueCard";
+import { useRunSide } from "./runPlacement";
 import { buildExtension, thenFor, useConvertQueue, type ConvertBuild, type ConvertThen } from "../../state/convertQueue";
 import { gameFoldersAmong, gamesInFolder } from "../../lib/folderScan";
 import { usePackageViewer } from "../../state/packageViewer";
@@ -90,6 +91,10 @@ export default function FpkgConvertScreen() {
   const finishReplace = useFpkgConversion((s) => s.finishReplace);
   const queueItems = useConvertQueue((s) => s.items);
   const queueRunning = useConvertQueue((s) => s.running);
+  const stepsRef = useRef<HTMLDivElement>(null);
+  const optionsRef = useRef<HTMLDivElement>(null);
+  const runRef = useRef<HTMLDivElement>(null);
+  const runSide = useRunSide(stepsRef, optionsRef, runRef);
   // ③'s one choice of what happens after converting, for Convert and the queue alike.
   const [thenChoice, setThen] = useState<ConvertThen>("keep");
   const [deleteAfter, setDeleteAfter] = useState(false);
@@ -498,10 +503,17 @@ export default function FpkgConvertScreen() {
           homebrew and when the firmware is unknown. */}
       <FakeGameFirmwareNotice kernel={kernel} contentId={inspection?.content_id} />
 
-      {/* Wide windows: ① and ② on the left, ③ and ④ on the right, so the steps read left to
-          right, top to bottom. */}
-      <div className="grid items-start gap-4 xl:grid-cols-2">
-        <div className="flex min-w-0 flex-col gap-4">
+      {/* Wide windows: ① and ② on the left, ③ on the right, and ④ under whichever column
+          leaves the smaller hole (runPlacement). ③ grows a lot with what is made (a folder
+          needs almost no options, a compressed image the most), so a fixed place for ④ left
+          a tall empty column beside it. Row 2 is 1fr and the taller column's block spans
+          both rows, so the spare height lands under ④, not between cards. DOM order stays
+          ①②③④ for a narrow window, the keyboard and screen readers. */}
+      <div className="grid items-start gap-4 xl:grid-cols-2 xl:grid-rows-[auto_1fr]">
+        <div
+          ref={stepsRef}
+          className={`flex min-w-0 flex-col gap-4 xl:col-start-1 xl:row-start-1 ${runSide === "right" ? "xl:row-span-2" : ""}`}
+        >
           <GameCard
             source={source}
             onSourceTyped={(v) => {
@@ -548,7 +560,10 @@ export default function FpkgConvertScreen() {
           />
 
         </div>
-        <div className="flex min-w-0 flex-col gap-4">
+        <div
+          ref={optionsRef}
+          className={`flex min-w-0 flex-col gap-4 xl:col-start-2 xl:row-start-1 ${runSide === "left" ? "xl:row-span-2" : ""}`}
+        >
           <OptionsCard
             outputDir={outputDir}
             onChangeOutput={() => void browseOutput()}
@@ -576,7 +591,11 @@ export default function FpkgConvertScreen() {
             hidden={locked}
             shownTitle={pipeline.phase === "done" && pipeline.swap ? pipeline.swap.titleId : null}
           />
-
+        </div>
+        <div
+          ref={runRef}
+          className={`flex min-w-0 flex-col gap-4 xl:row-start-2 ${runSide === "left" ? "xl:col-start-1" : "xl:col-start-2"}`}
+        >
           {error && (
             <Callout tone="error" title={tr("fpkg.error", undefined, "Conversion error")}>
               {error}

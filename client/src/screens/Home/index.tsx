@@ -318,247 +318,250 @@ export default function HomeScreen() {
             </section>
           </div>
 
-          {/* Everything about the console. Short enough to stay beside the page
-            while it scrolls, so there is never an empty column under it. */}
-          <aside className="glass relative min-w-0 self-start overflow-y-auto rounded-[var(--radius-panel)] p-5 xl:sticky xl:top-0 xl:max-h-[calc(100dvh-9rem)]">
-            <div className="relative">
-              <div className="flex items-start gap-3">
-                <span
-                  className={`grid h-10 w-10 shrink-0 place-items-center rounded-full ${
-                    connected
-                      ? "bg-[var(--color-accent-soft)] text-[var(--color-accent-bright)]"
-                      : "bg-[var(--color-warn-soft)] text-[var(--color-warn)]"
-                  }`}
+          {/* Everything about the console, then Notifications under it. The status card
+            alone was half the height of the column beside it, which left a tall empty strip
+            under it on a wide window (it used to stick while scrolling to hide that); the
+            Notifications card fills the column instead and is narrow content anyway. On a
+            narrow window the order is the same as before: status, Notifications, Servers. */}
+          <div className="flex min-w-0 flex-col gap-6 self-start">
+            <aside className="glass relative min-w-0 rounded-[var(--radius-panel)] p-5">
+              <div className="relative">
+                <div className="flex items-start gap-3">
+                  <span
+                    className={`grid h-10 w-10 shrink-0 place-items-center rounded-full ${
+                      connected
+                        ? "bg-[var(--color-accent-soft)] text-[var(--color-accent-bright)]"
+                        : "bg-[var(--color-warn-soft)] text-[var(--color-warn)]"
+                    }`}
+                  >
+                    {connected ? <Cable size={18} /> : <WifiOff size={18} />}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <h2 className="text-sm font-semibold">
+                      {connected
+                        ? tr("v5_home_console_ready", "Your PS5 is ready")
+                        : tr(
+                            "v5_home_connect_title",
+                            "Connect a PS5 to get started",
+                          )}
+                    </h2>
+                    <p className="mt-0.5 text-xs leading-relaxed text-[var(--color-muted)]">
+                      {connected
+                        ? tr(
+                            "v5_home_console_ready_desc",
+                            `Helper connected${host ? ` at ${host}` : ""}. Console operations are available.`,
+                          )
+                        : tr(
+                            "payload_not_connected_message",
+                            "Add your console address and send the helper once. We’ll verify every capability before enabling console actions.",
+                          )}
+                    </p>
+                  </div>
+                </div>
+                <Link
+                  to="/connection"
+                  className="mt-4 flex min-h-12 items-center justify-between gap-2 rounded-full border border-[var(--glass-edge)] bg-[var(--color-surface-raised)] py-1.5 ps-5 pe-1.5 text-sm font-medium shadow-[var(--edge-highlight),var(--shadow-1)] transition-colors hover:bg-[var(--color-float)]"
                 >
-                  {connected ? <Cable size={18} /> : <WifiOff size={18} />}
-                </span>
-                <div className="min-w-0 flex-1">
-                  <h2 className="text-sm font-semibold">
-                    {connected
-                      ? tr("v5_home_console_ready", "Your PS5 is ready")
-                      : tr(
-                          "v5_home_connect_title",
-                          "Connect a PS5 to get started",
-                        )}
-                  </h2>
-                  <p className="mt-0.5 text-xs leading-relaxed text-[var(--color-muted)]">
-                    {connected
-                      ? tr(
-                          "v5_home_console_ready_desc",
-                          `Helper connected${host ? ` at ${host}` : ""}. Console operations are available.`,
-                        )
-                      : tr(
-                          "payload_not_connected_message",
-                          "Add your console address and send the helper once. We’ll verify every capability before enabling console actions.",
-                        )}
-                  </p>
-                </div>
+                  {connected
+                    ? tr("v5_home_manage_connection", "Manage connection")
+                    : tr("v5_home_connect", "Connect PS5")}
+                  <ArrowRight
+                    size={16}
+                    aria-hidden
+                    className="me-3 shrink-0 text-[var(--color-muted)] rtl:rotate-180"
+                  />
+                </Link>
               </div>
-              <Link
-                to="/connection"
-                className="mt-4 flex min-h-12 items-center justify-between gap-2 rounded-full border border-[var(--glass-edge)] bg-[var(--color-surface-raised)] py-1.5 ps-5 pe-1.5 text-sm font-medium shadow-[var(--edge-highlight),var(--shadow-1)] transition-colors hover:bg-[var(--color-float)]"
-              >
-                {connected
-                  ? tr("v5_home_manage_connection", "Manage connection")
-                  : tr("v5_home_connect", "Connect PS5")}
-                <ArrowRight
-                  size={16}
-                  aria-hidden
-                  className="me-3 shrink-0 text-[var(--color-muted)] rtl:rotate-180"
-                />
-              </Link>
-            </div>
 
-            <div className="relative mt-5">
-              <h3 className="mb-1 text-[0.6875rem] font-medium uppercase tracking-[0.08em] text-[var(--color-muted)]">
-                {tr("v5_home_console_status", "Console status")}
-              </h3>
-              <p className="sr-only">
-                {tr(
-                  "v5_home_console_status_desc",
-                  "Connection and live system health.",
-                )}
-              </p>
-              <MetricRow
-                label={tr("v5_home_host", "Host")}
-                value={host || "—"}
-              />
-              <MetricRow
-                label={tr("v5_home_engine", "Local engine")}
-                value={engineStatus}
-                tone={engineStatus === "up" ? "good" : "bad"}
-              />
-              <MetricRow
-                label={tr("v5_home_helper", "PS5 helper")}
-                value={
-                  resting
-                    ? tr("v5_home_rest_mode", "In rest mode")
-                    : payloadVersion
-                      ? `v${payloadVersion}`
-                      : payloadStatus
-                }
-                tone={payloadStatus === "up" ? "good" : resting ? undefined : "warn"}
-              />
-              <MetricRow
-                label={tr("v5_home_krw", "Kernel access")}
-                value={
-                  ucredElevated === null
-                    ? "—"
-                    : ucredElevated
-                      ? tr("v5_home_available", "Available")
-                      : tr("v5_home_missing", "Unavailable")
-                }
-                tone={
-                  ucredElevated === null
-                    ? undefined
-                    : ucredElevated
-                      ? "good"
-                      : "warn"
-                }
-              />
-            </div>
-
-            <div className="relative mt-4 rounded-[var(--radius-card)] border border-[var(--glass-edge)] bg-[var(--color-surface-raised)] p-4">
-              <div className="mb-3 flex items-center justify-between gap-3">
-                <div>
-                  <div className="text-xs font-semibold">
-                    {tr("v5_home_sensors", "Live sensors")}
-                  </div>
-                  <div className="mt-0.5 text-[0.6875rem] text-[var(--color-muted)]">
-                    {connected
-                      ? tr("v5_home_sensor_live", "Updates automatically")
-                      : tr(
-                          "v5_home_sensor_waiting",
-                          "Available after connection",
-                        )}
-                  </div>
-                </div>
-                {temps && cpuHistory.length >= 2 && (
-                  <Sparkline
-                    data={cpuHistory}
-                    width={82}
-                    height={26}
-                    color={
-                      (temps.cpu_temp ?? 0) >= 85
-                        ? "var(--color-warn)"
-                        : "var(--color-accent-bright)"
-                    }
-                    fill
-                  />
-                )}
-              </div>
-              {temps ? (
-                <div className="grid grid-cols-2 gap-2">
-                  <SensorMetric
-                    label={tr("v5_home_cpu", "CPU")}
-                    value={`${temps.cpu_temp?.toFixed(0) ?? "?"}°C`}
-                  />
-                  <SensorMetric
-                    label={tr("v5_home_soc", "SoC")}
-                    value={`${temps.soc_temp?.toFixed(0) ?? "?"}°C`}
-                  />
-                  {temps.m2_temp > 0 && (
-                    <SensorMetric
-                      label={tr("v5_home_m2", "M.2 SSD")}
-                      value={`${temps.m2_temp.toFixed(0)}°C`}
-                    />
-                  )}
-                  {power && (
-                    <SensorMetric
-                      label={tr("v5_home_lifetime", "Runtime")}
-                      value={`${power.operating_time_hours ?? 0}h`}
-                    />
-                  )}
-                </div>
-              ) : connected ? (
-                <div className="flex items-center gap-2 text-xs text-[var(--color-muted)]">
-                  <Spinner size={13} />
-                  {tr("v5_home_loading_sensors", "Reading sensors…")}
-                </div>
-              ) : (
-                <div className="text-xs text-[var(--color-muted)]">
+              <div className="relative mt-5">
+                <h3 className="mb-1 text-[0.6875rem] font-medium uppercase tracking-[0.08em] text-[var(--color-muted)]">
+                  {tr("v5_home_console_status", "Console status")}
+                </h3>
+                <p className="sr-only">
                   {tr(
-                    "telemetry_not_connected_desc",
-                    "Connect to see temperatures and runtime.",
+                    "v5_home_console_status_desc",
+                    "Connection and live system health.",
                   )}
+                </p>
+                <MetricRow
+                  label={tr("v5_home_host", "Host")}
+                  value={host || "—"}
+                />
+                <MetricRow
+                  label={tr("v5_home_engine", "Local engine")}
+                  value={engineStatus}
+                  tone={engineStatus === "up" ? "good" : "bad"}
+                />
+                <MetricRow
+                  label={tr("v5_home_helper", "PS5 helper")}
+                  value={
+                    resting
+                      ? tr("v5_home_rest_mode", "In rest mode")
+                      : payloadVersion
+                        ? `v${payloadVersion}`
+                        : payloadStatus
+                  }
+                  tone={payloadStatus === "up" ? "good" : resting ? undefined : "warn"}
+                />
+                <MetricRow
+                  label={tr("v5_home_krw", "Kernel access")}
+                  value={
+                    ucredElevated === null
+                      ? "—"
+                      : ucredElevated
+                        ? tr("v5_home_available", "Available")
+                        : tr("v5_home_missing", "Unavailable")
+                  }
+                  tone={
+                    ucredElevated === null
+                      ? undefined
+                      : ucredElevated
+                        ? "good"
+                        : "warn"
+                  }
+                />
+              </div>
+
+              <div className="relative mt-4 rounded-[var(--radius-card)] border border-[var(--glass-edge)] bg-[var(--color-surface-raised)] p-4">
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-xs font-semibold">
+                      {tr("v5_home_sensors", "Live sensors")}
+                    </div>
+                    <div className="mt-0.5 text-[0.6875rem] text-[var(--color-muted)]">
+                      {connected
+                        ? tr("v5_home_sensor_live", "Updates automatically")
+                        : tr(
+                            "v5_home_sensor_waiting",
+                            "Available after connection",
+                          )}
+                    </div>
+                  </div>
+                  {temps && cpuHistory.length >= 2 && (
+                    <Sparkline
+                      data={cpuHistory}
+                      width={82}
+                      height={26}
+                      color={
+                        (temps.cpu_temp ?? 0) >= 85
+                          ? "var(--color-warn)"
+                          : "var(--color-accent-bright)"
+                      }
+                      fill
+                    />
+                  )}
+                </div>
+                {temps ? (
+                  <div className="grid grid-cols-2 gap-2">
+                    <SensorMetric
+                      label={tr("v5_home_cpu", "CPU")}
+                      value={`${temps.cpu_temp?.toFixed(0) ?? "?"}°C`}
+                    />
+                    <SensorMetric
+                      label={tr("v5_home_soc", "SoC")}
+                      value={`${temps.soc_temp?.toFixed(0) ?? "?"}°C`}
+                    />
+                    {temps.m2_temp > 0 && (
+                      <SensorMetric
+                        label={tr("v5_home_m2", "M.2 SSD")}
+                        value={`${temps.m2_temp.toFixed(0)}°C`}
+                      />
+                    )}
+                    {power && (
+                      <SensorMetric
+                        label={tr("v5_home_lifetime", "Runtime")}
+                        value={`${power.operating_time_hours ?? 0}h`}
+                      />
+                    )}
+                  </div>
+                ) : connected ? (
+                  <div className="flex items-center gap-2 text-xs text-[var(--color-muted)]">
+                    <Spinner size={13} />
+                    {tr("v5_home_loading_sensors", "Reading sensors…")}
+                  </div>
+                ) : (
+                  <div className="text-xs text-[var(--color-muted)]">
+                    {tr(
+                      "telemetry_not_connected_desc",
+                      "Connect to see temperatures and runtime.",
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {ps5Kernel && (
+                <p
+                  className="relative mt-3 truncate font-mono text-[0.6875rem] text-[var(--color-muted)]"
+                  title={ps5Kernel}
+                >
+                  {ps5Kernel}
+                </p>
+              )}
+              {runningTitleIds.size > 0 && (
+                <div className="relative mt-3 flex items-center gap-2 text-xs">
+                  <Power size={13} className="text-[var(--color-good)]" />
+                  <span className="font-medium">
+                    {tr(
+                      "v5_home_running",
+                      { n: runningTitleIds.size },
+                      `${runningTitleIds.size} running`,
+                    )}
+                  </span>
+                  <span className="truncate font-mono text-[var(--color-muted)]">
+                    {Array.from(runningTitleIds).slice(0, 3).join(", ")}
+                  </span>
                 </div>
               )}
-            </div>
+            </aside>
 
-            {ps5Kernel && (
-              <p
-                className="relative mt-3 truncate font-mono text-[0.6875rem] text-[var(--color-muted)]"
-                title={ps5Kernel}
-              >
-                {ps5Kernel}
-              </p>
-            )}
-            {runningTitleIds.size > 0 && (
-              <div className="relative mt-3 flex items-center gap-2 text-xs">
-                <Power size={13} className="text-[var(--color-good)]" />
-                <span className="font-medium">
-                  {tr(
-                    "v5_home_running",
-                    { n: runningTitleIds.size },
-                    `${runningTitleIds.size} running`,
+            <Card>
+              <SectionHeading
+                icon={Bell}
+                title={tr("v5_home_notifications", "Notifications")}
+                description={tr(
+                  "v5_home_notifications_desc",
+                  "Important results and warnings.",
+                )}
+                action={
+                  <InlineLink
+                    to="/notifications"
+                    label={tr("v5_home_view_all", "View all")}
+                  />
+                }
+              />
+              {recentNotifs.length === 0 ? (
+                <CompactEmpty
+                  icon={Bell}
+                  title={tr("v5_home_no_notifications", "You’re all caught up")}
+                  body={tr(
+                    "v5_home_no_notifications_desc",
+                    "New alerts will appear here.",
                   )}
-                </span>
-                <span className="truncate font-mono text-[var(--color-muted)]">
-                  {Array.from(runningTitleIds).slice(0, 3).join(", ")}
-                </span>
-              </div>
-            )}
-          </aside>
+                />
+              ) : (
+                <ul className="space-y-2">
+                  {recentNotifs.map((notification) => (
+                    <li
+                      key={notification.id}
+                      className="rounded-2xl bg-[var(--color-surface)] px-4 py-2.5 text-xs"
+                    >
+                      <div className="font-semibold">{notification.title}</div>
+                      {notification.body && (
+                        <div className="mt-0.5 line-clamp-2 text-[var(--color-muted)]">
+                          {notification.body}
+                        </div>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Card>
+          </div>
         </div>
 
-        <div className="mt-6 grid gap-6 xl:grid-cols-12">
-          <Card className="xl:col-span-5">
-            <SectionHeading
-              icon={Bell}
-              title={tr("v5_home_notifications", "Notifications")}
-              description={tr(
-                "v5_home_notifications_desc",
-                "Important results and warnings.",
-              )}
-              action={
-                <InlineLink
-                  to="/notifications"
-                  label={tr("v5_home_view_all", "View all")}
-                />
-              }
-            />
-            {recentNotifs.length === 0 ? (
-              <CompactEmpty
-                icon={Bell}
-                title={tr("v5_home_no_notifications", "You’re all caught up")}
-                body={tr(
-                  "v5_home_no_notifications_desc",
-                  "New alerts will appear here.",
-                )}
-              />
-            ) : (
-              <ul className="space-y-2">
-                {recentNotifs.map((notification) => (
-                  <li
-                    key={notification.id}
-                    className="rounded-2xl bg-[var(--color-surface)] px-4 py-2.5 text-xs"
-                  >
-                    <div className="font-semibold">{notification.title}</div>
-                    {notification.body && (
-                      <div className="mt-0.5 line-clamp-2 text-[var(--color-muted)]">
-                        {notification.body}
-                      </div>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </Card>
-
+        <div className="mt-6">
           {/* Saved servers, once and always here: browse a NAS, or add the first one. */}
-          <div className="min-w-0 xl:col-span-7 [&>section]:h-full">
-            <ServersCard />
-          </div>
+          <ServersCard />
         </div>
       </div>
     </div>
