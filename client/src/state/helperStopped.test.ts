@@ -32,6 +32,8 @@ vi.mock("../lib/elfldrGuard", () => ({
 }));
 vi.mock("../lib/restoreMainPayload", () => ({
   restoreMainPayload: (...a: unknown[]) => restoreMock(...a),
+  // The browser build sends through the engine and throws on a refusal.
+  engineSendsHelper: (...a: unknown[]) => restoreMock(...a),
 }));
 vi.mock("./logs", () => ({ log: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } }));
 
