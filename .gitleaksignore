@@ -10,3 +10,5 @@ fca60af2ea14176e9911c21f0b361ffb6ba8860f:payload/extractor/tests/run.py:generic-
 c14782944de606395e43c21c55eec1c518e46a59:client/src/screens/Connection/WakeSetup.tsx:generic-api-key:29
 78fdfb2922d56654ecd887ee9bce4942fdecc219:client/src/screens/Connection/WakeSetup.tsx:generic-api-key:29
 26ba1fe054bbfb8f4423411e3c9001ee262422df:client/src/screens/Connection/WakeSetup.tsx:generic-api-key:20
+# Its made-up replacement (00112233…eeff)
+d2b76643760bd241d839d6e14168238e2fad50c6:client/src/screens/Connection/WakeSetup.tsx:generic-api-key:29

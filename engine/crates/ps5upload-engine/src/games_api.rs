@@ -311,7 +311,7 @@ mod tests {
         let list = |id: &str, name: &str| vec![(id.to_string(), name.to_string(), None)];
         console_snapshot::merge_full_list(
             &mut snaps,
-            "10.0.0.2:9114",
+            "10.0.0.2:5000",
             &list("PPSA01234", ""),
             true,
             1,
