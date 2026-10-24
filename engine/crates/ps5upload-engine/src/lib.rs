@@ -81,6 +81,7 @@ mod profile_image;
 mod remote;
 mod remote_download;
 mod remote_pkg;
+mod shared_state;
 mod state_io;
 mod telemetry;
 #[cfg(feature = "webui")]
@@ -10826,6 +10827,10 @@ async fn run(cfg: EngineConfig) -> anyhow::Result<()> {
             post(collection_check_api::post_check_cancel),
         )
         .route("/api/games/installed", get(games_api::list_installed))
+        .route(
+            "/api/shared/{name}",
+            get(shared_state::get_doc).put(shared_state::put_doc),
+        )
         .route("/api/games/{id}", get(games_api::get_game))
         .route("/api/games/{id}/refresh", post(games_api::refresh))
         .route("/api/console-snapshots/keep", post(games_api::keep))

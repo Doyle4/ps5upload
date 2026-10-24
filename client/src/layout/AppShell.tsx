@@ -101,6 +101,7 @@ import {
 } from "../state/fsUploadRuntime";
 import { isDragOutCopy } from "../lib/dragOut";
 import { keepMinionOff } from "../state/minionMemory";
+import { startRosterShare } from "../state/rosterShare";
 import { useTransferStore } from "../state/transfer";
 import { useUploadSettingsStore } from "../state/uploadSettings";
 import { ensurePayloadCurrent } from "../lib/ensurePayloadCurrent";
@@ -1478,6 +1479,9 @@ export default function AppShell() {
     // Migrate single-host users into the multi-PS5 roster on first
     // start. Idempotent — no-op when the roster is already populated.
     ensureRosterMigrated();
+    // The self-hosted web UI keeps the console list in the engine, so every browser sees the
+    // same consoles. No-op in the desktop and mobile apps.
+    const stopRosterShare = startRosterShare();
     // Subscribe-once: cross-store accumulator that credits running
     // titles with elapsed wall-clock between updates. Idempotent.
     installPlayTimeAccumulator();
@@ -1493,7 +1497,10 @@ export default function AppShell() {
       runNotificationAutoPrune,
       6 * 3600 * 1000,
     );
-    return () => window.clearInterval(pruneTimer);
+    return () => {
+      window.clearInterval(pruneTimer);
+      stopRosterShare();
+    };
   }, []);
   // Window title follows the active console so the macOS Dock / app
   // switcher / Windows taskbar answer "which PS5 am I looking at?"

@@ -105,6 +105,10 @@ interface RosterState {
   setWakeCredential: (id: string, credential: string) => void;
   /** Store or clear the sign-in keys (both hex, or both empty to clear). */
   setWakeSessionKeys: (id: string, registKey: string, rpKey: string) => void;
+  /** Take the console list another browser saved (the self-hosted web UI keeps it in the engine,
+   *  `state/rosterShare.ts`): this browser's last-seen cache is kept per console, and the
+   *  selected console stays selected while it still exists. */
+  replaceShared: (profiles: PS5Profile[]) => void;
   /** Called by AppShell's status poller when a probe lands a fresh
    *  kernel/payload pair, so the roster row stays current without
    *  the user opening Settings. */
@@ -390,6 +394,36 @@ export const useRosterStore = create<RosterState>((set, get) => ({
       persist(profiles, st.active_id);
       return { profiles };
     });
+  },
+  replaceShared: (incoming) => {
+    const mine = new Map(get().profiles.map((p) => [p.id, p]));
+    const next = incoming.map((p) => {
+      const local = mine.get(p.id);
+      const sameHost = local && hostOf(local.host) === hostOf(p.host);
+      return {
+        ...p,
+        last_seen_at: sameHost ? (local.last_seen_at ?? null) : null,
+        last_seen_kernel: sameHost ? (local.last_seen_kernel ?? null) : null,
+        last_seen_payload: sameHost ? (local.last_seen_payload ?? null) : null,
+      };
+    });
+    const activeId = get().active_id;
+    const oldActive = activeId ? mine.get(activeId) : undefined;
+    const newActive = next.find((p) => p.id === activeId);
+    set({ profiles: next });
+    persist(next, get().active_id);
+    if (!newActive) {
+      // The selected console was removed elsewhere: select the first one, as remove() does.
+      if (next[0]) get().setActive(next[0].id);
+      else {
+        set({ active_id: null });
+        persist(next, null);
+      }
+    } else if (oldActive && newActive.host !== oldActive.host) {
+      // Re-pointed elsewhere: follow it, as updateHost() does for the active console.
+      useRunningAppsStore.getState().clearForHostChange(newActive.host);
+      useConnectionStore.getState().setHost(newActive.host);
+    }
   },
   noteSeen: (id, patch) => {
     const now = Math.floor(Date.now() / 1000);
