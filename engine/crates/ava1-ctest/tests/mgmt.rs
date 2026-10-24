@@ -302,11 +302,15 @@ async fn c_mgmt_workers_use_512k_stacks_and_elevate() {
     let body = String::from_utf8(untext(&r.body).body).unwrap();
     let v: serde_json::Value = serde_json::from_str(&body).unwrap();
     let stack = v["stack"].as_u64().unwrap() as usize;
-    // 512 KiB (macOS pads the reported allocation by up to ~64 KiB)
-    assert!(
-        (512 * 1024..=512 * 1024 + 64 * 1024).contains(&stack),
-        "stack {stack}"
-    );
+    // 512 KiB (macOS pads the reported allocation by up to ~64 KiB). On Linux glibc may hand
+    // the worker a cached stack of up to 4x the request that an earlier, bigger thread released,
+    // so there only the lower bound is exact; it is what matters (never the 256 KiB worker).
+    let top = if cfg!(target_os = "linux") {
+        4 * 512 * 1024
+    } else {
+        512 * 1024 + 64 * 1024
+    };
+    assert!((512 * 1024..=top).contains(&stack), "stack {stack}");
     // the environment hook ran on the handler's own thread, with the legacy frame number
     assert_eq!(
         v["marker"].as_u64().unwrap(),
