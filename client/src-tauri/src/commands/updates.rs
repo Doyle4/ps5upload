@@ -32,7 +32,8 @@
 //!       "windows-aarch64":"https://.../PS5Upload-2.2.0-win-arm64.zip",
 //!       "linux-x86_64":   "https://.../PS5Upload-2.2.0-linux-x64.zip",
 //!       "linux-aarch64":  "https://.../PS5Upload-2.2.0-linux-arm64.zip",
-//!       "android":        "https://.../PS5Upload-2.2.0-android.apk"
+//!       "android":        "https://.../PS5Upload-2.2.0-android.apk",
+//!       "android-armv7":  "https://.../PS5Upload-2.2.0-android-armv7.apk"
 //!     }
 //!   }
 //!
@@ -147,12 +148,15 @@ fn current_platform_key() -> &'static str {
     {
         return "linux-aarch64";
     }
-    // Android ships as ONE universal APK covering both arm64 and armv7
-    // (publish.yml builds `--target aarch64 --target armv7` into a single
-    // `PS5Upload-<ver>-android.apk`), so every Android arch maps to the
-    // same manifest key. Keep this in sync with the
-    // `scripts/gen-updater-manifest.py` pattern for `-android.apk`.
-    #[cfg(target_os = "android")]
+    // Android ships one APK per ABI (publish.yml, --split-per-abi): arm64 as
+    // `PS5Upload-<ver>-android.apk` under "android", 32-bit ARM as
+    // `-android-armv7.apk` under "android-armv7". Keep in sync with
+    // `scripts/gen-updater-manifest.py`.
+    #[cfg(all(target_os = "android", target_arch = "arm"))]
+    {
+        return "android-armv7";
+    }
+    #[cfg(all(target_os = "android", not(target_arch = "arm")))]
     {
         return "android";
     }

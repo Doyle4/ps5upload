@@ -63,9 +63,11 @@ PLATFORM_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     ("linux-aarch64-deb", re.compile(r".*-linux-arm64\.deb$")),
     ("linux-x86_64-rpm",  re.compile(r".*-linux-x64\.rpm$")),
     ("linux-aarch64-rpm", re.compile(r".*-linux-arm64\.rpm$")),
-    # Single universal APK (built --target aarch64 --target armv7), so one
-    # "android" key — matches current_platform_key() in commands/updates.rs.
+    # One APK per ABI since 7.3.2: arm64 keeps the plain name and the "android" key
+    # (older apps on any Android arch look that key up), 32-bit ARM gets its own.
+    # Matches current_platform_key() in commands/updates.rs.
     ("android",         re.compile(r".*-android\.apk$")),
+    ("android-armv7",   re.compile(r".*-android-armv7\.apk$")),
     # The unsigned iPhone .ipa — current_platform_key() returns "ios" there.
     ("ios",             re.compile(r".*-ios-unsigned\.ipa$")),
 ]

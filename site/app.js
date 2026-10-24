@@ -84,6 +84,7 @@ const KINDS = [
   { re: /-linux-arm64\.rpm$/, os: "linux", label: "ARM64 Fedora, openSUSE", note: ".rpm" },
   { re: /-linux-arm64\.zip$/, os: "linux", label: "ARM64 any distro", note: ".zip" },
   { re: /-android\.apk$/, os: "android", label: "Phones and tablets", note: ".apk" },
+  { re: /-android-armv7\.apk$/, os: "android", label: "Older 32-bit phones", note: ".apk" },
   { re: /-ios-unsigned\.ipa$/, os: "ios", label: "iPhone, sideload", note: ".ipa" },
   { re: /^ps5upload-[\d.]+\.elf$/, os: "extra", label: "PS5 helper (payload)", note: ".elf" },
   { re: /^ps5upload-engine-/, os: "extra", label: null, note: "" },

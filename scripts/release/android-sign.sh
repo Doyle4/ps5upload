@@ -20,27 +20,28 @@
 #     differs, so a user must uninstall the previous ephemeral-signed
 #     build before installing a newer one. A ::warning:: is emitted.
 #
-# Output: ./PS5Upload-android.apk (signed, zipaligned, verified) in CWD.
+# Output: ./PS5Upload-android.apk (arm64) and ./PS5Upload-android-armv7.apk
+# (signed, zipaligned, verified) in CWD.
 
 set -euo pipefail
 
 apk_dir="client/src-tauri/gen/android/app/build/outputs/apk"
 
-# Tauri emits the universal release APK as *-release-unsigned.apk. Fall
-# back to any release apk if a future Tauri renames it.
-# `-print -quit` (not `| head`) so `find` is never SIGPIPE-killed when the
-# reader closes early — under `set -o pipefail` that 141 would abort the
-# whole script. -quit stops at the first match.
-unsigned="$(find "$apk_dir" -name '*-release-unsigned.apk' -print -quit)"
-if [ -z "$unsigned" ]; then
-  unsigned="$(find "$apk_dir" -name '*release*.apk' ! -name '*-signed.apk' -print -quit)"
-fi
-if [ -z "$unsigned" ]; then
-  echo "::error::no release APK found under $apk_dir"
+# publish.yml builds one APK per ABI (--split-per-abi): arm64 ships as the plain
+# PS5Upload-android.apk (what nearly every phone and tablet needs, and the name the
+# updater and the site already use), 32-bit ARM as PS5Upload-android-armv7.apk.
+# `-print -quit` (not `| head`) so `find` is never SIGPIPE-killed under pipefail.
+unsigned_for() {
+  find "$apk_dir/$1" -name '*-release-unsigned.apk' -print -quit 2>/dev/null
+}
+arm64="$(unsigned_for arm64)"
+armv7="$(unsigned_for arm)"
+if [ -z "$arm64" ]; then
+  echo "::error::no arm64 release APK found under $apk_dir"
   find "$apk_dir" -name '*.apk' || true
   exit 1
 fi
-echo "Unsigned APK: $unsigned"
+echo "Unsigned APKs: $arm64 ${armv7:-(no armv7)}"
 
 work="$(mktemp -d)"
 keystore="$work/release.jks"
@@ -70,18 +71,24 @@ if [ -z "$bt" ]; then
 fi
 echo "Using build-tools: $bt"
 
-aligned="$work/aligned.apk"
-"$bt/zipalign" -f -p 4 "$unsigned" "$aligned"
+sign_one() {
+  local unsigned="$1" out="$2" aligned="$work/aligned.apk"
+  "$bt/zipalign" -f -p 4 "$unsigned" "$aligned"
+  "$bt/apksigner" sign \
+    --ks "$keystore" \
+    --ks-key-alias "$key_alias" \
+    --ks-pass "pass:$store_pass" \
+    --key-pass "pass:$key_pass" \
+    --out "$out" \
+    "$aligned"
+  "$bt/apksigner" verify --verbose "$out"
+  echo "✓ signed APK: $out"
+  ls -la "$out"
+}
 
-out="PS5Upload-android.apk"
-"$bt/apksigner" sign \
-  --ks "$keystore" \
-  --ks-key-alias "$key_alias" \
-  --ks-pass "pass:$store_pass" \
-  --key-pass "pass:$key_pass" \
-  --out "$out" \
-  "$aligned"
-
-"$bt/apksigner" verify --verbose "$out"
-echo "✓ signed APK: $out"
-ls -la "$out"
+sign_one "$arm64" PS5Upload-android.apk
+if [ -n "$armv7" ]; then
+  sign_one "$armv7" PS5Upload-android-armv7.apk
+else
+  echo "::warning::no armv7 APK was built; the release ships arm64 only"
+fi
