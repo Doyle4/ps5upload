@@ -4654,6 +4654,8 @@ c2c_test_deep_bad: "لم يصل الإرسال التجريبي بحجم 4 KiB: 
 "cw_theme_oled": "OLED",
 "cw_theme_peach": "خوخي",
 "cw_settings_contrast": "تباين عالٍ",
+"cw_settings_text_size": "حجم النص",
+"cw_settings_text_size_note": "يُحفظ لهذه الشاشة فقط، فيمكن أن يكون للتلفاز والكمبيوتر حجم مختلف لكل منهما.",
 "cw_cheats_title": "الشفرات",
 "cw_fan_title": "المروحة",
 "cw_fan_cpu": "المعالج",

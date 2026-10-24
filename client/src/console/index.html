@@ -15,6 +15,8 @@
           var e = document.documentElement;
           if (t === "light" || t === "oled" || t === "peach") e.setAttribute("data-theme", t);
           if (h) e.setAttribute("data-contrast", "high");
+          var z = localStorage.getItem("ps5upload.console.textSize");
+          if (z === "75" || z === "85" || z === "115" || z === "130") e.setAttribute("data-text-size", z);
           if (t === "light" || t === "peach") {
             var m = document.querySelector('meta[name="color-scheme"]');
             if (m) m.setAttribute("content", "light");

@@ -1,6 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import html from "./index.html?raw";
-import { applyStoredTheme, getContrast, getTheme, setContrast, setTheme } from "./theme";
+import {
+  applyStoredTheme,
+  getContrast,
+  getTextSize,
+  getTheme,
+  setContrast,
+  setTextSize,
+  setTheme,
+  TEXT_SIZES,
+} from "./theme";
 
 function stubDom(store: Record<string, string> | "refuse") {
   const attrs = new Map<string, string>();
@@ -56,6 +65,25 @@ describe("console theme", () => {
     expect(attrs.has("data-contrast")).toBe(false);
   });
 
+  it("applies_and_persists_text_size", () => {
+    const store: Record<string, string> = {};
+    const attrs = stubDom(store);
+    expect(getTextSize()).toBe(100);
+    setTextSize(85);
+    expect(attrs.get("data-text-size")).toBe("85");
+    attrs.clear();
+    applyStoredTheme();
+    expect(getTextSize()).toBe(85);
+    expect(attrs.get("data-text-size")).toBe("85");
+    setTextSize(100);
+    expect(attrs.has("data-text-size")).toBe(false);
+  });
+
+  it("ignores_an_unknown_stored_text_size", () => {
+    stubDom({ "ps5upload.console.textSize": "300" });
+    expect(getTextSize()).toBe(100);
+  });
+
   it("ignores_an_unknown_stored_theme", () => {
     stubDom({ "ps5upload.console.theme": "neon" });
     expect(getTheme()).toBe("dark");
@@ -95,6 +123,14 @@ describe("head script (index.html)", () => {
     new Function("localStorage", "document", script)(ctx.localStorage, ctx.document);
     return { attrs, meta };
   }
+
+  it("applies_the_stored_text_size_like_theme_ts", () => {
+    for (const size of TEXT_SIZES) {
+      const { attrs } = runHead({ "ps5upload.console.textSize": String(size) });
+      expect(attrs.get("data-text-size")).toBe(size === 100 ? undefined : String(size));
+    }
+    expect(runHead({ "ps5upload.console.textSize": "999" }).attrs.has("data-text-size")).toBe(false);
+  });
 
   it("is_present_and_classic", () => {
     expect(script).toContain("ps5upload.console.theme");

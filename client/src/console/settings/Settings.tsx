@@ -4,7 +4,18 @@ import { fullscreenState, setFullscreenPref, watchFullscreen } from "../fullscre
 import { onNavAction } from "../nav";
 import { LANGUAGE_NAMES } from "../languages";
 import { chooseLanguage, LANGUAGES, storedLanguage, t } from "../strings";
-import { getContrast, getTheme, setContrast, setTheme, THEMES, type Theme } from "../theme";
+import {
+  getContrast,
+  getTextSize,
+  getTheme,
+  setContrast,
+  setTextSize,
+  setTheme,
+  TEXT_SIZES,
+  THEMES,
+  type TextSize,
+  type Theme,
+} from "../theme";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { forgetPhoneUrl } from "../ui/PhoneHandoff";
 
@@ -98,6 +109,9 @@ export interface SettingsViewProps {
   contrast?: boolean;
   onTheme?: (theme: Theme) => void;
   onToggleContrast?: () => void;
+  /** The page's text size on this screen (#505). */
+  textSize?: TextSize;
+  onTextSize?: (size: TextSize) => void;
   /** The Controls screen and the first-run tips (App's overlays); each button shows only when given. */
   onOpenControls?: () => void;
   onShowTips?: () => void;
@@ -214,6 +228,27 @@ export function SettingsView(p: SettingsViewProps) {
               onClick={() => p.onToggleContrast?.()}
             />
           ) : null}
+        </section>
+      ) : null}
+
+      {p.textSize ? (
+        <section className="cw-home-section" data-setting="text-size">
+          <h2 className="cw-h2">{t("cw_settings_text_size")}</h2>
+          <div className="cw-quick" role="group" aria-label={t("cw_settings_text_size")}>
+            {TEXT_SIZES.map((size) => (
+              <button
+                key={size}
+                type="button"
+                className="cw-focusable cw-button"
+                data-text-size-choice={size}
+                aria-pressed={p.textSize === size}
+                onClick={() => p.onTextSize?.(size)}
+              >
+                <span>{`${size}%`}</span>
+              </button>
+            ))}
+          </div>
+          <p className="cw-dim cw-setting-note">{t("cw_settings_text_size_note")}</p>
         </section>
       ) : null}
 
@@ -355,6 +390,7 @@ export function Settings({ onOpenControls, onShowTips }: { onOpenControls?: () =
   const fullscreen = fs.supported ? fs.on : null;
   const [theme, setThemeState] = useState<Theme>(getTheme);
   const [contrast, setContrastState] = useState(getContrast);
+  const [textSize, setTextSizeState] = useState<TextSize>(getTextSize);
   /** Bumped by Create (refresh) to read /api/settings again. */
   const [tick, setTick] = useState(0);
 
@@ -476,6 +512,11 @@ export function Settings({ onOpenControls, onShowTips }: { onOpenControls?: () =
       onToggleContrast={() => {
         setContrast(!contrast);
         setContrastState(!contrast);
+      }}
+      textSize={textSize}
+      onTextSize={(next) => {
+        setTextSize(next);
+        setTextSizeState(next);
       }}
       onOpenControls={onOpenControls}
       onShowTips={onShowTips}

@@ -4654,6 +4654,8 @@ c2c_test_deep_bad: "4 KiB-এর পরীক্ষামূলক পাঠা�
 "cw_theme_oled": "OLED",
 "cw_theme_peach": "পিচ",
 "cw_settings_contrast": "উচ্চ কনট্রাস্ট",
+"cw_settings_text_size": "লেখার আকার",
+"cw_settings_text_size_note": "শুধু এই স্ক্রিনের জন্য রাখা হয়, তাই টিভি আর কম্পিউটারে আলাদা আকার রাখা যায়।",
 "cw_cheats_title": "চিট",
 "cw_fan_title": "ফ্যান",
 "cw_fan_cpu": "প্রসেসর",

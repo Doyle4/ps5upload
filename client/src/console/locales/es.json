@@ -874,6 +874,8 @@
   "cw_settings_network": "Red",
   "cw_settings_off": "No",
   "cw_settings_on": "Sí",
+  "cw_settings_text_size": "Tamaño del texto",
+  "cw_settings_text_size_note": "Se guarda solo para esta pantalla, así la TV y un ordenador pueden tener cada uno su propio tamaño.",
   "cw_settings_theme": "Tema",
   "cw_settings_tile": "Mostrar PS5Upload Minion en la pantalla de inicio",
   "cw_settings_tile_hidden": "La PS5 conservó el registro de PS5Upload Minion, así que se ocultó su icono de la pantalla de inicio.",

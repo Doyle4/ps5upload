@@ -874,6 +874,8 @@
   "cw_settings_network": "شبکه",
   "cw_settings_off": "خاموش",
   "cw_settings_on": "روشن",
+  "cw_settings_text_size": "اندازه متن",
+  "cw_settings_text_size_note": "فقط برای همین صفحه ذخیره می‌شود، تا تلویزیون و رایانه هر کدام اندازه خود را داشته باشند.",
   "cw_settings_theme": "تم",
   "cw_settings_tile": "نمایش PS5Upload Minion در صفحه اصلی",
   "cw_settings_tile_hidden": "PS5 سابقهٔ PS5Upload Minion را نگه داشت، پس به‌جای آن نمادش در صفحه اصلی پنهان شد.",

@@ -874,6 +874,8 @@
   "cw_settings_network": "Réseau",
   "cw_settings_off": "Désactivé",
   "cw_settings_on": "Activé",
+  "cw_settings_text_size": "Taille du texte",
+  "cw_settings_text_size_note": "Enregistrée pour cet écran seulement : la TV et un ordinateur peuvent chacun avoir leur propre taille.",
   "cw_settings_theme": "Thème",
   "cw_settings_tile": "Afficher PS5Upload Minion sur l'écran d'accueil",
   "cw_settings_tile_hidden": "La PS5 a conservé l'entrée de PS5Upload Minion : son icône a donc été masquée sur l'écran d'accueil.",

@@ -4604,6 +4604,8 @@ c2c_test_deep_bad: "Тестовая отправка 4 КиБ не дошла: 
 "cw_theme_oled": "OLED",
 "cw_theme_peach": "Персик",
 "cw_settings_contrast": "Высокая контрастность",
+"cw_settings_text_size": "Размер текста",
+"cw_settings_text_size_note": "Сохраняется только для этого экрана, поэтому у телевизора и компьютера может быть свой размер.",
 "cw_cheats_title": "Читы",
 "cw_fan_title": "Вентилятор",
 "cw_fan_cpu": "Процессор",

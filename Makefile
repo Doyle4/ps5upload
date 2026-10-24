@@ -30,7 +30,7 @@ export PS5_PAYLOAD_SDK
 PS5_SDK_TAG := $(shell sed -n 's/^PS5_SDK_TAG=//p' scripts/ps5-sdk.env 2>/dev/null)
 
 # On macOS the payload SDK's `prospero-clang` wrapper resolves `ld.lld`
-# and `clang` through `prospero-llvm-config`. SDK v0.44 supports LLVM 16–23.
+# and `clang` through `prospero-llvm-config`. SDK v0.45 supports LLVM 16–23.
 # Homebrew exposes the current major as `llvm` (not `llvm@23`), so discover
 # its real prefix and retain versioned fallbacks for older installations.
 # Linux/WSL picks up `llvm-config-<N>` from apt naturally.

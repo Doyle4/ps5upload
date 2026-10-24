@@ -874,6 +874,8 @@
   "cw_settings_network": "Netzwerk",
   "cw_settings_off": "Aus",
   "cw_settings_on": "An",
+  "cw_settings_text_size": "Textgröße",
+  "cw_settings_text_size_note": "Gilt nur für diesen Bildschirm, damit Fernseher und Computer jeweils ihre eigene Größe haben können.",
   "cw_settings_theme": "Design",
   "cw_settings_tile": "PS5Upload Minion auf dem Startbildschirm anzeigen",
   "cw_settings_tile_hidden": "Die PS5 hat den Eintrag von PS5Upload Minion behalten, daher wurde das Symbol auf dem Startbildschirm stattdessen ausgeblendet.",

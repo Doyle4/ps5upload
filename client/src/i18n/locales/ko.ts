@@ -4673,6 +4673,8 @@ c2c_test_deep_bad: "4 KiB 테스트 전송이 도착하지 않았습니다: {det
 "cw_theme_oled": "OLED",
 "cw_theme_peach": "피치",
 "cw_settings_contrast": "고대비",
+"cw_settings_text_size": "글자 크기",
+"cw_settings_text_size_note": "이 화면에만 저장되므로 TV와 컴퓨터에서 각각 다른 크기를 쓸 수 있습니다.",
 "cw_cheats_title": "치트",
 "cw_fan_title": "팬",
 "cw_fan_cpu": "프로세서",

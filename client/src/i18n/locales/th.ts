@@ -4663,6 +4663,8 @@ c2c_test_deep_bad: "การส่งทดสอบ 4 KiB ไปไม่ถ�
 "cw_theme_oled": "OLED",
 "cw_theme_peach": "พีช",
 "cw_settings_contrast": "คอนทราสต์สูง",
+"cw_settings_text_size": "ขนาดตัวอักษร",
+"cw_settings_text_size_note": "บันทึกไว้สำหรับหน้าจอนี้เท่านั้น ทีวีและคอมพิวเตอร์จึงตั้งขนาดของตัวเองได้",
 "cw_cheats_title": "โกง",
 "cw_fan_title": "พัดลม",
 "cw_fan_cpu": "โปรเซสเซอร์",

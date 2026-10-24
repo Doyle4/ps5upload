@@ -874,6 +874,8 @@
   "cw_settings_network": "ネットワーク",
   "cw_settings_off": "オフ",
   "cw_settings_on": "オン",
+  "cw_settings_text_size": "文字サイズ",
+  "cw_settings_text_size_note": "この画面だけに保存されるので、テレビとパソコンでそれぞれ別のサイズにできます。",
   "cw_settings_theme": "テーマ",
   "cw_settings_tile": "ホーム画面に PS5Upload Minion を表示",
   "cw_settings_tile_hidden": "PS5 が PS5Upload Minion の記録を残したため、代わりにホーム画面のアイコンを非表示にしました。",

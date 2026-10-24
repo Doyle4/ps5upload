@@ -874,6 +874,8 @@
   "cw_settings_network": "เครือข่าย",
   "cw_settings_off": "ปิด",
   "cw_settings_on": "เปิด",
+  "cw_settings_text_size": "ขนาดตัวอักษร",
+  "cw_settings_text_size_note": "บันทึกไว้สำหรับหน้าจอนี้เท่านั้น ทีวีและคอมพิวเตอร์จึงตั้งขนาดของตัวเองได้",
   "cw_settings_theme": "ธีม",
   "cw_settings_tile": "แสดง PS5Upload Minion บนหน้าจอหลัก",
   "cw_settings_tile_hidden": "PS5 เก็บบันทึกของ PS5Upload Minion ไว้ จึงซ่อนไอคอนบนหน้าจอหลักแทน",

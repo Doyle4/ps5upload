@@ -10,6 +10,13 @@ export const THEMES: Theme[] = ["dark", "light", "oled", "peach"];
 
 const THEME_KEY = "ps5upload.console.theme";
 const CONTRAST_KEY = "ps5upload.console.contrast";
+const TEXT_SIZE_KEY = "ps5upload.console.textSize";
+
+/** Text size in percent of the page's own (viewport-sized) type (#505). Every size on the page is
+ *  rem-based, so this scales the whole layout. Kept per viewer like the theme: the TV and a PC
+ *  monitor each keep their own. 100 is the attribute-less default. */
+export type TextSize = 75 | 85 | 100 | 115 | 130;
+export const TEXT_SIZES: TextSize[] = [75, 85, 100, 115, 130];
 
 function read(key: string): string | null {
   try {
@@ -32,7 +39,29 @@ function root(): HTMLElement | null {
 }
 
 /** The session's choice, for a browser whose storage refuses writes. */
-const session: { theme: Theme | null; high: boolean | null } = { theme: null, high: null };
+const session: { theme: Theme | null; high: boolean | null; size: TextSize | null } = {
+  theme: null,
+  high: null,
+  size: null,
+};
+
+export function getTextSize(): TextSize {
+  const v = Number(read(TEXT_SIZE_KEY));
+  return TEXT_SIZES.find((s) => s === v) ?? session.size ?? 100;
+}
+
+export function setTextSize(size: TextSize): void {
+  session.size = size;
+  write(TEXT_SIZE_KEY, String(size));
+  applyTextSize(size);
+}
+
+function applyTextSize(size: TextSize): void {
+  const el = root();
+  if (!el) return;
+  if (size === 100) el.removeAttribute("data-text-size");
+  else el.setAttribute("data-text-size", String(size));
+}
 
 export function getTheme(): Theme {
   const v = read(THEME_KEY);
@@ -74,4 +103,5 @@ function apply(theme: Theme, high: boolean): void {
 /** Applies the stored (or session) choice: call before the first paint. */
 export function applyStoredTheme(): void {
   apply(getTheme(), getContrast());
+  applyTextSize(getTextSize());
 }

@@ -6,6 +6,9 @@ What's new in ps5upload, written for humans.
 
 ## Unreleased
 
+- **Text size on the console page (#505).** PS5Upload Minion's Settings has a Text size row (75% to
+  130%). It is kept per screen, so the TV and a computer browser can each have their own. Update
+  the helper for this one.
 - **Converting a big game shows progress while it checks the source.** On a large title (a
   156 GiB report) the Check source step could take many minutes with nothing moving, so it looked
   stuck. It now shows how far through the game it is, and Stop works during it.

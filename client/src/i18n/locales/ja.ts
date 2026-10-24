@@ -4675,6 +4675,8 @@ c2c_test_deep_bad: "4 KiB のテスト送信が届きませんでした: {detail
 "cw_theme_oled": "OLED",
 "cw_theme_peach": "ピーチ",
 "cw_settings_contrast": "ハイコントラスト",
+"cw_settings_text_size": "文字サイズ",
+"cw_settings_text_size_note": "この画面だけに保存されるので、テレビとパソコンでそれぞれ別のサイズにできます。",
 "cw_cheats_title": "チート",
 "cw_fan_title": "ファン",
 "cw_fan_cpu": "プロセッサー",

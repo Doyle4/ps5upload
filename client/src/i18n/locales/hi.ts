@@ -4670,6 +4670,8 @@ c2c_test_deep_bad: "4 KiB का परीक्षण नहीं पहुँ
 "cw_theme_oled": "OLED",
 "cw_theme_peach": "पीच",
 "cw_settings_contrast": "उच्च कंट्रास्ट",
+"cw_settings_text_size": "टेक्स्ट का आकार",
+"cw_settings_text_size_note": "केवल इसी स्क्रीन के लिए रखा जाता है, ताकि टीवी और कंप्यूटर का अपना-अपना आकार हो सके।",
 "cw_cheats_title": "चीट",
 "cw_fan_title": "पंखा",
 "cw_fan_cpu": "प्रोसेसर",
