@@ -73,6 +73,7 @@ mod local_fs;
 mod log_dedup;
 mod mgmt_route;
 mod migrate_6;
+mod net_doctor;
 mod net_health;
 mod pkg_install;
 mod pkg_sidecar;
@@ -5955,6 +5956,43 @@ async fn health_scan_handler(
     }
 }
 
+/// GET /api/net/doctor?addr=IP
+///
+/// The facts behind "Diagnose slow transfers": this computer's link toward the console (wired,
+/// Wi-Fi, a VPN; its speed and MTU), the console's link from its helper, whether this engine is
+/// in a container, and how long a connection to the console takes to open. The client judges
+/// them together with the speed test. Blocking work, so it runs off the async runtime.
+async fn net_doctor_handler(
+    State(state): State<AppState>,
+    Query(q): Query<AddrQuery>,
+) -> impl IntoResponse {
+    let addr = console_addr_or_default(q.addr, &state.default_ps5_addr);
+    match tokio::task::spawn_blocking(move || net_doctor::gather(&addr)).await {
+        Ok(facts) => (StatusCode::OK, Json(facts)).into_response(),
+        Err(e) => json_err(StatusCode::INTERNAL_SERVER_ERROR, format!("{e:#}")).into_response(),
+    }
+}
+
+/// GET /api/net/doctor/reply?addr=IP
+///
+/// Only the connection-open time, so the doctor can time it again while the speed test is
+/// sending and see whether the reply time balloons under load.
+async fn net_doctor_reply_handler(
+    State(state): State<AppState>,
+    Query(q): Query<AddrQuery>,
+) -> impl IntoResponse {
+    let addr = console_addr_or_default(q.addr, &state.default_ps5_addr);
+    let host = pkg_install::strip_host_port(&addr);
+    match tokio::task::spawn_blocking(move || net_doctor::reply_time(&host, 5)).await {
+        Ok((median_ms, samples)) => (
+            StatusCode::OK,
+            Json(serde_json::json!({ "median_ms": median_ms, "samples": samples })),
+        )
+            .into_response(),
+        Err(e) => json_err(StatusCode::INTERNAL_SERVER_ERROR, format!("{e:#}")).into_response(),
+    }
+}
+
 /// Where the speed test's file is written on this computer: the data folder, or the system
 /// temp folder when there is none.
 fn speed_test_dir() -> std::path::PathBuf {
@@ -10705,6 +10743,8 @@ async fn run(cfg: EngineConfig) -> anyhow::Result<()> {
             post(mgmt_route::mgmt_call_handler),
         )
         .route("/api/ps5/health/scan", get(health_scan_handler))
+        .route("/api/net/doctor", get(net_doctor_handler))
+        .route("/api/net/doctor/reply", get(net_doctor_reply_handler))
         .route("/api/speed-test/prepare", post(speed_test_prepare_handler))
         .route("/api/speed-test/cleanup", post(speed_test_cleanup_handler))
         .route("/api/ps5/health/junk", get(health_junk_handler))
