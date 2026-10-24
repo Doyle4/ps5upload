@@ -4,12 +4,13 @@ What's new in ps5upload, written for humans.
 
 ---
 
-## 7.4.5
+## 7.5.0
 
 - **A new look.** PS5Upload has a new logo: a PS5 Pro drawn in black and white, with the name set
   in Titan One. It is the app icon on every platform (macOS, Windows, Linux, Android, iPhone),
   the in-app logo, the PS5 home-screen tile for Minion (it updates the next time the helper is
-  sent), the website and the README. The masters and every image are in `branding/`.
+  sent), the website and its screenshots, and the README. The masters and every image are in
+  `branding/`.
 
 ## 7.4.4
 
