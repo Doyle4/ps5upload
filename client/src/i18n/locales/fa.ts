@@ -2879,6 +2879,8 @@ roster_order_hint: "این ترتیب تب‌های کنسول و انتخابگ
   game_hub_needs_connection: "برای بارگذاری به یک PS5 متصل شوید.",
   game_hub_no_cheats:
     "هیچ تقلبی برای این عنوان نصب نشده. از صفحه‌ی Cheats چند مورد اضافه کنید.",
+  game_hub_no_cheats_v2: "هنوز تقلبی برای این بازی روی PS5 نیست. آن‌ها را در بخش تقلب‌ها دانلود کنید و سپس اینجا روشن کنید.",
+  game_hub_get_cheats: "یافتن تقلب برای این بازی",
   game_hub_cheat_toggle_failed: "آن تقلب تغییر نکرد",
   game_hub_no_saves: "هیچ داده‌ی ذخیره‌ای برای این عنوان پیدا نشد.",
   game_hub_save_user: "کاربر",

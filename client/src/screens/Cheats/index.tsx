@@ -1,5 +1,6 @@
 import { LocalCheatImport } from "./LocalCheatImport";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useLocation } from "react-router";
 import { Gamepad2, Globe, Power, RefreshCw, RotateCcw, WandSparkles, Zap } from "lucide-react";
 import {
   PageHeader,
@@ -67,7 +68,10 @@ export default function CheatsScreen() {
   const [indexError, setIndexError] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  // A game handed over by its page ("Find cheats for this game") opens selected.
+  const handedState = useLocation().state as { titleId?: string } | null;
+  const handedTitleId = handedState?.titleId?.toUpperCase() ?? null;
+  const [selectedId, setSelectedId] = useState<string | null>(handedTitleId);
   const [filters, setFilters] = useState<CheatListFilters>(EMPTY_CHEAT_FILTERS);
   const { toast } = useToast();
   const [showBrowser, setShowBrowser] = useState(false);

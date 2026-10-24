@@ -23,6 +23,7 @@ import { hostOf } from "../../lib/addr";
 import { gamePath } from "../../lib/gamePage";
 import { installOffers } from "./collectionInstall";
 import { ActivityLine } from "./ActivityLine";
+import { isConvertible } from "../../lib/collectionConvert";
 
 // One copy of a game on the drives: what it is, where, and what can be done with it. One
 // line of facts, one of path, the primary action as a button and the rest behind a menu, so
@@ -150,10 +151,11 @@ export function CopyRow({
           },
         ]
       : []),
-    ...(loc.type !== "pkg"
+    ...(isConvertible(loc)
       ? [
           {
-            // Folders, images and archives are what Convert takes: to a package, or another image.
+            // Folders, images, archives and base packages are what Convert takes: to a package,
+            // another image, or (from a package) a folder.
             icon: <PackageOpen size={12} />,
             label: tr("collection.convert", undefined, "Convert…"),
             onSelect: () => navigate("/convert", { state: { source: loc.absolute_path } }),

@@ -4,6 +4,14 @@ What's new in ps5upload, written for humans.
 
 ---
 
+## Unreleased
+
+- **Convert from Collection.** Every game in Collection has a menu with Convert…, and the game
+  page has a Convert… button. It picks the best copy you have (a folder first, then an image,
+  then an archive) and opens Convert with it filled in.
+- **Cheats from the game page.** When a game has no cheats on the PS5 yet, its Cheats tab now
+  has a button that opens Cheats with that game already selected, ready to download.
+
 ## 7.2.0
 
 - **PS5Upload on iPhone.** Every release now includes an iPhone app (`PS5Upload-7.2.0-ios-unsigned.ipa`):

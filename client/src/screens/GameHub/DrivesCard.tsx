@@ -1,8 +1,10 @@
-import { HardDrive, Trash2 } from "lucide-react";
+import { HardDrive, PackageOpen, Trash2 } from "lucide-react";
+import { useNavigate } from "react-router";
 
 import type { GameView } from "../../api/games";
 import { Button, Card } from "../../components";
 import { useConfirm } from "../../components/ConfirmDialog";
+import { bestConvertible } from "../../lib/collectionConvert";
 import { extraCopies, formatCollectionBytes } from "../../lib/collectionView";
 import { isRemotePath } from "../../lib/remotePath";
 import { useCollectionStore } from "../../state/collection";
@@ -26,6 +28,7 @@ export function DrivesCard({
   onChanged: () => void;
 }) {
   const tr = useTr();
+  const navigate = useNavigate();
   const { confirm, dialog } = useConfirm();
   const settings = useCollectionStore((s) => s.settings);
   const canTrash = settings?.trash_available !== false || !!settings?.allow_permanent_delete;
@@ -33,13 +36,33 @@ export function DrivesCard({
   const trash = (paths: string[]) => void trashCopies(paths, confirm, tr).then(onChanged);
   const extra = extraCopies({ locations: copies }).filter((l) => !isRemotePath(l.absolute_path));
   const extraBytes = extra.reduce((n, l) => n + l.size_bytes, 0);
+  // The copy Convert opens with: a folder before an image, archive or base package.
+  const convertible = bestConvertible(copies);
   return (
     <Card>
       {dialog}
-      <h2 className="mb-4 flex items-center gap-3 text-[1.0625rem] font-semibold tracking-[-0.01em]">
-        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[var(--color-accent-soft)] text-[var(--color-accent-bright)]"><HardDrive size={15} aria-hidden /></span>
-        {tr("game_drives_title", { n: copies.length }, "On your drives ({n})")}
-      </h2>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+        <h2 className="flex items-center gap-3 text-[1.0625rem] font-semibold tracking-[-0.01em]">
+          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[var(--color-accent-soft)] text-[var(--color-accent-bright)]"><HardDrive size={15} aria-hidden /></span>
+          {tr("game_drives_title", { n: copies.length }, "On your drives ({n})")}
+        </h2>
+        {convertible && (
+          <Button
+            size="sm"
+            variant="secondary"
+            leftIcon={<PackageOpen size={13} />}
+            data-testid="game-convert"
+            onClick={() => navigate("/convert", { state: { source: convertible.absolute_path } })}
+            title={tr(
+              "collection.convert_hint",
+              undefined,
+              "Open it in Convert: make an installable package, or a different game image.",
+            )}
+          >
+            {tr("collection.convert", undefined, "Convert…")}
+          </Button>
+        )}
+      </div>
       {copies.length === 0 ? (
         <p className="text-sm text-[var(--color-muted)]">
           {tr(

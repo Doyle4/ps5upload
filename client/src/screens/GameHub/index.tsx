@@ -704,6 +704,7 @@ function NotConnectedNote() {
 /** Cheats tab — the cheat mods this title has, each individually toggleable. */
 function CheatsTab({ titleId, host }: { titleId: string; host: string | null }) {
   const tr = useTr();
+  const navigate = useNavigate();
   const payloadStatus = useConnectionStore((s) => s.payloadStatus);
   const connected = !!host?.trim() && payloadStatus === "up";
   const { data, loading, error } = useTabFetch(
@@ -752,13 +753,25 @@ function CheatsTab({ titleId, host }: { titleId: string; host: string | null }) 
       {!connected ? (
         <NotConnectedNote />
       ) : mods.length === 0 ? (
-        <p className="text-sm text-[var(--color-muted)]">
-          {tr(
-            "game_hub_no_cheats",
-            undefined,
-            "No cheats installed for this title. Add some from the Cheats screen.",
-          )}
-        </p>
+        // Nothing on the console yet: say so and take them to where cheats are downloaded,
+        // with this game already selected there.
+        <div className="flex flex-col items-start gap-3">
+          <p className="text-sm text-[var(--color-muted)]">
+            {tr(
+              "game_hub_no_cheats_v2",
+              undefined,
+              "No cheats for this game on the PS5 yet. Download them in Cheats, then turn them on here.",
+            )}
+          </p>
+          <Button
+            size="sm"
+            variant="primary"
+            leftIcon={<Shield size={13} />}
+            onClick={() => navigate("/cheats", { state: { titleId } })}
+          >
+            {tr("game_hub_get_cheats", undefined, "Find cheats for this game")}
+          </Button>
+        </div>
       ) : (
         <>
           {toggleError && (

@@ -3,6 +3,7 @@ import type { CollectionGame } from "../../api/collection";
 import { PlatformBadge, Table } from "../../components";
 import { addOnCount, formatCollectionBytes } from "../../lib/collectionView";
 import { useTr } from "../../state/lang";
+import { GameQuickActions } from "./CollectionCard";
 
 export function CollectionTable({
   games,
@@ -68,6 +69,21 @@ export function CollectionTable({
           header: tr("collection.col.added", undefined, "Added"),
           cell: (g) =>
             g.added_at ? formatDate(new Date(g.added_at), "date") : "—",
+        },
+        {
+          key: "actions",
+          header: "",
+          align: "right",
+          // The row opens the game on click; the menu's own clicks and keys stay in the menu.
+          cell: (g) => (
+            <span
+              className="inline-flex"
+              onClick={(e) => e.stopPropagation()}
+              onKeyDown={(e) => e.stopPropagation()}
+            >
+              <GameQuickActions game={g} onOpen={onOpen} />
+            </span>
+          ),
         },
       ]}
     />

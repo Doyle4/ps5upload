@@ -1751,6 +1751,8 @@ game_hub_manage_saves: "সেভে ব্যাকআপ/পুনরুদ্
 game_hub_name: "নাম",
 game_hub_needs_connection: "এটি লোড করতে একটি PS5-এ সংযোগ করুন।",
 game_hub_no_cheats: "এই গেমের জন্য কোনো চিট ইনস্টল নেই। চিট স্ক্রিন থেকে যোগ করুন।",
+game_hub_no_cheats_v2: "এই গেমের জন্য PS5-এ এখনও কোনো চিট নেই। Cheats থেকে ডাউনলোড করুন, তারপর এখানে চালু করুন।",
+game_hub_get_cheats: "এই গেমের চিট খুঁজুন",
 game_hub_no_saves: "এই গেমের কোনো সেভ ডেটা পাওয়া যায়নি।",
 game_hub_not_found: "গেম পাওয়া যায়নি",
 game_hub_not_found_desc: "এই টাইটেল আইডি কোনো ইনস্টল করা বা লাইব্রেরির গেমের সাথে মেলে না।",

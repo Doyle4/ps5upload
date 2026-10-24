@@ -1767,6 +1767,8 @@ game_hub_manage_saves: "सेव्स में बैकअप/पुनर�
 game_hub_name: "नाम",
 game_hub_needs_connection: "इसे लोड करने के लिए PS5 से कनेक्ट करें।",
 game_hub_no_cheats: "इस टाइटल के लिए कोई चीट इंस्टॉल नहीं है। चीट्स स्क्रीन से जोड़ें।",
+game_hub_no_cheats_v2: "इस गेम के लिए PS5 पर अभी कोई चीट नहीं है। उन्हें Cheats में डाउनलोड करें, फिर यहाँ चालू करें।",
+game_hub_get_cheats: "इस गेम के चीट खोजें",
 game_hub_no_saves: "इस टाइटल के लिए कोई सेव डेटा नहीं मिला।",
 game_hub_not_found: "गेम नहीं मिला",
 game_hub_not_found_desc: "यह टाइटल ID किसी इंस्टॉल या लाइब्रेरी गेम से मेल नहीं खाता।",

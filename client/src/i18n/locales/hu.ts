@@ -2817,6 +2817,8 @@ roster_order_hint: "Ez a sorrend állítja be a konzolfüleket és a választót
   game_hub_needs_connection: "Csatlakozz egy PS5-höz ennek betöltéséhez.",
   game_hub_no_cheats:
     "Nincsenek csalások telepítve ehhez a címhez. Adj hozzá néhányat a Csalások képernyőről.",
+  game_hub_no_cheats_v2: "Ehhez a játékhoz még nincs csalás a PS5-ön. Töltsd le őket a Csalásoknál, majd kapcsold be itt.",
+  game_hub_get_cheats: "Csalások keresése ehhez a játékhoz",
   game_hub_cheat_toggle_failed: "Nem sikerült módosítani azt a csalást",
   game_hub_no_saves: "Nem található mentés ehhez a címhez.",
   game_hub_save_user: "Felhasználó",

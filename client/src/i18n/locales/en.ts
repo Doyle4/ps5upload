@@ -3112,6 +3112,8 @@ roster_order_hint: "This order sets the console tabs and the picker.",
   game_hub_needs_connection: "Connect to a PS5 to load this.",
   game_hub_no_cheats:
     "No cheats installed for this title. Add some from the Cheats screen.",
+  game_hub_no_cheats_v2: "No cheats for this game on the PS5 yet. Download them in Cheats, then turn them on here.",
+  game_hub_get_cheats: "Find cheats for this game",
   game_hub_cheat_toggle_failed: "Couldn’t change that cheat",
   game_hub_no_saves: "No save data found for this title.",
   game_hub_save_user: "User",
