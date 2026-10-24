@@ -48,12 +48,12 @@ describe("wakeUi", () => {
 
 describe("isValidWakeCredential", () => {
   it("accepts a plausible decimal credential", () => {
-    expect(isValidWakeCredential("1499970515")).toBe(true);
-    expect(isValidWakeCredential("  2944964913 ")).toBe(true);
+    expect(isValidWakeCredential("2712847316")).toBe(true);
+    expect(isValidWakeCredential("  3735928559 ")).toBe(true);
   });
   it("rejects the raw hex key, which is the most likely wrong paste", () => {
-    expect(isValidWakeCredential("5967bbd3")).toBe(false);
-    expect(isValidWakeCredential("af889931")).toBe(false);
+    expect(isValidWakeCredential("a1b2c3d4")).toBe(false);
+    expect(isValidWakeCredential("deadbeef")).toBe(false);
   });
   it("rejects empty, non-numeric, zero, and out-of-range", () => {
     expect(isValidWakeCredential("")).toBe(false);
@@ -72,7 +72,7 @@ describe("isValidWakeCredential", () => {
   });
   it("treats padded zeros as the number they spell", () => {
     expect(isValidWakeCredential("0000000000")).toBe(false);
-    expect(isValidWakeCredential("0000001499970515")).toBe(true);
+    expect(isValidWakeCredential("0000002712847316")).toBe(true);
   });
 });
 
@@ -94,12 +94,12 @@ describe("WAKE_REQUIREMENTS", () => {
 
 describe("credentialFromRegistKeyHex", () => {
   it("derives the wake credential the way the console does", () => {
-    // "5967bbd3" ASCII, NUL-padded to 16 bytes → 0x5967bbd3 → decimal.
-    expect(credentialFromRegistKeyHex("35393637626264330000000000000000")).toBe(
-      "1499970515",
+    // "a1b2c3d4" ASCII, NUL-padded to 16 bytes → 0xa1b2c3d4 → decimal.
+    expect(credentialFromRegistKeyHex("61316232633364340000000000000000")).toBe(
+      "2712847316",
     );
-    expect(credentialFromRegistKeyHex("61663838393933310000000000000000")).toBe(
-      "2944964913",
+    expect(credentialFromRegistKeyHex("64656164626565660000000000000000")).toBe(
+      "3735928559",
     );
   });
   it("rejects non-hex or empty input", () => {
@@ -131,9 +131,9 @@ describe("credentialFromRegistKeyHex", () => {
 
 describe("isValidSessionKey", () => {
   it("requires exactly 32 hex chars (16 bytes)", () => {
-    expect(isValidSessionKey("1395c8cc7eca16fe982eb22e527ba3da")).toBe(true);
-    expect(isValidSessionKey(" 1395C8CC7ECA16FE982EB22E527BA3DA ")).toBe(true);
-    expect(isValidSessionKey("1395c8cc")).toBe(false);
+    expect(isValidSessionKey("00112233445566778899aabbccddeeff")).toBe(true);
+    expect(isValidSessionKey(" 00112233445566778899AABBCCDDEEFF ")).toBe(true);
+    expect(isValidSessionKey("00112233")).toBe(false);
     expect(isValidSessionKey("")).toBe(false);
     expect(isValidSessionKey("zz95c8cc7eca16fe982eb22e527ba3da")).toBe(false);
   });

@@ -1,0 +1,12 @@
+# Reviewed gitleaks findings that are not secrets (scripts/security-scan.sh).
+# AES test vectors in vendored code
+608d81dc2d3fea768a22e292032fe881ce53dca8:payload/third_party/libsmb2/lib/aes_reference.c:generic-api-key:16
+c14782944de606395e43c21c55eec1c518e46a59:payload/third_party/tiny_aes/aes.c:generic-api-key:21
+78fdfb2922d56654ecd887ee9bce4942fdecc219:payload/third_party/tiny_aes/aes.c:generic-api-key:21
+ea7eb35f23509f07398a11aad15c7fbe9fa1f193:payload/third_party/tiny_aes/aes.c:generic-api-key:21
+# The password of a generated test archive
+fca60af2ea14176e9911c21f0b361ffb6ba8860f:payload/extractor/tests/run.py:generic-api-key:221
+# The Wake screen's old placeholder Remote Play key (replaced by a made-up value in 7.4.0)
+c14782944de606395e43c21c55eec1c518e46a59:client/src/screens/Connection/WakeSetup.tsx:generic-api-key:29
+78fdfb2922d56654ecd887ee9bce4942fdecc219:client/src/screens/Connection/WakeSetup.tsx:generic-api-key:29
+26ba1fe054bbfb8f4423411e3c9001ee262422df:client/src/screens/Connection/WakeSetup.tsx:generic-api-key:20

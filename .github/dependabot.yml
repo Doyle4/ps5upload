@@ -17,6 +17,10 @@ updates:
     directory: "/client/src-tauri"
     schedule:
       interval: "weekly"
+    # A new release waits a few days before it is proposed: most hijacked packages are
+    # pulled within hours of publication. Security updates are not delayed.
+    cooldown:
+      default-days: 3
     open-pull-requests-limit: 5
     groups:
       tauri-shell:
@@ -27,6 +31,10 @@ updates:
     directory: "/engine"
     schedule:
       interval: "weekly"
+    # A new release waits a few days before it is proposed: most hijacked packages are
+    # pulled within hours of publication. Security updates are not delayed.
+    cooldown:
+      default-days: 3
     open-pull-requests-limit: 5
     groups:
       engine:
@@ -37,6 +45,10 @@ updates:
     directory: "/client"
     schedule:
       interval: "weekly"
+    # A new release waits a few days before it is proposed: most hijacked packages are
+    # pulled within hours of publication. Security updates are not delayed.
+    cooldown:
+      default-days: 3
     open-pull-requests-limit: 5
     groups:
       frontend:
@@ -47,6 +59,10 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    # A new release waits a few days before it is proposed: most hijacked packages are
+    # pulled within hours of publication. Security updates are not delayed.
+    cooldown:
+      default-days: 3
     groups:
       actions:
         patterns: ["*"]
@@ -55,6 +71,10 @@ updates:
     directory: "/engine"
     schedule:
       interval: "weekly"
+    # A new release waits a few days before it is proposed: most hijacked packages are
+    # pulled within hours of publication. Security updates are not delayed.
+    cooldown:
+      default-days: 3
     groups:
       docker-engine:
         patterns: ["*"]

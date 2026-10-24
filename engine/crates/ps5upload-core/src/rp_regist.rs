@@ -478,18 +478,18 @@ mod tests {
         // drops anything else, so an unpadded value silently disabled
         // wake-into-user while appearing to pair successfully.
         assert_eq!(
-            pad_session_key_hex("3539363762626433"),
-            "35393637626264330000000000000000"
+            pad_session_key_hex("6131623263336434"),
+            "61316232633364340000000000000000"
         );
         // An RP-Key is already 16 bytes and must pass through untouched.
-        let rp = "1395c8cc7eca16fe982eb22e527ba3da";
+        let rp = "00112233445566778899aabbccddeeff";
         assert_eq!(pad_session_key_hex(rp), rp);
         // Never mangle something that is not a plain hex key.
         assert_eq!(pad_session_key_hex(""), "");
         assert_eq!(pad_session_key_hex("not hex"), "not hex");
         // The padded output is exactly what the session parser accepts.
         assert!(crate::rp_session::SessionCreds::from_hex(
-            &pad_session_key_hex("3539363762626433"),
+            &pad_session_key_hex("6131623263336434"),
             rp
         )
         .is_ok());

@@ -84,8 +84,9 @@ jobs:
           check-latest: true
           cache: npm
           cache-dependency-path: client/package-lock.json
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
         with:
+          toolchain: stable
           targets: aarch64-apple-ios
       - uses: actions/download-artifact@v8
         with:

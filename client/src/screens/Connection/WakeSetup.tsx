@@ -25,8 +25,8 @@ import {
 
 // Example key values shown as input placeholders — illustrative hex, not
 // translatable copy, so kept as constants rather than i18n strings.
-const EXAMPLE_REGIST_KEY = "35393637626264330000000000000000";
-const EXAMPLE_RP_KEY = "1395c8cc7eca16fe982eb22e527ba3da";
+const EXAMPLE_REGIST_KEY = "61316232633364340000000000000000";
+const EXAMPLE_RP_KEY = "00112233445566778899aabbccddeeff";
 
 /** The console-side settings wake depends on.
  *
@@ -405,7 +405,7 @@ function ManualEntry(props: {
                 placeholder={tr(
                   "power_wake_code_placeholder",
                   undefined,
-                  "e.g. 1499970515",
+                  "e.g. 2712847316",
                 )}
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}

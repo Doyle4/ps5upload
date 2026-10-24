@@ -1,0 +1,46 @@
+# CodeQL code scanning: injection, path traversal, unsafe deserialisation and the like in
+# our own code. Findings go to the repository's Security tab (Code scanning) rather than
+# failing the build, so a new alert is triaged instead of blocking an unrelated PR. The
+# dependency and secret scan that does gate PRs is the `security scan` job in engine-ci.yml.
+#
+# The payload's C is not analysed here: it builds only with the PS5 Payload SDK.
+name: codeql
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    # Weekly, so new CodeQL queries also run over code nobody touched.
+    - cron: "17 4 * * 1"
+  workflow_dispatch:
+
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    name: codeql (${{ matrix.language }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [actions, javascript-typescript, python, rust]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: github/codeql-action/init@v4
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: none
+          queries: security-extended
+      - uses: github/codeql-action/analyze@v4
+        with:
+          category: /language:${{ matrix.language }}

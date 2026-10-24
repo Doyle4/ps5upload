@@ -148,6 +148,7 @@ help:
 	@echo "  make lint             - script syntax + frontend ESLint"
 	@echo "  make lint-scripts     - Node/Bash/Python/PowerShell syntax checks"
 	@echo "  make audit-scripts    - Inventory script/test utilities"
+	@echo "  make security         - Scan dependencies and git history (cargo/npm audit, gitleaks)"
 	@echo "  make quality          - Full non-hardware validation gate"
 	@echo "  make quality-full     - quality + payload validation"
 	@echo "  make quality-hardware - quality + live PS5 validate"
@@ -826,6 +827,11 @@ test: test-root test-engine test-desktop test-payload test-client
 	@echo ""
 	@echo "✓ All tests passed"
 	@echo ""
+
+# Known-vulnerable dependencies and committed secrets (cargo audit, npm audit, gitleaks).
+.PHONY: security
+security:
+	@bash scripts/security-scan.sh
 
 lint: lint-scripts lint-client
 

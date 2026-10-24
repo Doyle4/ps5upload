@@ -224,8 +224,9 @@ jobs:
         run: node scripts/update-version.js
 
       - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
         with:
+          toolchain: stable
           targets: ${{ matrix.rust_target }}
 
       # No cargo cache here: release runs are tag runs, and a cache a tag run saves is visible to
@@ -552,8 +553,12 @@ jobs:
 
   # ─────────────────────────────────────────────────────────────────────
   # Android APK. The engine is linked in-process (no sidecar), the real
-  # payload (from build-payload) is embedded, and we build a universal
-  # release APK for arm64 + armv7 then sign it (see android-sign.sh).
+  # payload (from build-payload) is embedded, and we build one release APK
+  # per ABI (arm64, and 32-bit armv7 for older phones) then sign them (see
+  # android-sign.sh). The release native library is built without its symbol
+  # table (CARGO_PROFILE_RELEASE_STRIP), which took ~24 MB off arm64; Gradle
+  # can't strip it (no ndkVersion in the generated project) and debug builds
+  # from `make run-android` keep their symbols.
   # Signing uses the ANDROID_KEYSTORE_* repo secrets when present (stable
   # signature → seamless updates), else an ephemeral keystore so the
   # artifact is still sideload-installable.
@@ -619,8 +624,9 @@ jobs:
           restore-keys: ${{ runner.os }}-android-gradle-
 
       - name: Setup Rust + Android targets
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
         with:
+          toolchain: stable
           targets: aarch64-linux-android,armv7-linux-androideabi
 
       - name: Install client deps
@@ -683,10 +689,12 @@ jobs:
 
       # ~11 min on v7.1.19; a hang fails the step (and only the step, see the
       # job's continue-on-error note) well inside the job's 40.
-      - name: Build release APK (arm64 + armv7)
+      - name: Build release APKs (arm64, armv7)
         working-directory: client
         timeout-minutes: 25
-        run: npx tauri android build --apk --target aarch64 --target armv7
+        env:
+          CARGO_PROFILE_RELEASE_STRIP: symbols
+        run: npx tauri android build --apk --split-per-abi --target aarch64 --target armv7
 
       - name: Sign APK
         shell: bash
@@ -701,7 +709,9 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: ps5upload-android
-          path: PS5Upload-android.apk
+          path: |
+            PS5Upload-android.apk
+            PS5Upload-android-armv7.apk
           if-no-files-found: error
 
       # Last on purpose: `if: failure()` looks at the steps BEFORE it, so as
@@ -742,8 +752,9 @@ jobs:
         run: node scripts/update-version.js
 
       - name: Setup Rust + iOS target
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
         with:
+          toolchain: stable
           targets: aarch64-apple-ios
 
       - name: Apple toolchain
@@ -810,7 +821,14 @@ jobs:
       - build-android
       - build-ios
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    permissions:
+      contents: write
+      actions: read
+      # attest-build-provenance: a signing token, and the attestation store.
+      id-token: write
+      attestations: write
+    # ~10 min of release work plus the ClamAV scan (signature download and ~1 GB of files).
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
         with:
@@ -895,6 +913,10 @@ jobs:
             cp -v artifacts/ps5upload-android/PS5Upload-android.apk \
               "release/PS5Upload-${TAG_VERSION}-android.apk"
           fi
+          if [ -f artifacts/ps5upload-android/PS5Upload-android-armv7.apk ]; then
+            cp -v artifacts/ps5upload-android/PS5Upload-android-armv7.apk \
+              "release/PS5Upload-${TAG_VERSION}-android-armv7.apk"
+          fi
           if [ -f artifacts/ps5upload-ios/PS5Upload-ios-unsigned.ipa ]; then
             cp -v artifacts/ps5upload-ios/PS5Upload-ios-unsigned.ipa \
               "release/PS5Upload-${TAG_VERSION}-ios-unsigned.ipa"
@@ -950,6 +972,29 @@ jobs:
           fi
           echo "all expected release assets present"
 
+      # Every file is scanned with ClamAV (current signatures) before anything is published,
+      # and inside archives and installers too. A hit stops the release: nothing we ship should
+      # match a known-malware signature. This only catches known signatures; a heuristic flag
+      # from one vendor (#506) is a false positive to report to that vendor.
+      - name: Virus scan the release files (ClamAV)
+        timeout-minutes: 20
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq clamav >/dev/null
+          sudo systemctl stop clamav-freshclam 2>/dev/null || true
+          for i in 1 2 3; do sudo freshclam --quiet && break; sleep 20; done
+          clamscan --version
+          clamscan --recursive --infected --scan-archive=yes --max-filesize=4000M \
+            --max-scansize=4000M release/
+
+      # A signed record that each file was built by this workflow from this tag, so anyone can
+      # check a download is ours and untouched: gh attestation verify <file> -R phantomptr/ps5upload
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-path: release/*
+
       # The release body is the CHANGELOG section for this version. The old
       # "See CHANGELOG.md" placeholder shipped whenever the entry was missing
       # (scripts/release.sh tags before the changelog is written if you forget
@@ -991,7 +1036,7 @@ jobs:
         run: mv release/RELEASE_NOTES.md "$RUNNER_TEMP/RELEASE_NOTES.md"
 
       - name: Create GitHub release
-        uses: softprops/action-gh-release@v3
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3
         with:
           tag_name: ${{ steps.tag.outputs.tag }}
           name: ${{ steps.tag.outputs.tag }}
