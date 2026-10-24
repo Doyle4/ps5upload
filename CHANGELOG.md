@@ -4,6 +4,14 @@ What's new in ps5upload, written for humans.
 
 ---
 
+## 7.5.1
+
+- **Security scan clean-up.** Every finding of the new code scan was reviewed. A damaged game
+  image can no longer make the converter reserve a huge buffer before reading it. Every GitHub
+  Action the builds use is pinned to an exact commit, and the scan now skips tests, examples and
+  developer tools, which never ship. The rest (the engine opening files you choose, and fixed
+  protocol constants) are by design and were closed with the reason recorded.
+
 ## 7.5.0
 
 - **A new look.** PS5Upload has a new logo: a PS5 Pro drawn in black and white, with the name set
