@@ -71,13 +71,20 @@ fn main() {
 }
 
 /// Point `env!(var)` at the first candidate that exists and turn `cfg` on.
-/// Every candidate is registered with `rerun-if-changed` — including the
-/// ones that are missing — so a later `make payload` re-runs this script
-/// instead of leaving a stale "not bundled" build cached.
+/// Every candidate is watched so a later `make payload` (or a Docker staging
+/// copy) re-runs this script instead of leaving a stale "not bundled" build
+/// cached. A candidate that exists is watched as a file; a missing one through
+/// its nearest existing folder, whose contents change when the file appears.
+/// Registering the missing path itself made cargo treat it as changed on
+/// every invocation, so the engine recompiled on every build and test run.
 fn embed(var: &str, cfg: &str, candidates: &[PathBuf]) {
     let mut found: Option<&Path> = None;
     for path in candidates {
-        println!("cargo:rerun-if-changed={}", path.display());
+        if path.is_file() {
+            println!("cargo:rerun-if-changed={}", path.display());
+        } else if let Some(dir) = path.ancestors().skip(1).find(|d| d.is_dir()) {
+            println!("cargo:rerun-if-changed={}", dir.display());
+        }
         if found.is_none() && path.is_file() {
             found = Some(path.as_path());
         }
