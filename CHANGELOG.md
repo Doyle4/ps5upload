@@ -4,6 +4,43 @@ What's new in ps5upload, written for humans.
 
 ---
 
+## 7.4.4
+
+- **Save backups that run on their own.** Automatic save backups now run in the engine, so the
+  Docker web UI has them too, around the clock with no browser open (the desktop app backs up
+  while it runs, as before). Choose a folder (in Docker, one in a mounted volume such as
+  `/data/save-backups`) and how many versions to keep. Each game's page lists its backups under
+  Saves with a Restore button: the save on the PS5 is backed up first, so a restore can be undone.
+  Settings from the desktop app's earlier automatic backups carry over.
+- **Make room for a game.** Clean up → Make room: say how much space you need and on which PS5
+  drive, and it proposes what to clear: leftovers first, then games that can move to another PS5
+  drive, then games your Collection has a copy of to install again. Nothing without a copy is ever
+  suggested for deletion, and every step is listed before anything happens. It is also offered
+  when an install or send is short of space.
+- **Diagnose slow transfers.** Health → Diagnose slow transfers checks how the PS5 and this
+  computer are connected and lists what slows uploads down, with the fix: Wi-Fi on either side, a
+  VPN, a cable stuck at 100 Mb/s, replies that slow down while sending, a packet size (MTU)
+  mismatch, a Docker bridge network, other transfers or a speed limit in the app, and whether the
+  network or the PS5's drive is the slow side. What it cannot measure, it says. The Upload screen
+  offers it when an upload runs far below what your connection managed.
+- **Send to PS5 from Android's share menu.** Share a download link or a package (or a ZIP, 7z or
+  RAR) to PS5Upload and it asks "Send to <console>?". A package in your phone's storage installs
+  from where it is; one only the sharing app can read (Drive, Telegram) is copied in first, up to
+  2 GB.
+- **Open with PS5Upload.** `.pkg` and `.fpkg` files open in the desktop app (double-click on Windows
+  and Linux, Open With on macOS, where Apple's Installer stays the default), which asks before it
+  installs.
+- **Windows signing, ready to switch on.** The release can sign the Windows app, installer and
+  engine with Azure Artifact Signing once its account is set up; until then nothing changes.
+- **Less empty space on wide windows.** On Convert, Build & install moves under whichever column
+  is shorter, so the options no longer leave a tall empty gap beside them. Console cards stack at
+  their own height, Home shows Notifications under the console status, and Settings no longer has
+  hollow half-width cards.
+- **Fixed: the web UI's shared console list** could be emptied if the engine ever answered with
+  something other than the list; now only a proper answer can change it.
+- **Screenshots toolbar** (thanks @tanner02): Download and Delete sit beside Refresh, and the
+  controls wrap under the description on a narrow window instead of squeezing it.
+
 ## 7.4.3
 
 - **Check for updates from anywhere.** A button in the top bar (desktop and tablet) shows your

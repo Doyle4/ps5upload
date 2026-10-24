@@ -216,6 +216,44 @@ browser: which console is selected, theme, language, text size and the sidebar. 
 list lived in each browser only. Anyone who can open the web UI can see the Wake keys, so keep
 `PS5UPLOAD_ALLOW_IP` to your own devices.
 
+**Q: How do automatic save backups work, and how do I restore one?**
+Saves → Automatic backups: choose a folder and how many versions to keep, then turn it on. Every
+ten minutes the engine copies each console's saves that changed since their last backup (a save
+written in the last few minutes waits for the next round). In the desktop app this runs while the
+app runs; in Docker it runs all the time, with no browser open. Use a folder the container keeps,
+such as `/data/save-backups`, or a NAS share you mount into the container. To restore, close the
+game, open its page in PS5Upload, go to Saves and press Restore on the version you want. The save
+on the PS5 is backed up first, so you can go back.
+
+**Q: How do I make room for a big game?**
+Open Clean up and press Make room, or follow "Plan space" when an install says there isn't enough
+room. Enter the size and pick the drive. The plan only suggests safe steps: removing leftovers,
+moving games to another PS5 drive, and uninstalling games your Collection on this computer has a
+copy of. It never deletes a game you have no copy of and never moves games to the computer.
+"Last played" is when the app saw the game running, so a game played while the app was closed
+shows unknown.
+
+**Q: My uploads to the PS5 are slow. How do I find out why?**
+Open Health and press Diagnose under "Diagnose slow transfers". It checks how the PS5 and this
+computer are connected (cable, Wi-Fi or VPN), the cable speed, whether replies slow down while
+sending and the packet size, and runs a speed test unless one ran in the last 10 minutes. The most
+common causes are the PS5 on Wi-Fi (about 30 MiB/s; a cable gets about 105) and a cable or switch
+port that connected at 100 Mb/s (about 11 MiB/s). In Docker, the checks of this computer's
+connection only see the container, and the result says so.
+
+**Q: Can I send a package or link to my PS5 from another app on my phone?**
+Yes, on Android. Use Share in your browser, Files app or download manager and pick PS5Upload. A
+link opens in Install from a link, where you choose how it is fetched and start it. A .pkg in your
+phone's storage installs from where it is, with no copy. A file only the sharing app can read (for
+example from Google Drive or Telegram) is copied into PS5Upload first, up to 2 GB; for anything
+bigger, download it to the phone first and share it from the Files app. The iPhone app can't offer
+this.
+
+**Q: Can I double-click a .pkg to install it with PS5Upload?**
+On Windows and Linux, yes, once the app is installed. On macOS, .pkg also means a Mac installer, so
+PS5Upload doesn't take it over: right-click the file and choose Open With → PS5Upload. Either way
+the app shows the file and asks "Send to <console>?" before it installs.
+
 **Q: Can I use ps5upload from a web browser (no desktop app)?**
 Yes. The `webui` image (above) serves the full app over HTTP; open `http://<host>:19113` from an
 allowed IP. Same security rules: no password, trusted LAN only. "How do I use PS5Upload from my
