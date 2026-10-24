@@ -8037,9 +8037,9 @@ static int handle_files_handoff_take(runtime_state_t *state, const char *body, u
 }
 
 static int handle_minion_tile(runtime_state_t *state, const char *body, uint64_t body_len) {
-    char reply[256];
+    char reply[384];
     int n;
-    if (!state || body_len > 128) return -1;
+    if (!state || body_len > 256) return -1;
     n = webui_api_tile(body, (size_t)body_len, reply, sizeof reply);
     if (n < 0) return -1;
     return mgmt_reply(MGMT_FRAME_MINION_TILE_ACK, reply, (uint64_t)n);

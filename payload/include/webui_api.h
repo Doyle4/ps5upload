@@ -24,8 +24,9 @@
 #include "webui_settings.h"
 
 /* The settings the helper started with (main.c loads WEBUI_SETTINGS_PATH before webui_start):
- * /api/settings answers them and /api/settings/set changes them. Call once, before webui_start. */
-void webui_api_settings_init(const webui_settings_t *s);
+ * /api/settings answers them and /api/settings/set changes them. `saved`: the file was there and
+ * read (webui_settings_load returned 0). Call once, before webui_start. */
+void webui_api_settings_init(const webui_settings_t *s, int saved);
 
 /* Starts the :9180 server with the saved LAN setting (call after webui_api_settings_init). 0 when
  * it runs, -1 when it could not start (logged). */
@@ -41,11 +42,14 @@ int webui_api_tile_off(void);
  * saves tile:false so the page and the PC show it off. No tile request. */
 void webui_api_tile_forget(void);
 
-/* Paired-helper Minion get/set: {tile?, enabled?}; never changes LAN access. enabled:false turns
- * PS5Upload Minion off (tile removed and kept removed, :9180 stopped; the tile setting is kept for
- * when it is turned back on), enabled:true starts the server again at once and restores the tile
- * when its setting is on. Reply {tile, enabled, tile_busy, tile_failed, tile_result}. JSON reply
- * length, or -1. */
+/* Paired-helper Minion get/set: {tile?, enabled?, lan?, remove?}. enabled:false turns PS5Upload
+ * Minion off (tile removed and kept removed, :9180 stopped; the tile setting is kept for when it is
+ * turned back on), enabled:true starts the server again at once and restores the tile when its
+ * setting is on. lan: the page on the LAN too, or loopback only (rebinds the listener). remove:true
+ * is enabled:false plus deleting Minion's own files on the console (webui_minion_forget);
+ * webui.json stays so the next start keeps it off. Reply {tile, enabled, lan, saved, tile_busy,
+ * tile_failed, tile_result, port, version, removed?}: `saved` false = no webui.json yet (defaults);
+ * `removed` (remove only) = how many leftovers were deleted. JSON reply length, or -1. */
 int webui_api_tile(const char *body, size_t len, char *out, size_t cap);
 
 int webui_api_route(const webui_req_t *r, const uint8_t *body, size_t body_len, int fd);

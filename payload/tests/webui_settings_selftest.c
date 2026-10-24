@@ -629,6 +629,34 @@ static void tile_result_names(void) {
     CHECK(strcmp(webui_tile_result_name(WEBUI_TILE_RESULT_FAILED), "failed") == 0);
 }
 
+/* Remove PS5Upload Minion: files and folders go, a missing path is not counted, webui.json is not
+ * among them (the caller keeps it, off). */
+static void minion_forget_removes_leftovers(void) {
+    char prefs[320], log[320], lib[320], icons[320], icon[352], keep[320];
+    const char *paths[3];
+    int removed = -1;
+    struct stat st;
+    snprintf(prefs, sizeof prefs, "%s/files-prefs.json", g_dir);
+    snprintf(log, sizeof log, "%s/webui-input.log", g_dir);
+    snprintf(lib, sizeof lib, "%s/library", g_dir);
+    snprintf(icons, sizeof icons, "%s/icons", lib);
+    snprintf(icon, sizeof icon, "%s/a.png", icons);
+    snprintf(keep, sizeof keep, "%s/webui.json", g_dir);
+    put_file(prefs, "{}");
+    put_file(keep, "{\"enabled\":false}");
+    CHECK(mkdir(lib, 0777) == 0 && mkdir(icons, 0777) == 0);
+    put_file(icon, "x");
+    paths[0] = prefs;
+    paths[1] = log; /* never written */
+    paths[2] = lib;
+    CHECK(webui_minion_forget(paths, 3, &removed) == 0);
+    CHECK(removed == 2);
+    CHECK(lstat(prefs, &st) != 0 && lstat(lib, &st) != 0);
+    CHECK(lstat(keep, &st) == 0);
+    CHECK(webui_minion_forget(paths, 3, &removed) == 0 && removed == 0);
+    unlink(keep);
+}
+
 int main(void) {
     snprintf(g_dir, sizeof g_dir, "/tmp/ps5upload-webui-settings-XXXXXX");
     if (!mkdtemp(g_dir)) {
@@ -650,6 +678,7 @@ int main(void) {
     tile_zombie_is_uninstalled_then_hidden();
     tile_settle_catches_a_row_that_comes_back();
     tile_result_names();
+    minion_forget_removes_leftovers();
     rmdir(g_dir);
     if (failures) {
         fprintf(stderr, "webui settings self-test: %d failure(s)\n", failures);

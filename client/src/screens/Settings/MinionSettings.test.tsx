@@ -7,7 +7,7 @@ vi.mock("../../state/lang", async (orig) => ({
   useTr: () => (key: string, _vars?: unknown, fallback?: string) => fallback ?? key,
 }));
 
-const { MinionView, minionStatus } = await import("./MinionSettings");
+const { MinionView, minionStatus, minionUrl } = await import("./MinionSettings");
 const { Toggle } = await import("../../components");
 
 const tr = (key: string, _vars?: unknown, fallback?: string) => fallback ?? key;
@@ -93,4 +93,45 @@ describe("Settings → Minion", () => {
     expect(minionStatus(state(), tr)).toBe("The home-screen tile is shown.");
     expect(minionStatus(state({ tile: false }), tr)).toBe("The home-screen tile is hidden.");
   });
+  it("a current helper offers network access and Remove; an older one neither", () => {
+    const html = renderToStaticMarkup(
+      <MinionView
+        up
+        host="192.168.1.9"
+        state={state({ lan: true, saved: true, port: 9180 })}
+        busy={false}
+        onApply={() => {}}
+      />,
+    );
+    expect(html).toContain("Open Minion from other devices on your network");
+    expect(html).toContain("http://192.168.1.9:9180/");
+    expect(html).toContain("Remove Minion from this PS5");
+    const old = renderToStaticMarkup(
+      <MinionView up state={state()} busy={false} onApply={() => {}} />,
+    );
+    expect(old).not.toContain("other devices on your network");
+    expect(old).not.toContain("Remove Minion");
+  });
+
+  it("Remove is offered while off too, and says what it deleted", () => {
+    const onRemove = vi.fn();
+    const off = state({ enabled: false, lan: false, saved: true, removed: 2 });
+    const html = renderToStaticMarkup(
+      <MinionView up state={off} busy={false} onApply={() => {}} onRemove={onRemove} />,
+    );
+    expect(html).toContain("of its files on the PS5 were deleted");
+    expect(html).not.toContain("other devices on your network");
+    const view = MinionView({ up: true, state: off, busy: false, onApply: () => {}, onRemove });
+    const remove = elements(view).find(
+      (e) => typeof e.props.onClick === "function" && e.props.variant === "danger",
+    );
+    (remove?.props.onClick as () => void)();
+    expect(onRemove).toHaveBeenCalled();
+  });
+
+  it("builds the network address, IPv6 in brackets", () => {
+    expect(minionUrl("10.0.0.2:9113")).toBe("http://10.0.0.2:9180/");
+    expect(minionUrl("[fe80::1]:9113", 9181)).toBe("http://[fe80::1]:9181/");
+  });
 });
+

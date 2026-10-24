@@ -117,12 +117,24 @@ export type MinionTileState =
       /** PS5Upload Minion as a whole: off = no tile, no page on the console (#480). Absent from
        *  helpers that predate the on/off switch. */
       enabled?: boolean;
+      /** The console page on the LAN too (other devices can open it), not only on the PS5. */
+      lan?: boolean;
+      /** False when the console has no Minion settings file (defaults: on). */
+      saved?: boolean;
+      /** The console page's port, and the helper version. */
+      port?: number;
+      version?: string;
+      /** After a remove: how many of Minion's files on the console were deleted. */
+      removed?: number;
     };
 
-/** A change to Minion: its home-screen tile, or Minion as a whole. */
+/** A change to Minion: its home-screen tile, Minion as a whole, its network access, or Remove
+ *  (off, plus Minion's own files on the console deleted). */
 export interface MinionChange {
   tile?: boolean;
   enabled?: boolean;
+  lan?: boolean;
+  remove?: true;
 }
 
 export async function minionSet(
@@ -133,6 +145,8 @@ export async function minionSet(
     addr: consoleAddr(host),
     ...(change.tile === undefined ? {} : { tile: change.tile }),
     ...(change.enabled === undefined ? {} : { enabled: change.enabled }),
+    ...(change.lan === undefined ? {} : { lan: change.lan }),
+    ...(change.remove ? { remove: true } : {}),
   });
   if (b.supported === false) return { supported: false };
   if (
@@ -149,6 +163,11 @@ export async function minionSet(
     tile_failed: b.tile_failed,
     ...(typeof b.tile_result === "string" ? { tile_result: b.tile_result } : {}),
     ...(typeof b.enabled === "boolean" ? { enabled: b.enabled } : {}),
+    ...(typeof b.lan === "boolean" ? { lan: b.lan } : {}),
+    ...(typeof b.saved === "boolean" ? { saved: b.saved } : {}),
+    ...(typeof b.port === "number" ? { port: b.port } : {}),
+    ...(typeof b.version === "string" ? { version: b.version } : {}),
+    ...(typeof b.removed === "number" ? { removed: b.removed } : {}),
   };
 }
 

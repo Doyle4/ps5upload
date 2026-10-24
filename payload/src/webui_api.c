@@ -33,6 +33,7 @@
 #include "hw_info.h"
 #include "path_policy.h"
 #include "proc_identity.h"
+#include "smbd_proto.h"
 #include "ps5_firmware.h"
 #include "storage_cleanup.h"
 #include "webui_cheats_store.h"
@@ -1599,14 +1600,18 @@ static void r_cleanup_cancel(const char *b, size_t n, uint8_t *out, int fd) {
  * the file at once and memory always matches what is on disk. */
 static pthread_mutex_t g_set_mu = PTHREAD_MUTEX_INITIALIZER;
 static webui_settings_t g_set = { 0, 1, 1 };
+/* Whether webui.json was on the console when the helper started, or has been saved since: a PC that
+ * turned Minion off re-applies that when the file is gone (the folder was wiped), and only then. */
+static int g_saved = 0;
 /* Serializes the LAN rebinds and the server starts/stops for `enabled`: each one reads the newest
  * setting under it, so the last one to run applies the last value saved, whatever order the
  * threads ran in. */
 static pthread_mutex_t g_rebind_mu = PTHREAD_MUTEX_INITIALIZER;
 
-void webui_api_settings_init(const webui_settings_t *s) {
+void webui_api_settings_init(const webui_settings_t *s, int saved) {
     pthread_mutex_lock(&g_set_mu);
     g_set = *s;
+    g_saved = saved ? 1 : 0;
     pthread_mutex_unlock(&g_set_mu);
 }
 
@@ -1784,6 +1789,7 @@ static void r_settings_set(const char *b, size_t n, uint8_t *out, int fd) {
         return;
     }
     g_set = s;
+    if (s.lan != old.lan || s.tile != old.tile || s.enabled != old.enabled) g_saved = 1;
     /* Keep tile requests in saved-setting order, including calls from the paired PC.
      * tile:true also retries a failed ensure; removal runs only on a change. */
     server = apply_locked(&old, &s, has_tile && tile);
@@ -1795,33 +1801,65 @@ static void r_settings_set(const char *b, size_t n, uint8_t *out, int fd) {
 
 int webui_api_tile(const char *body, size_t len, char *out, size_t cap) {
     webui_settings_t old, s;
-    int tile = 0, enabled = 0, busy, failed, n, server = 0;
+    int tile = 0, enabled = 0, lan = 0, remove = 0, busy, failed, n, server = 0, removed = -1;
     webui_tile_result_t result;
     int has = webui_json_bool(body, len, "tile", &tile);
     int has_enabled = webui_json_bool(body, len, "enabled", &enabled);
+    int has_lan = webui_json_bool(body, len, "lan", &lan);
+    int has_remove = webui_json_bool(body, len, "remove", &remove);
     if (has < 0) return snprintf(out, cap, "{\"ok\":false,\"err\":\"bad_tile\"}");
     if (has_enabled < 0) return snprintf(out, cap, "{\"ok\":false,\"err\":\"bad_enabled\"}");
+    if (has_lan < 0) return snprintf(out, cap, "{\"ok\":false,\"err\":\"bad_lan\"}");
+    if (has_remove < 0 || (has_remove && !remove)) return snprintf(out, cap, "{\"ok\":false,\"err\":\"bad_remove\"}");
+    /* remove: Minion off (saved first, so a helper restart midway still keeps it off), then its own
+     * files deleted; the tile is removed by the tile thread as for any turn-off. */
+    if (has_remove) {
+        has_enabled = 1;
+        enabled = 0;
+    }
     pthread_mutex_lock(&g_set_mu);
     old = s = g_set;
-    if (has || has_enabled) {
+    if (has || has_enabled || has_lan) {
         if (has) s.tile = tile;
         if (has_enabled) s.enabled = enabled;
-        if ((s.tile != old.tile || s.enabled != old.enabled) && webui_settings_save(WEBUI_SETTINGS_PATH, &s) != 0) {
-            pthread_mutex_unlock(&g_set_mu);
-            return snprintf(out, cap, "{\"ok\":false,\"err\":\"save_failed\"}");
+        if (has_lan) s.lan = lan;
+        if (s.tile != old.tile || s.enabled != old.enabled || s.lan != old.lan || (has_remove && !g_saved)) {
+            if (webui_settings_save(WEBUI_SETTINGS_PATH, &s) != 0) {
+                pthread_mutex_unlock(&g_set_mu);
+                return snprintf(out, cap, "{\"ok\":false,\"err\":\"save_failed\"}");
+            }
+            g_saved = 1;
         }
         g_set = s;
-        /* `has` also retries an interrupted registration/removal with an unchanged setting. */
+        /* `has` also retries an interrupted registration/removal with an unchanged setting; a
+         * remove also sweeps again when Minion was already off (leftovers from an older helper). */
         server = apply_locked(&old, &s, has);
+        if (has_remove && !old.enabled && !has) webui_tile_sweep_request();
+    }
+    if (has_remove) {
+        /* Minion's own files: the page's Files favourites and recent folders, its controller input
+         * log, and the game Library cache the SMB daemon writes for it. webui.json stays (off).
+         * Shared data (saved network shares, cheats, backups) belongs to the PC app too: kept. */
+        static const char *const leftovers[] = { FILES_PREFS_PATH, WEBUI_INPUTLOG_PATH, SMBD_LIB_DIR };
+        if (webui_minion_forget(leftovers, sizeof leftovers / sizeof leftovers[0], &removed) != 0) {
+            pthread_mutex_unlock(&g_set_mu);
+            if (server) spawn_server_apply();
+            return snprintf(out, cap, "{\"ok\":false,\"err\":\"remove_failed\"}");
+        }
     }
     webui_tile_state(&busy, &failed, &result);
     n = snprintf(out, cap,
-        "{\"tile\":%s,\"enabled\":%s,\"tile_busy\":%s,\"tile_failed\":%s,\"tile_result\":\"%s\"}",
-        s.tile ? "true" : "false", s.enabled ? "true" : "false", busy ? "true" : "false",
-        failed ? "true" : "false", webui_tile_result_name(result));
+        "{\"tile\":%s,\"enabled\":%s,\"lan\":%s,\"saved\":%s,\"tile_busy\":%s,\"tile_failed\":%s,"
+        "\"tile_result\":\"%s\",\"port\":%d,\"version\":\"%s\"",
+        s.tile ? "true" : "false", s.enabled ? "true" : "false", s.lan ? "true" : "false",
+        g_saved ? "true" : "false", busy ? "true" : "false", failed ? "true" : "false",
+        webui_tile_result_name(result), (int)WEBUI_PORT, PS5UPLOAD2_VERSION);
+    if (n > 0 && (size_t)n < cap && removed >= 0) n += snprintf(out + n, cap - (size_t)n, ",\"removed\":%d", removed);
+    if (n > 0 && (size_t)n < cap) n += snprintf(out + n, cap - (size_t)n, "}");
     pthread_mutex_unlock(&g_set_mu);
-    /* An AVA1 thread: the server start/stop (up to 2 s) runs on its own thread. */
+    /* An AVA1 thread: the server start/stop (up to 2 s) and a LAN rebind run on their own thread. */
     if (server) spawn_server_apply();
+    else if (s.lan != old.lan) spawn_lan_apply();
     return n < 0 || (size_t)n >= cap ? -1 : n;
 }
 

@@ -807,9 +807,9 @@ int main(void) {
     {
         webui_settings_t ws;
         webui_startup_t plan;
-        if (webui_settings_load(WEBUI_SETTINGS_PATH, &ws) != 0)
-            fprintf(stderr, "webui: %s missing or unreadable; using defaults\n", WEBUI_SETTINGS_PATH);
-        webui_api_settings_init(&ws);
+        int saved = webui_settings_load(WEBUI_SETTINGS_PATH, &ws) == 0;
+        if (!saved) fprintf(stderr, "webui: %s missing or unreadable; using defaults\n", WEBUI_SETTINGS_PATH);
+        webui_api_settings_init(&ws, saved);
         plan = webui_startup_plan(&ws);
         /* A tile the user deleted on the PS5 itself stays deleted (#480): the setting follows, before
          * the page can be asked for it. */

@@ -11,6 +11,8 @@
 #ifndef PS5UPLOAD_WEBUI_SETTINGS_H
 #define PS5UPLOAD_WEBUI_SETTINGS_H
 
+#include <stddef.h>
+
 #define WEBUI_SETTINGS_PATH "/data/ps5upload/webui.json"
 
 typedef struct {
@@ -48,5 +50,10 @@ int webui_settings_load(const char *path, webui_settings_t *out);
  * `path` within that directory (never across mounts). A failed save leaves the previous file
  * as it was and no temp file behind. 0, or -1. */
 int webui_settings_save(const char *path, const webui_settings_t *s);
+
+/* "Remove PS5Upload Minion" (webui_api_tile remove:true): deletes each path (a file, or a folder up
+ * to four levels deep). *removed: how many were there
+ * and are gone. 0 when nothing is left of any of them, -1 when one could not be removed. */
+int webui_minion_forget(const char *const *paths, size_t n, int *removed);
 
 #endif

@@ -5,9 +5,11 @@
 #include <fcntl.h>
 #include <stdio.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 #include "webui_codec.h"
+#include "webui_tile.h"
 
 #define SETTINGS_MAX 4096 /* the file is ~45 bytes; anything this large is not ours */
 
@@ -96,4 +98,17 @@ int webui_settings_save(const char *path, const webui_settings_t *s) {
         return -1;
     }
     return 0;
+}
+
+int webui_minion_forget(const char *const *paths, size_t n, int *removed) {
+    struct stat st;
+    size_t i;
+    int rc = 0, gone = 0;
+    for (i = 0; i < n; i++) {
+        if (lstat(paths[i], &st) != 0) continue; /* never there (or already gone) */
+        if (webui_tile_remove_files(paths[i]) != 0) rc = -1;
+        else gone++;
+    }
+    if (removed) *removed = gone;
+    return rc;
 }
