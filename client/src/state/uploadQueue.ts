@@ -27,6 +27,7 @@ import {
   powerStandby,
   pkgInstallStop,
   resumeTxidForget,
+  type JobSnapshot,
   type ReconcileMode,
 } from "../api/ps5";
 import { fileResumeTxId } from "../lib/fileResumeTx";
@@ -36,7 +37,6 @@ import {
   moveItemUpWithinGroup,
   patchItem,
   removeItem,
-  resetFailedToPending,
   resetRunningToPending,
   shouldContinueAfterFailure,
 } from "../lib/queueOps";
@@ -451,8 +451,11 @@ interface QueueState {
   noteSourceSize: (id: string, bytes: number) => void;
   moveUp: (id: string) => void;
   moveDown: (id: string) => void;
-  clear: () => void;
-  retryFailed: () => void;
+  /** Drop every item (or, with `host`, that console's), finished ones included. A running
+   *  upload is stopped; a running install stays. */
+  clear: (host?: string) => void;
+  /** Put every failed row (or, with `host`, that console's) back and run it. */
+  retryFailed: (host?: string) => void;
   /** Stops a running (stalled) upload and starts it again; it continues from what the console
    *  already holds. Not for installs, which cannot be stopped. */
   restartItem: (id: string) => void;
@@ -501,6 +504,13 @@ interface QueueDocument {
 }
 
 const POLL_INTERVAL_MS = 500;
+/** Status reads that may fail in a row before the transfer counts as lost (the bound
+ *  transfer.ts's single-shot poller uses). The transfer runs on the engine by itself: a
+ *  failed read is not a failed transfer. */
+export const MAX_POLL_FAILURES = 6;
+/** The engine answered that it has no such job (it restarted): the transfer is gone. */
+const isJobUnknownError = (e: unknown) =>
+  /job not found/i.test(e instanceof Error ? e.message : String(e));
 /** No new bytes for this long while sending (not while the console finalizes): say so on the row. */
 const STALL_AFTER_MS = 90_000;
 const SAVE_DEBOUNCE_MS = 300;
@@ -840,12 +850,24 @@ export const useUploadQueueStore = create<QueueState>((set, get) => {
     addr: string,
     isLive: () => boolean,
   ): Promise<string | null> => {
+    let misses = 0;
     for (let i = 0; i < CANCEL_SETTLE_TRIES; i++) {
-      let status: string;
+      let status: string | null = null;
+      let readErr: unknown = null;
       try {
         status = (await jobStatus(jobId, addr)).status;
-      } catch {
-        return null; // the engine does not know it
+      } catch (e) {
+        readErr = e;
+      }
+      if (status === null) {
+        if (isJobUnknownError(readErr)) return null; // the engine does not know it
+        // A read that failed for another reason (engine busy, proxy blip) says nothing
+        // about the job: a fresh start now could run beside the live one with the same
+        // tx id. Ask again; give up after the same tolerance the poll has.
+        if (++misses >= MAX_POLL_FAILURES) throw readErr;
+        await sleep(CANCEL_SETTLE_MS);
+        if (!isLive()) throw new Error("queue stopped");
+        continue;
       }
       if (status !== "running") return null;
       if (!cancelledJobs.has(jobId)) return jobId;
@@ -1225,11 +1247,31 @@ export const useUploadQueueStore = create<QueueState>((set, get) => {
     let lastBytes = -1;
     let lastMoveAt = startedAtMs;
 
+    // Consecutive status reads that failed. One failed read (engine busy, the
+    // 60 s fetch timeout, a proxy blip) says nothing about the transfer, which
+    // the engine runs by itself: it used to throw into the recovery path, which
+    // re-sent the helper to the console and killed the live transfer (the
+    // single-shot poller in transfer.ts tolerates MAX_POLL_FAILURES misses).
+    let pollFailures = 0;
     while (isLive()) {
-      const snap = await jobStatus(jobId, item.addr);
+      let snap: JobSnapshot | null = null;
+      let readErr: unknown = null;
+      try {
+        snap = await jobStatus(jobId, item.addr);
+      } catch (e) {
+        readErr = e;
+      }
       if (!isLive()) {
         throw new Error("queue stopped");
       }
+      if (snap === null) {
+        // The engine has no such job (it restarted): the transfer is gone, and
+        // the recovery path's resume is the right answer.
+        if (isJobUnknownError(readErr) || ++pollFailures >= MAX_POLL_FAILURES) throw readErr;
+        await sleep(POLL_INTERVAL_MS, { poll: true });
+        continue;
+      }
+      pollFailures = 0;
       if (snap.status === "done") {
         if (!isFolder && !isArchive) {
           // Nothing left to resume: the next upload of this file is a new job.
@@ -2318,11 +2360,32 @@ export const useUploadQueueStore = create<QueueState>((set, get) => {
       // then resume the console so its OTHER pending jobs aren't held hostage by
       // cancelling this one.
       const wasRunning = !!get().runningHosts[h];
+      const cancelledJob = runningJobByHost.get(h) ?? null;
       get().stopHost(h);
+      const stoppedGen = hostGen.get(h);
       set((s) => ({ items: removeItem(s.items, id) }));
       scheduleSave();
       if (wasRunning && nextPendingForHost(get().items, h)) {
-        void get().startHost(h);
+        // Let the engine let go of the cancelled job first (it ends at its next
+        // shard boundary), as restartItem does: starting the next item at once
+        // put a second transfer on the console beside the one still ending.
+        void (async () => {
+          if (cancelledJob) {
+            for (let i = 0; i < CANCEL_SETTLE_TRIES; i++) {
+              let status: string;
+              try {
+                status = (await jobStatus(cancelledJob, item.addr)).status;
+              } catch {
+                break; // the engine no longer knows it
+              }
+              if (status !== "running") break;
+              await sleep(CANCEL_SETTLE_MS);
+            }
+          }
+          // A Stop, Start or Clear on this console meanwhile has the last word.
+          if (hostGen.get(h) !== stoppedGen) return;
+          if (nextPendingForHost(get().items, h)) void get().startHost(h);
+        })();
       }
     },
 
@@ -2354,55 +2417,70 @@ export const useUploadQueueStore = create<QueueState>((set, get) => {
       scheduleSave();
     },
 
-    clear() {
+    clear(host) {
+      // `host`: only that console's items (the panel shows one console at a
+      // time; Clear on it must not discard another console's queue).
+      const h = host ? hostOf(host) : null;
+      const mine = (it: QueueItem) => h === null || hostOf(it.addr) === h;
       // A running transfer is cancelled below (its engine job too); a running
       // install stays, because an install can't be stopped once Sony has it.
       // Say which of the two happened — the notice must match what Clear did.
-      const keep = get().items.filter(
+      const cleared = get().items.filter(mine);
+      const keptOfMine = cleared.filter(
         (it) => it.sourceKind === "install" && it.status === "running",
       );
-      for (const it of get().items) {
+      const keep = get().items.filter((it) => !mine(it) || keptOfMine.includes(it));
+      for (const it of cleared) {
         if (!keep.includes(it)) settle(it.id, { ok: false, message: "Removed from the queue." });
       }
-      const notice = clearNotice(get().items, keep);
+      const notice = clearNotice(cleared, keptOfMine);
       if (notice) {
         pushNotification("info", withConsolePrefix(notice.addr, notice.title), {
           body: notice.body,
         });
       }
-      // Re-stamp every running console's generation so any in-flight loop
+      // Re-stamp every cleared console's generation so any in-flight loop
       // exits at the next await, then wipe the list + run state.
-      for (const h of Object.keys(get().runningHosts)) {
-        hostGen.set(h, ++genCounter);
+      const rh = { ...get().runningHosts };
+      for (const rhost of Object.keys(rh)) {
+        if (h !== null && rhost !== h) continue;
+        hostGen.set(rhost, ++genCounter);
+        delete rh[rhost];
         // Truly cancel each console's in-flight engine job too.
-        const jid = runningJobByHost.get(h);
+        const jid = runningJobByHost.get(rhost);
         if (jid) {
-          runningJobByHost.delete(h);
+          runningJobByHost.delete(rhost);
           void cancelEngineJob(jid).catch(() => {});
         }
       }
-      set({ items: keep, runningHosts: {}, running: false });
+      set({ items: keep, runningHosts: rh, running: anyRunning(rh) });
       scheduleSave();
     },
 
-    retryFailed() {
+    retryFailed(host) {
+      // `host`: only that console's failed rows, run on that console alone.
+      const h = host ? hostOf(host) : null;
+      const mine = (it: QueueItem) => h === null || hostOf(it.addr) === h;
       set((s) => ({
-        items: resetFailedToPending(s.items).map((it) =>
-          it.sourceKind === "install" && it.status === "pending" && it.installPhase
+        items: s.items.map((it) => {
+          if (!mine(it) || it.status !== "failed") return it;
+          const pending = { ...it, status: "pending" as const };
+          return it.sourceKind === "install" && it.installPhase
             ? {
-                ...it,
+                ...pending,
                 installPhase: null,
                 installPct: null,
                 installProgress: null,
                 installNote: null,
                 fallbackToUpload: false,
               }
-            : it,
-        ),
+            : pending;
+        }),
       }));
       scheduleSave();
       // The button says Retry: run them, don't just put them back in the list.
-      void get().start();
+      if (h !== null) void get().startHost(h);
+      else void get().start();
     },
 
     restartItem(id) {
@@ -2720,7 +2798,10 @@ registerPkgQueueApi({
     q.add(item);
     const items = useUploadQueueStore.getState().items;
     const id = items[items.length - 1].id;
-    void useUploadQueueStore.getState().startHost(hostOf(item.addr));
+    // Only this item: an Install Package upload is a click on that package, not
+    // Start — uploads waiting for Start stay waiting (#410), and a run an install
+    // scoped stays scoped.
+    void useUploadQueueStore.getState().startHost(hostOf(item.addr), { onlyIds: [id] });
     return id;
   },
   watch(id, cb) {

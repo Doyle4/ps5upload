@@ -5,9 +5,12 @@ import { fsDelete } from "../../api/ps5";
 import { Button, Spinner } from "../../components";
 import { transferAddr } from "../../lib/addr";
 import { formatBytes } from "../../lib/format";
+import { humanizePs5Error } from "../../lib/humanizeError";
 import { invoke } from "../../lib/invokeLogged";
 import { ps5uploadUsage, type DirEntry, type KeptKey, type UsageRow } from "../../lib/ps5uploadUsage";
 import { useTr } from "../../state/lang";
+import { pushNotification } from "../../state/notifications";
+import { withConsolePrefix } from "../../state/roster";
 
 /** The helper answers at most this many entries per call. */
 const LIST_PAGE = 256;
@@ -188,6 +191,14 @@ export function KeptByApp({
       setBusyPath(row.path);
       try {
         await fsDelete(transferAddr(host), row.path);
+      } catch (e) {
+        // Say so: the row just coming back after the refresh explained nothing.
+        const raw = e instanceof Error ? e.message : String(e);
+        pushNotification(
+          "error",
+          withConsolePrefix(host, tr("notif_fs_delete_failed", undefined, "Delete failed")),
+          { body: `${row.path} — ${humanizePs5Error(raw) || raw}` },
+        );
       } finally {
         setBusyPath(null);
         setRound((n) => n + 1);

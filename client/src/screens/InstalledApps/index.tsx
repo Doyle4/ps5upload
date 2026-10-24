@@ -7,6 +7,7 @@ import {
   useState,
 } from "react";
 import { invoke } from "../../lib/invokeLogged";
+import { isTauriEnv } from "../../lib/tauriEnv";
 import { filterInstalledTitles } from "../../lib/installedFilter";
 import {
   Gamepad2,
@@ -1523,19 +1524,32 @@ export default function InstalledAppsScreen() {
             )}
             action={
               <div className="flex flex-wrap items-center gap-2">
-                <Button
-                  variant="primary"
-                  size="sm"
-                  disabled={smpSending}
-                  onClick={() => void handleSendSmp()}
-                >
-                  {smpSending ? (
-                    <Spinner size={14} />
-                  ) : (
-                    <Download size={14} />
-                  )}
-                  {tr("installed_smp_send", undefined, "Send ShadowMount+")}
-                </Button>
+                {/* payloads_local_path / payload_send are desktop-only commands:
+                    the browser build sends payloads from the Payloads screen
+                    (the engine holds the files there). */}
+                {isTauriEnv() ? (
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    disabled={smpSending}
+                    onClick={() => void handleSendSmp()}
+                  >
+                    {smpSending ? (
+                      <Spinner size={14} />
+                    ) : (
+                      <Download size={14} />
+                    )}
+                    {tr("installed_smp_send", undefined, "Send ShadowMount+")}
+                  </Button>
+                ) : (
+                  <Link to="/payloads" className="text-xs text-[var(--color-accent)] underline">
+                    {tr(
+                      "installed_smp_send_browser",
+                      undefined,
+                      "Send it from Payloads → On your PS5.",
+                    )}
+                  </Link>
+                )}
                 {smpMsg ? (
                   <span className="text-xs text-[var(--color-muted)]">
                     {smpMsg}

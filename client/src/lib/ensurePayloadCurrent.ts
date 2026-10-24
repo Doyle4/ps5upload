@@ -1,7 +1,7 @@
 import { bundledPayloadPath, payloadCheck, sendPayload } from "../api/ps5";
 import { getAppVersion } from "./appVersion";
 import { isTauriEnv } from "./tauriEnv";
-import { restoreMainPayload } from "./restoreMainPayload";
+import { engineSendsHelper } from "./restoreMainPayload";
 import { guardElfldr, LISTENER_LOADER_HINT, STUCK_LOADER_MESSAGE, waitForLoader } from "./elfldrGuard";
 import { resetHelperSendGate, sendHelperOnce, sentAgoMs } from "./helperSendGate";
 import { compareVersions } from "./semver";
@@ -164,7 +164,16 @@ async function ensurePayloadCurrentOnce(
     // engine does the send. `bundledPayloadPath`/`sendPayload` are
     // desktop-only commands and throw here — which is why the web UI could
     // never redeploy a helper it had just found stale or dead.
-    await sendHelperOnce(host, () => restoreMainPayload(host));
+    // A refused send throws (engineSendsHelper), so the gate records no send:
+    // the never-throwing restoreMainPayload here stamped a send that did not
+    // happen, polled 30 s for it, and held every caller to "no-push" for the
+    // cooldown.
+    try {
+      await sendHelperOnce(host, () => engineSendsHelper(host));
+    } catch (e) {
+      log.warn("payload", `payload send to ${host} failed: ${e instanceof Error ? e.message : String(e)}`);
+      return "no-push";
+    }
   } else {
     let elfPath: string;
     try {

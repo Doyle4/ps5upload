@@ -180,6 +180,13 @@ describe("buildRowActions: what a Files row offers", () => {
     expect(actions.map((a) => a.id)).toEqual(["rename", "delete"]);
   });
 
+  it("a file in the browser build offers no checksum actions (desktop-only commands)", () => {
+    const c = { ...ctx(), desktopApp: false };
+    const ids = buildRowActions({ name: "game.pkg", kind: "file", size: 9e8 }, c).map((a) => a.id);
+    expect(ids).not.toContain("crc32");
+    expect(ids).not.toContain("verify");
+  });
+
   it("properties keeps Rename first in the browser menu and Delete last", () => {
     const properties = vi.fn();
     const c = { ...ctx(), desktopApp: false, properties };

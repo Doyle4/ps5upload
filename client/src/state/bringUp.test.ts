@@ -11,10 +11,15 @@ vi.mock("./helperSendRuntime", () => ({
   sendHelperAndWait: (host: string, tr: unknown) => sendHelperAndWait(host, tr),
 }));
 const { sendPayload } = vi.hoisted(() => ({ sendPayload: vi.fn() }));
-vi.mock("../api/ps5", () => ({ sendPayload }));
+vi.mock("../api/ps5", () => ({ sendPayload, payloadPlaylistsSave: vi.fn(async () => {}) }));
+// A playlist step on a local path sends that path (no saved-server copy).
+vi.mock("../lib/materialize", () => ({
+  withLocalCopy: (path: string, work: (local: string) => Promise<unknown>) => work(path),
+}));
 
 import { bringUpStatusFor, useBringUpStore } from "./bringUp";
 import type { Translator } from "./lang";
+import { usePayloadPlaylistsStore } from "./payloadPlaylists";
 
 const tr = ((key: string) => key) as Translator;
 
@@ -74,6 +79,64 @@ describe("bring-up sends the helper through the shared send", () => {
       host: "192.168.0.8",
       phase: "helper",
       error: "Pair with your PS5",
+    });
+  });
+});
+
+describe("bring-up waits for its pre-helper playlist to really finish", () => {
+  const playlist = {
+    id: "pl-1",
+    name: "kstuff + SMP",
+    steps: [{ path: "/payloads/kstuff.elf", sleepMs: 0 }],
+    continueOnFailure: false,
+    createdAt: 1,
+    updatedAt: 1,
+  };
+  beforeEach(() => {
+    useBringUpStore.setState({ byHost: {} });
+    sendHelperAndWait.mockClear();
+    sendPayload.mockReset();
+    usePayloadPlaylistsStore.setState({
+      playlists: [playlist],
+      autoLoader: { enabled: false, playlistId: null, bringUpPlaylistId: "pl-1" },
+      runStatusByHost: {},
+    });
+  });
+
+  it("sends the helper once the playlist is done", async () => {
+    sendPayload.mockResolvedValue({ ok: true });
+    const run = useBringUpStore.getState().run("192.168.0.9", tr);
+    await vi.waitFor(() => expect(sendHelperAndWait).toHaveBeenCalled());
+    releaseSend();
+    await run;
+    expect(sendPayload).toHaveBeenCalledTimes(1);
+    expect(bringUpStatusFor(useBringUpStore.getState(), "192.168.0.9").kind).toBe("done");
+  });
+
+  it("fails on a failed step and never sends the helper", async () => {
+    sendPayload.mockRejectedValue(new Error("connect :9021: Connection refused"));
+    await useBringUpStore.getState().run("192.168.0.9", tr);
+    expect(sendHelperAndWait).not.toHaveBeenCalled();
+    expect(bringUpStatusFor(useBringUpStore.getState(), "192.168.0.9")).toMatchObject({
+      kind: "failed",
+      phase: "prehelper",
+    });
+  });
+
+  it("a playlist stopped mid-run fails the bring-up instead of going on to the helper", async () => {
+    // The step's send hangs; Stop on the playlist leaves the run status idle,
+    // which used to read as "no failure" and the helper went out anyway.
+    let finishSend: (v: unknown) => void = () => {};
+    sendPayload.mockImplementation(() => new Promise((r) => (finishSend = r)));
+    const run = useBringUpStore.getState().run("192.168.0.9", tr);
+    await vi.waitFor(() => expect(sendPayload).toHaveBeenCalled());
+    usePayloadPlaylistsStore.getState().stop("192.168.0.9");
+    finishSend({ ok: true });
+    await run;
+    expect(sendHelperAndWait).not.toHaveBeenCalled();
+    expect(bringUpStatusFor(useBringUpStore.getState(), "192.168.0.9")).toMatchObject({
+      kind: "failed",
+      phase: "prehelper",
     });
   });
 });

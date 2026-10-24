@@ -64,6 +64,7 @@ import {
   fsDelete,
   uploadQueueSave,
   uploadQueueLoad,
+  jobCancel,
 } from "../api/ps5";
 import { useRestAfterUploadStore } from "./restAfterUpload";
 import { ensurePayloadCurrent } from "../lib/ensurePayloadCurrent";
@@ -82,7 +83,8 @@ import {
   registerInstallJobResolver,
   type InstallResult,
 } from "./consoleQueueBridge";
-import { isUploadItem, libraryInstallStates, sameInstall } from "./uploadQueue";
+import { pkgQueue } from "./consoleQueueBridge";
+import { isUploadItem, libraryInstallStates, MAX_POLL_FAILURES, sameInstall } from "./uploadQueue";
 
 // The store before any test stubs its actions (some blocks replace startHost).
 const pristineQueue = useUploadQueueStore.getState();
@@ -285,6 +287,32 @@ describe("upload runner concurrency (per-console, parallel)", () => {
     expect(running).toHaveLength(2);
     expect(running.map((i) => i.displayName).sort()).toEqual(["A1", "B1"]);
     expect(itemsByStatus("pending").map((i) => i.displayName)).toEqual(["A2"]);
+  });
+
+  it("clear(host) and retryFailed(host) touch only that console", async () => {
+    addItem("192.168.1.10:9113", "A1");
+    addItem("192.168.1.10:9113", "A2");
+    addItem("192.168.1.20:9113", "B1");
+    useUploadQueueStore.setState((s) => ({
+      items: s.items.map((i) => (i.displayName === "B1" ? { ...i, status: "failed" as const } : i)),
+    }));
+
+    void useUploadQueueStore.getState().startHost("192.168.1.10");
+    await vi.advanceTimersByTimeAsync(50);
+    expect(itemsByStatus("running").map((i) => i.displayName)).toEqual(["A1"]);
+
+    // B's failed row goes back and B starts; A's run is untouched.
+    useUploadQueueStore.getState().retryFailed("192.168.1.20");
+    await vi.advanceTimersByTimeAsync(50);
+    expect(itemsByStatus("running").map((i) => i.displayName).sort()).toEqual(["A1", "B1"]);
+
+    // Clear on A: A's upload is stopped and its rows go; B keeps uploading.
+    useUploadQueueStore.getState().clear("192.168.1.10");
+    await vi.advanceTimersByTimeAsync(50);
+    expect(useUploadQueueStore.getState().items.map((i) => i.displayName)).toEqual(["B1"]);
+    expect(itemsByStatus("running").map((i) => i.displayName)).toEqual(["B1"]);
+    expect(useUploadQueueStore.getState().runningHosts).toEqual({ "192.168.1.20": true });
+    expect(useUploadQueueStore.getState().running).toBe(true);
   });
 
   it("startHost drains ONLY its own console", async () => {
@@ -644,9 +672,21 @@ describe("cancelItem (per-item cancel)", () => {
     expect(itemsByStatus("running").map((i) => i.displayName)).toEqual(["A1"]);
   });
 
-  it("cancels the RUNNING item and resumes the console's next pending", async () => {
+  it("cancels the RUNNING item and resumes the console's next pending once its job has ended", async () => {
     addItem("192.168.1.10:9113", "A1");
     addItem("192.168.1.10:9113", "A2");
+    // A1's engine job keeps reporting running for a moment after the cancel
+    // (it ends at the next shard boundary); A2 must not start beside it.
+    mockedStartFile.mockReset().mockResolvedValueOnce("job-a1").mockResolvedValue("job-a2");
+    let a1Ending = 0;
+    mockedJobStatus.mockImplementation(async (jobId: string) => {
+      if (jobId === "job-a1" && vi.mocked(jobCancel).mock.calls.some((c) => c[0] === "job-a1")) {
+        a1Ending++;
+        return { status: a1Ending < 3 ? "running" : "failed" } as Awaited<ReturnType<typeof jobStatus>>;
+      }
+      return { status: "running" } as Awaited<ReturnType<typeof jobStatus>>;
+    });
+    vi.mocked(jobCancel).mockClear();
 
     void useUploadQueueStore.getState().startHost("192.168.1.10");
     await vi.advanceTimersByTimeAsync(50);
@@ -654,6 +694,10 @@ describe("cancelItem (per-item cancel)", () => {
 
     useUploadQueueStore.getState().cancelItem(byId("A1").id);
     await vi.advanceTimersByTimeAsync(200);
+    // Still ending: A2 waits.
+    expect(mockedStartFile).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(mockedStartFile).toHaveBeenCalledTimes(2);
 
     // A1 dropped; A2 now the running item; console still active.
     expect(
@@ -896,6 +940,49 @@ describe("upload runner auto-resume", () => {
 
     expect(itemsByStatus("failed")).toHaveLength(1);
     expect(mockedStartFile).toHaveBeenCalledTimes(1);
+  });
+
+  it("a failed status read keeps polling; it never re-sends the helper over a live transfer", async () => {
+    addItem(ADDR, "A1");
+    // The engine is busy for two polls (fetch timeout / proxy blip), then
+    // answers: the transfer it runs was never in trouble.
+    mockedJobStatus
+      .mockRejectedValueOnce(new Error("fetch failed"))
+      .mockRejectedValueOnce(new Error("fetch failed"))
+      .mockResolvedValueOnce({ status: "running" } as Awaited<ReturnType<typeof jobStatus>>)
+      .mockResolvedValue({ status: "done", bytes_sent: 100 } as Awaited<ReturnType<typeof jobStatus>>);
+
+    const p = useUploadQueueStore.getState().start();
+    await vi.advanceTimersByTimeAsync(20_000);
+    await p;
+
+    expect(itemsByStatus("done")).toHaveLength(1);
+    // One transfer, and only the preflight helper check: no "recovery" redeploy.
+    expect(mockedStartFile).toHaveBeenCalledTimes(1);
+    expect(mockedEnsurePayload).toHaveBeenCalledTimes(1);
+    const item = useUploadQueueStore.getState().items[0];
+    expect(item.recoverAttempt ?? 0).toBe(0);
+  });
+
+  it("gives up on a status read that keeps failing, through the recovery path", async () => {
+    addItem(ADDR, "A1");
+    let misses = 0;
+    mockedJobStatus.mockImplementation(async () => {
+      if (misses < MAX_POLL_FAILURES + 2) {
+        misses++;
+        throw new Error("fetch failed");
+      }
+      return { status: "done", bytes_sent: 100 } as Awaited<ReturnType<typeof jobStatus>>;
+    });
+
+    const p = useUploadQueueStore.getState().start();
+    await vi.advanceTimersByTimeAsync(60_000);
+    await p;
+
+    expect(itemsByStatus("done")).toHaveLength(1);
+    // MAX_POLL_FAILURES misses in a row → the item recovered once (resume + redeploy).
+    expect(mockedStartFile).toHaveBeenCalledTimes(2);
+    expect(mockedEnsurePayload.mock.calls.length).toBeGreaterThanOrEqual(2);
   });
 
   it("Stop during a recovery backoff aborts cleanly without retrying", async () => {
@@ -1479,6 +1566,48 @@ describe("install items", () => {
     await waitFor(() => !useUploadQueueStore.getState().runningHosts[host]);
     const upload = useUploadQueueStore.getState().items.find((i) => i.sourcePath === "/src/Game");
     expect(upload?.status).toBe("pending");
+  });
+
+  it("an Install Package upload runs only itself, leaving uploads waiting for Start alone (#410)", async () => {
+    mockedStartFile.mockReset().mockResolvedValue("job");
+    mockedJobStatus.mockReset().mockResolvedValue({
+      status: "running",
+    } as Awaited<ReturnType<typeof jobStatus>>);
+    const s = useUploadQueueStore.getState();
+    s.add({
+      sourceKind: "folder",
+      sourcePath: "/src/Waiting",
+      displayName: "Waiting",
+      resolvedDest: "/data/homebrew/Waiting",
+      addr: `${host}:9113`,
+      strategy: "overwrite",
+      reconcileMode: "fast",
+      excludes: [],
+      mountAfterUpload: false,
+      mountReadOnly: false,
+      registerAfterUpload: false,
+    });
+    const id = pkgQueue().add({
+      sourceKind: "pkg",
+      sourcePath: "/src/Game.pkg",
+      displayName: "Game.pkg",
+      resolvedDest: "/data/ps5upload/pkg_library/Game.pkg",
+      addr: `${host}:9113`,
+      strategy: "overwrite",
+      reconcileMode: "fast",
+      excludes: [],
+      mountAfterUpload: false,
+      mountReadOnly: true,
+      registerAfterUpload: false,
+      installAfterUpload: false,
+      deletePkgAfterInstall: false,
+    });
+    const row = (i: string) => useUploadQueueStore.getState().items.find((it) => it.id === i);
+    await waitFor(() => row(id)?.status === "running");
+    // The package uploads; the folder the user never pressed Start on stays waiting.
+    const waiting = useUploadQueueStore.getState().items.find((i) => i.sourcePath === "/src/Waiting");
+    expect(waiting?.status).toBe("pending");
+    useUploadQueueStore.getState().stopHost(host);
   });
 
   it("a second identical install joins the first instead of failing", async () => {

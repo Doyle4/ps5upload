@@ -185,10 +185,9 @@ export const NAV_ITEMS: NavItem[] = [
     key: "local_image",
     fallback: "Edit image on this computer",
     icon: FilePen,
-    // It attaches the image on the machine the engine runs on: in the
-    // browser build that is the server, not the viewer's computer.
-    hideInBrowser: true,
-    macOrLinuxOnly: true,
+    // Offered everywhere: looking inside an image goes through the engine.
+    // Only the screen's mount ("Open an image") needs a macOS or Linux
+    // desktop, and the screen hides that part by itself (#479).
   },
   {
     to: "/game-activity",

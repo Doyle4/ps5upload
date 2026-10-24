@@ -126,6 +126,7 @@ import { formatBytes } from "../../lib/format";
 import { mgmtAddr, transferAddr } from "../../lib/addr";
 import { useImageRetry } from "../../lib/useImageRetry";
 import { useStaleHostGuard } from "../../lib/staleHostGuard";
+import { isTauriEnv } from "../../lib/tauriEnv";
 import { createLimiter } from "../../lib/limitConcurrency";
 import { deleteWithRetry } from "../../lib/deleteWithRetry";
 import { filterLibraryEntries } from "../../lib/libraryFilter";
@@ -2079,17 +2080,29 @@ function LibraryRowImpl({
       // the hand-off exists to avoid.
       const mgmt = mgmtAddr(host);
       let handedToSmp = false;
-      try {
-        if (smpRunning) {
-          const r = await smpManualInstall(mgmt, entry.path);
-          handedToSmp = true;
-          setMountNote(
-            smpHandoffNote(entry.name, { added: r.added, chosePath: false }),
+      if (smpRunning) {
+        // smpManualInstall only appends to SMP's manual.lst through the
+        // helper; it never asks SMP anything. A throw is that write failing
+        // (or timing out after it landed), not "SMP is gone": registering
+        // here as well would race SMP for /user/app + app.db, so say what
+        // happened and stop. The user can try again.
+        let r: { added: boolean };
+        try {
+          r = await smpManualInstall(mgmt, entry.path);
+        } catch (e) {
+          const wrapped = new Error(
+            `Couldn't hand this game to ShadowMount+, which is running and adds games itself, so ps5upload did not register it too. Try again. (${
+              e instanceof Error ? e.message : String(e)
+            })`,
           );
-          onChanged();
+          (wrapped as Error & { cause?: unknown }).cause = e;
+          throw wrapped;
         }
-      } catch {
-        handedToSmp = false; // SMP unreachable → register it ourselves
+        handedToSmp = true;
+        setMountNote(
+          smpHandoffNote(entry.name, { added: r.added, chosePath: false }),
+        );
+        onChanged();
       }
       if (!handedToSmp) {
         const res = await appRegister(consoleAddr(host), entry.path, {
@@ -2594,22 +2607,24 @@ function LibraryRowImpl({
                     "Remove the XMB tile. Source files on disk are not touched.",
                   ),
                 });
-                items.push({
-                  label: tr(
-                    "library_heal_metadata",
-                    undefined,
-                    "Heal home-screen metadata",
-                  ),
-                  icon: <Sparkles size={12} />,
-                  onSelect: runHealAppmeta,
-                  disabled: busy !== null,
-                  loading: busy === "heal",
-                  title: tr(
-                    "library_heal_metadata_tooltip",
-                    undefined,
-                    "Copies missing icon0.png / param.json / snd0.at9 from this game's sce_sys/ to /user/appmeta/<title_id>/. Idempotent — files already present are left alone. Use when the home-screen tile is blank or the menu music is missing.",
-                  ),
-                });
+                // heal_appmeta is a desktop-only command (no engine route).
+                if (isTauriEnv())
+                  items.push({
+                    label: tr(
+                      "library_heal_metadata",
+                      undefined,
+                      "Heal home-screen metadata",
+                    ),
+                    icon: <Sparkles size={12} />,
+                    onSelect: runHealAppmeta,
+                    disabled: busy !== null,
+                    loading: busy === "heal",
+                    title: tr(
+                      "library_heal_metadata_tooltip",
+                      undefined,
+                      "Copies missing icon0.png / param.json / snd0.at9 from this game's sce_sys/ to /user/appmeta/<title_id>/. Idempotent — files already present are left alone. Use when the home-screen tile is blank or the menu music is missing.",
+                    ),
+                  });
                 items.push({
                   label: tr(
                     "library_backup_to_folder",

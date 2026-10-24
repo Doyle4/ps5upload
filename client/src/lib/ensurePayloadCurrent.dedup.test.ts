@@ -21,7 +21,7 @@ vi.mock("./elfldrGuard", () => ({
   LISTENER_LOADER_HINT: "",
 }));
 vi.mock("./restoreMainPayload", () => ({
-  restoreMainPayload: (...a: unknown[]) => restoreMock(...a),
+  engineSendsHelper: (...a: unknown[]) => restoreMock(...a),
 }));
 vi.mock("../state/logs", () => ({
   log: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },

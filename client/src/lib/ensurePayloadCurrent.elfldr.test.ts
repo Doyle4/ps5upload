@@ -14,7 +14,7 @@ vi.mock("../api/ps5", () => ({
   bundledPayloadPath: vi.fn(),
   sendPayload: vi.fn(),
 }));
-vi.mock("./restoreMainPayload", () => ({ restoreMainPayload: (...a: unknown[]) => restoreMock(...a) }));
+vi.mock("./restoreMainPayload", () => ({ engineSendsHelper: (...a: unknown[]) => restoreMock(...a) }));
 vi.mock("./elfldrGuard", () => ({
   waitForLoader: (...a: unknown[]) => waitMock(...a),
   guardElfldr: (...a: unknown[]) => guardMock(...a),

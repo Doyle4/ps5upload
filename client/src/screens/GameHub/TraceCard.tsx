@@ -49,14 +49,20 @@ export function TraceCard({
   }, [titleId]);
   useEffect(load, [load]);
 
-  const run = async (what: NonNullable<typeof busy>, go: () => Promise<TraceStatus>) => {
+  /** Runs one action; false when it failed (the card shows the error). */
+  const run = async (
+    what: NonNullable<typeof busy>,
+    go: () => Promise<TraceStatus>,
+  ): Promise<boolean> => {
     setBusy(what);
     setError(null);
     try {
       const r = await go();
       setStatus(r && r.state ? r : null);
+      return true;
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
+      return false;
     } finally {
       setBusy(null);
     }
@@ -67,11 +73,13 @@ export function TraceCard({
   useEffect(() => {
     const tracing = !!status?.state?.tracing && status.state.host === host;
     if (wasRunning.current && !running && tracing && host && gamePath && !busy) {
-      void run("collect", () => amprTrace.collect(host, gamePath, titleId)).then(() =>
+      void run("collect", () => amprTrace.collect(host, gamePath, titleId)).then((ok) => {
+        // A failed collect shows its error on the card; saying "recorded" would be untrue.
+        if (!ok) return;
         pushNotification("info", tr("trace_collected", undefined, "Play session recorded"), {
           body: tr("trace_collected_body", undefined, "Build the profile when you have played enough, or keep playing."),
-        }),
-      );
+        });
+      });
     }
     wasRunning.current = running;
     // eslint-disable-next-line react-hooks/exhaustive-deps

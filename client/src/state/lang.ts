@@ -3,6 +3,7 @@ import { create } from "zustand";
 import {
   t as translate,
   ensureLocale,
+  interpolate,
   subscribeLocaleLoaded,
   type LanguageCode,
 } from "../i18n";
@@ -169,7 +170,9 @@ export function useTr(): Translator {
         fb = fallback;
       }
       const result = translate(lang, key, vars);
-      if (result === key && fb !== undefined) return fb;
+      // The fallback takes the same `{name}` placeholders as the catalogue
+      // text (see the Translator doc), so a missing key still reads whole.
+      if (result === key && fb !== undefined) return vars ? interpolate(fb, vars) : fb;
       return result;
     },
     // `bump` is intentionally part of the dep list so the closure is
