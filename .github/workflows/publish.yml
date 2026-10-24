@@ -43,6 +43,8 @@ on:
 
 permissions:
   contents: write
+  # scripts/release/wait-for-artifact.mjs reads this run's artifacts and jobs.
+  actions: read
 
 # Distinct group for publish runs so manual dispatches and tag pushes
 # for the same version cancel superseded publish attempts without
@@ -161,9 +163,12 @@ jobs:
             payload/installer/ps5upload-installer.elf.gz
           if-no-files-found: error
 
+  # No `needs: build-payload`: setup (checkout, Node, Rust, npm ci, apt) runs while the payload
+  # builds, and the "Wait for the payload ELF" step holds the job just before the first step
+  # that reads the ELFs (the engine embeds them). A failed build-payload (bad tag, broken C)
+  # fails that step, so nothing is compiled for it; create-release still needs every job.
   build-client:
     name: build-client-${{ matrix.platform }}-${{ matrix.arch }}
-    needs: build-payload
     runs-on: ${{ matrix.os }}
     # The Intel macOS runner took ~33 min for v5.35/5.36 and ran past 45 on
     # v5.37.0, cancelling the whole release (create-release needs every build).
@@ -176,7 +181,11 @@ jobs:
             platform: macos
             arch: arm64
             rust_target: aarch64-apple-darwin
-          - os: macos-15-intel
+          # Cross-compiled on the Apple-silicon runner: the same x86_64-apple-darwin target,
+          # toolchain and flags as on the Intel runner, so the same x64 app and engine (rustc
+          # and Apple clang emit for the --target, not the host). The Intel runner compiled
+          # ~1.6x slower (engine 688 s vs 438 s, v7.1.20) and its queue started it ~3 min late.
+          - os: macos-15
             platform: macos
             arch: x64
             rust_target: x86_64-apple-darwin
@@ -319,6 +328,11 @@ jobs:
         working-directory: client
         run: npm ci --no-audit --no-fund
 
+      - name: Wait for the payload ELF
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/release/wait-for-artifact.mjs ps5upload-payload build-payload
+
       - name: Restore payload ELF
         uses: actions/download-artifact@v8
         with:
@@ -340,7 +354,39 @@ jobs:
         # --locked: the lockfile is the release's bill of materials; a Cargo.toml
         # that outgrew it (two green PRs squash-merged, see CI's clippy step)
         # must fail here, not quietly resolve to something newer.
-        run: cargo build --locked --release -p ps5upload-engine --target "$RUST_TARGET"
+        #
+        # The desktop app's dependencies compile alongside, in the background:
+        # the engine build ends in minutes of one-crate, one-core work
+        # (ps5upload-engine, ps5upload-ava1) while the Tauri build later spends
+        # 3-5 min compiling tauri, wry and the rest before the app crate. Same
+        # command line Tauri runs (--bins --features tauri/custom-protocol
+        # --release --target), and on macOS the MACOSX_DEPLOYMENT_TARGET Tauri
+        # sets from bundle.macOS.minimumSystemVersion, so the Tauri build finds
+        # them fresh (checked on macOS with cargo -v: no dependency dirty). It
+        # cannot build the app itself: the app's build script needs the engine
+        # binary, and even once that exists the app's generate_context! needs
+        # client/dist, which only the Tauri build's beforeBuildCommand creates,
+        # so the app crate fails at once and --keep-going finishes the rest;
+        # the Tauri build below compiles the app as before. Nothing here
+        # reaches the engine build's environment, and what the pre-build
+        # leaves is reused only where cargo's fingerprints match, so no binary
+        # changes. It runs at lower priority so the engine build keeps the CPU.
+        run: |
+          (
+            cd ../client/src-tauri
+            if [ "$RUNNER_OS" = "macOS" ]; then
+              MACOSX_DEPLOYMENT_TARGET="$(node -p "require('./tauri.conf.json').bundle.macOS.minimumSystemVersion")"
+              export MACOSX_DEPLOYMENT_TARGET
+            fi
+            nice="$(command -v nice || true)"
+            ${nice:+$nice -n 10} cargo build --locked --release --target "$RUST_TARGET" \
+              --bins --features tauri/custom-protocol --keep-going
+          ) > "$RUNNER_TEMP/desktop-deps.log" 2>&1 &
+          deps=$!
+          cargo build --locked --release -p ps5upload-engine --target "$RUST_TARGET"
+          # Expected to exit non-zero (the app's build script, see above).
+          wait "$deps" || true
+          echo "desktop dependencies pre-built: $(grep -c ' Compiling ' "$RUNNER_TEMP/desktop-deps.log") crates"
 
       - name: Verify engine binary in place
         shell: bash
@@ -394,11 +440,15 @@ jobs:
           LINUXDEPLOY_VERBOSE: "1"
         run: |
           if [ "$PLATFORM" = "windows" ]; then
-            # Build the raw exe (--no-bundle) AND the NSIS installer. The
-            # NSIS installer bundles the WebView2 bootstrapper, which is
+            # The raw exe AND the NSIS installer from one build. The NSIS
+            # installer bundles the WebView2 bootstrapper, which is
             # essential on Windows 10 where WebView2 is not pre-installed
             # (issue #221: app shows in Task Manager but no window appears).
-            npx tauri build --target "$RUST_TARGET" --ci --no-bundle
+            # The raw exe is the one the bundler leaves in target/: it
+            # compiles it, stamps it with the bundle type ("nsis") in place
+            # and packs it. A separate --no-bundle build first only made the
+            # second command compile the app crate again (208-294 s on
+            # v7.1.20); the exe shipped was always the second, stamped one.
             npx tauri build --target "$RUST_TARGET" --ci --bundles nsis
           else
             npx tauri build --target "$RUST_TARGET" --ci --verbose
@@ -510,7 +560,7 @@ jobs:
   # ─────────────────────────────────────────────────────────────────────
   build-android:
     name: build-android
-    needs: build-payload
+    # Starts with build-payload and waits for its ELFs (see build-client).
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     # The Android port is newer than the desktop builds, and the desktop
@@ -572,6 +622,11 @@ jobs:
       - name: Install client deps
         working-directory: client
         run: npm ci --no-audit --no-fund
+
+      - name: Wait for the payload ELF
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/release/wait-for-artifact.mjs ps5upload-payload build-payload
 
       - name: Restore real payload ELF
         uses: actions/download-artifact@v8
