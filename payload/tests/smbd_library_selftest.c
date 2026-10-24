@@ -196,6 +196,50 @@ static void build_tree(void) {
     put("d1/d2/d3/d4/d5/d6/ok.exfat", "o", 1);
 }
 
+/* ---- a share: the local tree behind share-relative paths ("" = the share's top), with one folder
+ * whose listing can fail the way a dropped or refusing server would ---- */
+
+typedef struct {
+    xfs_t *local;
+    const char *drop; /* a share-relative folder whose opendir answers drop_rc, or NULL */
+    int drop_rc;
+} share_t;
+
+#define SH(fs) ((share_t *)(fs)->impl)
+
+static void share_abs(const char *rel, char *out, size_t cap) {
+    if (rel[0]) snprintf(out, cap, "%s/%s", g_root, rel);
+    else snprintf(out, cap, "%s", g_root);
+}
+static int sh_stat(xfs_t *fs, const char *p, xstat_t *st) {
+    char a[1024];
+    share_abs(p, a, sizeof a);
+    return SH(fs)->local->ops->stat(SH(fs)->local, a, st);
+}
+static int sh_opendir(xfs_t *fs, const char *p, void **d) {
+    char a[1024];
+    if (SH(fs)->drop && strcmp(p, SH(fs)->drop) == 0) return SH(fs)->drop_rc;
+    share_abs(p, a, sizeof a);
+    return SH(fs)->local->ops->opendir(SH(fs)->local, a, d);
+}
+static int sh_readdir(xfs_t *fs, void *d, char *n, size_t cap, xstat_t *st) {
+    return SH(fs)->local->ops->readdir(SH(fs)->local, d, n, cap, st);
+}
+static void sh_closedir(xfs_t *fs, void *d) { SH(fs)->local->ops->closedir(SH(fs)->local, d); }
+static int sh_open_read(xfs_t *fs, const char *p, void **fh) {
+    char a[1024];
+    share_abs(p, a, sizeof a);
+    return SH(fs)->local->ops->open_read(SH(fs)->local, a, fh);
+}
+static long long sh_pread(xfs_t *fs, void *fh, void *b, size_t n, uint64_t off) {
+    return SH(fs)->local->ops->pread(SH(fs)->local, fh, b, n, off);
+}
+static int sh_close(xfs_t *fs, void *fh) { return SH(fs)->local->ops->close(SH(fs)->local, fh); }
+static size_t sh_chunk(xfs_t *fs) { return SH(fs)->local->ops->chunk ? SH(fs)->local->ops->chunk(SH(fs)->local) : 0; }
+
+static const xfs_ops_t k_share_ops = { sh_stat, sh_opendir, sh_readdir, sh_closedir, NULL,    sh_open_read, NULL, sh_pread,
+                                       NULL,    sh_close,   NULL,       NULL,        NULL,    NULL,         NULL, sh_chunk };
+
 static void title_ids(void) {
     char t[10];
     CHECK(lib_title_id_in("PPSA09999 Venus.exfat", t) == 1 && strcmp(t, "PPSA09999") == 0);
@@ -284,6 +328,56 @@ int main(void) {
     j = slurp(json_path);
     CHECK(j && strstr(j, "\"stopped\":\"entries\""));
     free(j);
+
+    /* a share: its root is "" (saved without a start folder) and is walked all the same; the old
+     * loop never ran for an empty root, so such a share scanned to 0 items, "complete" */
+    {
+        share_t sh = { &fs, NULL, 0 };
+        xfs_t share = { &k_share_ops, &sh };
+        char share_json[700], *before = NULL;
+        int icons;
+        snprintf(share_json, sizeof share_json, "%s/share1.json", g_out);
+        memset(&pr, 0, sizeof pr);
+        rc = lib_scan(&share, "share1", "", NULL, g_out, NULL, &pr);
+        CHECK(rc == 0);
+        before = slurp(share_json);
+        CHECK(before != NULL);
+        if (before) {
+            CHECK(strstr(before, "\"complete\":true") && count_items(before) >= 6 && strstr(before, "Games/Jak X.pkg\"") &&
+                  strstr(before, "\"title_id\":\"PPSA01234\""));
+        }
+        icons = count_icons("share1-");
+        CHECK(icons == 2);
+
+        /* the share drops while a folder is listed: the scan is abandoned with the cause and the
+         * last result and its covers stay, instead of a partial listing written as complete */
+        sh.drop = "Dumps";
+        sh.drop_rc = XE_DISCONNECTED;
+        memset(&pr, 0, sizeof pr);
+        CHECK(lib_scan(&share, "share1", "", NULL, g_out, NULL, &pr) == XE_DISCONNECTED);
+        j = slurp(share_json);
+        CHECK(j && before && strcmp(j, before) == 0);
+        CHECK(count_icons("share1-") == icons);
+        free(j);
+        sh.drop_rc = XE_TIMEOUT;
+        memset(&pr, 0, sizeof pr);
+        CHECK(lib_scan(&share, "share1", "", NULL, g_out, NULL, &pr) == XE_TIMEOUT);
+
+        /* one folder the server refuses inside a working share is passed over */
+        sh.drop_rc = XE_ACCESS;
+        memset(&pr, 0, sizeof pr);
+        CHECK(lib_scan(&share, "share1", "", NULL, g_out, NULL, &pr) == 0);
+        j = slurp(share_json);
+        CHECK(j && strstr(j, "\"complete\":true") && !strstr(j, "PPSA01234") && strstr(j, "Games/Jak X.pkg\""));
+        free(j);
+
+        /* the start folder itself cannot be read: reported, never an empty result */
+        sh.drop = "";
+        sh.drop_rc = XE_ACCESS;
+        memset(&pr, 0, sizeof pr);
+        CHECK(lib_scan(&share, "share1", "", NULL, g_out, NULL, &pr) == XE_ACCESS);
+        free(before);
+    }
 
     /* a bad source id is refused before anything is read */
     memset(&pr, 0, sizeof pr);

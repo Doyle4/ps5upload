@@ -68,7 +68,7 @@ static int utf8_ok(const char *s) {
     return 1;
 }
 
-int smbp_name_ok(const char *name) {
+int smbp_name_readable(const char *name) {
     const unsigned char *p = (const unsigned char *)name;
     size_t len;
     if (!name) return 0;
@@ -77,9 +77,17 @@ int smbp_name_ok(const char *name) {
     if (strcmp(name, ".") == 0 || strcmp(name, "..") == 0) return 0;
     for (; *p; p++) {
         if (*p < 0x20 || *p == 0x7f) return 0;
-        if (strchr("\\/:*?\"<>|", *p)) return 0;
+        if (*p == '/' || *p == '\\') return 0;
     }
     return utf8_ok(name);
+}
+
+int smbp_name_ok(const char *name) {
+    const unsigned char *p = (const unsigned char *)name;
+    if (!smbp_name_readable(name)) return 0;
+    for (; *p; p++)
+        if (strchr(":*?\"<>|", *p)) return 0;
+    return 1;
 }
 
 int smbp_rel_normalize(const char *in, char *out, size_t cap) {
@@ -99,7 +107,9 @@ int smbp_rel_normalize(const char *in, char *out, size_t cap) {
         if (n == 0 || n >= sizeof comp) goto bad; /* "a//b" or an over-long name */
         memcpy(comp, s, n);
         comp[n] = '\0';
-        if (!smbp_name_ok(comp)) goto bad;
+        /* Names that exist on the server (a Linux/macOS NAS holds "God of War: Ragnarok"): the lax
+         * rule. The strict one applies where WE create a name there (mkdir, an upload's target). */
+        if (!smbp_name_readable(comp)) goto bad;
         if (o + (o ? 1 : 0) + n + 1 > cap) goto bad;
         if (o) out[o++] = '/';
         memcpy(out + o, comp, n);

@@ -26,15 +26,19 @@ static void t_rel(void) {
     CHECK(smbp_rel_normalize("游戏/中文 文件夹", out, sizeof out) == 0 && strcmp(out, "游戏/中文 文件夹") == 0);
     CHECK(smbp_rel_normalize("Ünïcødé/日本語.bin", out, sizeof out) == 0);
     CHECK(smbp_rel_normalize("emoji/\xF0\x9F\x8E\xAE.txt", out, sizeof out) == 0);
+    /* names a Linux / macOS server holds and Windows would not: readable, so listable and copyable */
+    CHECK(smbp_rel_normalize("Games/God of War: Ragnarok", out, sizeof out) == 0 &&
+          strcmp(out, "Games/God of War: Ragnarok") == 0);
+    CHECK(smbp_rel_normalize("a*", out, sizeof out) == 0 && strcmp(out, "a*") == 0);
+    CHECK(smbp_rel_normalize("what?", out, sizeof out) == 0);
     /* refused */
     CHECK(smbp_rel_normalize("a//b", out, sizeof out) != 0 && out[0] == '\0');
     CHECK(smbp_rel_normalize("a/../b", out, sizeof out) != 0);
     CHECK(smbp_rel_normalize("..", out, sizeof out) != 0);
     CHECK(smbp_rel_normalize("./a", out, sizeof out) != 0);
     CHECK(smbp_rel_normalize("a\\b", out, sizeof out) != 0);
-    CHECK(smbp_rel_normalize("a:b", out, sizeof out) != 0);
-    CHECK(smbp_rel_normalize("a*", out, sizeof out) != 0);
     CHECK(smbp_rel_normalize("a\tb", out, sizeof out) != 0);
+    CHECK(smbp_rel_normalize("a\x01", out, sizeof out) != 0);
     CHECK(smbp_rel_normalize("bad\xC3", out, sizeof out) != 0);          /* cut UTF-8 */
     CHECK(smbp_rel_normalize("over\xC0\xAF", out, sizeof out) != 0);     /* overlong '/' */
     CHECK(smbp_rel_normalize("sur\xED\xA0\x80", out, sizeof out) != 0); /* a surrogate */
@@ -60,6 +64,11 @@ static void t_names(void) {
     CHECK(!smbp_name_ok("a|b"));
     CHECK(!smbp_name_ok("a\"b"));
     CHECK(!smbp_name_ok("a\x7f"));
+    /* a name we create on a share stays Windows-safe; one we only read may carry : * ? " < > | */
+    CHECK(!smbp_name_ok("God of War: Ragnarok") && smbp_name_readable("God of War: Ragnarok"));
+    CHECK(!smbp_name_ok("a*") && smbp_name_readable("a*"));
+    CHECK(!smbp_name_readable("a/b") && !smbp_name_readable("a\\b") && !smbp_name_readable("a\x01") &&
+          !smbp_name_readable("..") && !smbp_name_readable("") && !smbp_name_readable("bad\xC3"));
     CHECK(smbp_share_ok("Movies"));
     CHECK(smbp_share_ok("共享"));
     CHECK(!smbp_share_ok("IPC$"));

@@ -347,6 +347,80 @@ static void t_lines(void) {
     }
 }
 
+/* A job's status is the job's outcome: a failed or cancelled job's "error" is relayed as 200 with
+ * the status, never turned into the request's own failure (507 / 409 / 502, which the page read as
+ * the daemon gone). Only a daemon refusal (no "state") maps to a status. */
+static void t_job_status(void) {
+    static const char failed[] =
+        "{\"job\":\"0123456789abcdef0123456789abcdef\",\"kind\":\"download\",\"state\":\"failed\",\"bytes_done\":5,"
+        "\"bytes_total\":9,\"files_done\":0,\"files_total\":1,\"scanning\":false,\"reconnects\":0,\"dialect\":785,"
+        "\"started\":1,\"current\":\"a.pkg\",\"src\":\"a.pkg\",\"dest\":\"/data/a.pkg\",\"error\":\"no_space\","
+        "\"failed\":\"a.pkg\",\"detail\":\"\"}";
+    static const char cancelled[] =
+        "{\"job\":\"0123456789abcdef0123456789abcdef\",\"kind\":\"upload\",\"state\":\"cancelled\",\"error\":\"cancelled\"}";
+    static const char running[] =
+        "{\"job\":\"0123456789abcdef0123456789abcdef\",\"kind\":\"scan\",\"state\":\"running\",\"error\":null}";
+    const char *q = "{\"job\":\"0123456789abcdef0123456789abcdef\"}";
+    g_next_reply = failed;
+    call(webui_smb_job, q);
+    CHECK(g_status == 200 && strcmp(g_body, failed) == 0);
+    g_next_reply = cancelled;
+    call(webui_smb_job, q);
+    CHECK(g_status == 200 && strcmp(g_body, cancelled) == 0);
+    g_next_reply = running;
+    call(webui_smb_job, q);
+    CHECK(g_status == 200 && strcmp(g_body, running) == 0);
+    /* the daemon's own refusals */
+    g_next_reply = "{\"error\":\"not_found\"}";
+    call(webui_smb_job, q);
+    CHECK(g_status == 404 && strstr(g_body, "unknown_job"));
+    g_next_reply = "{\"error\":\"busy\"}";
+    call(webui_smb_job, q);
+    CHECK(g_status == 503 && strstr(g_body, "busy"));
+    g_next_reply = NULL;
+    call(webui_smb_job, "{\"job\":\"nope\"}");
+    CHECK(g_status == 400 && strstr(g_body, "bad_job"));
+}
+
+/* The per-console key is replaced only when there is none: a key file that cannot be read is an
+ * error, not a new key (which would leave every saved password undecryptable). */
+static void t_key_file(void) {
+    char before[80], after[80];
+    FILE *f;
+    size_t n;
+    call(webui_smb_save, "{\"server\":\"nas\",\"share\":\"k\",\"user\":\"u\",\"password\":\"p\"}");
+    CHECK(g_status == 200);
+    f = fopen(g_key, "rb");
+    n = f ? fread(before, 1, sizeof before - 1, f) : 0;
+    if (f) fclose(f);
+    before[n] = '\0';
+    CHECK(n == 64);
+    if (geteuid() != 0) { /* root reads a 000 file; the check needs the refusal */
+        CHECK(chmod(g_key, 0) == 0);
+        call(webui_smb_shares, "{}");
+        CHECK(g_status == 500 && strstr(g_body, "io_error"));
+        CHECK(chmod(g_key, 0600) == 0);
+        f = fopen(g_key, "rb");
+        n = f ? fread(after, 1, sizeof after - 1, f) : 0;
+        if (f) fclose(f);
+        after[n] = '\0';
+        CHECK(n == 64 && strcmp(before, after) == 0);
+        call(webui_smb_shares, "{}");
+        CHECK(g_status == 200 && strstr(g_body, "\"has_password\":true"));
+    }
+    /* an empty (never finished) key file is made again */
+    unlink(g_file);
+    f = fopen(g_key, "wb");
+    if (f) fclose(f);
+    call(webui_smb_shares, "{}");
+    CHECK(g_status == 200);
+    f = fopen(g_key, "rb");
+    n = f ? fread(after, 1, sizeof after - 1, f) : 0;
+    if (f) fclose(f);
+    after[n] = '\0';
+    CHECK(n == 64 && strcmp(before, after) != 0);
+}
+
 int main(void) {
     snprintf(g_dir, sizeof g_dir, "/tmp/ps5upload-webui-smb-%d", (int)getpid());
     snprintf(g_file, sizeof g_file, "%s/shares.jsonl", g_dir);
@@ -360,6 +434,8 @@ int main(void) {
     t_pc_and_library();
     t_paths_and_copy();
     t_status();
+    t_job_status();
+    t_key_file();
     unlink(g_file);
     unlink(g_key);
     rmdir(g_dir);

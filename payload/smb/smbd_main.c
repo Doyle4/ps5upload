@@ -196,6 +196,7 @@ static struct {
     char key[SMBP_HOST_MAX + SMBP_SHARE_MAX + 2 * SMBP_PATH_MAX];
     lent_t *v;
     size_t n;
+    int truncated; /* the folder has more entries than LIST_ENTRIES_MAX; the listing shows the first */
     time_t at;
 } g_cache;
 
@@ -209,19 +210,26 @@ static int cmp_lent(const void *a, const void *b) {
     return strcmp(((const lent_t *)a)->name, ((const lent_t *)b)->name);
 }
 
-static int read_listing(xfs_t *fs, const char *path, lent_t **out, size_t *count) {
+static int read_listing(xfs_t *fs, const char *path, lent_t **out, size_t *count, int *truncated) {
     void *d = NULL;
     lent_t *v = NULL;
     size_t n = 0, cap = 0;
     char name[SMBP_NAME_MAX];
     xstat_t st;
     int rc = fs->ops->opendir(fs, path, &d);
+    *truncated = 0;
     if (rc != 0) return rc;
     while ((rc = fs->ops->readdir(fs, d, name, sizeof name, &st)) > 0) {
         if (n == cap) {
             size_t nc = cap ? cap * 2 : 128;
             lent_t *nv;
-            if (nc > LIST_ENTRIES_MAX) break; /* the rest is not shown */
+            /* The cap is LIST_ENTRIES_MAX exactly (doubling past it used to stop at 65,536 with
+             * no word about it); the rest is not shown and the listing says so. */
+            if (cap >= LIST_ENTRIES_MAX) {
+                *truncated = 1;
+                break;
+            }
+            if (nc > LIST_ENTRIES_MAX) nc = LIST_ENTRIES_MAX;
             nv = realloc(v, nc * sizeof *nv);
             if (!nv) {
                 rc = XE_NOMEM;
@@ -257,7 +265,7 @@ static void op_list(const char *r, size_t n, sj_buf_t *b) {
     uint64_t offset = 0, limit = SMBD_LIST_MAX;
     lent_t *v = NULL;
     size_t cnt = 0, i, end;
-    int rc;
+    int rc, truncated = 0;
     if ((rc = conn_from(r, n, &c, 1)) != 0 || (rc = rel_from(r, n, "path", path, sizeof path)) != 0) {
         smbconn_clear(&c);
         reply_err(b, rc, NULL);
@@ -275,6 +283,7 @@ static void op_list(const char *r, size_t n, sj_buf_t *b) {
         /* a later page: answered from the folder read for the first one */
         cnt = g_cache.n;
         v = g_cache.v;
+        truncated = g_cache.truncated;
         g_cache.v = NULL;
         g_cache.n = 0;
     }
@@ -287,7 +296,7 @@ static void op_list(const char *r, size_t n, sj_buf_t *b) {
             reply_err(b, rc, detail);
             return;
         }
-        rc = read_listing(&fs, path, &v, &cnt);
+        rc = read_listing(&fs, path, &v, &cnt, &truncated);
         smbfs_close(&fs);
         if (rc != 0) {
             smbconn_clear(&c);
@@ -305,13 +314,14 @@ static void op_list(const char *r, size_t n, sj_buf_t *b) {
         sj_kv_str(b, 1, "kind", kind_str(v[i].kind));
         sj_fmt(b, ",\"size\":%llu,\"mtime\":%llu}", (unsigned long long)v[i].size, (unsigned long long)v[i].mtime);
     }
-    sj_fmt(b, "],\"more\":%s,\"next\":%llu,\"total\":%llu}", end < cnt ? "true" : "false", (unsigned long long)end,
-           (unsigned long long)cnt);
+    sj_fmt(b, "],\"more\":%s,\"next\":%llu,\"total\":%llu%s}", end < cnt ? "true" : "false", (unsigned long long)end,
+           (unsigned long long)cnt, truncated ? ",\"truncated\":true" : "");
     /* keep it for the next page */
     pthread_mutex_lock(&g_cache_mu);
     free_lents(g_cache.v, g_cache.n);
     g_cache.v = v;
     g_cache.n = cnt;
+    g_cache.truncated = truncated;
     g_cache.at = time(NULL);
     snprintf(g_cache.key, sizeof g_cache.key, "%s", key);
     pthread_mutex_unlock(&g_cache_mu);
@@ -402,8 +412,10 @@ static void op_simple(const char *op, const char *r, size_t n, sj_buf_t *b) {
         if (rc == 0)
             sj_fmt(b, "{\"kind\":\"%s\",\"size\":%llu,\"mtime\":%llu}", kind_str(st.kind), (unsigned long long)st.size,
                    (unsigned long long)st.mtime);
-    } else { /* mkdir */
-        rc = path[0] ? fs.ops->mkdir(&fs, path) : XE_BAD_REQUEST;
+    } else { /* mkdir: a name we create, so the strict (Windows-safe) rule for its last component */
+        const char *leaf = strrchr(path, '/');
+        leaf = leaf ? leaf + 1 : path;
+        rc = !path[0] ? XE_BAD_REQUEST : !smbp_name_ok(leaf) ? XE_BAD_NAME : fs.ops->mkdir(&fs, path);
         if (rc == 0) {
             cache_drop();
             sj_raw(b, "{\"ok\":true}");
@@ -447,6 +459,13 @@ static void op_copy(const char *r, size_t n, sj_buf_t *b, int remove) {
             if (!dst[0]) {
                 rc = XE_BAD_REQUEST;
                 goto bad;
+            }
+            { /* the upload's target is a name we create: the strict (Windows-safe) rule */
+                const char *leaf = strrchr(dst, '/');
+                if (!smbp_name_ok(leaf ? leaf + 1 : dst)) {
+                    rc = XE_BAD_NAME;
+                    goto bad;
+                }
             }
         } else {
             rc = XE_BAD_REQUEST;

@@ -223,18 +223,34 @@ static int write_whole(const char *path, const void *data, size_t len, mode_t mo
     return 0;
 }
 
-/* The per-console key, made on first use. */
+/* The per-console key, made on first use. A new key is made ONLY when there is none (ENOENT) or
+ * the file is read to its end and is not a key: a failure to open or read it (EMFILE, EACCES, an
+ * I/O error) is an error, not a reason to replace the key, which would silently make every saved
+ * share password undecryptable. */
 static int load_key(uint8_t key[32]) {
     char hex[65];
     int fd;
-    ssize_t n;
+    size_t got = 0;
     if (ensure_dir() != 0) return -1;
     fd = open(g_key_file, O_RDONLY);
-    if (fd >= 0) {
-        n = read(fd, hex, 64);
+    if (fd < 0) {
+        if (errno != ENOENT) return -1;
+    } else {
+        for (;;) { /* the first 64 bytes (a trailing newline after them is tolerated, as before) */
+            ssize_t n = read(fd, hex + got, 64 - got);
+            if (n < 0 && errno == EINTR) continue;
+            if (n < 0) {
+                close(fd);
+                return -1;
+            }
+            if (n == 0) break;
+            got += (size_t)n;
+            if (got >= 64) break;
+        }
         close(fd);
-        hex[n > 0 ? n : 0] = '\0';
-        if (n == 64 && unhex(hex, key, 32) == 0) return 0;
+        hex[got] = '\0';
+        if (got == 64 && unhex(hex, key, 32) == 0) return 0;
+        /* read to the end and not a key (empty, short, garbled): made again below */
     }
     arc4random_buf(key, 32);
     hex_of(key, 32, hex);
