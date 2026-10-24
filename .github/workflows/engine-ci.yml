@@ -447,6 +447,7 @@ jobs:
         include:
           - os: ubuntu-24.04
             targets: x86_64-unknown-linux-gnu
+            target_args: --target x86_64-unknown-linux-gnu
           # Native arm64 runner — cross-compiling to aarch64 from x86_64
           # ubuntu-24.04 fails because blake3's NEON SIMD path needs
           # aarch64-linux-gnu-gcc (not preinstalled, and bringing it in
@@ -454,24 +455,27 @@ jobs:
           # Matches publish.yml's arm64 build leg.
           - os: ubuntu-24.04-arm
             targets: aarch64-unknown-linux-gnu
+            target_args: --target aarch64-unknown-linux-gnu
           # Both macOS targets on one runner, checked by one cargo invocation: they share the
           # host-side build scripts and proc macros, and one job instead of two takes one of the
           # 5 concurrent macOS runners this ~30-job workflow queues for. Windows keeps one target
           # per job: two targets in one run failed there with "can't find crate for `core`".
           - os: macos-14
             targets: aarch64-apple-darwin,x86_64-apple-darwin
+            target_args: --target aarch64-apple-darwin --target x86_64-apple-darwin
           - os: windows-2022
             targets: x86_64-pc-windows-msvc
+            target_args: --target x86_64-pc-windows-msvc
           - os: windows-2022
             targets: aarch64-pc-windows-msvc
+            target_args: --target aarch64-pc-windows-msvc
     runs-on: ${{ matrix.os }}
     timeout-minutes: 25
+    # The runner's default shell (PowerShell on Windows): under Git Bash, cargo there did not see
+    # the target rustup had just added ("can't find crate for `core`").
     defaults:
       run:
-        shell: bash
         working-directory: engine
-    env:
-      TARGETS: ${{ matrix.targets }}
     steps:
       - uses: actions/checkout@v7
 
@@ -481,16 +485,10 @@ jobs:
           targets: ${{ matrix.targets }}
 
       - name: cargo check core
-        run: |
-          args=()
-          for t in ${TARGETS//,/ }; do args+=(--target "$t"); done
-          cargo check -p ps5upload-core "${args[@]}"
+        run: cargo check -p ps5upload-core ${{ matrix.target_args }}
 
       - name: cargo check engine
-        run: |
-          args=()
-          for t in ${TARGETS//,/ }; do args+=(--target "$t"); done
-          cargo check -p ps5upload-engine "${args[@]}"
+        run: cargo check -p ps5upload-engine ${{ matrix.target_args }}
 
   # ─────────────────────────────────────────────────────────────────────
   # Rust desktop shell (client/src-tauri). Uses its own workspace so
