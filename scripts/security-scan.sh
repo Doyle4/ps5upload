@@ -65,6 +65,20 @@ else
   missing npm "install Node.js"
 fi
 
+section "workflow actions pinned to a commit"
+# A tag (`@v4`) can be moved to other code after the fact; a 40-character commit cannot. Every
+# `uses:` in a workflow names a commit (Dependabot keeps them current).
+unpinned="$(grep -rnE '^[[:space:]]*-?[[:space:]]*uses:[[:space:]]*[^[:space:]#]+@' .github/workflows \
+  | grep -vE 'uses:[[:space:]]*[^[:space:]@]+@[0-9a-f]{40}([[:space:]]|$)' \
+  | grep -vE 'uses:[[:space:]]*\./' || true)"
+if [ -n "$unpinned" ]; then
+  echo "$unpinned"
+  echo "::error::workflow actions not pinned to a commit (see above)"
+  failed+=("unpinned workflow actions")
+else
+  echo "every workflow action is pinned"
+fi
+
 section "gitleaks (full history)"
 if have gitleaks; then
   if ! gitleaks git --redact --no-banner .; then

@@ -10,7 +10,9 @@ What's new in ps5upload, written for humans.
   image can no longer make the converter reserve a huge buffer before reading it. Every GitHub
   Action the builds use is pinned to an exact commit, and the scan now skips tests, examples and
   developer tools, which never ship. The rest (the engine opening files you choose, and fixed
-  protocol constants) are by design and were closed with the reason recorded.
+  protocol constants) are by design and were closed with the reason recorded. So they stay
+  fixed: the PR gate now fails on any workflow action not pinned to a commit, a CodeQL gate fails
+  any change that leaves a new open alert, and the release script refuses to tag while one is open.
 
 ## 7.5.0
 

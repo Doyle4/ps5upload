@@ -45,3 +45,42 @@ jobs:
       - uses: github/codeql-action/analyze@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4
         with:
           category: /language:${{ matrix.language }}
+
+  # Fails when this change leaves an open code-scanning alert: a new finding is fixed (or, when it
+  # is by design, dismissed with its reason) before it merges or ships. Already-dismissed alerts
+  # don't count. Push and same-repo pull requests only (a fork's token cannot read the alerts).
+  gate:
+    name: codeql gate
+    needs: analyze
+    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      security-events: read
+    steps:
+      - name: No open code-scanning alert
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          REF: ${{ github.event_name == 'pull_request' && format('refs/pull/{0}/merge', github.event.pull_request.number) || github.ref }}
+          SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.merge_commit_sha || github.sha }}
+        run: |
+          set -euo pipefail
+          # The uploads just made turn into analyses, then alerts, after a short delay: wait
+          # until all four languages' analyses of this commit are in.
+          for _ in $(seq 1 30); do
+            n="$(gh api "repos/$REPO/code-scanning/analyses?ref=$REF&per_page=100" \
+              --jq "[.[] | select(.commit_sha == \"$SHA\")] | map(.category) | unique | length")"
+            [ "$n" -ge 4 ] && break
+            sleep 20
+          done
+          sleep 20
+          open="$(gh api --paginate "repos/$REPO/code-scanning/alerts?ref=$REF&state=open&per_page=100" \
+            --jq '.[] | "\(.rule.id)  \(.most_recent_instance.location.path):\(.most_recent_instance.location.start_line)  \(.html_url)"')"
+          if [ -n "$open" ]; then
+            echo "$open"
+            echo "::error::open code-scanning alerts (above): fix them, or dismiss a by-design one with its reason"
+            exit 1
+          fi
+          echo "no open code-scanning alerts"

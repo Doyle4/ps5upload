@@ -10,6 +10,16 @@ use std::path::Path;
 /// records (it still grows to the real size): a damaged image cannot make us reserve gigabytes.
 pub const PREALLOC_CAP: usize = 8 << 20;
 
+/// How much to reserve up front for a `len` read from an image's records: `len`, at most
+/// [`PREALLOC_CAP`].
+pub fn prealloc(len: usize) -> usize {
+    if len <= PREALLOC_CAP {
+        len
+    } else {
+        PREALLOC_CAP
+    }
+}
+
 pub mod ampr_index;
 pub mod ampr_pack;
 pub mod browse;
@@ -166,5 +176,18 @@ impl PkgFile {
         let mut buf = vec![0u8; len];
         self.file.read_exact(&mut buf)?;
         Ok(buf)
+    }
+}
+
+#[cfg(test)]
+mod prealloc_tests {
+    use super::*;
+
+    #[test]
+    fn reserves_the_length_up_to_the_cap() {
+        assert_eq!(prealloc(0), 0);
+        assert_eq!(prealloc(4096), 4096);
+        assert_eq!(prealloc(PREALLOC_CAP), PREALLOC_CAP);
+        assert_eq!(prealloc(usize::MAX), PREALLOC_CAP);
     }
 }

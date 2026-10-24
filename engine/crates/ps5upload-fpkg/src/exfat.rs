@@ -291,7 +291,7 @@ impl ExFat {
         // Reserve at most a few MiB up front: `len` comes from the image's own records, and a
         // damaged one must not make us reserve gigabytes before a byte is read. The vector
         // still grows to whatever is really there.
-        let mut out = Vec::with_capacity(len.min(crate::PREALLOC_CAP));
+        let mut out = Vec::with_capacity(crate::prealloc(len));
         while out.len() < len {
             // How many clusters from here on are consecutive, up to what is still wanted.
             let want = len - out.len();

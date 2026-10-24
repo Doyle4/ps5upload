@@ -57,6 +57,22 @@ if [[ "$local_sha" != "$remote_sha" ]]; then
   exit 1
 fi
 
+# No release over an open code-scanning alert: fix it, or dismiss a by-design one with its
+# reason on the repository's Security tab (scripts/security-scan.sh and the codeql workflow's
+# gate check the same on every change). Needs gh signed in to an account that can read them.
+repo="$(gh repo view --json nameWithOwner --jq .nameWithOwner)"
+open_alerts="$(gh api --paginate "repos/$repo/code-scanning/alerts?ref=refs/heads/main&state=open&per_page=100" \
+  --jq '.[] | "  \(.rule.id)  \(.most_recent_instance.location.path):\(.most_recent_instance.location.start_line)"')" || {
+  echo "release: could not read the code-scanning alerts (gh signed in? security_events scope?)" >&2
+  exit 1
+}
+if [[ -n "$open_alerts" ]]; then
+  echo "release: open code-scanning alerts on main:" >&2
+  echo "$open_alerts" >&2
+  echo "fix them, or dismiss a by-design one with its reason, then release" >&2
+  exit 1
+fi
+
 # ─── 2. Sync version ──────────────────────────────────────────────────────
 
 version_arg="${1:-}"

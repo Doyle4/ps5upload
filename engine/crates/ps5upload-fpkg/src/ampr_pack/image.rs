@@ -261,7 +261,7 @@ impl SourceTree for Overlay<'_> {
             f.seek(SeekFrom::Start(offset))?;
             // `len` can come from the image's records: reserve at most a few MiB up front, and let
             // read_to_end grow the buffer to what the file really holds.
-            let mut buf = Vec::with_capacity(len.min(crate::PREALLOC_CAP));
+            let mut buf = Vec::with_capacity(crate::prealloc(len));
             f.by_ref().take(len as u64).read_to_end(&mut buf)?;
             return Ok(buf);
         }
