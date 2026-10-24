@@ -93,6 +93,11 @@ import { transferScreenBusy } from "../../lib/ps5Transfers";
 import { useStaleHostGuard } from "../../lib/staleHostGuard";
 import { isBackportEligible } from "../../lib/backport";
 import { BackportPanel } from "./BackportPanel";
+import {
+  CollectionTag,
+  useCollectionForConsole,
+  useCollectionItems,
+} from "./collectionLink";
 import { hiddenIcons, setIconHidden } from "../../api/hiddenIcons";
 import { EMPTY_CORPUS, loadFakelibCorpus, type FakelibCorpus } from "../../state/fakelibCorpus";
 
@@ -367,6 +372,7 @@ export const AppCard = memo(function AppCard({
   const tr = useTr();
   const lang = useLangStore((s) => s.lang);
   const navigate = useNavigate();
+  const collectionItems = useCollectionItems(host, title);
   const canPlay = !title.system;
   // On-console folder this title lives in — only folder/disc kinds carry a
   // source path (pkg-installed/system titles don't), so the open-folder
@@ -384,6 +390,11 @@ export const AppCard = memo(function AppCard({
             <span className="absolute left-2 top-2">
               <PlatformTag platform={platformOf(title)} />
             </span>
+            {!title.system && (
+              <span className="absolute bottom-2 left-2">
+                <CollectionTag host={host} titleId={title.titleId} />
+              </span>
+            )}
             {discNeedsSmp ? (
               <span className="absolute right-2 top-2">
                 <CoverTag
@@ -605,6 +616,7 @@ export const AppCard = memo(function AppCard({
             ariaLabel={tr("installed_more_actions", undefined, "More actions")}
             buttonTitle={tr("installed_more_actions", undefined, "More actions")}
             items={[
+              ...collectionItems,
               ...(backportEligible
                 ? [
                     {
@@ -716,6 +728,9 @@ function Section({
 
 
 export default function InstalledAppsScreen() {
+  const collectionHost = useConnectionStore((s) => s.host?.trim() ?? "");
+  const collectionUp = useConnectionStore((s) => s.payloadStatus === "up");
+  useCollectionForConsole(collectionHost, collectionUp);
   const tr = useTr();
   const host = useConnectionStore((s) => s.host);
   // Kernel R/W = a jailbroken entry point (kstuff) is active. Without it,

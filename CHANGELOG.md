@@ -23,6 +23,16 @@ What's new in ps5upload, written for humans.
 - **Save space.** The new "Could be smaller" filter lists big PS5 game folders and plain images,
   and queues them all in Convert as compressed images (.ffpfsc).
 - New filters and sort: Has cheats, Needs newer firmware, and Recently played.
+- **Ready to play knows your Collection.** Installed games show "In Collection", or the newer
+  update this computer has, and the ⋯ menu installs it or missing DLC. A game the PS5 runs from
+  a folder or image can be copied into the Collection.
+- **Game files: Convert, Make it smaller, Copy to Collection.** A game folder or image on the
+  PS5 can be converted where it is (a compressed image replaces it and frees the difference),
+  or downloaded into the Collection. A folder of a game the PS5 also has installed is marked
+  "Also installed".
+- **Game page: what to do next.** A line at the top says where the game is (copies here, how
+  many PS5s have it) and offers the one useful step: install the newer update, send it, add
+  missing DLC, or make the copy smaller. Its builds in Convert are listed, with Install.
 
 ## 7.2.0
 

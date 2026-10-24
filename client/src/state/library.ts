@@ -45,6 +45,9 @@ export interface LibrarySlot {
    *  failed or the payload is too old to report the registered set — rows
    *  then fall back to the filename, exactly as before. */
   registeredBySource: Map<string, RegisteredTitle>;
+  /** Title IDs (upper case) the console has installed from a package: a game folder of one of
+   *  them is a second copy of an installed game. */
+  pkgInstalled: Set<string>;
   /** When the data was last refreshed (unix ms). null = never loaded. */
   lastRefreshedAt: number | null;
   /** True while a refresh is in flight. Used for the header spinner without
@@ -63,6 +66,7 @@ export const IDLE_LIBRARY: LibrarySlot = {
   pendingMounts: new Map(),
   volumes: [],
   registeredBySource: new Map(),
+  pkgInstalled: new Set(),
   lastRefreshedAt: null,
   loading: false,
   error: null,
@@ -82,6 +86,7 @@ interface LibraryStore {
     mountMap: Map<string, string>,
     volumes: Volume[],
     registeredBySource: Map<string, RegisteredTitle>,
+    pkgInstalled?: Set<string>,
   ) => void;
   setLoading: (host: string, loading: boolean) => void;
   setError: (host: string, error: string | null) => void;
@@ -134,7 +139,7 @@ export const useLibraryStore = create<LibraryStore>((set) => {
     });
   return {
     byHost: {},
-    setData: (host, entries, mountMap, volumes, registeredBySource) =>
+    setData: (host, entries, mountMap, volumes, registeredBySource, pkgInstalled) =>
       set((s) => {
         const key = keyOf(host);
         const cur = s.byHost[key] ?? IDLE_LIBRARY;
@@ -165,6 +170,7 @@ export const useLibraryStore = create<LibraryStore>((set) => {
               pendingMounts: prunedPending,
               volumes,
               registeredBySource,
+              pkgInstalled: pkgInstalled ?? cur.pkgInstalled,
               lastRefreshedAt: Date.now(),
               error: null,
             },

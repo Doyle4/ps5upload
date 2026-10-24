@@ -9,7 +9,17 @@ import type {
   GameConsoleState,
 } from "../api/collection";
 import { installOffers } from "../screens/GameHub/collectionInstall";
-import { loadConsoleStates, useCollectionStore } from "../state/collection";
+import { jobCancel, jobStatus, startTransferDownload } from "../api/ps5";
+import {
+  loadCollection,
+  loadConsoleStates,
+  startCollectionScan,
+  useCollectionStore,
+} from "../state/collection";
+import { pushNotification } from "../state/notifications";
+import { watchJob } from "../state/watchedJobs";
+import { consoleAddr, hostOf } from "./addr";
+import { isRemotePath } from "./remotePath";
 import { useConvertPrefs } from "../state/convertPrefs";
 import { useUploadQueueStore } from "../state/uploadQueue";
 import { useUploadStore } from "../state/upload";
@@ -106,4 +116,81 @@ export async function sendGamesTo(
   out.uploads = uploadIds.length;
   if (uploadIds.length > 0) void q.startHost(host, { onlyIds: uploadIds });
   return out;
+}
+
+/** A game folder or image on a console, as Convert's source (`ps5://host/path`). Converting it
+ *  there replaces it with what Convert makes, which is how a console copy gets smaller. */
+export function consoleSource(host: string, path: string): string {
+  return `ps5://${hostOf(host)}${path.startsWith("/") ? path : `/${path}`}`;
+}
+
+/** Opens a console copy in Convert; `compress` presets a compressed game image (.ffpfsc). */
+export function openConsoleCopyInConvert(
+  navigate: NavigateFunction,
+  host: string,
+  path: string,
+  opts: { compress?: boolean } = {},
+): void {
+  if (opts.compress) {
+    const p = useConvertPrefs.getState();
+    p.setMake("image");
+    p.setImageChoice(p.imageFormat, true);
+  }
+  navigate("/convert", { state: { source: consoleSource(host, path) } });
+}
+
+/** The Collection folder a copy from a console lands in: the first folder on this computer
+ *  (a server folder is skipped: downloads write to this computer). Null when there is none. */
+export async function collectionDropFolder(): Promise<string | null> {
+  if (!useCollectionStore.getState().settings) await loadCollection();
+  const roots = useCollectionStore.getState().settings?.roots ?? [];
+  return roots.find((r) => !isRemotePath(r)) ?? null;
+}
+
+/** Downloads a game folder or image from the console at `host` into the Collection, then scans
+ *  so it shows there. `false`: the Collection has no folder on this computer to put it in. */
+export async function copyToCollection(opts: {
+  host: string;
+  path: string;
+  kind: "file" | "folder";
+  label: string;
+  /** Notification text, already translated. */
+  doneTitle: string;
+  failedTitle: string;
+}): Promise<boolean> {
+  const dest = await collectionDropFolder();
+  if (!dest) return false;
+  void watchJob(
+    {
+      key: `tocollection:${hostOf(opts.host)}:${opts.path}`,
+      kind: "download",
+      origin: "collection.copy",
+      label: opts.label,
+      host: opts.host,
+      fallbackDest: dest,
+    },
+    () =>
+      startTransferDownload(opts.path, dest, consoleAddr(opts.host), opts.kind),
+    {
+      jobStatus,
+      jobCancel,
+      sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
+    },
+    {
+      onEnd: (job) => {
+        if (job.phase === "done") {
+          pushNotification("info", opts.doneTitle, {
+            body: dest,
+            link: "/collection",
+          });
+          void startCollectionScan(false);
+        } else if (job.phase === "failed") {
+          pushNotification("error", opts.failedTitle, {
+            body: job.error ?? undefined,
+          });
+        }
+      },
+    },
+  );
+  return true;
 }
