@@ -2118,7 +2118,10 @@ static int is_disc_read_path(const char *p) {
     if (!is_disc_lexical(p)) return 0;
     /* A UDF disc can carry symlinks: the canonical form must stay on the disc too. */
     char resolved[PATH_MAX];
-    return realpath(p, resolved) == NULL || is_disc_lexical(resolved);
+    /* Only a path that does not exist (yet) passes unresolved; a dangling or looping link, or one
+     * that cannot be resolved for another reason, is refused. */
+    if (realpath(p, resolved) == NULL) return errno == ENOENT;
+    return is_disc_lexical(resolved);
 }
 
 /* Validate a path for unsafe read mode. This relaxes the writable-root
@@ -7314,6 +7317,10 @@ static int g_save_is_ps4 = 0;
  * save was only looked at, and the real image is left as it was. */
 static time_t g_save_copy_mtime;
 static off_t g_save_copy_size;
+/* The copy is no longer mounted but its write-back failed: a retry must not ask Sony to unmount
+ * again (an unmount of nothing can fail with any errno, which would read as "still in use"). */
+static int g_save_unmounted = 0;
+static int g_save_wb_failures = 0;
 
 static int save_copy_file(const char *src, const char *dst) {
     int sfd = open(src, O_RDONLY);
@@ -7385,23 +7392,36 @@ static int save_write_back(const char *copy, const char *image) {
     return 0;
 }
 
+static void save_clear_state(void) {
+    g_save_mounted = 0;
+    g_save_unmounted = 0;
+    g_save_wb_failures = 0;
+    g_save_image[0] = g_save_copy[0] = g_save_copy_key[0] = 0;
+}
+
 /* 0 unmounted (and written back when the copy changed), -1 still mounted (nothing touched),
  * -2 unmounted but the write-back failed: the state and the edited copy are kept so a retry
- * (or the next unmount) writes it back; the real image is untouched. */
-static int save_do_unmount(int *written_back) {
+ * (or the next unmount) writes it back; the real image is untouched.
+ * -3 the write-back failed a second time: the save is closed so the person is not stuck, and
+ * the edited copy is kept beside the others as `<copy>.unsaved` (its path in `kept`). */
+static int save_do_unmount(int *written_back, char *kept, size_t kept_sz) {
     *written_back = 0;
+    if (kept_sz) kept[0] = 0;
     if (!g_save_mounted) return 0;
-    SceFsUmountSaveDataOpt uopt;
-    memset(&uopt, 0, sizeof uopt);
-    sceFsInitUmountSaveDataOpt(&uopt);
-    errno = 0;
-    int rc = sceFsUmountSaveData(&uopt, SAVE_MOUNT_POINT, 0, 0);
-    int ue = errno; /* read before sync() can overwrite it */
-    sync();
-    /* EINVAL / ENOENT: not mounted (an earlier unmount whose write-back failed, or a reboot). */
-    if (rc < 0 && ue != EINVAL && ue != ENOENT) {
-        /* Still mounted: do not touch the real save. */
-        return -1;
+    if (!g_save_unmounted) {
+        SceFsUmountSaveDataOpt uopt;
+        memset(&uopt, 0, sizeof uopt);
+        sceFsInitUmountSaveDataOpt(&uopt);
+        errno = 0;
+        int rc = sceFsUmountSaveData(&uopt, SAVE_MOUNT_POINT, 0, 0);
+        int ue = errno; /* read before sync() can overwrite it */
+        sync();
+        /* EINVAL / ENOENT: not mounted (a reboot, or someone else unmounted it). */
+        if (rc < 0 && ue != EINVAL && ue != ENOENT) {
+            /* Still mounted: do not touch the real save. */
+            return -1;
+        }
+        g_save_unmounted = 1;
     }
     if (g_save_copy[0] && g_save_image[0]) {
         struct stat cst;
@@ -7415,13 +7435,21 @@ static int save_do_unmount(int *written_back) {
         } else {
             fprintf(stderr, "[payload2] save: write-back of %s to %s failed: %s (copy kept)\n",
                     g_save_copy, g_save_image, strerror(errno));
-            return -2;
+            if (++g_save_wb_failures < 2) return -2;
+            /* Twice: give up on writing back, keep the edits under a name the next open never
+             * reuses (same folder, so the rename stays on one device), and close the save. */
+            if (kept_sz && snprintf(kept, kept_sz, "%s.unsaved", g_save_copy) < (int)kept_sz &&
+                rename(g_save_copy, kept) != 0)
+                snprintf(kept, kept_sz, "%s", g_save_copy);
+            if (g_save_copy_key[0]) unlink(g_save_copy_key);
+            sync();
+            save_clear_state();
+            return -3;
         }
     }
     if (g_save_copy_key[0]) unlink(g_save_copy_key);
     sync();
-    g_save_mounted = 0;
-    g_save_image[0] = g_save_copy[0] = g_save_copy_key[0] = 0;
+    save_clear_state();
     return 0;
 }
 
@@ -7502,6 +7530,8 @@ static int save_do_mount(const char *image, char *err, size_t err_sz, int *is_ps
         return -1;
     }
     g_save_mounted = 1;
+    g_save_unmounted = 0;
+    g_save_wb_failures = 0;
     g_save_is_ps4 = is_ps4;
     {
         struct stat cst;
@@ -7546,9 +7576,17 @@ static int handle_save_mount(runtime_state_t *state, const char *body, uint64_t 
         n = save_status_json(resp, sizeof resp, NULL);
     } else {
         char err[512] = {0};
+        char kept[1100];
         int wb = 0;
-        int urc = g_save_mounted ? save_do_unmount(&wb) : 0;
-        if (urc == -2) {
+        int urc = g_save_mounted ? save_do_unmount(&wb, kept, sizeof kept) : 0;
+        if (urc == -3) {
+            char kesc[1200];
+            json_escape_into(kept, kesc, sizeof kesc);
+            n = snprintf(resp, sizeof resp,
+                         "{\"ok\":false,\"err\":\"save_writeback_failed: the open save's edits could not be "
+                         "written back twice; it is closed now and the edited copy is kept as %s\"}",
+                         kesc);
+        } else if (urc == -2) {
             n = snprintf(resp, sizeof resp,
                          "{\"ok\":false,\"err\":\"save_writeback_failed: the open save's edits could not be "
                          "written back; close it again before opening another\"}");
@@ -7584,8 +7622,16 @@ static int handle_save_unmount(runtime_state_t *state, const char *body, uint64_
     pthread_mutex_lock(&g_save_mtx);
     int wb = 0;
     int was = g_save_mounted;
-    int urc = save_do_unmount(&wb);
-    if (urc == -2) {
+    char kept[1100];
+    int urc = save_do_unmount(&wb, kept, sizeof kept);
+    if (urc == -3) {
+        char kesc[1200];
+        json_escape_into(kept, kesc, sizeof kesc);
+        n = snprintf(resp, sizeof resp,
+                     "{\"ok\":false,\"err\":\"save_writeback_failed: the edited copy could not be written "
+                     "over the save twice; the save is closed and the edits are kept as %s\"}",
+                     kesc);
+    } else if (urc == -2) {
         n = snprintf(resp, sizeof resp,
                      "{\"ok\":false,\"err\":\"save_writeback_failed: the edited copy could not be written "
                      "over the save; it is kept and the next Close tries again\"}");

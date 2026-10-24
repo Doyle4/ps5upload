@@ -703,8 +703,8 @@ static int xml_attr(const char *tag, const char *attr,
     size_t alen = strlen(attr);
     const char *p = tag;
     while ((p = strstr(p, attr))) {
-        if ((size_t)(p - tag) >= alen || p == tag || p[-1] == ' ' ||
-            p[-1] == '\t') {
+        /* A whole attribute name only: "Text" must not match inside "ContextText". */
+        if (p == tag || p[-1] == ' ' || p[-1] == '\t' || p[-1] == '\n' || p[-1] == '\r') {
             p += alen;
             while (*p == ' ' || *p == '\t' || *p == '=') p++;
             if (*p == '"') {

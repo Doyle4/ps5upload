@@ -316,7 +316,12 @@ static int read_dir(scan_t *s, const char *path, lent_t **out, size_t *count) {
         return rc;
     }
     while ((rc = s->fs->ops->readdir(s->fs, d, name, SMBP_NAME_MAX, &st)) > 0) {
-        if (n >= LIB_DIR_ENTRIES_MAX || s->entries >= s->lim.entries_max || s->pr->cancel) break;
+        if (n >= LIB_DIR_ENTRIES_MAX) {
+            /* One folder holds more than a scan reads: the result is partial, and says so. */
+            if (!s->stopped) s->stopped = "entries";
+            break;
+        }
+        if (s->entries >= s->lim.entries_max || s->pr->cancel) break;
         s->entries++;
         s->pr->files_done = s->entries;
         if (n == cap) {

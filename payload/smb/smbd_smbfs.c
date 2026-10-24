@@ -369,8 +369,19 @@ static int s_rename(xfs_t *fs, const char *from, const char *to, int replace) {
     int rc, kept = 0;
     if (!SFS(fs)->ctx) return XE_DISCONNECTED;
     if (replace) {
-        if (snprintf(aside, sizeof aside, "%s.ps5u-old", to) >= (int)sizeof aside) return XE_BAD_NAME;
-        (void)s_unlink(fs, aside); /* a leftover of an earlier interrupted replace */
+        /* A free aside name: a file already called "<to>.ps5u-old" may be the person's own, or the
+         * only copy left by an interrupted replace, so it is never deleted; the next number is used. */
+        xstat_t ast;
+        int n;
+        for (n = 0; n < 16; n++) {
+            int w = n == 0 ? snprintf(aside, sizeof aside, "%s.ps5u-old", to)
+                           : snprintf(aside, sizeof aside, "%s.ps5u-old%d", to, n);
+            if (w < 0 || w >= (int)sizeof aside) return XE_BAD_NAME;
+            rc = s_stat(fs, aside, &ast);
+            if (rc == XE_NOT_FOUND) break;
+            if (rc != 0) return rc;
+        }
+        if (n == 16) return XE_EXISTS;
         rc = s_rename_raw(fs, to, aside);
         if (rc == 0) kept = 1;
         else if (rc != XE_NOT_FOUND) return rc; /* `to` is still there, untouched */
