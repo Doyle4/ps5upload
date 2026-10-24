@@ -254,6 +254,17 @@ static int s_readdir(xfs_t *fs, void *dir, char *name, size_t cap, xstat_t *st) 
         if (!ent) return 0;
         if (!ent->name || strcmp(ent->name, ".") == 0 || strcmp(ent->name, "..") == 0) continue;
         if (strlen(ent->name) >= cap) continue; /* cannot be named here: left out */
+        /* A name the server should never send: a separator or a control byte in it would be joined
+         * into a console path as-is (copy_dir), so "../x" from a hostile or broken server could
+         * leave the approved destination. Left out, like a too-long name. */
+        if (strpbrk(ent->name, "/\\") != NULL) continue;
+        {
+            const unsigned char *q = (const unsigned char *)ent->name;
+            int bad = 0;
+            for (; *q; q++)
+                if (*q < 0x20 || *q == 0x7f) bad = 1;
+            if (bad) continue;
+        }
         strcpy(name, ent->name);
         st->kind = ent->st.smb2_type == SMB2_TYPE_DIRECTORY ? XK_DIR
                    : ent->st.smb2_type == SMB2_TYPE_FILE    ? XK_FILE
@@ -342,18 +353,35 @@ static int s_rmdir(xfs_t *fs, const char *path) {
     return rc < 0 ? map_rc(SFS(fs)->ctx, rc) : 0;
 }
 
-/* SMB2 SET_INFO rename refuses an existing target unless asked otherwise, and libsmb2 never asks:
- * replace = remove the old file first (the new one is complete by then). */
-static int s_rename(xfs_t *fs, const char *from, const char *to, int replace) {
+static int s_rename_raw(xfs_t *fs, const char *from, const char *to) {
     int rc;
-    if (!SFS(fs)->ctx) return XE_DISCONNECTED;
-    if (replace) {
-        rc = s_unlink(fs, to);
-        if (rc != 0 && rc != XE_NOT_FOUND) return rc;
-    }
     FRESH(SFS(fs)->ctx);
     rc = smb2_rename(SFS(fs)->ctx, from, to);
     return rc < 0 ? map_rc(SFS(fs)->ctx, rc) : 0;
+}
+
+/* SMB2 SET_INFO rename refuses an existing target unless asked otherwise, and libsmb2 never asks:
+ * replace = move the old file aside first ("<to>.ps5u-old"), rename the new one into place, then
+ * drop the old one. Unlinking the old file first and then failing the rename (a server that refuses
+ * rename, a drop) left the share with neither version; now the old one is put back. */
+static int s_rename(xfs_t *fs, const char *from, const char *to, int replace) {
+    char aside[SMBP_PATH_MAX];
+    int rc, kept = 0;
+    if (!SFS(fs)->ctx) return XE_DISCONNECTED;
+    if (replace) {
+        if (snprintf(aside, sizeof aside, "%s.ps5u-old", to) >= (int)sizeof aside) return XE_BAD_NAME;
+        (void)s_unlink(fs, aside); /* a leftover of an earlier interrupted replace */
+        rc = s_rename_raw(fs, to, aside);
+        if (rc == 0) kept = 1;
+        else if (rc != XE_NOT_FOUND) return rc; /* `to` is still there, untouched */
+    }
+    rc = s_rename_raw(fs, from, to);
+    if (rc != 0) {
+        if (kept) (void)s_rename_raw(fs, aside, to); /* the old version back in place, best effort */
+        return rc;
+    }
+    if (kept) (void)s_unlink(fs, aside);
+    return 0;
 }
 
 static int s_free_space(xfs_t *fs, const char *path, uint64_t *out) {

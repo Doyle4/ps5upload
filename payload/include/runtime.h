@@ -160,6 +160,11 @@ void fs_pfsc_sweep(void);
  * unsafe read must satisfy — the same expression runtime.c uses. */
 int is_safe_unsafe_read_path(const char *p);
 
+/* The whole read rule, as fs.read applies it: the writable roots, the avatar and inserted-disc
+ * read-only carve-outs, and (unsafe_read) the system partitions. The AVA1 data plane's
+ * downloads, hash and crc32 use the same function, so what the browser can read it can fetch. */
+int mgmt_fs_read_allowed(const char *path, int unsafe_read);
+
 /* The legacy frame number this thread is currently dispatching, or 0 when it is
  * not inside a request. Thread-local and written only by its own thread, so
  * the fatal-signal handler can read it without a lock.

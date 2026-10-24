@@ -35,7 +35,7 @@
  *   src/mgmt_fs.c         2  1 guard (fs.rename), 1 dir (fs.write tmp -> final)
  *   src/sdk_changer.c     3  dir    backup copy, patched file, restore (suffix stripped from the same name)
  *   src/takeover_flag.c   1  dir    takeover flag: tmp -> final
- *   src/runtime.c         3  dir    mount tracker, ownership record, online.json (all tmp -> final)
+ *   src/runtime.c         4  dir    mount tracker, ownership record, online.json, save write-back (all tmp -> final)
  *   src/fs_jobs.c         1  dir    chmod/copy tmp inside the destination folder
  *   src/icon_keeper.c     1  dir    hidden_icons.txt: tmp -> final
  *   src/register.c        1  dir    param.json: tmp -> final

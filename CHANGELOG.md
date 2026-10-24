@@ -127,6 +127,35 @@ What's new in ps5upload, written for humans.
   refused together up front. In .exfat images a full-to-the-byte root folder no longer reads into
   its neighbour, and a file's unwritten tail reads as zeros at its full length.
 - **Health check remedies** no longer contain runs of spaces mid-sentence.
+Update the helper for everything below.
+
+- **Disc downloads really work now (#497).** 7.1.19 let the file browser open files on a data disc
+  in the drive, but a download of the same file was still refused with "not allowed". Downloads
+  (and checksums) now follow the same rule as the browser.
+- **Closing an opened save can't damage it any more.** If writing your edits back failed part-way,
+  the real save could be left cut short while the app reported success. The edits are now written
+  to a temporary file first and swapped in only once complete; if that fails the original save is
+  untouched, the app says so, and the edited copy is kept so closing again retries.
+- **"Delete user" with "wipe saves" now removes that user's saves**, and only after the account
+  was actually deleted (before, it looked in the wrong folder and removed nothing).
+- **Backups only take folders the app may manage.** A snapshot of a system path or of the app's
+  own pairing and network-share secrets is refused.
+- **Network shares (console page):**
+  - A share saved without a start folder now scans its whole share for games instead of finding
+    nothing; a share that drops or times out during a scan keeps the previous results instead of
+    replacing them with a partial list; a start folder that no longer exists is reported.
+  - A failed or cancelled copy now shows why it stopped (for example "not enough space") instead
+    of "disconnected" after half a minute.
+  - Files and folders whose names contain `: * ? " < > |` (common on Linux and macOS NAS boxes,
+    e.g. "God of War: Ragnarok") can be browsed, copied and installed.
+  - Replacing a file on a share keeps the old version until the new one is in place, so a failed
+    rename no longer leaves neither.
+  - Removing a share also removes its cached game list and covers.
+  - A key-file read error no longer silently resets the key that protects saved share passwords,
+    and those secrets can no longer be read through the file browser or downloads.
+  - A folder with more than 65,536 entries lists up to 100,000 and says the list is cut short.
+- **Cheats:** a cheat in an XML (SHN) file without a description no longer shows the next
+  cheat's description, and one without a name no longer takes the next cheat's name.
 
 ## 7.1.19
 

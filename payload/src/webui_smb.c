@@ -2,10 +2,12 @@
  * buffer larger than a path is on the heap, and a password is wiped from every buffer that held it. */
 #include "webui_smb.h"
 
+#include <dirent.h>
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "ava1_data.h"
 #include "monocypher.h"
@@ -26,6 +28,25 @@
 
 static pthread_mutex_t g_mu = PTHREAD_MUTEX_INITIALIZER;
 static int g_inflight;
+
+/* A removed share's library cache (smbd_library.h: <id>.json and icons/<id>-*.png) goes with it;
+ * it used to stay behind forever. Best effort: a cache that was never written is nothing to do. */
+static void drop_library_cache(const char *id) {
+    char path[SMBP_PATH_MAX];
+    char prefix[SMB_ID_LEN + 2];
+    DIR *d;
+    struct dirent *e;
+    if (snprintf(path, sizeof path, "%s/%s.json", SMBD_LIB_DIR, id) < (int)sizeof path) unlink(path);
+    snprintf(prefix, sizeof prefix, "%s-", id);
+    snprintf(path, sizeof path, "%s/icons", SMBD_LIB_DIR);
+    d = opendir(path);
+    if (!d) return;
+    while ((e = readdir(d)) != NULL) {
+        if (strncmp(e->d_name, prefix, strlen(prefix)) != 0) continue;
+        if (snprintf(path, sizeof path, "%s/icons/%s", SMBD_LIB_DIR, e->d_name) < (int)sizeof path) unlink(path);
+    }
+    closedir(d);
+}
 
 int webui_smb_http_status(const char *t) {
     if (!t) return 500;
@@ -394,7 +415,10 @@ void webui_smb_remove(const char *b, size_t n, uint8_t *out, int fd) {
     rc = smb_shares_remove(id);
     if (rc == SMB_SHARES_E_NOT_FOUND) fail(fd, "unknown_share", NULL);
     else if (rc != 0) fail(fd, "io_error", NULL);
-    else webui_send_json(fd, 200, "{}");
+    else {
+        drop_library_cache(id);
+        webui_send_json(fd, 200, "{}");
+    }
 }
 
 /* list / stat / mkdir: one saved share, one path, one daemon call. */
@@ -560,8 +584,17 @@ static void job_op(const char *op, const char *b, size_t n, int fd) {
             fail(fd, !strcmp(err, "smb_daemon_not_running") ? "unknown_job" : err, NULL);
             return;
         }
-        if (sj_str(r, strlen(r), "error", tok, sizeof tok) == 1 && !strcmp(tok, "not_found")) fail(fd, "unknown_job", NULL);
-        else relay(fd, r);
+        {
+            size_t rn = strlen(r);
+            char st[16];
+            /* A job's status carries its state and, once failed or cancelled, "error":"<why>":
+             * that is the job's outcome, answered 200 as it is, never the daemon's refusal of the
+             * request (which relay() would turn into 507/409/502 and the page into "disconnected",
+             * leaving its failed / cancelled branches unreachable). */
+            if (sj_str(r, rn, "state", st, sizeof st) == 1) webui_send(fd, 200, "application/json", r, rn);
+            else if (sj_str(r, rn, "error", tok, sizeof tok) == 1 && !strcmp(tok, "not_found")) fail(fd, "unknown_job", NULL);
+            else relay(fd, r);
+        }
         free(r);
     }
 }
@@ -706,5 +739,6 @@ int webui_smb_pc_remove(const char *b, size_t n, char *out, size_t cap) {
     rc = smb_shares_remove(id);
     if (rc == SMB_SHARES_E_NOT_FOUND) return pc_err(out, cap, "unknown_share", NULL);
     if (rc != 0) return pc_err(out, cap, "io_error", NULL);
+    drop_library_cache(id);
     return snprintf(out, cap, "{\"ok\":true}");
 }

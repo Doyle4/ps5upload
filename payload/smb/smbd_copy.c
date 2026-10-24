@@ -425,19 +425,27 @@ static int remove_rec(xfs_t *fs, const char *path, copy_progress_t *pr, int dept
             free(names);
             break;
         }
-        for (i = 0; i < n; i++) {
-            char child[SMBP_PATH_MAX];
-            if (smbp_join(path, names[i], child, sizeof child) != 0) {
-                free(names);
-                return XE_BAD_NAME;
+        {
+            size_t removed = 0;
+            for (i = 0; i < n; i++) {
+                char child[SMBP_PATH_MAX];
+                if (smbp_join(path, names[i], child, sizeof child) != 0) {
+                    free(names);
+                    return XE_BAD_NAME;
+                }
+                rc = remove_rec(fs, child, pr, depth + 1);
+                if (rc == 0) removed++;
+                else if (rc != XE_NOT_FOUND) {
+                    free(names);
+                    return rc;
+                }
             }
-            rc = remove_rec(fs, child, pr, depth + 1);
-            if (rc != 0 && rc != XE_NOT_FOUND) {
-                free(names);
-                return rc;
-            }
+            free(names);
+            /* The listing keeps naming entries that stat / unlink say are not there (a server
+             * whose listing and namespace disagree): a pass that removed nothing would repeat
+             * forever, so it is a failure. */
+            if (removed == 0) return XE_IO;
         }
-        free(names);
     }
     return fs->ops->rmdir(fs, path);
 }

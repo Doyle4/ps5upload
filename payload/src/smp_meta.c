@@ -113,10 +113,12 @@ static int mkdir_one(const char *path) {
  * for "already healed". */
 static int copy_file(const char *src, const char *dst) {
     int sfd = -1, dfd = -1;
-    uint8_t buf[16384];
+    const size_t bufsz = 16384;
+    uint8_t *buf = malloc(bufsz); /* heap: reached from a management thread (mgmt_audit.py stack budget) */
     ssize_t n;
     int rc = -1;
 
+    if (!buf) goto done;
     if ((sfd = open(src, O_RDONLY | O_NOFOLLOW)) < 0) goto done;
     if ((dfd = open(dst, O_CREAT | O_WRONLY | O_EXCL | O_NOFOLLOW, 0644)) < 0) {
         /* EEXIST = lost the race to another sweep / SMP itself;
@@ -125,7 +127,7 @@ static int copy_file(const char *src, const char *dst) {
         goto done;
     }
 
-    while ((n = read(sfd, buf, sizeof(buf))) > 0) {
+    while ((n = read(sfd, buf, bufsz)) > 0) {
         ssize_t off = 0;
         while (off < n) {
             ssize_t w = write(dfd, buf + off, n - off);
@@ -137,6 +139,7 @@ static int copy_file(const char *src, const char *dst) {
     rc = 0;
 
 done:
+    free(buf);
     if (sfd >= 0) close(sfd);
     if (dfd >= 0) close(dfd);
     if (rc != 0 && dfd >= 0) {

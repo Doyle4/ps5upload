@@ -40,11 +40,15 @@ typedef enum {
 const char *smbp_err_token(int e);
 
 /* A share-relative path as the page sends it ("", "Movies/2024", "/Movies/2024/"): leading and
- * trailing slashes dropped, every component checked (smbp_name_ok). 0 with `out` set, else -1. */
+ * trailing slashes dropped, every component checked (smbp_name_readable: the path names things
+ * that exist on the server). 0 with `out` set, else -1. */
 int smbp_rel_normalize(const char *in, char *out, size_t cap);
 
-/* One path component an SMB server can hold: valid UTF-8 of 1..255 bytes, not "." / "..", none of
- * the characters Windows refuses in a name (\ / : * ? " < > |) and no control character. */
+/* One path component as a server may list it: valid UTF-8 of 1..255 bytes, not "." / "..", no
+ * separator (/ \) and no control character. A Linux or macOS NAS holds "God of War: Ragnarok". */
+int smbp_name_readable(const char *name);
+/* One path component WE may create on a share (mkdir, an upload's target): smbp_name_readable and
+ * none of the characters Windows refuses in a name (: * ? " < > |). */
 int smbp_name_ok(const char *name);
 
 /* `dir` + "/" + `name` ("" dir: just the name; "/" dir: "/name"). 0, or -1 when it does not fit. */

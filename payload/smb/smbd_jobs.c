@@ -72,7 +72,11 @@ static void *job_main(void *arg) {
         } else if (j->kind == JOB_UP) {
             rc = copy_run(&local, j->src, &smb, j->dst, &o, &j->pr, j->failed, sizeof j->failed);
         } else if (j->kind == JOB_SCAN_SMB) {
-            rc = lib_scan(&smb, j->dst, j->src, NULL, SMBD_LIB_DIR, NULL, &j->pr);
+            xstat_t st;
+            /* A start folder that is not there is reported (not_found), not skipped into an
+             * empty "complete" result; the share's top ("") needs no check. */
+            if (j->src[0] && (rc = smb.ops->stat(&smb, j->src, &st)) == 0 && st.kind != XK_DIR) rc = XE_NOT_DIR;
+            if (rc == 0) rc = lib_scan(&smb, j->dst, j->src, NULL, SMBD_LIB_DIR, NULL, &j->pr);
         } else {
             rc = copy_remove_tree(&smb, j->src, &j->pr);
         }

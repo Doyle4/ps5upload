@@ -13,6 +13,12 @@
 
 #define PROTECTED_DEFAULT "/data/ps5upload/ava"
 static char g_protected[PATH_MAX] = PROTECTED_DEFAULT;
+/* The saved network shares' secrets (smb_shares.h: shares.jsonl and shares.key, the daemon's key
+ * and log). Through fs.read or a download, anyone holding the page token could take the key and
+ * the file and decrypt every saved share password offline, so the directory is denied like the
+ * trust store. The helper and the daemon reach it with plain open(2), never through a policy. The
+ * test hook (path_policy_set_protected) moves only the trust store; this one is fixed. */
+#define PROTECTED_SMB "/data/ps5upload/smb"
 
 void path_policy_set_protected(const char *dir) {
     snprintf(g_protected, sizeof g_protected, "%s", dir && dir[0] ? dir : PROTECTED_DEFAULT);
@@ -100,26 +106,38 @@ static int has_dotdot(const char *p) {
     return 0;
 }
 
-int path_in_protected(const char *p) {
-    char norm[PATH_MAX], canon[PATH_MAX], pnorm[PATH_MAX], pcanon[PATH_MAX];
-    if (!p || !p[0]) return 0;
-    if (has_dotdot(p)) return 1;
-    lex_normalize(p, norm, sizeof norm);
-    canonical_of(p, canon, sizeof canon);
-    lex_normalize(g_protected, pnorm, sizeof pnorm);
-    canonical_of(g_protected, pcanon, sizeof pcanon);
+/* `norm`/`canon` (the path's two forms) against one protected directory: in_dir = the path is the
+ * directory or below it; contains_dir = the directory is the path or below it. */
+static int in_dir(const char *norm, const char *canon, const char *dir) {
+    char pnorm[PATH_MAX], pcanon[PATH_MAX];
+    lex_normalize(dir, pnorm, sizeof pnorm);
+    canonical_of(dir, pcanon, sizeof pcanon);
     return under(norm, pnorm) || under(canon, pnorm) || under(norm, pcanon) || under(canon, pcanon);
 }
 
-int path_contains_protected(const char *p) {
-    char norm[PATH_MAX], canon[PATH_MAX], pnorm[PATH_MAX], pcanon[PATH_MAX];
+static int contains_dir(const char *norm, const char *canon, const char *dir) {
+    char pnorm[PATH_MAX], pcanon[PATH_MAX];
+    lex_normalize(dir, pnorm, sizeof pnorm);
+    canonical_of(dir, pcanon, sizeof pcanon);
+    return under(pnorm, norm) || under(pcanon, canon) || under(pnorm, canon) || under(pcanon, norm);
+}
+
+int path_in_protected(const char *p) {
+    char norm[PATH_MAX], canon[PATH_MAX];
     if (!p || !p[0]) return 0;
     if (has_dotdot(p)) return 1;
     lex_normalize(p, norm, sizeof norm);
     canonical_of(p, canon, sizeof canon);
-    lex_normalize(g_protected, pnorm, sizeof pnorm);
-    canonical_of(g_protected, pcanon, sizeof pcanon);
-    return under(pnorm, norm) || under(pcanon, canon) || under(pnorm, canon) || under(pcanon, norm);
+    return in_dir(norm, canon, g_protected) || in_dir(norm, canon, PROTECTED_SMB);
+}
+
+int path_contains_protected(const char *p) {
+    char norm[PATH_MAX], canon[PATH_MAX];
+    if (!p || !p[0]) return 0;
+    if (has_dotdot(p)) return 1;
+    lex_normalize(p, norm, sizeof norm);
+    canonical_of(p, canon, sizeof canon);
+    return contains_dir(norm, canon, g_protected) || contains_dir(norm, canon, PROTECTED_SMB);
 }
 
 int path_resolve_allowed(const char *p, int (*lexical_ok)(const char *)) {

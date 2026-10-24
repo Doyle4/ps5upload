@@ -43,11 +43,13 @@ static int g_data_on;
  * trust store AND its ancestors (path_policy.h: path_tree_op_refused). */
 static int may_write(const char *p) { return is_path_allowed(p) && !path_tree_op_refused(p); }
 
-/* The same rule the management read handlers use (runtime.c): the writable allowlist, or a system
- * partition read when the peer asked for an unsafe read. */
+/* The same rule fs.read uses (runtime.c mgmt_fs_read_allowed): the writable allowlist, the avatar
+ * and inserted-disc (#497) read-only carve-outs, or a system partition read when the peer asked for
+ * an unsafe read. Until 7.1.20 this re-spelled the rule without the carve-outs, so the browser could
+ * list and read /mnt/disc but a download of the same file was refused. */
 static int may_read(const char *p, int unsafe_read) {
     if (path_tree_op_refused(p)) return 0;
-    return is_path_allowed(p) || (unsafe_read && is_safe_unsafe_read_path(p));
+    return mgmt_fs_read_allowed(p, unsafe_read);
 }
 
 /* 1 same device, 0 crosses (refuse: a cross-device rename panics this kernel), -1 unknown.

@@ -9,6 +9,7 @@
 #include <fcntl.h>
 #include <pthread.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -183,10 +184,18 @@ static int copy_file(const char *src, const char *dst) {
         close(in);
         return -1;
     }
-    char buf[65536];
+    /* Heap, never the stack: this runs on a management thread, where a 64 KiB frame is
+     * more than the stack budget (mgmt_audit.py) allows. */
+    const size_t bufsz = 65536;
+    char *buf = malloc(bufsz);
+    if (!buf) {
+        close(in);
+        close(out);
+        return -1;
+    }
     int rc = 0;
     for (;;) {
-        ssize_t n = read(in, buf, sizeof(buf));
+        ssize_t n = read(in, buf, bufsz);
         if (n < 0) {
             rc = -1;
             break;
@@ -203,6 +212,7 @@ static int copy_file(const char *src, const char *dst) {
         }
         if (rc != 0) break;
     }
+    free(buf);
     close(in);
     close(out);
     return rc;

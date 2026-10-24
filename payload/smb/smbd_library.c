@@ -34,6 +34,7 @@ typedef struct {
     time_t deadline;
     uint64_t icon_bytes;
     const char *stopped; /* why the walk ended early, or NULL */
+    int fail;            /* a negative xerr_t: the walk was abandoned (the source went away), no result */
 } scan_t;
 
 int lib_source_ok(const char *s) {
@@ -96,7 +97,7 @@ static int skip_folder(const char *name) {
 }
 
 static int over(scan_t *s) {
-    if (s->stopped) return 1;
+    if (s->stopped || s->fail) return 1;
     if (s->pr->cancel) return 1;
     if (time(NULL) > s->deadline) s->stopped = "time";
     else if (s->entries >= s->lim.entries_max) s->stopped = "entries";
@@ -352,9 +353,20 @@ static void walk(scan_t *s, const char *path, unsigned depth) {
     lent_t *v = NULL;
     size_t n = 0, i;
     char *full;
+    int rc;
     if (over(s)) return;
     snprintf(s->pr->current, sizeof s->pr->current, "%s", path);
-    if (read_dir(s, path, &v, &n) != 0) return; /* an unreadable folder is passed over */
+    rc = read_dir(s, path, &v, &n);
+    if (rc != 0) {
+        /* The source itself went away (the share dropped, timed out, lost its session) or the
+         * root cannot be read at all: the scan is abandoned and the last result kept, rather
+         * than a partial listing written as complete. A folder that cannot be read inside an
+         * otherwise fine source is passed over. */
+        if (rc == XE_DISCONNECTED || rc == XE_TIMEOUT || rc == XE_IO || rc == XE_AUTH || rc == XE_NOMEM ||
+            rc == XE_UNREACHABLE || (depth == 0 && (rc == XE_ACCESS || rc == XE_NOT_FOUND)))
+            s->fail = rc;
+        return;
+    }
     for (i = 0; i < n; i++)
         if (v[i].kind == XK_DIR && strcmp(v[i].name, "sce_sys") == 0) break;
     if (i < n && try_dump(s, path)) {
@@ -439,7 +451,9 @@ int lib_scan(xfs_t *fs, const char *source, const char *roots, const char *skip_
     snprintf(path, SMBP_PATH_MAX + 64, "%s/icons", out_dir);
     (void)mkdir(path, 0777);
     pr->scanning = 1;
-    for (at = roots; *at && !over(s);) {
+    /* Every root once, the first always: "" alone (a share saved without a start folder) is the
+     * share's top and must be walked too, which a `while (*at)` loop never did. */
+    for (at = roots;;) {
         const char *nl = strchr(at, '\n');
         size_t l = nl ? (size_t)(nl - at) : strlen(at);
         xstat_t st;
@@ -450,11 +464,16 @@ int lib_scan(xfs_t *fs, const char *source, const char *roots, const char *skip_
             if (!root[0] || (fs->ops->stat(fs, root, &st) == 0 && st.kind == XK_DIR)) walk(s, root, 0);
         }
         at += l;
-        if (*at == '\n') at++;
+        if (*at != '\n' || at[1] == '\0' || over(s)) break;
+        at++;
     }
     pr->scanning = 0;
     if (pr->cancel) {
         rc = XE_CANCELLED;
+        goto done;
+    }
+    if (s->fail) {
+        rc = s->fail; /* abandoned: nothing written, the old result and its covers stay */
         goto done;
     }
     sj_init(&out, LIB_RESULT_MAX + 4096);
