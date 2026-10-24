@@ -9,7 +9,11 @@ version.workspace = true
 # directly meant Windows silently fell back to the clock. Already in the tree.
 getrandom = "0.4"
 aes = "0.9"
-flate2 = "1"
+# zlib-rs on purpose: the `.ffpfsc` wrap route writes plain zlib streams the PS5 kernel
+# decodes, and only zlib's encoder never emits the code-length run spanning the literal
+# and distance tables that the kernel misreads (ffpfsc_compat). The engine build got
+# this backend transitively through `zip`; a build of this crate alone would not.
+flate2 = { version = "1", features = ["zlib-rs"] }
 # Smallest .ffpfsc: libdeflate's near-optimal parser (level 12) on blocks zlib 9 shrank. Plain
 # C built by `cc`, like the vendored unrar, on every release target.
 libdeflater = "1.26"

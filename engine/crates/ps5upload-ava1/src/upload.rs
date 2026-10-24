@@ -790,7 +790,9 @@ pub fn upload_with_seq_in(
                     // console already dropped the session, a replayed join), a fresh handshake is
                     // the answer; the job and its journal stay, so the resume continues.
                     pool.forget_if(console, &session).await;
-                    rearm(&mut backoff, started, durable_before, durable);
+                    if rearm(&mut backoff, started, durable_before, durable) {
+                        busy = 0;
+                    }
                     wait(&mut backoff, &format!("{why} ({durable} bytes durable)")).await;
                 }
                 // BUSY on the JobOpen is the console saying "not now" (it is finishing this job's files, or
@@ -856,10 +858,22 @@ const WORKED_FOR: Duration = Duration::from_secs(1);
 /// disconnect, a Wi-Fi roam, a periodic kill) is a console that is back: the next attempt
 /// follows at once. Without this the ladder only ever grew, and a drop period near its 5 s cap
 /// kept every attempt short of the first durable byte (hardware run 2026-10-04: drop60).
-pub(crate) fn rearm(backoff: &mut Duration, started: Instant, durable_before: u64, durable: u64) {
-    if durable > durable_before || started.elapsed() >= WORKED_FOR {
+///
+/// Returns whether the attempt worked. The caller then also forgets the BUSY / unanswered
+/// opens counted so far: each reconnect of a long job may find the console still settling
+/// the last attempt's files, and those answers are a bounded wait per reconnect, not a
+/// budget the whole job spends.
+pub(crate) fn rearm(
+    backoff: &mut Duration,
+    started: Instant,
+    durable_before: u64,
+    durable: u64,
+) -> bool {
+    let worked = durable > durable_before || started.elapsed() >= WORKED_FOR;
+    if worked {
         *backoff = BACKOFF_FLOOR;
     }
+    worked
 }
 
 /// Jittered doubling backoff, 250 ms → 5 s. Logs without ever panicking on a closed

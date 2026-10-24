@@ -59,11 +59,25 @@ impl ZipSource {
         let mut dirs = BTreeSet::new();
         for i in 0..zip.len() {
             let entry = zip.by_index_raw(i).map_err(invalid_zip)?;
-            let full = entry.name().map_err(invalid_zip)?.into_owned();
-            let name = full.trim_end_matches('/');
-            if name.is_empty() {
+            // The name as the plan preview spelt it (UTF-8 when it is, else CP437) and the
+            // same normalisation: a name the preview refuses is refused here, not sent as a
+            // flat file with a literal backslash, and `./x` or `a//b` is sent as the preview
+            // listed it.
+            let decoded = entry
+                .name()
+                .map(|n| n.into_owned())
+                .unwrap_or_else(|_| String::from_utf8_lossy(entry.name_raw()).into_owned());
+            let full = ps5upload_core::transfer::zip_entry_name(entry.name_raw(), &decoded);
+            if full.trim_matches('/').is_empty() {
                 continue;
             }
+            let Some(name) = ps5upload_core::transfer::sanitize_zip_entry(&full) else {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    format!("{full}: unsafe or invalid zip entry path"),
+                ));
+            };
+            let name = name.as_str();
             manifest::check_path(name)
                 .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, format!("{name}: {e}")))?;
             if ps5upload_core::excludes::is_excluded_strings(Path::new(name), excludes) {
@@ -463,6 +477,34 @@ mod tests {
         let (_, s) = ZipSource::open(&p, &[]).unwrap();
         let start = s.files["a.bin"].0.data_start;
         (p, start)
+    }
+
+    /// A PowerShell 5.1 archive names its entries with backslashes. The plan preview refuses
+    /// such a name and so does the source: never a flat file called `dir\a.bin`. A name the
+    /// preview normalises (`./sub/b.bin`) is sent the way the preview lists it.
+    #[test]
+    fn entry_names_follow_the_preview_rule() {
+        let p = std::env::temp_dir().join(format!("p5a-zs-names-{}.zip", std::process::id()));
+        let o = zip::write::SimpleFileOptions::default()
+            .compression_method(zip::CompressionMethod::Stored);
+        let mut z = zip::ZipWriter::new(std::fs::File::create(&p).unwrap());
+        z.start_file("dir\\a.bin", o).unwrap();
+        z.write_all(b"abc").unwrap();
+        z.finish().unwrap();
+        let Err(e) = ZipSource::open(&p, &[]) else {
+            panic!("a backslash name must be refused");
+        };
+        assert_eq!(e.kind(), io::ErrorKind::InvalidData);
+        assert!(e.to_string().contains("dir\\a.bin"), "{e}");
+
+        let mut z = zip::ZipWriter::new(std::fs::File::create(&p).unwrap());
+        z.start_file("./sub/b.bin", o).unwrap();
+        z.write_all(b"abc").unwrap();
+        z.finish().unwrap();
+        let (m, s) = ZipSource::open(&p, &[]).unwrap();
+        std::fs::remove_file(&p).ok();
+        assert!(s.files.contains_key("sub/b.bin"), "{:?}", m.entries);
+        assert!(m.entries.iter().any(|e| e.path == "sub/b.bin"));
     }
 
     #[test]

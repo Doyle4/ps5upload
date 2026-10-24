@@ -57,6 +57,8 @@ pub fn is_priority(method: u16) -> bool {
 /// Methods that change nothing, so a call lost with its session may be sent again on the
 /// next session. Everything else is never repeated: it may already have run. `net.speedtest`
 /// changes nothing but takes seconds of link time, so it is not resent either (review 005 section 3).
+/// `log.klog` is a consuming read of `/dev/klog`: a lost first call may have drained it, and
+/// the resend would then return an empty log as the answer, so it is not resent either.
 fn is_read_only(method: u16) -> bool {
     matches!(
         method,
@@ -68,7 +70,6 @@ fn is_read_only(method: u16) -> bool {
             | gen::METHOD_FS_STAT
             | gen::METHOD_FS_FREESPACE
             | gen::METHOD_FS_READ
-            | gen::METHOD_LOG_KLOG
             | gen::METHOD_LOG_SYSLOG
             | gen::METHOD_NET_INTERFACES
             | gen::METHOD_NET_REACH

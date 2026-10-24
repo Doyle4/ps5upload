@@ -77,12 +77,23 @@ impl SourceTree for FolderSource {
 
     fn read_range(&mut self, path: &str, offset: u64, len: usize) -> Result<Vec<u8>> {
         use std::io::{Read, Seek, SeekFrom};
-        let mut file = std::fs::File::open(self.root.join(path))
-            .map_err(|e| Error::Io(std::io::Error::new(e.kind(), format!("{path}: {e}"))))?;
-        file.seek(SeekFrom::Start(offset))?;
+        let io =
+            |e: std::io::Error| Error::Io(std::io::Error::new(e.kind(), format!("{path}: {e}")));
+        let mut file = std::fs::File::open(self.root.join(path)).map_err(io)?;
+        file.seek(SeekFrom::Start(offset)).map_err(io)?;
+        // Read until `len` or the end: a network or FUSE mount may answer short of either,
+        // and a short read is not the end of the file.
         let mut buf = vec![0u8; len];
-        let read = file.read(&mut buf)?;
-        buf.truncate(read);
+        let mut filled = 0;
+        while filled < len {
+            match file.read(&mut buf[filled..]) {
+                Ok(0) => break,
+                Ok(n) => filled += n,
+                Err(e) if e.kind() == std::io::ErrorKind::Interrupted => {}
+                Err(e) => return Err(io(e)),
+            }
+        }
+        buf.truncate(filled);
         Ok(buf)
     }
 
@@ -242,17 +253,39 @@ fn walk(
     })?;
     for entry in entries {
         let entry = entry?;
-        let name = entry.file_name().to_string_lossy().into_owned();
+        let path = entry.path();
+        // A name is stored as it is: one that is not UTF-8 would be renamed by a lossy
+        // read, and a backslash in one is a separator in the image's path (and in `rel`),
+        // so both are refused here, naming the file, instead of failing with "not found"
+        // part-way through the build.
+        let Some(name) = entry.file_name().to_str().map(str::to_owned) else {
+            return format_err(format!(
+                "{}: the file name is not valid UTF-8",
+                path.display()
+            ));
+        };
+        if name.contains('\\') {
+            return format_err(format!(
+                "{}: a backslash in a file name cannot be stored in the image",
+                path.display()
+            ));
+        }
         if is_junk(&name) {
             continue;
         }
-        let path = entry.path();
+        let with_path = |e: std::io::Error| {
+            Error::Io(std::io::Error::new(
+                e.kind(),
+                format!("{}: {e}", path.display()),
+            ))
+        };
         // A symbolic link counts as what it points at, so a build can be staged as a folder of
         // links (to add or leave out a file) without copying or touching the game's own folder.
-        let meta = if entry.file_type()?.is_symlink() {
-            std::fs::metadata(&path)?
+        // A dangling one is an error that names it.
+        let meta = if entry.file_type().map_err(with_path)?.is_symlink() {
+            std::fs::metadata(&path).map_err(with_path)?
         } else {
-            entry.metadata()?
+            entry.metadata().map_err(with_path)?
         };
         if meta.is_dir() {
             if !walk(root, &path, out, empty)? {
@@ -911,6 +944,28 @@ mod tests {
         let got: Vec<(String, u64)> = files.into_iter().map(|f| (f.path, f.size)).collect();
         assert_eq!(got, vec![("eboot.bin".into(), 5), ("sub/a.bin".into(), 3)]);
         assert!(empty.is_empty());
+    }
+
+    /// A dangling link and a name the image cannot hold are refused up front, naming the file,
+    /// rather than failing as "not found" part-way through a build.
+    #[cfg(unix)]
+    #[test]
+    fn a_dangling_link_and_a_backslash_name_are_refused_by_name() {
+        let base = std::env::temp_dir().join(format!("fpkg-badname-{}", std::process::id()));
+        std::fs::remove_dir_all(&base).ok();
+        std::fs::create_dir_all(&base).unwrap();
+        std::fs::write(base.join("eboot.bin"), b"12345").unwrap();
+        std::os::unix::fs::symlink(base.join("missing.bin"), base.join("gone.bin")).unwrap();
+        let err = super::scan_tree(&base).unwrap_err().to_string();
+        assert!(err.contains("gone.bin"), "{err}");
+        std::fs::remove_file(base.join("gone.bin")).unwrap();
+        std::fs::write(base.join("a\\b.bin"), b"x").unwrap();
+        let err = super::scan_tree(&base).unwrap_err().to_string();
+        std::fs::remove_dir_all(&base).ok();
+        assert!(
+            err.contains("a\\b.bin") && err.contains("backslash"),
+            "{err}"
+        );
     }
 
     /// The launch rewrite leaves valid JSON with only the three launch fields changed.

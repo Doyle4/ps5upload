@@ -622,7 +622,7 @@ async fn follow(
     lease: Option<&Lease>,
 ) -> Direct {
     let reference = JobRef { job_id }.to_bytes().unwrap_or_default();
-    let (mut last_bytes, mut last_move) = (0u64, Instant::now());
+    let (mut last_moved, mut last_move) = ((0u64, 0u64, 0u32), Instant::now());
     let mut status_ok_at = Instant::now();
     loop {
         if cancel.load(Ordering::Relaxed) {
@@ -663,8 +663,13 @@ async fn follow(
             .bytes_sent
             .store(st.bytes_received.min(st.bytes_total), Ordering::Relaxed);
         progress.lanes.store(LANES, Ordering::Relaxed);
-        if st.bytes_received != last_bytes {
-            last_bytes = st.bytes_received;
+        // Movement is any of the three counters: after the last byte lands the receiver
+        // may settle thousands of small files for minutes, and only `bytes_durable` and
+        // `files_done` move then. Counting bytes received alone made that settling look
+        // like a stall and sent the job to the relay.
+        let moved = (st.bytes_received, st.bytes_durable, st.files_done);
+        if moved != last_moved {
+            last_moved = moved;
             last_move = Instant::now();
         }
         match st.state {

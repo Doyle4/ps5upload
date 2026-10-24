@@ -280,7 +280,8 @@ pub fn run_health_scan(addr: &str, engine_version: &str) -> HealthReport {
                 format!("No answer from {addr}: {e}"),
             )
             .with_remedy(
-                "Load the ps5upload payload on your console, then scan again.                  Everything below depends on this.",
+                "Load the ps5upload payload on your console, then scan again. \
+                    Everything below depends on this.",
             ),
         ),
     }
@@ -318,7 +319,9 @@ pub fn run_health_scan(addr: &str, engine_version: &str) -> HealthReport {
     );
     if vstatus != CheckStatus::Pass {
         vcheck = vcheck.with_remedy(
-            "Send the payload again from this version of the app. A helper built              from different source is the most common reason a feature appears to              do nothing.",
+            "Send the payload again from this version of the app. A helper built \
+                from different source is the most common reason a feature appears to \
+                do nothing.",
         );
     }
     checks.push(vcheck);
@@ -332,7 +335,11 @@ pub fn run_health_scan(addr: &str, engine_version: &str) -> HealthReport {
                     "sony_symbols_resolved",
                     "System registry is readable",
                     CheckCategory::Runtime,
-                    if sym_ok { CheckStatus::Pass } else { CheckStatus::Fail },
+                    if sym_ok {
+                        CheckStatus::Pass
+                    } else {
+                        CheckStatus::Fail
+                    },
                     if sym_ok {
                         "The helper can read the console's system registry.".to_string()
                     } else {
@@ -345,7 +352,8 @@ pub fn run_health_scan(addr: &str, engine_version: &str) -> HealthReport {
                 .with_remedy(if sym_ok {
                     String::new()
                 } else {
-                    "Several features read the registry and will silently do nothing                      while this fails. Reload the payload; if it persists, report it."
+                    "Several features read the registry and will silently do nothing \
+                        while this fails. Reload the payload; if it persists, report it."
                         .to_string()
                 }),
             );
@@ -397,7 +405,11 @@ pub fn run_health_scan(addr: &str, engine_version: &str) -> HealthReport {
                     "rp_account_activated",
                     "Account is usable",
                     CheckCategory::RemotePlay,
-                    if activated { CheckStatus::Pass } else { CheckStatus::Warn },
+                    if activated {
+                        CheckStatus::Pass
+                    } else {
+                        CheckStatus::Warn
+                    },
                     if activated {
                         "The signed-in account has an id and is PSN-linked.".to_string()
                     } else {
@@ -407,7 +419,8 @@ pub fn run_health_scan(addr: &str, engine_version: &str) -> HealthReport {
                 .with_remedy(if activated {
                     String::new()
                 } else {
-                    "Remote Play needs a signed-in account. Sign in on the console,                      or activate the profile from the Profile screen."
+                    "Remote Play needs a signed-in account. Sign in on the console, \
+                        or activate the profile from the Profile screen."
                         .to_string()
                 }),
             );
@@ -443,7 +456,8 @@ pub fn run_health_scan(addr: &str, engine_version: &str) -> HealthReport {
                 )
                 .with_remedy(match status {
                     CheckStatus::Fail => {
-                        "Very little space left. Installs and transfers will fail.                          Delete something before continuing."
+                        "Very little space left. Installs and transfers will fail. \
+                            Delete something before continuing."
                             .to_string()
                     }
                     CheckStatus::Warn => {
@@ -572,7 +586,8 @@ pub fn run_health_scan(addr: &str, engine_version: &str) -> HealthReport {
                     if status != CheckStatus::Pass {
                         c = c
                             .with_remedy(
-                                "A wrong clock breaks licence checks and makes logs                                  hard to read. Set it from this computer.",
+                                "A wrong clock breaks licence checks and makes logs \
+                                    hard to read. Set it from this computer.",
                             )
                             .with_fix(FixAction::SyncClock);
                     }
