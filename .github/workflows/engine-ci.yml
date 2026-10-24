@@ -301,17 +301,11 @@ jobs:
           RUST_BACKTRACE: 1
           SHARD: ${{ matrix.shard }}
         run: |
-          # Every test file, sorted, dealt round-robin: file N goes to shard (N mod 4) + 1.
-          # A file added later is picked up by one of the four without being listed anywhere.
-          mapfile -t all < <(ls crates/ava1-ctest/tests/*.rs | sort)
-          args=()
-          for i in "${!all[@]}"; do
-            if [ $(( i % 4 + 1 )) -eq "$SHARD" ]; then
-              args+=(--test "$(basename "${all[$i]}" .rs)")
-            fi
-          done
-          [ "${#args[@]}" -gt 0 ] || { echo "::error::shard $SHARD got no test files"; exit 1; }
-          echo "shard $SHARD of 4: ${#args[@]} of ${#all[@]} test files"
+          # Every test file is dealt to one of the four shards, longest first by measured time
+          # (.github/scripts/ctest-shard.py; round-robin by name left one shard ~70 s longer than
+          # the rest). A file added later is picked up by one of the four without being listed.
+          args=$(python3 ../.github/scripts/ctest-shard.py "$SHARD" 4) || exit 1
+          mapfile -t args <<< "$args"
           cargo test -p ava1-ctest "${args[@]}" -- --test-threads=1
 
       - name: Save cargo cache
@@ -346,21 +340,34 @@ jobs:
       - name: No FTX2 or ports 9113/9114 in the repository
         run: make check-no-ftx2
 
-      - name: Fuzz C decoders + data-plane parsers (60 s each)
+      # The C fuzzers (60 s each) and the Rust ones (60 s + 30 s) are single-threaded and share
+      # nothing, so they run side by side on the 4-core runner instead of one after the other
+      # (~146 s, then ~196 s with the Rust toolchain and build). Each fuzzer still gets its full
+      # time on a core of its own; the Rust side runs at a lower priority so its compile, the
+      # only part that wants more than one core, never takes CPU from the C fuzzer.
+      - name: Fuzz C decoders + data-plane parsers (60 s each) and Rust decoders (60 s + 30 s)
         env:
           AVA1_FUZZ_SECONDS: 60
-        run: make ava1-fuzz-c
-
-      - name: Install Rust nightly + cargo-fuzz
         run: |
-          rustup toolchain install nightly --profile minimal
-          cargo install cargo-fuzz --locked
-
-      - name: Fuzz Rust decoders (60 s + 30 s)
-        working-directory: engine/crates/ava1/fuzz
-        run: |
-          cargo +nightly fuzz run decode -- -max_total_time=60
-          cargo +nightly fuzz run frame_header -- -max_total_time=30
+          rust_log="$RUNNER_TEMP/rust-fuzz.log"
+          nice -n 10 bash -euo pipefail -c '
+            rustup toolchain install nightly --profile minimal
+            cargo install cargo-fuzz --locked
+            cd engine/crates/ava1/fuzz
+            cargo +nightly fuzz run decode -- -max_total_time=60
+            cargo +nightly fuzz run frame_header -- -max_total_time=30
+          ' > "$rust_log" 2>&1 &
+          rust_pid=$!
+          c_status=0
+          make ava1-fuzz-c || c_status=$?
+          rust_status=0
+          wait "$rust_pid" || rust_status=$?
+          echo "::group::Rust decoders (cargo-fuzz) output"
+          cat "$rust_log"
+          echo "::endgroup::"
+          [ "$c_status" -eq 0 ] || echo "::error::C fuzzing failed (exit $c_status); output above"
+          [ "$rust_status" -eq 0 ] || echo "::error::Rust fuzzing failed (exit $rust_status); see the 'Rust decoders' group"
+          [ "$c_status" -eq 0 ] && [ "$rust_status" -eq 0 ]
 
   # ─────────────────────────────────────────────────────────────────────
   # AVA1 sanitizers (review 009 #2a): the whole ctest suite, i.e. every console C path the host can run,
@@ -372,8 +379,8 @@ jobs:
     name: ava1-ctest (ASan + UBSan)
     runs-on: ubuntu-24.04
     timeout-minutes: 60
-    # Four shards, test files dealt round-robin exactly like rust-ctest: the serial sanitized run
-    # was ~15 min on one runner.
+    # Four shards, test files dealt exactly like rust-ctest (by measured time): the serial
+    # sanitized run was ~15 min on one runner.
     strategy:
       fail-fast: false
       matrix:
@@ -412,15 +419,8 @@ jobs:
           RUST_BACKTRACE: 1
           SHARD: ${{ matrix.shard }}
         run: |
-          mapfile -t all < <(ls crates/ava1-ctest/tests/*.rs | sort)
-          args=()
-          for i in "${!all[@]}"; do
-            if [ $(( i % 4 + 1 )) -eq "$SHARD" ]; then
-              args+=(--test "$(basename "${all[$i]}" .rs)")
-            fi
-          done
-          [ "${#args[@]}" -gt 0 ] || { echo "::error::shard $SHARD got no test files"; exit 1; }
-          echo "sanitized shard $SHARD of 4: ${#args[@]} of ${#all[@]} test files"
+          args=$(python3 ../.github/scripts/ctest-shard.py "$SHARD" 4) || exit 1
+          mapfile -t args <<< "$args"
           cargo test -p ava1-ctest "${args[@]}" -- --test-threads=1
 
       - name: Save cargo cache
@@ -440,45 +440,54 @@ jobs:
   # we ship, while publish.yml remains the authoritative bundle builder.
   # ─────────────────────────────────────────────────────────────────────
   rust-engine-targets:
-    name: rust engine target (${{ matrix.target }})
+    name: rust engine target (${{ matrix.targets }})
     strategy:
       fail-fast: false
       matrix:
         include:
           - os: ubuntu-24.04
-            target: x86_64-unknown-linux-gnu
+            targets: x86_64-unknown-linux-gnu
           # Native arm64 runner — cross-compiling to aarch64 from x86_64
           # ubuntu-24.04 fails because blake3's NEON SIMD path needs
           # aarch64-linux-gnu-gcc (not preinstalled, and bringing it in
           # would mean threading TARGET_CC env vars through every step).
           # Matches publish.yml's arm64 build leg.
           - os: ubuntu-24.04-arm
-            target: aarch64-unknown-linux-gnu
+            targets: aarch64-unknown-linux-gnu
+          # Two targets per macOS / Windows runner, checked by one cargo invocation: they share the
+          # host-side build scripts and proc macros, and one job instead of two takes one of the
+          # 20 concurrent runners (5 for macOS) this ~30-job workflow queues for, not two.
           - os: macos-14
-            target: aarch64-apple-darwin
-          - os: macos-14
-            target: x86_64-apple-darwin
+            targets: aarch64-apple-darwin,x86_64-apple-darwin
           - os: windows-2022
-            target: x86_64-pc-windows-msvc
-          - os: windows-2022
-            target: aarch64-pc-windows-msvc
+            targets: x86_64-pc-windows-msvc,aarch64-pc-windows-msvc
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 15
+    timeout-minutes: 25
+    defaults:
+      run:
+        shell: bash
+        working-directory: engine
+    env:
+      TARGETS: ${{ matrix.targets }}
     steps:
       - uses: actions/checkout@v7
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.target }}
+          targets: ${{ matrix.targets }}
 
       - name: cargo check core
-        working-directory: engine
-        run: cargo check -p ps5upload-core --target ${{ matrix.target }}
+        run: |
+          args=()
+          for t in ${TARGETS//,/ }; do args+=(--target "$t"); done
+          cargo check -p ps5upload-core "${args[@]}"
 
       - name: cargo check engine
-        working-directory: engine
-        run: cargo check -p ps5upload-engine --target ${{ matrix.target }}
+        run: |
+          args=()
+          for t in ${TARGETS//,/ }; do args+=(--target "$t"); done
+          cargo check -p ps5upload-engine "${args[@]}"
 
   # ─────────────────────────────────────────────────────────────────────
   # Rust desktop shell (client/src-tauri). Uses its own workspace so

@@ -605,8 +605,12 @@ jobs:
       # exposure that failed CI on v5.4.5: Maven Central answered 403
       # for kotlin-stdlib and Gradle could not configure the project.
       # That run happened to succeed here; caching removes the luck.
-      - name: Cache Gradle dependencies
-        uses: actions/cache@v6
+      # Restore only: a tag run can read main's caches (CI's android job saves this one on every
+      # version, since the key follows tauri.conf.json), but what a tag run saves is visible to
+      # that tag alone. Saving here put a ~650 MB cache nobody could use into the shared 10 GiB on
+      # every release and pushed CI's cargo caches out (the same reason this job has no cargo cache).
+      - name: Restore Gradle dependencies
+        uses: actions/cache/restore@v6
         with:
           path: |
             ~/.gradle/caches
