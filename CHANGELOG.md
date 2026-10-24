@@ -6,6 +6,35 @@ What's new in ps5upload, written for humans.
 
 ## Unreleased
 
+- **Covers stay while the helper is down.** When the helper was not running (or the console was in
+  rest mode), every cover asked for in that moment was remembered as "no artwork" for 15 minutes.
+  Only a real "not there" answer from the console is remembered now.
+- **Stopping a folder upload early works.** Cancelling while a big folder was still being counted
+  used to be ignored, and the whole folder uploaded anyway. The cancel is kept and the upload ends
+  as cancelled.
+- **Big libraries list in full.** A console with more than 256 titles (or app folders) had the rest
+  cut off, and the game pages then showed them as not installed. Every page is read now; the
+  Collection's console view also no longer reports every game as not installed when a folder
+  listing fails or is cut short.
+- **Folder uploads report what was skipped.** A folder upload with "skip existing" showed 0 skipped
+  files and the full file count as sent; it now reports what the console already had, like a
+  single-file upload.
+- **Measure how it plays: a failed start cleans up.** If copying the libraries or writing the debug
+  emulator failed halfway, the half-made fakelib2 folder could not be removed by Stop; it is marked
+  from the start and removed on failure now.
+- **Time sync refuses an empty target.** Syncing the clock without NTP and without a time no longer
+  sets the console to 1970; it is refused.
+- **Profile activate refuses a malformed id.** An account id that cannot be read is an error now,
+  instead of being silently replaced by the one derived from the slot.
+- **Unreadable files in a selection are skipped, not fatal.** Uploading a selection of files where
+  one could not be read used to fail the whole job on that file; it is left out (as the log already
+  said) and the rest uploads. A selection with no readable file is refused up front.
+- **Web UI: unknown API paths answer 404.** They used to return the app page with status 200.
+- **Backport scan and Collection scan end on a crash.** A scan whose worker crashed stayed "running"
+  forever (and the backport scan's status call failed every time after); it now ends with an error.
+- **IPv6 consoles: the "no loader" message is right.** The port 9021 probe did not work for an
+  IPv6 address, so a missing helper was blamed on the loader.
+
 ## 7.1.19
 
 Update the helper for everything below.

@@ -139,11 +139,11 @@ pub fn merge_full_list(
 }
 
 /// Whether the console's app folders were read whole: the internal drive's listing answered
-/// (`internal`: its entry count) with less than a full page, and some folder was found. Titles
-/// only app.db knows count as installed through these folders, so a listing that failed or
-/// was cut short leaves the installed list incomplete.
-pub fn app_folders_whole(internal: Option<usize>, folders_found: usize) -> bool {
-    matches!(internal, Some(n) if n < 512) && folders_found > 0
+/// (`internal`: whether every page of it was read; `None` when it could not be read), and some
+/// folder was found. Titles only app.db knows count as installed through these folders, so a
+/// listing that failed or was cut short leaves the installed list incomplete.
+pub fn app_folders_whole(internal: Option<bool>, folders_found: usize) -> bool {
+    internal == Some(true) && folders_found > 0
 }
 
 /// Forgets every console not in `hosts` (removed from the app, or at a new IP).
@@ -367,13 +367,13 @@ mod tests {
 
     #[test]
     fn app_folders_read_whole_only_when_the_internal_listing_answered_in_full() {
-        assert!(app_folders_whole(Some(40), 40));
+        assert!(app_folders_whole(Some(true), 40));
         assert!(!app_folders_whole(None, 3), "internal listing failed");
         assert!(
-            !app_folders_whole(Some(512), 512),
-            "a full page may have more"
+            !app_folders_whole(Some(false), 16384),
+            "a listing cut short may have more"
         );
-        assert!(!app_folders_whole(Some(0), 0), "nothing found at all");
+        assert!(!app_folders_whole(Some(true), 0), "nothing found at all");
     }
 
     #[test]

@@ -305,6 +305,37 @@ fn start_on_console(addr: &str, game_path: &str) -> Result<(), String> {
     }
     let runtime = debug_runtime()?;
     fs_ops::fs_mkdir(addr, &fakelib2).map_err(|e| format!("mkdir fakelib2: {e}"))?;
+    // The marker goes in first: the folder is ours from here, so a copy that fails
+    // halfway leaves something `stop` may still remove, never a folder it refuses to touch.
+    ps5upload_core::diagnostics::fs_write_bytes(
+        addr,
+        &join(&fakelib2, MARKER),
+        MARKER_TEXT.as_bytes(),
+        false,
+    )
+    .map_err(|e| format!("writing the marker: {e}"))?;
+    match fill_fakelib2(addr, game_path, &fakelib2, &runtime) {
+        Ok(()) => Ok(()),
+        Err(e) => {
+            // Best effort: a half-built folder would load as the game's libraries.
+            let _ = fs_ops::fs_delete_with_timeout(
+                addr,
+                &fakelib2,
+                Some(std::time::Duration::from_secs(300)),
+            );
+            Err(e)
+        }
+    }
+}
+
+/// Copies the game's fakelib (the emulator aside) into the new fakelib2 and writes the debug
+/// emulator there.
+fn fill_fakelib2(
+    addr: &str,
+    game_path: &str,
+    fakelib2: &str,
+    runtime: &[u8],
+) -> Result<(), String> {
     // Everything the game's fakelib holds comes along, so only the emulator changes.
     let fakelib = join(game_path, "fakelib");
     if exists(addr, &fakelib) {
@@ -324,7 +355,7 @@ fn start_on_console(addr: &str, game_path: &str) -> Result<(), String> {
                     continue;
                 }
                 let from = join(&fakelib, &entry.name);
-                let to = join(&fakelib2, &entry.name);
+                let to = join(fakelib2, &entry.name);
                 ps5upload_ava1::copy::console_copy(
                     addr,
                     &from,
@@ -343,18 +374,11 @@ fn start_on_console(addr: &str, game_path: &str) -> Result<(), String> {
     }
     ps5upload_core::diagnostics::fs_write_bytes_large(
         addr,
-        &join(&fakelib2, "libSceAmpr.sprx"),
-        &runtime,
+        &join(fakelib2, "libSceAmpr.sprx"),
+        runtime,
         false,
     )
     .map_err(|e| format!("writing the debug emulator: {e}"))?;
-    ps5upload_core::diagnostics::fs_write_bytes(
-        addr,
-        &join(&fakelib2, MARKER),
-        MARKER_TEXT.as_bytes(),
-        false,
-    )
-    .map_err(|e| format!("writing the marker: {e}"))?;
     Ok(())
 }
 

@@ -138,16 +138,26 @@ pub fn start_scan(deep: bool) -> Result<(), String> {
         let previous = library();
         let covers = store::covers_dir();
         let started = Instant::now();
-        let result = scan::scan(
-            &roots,
-            previous.as_deref(),
-            deep,
-            covers.as_deref(),
-            true,
-            &s.cancel,
-            &s.progress,
-            rt.as_ref(),
-        );
+        // A panic in the scan is its failure, not a scan that runs forever: `running` is
+        // only cleared below, and every later start would join the dead one.
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            scan::scan(
+                &roots,
+                previous.as_deref(),
+                deep,
+                covers.as_deref(),
+                true,
+                &s.cancel,
+                &s.progress,
+                rt.as_ref(),
+            )
+        }))
+        .unwrap_or_else(|p| {
+            Err(format!(
+                "the scan stopped unexpectedly: {}",
+                crate::panic_text(&*p)
+            ))
+        });
         // "Remove new sidecars after each scan": AppleDouble files only, each one verified.
         s.progress
             .phase
@@ -438,8 +448,14 @@ pub(crate) fn installed_titles(
     let registered = ps5upload_core::fs_ops::app_list_registered(addr)
         .map_err(|e| format!("the console's titles could not be read: {e:#}"))?;
     let mut folders = Vec::new();
+    // Every page, and a folder that could not be read is an error: one read as empty (a busy
+    // console, a page cut at 256) made every installed game read as not installed, and the
+    // snapshots kept that.
     for root in ["/user/app", "/mnt/ext0/user/app", "/mnt/ext1/user/app"] {
-        folders.extend(console_names(addr, root));
+        folders.extend(
+            console_names_all(addr, root)
+                .map_err(|e| format!("the console's app folders could not be read: {e}"))?,
+        );
     }
     Ok(with_app_folders(
         registered
@@ -569,19 +585,6 @@ fn installed_version(addr: &str, title_id: &str) -> Result<Option<String>, Strin
     Ok(get("APP_VER")
         .or_else(|| get("CONTENT_VERSION"))
         .map(|v| ps5upload_pkg::kind::normalize_version(&v)))
-}
-
-/// Names of the entries in a console folder; empty when it does not exist.
-fn console_names(addr: &str, dir: &str) -> Vec<String> {
-    ps5upload_core::fs_ops::list_dir(addr, dir, ps5upload_core::fs_ops::ListDirOptions::default())
-        .map(|l| {
-            l.entries
-                .into_iter()
-                .map(|e| e.name)
-                .filter(|n| n != "." && n != "..")
-                .collect()
-        })
-        .unwrap_or_default()
 }
 
 /// Every entry of a console folder, page by page; empty when it does not exist, `Err` when it
