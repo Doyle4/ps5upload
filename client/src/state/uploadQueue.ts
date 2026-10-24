@@ -1901,6 +1901,16 @@ export const useUploadQueueStore = create<QueueState>((set, get) => {
           // An install's outcome is recorded even after Stop: it really ran.
           if (!isLive() && next.sourceKind !== "install") return;
           const message = e instanceof Error ? e.message : String(e);
+          // A React render loop (#185) thrown out of a store update is the UI's fault, not the
+          // transfer's: keep its stack for the bug report, which is what finds the component.
+          if (/Minified React error #185|Maximum update depth exceeded/i.test(message)) {
+            log.error(
+              "queue",
+              `render loop while running ${next.sourceKind} ${next.id}: ${
+                e instanceof Error ? (e.stack ?? message) : message
+              }`,
+            );
+          }
           // Lift the structured payload error fields onto the item
           // if waitForJob's thrown error carries them. UI uses these
           // to render a humanized hint via `humanizeJobErrorReason`

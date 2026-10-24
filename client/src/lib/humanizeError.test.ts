@@ -418,3 +418,13 @@ describe("archive extract causes", () => {
     expect(humanizePs5Error("fs_extract_something_new")).toBe("fs_extract_something_new");
   });
 });
+
+describe("a React render loop in the queue", () => {
+  it("says the transfer may have finished instead of React's text", () => {
+    const out = humanizePs5Error(
+      "Minified React error #185; visit https://react.dev/errors/185 for the full message",
+    );
+    expect(out).toContain("may have finished");
+    expect(out).not.toContain("react.dev");
+  });
+});

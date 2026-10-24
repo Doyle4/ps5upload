@@ -68,6 +68,17 @@ export function humanizePs5Error(
   raw = (raw ?? "") + codeForms;
   if (!raw) return "";
 
+  // ─── The app's own display, not the transfer ───────────────────────
+  // React stopped a re-render loop (error #185) while the queue updated a row. The engine's job
+  // never saw it, so the transfer may well have finished. The queue logs the stack for a report.
+  if (/Minified React error #185|Maximum update depth exceeded/i.test(raw)) {
+    return (
+      "The app's display hit an error while this ran (React #185) and stopped following the " +
+      "transfer, which may have finished anyway: check the PS5, or press Retry. A bug report " +
+      "sent now helps us fix it."
+    );
+  }
+
   // ─── Source / local filesystem ─────────────────────────────────────
   // "can't read source folder: /Users/me/game" — the engine failed to
   // walk the user's local tree. We return verbatim because the path
