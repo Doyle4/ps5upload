@@ -721,8 +721,8 @@ ios-build: payload setup-client
 	@python3 scripts/release/verify-ios-ipa.py output/PS5Upload-ios-unsigned.ipa
 
 # iPhone Simulator: see the app on a simulated iPhone, with live reload, like run-android.
-# Reuses a booted iPhone simulator or boots one (scripts/ios-sim.sh) and shuts down only one it
-# booted. PS5UPLOAD_IOS_SIM="iPhone 17 Pro" picks the device. Needs Xcode's iOS platform once:
+# Reuses a booted iPhone simulator or boots one (scripts/ios-sim.sh), pre-grants the app's
+# privacy permissions, and on Ctrl-C stops the dev server and shuts down only a simulator it booted. PS5UPLOAD_IOS_SIM="iPhone 17 Pro" picks the device. Needs Xcode's iOS platform once:
 # `xcodebuild -downloadPlatform iOS`. For a real iPhone, build the .ipa (make ios-build).
 IOS_VITE_PORT ?= 1440
 IOS_SIM_RUST_TARGET := $(if $(filter arm64,$(shell uname -m)),aarch64-apple-ios-sim,x86_64-apple-ios)
@@ -739,6 +739,7 @@ run-ios: payload setup-client
 	else \
 		echo "  (leaving the running simulator up)"; \
 	fi; \
+	PS5UPLOAD_IOS_SIM_UDID="$$udid" bash $(CURDIR)/scripts/ios-sim.sh grant; \
 	echo "Launching on $$name (tauri ios dev)..."; \
 	cd $(CLIENT_DIR) && PS5UPLOAD_VITE_PORT=$(IOS_VITE_PORT) npx tauri ios dev "$$name" \
 		--config '{"build":{"devUrl":"http://localhost:$(IOS_VITE_PORT)"}}'
@@ -757,14 +758,20 @@ ANDROID_VITE_PORT ?= 1430
 
 run-android: EMU_WINDOW := 1
 run-android-background: EMU_WINDOW := 0
+# Ctrl-C ends it cleanly: the dev server and the permission helper stop, any Gradle or Kotlin
+# daemon this run started is stopped (by PID; daemons that were already running, such as Android
+# Studio's, are left alone), and the emulator is shut down only when this run booted it.
+GRADLE_DAEMON_RE := org.gradle.launcher.daemon.bootstrap.GradleDaemon|KotlinCompileDaemon
 run-android run-android-background: android-deps payload setup-client
 	@test -d $(ANDROID_GEN_DIR) || $(MAKE) android-init
+	@bash scripts/release/android-postinit-patch.sh >/dev/null
 	@state=$$(PS5UPLOAD_EMU_WINDOW=$(EMU_WINDOW) bash $(CURDIR)/scripts/android-emu.sh ensure) || exit 1; \
-	if [ "$$state" = "booted" ]; then \
-		trap 'trap - EXIT INT TERM; echo ""; echo "Shutting down the emulator this run booted..."; bash $(CURDIR)/scripts/android-emu.sh stop' EXIT INT TERM; \
-	else \
-		echo "  (leaving the existing device/emulator running)"; \
-	fi; \
+	grant=""; daemons_before=" $$(pgrep -f '$(GRADLE_DAEMON_RE)' | tr '\n' ' ') "; \
+	trap 'trap - EXIT INT TERM; [ -n "$$grant" ] && kill $$grant 2>/dev/null; \
+		for p in $$(pgrep -f "$(GRADLE_DAEMON_RE)"); do case "'"$$daemons_before"'" in *" $$p "*) ;; *) kill $$p 2>/dev/null;; esac; done; \
+		if [ "'"$$state"'" = booted ]; then echo ""; echo "Shutting down the emulator this run booted..."; bash $(CURDIR)/scripts/android-emu.sh stop; fi' EXIT INT TERM; \
+	[ "$$state" = booted ] || echo "  (leaving the existing device/emulator running)"; \
+	bash $(CURDIR)/scripts/android-emu.sh grant --wait & grant=$$!; \
 	echo "Launching on the attached Android device/emulator (tauri android dev)..."; \
 	cd $(CLIENT_DIR) && PS5UPLOAD_VITE_PORT=$(ANDROID_VITE_PORT) $(ANDROID_ENV) npx tauri android dev \
 		--config '{"build":{"devUrl":"http://localhost:$(ANDROID_VITE_PORT)"}}'

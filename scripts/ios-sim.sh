@@ -2,7 +2,7 @@
 #
 # iPhone Simulator lifecycle for `make run-ios`, the iOS counterpart of android-emu.sh.
 #
-# Subcommands: ensure | stop | status
+# Subcommands: ensure | stop | grant | status
 #
 #   ensure  reuses a booted iPhone simulator, or boots one (and opens Simulator.app so it can
 #           be seen and used). Prints "<booted|preexisting><TAB><device name>" so the caller
@@ -101,6 +101,23 @@ stop() {
   local udid="${PS5UPLOAD_IOS_SIM_UDID:-}"
   [ -n "$udid" ] || die "PS5UPLOAD_IOS_SIM_UDID is not set"
   xcrun simctl shutdown "$udid" 2>/dev/null || true
+  # Close the Simulator app too, unless another simulator is still running in it.
+  if ! xcrun simctl list devices booted 2>/dev/null | grep -q '(Booted)'; then
+    osascript -e 'tell application "Simulator" to quit' >/dev/null 2>&1 || true
+  fi
+}
+
+# Pre-grant every privacy permission the Simulator can grant (photos, location, ...; it has no
+# switch for notifications or the local-network prompt, which a simulator does not show) to the
+# app, so a run never stops at a prompt. Works before the app is installed.
+grant() {
+  local udid="${PS5UPLOAD_IOS_SIM_UDID:-}"
+  [ -n "$udid" ] || die "PS5UPLOAD_IOS_SIM_UDID is not set"
+  if xcrun simctl privacy "$udid" grant all com.phantomptr.ps5upload >/dev/null 2>&1; then
+    echo "ios-sim: privacy permissions granted to com.phantomptr.ps5upload" >&2
+  else
+    echo "ios-sim: could not pre-grant privacy permissions (the app will ask)" >&2
+  fi
 }
 
 status() {
@@ -113,6 +130,7 @@ status() {
 case "${1:-}" in
   ensure) ensure ;;
   stop) stop ;;
+  grant) grant ;;
   status) status ;;
-  *) die "usage: $0 ensure|stop|status" ;;
+  *) die "usage: $0 ensure|stop|grant|status" ;;
 esac

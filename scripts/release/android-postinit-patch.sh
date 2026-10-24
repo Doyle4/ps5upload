@@ -46,6 +46,8 @@
 #    (client/src/state/uiScale.ts), which rescales the rem root and so resizes
 #    the entire UI. The two fixes are complementary.
 #
+# 7) No Gradle or Kotlin daemon left running after a build (gradle.properties). See step (7).
+#
 # 6) TransferService, the foreground service that keeps a transfer running
 #    with the app in the background (#457), its manifest entry, permissions
 #    and R8 keep rules. See step (6) below.
@@ -614,5 +616,22 @@ else:
     print("declared TransferService")
 open(path, "w", encoding="utf-8").write(src)
 PY
+
+# 7) Nothing left running after a build. Gradle normally keeps a daemon (and a separate Kotlin
+#    compiler daemon) alive for hours after `tauri android build/dev`; `make run-android` then
+#    left two JVMs behind after Ctrl-C. Each run invokes Gradle once, so the warm daemon buys
+#    little: run without one, and compile Kotlin inside the build. Same for CI's one-shot builds.
+props="$root/client/src-tauri/gen/android/gradle.properties"
+if [ -f "$props" ]; then
+  for kv in "org.gradle.daemon=false" "kotlin.compiler.execution.strategy=in-process"; do
+    key="${kv%%=*}"
+    if grep -q "^${key}=" "$props"; then
+      grep -qx "$kv" "$props" || sed -i.bak "s|^${key}=.*|${kv}|" "$props" && rm -f "$props.bak"
+    else
+      printf '\n# ps5upload: no daemons left running after a build (android-postinit-patch.sh)\n%s\n' "$kv" >> "$props"
+    fi
+  done
+  echo "gradle: no daemon, Kotlin in-process"
+fi
 
 echo "android post-init patches applied"

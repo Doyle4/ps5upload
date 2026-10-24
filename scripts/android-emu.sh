@@ -2,7 +2,7 @@
 #
 # Android emulator lifecycle for testing the app without a physical device.
 #
-# Subcommands: create | start | ensure | stop | status | test
+# Subcommands: create | start | ensure | stop | status | grant [--wait] | test
 #
 #   ensure  reuses a running (or still-booting) emulator or attached device,
 #           and boots one only when there is none. With PS5UPLOAD_EMU_WINDOW=1
@@ -22,8 +22,8 @@
 # its window, so the app can be seen and used (make run-android does this;
 # make run-android-background and make emu-test stay headless).
 #
-# Performance: software rendering (PS5UPLOAD_EMU_GPU=host opts into the Mac's
-# GPU, which is faster but froze Android 16 in testing). 4 GB RAM
+# Performance: the Mac's GPU on macOS (PS5UPLOAD_EMU_GPU=swiftshader_indirect for software
+# rendering, the default elsewhere). 4 GB RAM
 # (PS5UPLOAD_EMU_MEMORY_MB) and half the host's cores up to 6
 # (PS5UPLOAD_EMU_CORES) — the AVD's own 2 GB / 4 cores made Android 16 crawl.
 #
@@ -223,11 +223,15 @@ cmd_start() {
   fi
   "$EMULATOR" -list-avds 2>/dev/null | grep -qx "$AVD_NAME" || cmd_create
 
-  # Software rendering by default, windowed or not. The host GPU (-gpu host)
-  # is faster but froze the Android 16 image within minutes on an M1 Max —
-  # the emulator itself warns its guest GL layer is unstable above API 35 —
-  # so it is opt-in: PS5UPLOAD_EMU_GPU=host.
-  local gpu="${PS5UPLOAD_EMU_GPU:-swiftshader_indirect}"
+  # The Mac's GPU by default on macOS: measured 2026-10-24 on emulator 36.5.11 with the
+  # android-36.1 arm64 image (Pixel 10 Pro XL), cold boot 20 s instead of 80, median frame
+  # 26 ms instead of 97, and 12 rounds of monkey stress over ~8 minutes with no freeze. (An
+  # older emulator froze the Android 16 image within minutes on host GPU, which is why software
+  # rendering used to be the default.) Elsewhere, and if it ever misbehaves again, software
+  # rendering: PS5UPLOAD_EMU_GPU=swiftshader_indirect.
+  local default_gpu=swiftshader_indirect
+  [ "$(uname -s)" = Darwin ] && default_gpu=host
+  local gpu="${PS5UPLOAD_EMU_GPU:-$default_gpu}"
   local window_flags=(-no-window -gpu "$gpu")
   if [ "${PS5UPLOAD_EMU_WINDOW:-0}" = "1" ]; then
     window_flags=(-gpu "$gpu")
@@ -347,6 +351,32 @@ cmd_status() {
 # here had three separate faults hiding behind a `make run-android` that
 # printed nothing and exited 0; the screenshot was the only thing that told
 # the truth. An exit code is not evidence that the app came up.
+# Pre-grant every runtime permission the app asks for, so a run on the test emulator never
+# stops at a prompt: notifications, local network (Android 17) / nearby Wi-Fi, legacy storage,
+# and all-files access (an app-op, granted in Settings on a phone). Emulators only: a phone you
+# plugged in keeps asking, as it would for a user. With --wait it first waits (up to 10 min)
+# for the app to be installed, since run-android installs it part-way through.
+cmd_grant() {
+  need_tools
+  local serial; serial="$(emu_serial)"
+  [ -n "$serial" ] || { say "No emulator running; nothing to grant" >&2; return 0; }
+  if [ "${1:-}" = "--wait" ]; then
+    local waited=0
+    until "$ADB" -s "$serial" shell pm path "$APP_ID" 2>/dev/null | grep -q '^package:'; do
+      [ "$waited" -lt 600 ] || { say "$APP_ID was not installed within 10 min; no permissions granted" >&2; return 0; }
+      sleep 3; waited=$((waited + 3))
+    done
+  fi
+  local p granted=""
+  for p in POST_NOTIFICATIONS ACCESS_LOCAL_NETWORK NEARBY_WIFI_DEVICES READ_EXTERNAL_STORAGE WRITE_EXTERNAL_STORAGE; do
+    # A permission this Android version does not have, or the app does not declare, is skipped.
+    "$ADB" -s "$serial" shell pm grant "$APP_ID" "android.permission.$p" >/dev/null 2>&1 && granted="$granted $p"
+  done
+  "$ADB" -s "$serial" shell appops set --uid "$APP_ID" MANAGE_EXTERNAL_STORAGE allow >/dev/null 2>&1 \
+    && granted="$granted all-files-access"
+  say "✓ Granted on $serial:${granted:- nothing}" >&2
+}
+
 cmd_test() {
   need_tools
   local apk="client/src-tauri/gen/android/app/build/outputs/apk/universal/debug/app-universal-debug.apk"
@@ -380,14 +410,8 @@ cmd_test() {
       cat "$out/install.log"; die "install failed — see $out/install.log"
     fi
   fi
+  cmd_grant
   say "✓ Installed"
-
-  # Pre-grant the runtime permissions the app asks for on first run. Without
-  # this the very first screencap is a system permission dialog covering the
-  # UI, which is exactly the frame we need to be able to read.
-  for perm in android.permission.POST_NOTIFICATIONS; do
-    "$ADB" -s "$serial" shell pm grant "$APP_ID" "$perm" >/dev/null 2>&1 || true
-  done
 
   "$ADB" -s "$serial" logcat -c >/dev/null 2>&1
 
@@ -439,7 +463,10 @@ case "${1:-}" in
   create) cmd_create ;;
   start)  cmd_start ;;
   ensure) cmd_ensure ;;
-  stop)   cmd_stop ;;
+  # Waits for the process to exit: a start right after a bare `emu kill` found the old one
+  # still shutting down, "reused" it, and then lost it.
+  stop)   stop_and_wait ;;
+  grant)  shift; cmd_grant "$@" ;;
   status) cmd_status ;;
   test)   cmd_test ;;
   *) die "usage: $0 {create|start|ensure|stop|status|test}" ;;
