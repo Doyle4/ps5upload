@@ -207,6 +207,15 @@ else owns, the engine names the folder, its own UID:GID and the folder's owner. 
 in the compose file to the folder's owner (`ls -ln` shows the numbers), or run
 `chown -R 65532:65532 <host folder>`. `PS5UPLOAD_DATA_DIR` does not fix this.
 
+**Q: I added consoles in the web UI on one computer. Why doesn't another computer see them?**
+Since 7.4.2 it does: the web UI keeps your consoles (names, addresses, order, notes and Wake
+keys) in the container's `/data`, so every browser that opens it sees the same list, and a change
+made in one shows up in the others within about 30 seconds (at once when you switch back to that
+tab). The first browser to open 7.4.2 hands over the consoles it had saved. What stays in each
+browser: which console is selected, theme, language, text size and the sidebar. Before 7.4.2 the
+list lived in each browser only. Anyone who can open the web UI can see the Wake keys, so keep
+`PS5UPLOAD_ALLOW_IP` to your own devices.
+
 **Q: Can I use ps5upload from a web browser (no desktop app)?**
 Yes. The `webui` image (above) serves the full app over HTTP; open `http://<host>:19113` from an
 allowed IP. Same security rules: no password, trusted LAN only. "How do I use PS5Upload from my

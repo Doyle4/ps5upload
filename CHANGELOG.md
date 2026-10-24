@@ -4,6 +4,22 @@ What's new in ps5upload, written for humans.
 
 ---
 
+## 7.4.2
+
+- **Web UI and Docker: every browser sees the same consoles.** The consoles you add in the web
+  UI (names, addresses, order, notes and Wake keys) are now kept by the engine in `/data`, not
+  in the browser, so opening the container from another computer shows the same list. A change
+  in one browser reaches the others within about 30 seconds, and two people editing at once both
+  keep their change. The first browser to open 7.4.2 hands over the consoles it had saved. Which
+  console is selected, theme, language and text size stay per browser. The desktop and mobile
+  apps are unchanged.
+- **Fixed: a second browser could make the engine forget what it read from your consoles.** A
+  browser with an empty console list told the engine to drop its saved reads of every other
+  console (used by the game pages); with one shared list that can't happen.
+- **"Didn't finish" with "Minified React error #185".** The queue now says the app's display hit
+  an error and that the transfer may have finished, and logs the details for a bug report so the
+  cause can be found.
+
 ## 7.4.1
 
 - Dependency updates: Tauri 2.12.5, Tauri CLI 2.12.4, Vite 8.3.5, lucide-react 1.61.0 and
