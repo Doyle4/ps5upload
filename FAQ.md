@@ -613,6 +613,8 @@ seconds later. This works the same in the desktop app.
 **Q: How do I install the Android app?**
 Download `PS5Upload-<ver>-android.apk` from the Releases page and open it. Android asks you to
 allow installs from your browser or file manager the first time. Updates install in place.
+Older 32-bit phones take `PS5Upload-<ver>-android-armv7.apk` instead; if the normal APK says
+"App not installed" on an old phone, that is the one you need.
 
 **Q: The app's text or buttons are huge (or tiny) on my phone.**
 Your phone's Display size or Font size setting scales the whole app. Open **Settings → Text
@@ -1985,6 +1987,13 @@ anyway" (Windows) or right-click → Open (macOS) once. Grab the
 download straight from the
 [Releases page](https://github.com/phantomptr/ps5upload/releases)
 (not a mirror) and report any AV false positive to your vendor.
+
+Every release file is scanned with ClamAV before it is published, and each one carries a
+GitHub build attestation: proof that it was built by this repository's release workflow from
+the tagged source and not changed since. With the [GitHub CLI](https://cli.github.com) you can
+check a download yourself:
+`gh attestation verify PS5Upload-<ver>-win-x64.zip -R phantomptr/ps5upload`. If that passes, a
+single vendor's flag is a false positive; please report it to that vendor (and tell us which).
 
 **Q: How do updates work?**
 The app checks GitHub once per launch and shows a dot on the Settings entry when a newer version

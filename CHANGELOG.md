@@ -4,6 +4,28 @@ What's new in ps5upload, written for humans.
 
 ---
 
+## 7.4.0
+
+- **Security scanning on every change.** Every pull request now runs a security scan: known
+  vulnerable Rust and npm dependencies (cargo audit, npm audit) and secrets anywhere in the git
+  history (gitleaks); `make security` runs the same scan locally. CodeQL checks our Rust,
+  TypeScript, Python and workflow code on every change and weekly. Every release file is
+  scanned with ClamAV before it is published, and gets a GitHub build attestation you can verify
+  with `gh attestation verify <file> -R phantomptr/ps5upload` (FAQ: anti-virus).
+- **Dependency fixes.** crypto-bigint 0.7.7 (constant-time fixes, RUSTSEC-2026-0387), zod 4.6.7
+  (memory exhaustion on oversized input, development tooling only), chacha20 0.10.2 (the yanked
+  0.10.1 replaced). Third-party CI actions are pinned to exact commits, and Dependabot waits
+  three days before proposing a new release.
+- **Smaller Android download, 32-bit phones get their own APK.** The Android app is now built
+  per processor: `PS5Upload-<ver>-android.apk` for 64-bit phones and tablets (nearly all of
+  them), `PS5Upload-<ver>-android-armv7.apk` for older 32-bit ones, and release builds leave out
+  debug symbols. The 64-bit download drops from about 115 MB to about 40 MB. A 32-bit phone that
+  updates from inside the app is offered the 64-bit APK once ("App not installed"); download
+  the armv7 APK from the Releases page instead.
+- **Installed games in the command palette.** Cmd/Ctrl+K finds every game installed on your
+  saved consoles, not only the ones in Collection, and says which console has it.
+- The Wake screen's sample keys are plain made-up values.
+
 ## 7.3.1
 
 - **Drag files and folders between Files and your computer.** In the desktop app, drag files or
