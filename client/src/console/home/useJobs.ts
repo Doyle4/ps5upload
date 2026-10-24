@@ -1,11 +1,13 @@
 /**
  * The helper's jobs, every owner's (the PC app's uploads and copies as well as
  * the page's own), read from /api/jobs: about once a second while one runs,
- * every five seconds otherwise. The poller stops when the section unmounts and
+ * every five seconds otherwise, not at all while the page is hidden (the
+ * browser in the background). The poller stops when the section unmounts and
  * for good on a 401 (the token is gone; the reload banner takes over).
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiError, call } from "../api";
+import type { VisibilityDoc } from "../ui/visiblePoll";
 
 /** One /api/jobs entry (payload/src/webui_codec.c webui_jobs_to_json). */
 export interface Job {
@@ -69,16 +71,33 @@ export interface JobsPoller {
 export function createJobsPoller(opts: {
   onJobs: (jobs: Job[], uploading: string[]) => void;
   onError: (err: unknown) => void;
+  /** Where "hidden" is read (tests); the page's document otherwise. */
+  doc?: VisibilityDoc;
 }): JobsPoller {
+  const doc = opts.doc ?? (typeof document !== "undefined" ? document : null);
   let timer: ReturnType<typeof setTimeout> | undefined;
   let stopped = false;
   let inFlight = false;
   let again = false;
+  /** The page is hidden: nothing is scheduled until it shows again, then a read at once. */
+  let paused = false;
 
   const schedule = (ms: number) => {
-    if (stopped) return;
+    if (stopped || paused) return;
     if (timer !== undefined) clearTimeout(timer);
     timer = setTimeout(tick, ms);
+  };
+
+  const onVisibility = () => {
+    if (stopped || !doc) return;
+    if (doc.hidden) {
+      paused = true;
+      if (timer !== undefined) clearTimeout(timer);
+      timer = undefined;
+    } else if (paused) {
+      paused = false;
+      schedule(0);
+    }
   };
 
   async function tick(): Promise<void> {
@@ -114,10 +133,15 @@ export function createJobsPoller(opts: {
 
   return {
     start() {
+      if (doc) {
+        doc.addEventListener("visibilitychange", onVisibility);
+        paused = doc.hidden;
+      }
       schedule(0);
     },
     stop() {
       stopped = true;
+      doc?.removeEventListener("visibilitychange", onVisibility);
       if (timer !== undefined) clearTimeout(timer);
       timer = undefined;
     },

@@ -14,11 +14,14 @@ export const TOKEN_HEADER = "X-PS5U-Token";
 export class ApiError extends Error {
   readonly status: number;
   readonly code: string;
-  constructor(status: number, code: string) {
+  /** The reply's JSON, when the helper sent one with the error (a failed SMB job comes back whole). */
+  readonly body: unknown;
+  constructor(status: number, code: string, body: unknown = null) {
     super(`${status} ${code}`);
     this.name = "ApiError";
     this.status = status;
     this.code = code;
+    this.body = body;
   }
 }
 
@@ -92,7 +95,7 @@ export async function probeHelper(): Promise<boolean> {
 function errorOf(status: number, json: unknown): ApiError {
   const code =
     json && typeof (json as { error?: unknown }).error === "string" ? (json as { error: string }).error : `http_${status}`;
-  return new ApiError(status, code);
+  return new ApiError(status, code, json ?? null);
 }
 
 function tokenExpired(): ApiError {

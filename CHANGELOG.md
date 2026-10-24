@@ -6,6 +6,13 @@ What's new in ps5upload, written for humans.
 
 ## Unreleased
 
+- PS5Upload Files, Clean up: leaving the section no longer leaves its scan running in the helper, and coming back while a removal (or the PC app's clean-up) is still running waits for it instead of showing an empty "busy" list.
+- PS5Upload Files, Library: a scan, copy or install goes on when you leave the section and is shown again, with its outcome, when you come back; Stop works while a package from a share is being copied for an install and disappears once the console's installer has it; a share's last scan that cannot be read is said so instead of "Nothing scanned yet".
+- PS5Upload Files: "Show on TV" from the PC opens the folder again even when Files was last opened at that same folder and you browsed elsewhere since.
+- PS5Upload Files: "Find shares" while editing a saved share uses the saved password when the box is left empty (needs this helper).
+- PS5Upload Files: a copy from a share that fails now reports the share's reason at once instead of "the connection was lost" after half a minute (older helpers included).
+- PS5Upload Files: the share dialog's buttons, "continue on your phone" and the upload picker are spaced on the console's older browser engines too; the Home tasks and drives stop polling while the page is in the background.
+
 ## 7.1.19
 
 Update the helper for everything below.

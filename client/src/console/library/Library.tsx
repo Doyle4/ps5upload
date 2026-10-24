@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { Copy, Download, Gamepad2, HousePlus, RefreshCw, Search, Square, X } from "lucide-react";
 import { formatBytes } from "../../lib/format";
 import { ApiError, call } from "../api";
 import { errorText, isDrive, volumeLabel, type Message, type Volume } from "../home/Home";
-import { installMessage, installPhaseText, kindText } from "../files/pkg";
+import { installMessage, installPhaseText, installStoppable, kindText } from "../files/pkg";
 import { watchOp } from "../files/opJob";
 import { listShares, smbCallErrorText, watchSmbJob, type SmbJob } from "../files/smb";
 import { loadImage, useLazyImage } from "../games/covers";
@@ -26,10 +26,12 @@ import {
   type LibSource,
 } from "./model";
 
-/** A running scan, copy or install: what the page shows, and how to stop it. */
+/** A running scan, copy or install: what the page shows, and whether Stop can end it. */
 interface Task {
   key: string;
   text: string;
+  /** False once the console's installer has the package (or for a one-call task): no Stop. */
+  stoppable: boolean;
 }
 
 const loadIcon = (icon: string) => loadImage(`lib:${icon}`, [`${LIB_DIR}/icons/${icon}`]);
@@ -135,7 +137,7 @@ function Sheet({ e, p }: { e: Entry; p: LibraryViewProps }) {
               <span>{t("cw_lib_register")}</span>
             </button>
           ) : null}
-          {busy ? (
+          {p.task?.stoppable ? (
             <button type="button" className="cw-focusable cw-sheet-item is-danger" onClick={p.onStop}>
               <Square aria-hidden />
               <span>{t("cw_lib_stop")}</span>
@@ -205,7 +207,7 @@ export function LibraryView(p: LibraryViewProps) {
             onChange={(ev) => p.onQuery(ev.target.value)}
           />
         </label>
-        {p.task && !p.open ? (
+        {p.task?.stoppable && !p.open ? (
           <button type="button" className="cw-focusable cw-button" data-action="lib-stop" onClick={p.onStop}>
             <Square aria-hidden />
             <span>{t("cw_lib_stop")}</span>
@@ -239,101 +241,214 @@ export function LibraryView(p: LibraryViewProps) {
 
 const pct = (done: number, total: number) => (total > 0 ? Math.min(100, Math.floor((done / total) * 100)) : 0);
 
+const consoleSource = (): LibSource => ({ id: CONSOLE_SOURCE, name: t("cw_lib_this_console") });
+
+/**
+ * The section's state lives outside the component: a scan, copy or install
+ * started here goes on in the helper when the section is left (like an install
+ * once the console has it), and the section shows it again, with its outcome,
+ * when it opens next. Stop asks the helper to cancel the running job.
+ */
+interface LibState {
+  sources: LibSource[];
+  scans: Map<string, LibScan | null>;
+  loaded: boolean;
+  task: Task | null;
+  message: Message | null;
+  copied: { key: string; path: string } | null;
+}
+
+const lib: LibState = { sources: [], scans: new Map(), loaded: false, task: null, message: null, copied: null };
+const listeners = new Set<() => void>();
+let stopAsked = false;
+
+function patch(p: Partial<LibState>): void {
+  Object.assign(lib, p);
+  for (const fn of Array.from(listeners)) fn();
+}
+
+const stopped = () => stopAsked;
+
+/** The saved shares, then each source's cached scan; a cache that cannot be read is said so. */
+async function load(): Promise<void> {
+  let list: LibSource[] = [consoleSource()];
+  try {
+    list = list.concat((await listShares()).map((s) => ({ id: s.id, name: s.name })));
+  } catch {
+    // No shares readable: this console only.
+  }
+  const next = new Map<string, LibScan | null>();
+  const failed: string[] = [];
+  for (const s of list) {
+    try {
+      next.set(s.id, await readScan(s.id));
+    } catch (e) {
+      next.set(s.id, lib.scans.get(s.id) ?? null);
+      failed.push(t("cw_lib_read_failed", { name: s.name, why: failText(e) || (e instanceof ApiError ? e.code : String(e)) }));
+    }
+  }
+  patch({ sources: list, scans: next, loaded: true, ...(failed.length ? { message: { tone: "error", text: failed.join(" · ") } } : {}) });
+}
+
+async function scanAll(): Promise<void> {
+  if (lib.task) return;
+  stopAsked = false;
+  patch({ message: null });
+  const failed: string[] = [];
+  let list = lib.sources;
+  try {
+    // the shares as they are now (one may have been added in Files or from the PC since)
+    list = [consoleSource(), ...(await listShares()).map((s) => ({ id: s.id, name: s.name }))];
+    patch({ sources: list });
+  } catch {
+    // keep the list we have
+  }
+  for (const s of list) {
+    if (stopped()) break;
+    patch({ task: { key: "scan", text: t("cw_lib_scanning", { name: s.name, n: 0 }), stoppable: true } });
+    try {
+      const job = await startScan(s.id);
+      const end = await watchSmbJob(job, {
+        stopped,
+        onStatus: (st: SmbJob) => patch({ task: { key: "scan", text: t("cw_lib_scanning", { name: s.name, n: st.files_total }), stoppable: true } }),
+      });
+      if (end.end === "failed") failed.push(`${s.name}: ${failText(new ApiError(502, end.status.error ?? "io_error"))}`);
+      const scan = await readScan(s.id);
+      patch({ scans: new Map(lib.scans).set(s.id, scan) });
+    } catch (e) {
+      failed.push(`${s.name}: ${failText(e)}`);
+    }
+  }
+  patch({ task: null, ...(failed.length ? { message: { tone: "error", text: t("cw_lib_scan_failed", { list: failed.join(" · ") }) } } : {}) });
+}
+
+/** Copies `src` (on a share) to `dest`; true when it finished. */
+async function copyIn(src: string, dest: string, name: string): Promise<boolean> {
+  const { job } = await call<{ job: string }>("/api/smb/copy", { src, dest });
+  const end = await watchSmbJob(job, {
+    stopped,
+    onStatus: (st) =>
+      patch({
+        task: { key: "copy", text: t("cw_lib_copying", { name, pct: pct(st.bytes_done, st.bytes_total), size: formatBytes(st.bytes_total) }), stoppable: true },
+      }),
+  });
+  if (end.end === "done") return true;
+  if (end.end === "cancelled") throw new ApiError(409, "cancelled");
+  if (end.end === "gone") throw new ApiError(502, "smb_job_lost");
+  throw new ApiError(502, end.status.error ?? "io_error");
+}
+
+async function install(e: Entry): Promise<void> {
+  if (lib.task) return;
+  stopAsked = false;
+  patch({ message: null });
+  const name = displayName(e);
+  let path = e.at;
+  let staged = false;
+  try {
+    if (e.source !== CONSOLE_SOURCE) {
+      await call("/api/fs/mkdir", { path: STAGE_DIR });
+      path = stagePath();
+      staged = true;
+      await copyIn(e.at, path, name);
+    }
+    patch({ task: { key: "install", text: t("cw_pkg_phase_starting"), stoppable: true } });
+    let job: string;
+    try {
+      const r = await call<{ job: string }>("/api/pkg/install", staged ? { path, remove_after: true } : { path });
+      job = r.job;
+    } catch (err) {
+      // refused before it started: the copy is ours to remove
+      if (staged) await call("/api/fs/delete", { path }).catch(() => undefined);
+      throw err;
+    }
+    // Stop counts only while the package is being copied: once the console's installer has it, it cannot be stopped.
+    let phase: string | null = null;
+    const end = await watchOp(job, {
+      stopped: () => stopped() && installStoppable(phase),
+      onStatus: (s) => {
+        phase = s.message;
+        patch({
+          task: {
+            key: "install",
+            text: `${installPhaseText(s.message) ?? t("cw_pkg_phase_starting")} · ${pct(s.bytes_done, s.bytes_total)}%`,
+            stoppable: installStoppable(s.message),
+          },
+        });
+      },
+    });
+    const line = installMessage(end, name, errorText);
+    patch({ task: null, message: line ?? lib.message });
+  } catch (err) {
+    if (err instanceof ApiError && err.code === "cancelled") patch({ task: null, message: { tone: "info", text: t("cw_pkg_stopped") } });
+    else patch({ task: null, message: installMessage({ end: "error", error: err }, name, failText) ?? lib.message });
+  }
+}
+
+async function copy(e: Entry, drive: string): Promise<void> {
+  if (lib.task) return;
+  stopAsked = false;
+  patch({ message: null });
+  const dest = copyDest(drive, e);
+  try {
+    await call("/api/fs/mkdir", { path: dest.slice(0, dest.lastIndexOf("/")) });
+    await copyIn(e.at, dest, displayName(e));
+    patch({
+      task: null,
+      ...(e.kind === "folder" ? { copied: { key: e.key, path: dest } } : {}),
+      message: { tone: "info", text: t(e.kind === "folder" ? "cw_lib_copied_folder" : "cw_lib_copied", { path: dest }) },
+    });
+  } catch (err) {
+    let message: Message;
+    if (err instanceof ApiError && err.code === "cancelled") message = { tone: "info", text: t("cw_lib_copy_stopped") };
+    else if (err instanceof ApiError && err.code === "exists") message = { tone: "error", text: t("cw_lib_err_exists", { path: dest }) };
+    else message = { tone: "error", text: failText(err) };
+    patch({ task: null, message });
+  }
+}
+
+async function register(path: string, name: string): Promise<void> {
+  if (lib.task) return;
+  patch({ task: { key: "register", text: t("cw_lib_registering", { name }), stoppable: false } });
+  try {
+    await call("/api/apps/register", { path });
+    patch({ task: null, message: { tone: "info", text: t("cw_lib_registered", { name }) } });
+  } catch (err) {
+    patch({ task: null, message: { tone: "error", text: failText(err) || (err instanceof ApiError ? err.code : String(err)) } });
+  }
+}
+
 /** The Library section: games on the saved shares and this console's drives, installed or copied from the controller. */
 export function Library() {
-  const [sources, setSources] = useState<LibSource[]>([{ id: CONSOLE_SOURCE, name: t("cw_lib_this_console") }]);
-  const [scans, setScans] = useState<Map<string, LibScan | null>>(() => new Map());
-  const [loaded, setLoaded] = useState(false);
+  const [, bump] = useReducer((n: number) => n + 1, 0);
   const [query, setQuery] = useState("");
-  const [task, setTask] = useState<Task | null>(null);
-  const [message, setMessage] = useState<Message | null>(null);
   const [open, setOpen] = useState<Entry | null>(null);
   const [drives, setDrives] = useState<Volume[]>([]);
-  const [copied, setCopied] = useState<{ key: string; path: string } | null>(null);
-  const stop = useRef(false);
   const live = useRef(true);
   const root = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     live.current = true;
+    listeners.add(bump);
+    // A scan running keeps the store current itself; otherwise read the cache again (a share may have been added).
+    if (lib.task?.key !== "scan") void load();
     return () => {
       live.current = false;
-      stop.current = true;
+      listeners.delete(bump);
     };
   }, []);
-
-  const load = useCallback(async () => {
-    let list: LibSource[] = [{ id: CONSOLE_SOURCE, name: t("cw_lib_this_console") }];
-    try {
-      list = list.concat((await listShares()).map((s) => ({ id: s.id, name: s.name })));
-    } catch {
-      // No shares readable: this console only.
-    }
-    const next = new Map<string, LibScan | null>();
-    for (const s of list) {
-      try {
-        next.set(s.id, await readScan(s.id));
-      } catch {
-        next.set(s.id, null);
-      }
-    }
-    if (!live.current) return;
-    setSources(list);
-    setScans(next);
-    setLoaded(true);
-  }, []);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
 
   useEffect(
     () =>
       onNavAction(
         (a) => {
-          if (a === "refresh") void load();
+          if (a === "refresh" && lib.task?.key !== "scan") void load();
           return false;
         },
         () => root.current,
       ),
-    [load],
+    [],
   );
-
-  const stopped = useCallback(() => stop.current || !live.current, []);
-
-  const scanAll = useCallback(async () => {
-    if (task) return;
-    stop.current = false;
-    setMessage(null);
-    const failed: string[] = [];
-    let list = sources;
-    try {
-      // the shares as they are now (one may have been added in Files or from the PC since)
-      list = [{ id: CONSOLE_SOURCE, name: t("cw_lib_this_console") }, ...(await listShares()).map((s) => ({ id: s.id, name: s.name }))];
-      if (live.current) setSources(list);
-    } catch {
-      // keep the list we have
-    }
-    for (const s of list) {
-      if (stopped()) break;
-      setTask({ key: "scan", text: t("cw_lib_scanning", { name: s.name, n: 0 }) });
-      try {
-        const job = await startScan(s.id);
-        const end = await watchSmbJob(job, {
-          stopped,
-          onStatus: (st: SmbJob) => live.current && setTask({ key: "scan", text: t("cw_lib_scanning", { name: s.name, n: st.files_total }) }),
-        });
-        if (end.end === "failed") failed.push(`${s.name}: ${failText(new ApiError(502, end.status.error ?? "io_error"))}`);
-        const scan = await readScan(s.id);
-        if (live.current) setScans((m) => new Map(m).set(s.id, scan));
-      } catch (e) {
-        failed.push(`${s.name}: ${failText(e)}`);
-      }
-    }
-    if (!live.current) return;
-    setTask(null);
-    if (failed.length) setMessage({ tone: "error", text: t("cw_lib_scan_failed", { list: failed.join(" · ") }) });
-  }, [sources, task, stopped]);
 
   const openEntry = useCallback((e: Entry | null) => {
     setOpen(e);
@@ -344,128 +459,27 @@ export function Library() {
       );
   }, []);
 
-  /** Copies `src` (on a share) to `dest`; true when it finished. */
-  const copyIn = useCallback(async (src: string, dest: string, name: string): Promise<boolean> => {
-    const { job } = await call<{ job: string }>("/api/smb/copy", { src, dest });
-    const end = await watchSmbJob(job, {
-      stopped,
-      onStatus: (st) =>
-        live.current &&
-        setTask({ key: "copy", text: t("cw_lib_copying", { name, pct: pct(st.bytes_done, st.bytes_total), size: formatBytes(st.bytes_total) }) }),
-    });
-    if (end.end === "done") return true;
-    if (end.end === "cancelled") throw new ApiError(409, "cancelled");
-    if (end.end === "gone") throw new ApiError(502, "smb_job_lost");
-    throw new ApiError(502, end.status.error ?? "io_error");
-  }, [stopped]);
-
-  const onInstall = useCallback(
-    async (e: Entry) => {
-      if (task) return;
-      stop.current = false;
-      setMessage(null);
-      const name = displayName(e);
-      let path = e.at;
-      let staged = false;
-      try {
-        if (e.source !== CONSOLE_SOURCE) {
-          await call("/api/fs/mkdir", { path: STAGE_DIR });
-          path = stagePath();
-          staged = true;
-          await copyIn(e.at, path, name);
-        }
-        setTask({ key: "install", text: t("cw_pkg_phase_starting") });
-        let job: string;
-        try {
-          const r = await call<{ job: string }>("/api/pkg/install", staged ? { path, remove_after: true } : { path });
-          job = r.job;
-        } catch (err) {
-          // refused before it started: the copy is ours to remove
-          if (staged) await call("/api/fs/delete", { path }).catch(() => undefined);
-          throw err;
-        }
-        const end = await watchOp(job, {
-          onStatus: (s) =>
-            live.current &&
-            setTask({ key: "install", text: `${installPhaseText(s.message) ?? t("cw_pkg_phase_starting")} · ${pct(s.bytes_done, s.bytes_total)}%` }),
-        });
-        const line = installMessage(end, name, errorText);
-        if (line && live.current) setMessage(line);
-      } catch (err) {
-        if (!live.current) return;
-        if (err instanceof ApiError && err.code === "cancelled") setMessage({ tone: "info", text: t("cw_pkg_stopped") });
-        else {
-          const line = installMessage({ end: "error", error: err }, name, failText);
-          if (line) setMessage(line);
-        }
-      } finally {
-        if (live.current) setTask(null);
-      }
-    },
-    [task, copyIn],
-  );
-
-  const onCopy = useCallback(
-    async (e: Entry, drive: string) => {
-      if (task) return;
-      stop.current = false;
-      setMessage(null);
-      const dest = copyDest(drive, e);
-      try {
-        await call("/api/fs/mkdir", { path: dest.slice(0, dest.lastIndexOf("/")) });
-        await copyIn(e.at, dest, displayName(e));
-        if (!live.current) return;
-        if (e.kind === "folder") setCopied({ key: e.key, path: dest });
-        setMessage({ tone: "info", text: t(e.kind === "folder" ? "cw_lib_copied_folder" : "cw_lib_copied", { path: dest }) });
-      } catch (err) {
-        if (!live.current) return;
-        if (err instanceof ApiError && err.code === "cancelled") setMessage({ tone: "info", text: t("cw_lib_copy_stopped") });
-        else if (err instanceof ApiError && err.code === "exists") setMessage({ tone: "error", text: t("cw_lib_err_exists", { path: dest }) });
-        else setMessage({ tone: "error", text: failText(err) });
-      } finally {
-        if (live.current) setTask(null);
-      }
-    },
-    [task, copyIn],
-  );
-
-  const onRegister = useCallback(
-    async (path: string, name: string) => {
-      if (task) return;
-      setTask({ key: "register", text: t("cw_lib_registering", { name }) });
-      try {
-        await call("/api/apps/register", { path });
-        if (live.current) setMessage({ tone: "info", text: t("cw_lib_registered", { name }) });
-      } catch (err) {
-        if (live.current) setMessage({ tone: "error", text: failText(err) || (err instanceof ApiError ? err.code : String(err)) });
-      } finally {
-        if (live.current) setTask(null);
-      }
-    },
-    [task],
-  );
-
   return (
     <div ref={root}>
       <LibraryView
-        sources={sources}
-        scans={scans}
-        loaded={loaded}
+        sources={lib.sources}
+        scans={lib.scans}
+        loaded={lib.loaded}
         query={query}
-        task={task}
-        message={message}
+        task={lib.task}
+        message={lib.message}
         open={open}
         drives={drives}
-        copied={copied}
+        copied={lib.copied}
         onQuery={setQuery}
         onScan={() => void scanAll()}
         onStop={() => {
-          stop.current = true;
+          stopAsked = true;
         }}
         onOpen={openEntry}
-        onInstall={(e) => void onInstall(e)}
-        onCopy={(e, d) => void onCopy(e, d)}
-        onRegister={(path, name) => void onRegister(path, name)}
+        onInstall={(e) => void install(e)}
+        onCopy={(e, d) => void copy(e, d)}
+        onRegister={(path, name) => void register(path, name)}
       />
     </div>
   );

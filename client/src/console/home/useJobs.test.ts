@@ -70,6 +70,40 @@ describe("useJobs poller", () => {
     expect(jobsCalls()).toBe(1);
   });
 
+  it("pauses while the page is hidden and reads at once when it shows again", async () => {
+    mockCall.mockResolvedValue({ jobs: [job("running")] });
+    const doc = { hidden: false, listeners: new Set<() => void>() };
+    const p = createJobsPoller({
+      onJobs: () => {},
+      onError: () => {},
+      doc: {
+        get hidden() {
+          return doc.hidden;
+        },
+        addEventListener: (_t, fn) => doc.listeners.add(fn),
+        removeEventListener: (_t, fn) => doc.listeners.delete(fn),
+      },
+    });
+    p.start();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(jobsCalls()).toBe(1);
+    doc.hidden = true;
+    doc.listeners.forEach((fn) => fn());
+    await vi.advanceTimersByTimeAsync(JOBS_FAST_MS * 5);
+    expect(jobsCalls()).toBe(1);
+    p.refresh();
+    await vi.advanceTimersByTimeAsync(JOBS_FAST_MS);
+    expect(jobsCalls()).toBe(1);
+    doc.hidden = false;
+    doc.listeners.forEach((fn) => fn());
+    await vi.advanceTimersByTimeAsync(0);
+    expect(jobsCalls()).toBe(2);
+    await vi.advanceTimersByTimeAsync(JOBS_FAST_MS);
+    expect(jobsCalls()).toBe(3);
+    p.stop();
+    expect(doc.listeners.size).toBe(0);
+  });
+
   it("reports errors and backs off; stops for good on 401", async () => {
     mockCall.mockRejectedValueOnce(new ApiError(0, "offline")).mockRejectedValueOnce(new ApiError(401, "token"));
     const errors: unknown[] = [];

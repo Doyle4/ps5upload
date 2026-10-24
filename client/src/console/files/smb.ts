@@ -129,8 +129,12 @@ export interface Discovered {
   shares: { name: string; remark: string }[];
 }
 
-/** The disk shares a server offers (servers that refuse a listing answer an error: type the share). */
-export async function discoverShares(f: { server: string; user: string; password: string; domain: string }): Promise<Discovered> {
+/**
+ * The disk shares a server offers (servers that refuse a listing answer an error: type the share).
+ * Editing a saved share with the password box left empty sends its `id` and no password: the
+ * helper looks with the saved one (same server and user, as Save does).
+ */
+export async function discoverShares(f: { id?: string; server: string; user: string; password?: string; domain: string }): Promise<Discovered> {
   return call<Discovered>("/api/smb/discover", f);
 }
 
@@ -183,8 +187,30 @@ export const SMB_CANCEL_READS = 20;
 /** Reads that fail in a row (helper busy, network) before the job counts as lost. */
 export const SMB_LOST_READS = 30;
 
+const JOB_STATES = new Set<SmbJob["state"]>(["running", "done", "failed", "cancelled"]);
+
+/**
+ * A job's status out of a failed read: helpers before the fix relayed a failed
+ * job with its error's HTTP status (403 smb_auth…), the body still being the job
+ * itself. Null when the body is not a job (unknown_job, the daemon gone…).
+ */
+export function jobOfError(err: unknown): SmbJob | null {
+  if (!(err instanceof ApiError) || !err.body || typeof err.body !== "object") return null;
+  const b = err.body as Record<string, unknown>;
+  if (typeof b.job !== "string" || typeof b.state !== "string" || !JOB_STATES.has(b.state as SmbJob["state"])) return null;
+  return b as unknown as SmbJob;
+}
+
 const defaultJobDeps: SmbJobDeps = {
-  status: (job) => call<SmbJob>("/api/smb/job", { job }),
+  status: async (job) => {
+    try {
+      return await call<SmbJob>("/api/smb/job", { job });
+    } catch (e) {
+      const s = jobOfError(e);
+      if (s) return s;
+      throw e;
+    }
+  },
   cancel: async (job) => {
     await call("/api/smb/cancel", { job });
   },

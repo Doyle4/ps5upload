@@ -255,8 +255,10 @@
 .cw-upload-pick {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.6rem;
-  margin: 0.6rem 0;
+  margin: 0.6rem 0 0;
+}
+.cw-upload-pick > * {
+  margin: 0 0.6rem 0.6rem 0;
 }
 .cw-upload-run p {
   margin: 0.4rem 0;

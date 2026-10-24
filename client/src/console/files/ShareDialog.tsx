@@ -84,7 +84,14 @@ export function ShareDialog({
     }
     setBusy("find");
     setError(null);
-    discoverShares({ server: f.server.trim(), user: f.user, password: f.password, domain: f.domain }).then(
+    // Editing with the box left empty: the helper looks with the saved password (same server and user).
+    const kept = share && share.has_password && !f.password;
+    discoverShares({
+      ...(kept ? { id: share.id } : { password: f.password }),
+      server: f.server.trim(),
+      user: f.user,
+      domain: f.domain,
+    }).then(
       (d) => {
         if (!mounted.current) return;
         setBusy(null);

@@ -76,6 +76,8 @@ function itemTitle(item: CleanupItem): string {
 export interface CleanupViewProps {
   scan: CleanupScan | null;
   scanning: boolean;
+  /** Scanning, but still waiting for a scan or removal already running in the helper to end. */
+  waiting?: boolean;
   applying: CleanupApplyStatus | null;
   summary: ApplySummary | null;
   selected: Set<number>;
@@ -172,8 +174,8 @@ export function CleanupView(p: CleanupViewProps) {
       ) : null}
       {p.scanning ? (
         <div className="cw-card cw-cleanup-progress" role="status">
-          <span>{phaseText(t, p.scan?.state === "running" ? p.scan.phase : "updates")}</span>
-          {p.scan?.state === "running" && p.scan.found > 0 ? (
+          <span>{p.waiting ? t("cw_cleanup_waiting_other") : phaseText(t, p.scan?.state === "running" ? p.scan.phase : "updates")}</span>
+          {!p.waiting && p.scan?.state === "running" && p.scan.found > 0 ? (
             <span className="cw-dim"> {t("cw_cleanup_found_so_far", { count: p.scan.found })}</span>
           ) : null}
           <button type="button" className="cw-focusable cw-button" data-action="cleanup-stop" onClick={p.onStop}>
@@ -302,6 +304,7 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 export function Cleanup({ ctx }: { ctx: SectionContext }) {
   const [scan, setScan] = useState<CleanupScan | null>(null);
   const [scanning, setScanning] = useState(false);
+  const [waiting, setWaiting] = useState(false);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [applying, setApplying] = useState<CleanupApplyStatus | null>(null);
   const [summary, setSummary] = useState<ApplySummary | null>(null);
@@ -309,9 +312,12 @@ export function Cleanup({ ctx }: { ctx: SectionContext }) {
   const [asking, setAsking] = useState(false);
   const [details, setDetails] = useState<CleanupItem | null>(null);
   const live = useRef(0);
+  const mounted = useRef(true);
   const root = useRef<HTMLDivElement>(null);
   const scanRef = useRef<CleanupScan | null>(null);
   scanRef.current = scan;
+  /** The scan this page started and is still polling (stopped when the page is left). */
+  const polling = useRef<number | null>(null);
 
   const runScan = useCallback(async (keepSummary = false) => {
     const run = ++live.current;
@@ -319,7 +325,26 @@ export function Cleanup({ ctx }: { ctx: SectionContext }) {
     setMessage(null);
     if (!keepSummary) setSummary(null);
     try {
-      const { scan_id } = await call<{ scan_id: number }>("/api/cleanup/scan");
+      let scan_id: number;
+      for (;;) {
+        try {
+          ({ scan_id } = await call<{ scan_id: number }>("/api/cleanup/scan"));
+          break;
+        } catch (e) {
+          // The helper runs one scan or removal at a time: one is still going (this page was
+          // left during it, or the PC app's). Wait for its end, then scan.
+          if (!(e instanceof ApiError && e.code === "busy")) throw e;
+          if (run !== live.current) return;
+          setWaiting(true);
+          await sleep(SCAN_POLL_MS);
+        }
+      }
+      if (run !== live.current) {
+        void call("/api/cleanup/cancel", { id: scan_id }).catch(() => {});
+        return;
+      }
+      setWaiting(false);
+      polling.current = scan_id;
       for (;;) {
         const s = await call<CleanupScan>("/api/cleanup/status", { scan_id });
         if (run !== live.current) return;
@@ -334,23 +359,43 @@ export function Cleanup({ ctx }: { ctx: SectionContext }) {
     } catch (e) {
       if (run === live.current) setMessage(cleanupErrorText(e));
     } finally {
-      if (run === live.current) setScanning(false);
+      if (run === live.current) {
+        polling.current = null;
+        setScanning(false);
+        setWaiting(false);
+      }
     }
   }, []);
 
   useEffect(() => {
+    mounted.current = true;
     void runScan();
-    // Leaving the screen (or a console switch) drops a scan still being polled.
+    // Leaving the screen (or a console switch) drops a scan still being polled, and stops it in
+    // the helper (it is this page's alone; coming back would otherwise wait on it). A removal
+    // goes on: it was confirmed.
     const gen = live;
+    const own = polling;
+    const here = mounted;
     return () => {
+      here.current = false;
       gen.current++;
+      const id = own.current;
+      own.current = null;
+      if (id) void call("/api/cleanup/cancel", { id }).catch(() => {});
     };
   }, [runScan]);
 
   const stop = useCallback(() => {
+    if (waiting) {
+      // Stop the wait for the other run (not that run: it is not this page's).
+      live.current++;
+      setScanning(false);
+      setWaiting(false);
+      return;
+    }
     const id = applying?.apply_id ?? (scanning ? scanRef.current?.scan_id : undefined);
     if (id) void call("/api/cleanup/cancel", { id }).catch(() => {});
-  }, [applying, scanning]);
+  }, [applying, scanning, waiting]);
 
   const remove = useCallback(async () => {
     const s = scanRef.current;
@@ -374,7 +419,8 @@ export function Cleanup({ ctx }: { ctx: SectionContext }) {
     } finally {
       setApplying(null);
     }
-    void runScan(true);
+    // Not after the page was left: that scan would be nobody's, and block the next opening.
+    if (mounted.current) void runScan(true);
   }, [runScan, selected]);
 
   // Create scans again; △ shows the focused item's details.
@@ -409,6 +455,7 @@ export function Cleanup({ ctx }: { ctx: SectionContext }) {
       <CleanupView
         scan={scan}
         scanning={scanning}
+        waiting={waiting}
         applying={applying}
         summary={summary}
         selected={selected}
