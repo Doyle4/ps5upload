@@ -4,7 +4,7 @@ What's new in ps5upload, written for humans.
 
 ---
 
-## Unreleased
+## 7.3.0
 
 - **Convert from Collection.** Every game in Collection has a menu with Convert…, and the game
   page has a Convert… button. It picks the best copy you have (a folder first, then an image,

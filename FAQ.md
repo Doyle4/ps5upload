@@ -1375,6 +1375,41 @@ engine's disks (add the folder from the in-app browser). On Android the folder i
 the in-app browser too; the online title lookup for a game that names nothing is not available
 there.
 
+**Q: What does the ⋯ menu on a game in the Collection do?**
+It works on that game without opening its page. **Install update** and **Install missing DLC**
+appear when the connected PS5 has the game but lacks what this computer has. **Convert…** opens
+the best copy in Convert (a folder before an image, archive or base package). **Make it
+smaller…** opens a big PS5 folder or plain image in Convert set to a compressed image (.ffpfsc).
+**Cheats…** opens Cheats with the game selected. **Backport…** appears when the game is
+installed but asks for newer firmware than the PS5 has. **Check** reads its copies back.
+
+**Q: What does "Check the copy" check?**
+That the copy is whole and readable before you send it. A PS5 debug package is checked against
+its own digests. A .zip, .7z or .rar has every file unpacked in memory and its checksum checked.
+A game folder or image has every file read back, and must have `eboot.bin` and its param file.
+Anything else (a retail or PS4 package, a copy on a server) is read from start to end, which
+finds a copy that is cut short or on a failing drive, but not one whose bytes are wrong. The
+result appears under the copy on the game's page. Checks run one at a time on this computer.
+
+**Q: How do I send several games, or send to more than one PS5?**
+Press **Select**, pick games, then **Send to PS5…** and tick the consoles. Each PS5 gets only what
+it lacks: the game's package, or its folder, image or archive, plus newer updates and DLC for the
+games it has. Games it already has, up to date, are left alone. The same bar queues the picked
+games in Convert or checks their copies.
+
+**Q: What are "Needs FW", "Cheats" and "Could be smaller"?**
+"Needs FW 10.00" means the game asks for newer firmware than the connected PS5 has; it may not
+start unless it is backported. "Cheats" means the cheat repositories have cheats for it. "Could
+be smaller" lists PS5 games of 4 GiB or more kept as a folder or uncompressed image; **Queue them
+in Convert** builds compressed images of them. How much room that saves depends on the game.
+After updating, the firmware needed shows once the next scan has read each item again.
+
+**Q: Can I get a game from my PS5 into the Collection?**
+Yes, when the PS5 has it as a folder or image (a dump). **Games → Game files → ⋯ → Copy to
+Collection** downloads it into your first Collection folder on this computer and scans. In
+**Ready to play**, a game that runs from a folder or image has the same item. A game installed
+from a package cannot be copied this way: its installed files are encrypted.
+
 # Installing packages
 
 ## Install Package
