@@ -103,6 +103,59 @@ pub fn game_view(id: &str, game: Option<&Game>, snaps: &Snapshots) -> Option<Gam
     })
 }
 
+/// One title installed on some saved console, for the command palette.
+#[derive(Debug, Clone, Serialize, PartialEq)]
+pub struct InstalledGame {
+    pub title_id: String,
+    /// The console's name for it, else the Collection's; "" when neither knows one.
+    pub title: String,
+    /// The consoles (bare IPs) it was last read as installed on.
+    pub hosts: Vec<String>,
+}
+
+/// Every title some console was last read as installed on, by title ID. `name_of` gives the
+/// Collection's name for a title the consoles did not name.
+pub fn installed_games(
+    snaps: &Snapshots,
+    name_of: impl Fn(&str) -> Option<String>,
+) -> Vec<InstalledGame> {
+    let mut by_id: std::collections::BTreeMap<&str, InstalledGame> = Default::default();
+    for (host, titles) in snaps {
+        for (id, facts) in titles.iter().filter(|(_, f)| f.installed) {
+            let g = by_id.entry(id).or_insert_with(|| InstalledGame {
+                title_id: id.clone(),
+                title: String::new(),
+                hosts: Vec::new(),
+            });
+            if g.title.is_empty() {
+                g.title = facts.title.clone();
+            }
+            g.hosts.push(host.clone());
+        }
+    }
+    by_id
+        .into_values()
+        .map(|mut g| {
+            if g.title.is_empty() {
+                g.title = name_of(&g.title_id).unwrap_or_default();
+            }
+            g
+        })
+        .collect()
+}
+
+/// `GET /api/games/installed` — what every saved console was last read to have installed.
+pub async fn list_installed() -> Response {
+    let library = crate::collection_api::library();
+    let list = installed_games(&console_snapshot::snapshot(), |id| {
+        library
+            .as_ref()
+            .and_then(|l| l.games.get(id))
+            .map(|g| g.title.clone())
+    });
+    Json(list).into_response()
+}
+
 fn json_error(status: StatusCode, msg: impl Into<String>) -> Response {
     (status, Json(serde_json::json!({ "error": msg.into() }))).into_response()
 }
@@ -250,6 +303,54 @@ mod tests {
             version: Some(version.into()),
             ..ConsoleTitle::default()
         }
+    }
+
+    #[test]
+    fn installed_games_joins_consoles_and_names_from_the_collection() {
+        let mut snaps = Snapshots::new();
+        let list = |id: &str, name: &str| vec![(id.to_string(), name.to_string(), None)];
+        console_snapshot::merge_full_list(
+            &mut snaps,
+            "10.0.0.2:9114",
+            &list("PPSA01234", ""),
+            true,
+            1,
+        );
+        console_snapshot::merge_full_list(
+            &mut snaps,
+            "10.0.0.3",
+            &list("PPSA01234", "Astro Bot"),
+            true,
+            1,
+        );
+        console_snapshot::merge_full_list(&mut snaps, "10.0.0.3", &list("CUSA00001", ""), false, 2);
+        // Gone from the console: listed no more.
+        console_snapshot::merge_full_list(
+            &mut snaps,
+            "10.0.0.2",
+            &list("CUSA09999", "Old"),
+            true,
+            1,
+        );
+        console_snapshot::merge_full_list(&mut snaps, "10.0.0.2", &list("PPSA01234", ""), true, 3);
+        let got = installed_games(&snaps, |id| {
+            (id == "CUSA00001").then(|| "From pkg".to_string())
+        });
+        assert_eq!(
+            got,
+            vec![
+                InstalledGame {
+                    title_id: "CUSA00001".into(),
+                    title: "From pkg".into(),
+                    hosts: vec!["10.0.0.3".into()],
+                },
+                InstalledGame {
+                    title_id: "PPSA01234".into(),
+                    title: "Astro Bot".into(),
+                    hosts: vec!["10.0.0.2".into(), "10.0.0.3".into()],
+                },
+            ]
+        );
     }
 
     #[test]

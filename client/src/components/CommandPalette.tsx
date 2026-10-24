@@ -1,14 +1,15 @@
 import { useCollectionStore } from "../state/collection";
 import { gamePath } from "../lib/gamePage";
+import { gamesApi, type InstalledGame } from "../api/games";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import { ArrowRight, Search } from "lucide-react";
 
 import { useThemeStore } from "../state/theme";
-import { selectConsoleByAddress } from "../state/roster";
+import { profileNameForHost, selectConsoleByAddress, useRosterStore } from "../state/roster";
 import { pushNotification } from "../state/notifications";
 import { activateFocusTrap } from "../lib/focusTrap";
-import { useTr } from "../state/lang";
+import { useTr, type Translator } from "../state/lang";
 import { useBetaFeaturesStore } from "../state/betaFeatures";
 import { isTauriEnv } from "../lib/tauriEnv";
 import {
@@ -80,12 +81,64 @@ export function paletteScreens(
   return [...FIXED_NAV_ITEMS, ...pinnedFirst(NAV_ITEMS, pinned)].filter(shown);
 }
 
-function useCommands(close: () => void): Command[] {
+/**
+ * The palette's games: the Collection's, then what the saved consoles were last read to have
+ * installed that the Collection lacks. One entry per title ID; the hint says where it is.
+ */
+export function paletteGames(
+  collection: readonly { game_id: string; title: string }[],
+  installed: readonly InstalledGame[],
+  hostLabel: (host: string) => string,
+  tr: Translator,
+): Array<{ id: string; title: string; hint: string }> {
+  const onConsoles = new Map(installed.map((g) => [g.title_id.toUpperCase(), g]));
+  const where = (id: string, fallback: string) => {
+    const g = onConsoles.get(id.toUpperCase());
+    if (!g || g.hosts.length === 0) return fallback;
+    const names = g.hosts.map(hostLabel).join(", ");
+    return tr("cmdpalette_game_installed_on", { consoles: names }, "Installed on {consoles}");
+  };
+  const out = collection.map((g) => ({ id: g.game_id, title: g.title, hint: where(g.game_id, g.game_id) }));
+  const seen = new Set(collection.map((g) => g.game_id.toUpperCase()));
+  for (const g of installed) {
+    if (seen.has(g.title_id.toUpperCase())) continue;
+    out.push({ id: g.title_id, title: g.title || g.title_id, hint: where(g.title_id, g.title_id) });
+  }
+  return out;
+}
+
+function useCommands(close: () => void, open: boolean): Command[] {
   const navigate = useNavigate();
   const toggleTheme = useThemeStore((s) => s.toggleTheme);
   const tr = useTr();
   const library = useCollectionStore((s) => s.library);
-  const games = useMemo(() => (library ? Object.values(library.games) : []), [library]);
+  const profiles = useRosterStore((s) => s.profiles);
+  const [installed, setInstalled] = useState<InstalledGame[]>([]);
+  // Read on each open: what the engine last saw on every saved console, so a game that is only
+  // installed (never in the Collection) is found too. Nothing is asked of a console.
+  useEffect(() => {
+    if (!open) return;
+    let live = true;
+    gamesApi
+      .installed()
+      .then((list) => {
+        if (live) setInstalled(list);
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [open]);
+  const games = useMemo(
+    () =>
+      paletteGames(
+        library ? Object.values(library.games) : [],
+        installed,
+        (h) => profileNameForHost(h, profiles),
+        tr,
+      ),
+    [library, installed, profiles, tr],
+  );
   const pinned = useNavSidebarStore((s) => s.pinned);
   const togglePinned = useNavSidebarStore((s) => s.togglePinned);
 
@@ -227,13 +280,13 @@ function useCommands(close: () => void): Command[] {
       // The Collection's games, each to its page. Listed only when searching.
       ...games.map(
         (g): Command => ({
-          id: `game:${g.game_id}`,
+          id: `game:${g.id}`,
           label: g.title,
-          keywords: [g.game_id],
+          keywords: [g.id],
           group: "Games",
-          hint: g.game_id,
+          hint: g.hint,
           run: () => {
-            navigate(gamePath(g.game_id));
+            navigate(gamePath(g.id));
             close();
           },
         }),
@@ -266,7 +319,7 @@ export function CommandPalette() {
     setActiveIdx(0);
   };
 
-  const commands = useCommands(close);
+  const commands = useCommands(close, open);
 
   // Global hotkey: Cmd/Ctrl+K. Skip when the user is typing in any
   // input/textarea/contenteditable to avoid stealing keyboard input.

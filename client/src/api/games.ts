@@ -48,7 +48,21 @@ async function call<T>(path: string, init?: RequestInit): Promise<{ status: numb
   return { status: res.status, body: body as T | null };
 }
 
+/** A title some saved console was last read to have installed (`GET /api/games/installed`). */
+export interface InstalledGame {
+  title_id: string;
+  /** "" when neither the console nor the Collection named it. */
+  title: string;
+  /** Bare IPs of the consoles it is installed on. */
+  hosts: string[];
+}
+
 export const gamesApi = {
+  /** Every game the saved consoles were last read to have installed (no console is asked now). */
+  installed: async (): Promise<InstalledGame[]> => {
+    const r = await call<InstalledGame[]>(`/games/installed`);
+    return r.body ?? [];
+  },
   /** The game, or null when neither the Collection nor any console read so far knows it. */
   view: async (titleId: string): Promise<GameView | null> => {
     const r = await call<GameView>(`/games/${encodeURIComponent(titleId)}`);

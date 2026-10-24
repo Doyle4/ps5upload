@@ -10825,6 +10825,7 @@ async fn run(cfg: EngineConfig) -> anyhow::Result<()> {
             "/api/collection/check/cancel",
             post(collection_check_api::post_check_cancel),
         )
+        .route("/api/games/installed", get(games_api::list_installed))
         .route("/api/games/{id}", get(games_api::get_game))
         .route("/api/games/{id}/refresh", post(games_api::refresh))
         .route("/api/console-snapshots/keep", post(games_api::keep))

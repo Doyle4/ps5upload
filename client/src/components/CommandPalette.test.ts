@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { OPEN_COMMAND_PALETTE_EVENT, openCommandPalette, paletteScreens } from "./CommandPalette";
+import { OPEN_COMMAND_PALETTE_EVENT, openCommandPalette, paletteGames, paletteScreens } from "./CommandPalette";
+import type { Translator } from "../state/lang";
 
 describe("openCommandPalette", () => {
   afterEach(() => vi.unstubAllGlobals());
@@ -37,3 +38,29 @@ describe("the palette's screens", () => {
   });
 });
 
+
+describe("the palette's games", () => {
+  const tr = ((_k: string, vars: Record<string, string>, fallback: string) =>
+    fallback.replace("{consoles}", vars.consoles)) as unknown as Translator;
+  const label = (h: string) => (h === "10.0.0.2" ? "Living room" : h);
+
+  it("adds games only a console has, and says where each is installed", () => {
+    const got = paletteGames(
+      [
+        { game_id: "PPSA01234", title: "Astro" },
+        { game_id: "CUSA00001", title: "On a drive" },
+      ],
+      [
+        { title_id: "PPSA01234", title: "Astro Bot", hosts: ["10.0.0.2", "10.0.0.3"] },
+        { title_id: "PPSA09999", title: "", hosts: ["10.0.0.3"] },
+      ],
+      label,
+      tr,
+    );
+    expect(got).toEqual([
+      { id: "PPSA01234", title: "Astro", hint: "Installed on Living room, 10.0.0.3" },
+      { id: "CUSA00001", title: "On a drive", hint: "CUSA00001" },
+      { id: "PPSA09999", title: "PPSA09999", hint: "Installed on 10.0.0.3" },
+    ]);
+  });
+});
