@@ -1,0 +1,121 @@
+# Unsigned iPhone build (.ipa) of the mobile app, for sideloading (AltStore, Sideloadly,
+# Signulous, ...). No Apple developer account is involved: the IPA is built with --no-sign and
+# the sideloading tool signs it with the user's own Apple ID. The engine runs inside the app
+# (src/engine_mobile.rs), as on Android. Adapted from the iOS work in a community fork
+# (Ralfmalph/ps5upload, branch codex/ios-signulous).
+#
+# Manual for now (Actions → ios → Run workflow): the build is not yet part of a release and has
+# not been run on a real iPhone against a PS5.
+name: ios
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  payload:
+    name: payload (ELF for the app bundle)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          check-latest: true
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+      # make payload embeds the console web page, built from client/.
+      - name: Install client deps (console web page)
+        working-directory: client
+        run: npm ci --no-audit --no-fund
+      - name: Install payload toolchain
+        timeout-minutes: 12
+        run: |
+          set -euo pipefail
+          apt_retry() {
+            for attempt in 1 2 3; do
+              if sudo DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=3 \
+                   -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20 "$@"; then
+                return 0
+              fi
+              echo "apt attempt $attempt failed; retrying in 15s" >&2
+              sleep 15
+            done
+            return 1
+          }
+          apt_retry update
+          curl -fsSL --retry 3 --retry-delay 5 https://apt.llvm.org/llvm.sh | sudo bash -s -- 22
+          apt_retry install -y clang-22 llvm-22-dev lld-22 unzip python3
+      - name: Install pinned PS5 Payload SDK
+        run: sudo env PS5_SDK_INSTALL_DIR=/opt/ps5-payload-sdk bash scripts/install-ps5-sdk.sh
+      - name: Build payload
+        env:
+          PS5_PAYLOAD_SDK: /opt/ps5-payload-sdk
+          LLVM_CONFIG: /usr/bin/llvm-config-22
+        run: |
+          make payload
+          gzip -t payload/ps5upload.elf.gz payload/installer/ps5upload-installer.elf.gz
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ios-payload
+          path: |
+            payload/ps5upload.elf.gz
+            payload/installer/ps5upload-installer.elf.gz
+          if-no-files-found: error
+          retention-days: 3
+
+  iphone:
+    name: iPhone (unsigned arm64 .ipa)
+    needs: payload
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          check-latest: true
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios
+      - uses: actions/download-artifact@v8
+        with:
+          name: ios-payload
+          path: payload
+      - name: Sync version from VERSION
+        run: node scripts/update-version.js
+      - name: Apple toolchain
+        run: |
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-path
+          command -v xcodegen || brew install xcodegen
+          command -v pod || brew install cocoapods
+      - name: Install client deps
+        working-directory: client
+        run: npm ci --no-audit --no-fund
+      # gen/apple is generated, not committed (like gen/android).
+      - name: Generate the iOS project
+        working-directory: client
+        run: npx tauri ios init --ci
+      - name: Build the unsigned IPA
+        working-directory: client
+        run: npx tauri ios build --ci --target aarch64 --no-sign
+      - name: Check and collect the IPA
+        run: |
+          version="$(tr -d '[:space:]' < VERSION)"
+          python3 scripts/release/verify-ios-ipa.py "dist/PS5Upload-${version}-ios-unsigned.ipa"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: PS5Upload-ios-unsigned
+          path: dist/PS5Upload-*-ios-unsigned.ipa
+          if-no-files-found: error
+          retention-days: 14
