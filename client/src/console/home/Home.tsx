@@ -8,6 +8,7 @@ import type { SectionContext } from "../sections";
 import type { ConsoleStatus } from "../shell/TopBar";
 import { t } from "../strings";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
+import { pollWhileVisible } from "../ui/visiblePoll";
 import { TaskRow } from "./TaskRow";
 import { useJobs, visibleJobs, type Job } from "./useJobs";
 
@@ -355,27 +356,32 @@ function useVolumes(tick: number): { volumes: Volume[] | null; error: boolean } 
   const [error, setError] = useState(false);
   useEffect(() => {
     let live = true;
-    let timer: ReturnType<typeof setTimeout> | undefined;
+    let inFlight = false;
+    let stop = () => {};
     const load = () => {
+      if (inFlight) return;
+      inFlight = true;
       call<{ volumes?: unknown }>("/api/volumes").then(
         (r) => {
+          inFlight = false;
           if (!live) return;
           setVolumes(Array.isArray(r?.volumes) ? (r.volumes as Volume[]) : []);
           setError(false);
-          timer = setTimeout(load, VOLUMES_POLL_MS);
         },
         (e: unknown) => {
+          inFlight = false;
           if (!live) return;
           setError(true);
           // The token is gone: every read would 401 until the page reloads.
-          if (!(e instanceof ApiError && e.status === 401)) timer = setTimeout(load, VOLUMES_POLL_MS);
+          if (e instanceof ApiError && e.status === 401) stop();
         },
       );
     };
-    load();
+    // Not while the page is hidden (the browser in the background): nothing shown could change.
+    stop = pollWhileVisible(load, VOLUMES_POLL_MS);
     return () => {
       live = false;
-      if (timer !== undefined) clearTimeout(timer);
+      stop();
     };
   }, [tick]);
   return { volumes, error };

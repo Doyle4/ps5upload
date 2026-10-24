@@ -791,25 +791,26 @@ button {
 .cw-share-row {
   display: flex;
   align-items: flex-end;
-  gap: 0.6rem;
 }
 .cw-share-row .cw-field {
   flex: 1;
   min-width: 0;
 }
 .cw-share-row .cw-button {
-  margin-bottom: 0.8rem;
+  margin: 0 0 0.8rem 0.6rem;
 }
 .cw-share-found {
   grid-column: 1 / -1;
   display: flex;
   flex-wrap: wrap;
-  gap: 0.4rem;
   list-style: none;
   padding: 0;
-  margin: 0 0 0.8rem;
+  margin: 0 0 0.4rem;
   max-height: 8rem;
   overflow-y: auto;
+}
+.cw-share-found li {
+  margin: 0 0.4rem 0.4rem 0;
 }
 .cw-info {
   margin: 0 0 1rem;
@@ -1829,7 +1830,6 @@ button {
 .cw-phone {
   display: flex;
   align-items: center;
-  gap: 0.9rem;
   margin: 0.9rem 0 1rem;
   padding: 0.6rem;
   border-radius: 12px;
@@ -1840,6 +1840,7 @@ button {
   flex: none;
   width: 6.5rem;
   height: 6.5rem;
+  margin-right: 0.9rem;
   border-radius: 4px;
 }
 .cw-phone strong {

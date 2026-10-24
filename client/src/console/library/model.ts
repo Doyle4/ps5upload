@@ -102,7 +102,8 @@ export function parseScan(text: string): LibScan | null {
 export async function readScan(source: string): Promise<LibScan | null> {
   try {
     const b = await callBlob("/api/fs/read", { path: `${LIB_DIR}/${source}.json` });
-    return parseScan(await b.text());
+    // Response, not Blob.text(): the page's safari13 floor has no Blob.text.
+    return parseScan(await new Response(b).text());
   } catch (e) {
     if (e instanceof ApiError && e.status === 404) return null;
     throw e;

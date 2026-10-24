@@ -10,6 +10,7 @@ import { t } from "../strings";
 import type { Conflict, Decision } from "./paste";
 import {
   isSmbPath,
+  jobOfError,
   shareAddress,
   smbClean,
   smbErrorText,
@@ -126,6 +127,22 @@ describe("watchSmbJob", () => {
     );
     expect(cancel).toHaveBeenCalledTimes(1);
     expect(end.end).toBe("cancelled");
+  });
+
+  it("a job that failed ends as failed with the daemon's reason, whether the helper answers 200 or relays the error's status", async () => {
+    const failed = job({ state: "failed", error: "smb_auth", failed: "a/b.pkg" });
+    // the fixed helper: 200 with the job
+    mockCall.mockResolvedValueOnce(failed as never);
+    let end = await watchSmbJob("j1", {});
+    expect(end).toEqual({ end: "failed", status: failed });
+    // helpers before it: the error's HTTP status, the body still the job (not a miss, not "gone")
+    mockCall.mockRejectedValueOnce(new ApiError(403, "smb_auth", failed));
+    end = await watchSmbJob("j1", {});
+    expect(end).toEqual({ end: "failed", status: failed });
+    expect(mockCall).toHaveBeenCalledTimes(2);
+    // an error without a job in it is still a miss
+    expect(jobOfError(new ApiError(503, "smb_daemon_timeout", { error: "smb_daemon_timeout" }))).toBeNull();
+    expect(jobOfError(new ApiError(0, "offline"))).toBeNull();
   });
 
   it("a daemon that no longer knows the job ends it as gone; a 401 is thrown", async () => {

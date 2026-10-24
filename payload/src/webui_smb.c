@@ -217,19 +217,37 @@ static const char *creds_of(const char *b, size_t n, smb_share_t *s, int *passwo
 }
 
 void webui_smb_discover(const char *b, size_t n, uint8_t *out, int fd) {
-    smb_share_t *s = calloc(1, sizeof *s);
+    smb_share_t *s = calloc(1, sizeof *s), *old = NULL;
     sj_buf_t req, r;
     char *rep, *arr;
     const char *why;
     size_t rl;
+    int given = 0, rc;
     (void)out;
     if (!s) {
         fail(fd, "out_of_memory", NULL);
         return;
     }
-    if ((why = server_of(b, n, s)) != NULL || (why = creds_of(b, n, s, NULL)) != NULL) {
+    if ((why = server_of(b, n, s)) != NULL || (why = creds_of(b, n, s, &given)) != NULL) {
         fail(fd, why, NULL);
         goto done;
+    }
+    /* editing a saved share ("id") without retyping its password looks with the saved one, for
+     * the same server and user, as save_core does */
+    if ((rc = sj_str(b, n, "id", s->id, sizeof s->id)) < 0) {
+        fail(fd, "bad_id", NULL);
+        goto done;
+    }
+    if (rc == 1 && !given) {
+        if (!(old = calloc(1, sizeof *old))) {
+            fail(fd, "out_of_memory", NULL);
+            goto done;
+        }
+        if (smb_shares_get(s->id, old) != 0) {
+            fail(fd, "unknown_share", NULL);
+            goto done;
+        }
+        if (!strcmp(old->host, s->host) && !strcmp(old->user, s->user)) memcpy(s->password, old->password, sizeof s->password);
     }
     if (enter(fd) != 0) goto done;
     sj_init(&req, 0);
@@ -262,6 +280,10 @@ void webui_smb_discover(const char *b, size_t n, uint8_t *out, int fd) {
     reply(fd, 200, &r);
     sj_free(&r);
 done:
+    if (old) {
+        wipe_share(old);
+        free(old);
+    }
     wipe_share(s);
     free(s);
 }
