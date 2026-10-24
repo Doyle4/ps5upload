@@ -4,18 +4,19 @@ What's new in ps5upload, written for humans.
 
 ---
 
-## Unreleased
+## 7.2.0
 
-- **iPhone app (unsigned, for sideloading).** Each release now includes
-  `PS5Upload-<ver>-ios-unsigned.ipa`, the same app as on Android with the PS5Upload name and icon.
-  Sideload it with AltStore or Sideloadly and an Apple ID (a free one works); the FAQ has the
-  steps. Games go in the app's folder in the Files app. New and not yet tested on many iPhones.
-- **Text size on the console page (#505).** PS5Upload Minion's Settings has a Text size row (75% to
-  130%). It is kept per screen, so the TV and a computer browser can each have their own. Update
-  the helper for this one.
-- **Converting a big game shows progress while it checks the source.** On a large title (a
-  156 GiB report) the Check source step could take many minutes with nothing moving, so it looked
-  stuck. It now shows how far through the game it is, and Stop works during it.
+- **PS5Upload on iPhone.** Every release now includes an iPhone app (`PS5Upload-7.2.0-ios-unsigned.ipa`):
+  the same app as on Android, with the engine built in. It is not on the App Store, so you install
+  it yourself with AltStore or Sideloadly and an Apple ID (a free one works, no jailbreak). The
+  FAQ walks through both. Put games in the app's folder with the Files app, keep the app open
+  while it sends, and tell us how it goes: it is new and has had little testing on real iPhones.
+- **Text size on the console page (#505).** PS5Upload Minion's Settings has a Text size row
+  (75% to 130%), kept per screen so the TV and a computer browser can each have their own.
+  Update the helper for this one.
+- **Converting a big game shows its progress from the start.** On a very large game the
+  "Check source" step could sit for many minutes with nothing moving; it now shows how far it is,
+  and Stop works there too.
 
 ## 7.1.20
 

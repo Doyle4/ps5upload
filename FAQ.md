@@ -333,7 +333,7 @@ reorder. Up to 12. Nothing changes until you pin something.
 
 ## Supported platforms
 
-**Q: Which desktop OSes run ps5upload?**
+**Q: Which systems run ps5upload?**
 - **macOS** — Apple Silicon (arm64) and Intel (x86_64), shipped as
   `.dmg`.
 - **Windows** — x64 and ARM64, shipped as a `-setup.exe` installer
@@ -350,6 +350,9 @@ reorder. Up to 12. Nothing changes until you pin something.
   interface, mobile-friendly; manages your PS5 over Wi-Fi. See the
   **Android** section below for setup, permissions, and uploading from
   your phone.
+- **iPhone** — `-ios-unsigned.ipa` (sideload with AltStore or
+  Sideloadly, iOS 15 or later, arm64). Same interface as Android. See
+  the **iPhone** section below for how to install it.
 
 There is no 32-bit x86 (i386 / i686) build for any desktop OS.
 
@@ -634,26 +637,60 @@ that needs **Update helper**). Run **Set up your PS5** or send it from the **Pay
 
 ## iPhone
 
-**Q: Is there an iPhone app? How do I install it?**
-Yes, as an unsigned `.ipa` on each release (`PS5Upload-<ver>-ios-unsigned.ipa`). It is not on the
-App Store, so you sideload it, and no jailbreak is needed. It is the same app as on Android, with
-the engine running inside it. It is new and not yet tested on many iPhones; please report what
-you find.
+**Q: Is there an iPhone app?**
+Yes. Each release has `PS5Upload-<version>-ios-unsigned.ipa`: the same app as on Android, with the
+engine built in, so the phone talks to the PS5 directly. It is not on the App Store, so you
+install ("sideload") it yourself; no jailbreak is needed. You need a computer (Mac or Windows) for
+the install, an Apple ID (a free one works), and iOS 15 or later. The iPhone app is new and has had
+little testing on real phones, so please report what you find.
 
-1. Install **AltStore** (altstore.io, with AltServer on a Mac or PC) or **Sideloadly**
-   (sideloadly.io) on your computer, and connect the iPhone by cable the first time.
-2. Give the tool the `.ipa` and an Apple ID. A free one works; a separate Apple ID made just for
-   this keeps your main account out of it. The tool signs the app with that Apple ID.
-3. On the iPhone (iOS 16 and later): **Settings → Privacy & Security → Developer Mode** on,
-   restart, then **Settings → General → VPN & Device Management →** your Apple ID **→ Trust**.
-4. Open PS5Upload, allow **Local Network** when asked, and enter the PS5's IP address.
+A spare Apple ID made just for sideloading is a good idea: the tool needs your Apple ID password to
+sign the app, and a spare one keeps your main account (iCloud, purchases, payment) out of it. Your
+iPhone stays signed in to your main account; the spare one is only typed into the tool.
 
-With a free Apple ID the app must be re-signed every 7 days. AltStore does that by itself while
-your computer runs AltServer on the same Wi-Fi; with Sideloadly, sideload the same `.ipa` again.
+**Q: How do I install it with AltStore? (recommended: it refreshes the app for you)**
+1. On your computer, install **AltServer** from altstore.io and open it (on a Mac it is an icon in
+   the menu bar, not a window).
+2. Connect the iPhone with a cable, unlock it and tap **Trust**.
+3. AltServer → **Install AltStore** → your iPhone → enter your Apple ID. If it asks for a code,
+   it is the one Apple shows on your devices or texts to you.
+4. On the iPhone (iOS 16 and later), turn on **Settings → Privacy & Security → Developer Mode**,
+   restart, and confirm. Then **Settings → General → VPN & Device Management →** your Apple ID
+   **→ Trust**.
+5. Download the `.ipa` from the release page on the iPhone (or AirDrop it from your computer) so
+   it is in the Files app. In AltStore: **My Apps → +** → pick the `.ipa`.
+6. Open PS5Upload and allow **Local Network** when asked.
+
+With a free Apple ID an app runs for 7 days at a time. AltStore re-signs it automatically while
+your computer runs AltServer on the same Wi-Fi (or tap **Refresh All** in AltStore). If you let it
+lapse, the app will not open until you refresh it; your settings stay.
+
+**Q: How do I install it with Sideloadly? (quickest one-off install)**
+1. Install **Sideloadly** from sideloadly.io on your computer and open it.
+2. Connect the iPhone with a cable, unlock it and tap **Trust**.
+3. Drag the `.ipa` onto Sideloadly, enter your Apple ID, and click **Start**.
+4. On the iPhone, turn on Developer Mode and trust your Apple ID as in step 4 of AltStore above.
+5. Open PS5Upload and allow **Local Network** when asked.
+
+With a free Apple ID, run Sideloadly again with the same `.ipa` within 7 days (or turn on its
+automatic refresh, which re-signs over Wi-Fi while your computer is on).
+
+**Q: The install fails asking for a verification code, or no code arrives.**
+The code comes from Apple, not from the tool. If your Apple ID is signed in on your iPhone or Mac,
+the code pops up there (or use **Settings → your name → Sign-In & Security → Get Verification
+Code**). A spare Apple ID signed in nowhere gets it by text message to its phone number; if none
+arrives after a few failed tries, wait an hour (Apple limits texts) and try once more.
 
 **Q: How do I get games onto the iPhone to send them?**
-Copy them with the **Files** app into **On My iPhone → PS5Upload**; the app's file browser starts
-there. Keep the app open while a transfer or install runs: iOS pauses apps in the background.
+Copy them with the **Files** app into **On My iPhone → PS5Upload** (from iCloud Drive, a USB drive
+or AirDrop). The app's file browser starts there, and exports such as logs and save backups land
+there too. Keep the app open and the screen on while a transfer or install runs: iOS pauses apps
+in the background.
+
+**Q: Updating the iPhone app.**
+When a new version is out, the app's update check offers the new `.ipa`. Install it the same way
+over the old one (AltStore: My Apps → +; Sideloadly: Start again); your settings and pairings
+stay.
 
 ## Network setup — direct Ethernet (optional, best stability + speed)
 
@@ -1328,7 +1365,7 @@ off for the drive your games are on (macOS asks for your password).
 **Q: Where does Move to Trash put files?**
 In the system Trash (Recycle Bin on Windows), so they can be put back until it is emptied. Only
 a copy the collection knows can be moved, and you confirm first. Docker, a server without a
-desktop and Android have no Trash: there the button is hidden unless you turn on **Allow
+desktop, Android and iPhone have no Trash: there the button is hidden unless you turn on **Allow
 deleting copies for good** in **Collection → Folders**. Then it reads **Delete…**, asks you to
 confirm every time, and the copy is gone for good.
 
