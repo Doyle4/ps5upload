@@ -41,7 +41,12 @@ impl Source for FsSource {
             let name = p
                 .file_name()
                 .and_then(|n| n.to_str())
-                .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "a name is not UTF-8"))?
+                .ok_or_else(|| {
+                    io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        format!("a name is not UTF-8: {}", p.display()),
+                    )
+                })?
                 .to_string();
             let len = if is_dir { 0 } else { self.fs.metadata(&p)?.len };
             // 0 = the backend reports no mtime (SPEC.md §11.4: skip-existing then

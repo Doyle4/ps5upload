@@ -1179,6 +1179,9 @@ pub fn revert(log_path: &Path, open: &OpenTree) -> std::io::Result<RevertResult>
             Some("path leaves the folder".to_string())
         } else {
             match (here(&src), here(&dst)) {
+                // Already back under its old name (an earlier, partly finished undo): nothing
+                // to do, and not a problem that should keep the run open.
+                (Ok(false), Ok(true)) => None,
                 (Ok(false), _) => Some("moved file is gone".to_string()),
                 (_, Ok(true)) => Some("original name is taken".to_string()),
                 (Ok(true), Ok(false)) => dst

@@ -218,6 +218,11 @@ export function humanizePs5Error(
   if (/rar contains an unsafe or invalid entry path/i.test(raw)) {
     return te("err_rar_unsafe_entry");
   }
+  // The zip plan preview refuses the same names the upload would (a Windows backslash
+  // path, `..`, an absolute path), before anything is sent.
+  if (/zip contains an unsafe or invalid entry path/i.test(raw)) {
+    return te("joberr.zip_unsupported");
+  }
   // Any other unrar failure surfaces as "open rar: …" / "read rar header: …" /
   // "extract rar entry: …". The dominant real-world cause is an incomplete
   // multi-volume set (a missing .partN, or the user picked a middle volume),

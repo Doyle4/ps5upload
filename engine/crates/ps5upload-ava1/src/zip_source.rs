@@ -68,7 +68,9 @@ impl ZipSource {
                 .map(|n| n.into_owned())
                 .unwrap_or_else(|_| String::from_utf8_lossy(entry.name_raw()).into_owned());
             let full = ps5upload_core::transfer::zip_entry_name(entry.name_raw(), &decoded);
-            if full.trim_matches('/').is_empty() {
+            // A folder entry that names only the root (`/`, `./`, `.`) carries nothing; the
+            // preview skips folder entries too, so it must not fail the upload here.
+            if full.split('/').all(|seg| seg.is_empty() || seg == ".") {
                 continue;
             }
             let Some(name) = ps5upload_core::transfer::sanitize_zip_entry(&full) else {

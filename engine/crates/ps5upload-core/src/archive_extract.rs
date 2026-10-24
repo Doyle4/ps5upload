@@ -155,9 +155,13 @@ impl Sink<'_> {
 /// trailing dot names something else. Refused everywhere, like the download side, so
 /// an archive unpacks the same way on every host.
 fn host_path(dest: &Path, rel: &str) -> Result<PathBuf> {
-    for seg in rel.split('/') {
-        if let Some(why) = host_unsafe_component(seg) {
-            bail!("the archive has an entry path this computer cannot write, {why}: {rel:?}");
+    // Device names, ':' and a trailing dot or space only misbehave on Windows; elsewhere they
+    // are ordinary names (`aux.dat` is a real game file), so only a Windows unpack refuses them.
+    if cfg!(windows) {
+        for seg in rel.split('/') {
+            if let Some(why) = host_unsafe_component(seg) {
+                bail!("the archive has an entry path this computer cannot write, {why}: {rel:?}");
+            }
         }
     }
     let p = dest.join(rel);
@@ -383,6 +387,13 @@ mod tests {
         for ok in ["a/b.txt", "sce_sys/param.json", "CONSOLE/x", "price$"] {
             let p = host_path(dest, ok).unwrap_or_else(|e| panic!("{ok}: {e}"));
             assert!(p.starts_with(dest), "{ok} -> {}", p.display());
+        }
+        if !cfg!(windows) {
+            // Ordinary names off Windows: unpacked as they are.
+            for ok in ["aux.dat", "a/NUL.txt", "x.", "s:stream"] {
+                assert!(host_path(dest, ok).unwrap().starts_with(dest), "{ok}");
+            }
+            return;
         }
         for bad in [
             "C:/x",

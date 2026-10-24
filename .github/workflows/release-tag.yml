@@ -31,6 +31,12 @@ jobs:
         with:
           fetch-depth: 0
 
+      # The same check release.sh runs: every version file agrees with VERSION, so the
+      # publish and docker builds (which build with --locked) cannot fail late or ship an
+      # engine that reports another version.
+      - name: Check every version file matches VERSION
+        run: node scripts/update-version.js --check
+
       - name: Create and push the tag
         id: tag
         run: |

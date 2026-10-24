@@ -12,7 +12,7 @@
   <a href="https://github.com/phantomptr/ps5upload/releases"><img alt="release" src="https://img.shields.io/github/v/release/phantomptr/ps5upload?display_name=tag&sort=semver&color=blue" /></a>
   <a href="LICENSE"><img alt="license" src="https://img.shields.io/badge/license-GPL--3-green" /></a>
   <img alt="platforms" src="https://img.shields.io/badge/platforms-macOS_·_Linux_·_Windows_·_Android_·_Web-lightgrey" />
-  <img alt="firmware" src="https://img.shields.io/badge/PS5_firmware-1.00_–_13.60_supported_•_5.10,_9.60_&_13.60_tested-brightgreen" />
+  <img alt="firmware" src="https://img.shields.io/badge/PS5_firmware-1.00_–_14.10_supported_•_5.10,_9.60_&_13.60_tested-brightgreen" />
   <a href="https://discord.gg/fzK3xddtrM"><img alt="discord" src="https://img.shields.io/badge/discord-join-5865F2" /></a>
 </p>
 
@@ -283,8 +283,8 @@ See [`TESTING.md`](TESTING.md) for the full workflow, and [`CONTRIBUTING.md`](CO
 - **Desktop:** macOS, Linux and Windows, x64 and arm64.
 - **Android:** the `.apk` from Releases.
 - **Web UI:** the self-hosted Docker image, in any browser on your LAN (see below).
-- **PS5 firmware:** 1.00 through 13.60 on every model; one payload binary for all. Tested on
-  5.10, 9.60 and 13.60. In practice the limit is your jailbreak's ELF loader on port 9021.
+- **PS5 firmware:** 1.00 through 14.10 on every model; one payload binary for all. Tested on
+  5.10, 9.60 and 13.60 (14.00 and 14.10 are new in SDK v0.45 and not tested yet). In practice the limit is your jailbreak's ELF loader on port 9021.
 
 Fake package install needs live kernel patches (kstuff / fpkg-enable) on the console; where
 they are missing the app says so instead of reporting a false success.

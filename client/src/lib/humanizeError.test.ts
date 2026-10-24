@@ -75,6 +75,13 @@ describe("humanizePs5Error", () => {
         ),
       ).toMatch(/outside the destination|refused for safety/i);
     });
+    it("maps a refused zip entry path → extract-and-upload copy", () => {
+      expect(
+        humanizePs5Error(
+          'zip contains an unsafe or invalid entry path: "Game\\sce_sys\\param.json"',
+        ),
+      ).toMatch(/upload the folder instead/i);
+    });
     /* The engine now checks the volume set itself, so a generic failure
      * means the parts really are all present. Telling the user to "select
      * the FIRST part and put every volume in one folder" was the old copy,
