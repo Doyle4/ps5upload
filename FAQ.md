@@ -1411,7 +1411,10 @@ instead of a package" choose the format, then **Make game image**:
   always mounted read-only. It is compressed as it is written, so only the compressed file is
   ever on disk. Three levels: **Fast** (quickest, a little larger), **Balanced** (the default:
   almost as small, several times faster to make) and **Smallest** (a second, stronger encoder on
-  every block, several times slower for a little more).
+  every block, several times slower for a little more). The level only trades build time for
+  size: every level writes the same kind of blocks and checks each one against the console's
+  decoder rules, so none is more stable than another. If Balanced saves you only a gigabyte or
+  so on a game, Fast is a fine choice.
 - **AMPR LZ4 asset packs** (`.exfat` only, not with `.ffpfsc`): for games that read their files
   through AMPR, the data is packed into LZ4 asset packs that the game's own `ampr_emu`
   (`fakelib/libSceAmpr.sprx`) reads back, so the image is smaller while executables, system

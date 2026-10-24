@@ -4,6 +4,12 @@ What's new in ps5upload, written for humans.
 
 ---
 
+## Unreleased
+
+- **Converting a big game shows progress while it checks the source.** On a large title (a
+  156 GiB report) the Check source step could take many minutes with nothing moving, so it looked
+  stuck. It now shows how far through the game it is, and Stop works during it.
+
 ## 7.1.20
 
 - **Covers stay while the helper is down.** When the helper was not running (or the console was in

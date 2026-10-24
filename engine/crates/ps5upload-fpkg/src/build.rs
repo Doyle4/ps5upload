@@ -356,7 +356,27 @@ fn build_mode(
     // Executables some dumpers leave malformed are served repaired (see `self_repair`).
     let mut repairs: std::collections::HashMap<String, (self_repair::SelfRepair, u64)> =
         std::collections::HashMap::new();
+    // This walk opens every file of the game; on a big title on Windows (where each open is
+    // slow) it took ~14 minutes with the stage showing nothing (a 156 GiB Ghost of Yotei
+    // report read as "stuck at Check source"). Report how far it got, as the share of the
+    // game's bytes walked, the unit the stage row already shows.
+    let walk_total: u64 = files.iter().map(|f| f.size).sum();
+    let mut walked: u64 = 0;
+    let mut last_report = std::time::Instant::now();
     for f in files.iter_mut() {
+        walked = walked.saturating_add(f.size);
+        if last_report.elapsed() >= std::time::Duration::from_millis(250) {
+            last_report = std::time::Instant::now();
+            if let Some(cb) = control.bytes.as_deref_mut() {
+                cb(walked, walk_total);
+            }
+            if control
+                .cancel
+                .is_some_and(|c| c.load(std::sync::atomic::Ordering::Relaxed))
+            {
+                return Err(crate::Error::Cancelled);
+            }
+        }
         // A backport's `fakelib/` holds newer system libraries the game loads in place of the
         // console's own; working releases ship some with the PS4 signature, and every one of
         // them is used exactly as shipped. Rewriting them is not a repair.
