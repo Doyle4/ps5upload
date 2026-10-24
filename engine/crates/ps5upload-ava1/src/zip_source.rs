@@ -119,6 +119,15 @@ impl ZipSource {
                         format!("{name}: no data offset"),
                     )
                 })?;
+                // Two entries that normalise to one path (`x/y.txt` and `x/./y.txt`) cannot
+                // both land: one job is a manifest of unique paths, so the archive is refused
+                // whole rather than one silently replacing the other.
+                if files.contains_key(name) {
+                    return Err(io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        format!("{name}: two zip entries name the same file"),
+                    ));
+                }
                 files.insert(
                     name.to_owned(),
                     (
