@@ -4,10 +4,8 @@ What's new in ps5upload, written for humans.
 
 ---
 
-## Unreleased
+## 7.1.20
 
-- **Built on PS5 Payload SDK v0.45.** The SDK now knows firmware 14.00 and 14.10, so the helper can
-  start there too. Not tested on 14.x yet; tested on 5.10, 9.60 and 13.60.
 - **Covers stay while the helper is down.** When the helper was not running (or the console was in
   rest mode), every cover asked for in that moment was remembered as "no artwork" for 15 minutes.
   Only a real "not there" answer from the console is remembered now.
@@ -36,12 +34,6 @@ What's new in ps5upload, written for humans.
   forever (and the backport scan's status call failed every time after); it now ends with an error.
 - **IPv6 consoles: the "no loader" message is right.** The port 9021 probe did not work for an
   IPv6 address, so a missing helper was blamed on the loader.
-- PS5Upload Files, Clean up: leaving the section no longer leaves its scan running in the helper, and coming back while a removal (or the PC app's clean-up) is still running waits for it instead of showing an empty "busy" list.
-- PS5Upload Files, Library: a scan, copy or install goes on when you leave the section and is shown again, with its outcome, when you come back; Stop works while a package from a share is being copied for an install and disappears once the console's installer has it; a share's last scan that cannot be read is said so instead of "Nothing scanned yet".
-- PS5Upload Files: "Show on TV" from the PC opens the folder again even when Files was last opened at that same folder and you browsed elsewhere since.
-- PS5Upload Files: "Find shares" while editing a saved share uses the saved password when the box is left empty (needs this helper).
-- PS5Upload Files: a copy from a share that fails now reports the share's reason at once instead of "the connection was lost" after half a minute (older helpers included).
-- PS5Upload Files: the share dialog's buttons, "continue on your phone" and the upload picker are spaced on the console's older browser engines too; the Home tasks and drives stop polling while the page is in the background.
 - **Bug reports hide Windows user names (desktop).** With "Remove personal details" on, a path
   like `C:\Users\<name>` inside the report's JSON files (where backslashes are doubled) was left
   as it was. It is now shortened to `~` like every other home folder. The engine log in a report
@@ -142,8 +134,11 @@ What's new in ps5upload, written for humans.
   logs the planned restart as the engine having crashed.
 - **A re-downloaded payload replaces the old copy** instead of sitting beside it, where the old one
   could be the one sent.
+
 Update the helper for everything below.
 
+- **Built on PS5 Payload SDK v0.45.** The SDK now knows firmware 14.00 and 14.10, so the helper can
+  start there too. Not tested on 14.x yet; tested on 5.10, 9.60 and 13.60.
 - **Disc downloads really work now (#497).** 7.1.19 let the file browser open files on a data disc
   in the drive, but a download of the same file was still refused with "not allowed". Downloads
   (and checksums) now follow the same rule as the browser.
@@ -171,10 +166,23 @@ Update the helper for everything below.
   - A folder with more than 65,536 entries lists up to 100,000 and says the list is cut short.
   - Library: pressing Install, Copy or Scan twice quickly no longer starts the same job twice, and a
     scan whose share connection was lost says so instead of quietly keeping the old list.
-- **Clean up (console page):** Stop right after a new scan started stops that scan, not the one
-  before it.
 - **Cheats:** a cheat in an XML (SHN) file without a description no longer shows the next
   cheat's description, and one without a name no longer takes the next cheat's name.
+- **Clean up (console page):** leaving the section no longer leaves its scan running in the helper,
+  and coming back while a removal (or the PC app's clean-up) is still running waits for it instead
+  of showing an empty "busy" list. Stop right after a new scan started stops that scan, not the one
+  before it.
+- **Library (console page):** a scan, copy or install goes on when you leave the section and is
+  shown again, with its outcome, when you come back; Stop works while a package from a share is
+  being copied for an install and disappears once the console's installer has it; a share's last
+  scan that cannot be read is said so instead of "Nothing scanned yet".
+- **Console page:** "Show on TV" from the PC opens the folder again even when Files was last opened
+  at that same folder and you browsed elsewhere since.
+- **Console page:** "Find shares" while editing a saved share uses the saved password when the box
+  is left empty.
+- **Console page:** the share dialog's buttons, "continue on your phone" and the upload picker are
+  spaced on the console's older browser engines too; the Home tasks and drives stop polling while
+  the page is in the background.
 
 ## 7.1.19
 
