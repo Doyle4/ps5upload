@@ -47,6 +47,7 @@ fn from_inspection(g: &GameInspection) -> PkgInfo {
         kind_confident: confident,
         kind_reason: reason,
         complete: true,
+        min_fw: g.specs.min_fw.clone().unwrap_or_default(),
         error: None,
     }
 }
@@ -85,6 +86,7 @@ fn package(path: &Path) -> PkgInfo {
                 kind_confident: p.kind_confident,
                 kind_reason: p.kind_reason,
                 complete: p.complete,
+                min_fw: String::new(),
                 error: None,
             },
             Err(e) => failed(e),

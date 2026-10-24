@@ -42,6 +42,7 @@ mod bundled_payload;
 mod c2c_api;
 mod collection;
 mod collection_api;
+mod collection_check_api;
 mod collection_tidy_api;
 mod console_cleanup_api;
 mod console_files_api;
@@ -10816,6 +10817,14 @@ async fn run(cfg: EngineConfig) -> anyhow::Result<()> {
         )
         .route("/api/collection/export", get(collection_api::get_export))
         .route("/api/collection/console", get(collection_api::get_console))
+        .route(
+            "/api/collection/check",
+            get(collection_check_api::get_checks).post(collection_check_api::post_check),
+        )
+        .route(
+            "/api/collection/check/cancel",
+            post(collection_check_api::post_check_cancel),
+        )
         .route("/api/games/{id}", get(games_api::get_game))
         .route("/api/games/{id}/refresh", post(games_api::refresh))
         .route("/api/console-snapshots/keep", post(games_api::keep))

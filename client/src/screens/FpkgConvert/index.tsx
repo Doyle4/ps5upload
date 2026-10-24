@@ -260,12 +260,24 @@ export default function FpkgConvertScreen() {
 
   // A game handed over from elsewhere (the viewer's Convert… on a drop).
   const location = useLocation();
-  const handed = (location.state as { source?: string } | null)?.source;
+  const handedState = location.state as {
+    source?: string;
+    sources?: { path: string; isDir: boolean }[];
+  } | null;
+  const handed = handedState?.source;
   useEffect(() => {
     if (handed) chooseSource(handed);
     // Once per hand-over.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [handed]);
+  // Several games handed over (the Collection's selection): straight into the queue, with what
+  // to make as Convert has it set.
+  const handedMany = handedState?.sources;
+  useEffect(() => {
+    if (handedMany && handedMany.length > 0) queueAll(handedMany, 0);
+    // Once per hand-over.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [handedMany]);
 
   // The inspection of a restored result's source, so its title id is there for Launch.
   useEffect(() => {

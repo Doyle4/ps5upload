@@ -11,6 +11,18 @@ What's new in ps5upload, written for humans.
   then an archive) and opens Convert with it filled in.
 - **Cheats from the game page.** When a game has no cheats on the PS5 yet, its Cheats tab now
   has a button that opens Cheats with that game already selected, ready to download.
+- **More from each game in Collection.** The ⋯ menu on a game now also installs a newer update
+  or missing DLC the PS5 lacks, opens its cheats, backports it when it is installed, and
+  checks its copies. Cards show when the cheat repositories have cheats for a game, how long it
+  has been played, and when it asks for newer firmware than the PS5 has.
+- **Select several games.** Select in Collection picks games, then sends them to one or more
+  PS5s at once (each gets only what it lacks), queues them in Convert, or checks their copies.
+- **Check a copy.** A game's page can check any copy end to end: a debug package against its own
+  digests, an archive's checksums, every file of a folder or image. It finds a copy that is
+  damaged or cut short before you send it.
+- **Save space.** The new "Could be smaller" filter lists big PS5 game folders and plain images,
+  and queues them all in Convert as compressed images (.ffpfsc).
+- New filters and sort: Has cheats, Needs newer firmware, and Recently played.
 
 ## 7.2.0
 

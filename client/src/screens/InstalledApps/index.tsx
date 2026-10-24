@@ -5,6 +5,7 @@ import {
   useEffect,
   useMemo,
   useState,
+  useRef,
 } from "react";
 import { invoke } from "../../lib/invokeLogged";
 import { isTauriEnv } from "../../lib/tauriEnv";
@@ -30,7 +31,7 @@ import {
   EyeOff,
 } from "lucide-react";
 
-import { Link, useNavigate } from "react-router";
+import { Link, useLocation, useNavigate } from "react-router";
 import { gamePath } from "../../lib/gamePage";
 import { openInFileSystem } from "../../state/fsNavigation";
 import { useConnectionStore } from "../../state/connection";
@@ -725,6 +726,19 @@ export default function InstalledAppsScreen() {
   const [titles, setTitles] = useState<InstalledTitle[] | null>(null);
   const [sdkState, setSdkState] = useState<SdkScanResponse>({ titles: [] });
   const [backportTitle, setBackportTitle] = useState<InstalledTitle | null>(null);
+  // A game handed over for backporting (the Collection's "Backport…"): its panel opens once
+  // the list has it.
+  const handedBackport = (useLocation().state as { backportTitleId?: string } | null)
+    ?.backportTitleId;
+  const backportOpened = useRef<string | null>(null);
+  useEffect(() => {
+    if (!handedBackport || !titles || backportOpened.current === handedBackport) return;
+    const t = titles.find((x) => x.titleId.toUpperCase() === handedBackport.toUpperCase());
+    if (t) {
+      backportOpened.current = handedBackport;
+      setBackportTitle(t);
+    }
+  }, [handedBackport, titles]);
   /* The corpus is built by the user from games they own — we cannot ship Sony
    * libraries — so an empty one is the ordinary state for a new user, and the
    * panel offers the two ways to fill it rather than reporting a failure.

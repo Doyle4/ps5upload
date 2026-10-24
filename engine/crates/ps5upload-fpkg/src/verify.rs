@@ -383,6 +383,27 @@ pub fn verify_streaming_sampled(
     seed: Option<u64>,
     progress: &mut dyn FnMut(u64, u64),
 ) -> Result<Report> {
+    verify_streaming_inner(path, passcode, seed, None, progress)
+}
+
+/// [`verify_streaming`] that stops with a "cancelled" error once `cancel` is set (checked
+/// between batches of blocks): the Collection's copy check runs it on packages of 100+ GB.
+pub fn verify_streaming_cancellable(
+    path: &Path,
+    passcode: &str,
+    cancel: &std::sync::atomic::AtomicBool,
+    progress: &mut dyn FnMut(u64, u64),
+) -> Result<Report> {
+    verify_streaming_inner(path, passcode, None, Some(cancel), progress)
+}
+
+fn verify_streaming_inner(
+    path: &Path,
+    passcode: &str,
+    seed: Option<u64>,
+    cancel: Option<&std::sync::atomic::AtomicBool>,
+    progress: &mut dyn FnMut(u64, u64),
+) -> Result<Report> {
     let mut file = PkgFile::open(path)?;
     let fih_block = file.read_at(0, BLOCK as usize)?;
     let fih = fih::parse(&fih_block)?;
@@ -519,6 +540,9 @@ pub fn verify_streaming_sampled(
         }
         done += 1;
         if done.is_multiple_of(256) {
+            if cancel.is_some_and(|c| c.load(std::sync::atomic::Ordering::Relaxed)) {
+                return format_err("cancelled");
+            }
             progress(done * BLOCK, sweep * BLOCK);
         }
     }

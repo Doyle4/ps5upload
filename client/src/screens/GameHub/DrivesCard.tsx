@@ -1,4 +1,4 @@
-import { HardDrive, PackageOpen, Trash2 } from "lucide-react";
+import { HardDrive, PackageOpen, ShieldCheck, Trash2 } from "lucide-react";
 import { useNavigate } from "react-router";
 
 import type { GameView } from "../../api/games";
@@ -11,6 +11,11 @@ import { useCollectionStore } from "../../state/collection";
 import { useTr } from "../../state/lang";
 import { trashCopies } from "../Collection/trashCopies";
 import { CopyRow } from "./CopyRow";
+import { firmwareShortfall } from "../../lib/collectionInsights";
+import { parsePS5Firmware } from "../../lib/ps5Firmware";
+import { useConnectionStore } from "../../state/connection";
+import { refreshCopyChecks, startCopyChecks } from "../../state/copyChecks";
+import { useEffect } from "react";
 
 /** Every copy of the game on this computer's drives and saved servers. */
 export function DrivesCard({
@@ -31,38 +36,93 @@ export function DrivesCard({
   const navigate = useNavigate();
   const { confirm, dialog } = useConfirm();
   const settings = useCollectionStore((s) => s.settings);
-  const canTrash = settings?.trash_available !== false || !!settings?.allow_permanent_delete;
+  const canTrash =
+    settings?.trash_available !== false || !!settings?.allow_permanent_delete;
   const copies = view?.copies ?? [];
-  const trash = (paths: string[]) => void trashCopies(paths, confirm, tr).then(onChanged);
-  const extra = extraCopies({ locations: copies }).filter((l) => !isRemotePath(l.absolute_path));
+  const trash = (paths: string[]) =>
+    void trashCopies(paths, confirm, tr).then(onChanged);
+  const extra = extraCopies({ locations: copies }).filter(
+    (l) => !isRemotePath(l.absolute_path),
+  );
   const extraBytes = extra.reduce((n, l) => n + l.size_bytes, 0);
   // The copy Convert opens with: a folder before an image, archive or base package.
   const convertible = bestConvertible(copies);
+  // Against the connected console's firmware: a game that asks for newer one may not start.
+  const kernel = useConnectionStore((s) => s.ps5Kernel);
+  const consoleFw = connectedHost ? parsePS5Firmware(kernel) : null;
+  const need = view
+    ? firmwareShortfall(
+        { platform: view.platform, locations: copies },
+        consoleFw,
+      )
+    : null;
+  // Checks started elsewhere (the Collection's menu or selection) show here too.
+  useEffect(() => {
+    void refreshCopyChecks();
+  }, []);
   return (
     <Card>
       {dialog}
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
         <h2 className="flex items-center gap-3 text-[1.0625rem] font-semibold tracking-[-0.01em]">
-          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[var(--color-accent-soft)] text-[var(--color-accent-bright)]"><HardDrive size={15} aria-hidden /></span>
-          {tr("game_drives_title", { n: copies.length }, "On your drives ({n})")}
+          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[var(--color-accent-soft)] text-[var(--color-accent-bright)]">
+            <HardDrive size={15} aria-hidden />
+          </span>
+          {tr(
+            "game_drives_title",
+            { n: copies.length },
+            "On your drives ({n})",
+          )}
         </h2>
-        {convertible && (
-          <Button
-            size="sm"
-            variant="secondary"
-            leftIcon={<PackageOpen size={13} />}
-            data-testid="game-convert"
-            onClick={() => navigate("/convert", { state: { source: convertible.absolute_path } })}
-            title={tr(
-              "collection.convert_hint",
-              undefined,
-              "Open it in Convert: make an installable package, or a different game image.",
-            )}
-          >
-            {tr("collection.convert", undefined, "Convert…")}
-          </Button>
-        )}
+        <span className="flex flex-wrap items-center gap-2">
+          {copies.length > 1 && (
+            <Button
+              size="sm"
+              variant="secondary"
+              leftIcon={<ShieldCheck size={13} />}
+              onClick={() =>
+                void startCopyChecks(copies.map((l) => l.absolute_path))
+              }
+              title={tr(
+                "collection.check_hint",
+                undefined,
+                "Read every copy back to find one that is damaged or cut short. Runs on this computer, one copy at a time.",
+              )}
+            >
+              {tr("copycheck.all", undefined, "Check all copies")}
+            </Button>
+          )}
+          {convertible && (
+            <Button
+              size="sm"
+              variant="secondary"
+              leftIcon={<PackageOpen size={13} />}
+              data-testid="game-convert"
+              onClick={() =>
+                navigate("/convert", {
+                  state: { source: convertible.absolute_path },
+                })
+              }
+              title={tr(
+                "collection.convert_hint",
+                undefined,
+                "Open it in Convert: make an installable package, or a different game image.",
+              )}
+            >
+              {tr("collection.convert", undefined, "Convert…")}
+            </Button>
+          )}
+        </span>
       </div>
+      {need && consoleFw && (
+        <p className="mb-3 text-sm text-[var(--color-warn)]">
+          {tr(
+            "collection.fw_hint",
+            { need, have: consoleFw },
+            "It asks for firmware {need}; this PS5 is on {have}. It may not start unless it is backported.",
+          )}
+        </p>
+      )}
       {copies.length === 0 ? (
         <p className="text-sm text-[var(--color-muted)]">
           {tr(
@@ -86,7 +146,11 @@ export function DrivesCard({
                   "Keeps the largest full copy and moves the other copies to the Trash. Updates and DLC stay.",
                 )}
               >
-                {tr("collection.keep_largest", { size: formatCollectionBytes(extraBytes) }, "Keep the largest copy, free {size}")}
+                {tr(
+                  "collection.keep_largest",
+                  { size: formatCollectionBytes(extraBytes) },
+                  "Keep the largest copy, free {size}",
+                )}
               </Button>
             </div>
           )}
@@ -96,7 +160,10 @@ export function DrivesCard({
                 key={`${l.root}|${l.path}`}
                 loc={l}
                 host={connectedHost}
-                game={{ title: view?.title ?? "", titleId: view?.title_id ?? "" }}
+                game={{
+                  title: view?.title ?? "",
+                  titleId: view?.title_id ?? "",
+                }}
                 onTrash={canTrash ? trash : undefined}
                 onSend={onSend}
               />

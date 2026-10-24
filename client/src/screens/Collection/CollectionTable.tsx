@@ -1,28 +1,78 @@
 import { formatDate } from "../../lib/formatDate";
-import type { CollectionGame } from "../../api/collection";
+import type { CollectionGame, GameConsoleState } from "../../api/collection";
 import { PlatformBadge, Table } from "../../components";
 import { addOnCount, formatCollectionBytes } from "../../lib/collectionView";
+import { firmwareShortfall } from "../../lib/collectionInsights";
+import { formatPlayTime } from "../../state/playTime";
 import { useTr } from "../../state/lang";
 import { GameQuickActions } from "./CollectionCard";
 
 export function CollectionTable({
   games,
   onOpen,
+  host,
+  consoleFw,
+  consoleStates,
+  cheatIds,
+  playSec,
+  selecting,
+  selected,
+  onToggleSelect,
 }: {
   games: CollectionGame[];
   onOpen: (gameId: string) => void;
+  host?: string;
+  consoleFw?: string | null;
+  consoleStates?: Map<string, GameConsoleState>;
+  cheatIds?: Set<string> | null;
+  playSec?: (gameId: string) => number | undefined;
+  selecting?: boolean;
+  selected?: Set<string>;
+  onToggleSelect?: (gameId: string) => void;
 }) {
   const tr = useTr();
+  const pick = selecting
+    ? [
+        {
+          key: "pick",
+          header: "",
+          cell: (g: CollectionGame) => (
+            <input
+              type="checkbox"
+              aria-label={g.title}
+              checked={!!selected?.has(g.game_id)}
+              onChange={() => onToggleSelect?.(g.game_id)}
+              onClick={(e) => e.stopPropagation()}
+            />
+          ),
+        },
+      ]
+    : [];
   return (
     <Table
       rows={games}
       rowKey={(g) => g.game_id}
-      onRowClick={(g) => onOpen(g.game_id)}
+      onRowClick={(g) =>
+        selecting ? onToggleSelect?.(g.game_id) : onOpen(g.game_id)
+      }
       columns={[
+        ...pick,
         {
           key: "title",
           header: tr("collection.col.title", undefined, "Title"),
-          cell: (g) => <span className="font-medium">{g.title}</span>,
+          cell: (g) => {
+            const need = firmwareShortfall(g, consoleFw ?? null);
+            return (
+              <span className="font-medium">
+                {g.title}
+                {need && (
+                  <span className="ml-2 text-xs font-normal text-[var(--color-warn)]">
+                    {tr("collection.fw_badge", { need }, "Needs FW {need}")}
+                  </span>
+                )}
+              </span>
+            );
+          },
         },
         {
           key: "id",
@@ -65,6 +115,16 @@ export function CollectionTable({
           ),
         },
         {
+          key: "played",
+          header: tr("collection.col.played", undefined, "Played"),
+          align: "right",
+          cell: (g) => (
+            <span className="tabular-nums">
+              {formatPlayTime(playSec?.(g.game_id))}
+            </span>
+          ),
+        },
+        {
           key: "added",
           header: tr("collection.col.added", undefined, "Added"),
           cell: (g) =>
@@ -75,15 +135,23 @@ export function CollectionTable({
           header: "",
           align: "right",
           // The row opens the game on click; the menu's own clicks and keys stay in the menu.
-          cell: (g) => (
-            <span
-              className="inline-flex"
-              onClick={(e) => e.stopPropagation()}
-              onKeyDown={(e) => e.stopPropagation()}
-            >
-              <GameQuickActions game={g} onOpen={onOpen} />
-            </span>
-          ),
+          cell: (g) =>
+            selecting ? null : (
+              <span
+                className="inline-flex"
+                onClick={(e) => e.stopPropagation()}
+                onKeyDown={(e) => e.stopPropagation()}
+              >
+                <GameQuickActions
+                  game={g}
+                  onOpen={onOpen}
+                  host={host}
+                  consoleFw={consoleFw}
+                  consoleState={consoleStates?.get(g.game_id)}
+                  hasCheats={!!cheatIds?.has(g.game_id.toUpperCase())}
+                />
+              </span>
+            ),
         },
       ]}
     />

@@ -6,13 +6,25 @@ import type {
   CollectionLocation,
   GameConsoleState,
 } from "../api/collection";
+import { firmwareShortfall, shrinkCandidate } from "./collectionInsights";
 
 export type CollectionFilter =
-  "all" | "duplicates" | "pkg" | "mount" | "folder" | "rar" | "7z" | "zip";
+  | "all"
+  | "duplicates"
+  | "cheats"
+  | "smaller"
+  | "pkg"
+  | "mount"
+  | "folder"
+  | "rar"
+  | "7z"
+  | "zip";
 
 export const COLLECTION_FILTERS: CollectionFilter[] = [
   "all",
   "duplicates",
+  "cheats",
+  "smaller",
   "pkg",
   "mount",
   "folder",
@@ -32,7 +44,8 @@ export type CollectionSort =
   | "added-asc"
   | "size-desc"
   | "size-asc"
-  | "locations-desc";
+  | "locations-desc"
+  | "played-desc";
 
 export const COLLECTION_SORTS: CollectionSort[] = [
   "title-asc",
@@ -44,12 +57,23 @@ export const COLLECTION_SORTS: CollectionSort[] = [
   "size-desc",
   "size-asc",
   "locations-desc",
+  "played-desc",
 ];
 
 /** What a game is to the selected console. */
-export type ConsoleFilter = "any" | "missing" | "update" | "dlc";
+export type ConsoleFilter = "any" | "missing" | "update" | "dlc" | "firmware";
 
-export interface CollectionQuery {
+/** What the filters and sorts look at beyond the games themselves. */
+export interface CollectionContext {
+  /** Title IDs (upper case) the cheat index has cheats for; null until it is read. */
+  cheatIds?: Set<string> | null;
+  /** The selected console's firmware ("9.60"), when known. */
+  consoleFw?: string | null;
+  /** When a game was last seen being played on the selected console (ms). */
+  lastPlayed?: (gameId: string) => number | undefined;
+}
+
+export interface CollectionQuery extends CollectionContext {
   search: string;
   filter: CollectionFilter;
   platform: CollectionPlatform;
@@ -63,7 +87,10 @@ export function matchesConsole(
   g: CollectionGame,
   f: ConsoleFilter | undefined,
   states: Map<string, GameConsoleState> | undefined,
+  consoleFw?: string | null,
 ): boolean {
+  if (f === "firmware")
+    return !!consoleFw && firmwareShortfall(g, consoleFw) !== null;
   if (!f || f === "any" || !states) return true;
   const st = states.get(g.game_id);
   if (!st) return false;
@@ -75,8 +102,12 @@ export function matchesConsole(
 export function consoleCounts(
   games: CollectionGame[],
   states: Map<string, GameConsoleState> | undefined,
+  consoleFw?: string | null,
 ): Record<Exclude<ConsoleFilter, "any">, number> {
-  const out = { missing: 0, update: 0, dlc: 0 };
+  const out = { missing: 0, update: 0, dlc: 0, firmware: 0 };
+  if (consoleFw)
+    for (const g of games)
+      if (matchesConsole(g, "firmware", states, consoleFw)) out.firmware += 1;
   if (!states) return out;
   for (const g of games) {
     if (matchesConsole(g, "missing", states)) out.missing += 1;
@@ -86,9 +117,15 @@ export function consoleCounts(
   return out;
 }
 
-function matchesFilter(g: CollectionGame, f: CollectionFilter): boolean {
+function matchesFilter(
+  g: CollectionGame,
+  f: CollectionFilter,
+  ctx: CollectionContext,
+): boolean {
   if (f === "all") return true;
   if (f === "duplicates") return g.is_duplicate;
+  if (f === "cheats") return !!ctx.cheatIds?.has(g.game_id.toUpperCase());
+  if (f === "smaller") return shrinkCandidate(g) !== null;
   return g.locations.some((l) => l.type.split(".")[0] === f);
 }
 
@@ -117,6 +154,7 @@ function compare(
   a: CollectionGame,
   b: CollectionGame,
   sort: CollectionSort,
+  ctx: CollectionContext,
 ): number {
   const byTitle = a.title.localeCompare(b.title, undefined, {
     sensitivity: "base",
@@ -140,6 +178,12 @@ function compare(
       return a.total_size_bytes - b.total_size_bytes || byTitle;
     case "locations-desc":
       return b.locations.length - a.locations.length || byTitle;
+    case "played-desc":
+      // Never seen played sorts last, by title.
+      return (
+        (ctx.lastPlayed?.(b.game_id) ?? 0) -
+          (ctx.lastPlayed?.(a.game_id) ?? 0) || byTitle
+      );
   }
 }
 
@@ -150,23 +194,25 @@ export function viewGames(
   return games
     .filter(
       (g) =>
-        matchesFilter(g, q.filter) &&
+        matchesFilter(g, q.filter, q) &&
         matchesPlatform(g, q.platform) &&
-        matchesConsole(g, q.console, q.consoleStates) &&
+        matchesConsole(g, q.console, q.consoleStates, q.consoleFw) &&
         matchesSearch(g, q.search),
     )
-    .sort((a, b) => compare(a, b, q.sort));
+    .sort((a, b) => compare(a, b, q.sort, q));
 }
 
 /** How many of each filter's games there are, for the chips. */
 export function filterCounts(
   games: CollectionGame[],
+  ctx: CollectionContext = {},
 ): Record<CollectionFilter, number> {
   const out = Object.fromEntries(
     COLLECTION_FILTERS.map((f) => [f, 0]),
   ) as Record<CollectionFilter, number>;
   for (const g of games)
-    for (const f of COLLECTION_FILTERS) if (matchesFilter(g, f)) out[f] += 1;
+    for (const f of COLLECTION_FILTERS)
+      if (matchesFilter(g, f, ctx)) out[f] += 1;
   return out;
 }
 
@@ -178,7 +224,9 @@ export function addOnCount(g: CollectionGame): number {
 }
 
 /** A game's full copies beyond its largest: what "Reclaimable" counts (never an add-on). */
-export function extraCopies(g: Pick<CollectionGame, "locations">): CollectionLocation[] {
+export function extraCopies(
+  g: Pick<CollectionGame, "locations">,
+): CollectionLocation[] {
   const copies = g.locations
     .filter((l) => l.pkg?.kind !== "patch" && l.pkg?.kind !== "dlc")
     .sort((a, b) => b.size_bytes - a.size_bytes);

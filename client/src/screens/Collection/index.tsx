@@ -1,7 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  CheckSquare,
   FolderPlus,
   FolderSearch,
+  PackageOpen,
+  Send,
+  ShieldCheck,
+  Shrink,
   LayoutGrid,
   Library,
   List,
@@ -63,6 +68,18 @@ import { gamePath } from "../../lib/gamePage";
 import { exportCollection } from "./exportCollection";
 import { useActiveCopies } from "../../state/copyActivity";
 import { useShallow } from "zustand/react/shallow";
+import { useCheatTitleIds } from "../../lib/cheatIndex";
+import { parsePS5Firmware } from "../../lib/ps5Firmware";
+import {
+  lastSeenPlayingFor,
+  playSecondsFor,
+  usePlayTimeStore,
+} from "../../state/playTime";
+import { openInConvert } from "../../lib/collectionActions";
+import { bestConvertible } from "../../lib/collectionConvert";
+import { shrinkCandidate } from "../../lib/collectionInsights";
+import { startCopyChecks } from "../../state/copyChecks";
+import { SendManyModal } from "./SendManyModal";
 
 /** The games kept on this computer's drives: PS Game Library, inside ps5upload. */
 export default function CollectionScreen() {
@@ -130,6 +147,18 @@ export default function CollectionScreen() {
     [helperUp, consoleEntry],
   );
 
+  // The selected console's firmware, the cheat index and play time: for the badges, the
+  // "Needs newer firmware" / "Has cheats" filters and the "Recently played" sort.
+  const kernel = useConnectionStore((c) => c.ps5Kernel);
+  const consoleFw = helperUp ? parsePS5Firmware(kernel) : null;
+  const cheatIds = useCheatTitleIds();
+  const playByHost = usePlayTimeStore((p) => p.byHost);
+  const seenByHost = usePlayTimeStore((p) => p.lastSeenByHost);
+  const lastPlayed = useCallback(
+    (id: string) =>
+      lastSeenPlayingFor({ lastSeenByHost: seenByHost }, host, id),
+    [seenByHost, host],
+  );
   const games = useMemo(() => collectionGames(s.library), [s.library]);
   const shown = useMemo(
     () =>
@@ -140,6 +169,9 @@ export default function CollectionScreen() {
         sort: s.sort,
         console: s.consoleFilter,
         consoleStates,
+        consoleFw,
+        cheatIds,
+        lastPlayed,
       }),
     [
       games,
@@ -149,16 +181,77 @@ export default function CollectionScreen() {
       s.sort,
       s.consoleFilter,
       consoleStates,
+      consoleFw,
+      cheatIds,
+      lastPlayed,
     ],
   );
-  const counts = useMemo(() => filterCounts(games), [games]);
+  const counts = useMemo(
+    () => filterCounts(games, { cheatIds }),
+    [games, cheatIds],
+  );
   const cCounts = useMemo(
-    () => consoleCounts(games, consoleStates),
-    [games, consoleStates],
+    () => consoleCounts(games, consoleStates, consoleFw),
+    [games, consoleStates, consoleFw],
+  );
+
+  // Select mode: the cards pick instead of opening, and the bar acts on what is picked.
+  const [selecting, setSelecting] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(() => new Set());
+  const [sendOpen, setSendOpen] = useState(false);
+  const toggleSelect = useCallback((id: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+  const selectedGames = useMemo(
+    () => games.filter((g) => selected.has(g.game_id)),
+    [games, selected],
+  );
+  const endSelect = () => {
+    setSelecting(false);
+    setSelected(new Set());
+  };
+  const convertSelected = () =>
+    openInConvert(
+      navigate,
+      selectedGames
+        .map((g) => bestConvertible(g.locations))
+        .filter((l) => l !== null),
+    );
+  const checkSelected = () => {
+    const paths = selectedGames.flatMap((g) =>
+      g.locations.map((l) => l.absolute_path),
+    );
+    void startCopyChecks(paths);
+    pushNotification(
+      "info",
+      tr("collection.check_many", { n: paths.length }, "Checking {n} copies"),
+      {
+        body: tr(
+          "collection.check_many_body",
+          undefined,
+          "One at a time, on this computer. Each game's page shows what was found.",
+        ),
+      },
+    );
+  };
+  const shrinkable = useMemo(
+    () =>
+      s.filter === "smaller"
+        ? shown.map(shrinkCandidate).filter((l) => l !== null)
+        : [],
+    [s.filter, shown],
   );
   // What is being sent or installed right now, by copy: one lookup for the whole grid.
   const active = useActiveCopies(host);
-  const openGame = useCallback((id: string) => navigate(gamePath(id)), [navigate]);
+  const openGame = useCallback(
+    (id: string) => navigate(gamePath(id)),
+    [navigate],
+  );
   const activityOf = (g: (typeof games)[number]) => {
     for (const l of g.locations) {
       const a = active.get(l.absolute_path);
@@ -219,6 +312,8 @@ export default function CollectionScreen() {
   const filterLabel: Record<CollectionFilter, string> = {
     all: tr("collection.filter.all", undefined, "All"),
     duplicates: tr("collection.filter.duplicates", undefined, "Duplicates"),
+    cheats: tr("collection.filter.cheats", undefined, "Has cheats"),
+    smaller: tr("collection.filter.smaller", undefined, "Could be smaller"),
     pkg: tr("collection.filter.pkg", undefined, "Packages"),
     mount: tr("collection.filter.mount", undefined, "Images"),
     folder: tr("collection.filter.folder", undefined, "Folders"),
@@ -255,6 +350,11 @@ export default function CollectionScreen() {
       "collection.sort.locations_desc",
       undefined,
       "Most copies",
+    ),
+    "played-desc": tr(
+      "collection.sort.played_desc",
+      undefined,
+      "Recently played",
     ),
   };
 
@@ -601,6 +701,17 @@ export default function CollectionScreen() {
                 },
               ]}
             />
+            <Button
+              size="sm"
+              variant={selecting ? "primary" : "secondary"}
+              leftIcon={<CheckSquare size={13} />}
+              aria-pressed={selecting}
+              onClick={() => (selecting ? endSelect() : setSelecting(true))}
+            >
+              {selecting
+                ? tr("collection.select_done", undefined, "Done")
+                : tr("collection.select", undefined, "Select")}
+            </Button>
           </div>
 
           <div
@@ -618,7 +729,9 @@ export default function CollectionScreen() {
                   className="chip min-h-9 gap-1.5 px-4 text-xs font-medium"
                 >
                   {filterLabel[f]}
-                  <span className="tabular-nums text-[var(--color-muted)]">{counts[f]}</span>
+                  <span className="tabular-nums text-[var(--color-muted)]">
+                    {counts[f]}
+                  </span>
                 </button>
               ),
             )}
@@ -673,6 +786,20 @@ export default function CollectionScreen() {
                     tr("collection.console_dlc", undefined, "DLC missing"),
                     cCounts.dlc,
                   ],
+                  ...(consoleFw &&
+                  (cCounts.firmware > 0 || s.consoleFilter === "firmware")
+                    ? [
+                        [
+                          "firmware",
+                          tr(
+                            "collection.console_firmware",
+                            undefined,
+                            "Needs newer firmware",
+                          ),
+                          cCounts.firmware,
+                        ],
+                      ]
+                    : []),
                 ] as [ConsoleFilter, string, number][]
               ).map(([f, label, n]) => (
                 <button
@@ -683,7 +810,9 @@ export default function CollectionScreen() {
                   className="chip min-h-9 gap-1.5 px-4 text-xs font-medium"
                 >
                   {label}
-                  <span className="tabular-nums text-[var(--color-muted)]">{n}</span>
+                  <span className="tabular-nums text-[var(--color-muted)]">
+                    {n}
+                  </span>
                 </button>
               ))}
             </div>
@@ -698,8 +827,41 @@ export default function CollectionScreen() {
                   "This PS5 can take {u} update(s) and DLC for {d} game(s) from your collection.",
                 )}
               </span>
-              <Button size="sm" variant="primary" onClick={() => void bringUpToDate()}>
-                {tr("collection.update_all", undefined, "Bring this PS5 up to date")}
+              <Button
+                size="sm"
+                variant="primary"
+                onClick={() => void bringUpToDate()}
+              >
+                {tr(
+                  "collection.update_all",
+                  undefined,
+                  "Bring this PS5 up to date",
+                )}
+              </Button>
+            </div>
+          )}
+          {s.filter === "smaller" && shrinkable.length > 0 && (
+            <div className="surface-panel mb-5 flex flex-wrap items-center gap-3 !rounded-[var(--radius-card)] px-5 py-3 text-sm">
+              <span className="min-w-0 flex-1">
+                {tr(
+                  "collection.smaller_banner",
+                  { n: shrinkable.length },
+                  "{n} PS5 game(s) are kept as a folder or an uncompressed image. As a compressed image (.ffpfsc) they take less room here and on the PS5; how much depends on the game.",
+                )}
+              </span>
+              <Button
+                size="sm"
+                variant="primary"
+                leftIcon={<Shrink size={13} />}
+                onClick={() =>
+                  openInConvert(navigate, shrinkable, { compress: true })
+                }
+              >
+                {tr(
+                  "collection.smaller_go",
+                  undefined,
+                  "Queue them in Convert",
+                )}
               </Button>
             </div>
           )}
@@ -737,6 +899,17 @@ export default function CollectionScreen() {
                   activity={activityOf(g)}
                   consoleState={consoleStates?.get(g.game_id)}
                   onOpen={openGame}
+                  host={helperUp ? host : undefined}
+                  consoleFw={consoleFw}
+                  hasCheats={!!cheatIds?.has(g.game_id.toUpperCase())}
+                  playSec={playSecondsFor(
+                    { byHost: playByHost },
+                    host,
+                    g.game_id,
+                  )}
+                  selecting={selecting}
+                  selected={selected.has(g.game_id)}
+                  onToggleSelect={toggleSelect}
                 />
               ))}
             </div>
@@ -744,11 +917,83 @@ export default function CollectionScreen() {
             <CollectionTable
               games={shown}
               onOpen={(id) => navigate(gamePath(id))}
+              host={helperUp ? host : undefined}
+              consoleFw={consoleFw}
+              consoleStates={consoleStates}
+              cheatIds={cheatIds}
+              playSec={(id) => playSecondsFor({ byHost: playByHost }, host, id)}
+              selecting={selecting}
+              selected={selected}
+              onToggleSelect={toggleSelect}
             />
           )}
         </>
       )}
 
+      {selecting && (
+        // The selection's actions, kept in view while the grid scrolls.
+        <div className="sticky bottom-3 z-20 mt-4 flex flex-wrap items-center gap-2 rounded-[var(--radius-card)] border border-[var(--glass-edge)] bg-[var(--color-float)] px-4 py-3 text-sm shadow-lg backdrop-blur">
+          <span className="mr-auto tabular-nums">
+            {tr("collection.selected_n", { n: selected.size }, "{n} selected")}
+          </span>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() =>
+              setSelected(
+                selected.size === shown.length && shown.length > 0
+                  ? new Set()
+                  : new Set(shown.map((g) => g.game_id)),
+              )
+            }
+          >
+            {selected.size === shown.length && shown.length > 0
+              ? tr("collection.select_none", undefined, "Select none")
+              : tr(
+                  "collection.select_all",
+                  { n: shown.length },
+                  "Select all {n}",
+                )}
+          </Button>
+          <Button
+            size="sm"
+            variant="primary"
+            leftIcon={<Send size={13} />}
+            disabled={selected.size === 0}
+            onClick={() => setSendOpen(true)}
+          >
+            {tr("collection.send_many", undefined, "Send to PS5…")}
+          </Button>
+          <Button
+            size="sm"
+            variant="secondary"
+            leftIcon={<PackageOpen size={13} />}
+            disabled={!selectedGames.some((g) => bestConvertible(g.locations))}
+            onClick={convertSelected}
+          >
+            {tr("collection.convert_many", undefined, "Convert")}
+          </Button>
+          <Button
+            size="sm"
+            variant="secondary"
+            leftIcon={<ShieldCheck size={13} />}
+            disabled={selected.size === 0}
+            onClick={checkSelected}
+          >
+            {tr("collection.check_many_go", undefined, "Check copies")}
+          </Button>
+        </div>
+      )}
+      <SendManyModal
+        open={sendOpen}
+        games={selectedGames}
+        host={host}
+        onClose={() => setSendOpen(false)}
+        onSent={() => {
+          setSendOpen(false);
+          endSelect();
+        }}
+      />
       {dialog}
       <OrganizeModal
         open={organizeOpen}
@@ -783,17 +1028,45 @@ function ScanProgress() {
   if (!scan) return null;
   const v = scanView(scan);
   const title = {
-    finding: tr("collection.scan_phase_finding", undefined, "Looking for games in your folders"),
-    reading: tr("collection.scan_phase_reading", undefined, "Reading each item"),
-    naming: tr("collection.scan_phase_naming", undefined, "Finding names and covers"),
-    saving: tr("collection.scan_phase_saving", undefined, "Saving the collection"),
+    finding: tr(
+      "collection.scan_phase_finding",
+      undefined,
+      "Looking for games in your folders",
+    ),
+    reading: tr(
+      "collection.scan_phase_reading",
+      undefined,
+      "Reading each item",
+    ),
+    naming: tr(
+      "collection.scan_phase_naming",
+      undefined,
+      "Finding names and covers",
+    ),
+    saving: tr(
+      "collection.scan_phase_saving",
+      undefined,
+      "Saving the collection",
+    ),
   }[v.phase];
   const detail = v.counts
     ? v.phase === "naming"
-      ? tr("collection.scan_games_n", { done: v.counts.done, total: v.counts.total }, "{done} of {total} games")
-      : tr("collection.scan_items_n", { done: v.counts.done, total: v.counts.total }, "{done} of {total} items")
+      ? tr(
+          "collection.scan_games_n",
+          { done: v.counts.done, total: v.counts.total },
+          "{done} of {total} games",
+        )
+      : tr(
+          "collection.scan_items_n",
+          { done: v.counts.done, total: v.counts.total },
+          "{done} of {total} items",
+        )
     : v.folder
-      ? tr("collection.scan_folder_n", { n: v.folder.n, total: v.folder.total }, "Folder {n} of {total}")
+      ? tr(
+          "collection.scan_folder_n",
+          { n: v.folder.n, total: v.folder.total },
+          "Folder {n} of {total}",
+        )
       : null;
   return (
     <section
@@ -804,21 +1077,23 @@ function ScanProgress() {
       <div className="flex items-center gap-2 text-sm">
         <Spinner size={14} />
         <span className="min-w-0 flex-1 truncate font-medium">{title}</span>
-        {detail && <span className="shrink-0 text-xs tabular-nums text-[var(--color-muted)]">{detail}</span>}
+        {detail && (
+          <span className="shrink-0 text-xs tabular-nums text-[var(--color-muted)]">
+            {detail}
+          </span>
+        )}
         {scan.started_ms > 0 && (
           <span className="shrink-0 text-xs tabular-nums text-[var(--color-muted)]">
             {elapsedLabel(scan.started_ms, now)}
           </span>
         )}
       </div>
-      <ProgressBar
-        className="mt-2.5"
-        size="sm"
-        value={v.value}
-        label={title}
-      />
+      <ProgressBar className="mt-2.5" size="sm" value={v.value} label={title} />
       {v.current && (
-        <p className="mt-1.5 truncate text-xs text-[var(--color-muted)]" title={v.current}>
+        <p
+          className="mt-1.5 truncate text-xs text-[var(--color-muted)]"
+          title={v.current}
+        >
           {v.current}
         </p>
       )}
@@ -831,10 +1106,20 @@ function LastScan() {
   const tr = useTr();
   const fmt = useFormatDate();
   const scan = useCollectionStore((st) => st.scan);
-  if (!scan || scan.running || scan.error || !scan.finished_ms || !scan.started_ms) return null;
+  if (
+    !scan ||
+    scan.running ||
+    scan.error ||
+    !scan.finished_ms ||
+    !scan.started_ms
+  )
+    return null;
   const took = elapsedLabel(scan.started_ms, scan.finished_ms);
   return (
-    <p className="mb-3 text-xs text-[var(--color-muted)]" data-testid="collection-last-scan">
+    <p
+      className="mb-3 text-xs text-[var(--color-muted)]"
+      data-testid="collection-last-scan"
+    >
       {tr(
         "collection.last_scan_took",
         { when: fmt(scan.finished_ms), took },
@@ -869,7 +1154,9 @@ function Stat({
       <div className="text-[0.6875rem] font-medium uppercase tracking-[0.08em] text-[var(--color-muted)]">
         {label}
       </div>
-      <div className="mt-0.5 whitespace-nowrap text-lg font-semibold tracking-[-0.01em] tabular-nums">{value}</div>
+      <div className="mt-0.5 whitespace-nowrap text-lg font-semibold tracking-[-0.01em] tabular-nums">
+        {value}
+      </div>
     </div>
   );
 }

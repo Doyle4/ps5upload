@@ -83,6 +83,34 @@ pub fn extract(
     std::fs::create_dir_all(dest).with_context(|| format!("create {}", dest.display()))?;
     let mut sink = Sink {
         dest,
+        discard: false,
+        done: 0,
+        total,
+        on_bytes,
+        cancel,
+    };
+    sink.check_cancel()?;
+    match kind {
+        ArchiveKind::Zip => extract_zip(archive, &mut sink),
+        ArchiveKind::SevenZ => extract_7z(archive, &mut sink),
+        ArchiveKind::Rar => extract_rar(archive, password, &mut sink),
+    }
+}
+
+/// Read every file in `archive` through its decoder and throw the bytes away: each entry's
+/// checksum (zip CRC-32, 7z CRC, RAR's own) is checked as it is read, so a damaged archive
+/// fails here the way it would fail half way through an unpack. Nothing is written.
+pub fn test(
+    archive: &Path,
+    password: Option<&str>,
+    on_bytes: &mut dyn FnMut(u64, u64),
+    cancel: &AtomicBool,
+) -> Result<()> {
+    let kind = kind_of(archive)?;
+    let total = unpacked_size(archive, password)?;
+    let mut sink = Sink {
+        dest: Path::new("."),
+        discard: true,
         done: 0,
         total,
         on_bytes,
@@ -104,6 +132,8 @@ fn kind_of(archive: &Path) -> Result<ArchiveKind> {
 /// Where unpacked bytes go, counted and cancellable.
 struct Sink<'a> {
     dest: &'a Path,
+    /// Read and count, write nothing (a [`test`]).
+    discard: bool,
     done: u64,
     total: u64,
     on_bytes: &'a mut dyn FnMut(u64, u64),
@@ -121,16 +151,23 @@ impl Sink<'_> {
     /// `rel` is already sanitised: relative, no `..`.
     fn dir(&self, rel: &str) -> Result<()> {
         let p = host_path(self.dest, rel)?;
+        if self.discard {
+            return Ok(());
+        }
         std::fs::create_dir_all(&p).with_context(|| format!("create {}", p.display()))
     }
 
     fn file(&mut self, rel: &str, from: &mut dyn Read) -> Result<()> {
         let p = host_path(self.dest, rel)?;
-        if let Some(parent) = p.parent() {
-            std::fs::create_dir_all(parent)
-                .with_context(|| format!("create {}", parent.display()))?;
-        }
-        let mut out = File::create(&p).with_context(|| format!("create {}", p.display()))?;
+        let mut out = if self.discard {
+            None
+        } else {
+            if let Some(parent) = p.parent() {
+                std::fs::create_dir_all(parent)
+                    .with_context(|| format!("create {}", parent.display()))?;
+            }
+            Some(File::create(&p).with_context(|| format!("create {}", p.display()))?)
+        };
         let mut buf = vec![0u8; 1 << 20];
         loop {
             self.check_cancel()?;
@@ -140,8 +177,10 @@ impl Sink<'_> {
                 Err(e) if e.kind() == std::io::ErrorKind::Interrupted => continue,
                 Err(e) => return Err(anyhow!("unpack {rel}: {e}")),
             };
-            out.write_all(&buf[..n])
-                .with_context(|| format!("write {}", p.display()))?;
+            if let Some(out) = out.as_mut() {
+                out.write_all(&buf[..n])
+                    .with_context(|| format!("write {}", p.display()))?;
+            }
             self.done += n as u64;
             (self.on_bytes)(self.done, self.total.max(self.done));
         }

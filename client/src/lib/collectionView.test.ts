@@ -175,6 +175,7 @@ describe("the console overlay", () => {
       missing: 1,
       update: 1,
       dlc: 1,
+      firmware: 0,
     });
   });
 

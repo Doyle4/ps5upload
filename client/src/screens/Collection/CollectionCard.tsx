@@ -1,6 +1,16 @@
 import { memo } from "react";
 import { useNavigate } from "react-router";
-import { Copy as CopyIcon, ExternalLink, PackageOpen } from "lucide-react";
+import {
+  Check,
+  Copy as CopyIcon,
+  Download,
+  ExternalLink,
+  PackageOpen,
+  Shield,
+  ShieldCheck,
+  Shrink,
+  Wrench,
+} from "lucide-react";
 
 import type { CollectionGame, GameConsoleState } from "../../api/collection";
 import { addOnCount, formatCollectionBytes } from "../../lib/collectionView";
@@ -19,43 +29,177 @@ import {
   type OverflowMenuItem,
 } from "../../components/OverflowMenu";
 import { bestConvertible } from "../../lib/collectionConvert";
+import {
+  firmwareShortfall,
+  shrinkCandidate,
+} from "../../lib/collectionInsights";
+import { openInConvert } from "../../lib/collectionActions";
+import { installOffers } from "../GameHub/collectionInstall";
+import { pushNotification } from "../../state/notifications";
+import { startCopyChecks } from "../../state/copyChecks";
+import { gamePath } from "../../lib/gamePage";
+import { formatPlayTime } from "../../state/playTime";
 
-/** A game's quick actions, for its card and table row: open its page, or convert its best copy
- *  (a folder before an image, archive or base package) without opening the page first. */
+/** What the quick actions and badges know about the selected console. */
+export interface GameConsoleContext {
+  /** The connected console, when its helper answers. */
+  host?: string;
+  /** Its firmware ("9.60"), when known. */
+  consoleFw?: string | null;
+  /** What it has of this game. */
+  consoleState?: GameConsoleState;
+  /** The cheat index has cheats for this game. */
+  hasCheats?: boolean;
+}
+
+/** A game's quick actions, for its card and table row: open its page, install what the console
+ *  lacks, convert or shrink its best copy, its cheats, backport it, check its copies. */
 export function GameQuickActions({
   game,
   onOpen,
+  host,
+  consoleFw,
+  consoleState,
+  hasCheats,
 }: {
-  game: Pick<CollectionGame, "game_id" | "title" | "locations">;
+  game: Pick<CollectionGame, "game_id" | "title" | "locations" | "platform">;
   onOpen: (gameId: string) => void;
-}) {
+} & GameConsoleContext) {
   const tr = useTr();
   const navigate = useNavigate();
   const convertible = bestConvertible(game.locations);
+  const shrink = shrinkCandidate(game);
+  const installed = !!consoleState?.installed;
+  const tooNew = firmwareShortfall(game, consoleFw ?? null);
+  const queue = (offers: NonNullable<GameConsoleState["update"]>[]) => {
+    if (!host) return;
+    const n = installOffers(
+      host,
+      offers.map((offer) => ({ game, offer })),
+    );
+    pushNotification(
+      "info",
+      tr("collection.queued", { n }, "{n} packages queued for install"),
+      { link: "/install-package" },
+    );
+  };
   const items: OverflowMenuItem[] = [
     {
       icon: <ExternalLink size={12} />,
       label: tr("game_open_page", undefined, "Open game page"),
       onSelect: () => onOpen(game.game_id),
     },
-    ...(convertible
-      ? [
-          {
-            icon: <PackageOpen size={12} />,
-            label: tr("collection.convert", undefined, "Convert…"),
-            title: tr(
-              "collection.convert_hint",
-              undefined,
-              "Open it in Convert: make an installable package, or a different game image.",
-            ),
-            onSelect: () =>
-              navigate("/convert", {
-                state: { source: convertible.absolute_path },
-              }),
-          },
-        ]
-      : []),
   ];
+  if (host && installed && consoleState?.update) {
+    const update = consoleState.update;
+    items.push({
+      icon: <Download size={12} />,
+      label: tr(
+        "collection.install_update",
+        { v: update.version },
+        "Install update {v}",
+      ),
+      title: tr(
+        "collection.badge_update_hint",
+        { have: consoleState.installed_version ?? "?", v: update.version },
+        "The console has {have}; the collection has update {v}.",
+      ),
+      onSelect: () => queue([update]),
+    });
+  }
+  if (
+    host &&
+    installed &&
+    consoleState &&
+    consoleState.dlc_missing.length > 0
+  ) {
+    const dlc = consoleState.dlc_missing;
+    items.push({
+      icon: <Download size={12} />,
+      label: tr(
+        "collection.install_dlc",
+        { n: dlc.length },
+        "Install missing DLC ({n})",
+      ),
+      onSelect: () => queue(dlc),
+    });
+  }
+  if (convertible) {
+    items.push({
+      icon: <PackageOpen size={12} />,
+      label: tr("collection.convert", undefined, "Convert…"),
+      title: tr(
+        "collection.convert_hint",
+        undefined,
+        "Open it in Convert: make an installable package, or a different game image.",
+      ),
+      onSelect: () => openInConvert(navigate, [convertible]),
+    });
+  }
+  if (shrink) {
+    items.push({
+      icon: <Shrink size={12} />,
+      label: tr("collection.shrink", undefined, "Make it smaller…"),
+      title: tr(
+        "collection.shrink_hint",
+        undefined,
+        "Open it in Convert set to a compressed game image (.ffpfsc). How much room it saves depends on the game.",
+      ),
+      onSelect: () => openInConvert(navigate, [shrink], { compress: true }),
+    });
+  }
+  if (hasCheats || installed) {
+    items.push({
+      icon: <Shield size={12} />,
+      label: tr("collection.cheats", undefined, "Cheats…"),
+      onSelect: () => navigate("/cheats", { state: { titleId: game.game_id } }),
+    });
+  }
+  if (installed && tooNew) {
+    items.push({
+      icon: <Wrench size={12} />,
+      label: tr("collection.backport", undefined, "Backport…"),
+      title: tr(
+        "collection.backport_hint",
+        { need: tooNew, have: consoleFw ?? "?" },
+        "It asks for firmware {need} and this PS5 is on {have}. Backporting can let it start.",
+      ),
+      onSelect: () =>
+        navigate("/games?tab=ready", {
+          state: { backportTitleId: game.game_id },
+        }),
+    });
+  }
+  if (game.locations.length > 0) {
+    items.push({
+      icon: <ShieldCheck size={12} />,
+      label:
+        game.locations.length === 1
+          ? tr("collection.check_copy", undefined, "Check the copy")
+          : tr(
+              "collection.check_copies",
+              { n: game.locations.length },
+              "Check its {n} copies",
+            ),
+      title: tr(
+        "collection.check_hint",
+        undefined,
+        "Read every copy back to find one that is damaged or cut short. Runs on this computer, one copy at a time.",
+      ),
+      onSelect: () => {
+        void startCopyChecks(game.locations.map((l) => l.absolute_path));
+        pushNotification(
+          "info",
+          tr(
+            "collection.check_started",
+            { title: game.title },
+            "Checking {title}",
+          ),
+          { link: gamePath(game.game_id) },
+        );
+      },
+    });
+  }
   return (
     <OverflowMenu
       items={items}
@@ -121,6 +265,23 @@ export function ConsoleBadge({ state }: { state?: GameConsoleState }) {
   );
 }
 
+/** "Needs FW 10.00": the game asks for newer firmware than the selected console has. */
+export function FirmwareBadge({ need, have }: { need: string; have: string }) {
+  const tr = useTr();
+  return (
+    <CoverTag
+      tone="warn"
+      title={tr(
+        "collection.fw_hint",
+        { need, have },
+        "It asks for firmware {need}; this PS5 is on {have}. It may not start unless it is backported.",
+      )}
+    >
+      {tr("collection.fw_badge", { need }, "Needs FW {need}")}
+    </CoverTag>
+  );
+}
+
 /** "Sending 34%", "Installing", "Queued", "Building": what is happening to the game right now. */
 function ActivityBadge({ activity }: { activity: CopyActivity }) {
   const tr = useTr();
@@ -144,17 +305,31 @@ export const CollectionCard = memo(function CollectionCard({
   onOpen,
   consoleState,
   activity,
+  host,
+  consoleFw,
+  hasCheats,
+  playSec,
+  selecting,
+  selected,
+  onToggleSelect,
 }: {
   game: CollectionGame;
   onOpen: (gameId: string) => void;
-  consoleState?: GameConsoleState;
   activity?: CopyActivity | null;
-}) {
+  /** Seconds seen played on the selected console. */
+  playSec?: number;
+  /** Select mode: the card picks instead of opening. */
+  selecting?: boolean;
+  selected?: boolean;
+  onToggleSelect?: (gameId: string) => void;
+} & GameConsoleContext) {
   const tr = useTr();
   const copiesLabel = useCopiesLabel();
   // The cover and the caption each open the game; the "⋯" menu beside the caption holds the
   // quick actions (a button cannot hold another, so the card is not one button any more).
-  const open = () => onOpen(game.game_id);
+  const open = () =>
+    selecting ? onToggleSelect?.(game.game_id) : onOpen(game.game_id);
+  const tooNew = firmwareShortfall(game, consoleFw ?? null);
   const focusRing =
     "rounded-[var(--radius-card)] text-left focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--color-accent)]";
   return (
@@ -162,15 +337,41 @@ export const CollectionCard = memo(function CollectionCard({
       <button
         type="button"
         onClick={open}
-        className={focusRing}
+        className={`${focusRing} ${selected ? "outline-2 outline-offset-4 outline-[var(--color-accent)]" : ""}`}
         aria-label={game.title}
+        aria-pressed={selecting ? !!selected : undefined}
       >
         <CoverFrame
           interactive
           overlay={
             <>
-              <div className="absolute left-2 top-2">
+              <div className="absolute left-2 top-2 flex items-center gap-1">
+                {selecting && (
+                  <span
+                    aria-hidden
+                    className={`grid size-5 place-items-center rounded-full border ${
+                      selected
+                        ? "border-[var(--color-accent)] bg-[var(--color-accent)] text-white"
+                        : "border-white/70 bg-black/40"
+                    }`}
+                  >
+                    {selected && <Check size={12} strokeWidth={3} />}
+                  </span>
+                )}
                 <PlatformTag platform={game.platform} />
+                {hasCheats && (
+                  <CoverTag
+                    tone="neutral"
+                    icon={<Shield size={11} aria-hidden />}
+                    title={tr(
+                      "collection.cheats_hint",
+                      undefined,
+                      "The cheat repositories have cheats for this game.",
+                    )}
+                  >
+                    {tr("collection.cheats_tag", undefined, "Cheats")}
+                  </CoverTag>
+                )}
               </div>
               {game.is_duplicate && (
                 <span className="absolute right-2 top-2">
@@ -189,6 +390,9 @@ export const CollectionCard = memo(function CollectionCard({
               )}
               <div className="absolute inset-x-2 bottom-2 flex flex-wrap items-end justify-between gap-1">
                 <ConsoleBadge state={consoleState} />
+                {tooNew && consoleFw && (
+                  <FirmwareBadge need={tooNew} have={consoleFw} />
+                )}
                 {activity &&
                   (activity.phase === "building" ||
                     activity.phase === "queued" ||
@@ -219,13 +423,37 @@ export const CollectionCard = memo(function CollectionCard({
                 <span className="shrink-0 tabular-nums">
                   {formatCollectionBytes(game.total_size_bytes)}
                 </span>
+                {!!playSec && playSec > 0 && (
+                  <>
+                    <MetaDot />
+                    <span
+                      className="shrink-0 tabular-nums"
+                      title={tr(
+                        "collection.played_hint",
+                        undefined,
+                        "Time this app has seen it played on this PS5",
+                      )}
+                    >
+                      {formatPlayTime(playSec)}
+                    </span>
+                  </>
+                )}
               </>
             }
           />
         </button>
-        <div className="shrink-0 pt-1.5">
-          <GameQuickActions game={game} onOpen={onOpen} />
-        </div>
+        {!selecting && (
+          <div className="shrink-0 pt-1.5">
+            <GameQuickActions
+              game={game}
+              onOpen={onOpen}
+              host={host}
+              consoleFw={consoleFw}
+              consoleState={consoleState}
+              hasCheats={hasCheats}
+            />
+          </div>
+        )}
       </div>
     </div>
   );

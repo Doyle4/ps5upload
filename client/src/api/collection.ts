@@ -47,7 +47,33 @@ export interface CollectionPkg {
   kind_confident?: boolean;
   kind_reason?: string;
   complete?: boolean;
+  /** The firmware the copy asks for ("7.00"). A PS4 copy names a PS4 firmware. */
+  min_fw?: string;
   error?: string;
+}
+
+/** One problem a copy check found: a file inside the copy, or "" for the copy as a whole. */
+export interface CopyProblem {
+  file: string;
+  error: string;
+}
+
+/** A copy check (`/api/collection/check`). `method` says how far it could look: `package`
+ *  (verified against its own digests), `archive` (every entry's checksum), `files` (every file
+ *  read back) or `bytes` (read start to end: finds a cut-short or unreadable copy only). */
+export interface CopyCheck {
+  path: string;
+  state: "queued" | "running" | "ok" | "problems" | "failed" | "cancelled";
+  method: "" | "package" | "archive" | "files" | "bytes";
+  bytes_done: number;
+  bytes_total: number;
+  files_done: number;
+  files_total: number;
+  problems: CopyProblem[];
+  problems_total: number;
+  error: string | null;
+  started_ms: number;
+  finished_ms: number;
 }
 
 export interface CollectionLocation {
@@ -360,6 +386,17 @@ export const collection = {
     call<MacSettings>("/macos/spotlight", {
       method: "POST",
       body: JSON.stringify({ volume, action }),
+    }),
+  checks: () => call<{ checks: CopyCheck[] }>("/check"),
+  check: (paths: string[]) =>
+    call<{ checks: CopyCheck[] }>("/check", {
+      method: "POST",
+      body: JSON.stringify({ paths }),
+    }),
+  checkCancel: (path?: string) =>
+    call<{ checks: CopyCheck[] }>("/check/cancel", {
+      method: "POST",
+      body: JSON.stringify({ path: path ?? null }),
     }),
   /** `version` (see coverVersion) makes a cover read again once its game changed. */
   coverUrl: (gameId: string, version?: string) =>

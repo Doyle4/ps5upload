@@ -1,7 +1,7 @@
 import { formatDate } from "../../lib/formatDate";
 import { useState } from "react";
 import { useNavigate } from "react-router";
-import { Copy, Download, FolderOpen, Link2, PackageOpen, Trash2, Upload } from "lucide-react";
+import { Copy, Download, FolderOpen, Link2, PackageOpen, ShieldCheck, Trash2, Upload } from "lucide-react";
 
 import type { CollectionLocation } from "../../api/collection";
 import { Badge, OverflowMenu, type OverflowMenuItem } from "../../components";
@@ -24,6 +24,8 @@ import { gamePath } from "../../lib/gamePage";
 import { installOffers } from "./collectionInstall";
 import { ActivityLine } from "./ActivityLine";
 import { isConvertible } from "../../lib/collectionConvert";
+import { startCopyChecks, useCopyCheck } from "../../state/copyChecks";
+import { CopyCheckLine } from "./CopyCheckLine";
 
 // One copy of a game on the drives: what it is, where, and what can be done with it. One
 // line of facts, one of path, the primary action as a button and the rest behind a menu, so
@@ -58,6 +60,8 @@ export function CopyRow({
   const [activity] = useCopyActivity([loc.absolute_path], host);
   const connectedHost = useConnectionStore((s) => s.host);
   const [linkBusy, setLinkBusy] = useState(false);
+  const check = useCopyCheck(loc.absolute_path);
+  const checking = check?.state === "queued" || check?.state === "running";
   const sendable = !!sendKind(loc) && loc.pkg?.complete !== false && !loc.pkg?.error;
   const noTrash = useCollectionStore(
     (s) => s.settings?.trash_available === false,
@@ -167,6 +171,19 @@ export function CopyRow({
           },
         ]
       : []),
+    {
+      icon: <ShieldCheck size={12} />,
+      label: check
+        ? tr("copycheck.again", undefined, "Check it again")
+        : tr("copycheck.go", undefined, "Check this copy"),
+      title: tr(
+        "collection.check_hint",
+        undefined,
+        "Read every copy back to find one that is damaged or cut short. Runs on this computer, one copy at a time.",
+      ),
+      disabled: checking,
+      onSelect: () => void startCopyChecks([loc.absolute_path]),
+    },
     ...(canReveal
       ? [
           {
@@ -205,6 +222,11 @@ export function CopyRow({
         )}
         {p?.title && p.kind === "dlc" && <span className="text-[var(--color-text)]">{p.title}</span>}
         {p?.version && <span className="text-[var(--color-muted)]">v{p.version}</span>}
+        {p?.min_fw && p.platform === "PS5" && (
+          <span className="text-[var(--color-muted)]">
+            {tr("collection.copy_fw", { fw: p.min_fw }, "FW {fw}+")}
+          </span>
+        )}
         {p?.region && <span className="text-[var(--color-muted)]">{p.region}</span>}
         {p?.complete === false && (
           <Badge tone="warn" size="sm">
@@ -241,6 +263,7 @@ export function CopyRow({
       <div className="mt-1 break-all font-mono text-[0.6875rem] text-[var(--color-muted)]" title={path}>
         {path}
       </div>
+      <CopyCheckLine path={loc.absolute_path} />
       {(loc.added_at || p?.content_id || p?.error || (p?.kind_confident === false && p.kind_reason)) && (
         <div className="mt-0.5 text-[0.6875rem] text-[var(--color-muted)]">
           {loc.added_at

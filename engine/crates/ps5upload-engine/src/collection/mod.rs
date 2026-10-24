@@ -63,6 +63,10 @@ pub struct PkgInfo {
     pub kind_reason: String,
     #[serde(default = "yes")]
     pub complete: bool,
+    /// The firmware the item asks for (`7.00`), from its param.json or PARAM.SFO. A PS4 item
+    /// names a PS4 firmware, which says nothing about a PS5's.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub min_fw: String,
     /// Why it could not be read, when it could not.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
@@ -184,7 +188,7 @@ pub struct PkgCacheEntry {
 }
 
 /// Raised whenever identification changes, so cached identities are read again.
-pub const IDENTIFY_VERSION: u32 = 4;
+pub const IDENTIFY_VERSION: u32 = 5;
 
 /// The whole index, written to `<data dir>/collection/index.json`.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
