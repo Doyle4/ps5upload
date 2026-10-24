@@ -363,6 +363,7 @@
   "cw_files_kind_file": "File",
   "cw_files_kind_link": "Tautan",
   "cw_files_last_gone": "Folder yang terakhir dibuka ({path}) sudah tidak ada.",
+  "cw_files_list_truncated": "Folder berbagi ini terlalu besar untuk ditampilkan semuanya: hanya 100.000 item pertamanya yang ditampilkan.",
   "cw_files_load_all": "Muat semua",
   "cw_files_more": "Tampilkan lagi",
   "cw_files_move_to": "Pindahkan ke…",

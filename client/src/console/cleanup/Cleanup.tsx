@@ -393,7 +393,8 @@ export function Cleanup({ ctx }: { ctx: SectionContext }) {
       setWaiting(false);
       return;
     }
-    const id = applying?.apply_id ?? (scanning ? scanRef.current?.scan_id : undefined);
+    // the scan being polled: the last status read may still be the previous scan's
+    const id = applying?.apply_id ?? (scanning ? (polling.current ?? undefined) : undefined);
     if (id) void call("/api/cleanup/cancel", { id }).catch(() => {});
   }, [applying, scanning, waiting]);
 

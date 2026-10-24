@@ -1162,6 +1162,7 @@ export function FilesView(p: FilesViewProps) {
                     statusText(st),
                     p.selecting && view.filter ? t("cw_files_filter_on") : null,
                     capped ? t("cw_files_capped", { n: p.dir.entries.length }) : null,
+                    p.dir.truncated ? t("cw_files_list_truncated") : null,
                     vol ? t("cw_files_free", { free: formatBytes(vol.free_bytes) }) : null,
                   ]
                     .filter(Boolean)

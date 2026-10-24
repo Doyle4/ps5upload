@@ -4559,6 +4559,7 @@ c2c_test_deep_bad: "4 KiB-এর পরীক্ষামূলক পাঠা�
 "cw_files_filter_clear": "ফিল্টার সরান",
 "cw_files_load_all": "সব লোড করুন",
 "cw_files_capped": "প্রথম {n}টি আইটেম দেখানো হচ্ছে; ফোল্ডারে আরও আছে।",
+"cw_files_list_truncated": "এই শেয়ার ফোল্ডারটি পুরোটা দেখানোর জন্য খুব বড়: শুধু প্রথম 100,000টি আইটেম দেখানো হচ্ছে।",
 "cw_files_rows_more": "আরও সারি দেখান ({n}টি বাকি)",
 "cw_files_select_all": "সব বাছুন",
 "cw_files_select_none": "বাছাই সরান",

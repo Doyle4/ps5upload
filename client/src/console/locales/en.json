@@ -363,6 +363,7 @@
   "cw_files_kind_file": "File",
   "cw_files_kind_link": "Link",
   "cw_files_last_gone": "The folder you had open last ({path}) is gone.",
+  "cw_files_list_truncated": "This share folder is too big to list in full: only its first 100,000 items are shown.",
   "cw_files_load_all": "Load all",
   "cw_files_more": "Show more",
   "cw_files_move_to": "Move to…",

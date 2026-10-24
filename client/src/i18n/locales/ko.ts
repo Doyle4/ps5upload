@@ -4578,6 +4578,7 @@ c2c_test_deep_bad: "4 KiB 테스트 전송이 도착하지 않았습니다: {det
 "cw_files_filter_clear": "필터 해제",
 "cw_files_load_all": "모두 불러오기",
 "cw_files_capped": "처음 {n}개 항목만 표시합니다. 폴더에 더 있습니다.",
+"cw_files_list_truncated": "이 공유 폴더는 너무 커서 전부 표시할 수 없습니다. 처음 100,000개 항목만 표시합니다.",
 "cw_files_rows_more": "행 더 보기 ({n}개 남음)",
 "cw_files_select_all": "모두 선택",
 "cw_files_select_none": "선택 해제",

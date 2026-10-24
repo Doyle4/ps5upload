@@ -363,6 +363,7 @@
   "cw_files_kind_file": "파일",
   "cw_files_kind_link": "링크",
   "cw_files_last_gone": "마지막으로 열었던 폴더({path})가 없습니다.",
+  "cw_files_list_truncated": "이 공유 폴더는 너무 커서 전부 표시할 수 없습니다. 처음 100,000개 항목만 표시합니다.",
   "cw_files_load_all": "모두 불러오기",
   "cw_files_more": "더 보기",
   "cw_files_move_to": "이동할 위치…",

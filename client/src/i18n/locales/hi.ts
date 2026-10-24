@@ -4575,6 +4575,7 @@ c2c_test_deep_bad: "4 KiB का परीक्षण नहीं पहुँ
 "cw_files_filter_clear": "फ़िल्टर हटाएँ",
 "cw_files_load_all": "सब लोड करें",
 "cw_files_capped": "पहली {n} चीज़ें दिख रही हैं; फ़ोल्डर में और हैं।",
+"cw_files_list_truncated": "यह शेयर फ़ोल्डर पूरी सूची दिखाने के लिए बहुत बड़ा है: सिर्फ़ इसकी पहली 1,00,000 चीज़ें दिख रही हैं।",
 "cw_files_rows_more": "और पंक्तियाँ दिखाएँ ({n} बाकी)",
 "cw_files_select_all": "सब चुनें",
 "cw_files_select_none": "चयन हटाएँ",

@@ -24,6 +24,8 @@ interface ListReply {
   entries?: Entry[];
   more?: boolean;
   next?: number;
+  /** A share folder too big to list in full: the helper lists its first 100,000 entries. */
+  truncated?: boolean;
 }
 
 export interface DirState {
@@ -36,6 +38,8 @@ export interface DirState {
   loaded: boolean;
   /** The last read failed (null after a good one). */
   error: unknown;
+  /** The helper could not list the whole folder (a share folder over its entry limit). */
+  truncated?: boolean;
 }
 
 export const EMPTY_DIR: DirState = { entries: [], more: false, loading: false, loaded: false, error: null };
@@ -68,6 +72,7 @@ export function createDirLoader(path: string, onState: (s: DirState) => void): D
   let busy = false;
   let stopped = false;
   let loaded = false;
+  let truncated = false;
   /** A refresh asked for while a page was being read: run it after. */
   let pending = false;
 
@@ -81,7 +86,7 @@ export function createDirLoader(path: string, onState: (s: DirState) => void): D
 
   const emit = (loading: boolean, error: unknown) => {
     if (stopped) return;
-    onState({ entries: sortEntries(raw), more: loaded ? more : false, loading, loaded, error });
+    onState({ entries: sortEntries(raw), more: loaded ? more : false, loading, loaded, error, truncated });
   };
 
   async function page(offset: number): Promise<ListReply> {
@@ -99,6 +104,7 @@ export function createDirLoader(path: string, onState: (s: DirState) => void): D
         if (stopped) return;
         raw = raw.concat(Array.isArray(r?.entries) ? r.entries : []);
         more = !!r?.more;
+        truncated = !!r?.truncated;
         next = typeof r?.next === "number" ? r.next : next + LIST_PAGE;
         pages++;
         loaded = true;
@@ -121,6 +127,7 @@ export function createDirLoader(path: string, onState: (s: DirState) => void): D
           if (stopped) return "skipped";
           raw = raw.concat(Array.isArray(r?.entries) ? r.entries : []);
           more = !!r?.more;
+          truncated = !!r?.truncated;
           next = typeof r?.next === "number" ? r.next : next + LIST_PAGE;
           pages++;
           loaded = true;
@@ -146,6 +153,7 @@ export function createDirLoader(path: string, onState: (s: DirState) => void): D
       let got: Entry[] = [];
       let at = 0;
       let left = true;
+      let cut = false;
       let n = 0;
       try {
         while (n < want && left) {
@@ -153,12 +161,14 @@ export function createDirLoader(path: string, onState: (s: DirState) => void): D
           if (stopped) return;
           got = got.concat(Array.isArray(r?.entries) ? r.entries : []);
           left = !!r?.more;
+          cut = !!r?.truncated;
           at = typeof r?.next === "number" ? r.next : at + LIST_PAGE;
           n++;
         }
         raw = got;
         next = at;
         more = left;
+        truncated = cut;
         pages = n;
         loaded = true;
         emit(false, null);
