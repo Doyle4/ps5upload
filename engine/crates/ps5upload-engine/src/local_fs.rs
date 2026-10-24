@@ -119,6 +119,12 @@ pub fn storage_roots() -> Vec<String> {
     let home = std::env::var("HOME")
         .or_else(|_| std::env::var("USERPROFILE"))
         .unwrap_or_else(|_| "/".to_string());
+    // iOS: HOME is the app's container (Documents, Library, tmp); the place people put files is
+    // Documents, which the Files app shows. Same root the app's own picker uses (local_fs.rs in
+    // the desktop crate).
+    if cfg!(target_os = "ios") {
+        return vec![format!("{}/Documents", home.trim_end_matches('/'))];
+    }
     vec![home]
 }
 

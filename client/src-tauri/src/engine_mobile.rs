@@ -30,7 +30,26 @@ const DEFAULT_PS5_ADDR: &str = "192.168.137.2";
 /// only `/pkg-host/*` to anything off this device; `/api/*` stays local.
 /// UNVERIFIED on a physical phone: the emulator is NATed, so the PS5 can't
 /// reach it to prove the fetch end to end.
-const BIND: &str = "0.0.0.0:19113";
+const BIND_HOST: &str = "0.0.0.0";
+const PORT: u16 = 19113;
+/// Tried in order when 19113 is taken. Only the iPhone Simulator (and the Android emulator's
+/// host-shared cases) can hit it: a simulator app is a process on the Mac, so a desktop
+/// PS5Upload running there already holds 19113 and the in-app engine failed to bind, leaving the
+/// simulator's app talking to the desktop engine instead of its own. A phone never shares a port.
+const FALLBACK_PORTS: std::ops::RangeInclusive<u16> = 19123..=19132;
+
+/// The engine's loopback URL once `start` chose its port (the renderer reads it through
+/// `engine_url_get`).
+static URL: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+
+/// The first port that can be bound now, 19113 first. A probe bind released at once: the
+/// engine binds it a moment later on its own task.
+fn pick_port() -> u16 {
+    std::iter::once(PORT)
+        .chain(FALLBACK_PORTS)
+        .find(|p| std::net::TcpListener::bind((BIND_HOST, *p)).is_ok())
+        .unwrap_or(PORT)
+}
 
 /// Start the engine on a background task. Returns immediately with the
 /// loopback URL; the server finishes binding within a few milliseconds.
@@ -42,21 +61,32 @@ pub async fn start(app: &AppHandle) -> Result<&'static str> {
     // and tell the renderer the engine did not start.
     static STARTED: std::sync::OnceLock<()> = std::sync::OnceLock::new();
     if STARTED.set(()).is_err() {
-        return Ok(DEFAULT_ENGINE_URL);
+        return Ok(url());
     }
+    let port = pick_port();
+    let _ = URL.set(format!("http://127.0.0.1:{port}"));
+    let bind = format!("{BIND_HOST}:{port}");
     point_engine_at_app_data(app);
-    let app = app.clone();
+    let task_app = app.clone();
     tokio::spawn(async move {
-        if let Err(e) = ps5upload_engine::serve_in_process(BIND, DEFAULT_PS5_ADDR.to_string()).await
+        if let Err(e) =
+            ps5upload_engine::serve_in_process(&bind, DEFAULT_PS5_ADDR.to_string()).await
         {
-            let message = format!("Android engine failed to start on {BIND}: {e}");
-            let _ = app.emit("ps5upload-engine-startup-error", &message);
+            let message = format!("in-app engine failed to start on {bind}: {e}");
+            let _ = task_app.emit("ps5upload-engine-startup-error", &message);
             // Log and let the renderer surface "engine unreachable" via
             // its normal probe — don't panic the app over it.
             eprintln!("[engine] in-process serve failed: {message}");
         }
     });
-    Ok(DEFAULT_ENGINE_URL)
+    let url = url();
+    if port != PORT {
+        eprintln!(
+            "[engine] 19113 is taken (a desktop PS5Upload on this Mac?); in-app engine on {url}"
+        );
+    }
+    let _ = app.emit("ps5upload-engine-ready", url);
+    Ok(url)
 }
 
 /// A phone has no home folder, so the engine's data directory (saved connections, AVA1 identity,
@@ -91,9 +121,9 @@ fn point_engine_at_app_data(app: &AppHandle) {
 /// is torn down when the process exits. There is no child to kill.
 pub async fn stop() {}
 
-/// The URL the renderer should use — fixed loopback, same as desktop.
+/// The URL the renderer should use: loopback on the port `start` chose (19113 unless taken).
 pub fn url() -> &'static str {
-    DEFAULT_ENGINE_URL
+    URL.get().map(String::as_str).unwrap_or(DEFAULT_ENGINE_URL)
 }
 
 /// The mobile counterpart of the desktop diagnosis: the engine is in this process, so the
@@ -115,7 +145,7 @@ pub struct Diagnosis {
 pub async fn diagnose(_app: &AppHandle) -> Diagnosis {
     let probe = match crate::engine_http::engine_client_builder().build() {
         Ok(client) => match client
-            .get(format!("{DEFAULT_ENGINE_URL}/api/version"))
+            .get(format!("{}/api/version", url()))
             .timeout(std::time::Duration::from_millis(800))
             .send()
             .await
@@ -127,7 +157,7 @@ pub async fn diagnose(_app: &AppHandle) -> Diagnosis {
         Err(e) => Err(e.to_string()),
     };
     Diagnosis {
-        url: DEFAULT_ENGINE_URL.to_string(),
+        url: url().to_string(),
         local: true,
         answering: probe.is_ok(),
         probe_error: probe.err(),
