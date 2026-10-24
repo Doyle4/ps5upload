@@ -92,6 +92,14 @@ describe("IPv6 addressing", () => {
     expect(hostOf("fe80::1")).toBe("fe80::1");
     expect(hostOf("2001:db8::5")).toBe("2001:db8::5");
   });
+  it("keeps an IPv4-mapped IPv6 literal whole, and the legacy host:port:port split", () => {
+    // The dots in `::ffff:192.168.1.5` used to make it read as a hostname, so
+    // hostOf cut it at the first colon and returned "".
+    expect(hostOf("::ffff:192.168.1.5")).toBe("::ffff:192.168.1.5");
+    expect(hostOf("0:0:0:0:0:ffff:192.168.1.5")).toBe("0:0:0:0:0:ffff:192.168.1.5");
+    expect(hostOf("192.168.1.5:9113:9114")).toBe("192.168.1.5");
+    expect(hostOf("ps5.local:9113:9114")).toBe("ps5.local");
+  });
   it("extracts the inner host from a bracketed IPv6", () => {
     expect(hostOf("[fe80::1]")).toBe("fe80::1");
     expect(hostOf("[fe80::1]:9114")).toBe("fe80::1");

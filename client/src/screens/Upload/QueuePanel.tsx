@@ -201,6 +201,7 @@ export const QueuePanel = memo(function QueuePanel({ host }: { host?: string } =
   const setContinueOnFailure = useUploadQueueStore(
     (s) => s.setContinueOnFailure,
   );
+  const { confirm, dialog: clearDialog } = useConfirm();
   // (2.11.0) Mutual-exclusion with the Upload-screen one-shot
   // transfer. The PS5 payload's transfer port is single-client,
   // so a queue Start while a one-shot is in flight would block at
@@ -237,8 +238,31 @@ export const QueuePanel = memo(function QueuePanel({ host }: { host?: string } =
   // grouped chrome once there's more than one console in play.
   const multiConsole = groups.length > 1;
 
+  // With `host` the panel shows one console: its header acts on that console
+  // alone (another console's queue must not be started, stopped or cleared
+  // from here). Without it, the Upload screen's "all consoles" actions.
+  const scopeHost = host?.trim() ? hostOf(host) : null;
+  const runningHere = scopeHost ? !!runningHosts[scopeHost] : running;
+  const startHere = () => (scopeHost ? startHost(scopeHost) : start());
+  const stopHere = () => (scopeHost ? stopHost(scopeHost) : stop());
+  const retryFailedHere = () => retryFailed(scopeHost ?? undefined);
+  const clearHere = async () => {
+    const ok = await confirm({
+      title: tr("queue_clear_confirm_title", undefined, "Clear the queue?"),
+      message: tr(
+        "queue_clear_confirm_body",
+        { count: items.length },
+        `${items.length} items will be removed, finished ones included. A running upload is stopped; a running install keeps going.`,
+      ),
+      confirmLabel: tr("queue_clear", undefined, "Clear all"),
+      destructive: true,
+    });
+    if (ok) clear(scopeHost ?? undefined);
+  };
+
   return (
     <section className="rounded-[var(--radius-panel)] border border-[var(--glass-edge)] bg-[var(--color-surface-raised)] shadow-[var(--edge-highlight),var(--shadow-1)] mb-4 p-5">
+      {clearDialog}
       {!isLeader && (
         <div
           role="status"
@@ -310,18 +334,18 @@ export const QueuePanel = memo(function QueuePanel({ host }: { host?: string } =
               variant="secondary"
               size="sm"
               leftIcon={<RotateCcw size={12} />}
-              onClick={retryFailed}
+              onClick={retryFailedHere}
             >
               {tr("queue_retry_failed_v2", undefined, "Retry failed uploads")}
             </Button>
           )}
 
-          {running ? (
+          {runningHere ? (
             <Button
               variant="secondary"
               size="sm"
               leftIcon={<Square size={12} />}
-              onClick={stop}
+              onClick={stopHere}
               title={tr(
                 "queue_stop_tooltip",
                 undefined,
@@ -337,7 +361,7 @@ export const QueuePanel = memo(function QueuePanel({ host }: { host?: string } =
               variant="primary"
               size="sm"
               leftIcon={<Play size={12} />}
-              onClick={() => void start()}
+              onClick={() => void startHere()}
               disabled={pendingCount === 0 || transferInFlight}
               title={
                 transferInFlight
@@ -359,8 +383,8 @@ export const QueuePanel = memo(function QueuePanel({ host }: { host?: string } =
             variant="ghost"
             size="sm"
             leftIcon={<Trash2 size={12} />}
-            onClick={clear}
-            disabled={running}
+            onClick={() => void clearHere()}
+            disabled={runningHere}
             title={tr(
               "queue_clear_tooltip",
               undefined,

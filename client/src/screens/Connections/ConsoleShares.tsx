@@ -3,7 +3,7 @@
 // here per PS5; a server saved on this computer can be copied over (its password is typed again:
 // the console keeps its own, encrypted).
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { HardDrive, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
 
 import { Button, Card, Input } from "../../components";
@@ -122,14 +122,23 @@ export function ConsoleShares({ pcServers }: { pcServers: Connection[] }) {
   const [form, setForm] = useState<ShareForm | null>(null);
   const [busy, setBusy] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  // The console this card shows now. An answer from a console the user has
+  // since moved away from must not land under the next one's card.
+  const hostRef = useRef(host);
+  useEffect(() => {
+    hostRef.current = host;
+  }, [host]);
 
   const load = useCallback(async () => {
     if (!host || !up) return;
+    const asked = host;
     setError(null);
     try {
-      const v = await listConsoleShares(host);
+      const v = await listConsoleShares(asked);
+      if (hostRef.current !== asked) return;
       setShares(v ?? "unsupported");
     } catch (e) {
+      if (hostRef.current !== asked) return;
       setError(shareErrorText(e, tr));
     }
   }, [host, up, tr]);
@@ -147,14 +156,17 @@ export function ConsoleShares({ pcServers }: { pcServers: Connection[] }) {
 
   const onSave = async () => {
     if (!form || !host) return;
+    const asked = host;
     setBusy(true);
     setFormError(null);
     try {
-      await saveConsoleShare(host, shareInput(form));
+      await saveConsoleShare(asked, shareInput(form));
+      // Saved on that console; the form now belongs to another one's card.
+      if (hostRef.current !== asked) return;
       setForm(null);
       await load();
     } catch (e) {
-      setFormError(shareErrorText(e, tr));
+      if (hostRef.current === asked) setFormError(shareErrorText(e, tr));
     } finally {
       setBusy(false);
     }

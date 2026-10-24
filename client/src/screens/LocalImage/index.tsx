@@ -13,6 +13,8 @@ import { humanizePs5Error } from "../../lib/humanizeError";
 import { useTr } from "../../state/lang";
 import { pickPath } from "../../lib/pickPath";
 import { openLocalPath } from "../../lib/openLocalPath";
+import { isMacOrLinuxDesktop } from "../../lib/platform";
+import { isTauriEnv } from "../../lib/tauriEnv";
 import {
   localImageAttach,
   localImageDetach,
@@ -30,17 +32,23 @@ function basename(p: string): string {
 
 export default function LocalImageScreen() {
   const tr = useTr();
+  // Looking inside an image (ImageBrowser) goes through the engine and works
+  // everywhere. Opening one as a drive uses this computer's own tools, which
+  // only a macOS or Linux desktop has: the browser build would mount it on the
+  // engine's server, and Windows has no such tool.
+  const canMount = isTauriEnv() && isMacOrLinuxDesktop();
   const [status, setStatus] = useState<LocalImageStatus | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
+    if (!canMount) return;
     try {
       setStatus(await localImageStatus());
     } catch (e) {
       setError(String(e));
     }
-  }, []);
+  }, [canMount]);
 
   useEffect(() => {
     void refresh();
@@ -114,19 +122,21 @@ export default function LocalImageScreen() {
           "Open a game disk image stored on this computer (.exfat, .img, .image or .raw) and add, replace or remove files inside it, without unpacking it. For a game on the PS5, use Edit files… in Games → Game files.",
         )}
         right={
-          <Button
-            variant="primary"
-            size="sm"
-            leftIcon={<FolderOpen size={14} />}
-            onClick={() => void handleOpen()}
-            disabled={busy || !!unsupported}
-          >
-            {busy ? (
-              <Spinner size={14} tone="inherit" />
-            ) : (
-              tr("localimage_open", undefined, "Open an image")
-            )}
-          </Button>
+          canMount ? (
+            <Button
+              variant="primary"
+              size="sm"
+              leftIcon={<FolderOpen size={14} />}
+              onClick={() => void handleOpen()}
+              disabled={busy || !!unsupported}
+            >
+              {busy ? (
+                <Spinner size={14} tone="inherit" />
+              ) : (
+                tr("localimage_open", undefined, "Open an image")
+              )}
+            </Button>
+          ) : undefined
         }
       />
 
@@ -140,7 +150,8 @@ export default function LocalImageScreen() {
 
       <ImageBrowser />
 
-      {unsupported && (
+      {/* Opening an image as a drive: the macOS / Linux desktop only. */}
+      {canMount && unsupported && (
         <Callout
           tone="warn"
           title={tr(
@@ -156,6 +167,7 @@ export default function LocalImageScreen() {
 
       {/* What this does, and — just as importantly — what it does not.
           People arrive here expecting an editor. */}
+      {canMount && (
       <Callout
         tone="info"
         title={tr("localimage_how", undefined, "How this works")}
@@ -172,6 +184,7 @@ export default function LocalImageScreen() {
           </span>
         </span>
       </Callout>
+      )}
 
       {status && status.attached.length === 0 && !unsupported && (
         <EmptyState

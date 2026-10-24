@@ -631,7 +631,9 @@ export async function browserInvoke<T>(
         (cmd === "ps5_app_icon_data"
           ? `title_id=${encodeURIComponent(String(args["titleId"] ?? ""))}`
           : `path=${encodeURIComponent(String(args["path"] ?? ""))}`) + size;
-      const res = await fetch(`${base}${sep}${q}`);
+      // Through getEngineUrl like every other route: a bare "/api/…" misses
+      // the PS5UPLOAD_BASE_URL prefix behind a reverse proxy (REVERSE_PROXY.md).
+      const res = await fetch(`${getEngineUrl()}${base}${sep}${q}`);
       if (!res.ok) throw new Error(`icon HTTP ${res.status}`);
       const blob = await res.blob();
       return (await new Promise<string>((resolve, reject) => {
@@ -644,7 +646,7 @@ export async function browserInvoke<T>(
 
     case "collection_cover_data": {
       const res = await fetch(
-        `/api/collection/games/${encodeURIComponent(String(args["gameId"] ?? ""))}/cover`,
+        `${getEngineUrl()}/api/collection/games/${encodeURIComponent(String(args["gameId"] ?? ""))}/cover`,
       );
       if (!res.ok) throw new Error(`cover HTTP ${res.status}`);
       const blob = await res.blob();

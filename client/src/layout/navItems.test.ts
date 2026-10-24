@@ -109,12 +109,12 @@ describe("the sidebar's sections", () => {
     for (const p of browserOnlyHidden) expect(inBrowser).not.toContain(p);
   });
 
-  it("offers Edit image on this computer only on a macOS or Linux desktop", () => {
+  it("offers Edit image on this computer everywhere (looking inside an image needs no mount, #479)", () => {
     expect(paths(sidebarGroups([], false, false, true))).toContain("/local-image");
     // Windows or Android desktop app.
-    expect(paths(sidebarGroups([], false, false, false))).not.toContain("/local-image");
-    // Browser build: it would attach the image on the engine's server.
-    expect(paths(sidebarGroups([], false, true, true))).not.toContain("/local-image");
+    expect(paths(sidebarGroups([], false, false, false))).toContain("/local-image");
+    // Browser build: the engine reads the image; the screen hides the mount part.
+    expect(paths(sidebarGroups([], false, true, true))).toContain("/local-image");
   });
 });
 

@@ -12,7 +12,6 @@ import { lazyWithReload } from "./lib/lazyWithReload";
 import AppShell from "./layout/AppShell";
 import { useRosterStore } from "./state/roster";
 import { isTauriEnv } from "./lib/tauriEnv";
-import { isMacOrLinuxDesktop } from "./lib/platform";
 
 /**
  * Code-splitting strategy:
@@ -112,10 +111,10 @@ function NativeOnlyRoute({ children }: { children: ReactNode }) {
   return <>{children}</>;
 }
 
-/** Edit image on this computer attaches the image with the OS's own tools, which only a
- *  macOS or Linux desktop has (the browser build would attach it on the engine's server). */
+/** Edit image on this computer: looking inside an image (the engine reads it) works on every
+ *  platform and in the browser; only the screen's "Open an image" mount, which uses the OS's
+ *  own tools, is for a macOS or Linux desktop, and the screen hides that part itself. */
 function LocalImageRoute({ children }: { children: ReactNode }) {
-  if (!isTauriEnv() || !isMacOrLinuxDesktop()) return <Navigate to="/home" replace />;
   return <>{children}</>;
 }
 

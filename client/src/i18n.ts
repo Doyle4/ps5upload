@@ -196,6 +196,14 @@ export function t(
     }
   }
   if (!vars) return raw;
+  return interpolate(raw, vars);
+}
+
+/** Fill `{name}` placeholders in `raw` from `vars`; unknown names are left as they are. */
+export function interpolate(
+  raw: string,
+  vars: Record<string, string | number>,
+): string {
   return raw.replace(/\{(\w+)\}/g, (match, name) =>
     Object.prototype.hasOwnProperty.call(vars, name)
       ? String(vars[name])

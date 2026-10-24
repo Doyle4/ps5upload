@@ -727,6 +727,8 @@ playlist_step_port_placeholder: "domyślnie",
 update_no_platform_bundle: "Brak pobrania dla twojej platformy w tym wydaniu.",
 queue_continue_on_failure: "Kontynuuj po niepowodzeniu",
 queue_clear_tooltip: "Usuń wszystkie elementy z kolejki (w tym ukończone)",
+queue_clear_confirm_title: "Wyczyścić kolejkę?",
+queue_clear_confirm_body: "Usuniętych zostanie {count} pozycji, także zakończone. Trwające wysyłanie zostanie zatrzymane; trwająca instalacja będzie kontynuowana.",
 queue_will_mount: "zamontuj po przesłaniu",
 
 // Install Package — added 2.2.31. Keys reference the new
@@ -1764,6 +1766,7 @@ installed_smp_off_title:
 installed_smp_off_body:
   "Tytuły z obrazów dysków są montowane z /mnt/shadowmnt przez ShadowMount+. Wygląda na to, że nie jest on uruchomiony, więc te tytuły nie zostaną zamontowane ani uruchomione. Wyślij go na konsolę, odczekaj kilka sekund, a następnie kliknij Odśwież.",
 installed_smp_send: "Wyślij ShadowMount+",
+installed_smp_send_browser: "Wyślij go z Payloady → Na Twoim PS5.",
 installed_smp_not_downloaded:
   "ShadowMount+ nie został jeszcze pobrany — pobierz go z zakładki Payloady, a następnie wróć tutaj i wyślij go.",
 installed_smp_sent: "Wysłano ShadowMount+ — daj mu kilka sekund, a następnie kliknij Odśwież.",
@@ -2095,6 +2098,7 @@ cmdpalette_group_navigation: "Nawigacja",
 cmdpalette_group_theme: "Motyw",
 cmdpalette_group_connection: "Połączenie",
 cmdpalette_group_window: "Okno",
+cmdpalette_group_games: "Gry",
 connection_step1_idle: "Wprowadź adres PS5 i sprawdź",
 
 // Keyboard-shortcuts overlay (section headers + descriptions).

@@ -745,6 +745,8 @@ playlist_step_port_placeholder: "alapértelmezett",
 update_no_platform_bundle: "Ehhez a platformodhoz nincs letöltés ebben a kiadásban.",
 queue_continue_on_failure: "Folytatás hiba esetén",
 queue_clear_tooltip: "Minden elem eltávolítása a várólistából (a kész elemekkel együtt)",
+queue_clear_confirm_title: "Törlöd a várólistát?",
+queue_clear_confirm_body: "{count} elem kerül eltávolításra, a befejezettek is. A folyamatban lévő feltöltés leáll; a folyamatban lévő telepítés folytatódik.",
 queue_will_mount: "csatolás feltöltés után",
 
 // Csomagtelepítés — hozzáadva 2.2.31-ben. A kulcsok az új
@@ -1996,6 +1998,7 @@ installed_smp_off_title:
 installed_smp_off_body:
   "A lemezkép-alapú címeket a ShadowMount+ csatolja a /mnt/shadowmnt alól. Úgy tűnik, nem fut, ezért ezek a címek nem csatolódnak és nem indulnak. Küldd el a konzolnak, várj néhány másodpercet, majd frissíts.",
 installed_smp_send: "ShadowMount+ küldése",
+installed_smp_send_browser: "Küldd el a Payloadok → A PS5-ödön lapról.",
 installed_smp_not_downloaded:
   "A ShadowMount+ még nincs letöltve — szerezd be a Payloads fülön, aztán gyere vissza, és küldd el.",
 installed_smp_sent: "ShadowMount+ elküldve — adj neki néhány másodpercet, majd frissíts.",
@@ -2343,6 +2346,7 @@ cmdpalette_group_navigation: "Navigáció",
 cmdpalette_group_theme: "Téma",
 cmdpalette_group_connection: "Kapcsolat",
 cmdpalette_group_window: "Ablak",
+cmdpalette_group_games: "Játékok",
 connection_step1_idle: "Add meg a PS5 címét és ellenőrizd",
 
 // Billentyűparancsok overlay (szakaszfejlécek + leírások).

@@ -68,6 +68,31 @@ What's new in ps5upload, written for humans.
   looks like a path is no longer used as a file name.
 - **Restart engine starts the background activity watch.** When the engine failed at launch and
   was then restarted from Settings, finished jobs were not announced until the app restarted.
+- **A busy moment no longer restarts a queued upload.** If the app missed one progress check
+  (engine busy, a network blip), the queue re-sent the helper to the PS5, which cut off the upload
+  that was still going. It now keeps checking and only steps in after several misses in a row.
+- **Queue buttons act on the console you are looking at.** With two PS5s, Clear all, Retry failed,
+  Start and Stop on Install Package's queue used to act on every console's queue; they now act on
+  that console only. Clear all asks first and says how many items it removes.
+- **Install Package uploads leave the rest of the queue alone.** Adding a package there started
+  every waiting upload on that console too, including ones you had not pressed Start on.
+- **Cancelling an upload waits before the next one starts**, so the next item no longer starts on
+  the console while the cancelled one is still stopping.
+- **Edit image on this computer is on Windows and in the browser version.** Looking inside an image
+  (as 7.1.19 said) now really works there; opening an image as a drive stays macOS and Linux only.
+- **Quick bring-up waits for its playlist.** If the bring-up playlist was already running, or you
+  stopped it, bring-up sent the helper anyway and said it was done. It now waits for the playlist,
+  or reports that it was stopped.
+- **The browser version** no longer shows desktop-only actions that could only fail (CRC32, Verify
+  in Files; Heal home-screen metadata in Games; Send ShadowMount+, which now points to Payloads),
+  loads game icons and Collection covers behind a reverse proxy with a base path, and no longer
+  waits 30 seconds on a helper send the engine refused.
+- **Smaller fixes.** "Play session recorded" no longer shows when collecting the session failed; a
+  failed clean-up on Volumes says why instead of the row just coming back; screenshot thumbnails
+  no longer turn into broken images after switching consoles; a console's shares no longer show up
+  under another console's card; adding a game to the home screen while ShadowMount+ runs no longer
+  registers it a second time when handing it to ShadowMount+ fails; the command palette's Games
+  heading is translated.
 
 ## 7.1.19
 

@@ -196,7 +196,9 @@ export function buildRowActions(e: RowEntry, ctx: RowActionsContext): RowAction[
       ),
       run: () => ctx.preview(e),
     });
-  if (!isDir)
+  // crc32_file_get / fs_blake3_hash are desktop-only commands (no engine
+  // route): the browser build has nothing to run them with.
+  if (!isDir && ctx.desktopApp)
     actions.push(
       {
         id: "crc32",

@@ -24,18 +24,20 @@ vi.mock("./elfldrGuard", () => ({
   LISTENER_LOADER_HINT: "",
 }));
 vi.mock("./restoreMainPayload", () => ({
-  restoreMainPayload: (...a: unknown[]) => restoreMock(...a),
+  engineSendsHelper: (...a: unknown[]) => restoreMock(...a),
 }));
 vi.mock("../state/logs", () => ({
   log: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 
 import { ensurePayloadCurrent } from "./ensurePayloadCurrent";
+import { resetHelperSendGate, sentAgoMs } from "./helperSendGate";
 
 beforeEach(() => {
   [payloadCheckMock, bundledPathMock, sendPayloadMock, restoreMock, appVersionMock]
     .forEach((m) => m.mockReset());
   appVersionMock.mockResolvedValue("5.17.7");
+  resetHelperSendGate();
 });
 
 describe("ensurePayloadCurrent in a browser", () => {
@@ -57,5 +59,16 @@ describe("ensurePayloadCurrent in a browser", () => {
     expect(restoreMock).toHaveBeenCalledWith("10.0.0.5");
     expect(bundledPathMock).not.toHaveBeenCalled();
     expect(sendPayloadMock).not.toHaveBeenCalled();
+  });
+
+  it("a send the engine refused is no send: no-push at once, and nothing stamped", async () => {
+    // Before: the restore swallowed {ok:false}, the gate stamped a send that never
+    // happened, the 30 s boot poll ran for nothing, and every other caller was held
+    // to "no-push" for the cooldown.
+    payloadCheckMock.mockResolvedValue({ reachable: true, payloadVersion: "5.16.0" });
+    restoreMock.mockRejectedValue(new Error("the engine has no helper to send"));
+    await expect(ensurePayloadCurrent("10.0.0.5")).resolves.toBe("no-push");
+    expect(restoreMock).toHaveBeenCalledTimes(1);
+    expect(sentAgoMs("10.0.0.5")).toBeNull();
   });
 });

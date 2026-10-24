@@ -24,18 +24,7 @@ import { log } from "../state/logs";
 export async function restoreMainPayload(ip: string): Promise<void> {
   try {
     if (!isTauriEnv()) {
-      const r = (await invoke("payload_restore", { ip })) as {
-        ok?: boolean;
-        error?: string;
-      };
-      if (!r?.ok) {
-        log.warn(
-          "install",
-          `couldn't restore the main payload on ${ip}: ${
-            r?.error ?? "engine reported no payload image"
-          }`,
-        );
-      }
+      await engineSendsHelper(ip);
       return;
     }
     const bp = (await invoke("payload_bundled_path")) as {
@@ -53,4 +42,15 @@ export async function restoreMainPayload(ip: string): Promise<void> {
       }`,
     );
   }
+}
+
+/** The browser build's send: the engine sends its own bundled helper. Throws when the engine
+ *  could not (no helper image, loader not answering), so a caller that records "a helper was
+ *  sent" (lib/helperSendGate) records nothing for a send that never happened. */
+export async function engineSendsHelper(ip: string): Promise<void> {
+  const r = (await invoke("payload_restore", { ip })) as {
+    ok?: boolean;
+    error?: string;
+  };
+  if (!r?.ok) throw new Error(r?.error ?? "engine reported no payload image");
 }

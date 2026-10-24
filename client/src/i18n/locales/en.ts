@@ -803,6 +803,8 @@ playlist_step_port_placeholder: "default",
 update_no_platform_bundle: "No download for your platform in this release.",
 queue_continue_on_failure: "Continue on failure",
 queue_clear_tooltip: "Remove every item from the queue (including completed ones)",
+queue_clear_confirm_title: "Clear the queue?",
+queue_clear_confirm_body: "{count} items will be removed, finished ones included. A running upload is stopped; a running install keeps going.",
 queue_will_mount: "mount after upload",
 
 // Install Package — added 2.2.31. Keys reference the new
@@ -2213,6 +2215,7 @@ installed_smp_off_title:
 installed_smp_off_body:
   "Disc-image titles are mounted from /mnt/shadowmnt by ShadowMount+. It doesn't look like it's running, so those titles won't mount or launch. Send it to the console, wait a few seconds, then Refresh.",
 installed_smp_send: "Send ShadowMount+",
+installed_smp_send_browser: "Send it from Payloads → On your PS5.",
 installed_smp_not_downloaded:
   "ShadowMount+ isn't downloaded yet — grab it from the Payloads tab, then come back and send it.",
 installed_smp_sent: "Sent ShadowMount+ — give it a few seconds, then Refresh.",
@@ -2570,6 +2573,7 @@ cmdpalette_group_navigation: "Navigation",
 cmdpalette_group_theme: "Theme",
 cmdpalette_group_connection: "Connection",
 cmdpalette_group_window: "Window",
+cmdpalette_group_games: "Games",
 connection_step1_idle: "Enter your PS5's address and check",
 
 // Keyboard-shortcuts overlay (section headers + descriptions).

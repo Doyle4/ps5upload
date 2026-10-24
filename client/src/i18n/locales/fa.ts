@@ -743,6 +743,8 @@ playlist_step_port_placeholder: "پیش‌فرض",
 update_no_platform_bundle: "دانلودی برای پلتفرم شما در این انتشار نیست.",
 queue_continue_on_failure: "ادامه در صورت خطا",
 queue_clear_tooltip: "حذف هر مورد از صف (شامل تمام‌شده‌ها)",
+queue_clear_confirm_title: "صف پاک شود؟",
+queue_clear_confirm_body: "{count} مورد حذف می‌شود، از جمله موارد تمام‌شده. آپلود در حال اجرا متوقف می‌شود؛ نصب در حال اجرا ادامه می‌یابد.",
 queue_will_mount: "اتصال پس از بارگذاری",
 
 // Install Package — added 2.2.31. Keys reference the new
@@ -2060,6 +2062,7 @@ installed_smp_off_title:
 installed_smp_off_body:
   "عناوین تصویر دیسک از /mnt/shadowmnt توسط ShadowMount+ متصل می‌شوند. به نظر نمی‌رسد در حال اجرا باشد، پس آن عناوین متصل یا اجرا نمی‌شوند. آن را به کنسول بفرستید، چند ثانیه صبر کنید، سپس Refresh.",
 installed_smp_send: "ارسال ShadowMount+",
+installed_smp_send_browser: "آن را از Payloads ← روی PS5 شما بفرستید.",
 installed_smp_not_downloaded:
   "ShadowMount+ هنوز دانلود نشده — از تب Payloads بگیرید، سپس برگردید و بفرستید.",
 installed_smp_sent: "ShadowMount+ ارسال شد — چند ثانیه صبر کنید، سپس Refresh.",
@@ -2406,6 +2409,7 @@ cmdpalette_group_navigation: "ناوبری",
 cmdpalette_group_theme: "تم",
 cmdpalette_group_connection: "اتصال",
 cmdpalette_group_window: "پنجره",
+cmdpalette_group_games: "بازی‌ها",
 connection_step1_idle: "آدرس PS5 خود را وارد و بررسی کنید",
 
 // Keyboard-shortcuts overlay (section headers + descriptions).

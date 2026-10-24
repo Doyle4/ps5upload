@@ -196,13 +196,30 @@ function ScreenshotThumb({
     };
   }, [near, url, enabled, host, item, cache]);
 
+  // The file behind a URL can be gone: the scratch dir is deleted when this
+  // console's screens are hidden (keep-alive), and this row keeps its state.
+  // Drop the dead URL and decode again, once; a second failure keeps the glyph.
+  const retried = useRef(false);
+  const onBroken = () => {
+    cache.urls.delete(item.path);
+    if (retried.current) return;
+    retried.current = true;
+    setUrl(null);
+  };
+
   return (
     <div
       ref={boxRef}
       className="grid h-12 w-16 shrink-0 place-items-center overflow-hidden rounded-[var(--radius-field)] bg-[var(--color-surface-3)]"
     >
       {url ? (
-        <img src={url} alt="" className="h-full w-full object-cover" loading="lazy" />
+        <img
+          src={url}
+          alt=""
+          className="h-full w-full object-cover"
+          loading="lazy"
+          onError={onBroken}
+        />
       ) : (
         <ImageIcon size={14} className="text-[var(--color-muted)]" />
       )}
@@ -550,12 +567,16 @@ export default function ScreenshotsScreen({ tabs }: { tabs?: ReactNode } = {}) {
     closed: { current: false },
   }));
   useEffect(() => {
-    // Open again after a StrictMode remount; closed on the real unmount.
+    // Open again after a StrictMode remount or when this console's screens
+    // come back from keep-alive; closed on the real unmount.
     thumbCache.closed.current = false;
     return () => {
       thumbCache.closed.current = true;
       const d = thumbCache.dir.current;
       thumbCache.dir.current = null;
+      // The URLs point into that dir: forget them with it, or a row shown
+      // again (or mounted later) would load a file that no longer exists.
+      thumbCache.urls.clear();
       if (d) void saveArchiveCleanupTemp(d).catch(() => {});
     };
   }, [thumbCache]);

@@ -23,12 +23,15 @@ export const PS5_LOADER_PORT = 9021;
  *  engine owns it: see `consoleAddr`). */
 export const PS5_AVA1_PORT = 9120;
 
-/** True for a bare (un-bracketed) IPv6 literal such as `fe80::1` or
- *  `2001:db8::5`: 2+ colons and no dotted-quad. We use the absence of
- *  a `.` to disambiguate from IPv4/hostname forms (incl. the legacy
- *  `host:port:port` footgun, which always carries dots in the host). */
+/** True for a bare (un-bracketed) IPv6 literal such as `fe80::1`,
+ *  `2001:db8::5` or the IPv4-mapped `::ffff:192.168.1.5`: 2+ colons, and
+ *  either no dotted-quad, a `::` run, or more colons than the legacy
+ *  `host:port:port` footgun (exactly two, always with dots in the host)
+ *  can carry. */
 function isBareIpv6(addr: string): boolean {
-  return !addr.includes(".") && (addr.match(/:/g)?.length ?? 0) >= 2;
+  const colons = addr.match(/:/g)?.length ?? 0;
+  if (colons < 2) return false;
+  return !addr.includes(".") || addr.includes("::") || colons > 2;
 }
 
 /** Extract the bare host (IP or DNS name) from anything shaped like
