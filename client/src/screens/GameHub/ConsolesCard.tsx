@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
-import { Download, Monitor, Play, RefreshCw, Square, Upload } from "lucide-react";
+import { Download, FolderOpen, Monitor, Play, RefreshCw, Search, Square, Upload } from "lucide-react";
 
 import type { CollectionLocation } from "../../api/collection";
 import type { ConsoleEntry, GameView } from "../../api/games";
@@ -16,7 +16,9 @@ import {
   rowActions,
   type RowAction,
 } from "../../lib/gamePage";
+import { smpMountImageBasename } from "../../lib/mountPaths";
 import { useConnectionStore, useHostRuntime } from "../../state/connection";
+import { openInFileSystem } from "../../state/fsNavigation";
 import { useCopyActivity } from "../../state/copyActivity";
 import { useTr } from "../../state/lang";
 import { pushNotification } from "../../state/notifications";
@@ -283,6 +285,15 @@ function ConsoleRow({
   };
 
   const best = bestSendable(copies);
+  // Where the connected console runs the game from, to open in Files: a folder, or the folder
+  // holding its image. A ShadowMount+ mount names only the image, not where it is.
+  const from = entry?.registered_from ?? "";
+  const filesPath =
+    connected && entry?.installed && from.startsWith("/") && !smpMountImageBasename(from)
+      ? /\.(exfat|ffpfsc|ffpkg|ufs|img)$/i.test(from)
+        ? from.slice(0, from.lastIndexOf("/")) || "/"
+        : from
+      : null;
   return (
     <li className="py-3 first:pt-0 last:pb-0" data-testid={`game-console-${host}`}>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
@@ -307,6 +318,26 @@ function ConsoleRow({
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {actions.map(button)}
+          {filesPath && (
+            <Button
+              size="sm"
+              variant="ghost"
+              aria-label={tr("game_show_in_files", undefined, "Show in Files")}
+              title={`${tr("game_show_in_files", undefined, "Show in Files")}: ${filesPath}`}
+              leftIcon={<FolderOpen size={13} />}
+              onClick={() => openInFileSystem(navigate, filesPath)}
+            />
+          )}
+          {connected && entry?.installed && (
+            <Button
+              size="sm"
+              variant="ghost"
+              aria-label={tr("game_search_files", undefined, "Search this game's files")}
+              title={tr("game_search_files", undefined, "Search this game's files")}
+              leftIcon={<Search size={13} />}
+              onClick={() => navigate("/search", { state: { titleId } })}
+            />
+          )}
           <Button
             size="sm"
             variant="ghost"

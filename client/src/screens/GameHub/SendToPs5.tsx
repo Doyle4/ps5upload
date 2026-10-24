@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useState } from "react";
-import { useNavigate } from "react-router";
+import { Link, useNavigate } from "react-router";
 import { Layers, Upload } from "lucide-react";
 
 import type { CollectionGame, CollectionLocation } from "../../api/collection";
@@ -194,7 +194,10 @@ export function SendToPs5({
       </p>
       {fits === "no" && (
         <p className="mt-1 text-xs text-[var(--color-bad)]">
-          {tr("collection.send_no_room", undefined, "Not enough room on that drive.")}
+          {tr("collection.send_no_room", undefined, "Not enough room on that drive.")}{" "}
+          <Link to="/cleanup" className="underline">
+            {tr("collection.send_free_space", undefined, "Free up space")}
+          </Link>
         </p>
       )}
       {fits === "tight" && (

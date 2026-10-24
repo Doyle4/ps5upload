@@ -99,6 +99,8 @@ import {
   interruptedFsUploadHosts,
   resumeStoppedFsUploadOnWake,
 } from "../state/fsUploadRuntime";
+import { isDragOutCopy } from "../lib/dragOut";
+import { keepMinionOff } from "../state/minionMemory";
 import { useTransferStore } from "../state/transfer";
 import { useUploadSettingsStore } from "../state/uploadSettings";
 import { ensurePayloadCurrent } from "../lib/ensurePayloadCurrent";
@@ -1081,6 +1083,16 @@ function useKeepPs5Awake() {
   }, [active]);
 }
 
+/** A console this computer turned Minion off on stays off when it loses its settings
+ *  (state/minionMemory), checked once per helper connection. */
+function useKeepMinionOff() {
+  const host = useConnectionStore((s) => s.host);
+  const up = useConnectionStore((s) => s.payloadStatus === "up");
+  useEffect(() => {
+    if (host && up) void keepMinionOff(host);
+  }, [host, up]);
+}
+
 /** App-wide drag-drop listener: a package, game image or folder dropped on a screen without
  *  its own drop zone opens the package viewer, whose Install… / Convert… takes it to the screen
  *  that does that. A drop never starts anything by itself. Screens with their own drop zone
@@ -1100,7 +1112,11 @@ function usePkgAutoRoute() {
       if (e.payload.type !== "drop") return;
       // The first viewable thing ANYWHERE in the drop, not just paths[0]: a mixed drop like
       // [game.elf, patch.pkg] still finds the package.
-      const target = dropTarget(e.payload.paths ?? [], location.pathname);
+      // A copy Files made for a drag out, dropped back on the window, opens nothing.
+      const target = dropTarget(
+        (e.payload.paths ?? []).filter((p) => !isDragOutCopy(p)),
+        location.pathname,
+      );
       if (!target) return;
       const viewer = usePackageViewer.getState();
       viewer.open(target.path, [
@@ -1444,6 +1460,7 @@ export default function AppShell() {
   useRoutePersistence();
   useWindowStatePersistence();
   usePkgAutoRoute();
+  useKeepMinionOff();
   // Schedule runner — fires while window open. Browser-side; for
   // true cron behaviour the user needs an external scheduler.
   useScheduleRunner(runScheduleAction);

@@ -75,6 +75,7 @@ import {
 import { useTaskStore } from "./tasks";
 import { useToastStore } from "./toasts";
 import { parsePS5Firmware } from "../lib/ps5Firmware";
+import { gamePath } from "../lib/gamePage";
 import {
   enqueueInstall,
   pkgQueue,
@@ -1678,8 +1679,11 @@ export async function finalizePkgInstallSuccess(args: {
   // once the title actually registered on disk — i.e. it's ready to
   // play). Surfaces in the bell even if the user navigated away while a
   // large title finished, which is exactly when a heads-up is wanted.
+  const installedId = titleIdFromContentId(entry?.contentId ?? "");
   pushNotification(mayNotLaunch ? "warning" : "success", `${label} installed`, {
     jobOutcome: true,
+    // Opens the game's page (play, saves, cheats) from the bell.
+    ...(installedId ? { link: gamePath(installedId) } : {}),
     body: mayNotLaunch
       ? PKG_MAY_NOT_LAUNCH_MESSAGE
       : "Installed on the PS5 and ready to play.",
@@ -2747,6 +2751,8 @@ const makePkgLibraryStore = () =>
           });
           pushNotification("warning", `Not enough space for ${label}`, {
             body: spaceWarn,
+            // Clean up finds leftovers and old updates that free room.
+            link: "/cleanup",
           });
           outcome = { ok: false, message: spaceWarn };
           return outcome;
@@ -3582,8 +3588,10 @@ const makePkgLibraryStore = () =>
 
         const outcome = statusToOutcome(terminal);
         if (outcome.installed) {
+          const installedId = titleIdFromContentId(contentId);
           pushNotification("success", `Installed ${label}`, {
             jobOutcome: true,
+            ...(installedId ? { link: gamePath(installedId) } : {}),
             body: remoteUrl
               ? "Link install complete. The package was downloaded from the link and fed straight to the console — nothing was staged."
               : "Stream-install complete. The pkg was fetched over HTTP — nothing was staged on the PS5.",

@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
+import { Link } from "react-router";
 import { RefreshCw, Database, Clock, TrendingUp, Trash2 } from "lucide-react";
 import { PageHeader, Button, ErrorCard, ConnectionGate, EmptyState, Card, Spinner, Modal, Tabs, GameIcon, Badge } from "../../components";
 import { useTr } from "../../state/lang";
 import { useConnectionStore } from "../../state/connection";
 import { transferAddr } from "../../lib/addr";
 import { humanizePs5Error } from "../../lib/humanizeError";
+import { gamePath, hasTitleId } from "../../lib/gamePage";
 import {
   activityGet,
   activityDbQuery,
@@ -28,12 +30,22 @@ function formatDuration(seconds: number): string {
  * console whose app.db would not open -- the title id stays the heading,
  * so those rows look exactly as they did before rather than going blank. */
 function TitleHeading({ titleId, name }: { titleId: string; name?: string }) {
+  // A game's name opens its page (play, saves, cheats, copies on the PC).
+  const id = titleId.toUpperCase();
+  const label = name ?? titleId;
+  const heading = hasTitleId(id) ? (
+    <Link to={gamePath(id)} className="hover:underline">
+      {label}
+    </Link>
+  ) : (
+    label
+  );
   if (!name) {
-    return <div className="truncate font-mono font-semibold">{titleId}</div>;
+    return <div className="truncate font-mono font-semibold">{heading}</div>;
   }
   return (
     <>
-      <div className="truncate font-semibold">{name}</div>
+      <div className="truncate font-semibold">{heading}</div>
       <div className="truncate font-mono text-xs text-[var(--color-muted)]">
         {titleId}
       </div>

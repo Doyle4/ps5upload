@@ -3,7 +3,8 @@ import { isAndroid } from "../../lib/platform";
 import { backupStamp } from "./backupStamp";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 // useEffect is consumed inside SaveThumbnail below.
-import { useNavigate } from "react-router";
+import { Link, useLocation, useNavigate } from "react-router";
+import { gamePath, hasTitleId } from "../../lib/gamePage";
 import {
   Save,
   RefreshCw,
@@ -188,6 +189,13 @@ export default function SavesScreen() {
   const ownerName = useCallback((e: SaveEntry) => userName(e.user_id, users), [users]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Opened from a game's page: that game's saves are scrolled to and marked.
+  const location = useLocation();
+  const focusTitle =
+    typeof (location.state as { titleId?: unknown } | null)?.titleId === "string"
+      ? ((location.state as { titleId: string }).titleId).toUpperCase()
+      : null;
+  const focused = useRef(false);
   // Set of entry paths currently being backed up / restored. Used to
   // disable the per-row buttons so a rapid double-click doesn't race
   // two ops over the same PS5 save path (which would deletes-and-
@@ -277,6 +285,15 @@ export default function SavesScreen() {
       .map(([title_id, entries]) => ({ title_id, entries }))
       .sort((a, b) => a.title_id.localeCompare(b.title_id));
   }, [saves]);
+
+  useEffect(() => {
+    if (!focusTitle || focused.current) return;
+    if (!grouped.some((g) => g.title_id.toUpperCase() === focusTitle)) return;
+    focused.current = true;
+    document
+      .querySelector(`[data-title-id="${focusTitle}"]`)
+      ?.scrollIntoView({ block: "start", behavior: "smooth" });
+  }, [grouped, focusTitle]);
 
   async function handleDownload(entry: SaveEntry) {
     if (!host?.trim()) return;
@@ -1102,7 +1119,13 @@ export default function SavesScreen() {
           {grouped.map(({ title_id, entries }) => (
             <section
               key={title_id}
-              className="surface-panel p-5"
+              data-title-id={title_id}
+              className={
+                "surface-panel p-5" +
+                (focusTitle && title_id.toUpperCase() === focusTitle
+                  ? " ring-2 ring-[var(--color-accent)]"
+                  : "")
+              }
             >
               <SaveGroupHeader
                 host={host}
@@ -1253,6 +1276,8 @@ function SaveGroupHeader({
   const navigate = useNavigate();
   // A backup folder (`PPSA17221.bak`) is named after its game: show that game's name.
   const info = useTitleInfo(iconTitleId(titleId) ?? titleId);
+  // The game's page, when the folder names a game (a backup's `.bak` names one too).
+  const gameId = (iconTitleId(titleId) ?? titleId).toUpperCase();
   return (
     <header className="mb-2 flex items-center gap-2">
       {/* Game cover from /user/appmeta/<id>/icon0.png (readable), not the
@@ -1270,7 +1295,15 @@ function SaveGroupHeader({
       {/* Human title leads, region id kept in parentheses so the user can
           still tie it to the on-disk save folder name. */}
       <h3 className="min-w-0 truncate text-sm font-semibold" title={titleId}>
-        {info?.title ? `${info.title} (${titleId})` : titleId}
+        {hasTitleId(gameId) ? (
+          <Link to={gamePath(gameId)} className="hover:underline">
+            {info?.title ? `${info.title} (${titleId})` : titleId}
+          </Link>
+        ) : info?.title ? (
+          `${info.title} (${titleId})`
+        ) : (
+          titleId
+        )}
       </h3>
       <span className="shrink-0 text-xs text-[var(--color-muted)]">
         {folderCount} {tr("saves_folder", undefined, "folder")}

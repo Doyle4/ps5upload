@@ -868,7 +868,7 @@ function SavesTab({ titleId, host }: { titleId: string; host: string | null }) {
             ))}
           </ul>
           <div className="mt-4">
-            <Button variant="ghost" size="sm" onClick={() => navigate("/saves")}>
+            <Button variant="ghost" size="sm" onClick={() => navigate("/saves", { state: { titleId } })}>
               {tr("game_hub_manage_saves", undefined, "Back up / restore in Saves")}
             </Button>
           </div>

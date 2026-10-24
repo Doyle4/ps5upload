@@ -86,6 +86,7 @@ import { useMakeWay } from "../../lib/useMakeWay";
 import { pushNotification } from "../../state/notifications";
 import { withConsolePrefix } from "../../state/roster";
 import { audit } from "../../state/auditLog";
+import { useCollectionStore } from "../../state/collection";
 import { useLangStore, useTr } from "../../state/lang";
 import { transferAddr, mgmtAddr, hostOf } from "../../lib/addr";
 import { useImageRetry } from "../../lib/useImageRetry";
@@ -727,6 +728,21 @@ function Section({
 // ── Screen ───────────────────────────────────────────────────────────────────
 
 
+/** A game installed from a package is gone once uninstalled: say so when the Collection on
+ *  this computer (once read) has no copy of it to install again. */
+function noCopyWarning(t: InstalledTitle, tr: ReturnType<typeof useTr>): string {
+  const library = useCollectionStore.getState().library;
+  if (!library || library.games[t.titleId.toUpperCase()]) return "";
+  return (
+    " " +
+    tr(
+      "installed_uninstall_no_copy",
+      undefined,
+      "Your Collection on this computer has no copy of this game: keep its package somewhere before you uninstall.",
+    )
+  );
+}
+
 export default function InstalledAppsScreen() {
   const collectionHost = useConnectionStore((s) => s.host?.trim() ?? "");
   const collectionUp = useConnectionStore((s) => s.payloadStatus === "up");
@@ -1225,7 +1241,7 @@ export default function InstalledAppsScreen() {
                 "installed_uninstall_confirm_pkg",
                 undefined,
                 "This removes the installed title from the PS5. You can reinstall it later from the package.",
-              ),
+              ) + noCopyWarning(t, tr),
         confirmLabel: tr("installed_uninstall", undefined, "Uninstall"),
         destructive: true,
       });

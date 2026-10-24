@@ -1,6 +1,6 @@
 import { consoleAddr } from "../../lib/addr";
 import { useEffect, useRef, useState } from "react";
-import { Link } from "react-router";
+import { Link, useLocation } from "react-router";
 import {
   Search as SearchIcon,
   File as FileIcon,
@@ -110,7 +110,12 @@ export default function SearchScreen() {
   // Game-scoped search: list installed titles and optionally restrict the scan
   // to one game's directory instead of every volume. "" = all content.
   const [games, setGames] = useState<InstalledTitle[]>([]);
-  const [scopeTitleId, setScopeTitleId] = useState("");
+  // A game's page can open Search on that game's files.
+  const location = useLocation();
+  const [scopeTitleId, setScopeTitleId] = useState(() => {
+    const id = (location.state as { titleId?: unknown } | null)?.titleId;
+    return typeof id === "string" ? id.toUpperCase() : "";
+  });
   const [saved, setSaved] = useState<SavedSearch[]>(() => loadSavedSearches());
   const { prompt: promptDialog, dialog: promptDialogNode } = usePrompt();
   const [loading, setLoading] = useState(false);

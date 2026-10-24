@@ -2,7 +2,8 @@ import { usePoll, useTransferBusy } from "../../lib/usePoll";
 import { humanizePs5Error } from "../../lib/humanizeError";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Cpu, RefreshCw, RotateCw, Skull, TriangleAlert, Layers, Network } from "lucide-react";
-import { useSearchParams } from "react-router";
+import { Link, useSearchParams } from "react-router";
+import { gamePath, hasTitleId } from "../../lib/gamePage";
 
 import TabbedShell, { type TabbedShellTab } from "../../layout/TabbedShell";
 import PortsPanel from "./PortsPanel";
@@ -576,7 +577,14 @@ function ProcessRowImpl({
           <span>
             {tr("processes_threads", { n: proc.threads }, "{n} threads")}
           </span>
-          {proc.title_id && <span>{proc.title_id}</span>}
+          {proc.title_id &&
+            (hasTitleId(proc.title_id.toUpperCase()) ? (
+              <Link to={gamePath(proc.title_id.toUpperCase())} className="hover:underline">
+                {proc.title_id}
+              </Link>
+            ) : (
+              <span>{proc.title_id}</span>
+            ))}
         </div>
       </div>
       <div className="ml-auto flex shrink-0 items-center gap-1.5">
