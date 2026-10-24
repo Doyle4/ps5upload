@@ -83,11 +83,27 @@ export interface ShareApi {
 
 const URL_PATH = "/api/shared/consoles";
 
+/**
+ * The engine's answer, checked. Anything else (an older engine without the route answering some
+ * other JSON, a proxy's page) is an error, so the browser's own list is never replaced by it: a
+ * misread answer must not be able to erase someone's consoles.
+ */
+export function asDoc(v: unknown): Doc {
+  const d = v as Partial<Doc> | null;
+  const value = d?.value;
+  const okValue =
+    value === null || (typeof value === "object" && (value.profiles === undefined || Array.isArray(value.profiles)));
+  if (!d || typeof d.rev !== "number" || !Number.isInteger(d.rev) || d.rev < 0 || !okValue) {
+    throw new Error("the engine does not keep a shared console list");
+  }
+  return { rev: d.rev, value: value ?? null };
+}
+
 export const engineShareApi: ShareApi = {
   async get() {
     const r = await fetch(`${getEngineUrl()}${URL_PATH}`);
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
-    return (await r.json()) as Doc;
+    return asDoc(await r.json());
   },
   async put(baseRev, profiles) {
     const r = await fetch(`${getEngineUrl()}${URL_PATH}`, {
@@ -95,7 +111,7 @@ export const engineShareApi: ShareApi = {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ base_rev: baseRev, value: { profiles } }),
     });
-    if (r.status === 409) return { conflict: (await r.json()) as Doc };
+    if (r.status === 409) return { conflict: asDoc(await r.json()) };
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     return (await r.json()) as { rev: number };
   },

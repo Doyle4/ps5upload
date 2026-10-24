@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { mergeShared, RosterShare, sharedForm, type ShareApi, type SharedProfile } from "./rosterShare";
+import { asDoc, mergeShared, RosterShare, sharedForm, type ShareApi, type SharedProfile } from "./rosterShare";
 import { useRosterStore, type PS5Profile } from "./roster";
 
 const p = (id: string, extra: Partial<PS5Profile> = {}): SharedProfile => ({
@@ -135,5 +135,25 @@ describe("RosterShare", () => {
     await share.push();
     expect(useRosterStore.getState().profiles).toBe(before);
     expect(e.doc.rev).toBe(1);
+  });
+});
+
+describe("asDoc", () => {
+  it("takes only a well-formed answer, so a stray reply can never erase the list", () => {
+    expect(asDoc({ rev: 0, value: null })).toEqual({ rev: 0, value: null });
+    expect(asDoc({ rev: 3, value: { profiles: [] } })).toEqual({ rev: 3, value: { profiles: [] } });
+    for (const bad of [{}, null, [], { rev: "1" }, { rev: -1, value: null }, { rev: 1, value: { profiles: "x" } }]) {
+      expect(() => asDoc(bad)).toThrow();
+    }
+  });
+
+  it("a browser whose engine answers something else keeps its consoles", async () => {
+    useRosterStore.setState({ profiles: [p("a") as PS5Profile], active_id: "a" });
+    const api: ShareApi = {
+      get: async () => asDoc({}),
+      put: async () => ({ rev: 1 }),
+    };
+    await expect(new RosterShare(api).start()).rejects.toThrow();
+    expect(ids()).toEqual(["a"]);
   });
 });
