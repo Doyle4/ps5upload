@@ -115,6 +115,7 @@ import { isAndroid, isMobile } from "../lib/platform";
 import { localFs } from "../api/localFs";
 import { getAppVersion } from "../lib/appVersion";
 import { GlobalPackageViewer } from "../components/GlobalPackageViewer";
+import { IncomingShareSheet } from "../components/IncomingShareSheet";
 import { dropTarget, usePackageViewer } from "../state/packageViewer";
 import { installConvertRunner } from "../lib/convertQueueRunner";
 import { recordAppEvent } from "../lib/appJournal";
@@ -1541,6 +1542,8 @@ export default function AppShell() {
           Mounted once; screens drive it via pickLocalPath(). */}
       <LocalPathPicker />
       <GlobalPackageViewer />
+      {/* "Send to PS5": a link or file shared to the app, or a .pkg opened with it. */}
+      <IncomingShareSheet />
       {/* The app's own captures, large (desktop app only; opened from the status bar
           and the Bug report). */}
       {isTauriEnv() && <CaptureViewer />}

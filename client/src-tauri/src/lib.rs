@@ -50,6 +50,8 @@ mod bg_activity;
 // The JavaVM / Application context every Android JNI caller shares.
 #[cfg(target_os = "android")]
 mod android_jni;
+// "Open with PS5Upload" for .pkg files: paths from the launch, a second launch, or macOS.
+mod opened_files;
 
 /// Build and run the Tauri application. The desktop `main.rs` calls this
 /// directly; on mobile the `tauri::mobile_entry_point` macro generates
@@ -138,7 +140,16 @@ pub fn run() {
     // Android/iOS. Rebinding `builder` behind a cfg keeps the fluent
     // chain below untouched.
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
-    let builder = builder.plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+    let builder = builder.plugin(tauri_plugin_single_instance::init(|app, argv, cwd| {
+        // A package opened while the app runs ("Open with", a double-click on
+        // Windows / Linux) arrives as this second launch's arguments.
+        if opened_files::push(opened_files::package_args(
+            &argv,
+            std::path::Path::new(&cwd),
+        )) {
+            use tauri::Emitter;
+            let _ = app.emit(opened_files::EVENT, ());
+        }
         // Focus the existing main window so the user sees something
         // happen rather than a silent no-op when they re-launch.
         // `get_webview_window("main")` matches the window label
@@ -169,6 +180,17 @@ pub fn run() {
             // Before anything can call into core: management calls forward to the sidecar.
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
             mgmt_forward::install();
+
+            // A package this launch was asked to open (Windows / Linux pass it as an
+            // argument; macOS sends RunEvent::Opened below). The page takes it on load.
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
+            {
+                let argv: Vec<String> = std::env::args_os()
+                    .map(|a| a.to_string_lossy().into_owned())
+                    .collect();
+                let cwd = std::env::current_dir().unwrap_or_default();
+                opened_files::push(opened_files::package_args(&argv, &cwd));
+            }
 
             // Open the main window centred + fully on-screen. Desktop-only —
             // the centre/monitor/size window APIs don't exist on mobile, so
@@ -578,6 +600,8 @@ pub fn run() {
             bg_activity::bg_work_hold,
             bg_activity::bg_configure,
             bg_activity::bg_capabilities,
+            // ── Open with PS5Upload (.pkg file association) ─────────
+            opened_files::opened_files_take,
         ])
         .build(tauri::generate_context!())
         .expect("tauri runtime failed to build");
@@ -592,6 +616,20 @@ pub fn run() {
     // without running to here at all — segfault, taskkill /F, OOM,
     // etc.), the engine never gets orphaned holding 19113.
     app.run(|_handle, event| {
+        // macOS hands files opened with the app ("Open With", a double-click) to the
+        // running process as an event, at launch and later alike.
+        #[cfg(target_os = "macos")]
+        if let tauri::RunEvent::Opened { urls } = &event {
+            if opened_files::push(opened_files::package_urls(urls)) {
+                use tauri::{Emitter, Manager};
+                let _ = _handle.emit(opened_files::EVENT, ());
+                if let Some(window) = _handle.get_webview_window("main") {
+                    let _ = window.unminimize();
+                    let _ = window.show();
+                    let _ = window.set_focus();
+                }
+            }
+        }
         if let tauri::RunEvent::Exit = event {
             // block_on is fine here: we're on the main thread, the
             // tauri runtime has already finished its event loop, and

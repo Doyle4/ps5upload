@@ -1,0 +1,13 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "bundle": {
+    "fileAssociations": [
+      {
+        "ext": ["pkg", "fpkg"],
+        "name": "PlayStation package",
+        "mimeType": "application/x-newton-compatible-pkg",
+        "role": "Viewer"
+      }
+    ]
+  }
+}

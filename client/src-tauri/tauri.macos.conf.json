@@ -2,5 +2,15 @@
   "$schema": "https://schema.tauri.app/config/2",
   "build": {
     "runner": "./macos-dev-runner.sh"
+  },
+  "bundle": {
+    "fileAssociations": [
+      {
+        "ext": ["pkg", "fpkg"],
+        "name": "PlayStation package",
+        "role": "Viewer",
+        "rank": "Alternate"
+      }
+    ]
   }
 }

@@ -789,11 +789,18 @@ export default function InstallPackageScreen() {
   // App-wide drag-drop hand-off: AppShell routes a dropped .pkg here via
   // location state.
   const location = useLocation();
+  // A link shared to the app ("Send to PS5", components/IncomingShareSheet): filled in,
+  // never started — the user picks how it is fetched and starts it.
+  const [linkPrefill, setLinkPrefill] = useState<{ url: string; key: string } | null>(null);
   useEffect(() => {
-    const dropped = (location.state as { droppedPath?: string } | null)
-      ?.droppedPath;
+    const state = location.state as { droppedPath?: string; sharedLink?: string } | null;
+    const dropped = state?.droppedPath;
     if (dropped) {
       dropRef.current(dropped);
+      window.history.replaceState({}, "");
+    }
+    if (state?.sharedLink) {
+      setLinkPrefill({ url: state.sharedLink, key: location.key });
       window.history.replaceState({}, "");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1675,6 +1682,7 @@ export default function InstallPackageScreen() {
               host={host}
               hostReady={hostReady}
               checking={checkingLink}
+              prefill={linkPrefill}
               onInstall={(link) => void handleUrlInstall(link)}
             />
             {linkDownload && (

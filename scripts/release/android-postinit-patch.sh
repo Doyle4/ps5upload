@@ -51,6 +51,9 @@
 # 6) TransferService, the foreground service that keeps a transfer running
 #    with the app in the background (#457), its manifest entry, permissions
 #    and R8 keep rules. See step (6) below.
+#
+# 8) "Send to PS5" from Android's share menu: intent filters on MainActivity and
+#    ShareIntake.kt, which hands what was shared to the page. See step (8) below.
 
 set -euo pipefail
 
@@ -615,6 +618,366 @@ else:
     src = new
     print("declared TransferService")
 open(path, "w", encoding="utf-8").write(src)
+PY
+
+# --- (8) "Send to PS5" from the share menu ------------------------------
+# Another app shares a link (text) or a file with PS5Upload, or a .pkg is opened with it.
+# ShareIntake.kt reads the Intent in onCreate / onNewIntent and queues what arrived; the page
+# drains the queue through window.PS5UploadShare.take() on load and on each
+# 'ps5upload-share' window event (client/src/lib/incomingShare.ts), shows it and asks first.
+# A file is handed over as its real path when the content:// URI resolves to one the app can
+# read (all-files access, see the permissions above): no copy. Otherwise (Drive, Telegram…)
+# the page may ask for a copy into the app cache, and the size limit is the page's to pass;
+# the copy stops at that limit. The class is rewritten on every run, like TransferService.
+if [ -n "$mainactivity" ]; then
+  cat >"$(dirname "$mainactivity")/ShareIntake.kt" <<'KT'
+package com.phantomptr.ps5upload
+
+// Written by scripts/release/android-postinit-patch.sh; edit it there.
+
+import android.app.Activity
+import android.content.ContentUris
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.os.Build
+import android.os.Environment
+import android.provider.DocumentsContract
+import android.provider.MediaStore
+import android.provider.OpenableColumns
+import android.util.Log
+import android.webkit.JavascriptInterface
+import android.webkit.WebView
+import org.json.JSONArray
+import org.json.JSONObject
+import java.io.File
+import java.lang.ref.WeakReference
+
+/** What other apps share with PS5Upload ("Send to PS5"), queued for the page. Items:
+ *  {kind:"text", value} a shared text (the page finds the link in it);
+ *  {kind:"path", value, name, size} a file the app can read where it is;
+ *  {kind:"stream", value: token, name, size} a file only readable as a stream (size -1 unknown);
+ *  {kind:"copied", value: path, name, size, token} a stream copied into the app cache;
+ *  {kind:"error", value: code, token} a copy that failed (too_large, no_space, copy_failed). */
+object ShareIntake {
+  private const val TAG = "PS5UploadShare"
+  private const val KEEP_COPIES_MS = 24 * 60 * 60 * 1000L
+  private val pending = ArrayList<JSONObject>()
+  private val streams = HashMap<String, Uri>()
+  private val cancelled = HashSet<String>()
+  private var seq = 0
+  private var appContext: Context? = null
+  private var webView: WeakReference<WebView>? = null
+
+  fun handle(activity: Activity, intent: Intent?) {
+    if (intent == null) return
+    // Reopened from Recents: the share was handled when it first arrived.
+    if (intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY != 0) return
+    appContext = activity.applicationContext
+    val item = try {
+      read(activity, intent)
+    } catch (e: Exception) {
+      Log.w(TAG, "read: $e")
+      null
+    } ?: return
+    push(item)
+  }
+
+  fun attach(view: WebView) {
+    webView = WeakReference(view)
+    view.addJavascriptInterface(Bridge, "PS5UploadShare")
+  }
+
+  private object Bridge {
+    @JavascriptInterface
+    fun take(): String = synchronized(ShareIntake) {
+      val out = JSONArray(pending).toString()
+      pending.clear()
+      out
+    }
+
+    @JavascriptInterface
+    fun copy(token: String, limitBytes: Double) = startCopy(token, limitBytes.toLong())
+
+    @JavascriptInterface
+    fun cancel(token: String) {
+      synchronized(ShareIntake) {
+        streams.remove(token)
+        cancelled.add(token)
+      }
+    }
+  }
+
+  private fun push(item: JSONObject) {
+    synchronized(this) { pending.add(item) }
+    val view = webView?.get() ?: return
+    view.post {
+      view.evaluateJavascript("window.dispatchEvent(new Event('ps5upload-share'))", null)
+    }
+  }
+
+  private fun read(ctx: Context, intent: Intent): JSONObject? {
+    val uri: Uri? = when (intent.action) {
+      Intent.ACTION_SEND -> streamExtra(intent) ?: intent.clipData
+        ?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.uri
+      Intent.ACTION_VIEW -> intent.data
+      else -> return null
+    }
+    if (uri == null) {
+      if (intent.action != Intent.ACTION_SEND) return null
+      val text = intent.getCharSequenceExtra(Intent.EXTRA_TEXT)?.toString() ?: return null
+      return JSONObject().put("kind", "text").put("value", text.take(8192))
+    }
+    return describe(ctx, uri)
+  }
+
+  @Suppress("DEPRECATION")
+  private fun streamExtra(intent: Intent): Uri? =
+    if (Build.VERSION.SDK_INT >= 33) {
+      intent.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)
+    } else {
+      intent.getParcelableExtra<Uri>(Intent.EXTRA_STREAM)
+    }
+
+  private fun describe(ctx: Context, uri: Uri): JSONObject {
+    val (metaName, metaSize) = meta(ctx, uri)
+    val path = realPath(ctx, uri, metaName, metaSize)
+    val file = path?.let { File(it) }?.takeIf { it.isFile && it.canRead() }
+    val name = metaName ?: file?.name ?: uri.lastPathSegment?.substringAfterLast('/') ?: "file"
+    val o = JSONObject().put("name", name)
+    if (file != null) {
+      return o.put("kind", "path").put("value", file.path).put("size", file.length())
+    }
+    val token = synchronized(this) {
+      seq += 1
+      val t = "s$seq"
+      streams[t] = uri
+      t
+    }
+    return o.put("kind", "stream").put("value", token).put("size", metaSize)
+  }
+
+  /** Display name and size (-1 when the provider does not say). */
+  private fun meta(ctx: Context, uri: Uri): Pair<String?, Long> {
+    if (uri.scheme == "file") {
+      val f = File(uri.path ?: return null to -1L)
+      return f.name to (if (f.isFile) f.length() else -1L)
+    }
+    return try {
+      ctx.contentResolver.query(
+        uri, arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE), null, null, null,
+      )?.use { c ->
+        if (!c.moveToFirst()) return@use null to -1L
+        val n = c.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+        val s = c.getColumnIndex(OpenableColumns.SIZE)
+        val name = if (n >= 0 && !c.isNull(n)) c.getString(n) else null
+        val size = if (s >= 0 && !c.isNull(s)) c.getLong(s) else -1L
+        name to size
+      } ?: (null to -1L)
+    } catch (e: Exception) {
+      Log.w(TAG, "meta: $e")
+      null to -1L
+    }
+  }
+
+  /** The file behind a content:// URI on shared storage, when there is one. */
+  private fun realPath(ctx: Context, uri: Uri, name: String?, size: Long): String? {
+    if (uri.scheme == "file") return uri.path
+    if (uri.scheme != "content") return null
+    try {
+      if (DocumentsContract.isDocumentUri(ctx, uri)) {
+        val id = DocumentsContract.getDocumentId(uri)
+        when (uri.authority) {
+          "com.android.externalstorage.documents" -> {
+            val volume = id.substringBefore(':')
+            val rel = id.substringAfter(':', "")
+            val base = if (volume.equals("primary", ignoreCase = true)) {
+              @Suppress("DEPRECATION")
+              Environment.getExternalStorageDirectory().path
+            } else {
+              "/storage/$volume"
+            }
+            return if (rel.isEmpty()) base else "$base/$rel"
+          }
+          "com.android.providers.downloads.documents" -> {
+            if (id.startsWith("raw:")) return id.removePrefix("raw:")
+            if (id.startsWith("msf:")) {
+              dataColumn(ctx, MediaStore.Files.getContentUri("external"), id.removePrefix("msf:"))
+                ?.let { return it }
+            }
+            id.toLongOrNull()?.let { n ->
+              for (base in listOf("content://downloads/public_downloads", "content://downloads/my_downloads")) {
+                dataColumn(ctx, ContentUris.withAppendedId(Uri.parse(base), n), null)?.let { return it }
+              }
+            }
+            // Newer Androids hide the path; a file of that name and size in Download is it.
+            if (name != null && size >= 0) {
+              @Suppress("DEPRECATION")
+              val f = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), name)
+              if (f.isFile && f.length() == size) return f.path
+            }
+            return null
+          }
+          "com.android.providers.media.documents" ->
+            return dataColumn(ctx, MediaStore.Files.getContentUri("external"), id.substringAfter(':'))
+        }
+      }
+      // MediaStore and many file managers' own providers still answer _data.
+      return dataColumn(ctx, uri, null)
+    } catch (e: Exception) {
+      Log.w(TAG, "path: $e")
+      return null
+    }
+  }
+
+  private fun dataColumn(ctx: Context, uri: Uri, id: String?): String? = try {
+    ctx.contentResolver.query(
+      uri, arrayOf("_data"), if (id != null) "_id=?" else null, id?.let { arrayOf(it) }, null,
+    )?.use { c ->
+      val i = c.getColumnIndex("_data")
+      if (c.moveToFirst() && i >= 0 && !c.isNull(i)) c.getString(i) else null
+    }
+  } catch (e: Exception) {
+    null
+  }
+
+  private fun startCopy(token: String, limit: Long) {
+    val uri = synchronized(this) {
+      cancelled.remove(token)
+      streams[token]
+    }
+    val ctx = appContext
+    if (uri == null || ctx == null) {
+      push(JSONObject().put("kind", "error").put("value", "copy_failed").put("token", token))
+      return
+    }
+    Thread {
+      val result = try {
+        copyToCache(ctx, uri, token, limit)
+      } catch (e: Exception) {
+        Log.w(TAG, "copy: $e")
+        JSONObject().put("kind", "error").put("value", "copy_failed")
+      }
+      synchronized(this) { streams.remove(token) }
+      push(result.put("token", token))
+    }.start()
+  }
+
+  private fun copyToCache(ctx: Context, uri: Uri, token: String, limit: Long): JSONObject {
+    val root = File(ctx.cacheDir, "shared").apply { mkdirs() }
+    // Copies from earlier shares go after a day; a recent one may still be installing.
+    val now = System.currentTimeMillis()
+    root.listFiles()?.forEach { if (now - it.lastModified() > KEEP_COPIES_MS) it.deleteRecursively() }
+    val (metaName, metaSize) = meta(ctx, uri)
+    if (metaSize > limit) return JSONObject().put("kind", "error").put("value", "too_large")
+    if (metaSize >= 0 && root.usableSpace < metaSize + (64L shl 20)) {
+      return JSONObject().put("kind", "error").put("value", "no_space")
+    }
+    val name = (metaName ?: "shared.bin").replace(Regex("[/\\\\:\\u0000]"), "_").ifBlank { "shared.bin" }
+    // A folder per share keeps the file's own name (the queue shows it).
+    val dir = File(root, "$token-$now").apply { mkdirs() }
+    val out = File(dir, name)
+    var total = 0L
+    var stopped: String? = null
+    val input = ctx.contentResolver.openInputStream(uri) ?: throw IllegalStateException("no stream")
+    input.use { inp ->
+      out.outputStream().use { o ->
+        val buf = ByteArray(1 shl 20)
+        while (true) {
+          val n = inp.read(buf)
+          if (n < 0) break
+          total += n
+          if (total > limit) { stopped = "too_large"; break }
+          if (synchronized(this) { cancelled.contains(token) }) { stopped = "cancelled"; break }
+          o.write(buf, 0, n)
+        }
+      }
+    }
+    if (stopped != null) {
+      dir.deleteRecursively()
+      return JSONObject().put("kind", "error").put("value", stopped)
+    }
+    return JSONObject().put("kind", "copied").put("value", out.path).put("name", name).put("size", total)
+  }
+}
+KT
+  echo "wrote ShareIntake.kt"
+
+  python3 - "$mainactivity" <<'PY'
+import sys
+path = sys.argv[1]
+src = open(path, encoding="utf-8").read()
+if "ShareIntake" in src:
+    print("MainActivity.kt already hands shares to ShareIntake — skipping")
+    sys.exit(0)
+create_anchor = "    super.onCreate(savedInstanceState)\n"
+webview_anchor = "    super.onWebViewCreate(webView)\n"
+if create_anchor not in src or webview_anchor not in src:
+    sys.exit("::error::onCreate/onWebViewCreate not found in MainActivity.kt")
+# Not on a re-creation (rotation, process restore): that intent was handled already.
+src = src.replace(create_anchor, create_anchor +
+    "    if (savedInstanceState == null) ShareIntake.handle(this, intent)\n", 1)
+src = src.replace(webview_anchor, webview_anchor + "    ShareIntake.attach(webView)\n", 1)
+method = '''
+  // singleTask: a share while the app runs arrives here, not in onCreate.
+  override fun onNewIntent(intent: android.content.Intent) {
+    super.onNewIntent(intent)
+    setIntent(intent)
+    ShareIntake.handle(this, intent)
+  }
+'''
+idx = src.rstrip().rfind("}")
+src = src[:idx] + method + src[idx:]
+open(path, "w", encoding="utf-8").write(src)
+print("patched MainActivity.kt to hand shares to ShareIntake")
+PY
+fi
+
+python3 - "$manifest" <<'PY'
+import re, sys
+path = sys.argv[1]
+src = open(path, encoding="utf-8").read()
+marker = "<!-- ps5upload: Send to PS5 -->"
+if marker in src:
+    print("share intent filters already present — skipping")
+    sys.exit(0)
+# Files: Android names a .pkg application/octet-stream (or x-newton-compatible-pkg, from
+# mime.types); archives by their own types. Not */*: the app would then show up for photos.
+file_types = [
+    "application/octet-stream",
+    "application/x-newton-compatible-pkg",
+    "application/zip",
+    "application/x-zip-compressed",
+    "application/x-7z-compressed",
+    "application/x-rar-compressed",
+    "application/vnd.rar",
+]
+send = "".join(f'\n                <data android:mimeType="{t}" />' for t in ["text/plain"] + file_types)
+filters = f'''            {marker}
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />{send}
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="content" />
+                <data android:scheme="file" />
+                <data android:mimeType="application/octet-stream" />
+                <data android:mimeType="application/x-newton-compatible-pkg" />
+            </intent-filter>
+'''
+m = re.search(r'<activity\b[^>]*android:name="\.MainActivity"[^>]*>', src, re.S)
+if not m:
+    sys.exit("::error::MainActivity <activity> not found in AndroidManifest.xml")
+end = src.find("        </activity>", m.end())
+if end == -1:
+    end = src.find("</activity>", m.end())
+if end == -1:
+    sys.exit("::error::MainActivity </activity> not found in AndroidManifest.xml")
+src = src[:end] + filters + src[end:]
+open(path, "w", encoding="utf-8").write(src)
+print("added the share intent filters to MainActivity")
 PY
 
 # 7) Nothing left running after a build. Gradle normally keeps a daemon (and a separate Kotlin
