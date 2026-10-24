@@ -2266,6 +2266,7 @@ keep_awake_on_mobile: "Tartsd ébren a képernyőt, amíg a PS5 Upload előtérb
 keep_awake_hint_mobile: "Megakadályozza, hogy a kijelző elhalványuljon vagy lezáródjon, amíg az alkalmazás látható — hasznos hosszú feltöltéseknél. Automatikusan felszabadul, ha másik appra váltasz vagy kikapcsolod a képernyőt.",
 keep_awake_unsupported_mobile: "A képernyő-ébrentartás nem érhető el ebben a WebView-ban.",
 update_open_apk_button: "v{version} APK letöltése böngészőben",
+update_open_ipa_button: "A v{version} .ipa letöltése böngészőben",
 update_open_release_page: "Letöltési oldal megnyitása",
 keep_ps5_awake_mode: "PS5 ébren tartása",
 keep_awake_mode_off: "Ki",

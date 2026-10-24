@@ -1690,6 +1690,7 @@ settings_section_reset: "रीसेट",
   keep_awake_unsupported_mobile:
     "इस WebView में स्क्रीन वेक लॉक उपलब्ध नहीं है।",
   update_open_apk_button: "ब्राउज़र में v{version} APK पाएँ",
+  update_open_ipa_button: "ब्राउज़र में v{version} .ipa पाएँ",
   update_open_release_page: "डाउनलोड पेज खोलें",
   keep_ps5_awake_mode: "PS5 को जागृत रखें",
   keep_awake_mode_off: "बंद",

@@ -1691,6 +1691,7 @@ keep_awake_hint_mobile:
   "Impede que a tela escureça e bloqueie enquanto o app está visível — útil durante uploads longos. Liberado automaticamente quando você troca de app ou desliga a tela.",
 keep_awake_unsupported_mobile: "O bloqueio de suspensão da tela não está disponível neste WebView.",
 update_open_apk_button: "Baixar o APK v{version} no navegador",
+update_open_ipa_button: "Baixar o .ipa v{version} no navegador",
 update_open_release_page: "Abrir página de download",
 keep_ps5_awake_mode: "Manter o PS5 acordado",
 keep_awake_mode_off: "Desativado",

@@ -74,7 +74,7 @@ import { useTitleInfo } from "../../lib/useTitleInfo";
 import { fetchTitleInfo } from "../../lib/titleDetails";
 import { mgmtAddr } from "../../lib/addr";
 import { useStaleHostGuard } from "../../lib/staleHostGuard";
-import { save as saveDialog } from "@tauri-apps/plugin-dialog";
+import { pickSaveDest as saveDialog } from "../../lib/pickSaveDest";
 import { pickPath } from "../../lib/pickPath";
 import { pushNotification } from "../../state/notifications";
 import { withConsolePrefix } from "../../state/roster";

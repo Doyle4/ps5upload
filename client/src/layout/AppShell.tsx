@@ -107,7 +107,7 @@ import { guardElfldr } from "../lib/elfldrGuard";
 import { installPlayTimeAccumulator } from "../state/playTime";
 import { installRunningWatch } from "../state/runningWatch";
 import { useTr } from "../state/lang";
-import { isAndroid } from "../lib/platform";
+import { isAndroid, isMobile } from "../lib/platform";
 import { localFs } from "../api/localFs";
 import { getAppVersion } from "../lib/appVersion";
 import { GlobalPackageViewer } from "../components/GlobalPackageViewer";
@@ -1090,7 +1090,7 @@ function usePkgAutoRoute() {
   const location = useLocation();
   useEffect(() => {
     if (!isTauriEnv()) return; // browser-only dev/test contexts skip Tauri APIs
-    if (isAndroid()) return; // no drag-and-drop on Android — skip the bridge round-trip
+    if (isMobile()) return; // no drag-and-drop on a phone — skip the bridge round-trip
     // A dropped file is a path on this device; a remote engine can't open it.
     if (!engineIsOnThisDevice()) return;
     let unlisten: (() => void) | null = null;

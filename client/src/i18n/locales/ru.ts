@@ -1626,6 +1626,7 @@ keep_awake_on_mobile: "Не выключать экран, пока PS5 Upload �
 keep_awake_hint_mobile: "Не даёт дисплею гаснуть и блокироваться, пока приложение на экране — полезно при долгих загрузках. Автоматически отпускается, когда вы переключаетесь на другое приложение или выключаете экран.",
 keep_awake_unsupported_mobile: "Блокировка сна экрана недоступна в этом WebView.",
 update_open_apk_button: "Скачать APK v{version} в браузере",
+update_open_ipa_button: "Скачать .ipa v{version} в браузере",
 update_open_release_page: "Открыть страницу загрузки",
 keep_ps5_awake_mode: "Не давать PS5 заснуть",
 keep_awake_mode_off: "Выкл.",

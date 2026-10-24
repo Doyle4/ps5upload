@@ -170,9 +170,9 @@ export default function AppLogsPanel() {
       // blocks ("Command plugin:fs|write_text_file not allowed by ACL") — the
       // exact error users hit trying to save logs. The backend command writes
       // from trusted Rust and isn't fs-scope-gated. Mirrors Stats/Settings.
-      const { save } = await import("@tauri-apps/plugin-dialog");
+      const { pickSaveDest } = await import("../../lib/pickSaveDest");
       const { writeTextFileToPath } = await import("../../lib/saveTextFile");
-      const dest = await save({
+      const dest = await pickSaveDest({
         defaultPath: fileName,
         filters: [{ name: "Text", extensions: ["txt"] }],
       });

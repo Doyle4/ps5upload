@@ -20,7 +20,7 @@ import {
 } from "../lib/appCaptures";
 import { formatBytes } from "../lib/format";
 import { useFormatDate } from "../lib/formatDate";
-import { isAndroid } from "../lib/platform";
+import { isMobile } from "../lib/platform";
 import { useLangStore, useTr } from "../state/lang";
 
 /**
@@ -139,7 +139,7 @@ export function CaptureViewer() {
               <span className="me-auto truncate text-xs text-[var(--color-muted)]" title={current.path}>
                 {current.name} · {formatBytes(current.bytes)}
               </span>
-              {!isAndroid() && (
+              {!isMobile() && (
                 <Button
                   variant="ghost"
                   size="sm"

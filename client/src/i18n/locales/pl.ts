@@ -2030,6 +2030,7 @@ keep_awake_on_mobile: "Utrzymuj ekran włączony, gdy PS5 Upload działa na pier
 keep_awake_hint_mobile: "Zapobiega przyciemnianiu i blokowaniu ekranu, gdy aplikacja jest widoczna — przydatne podczas długich przesyłań. Automatycznie zwalniane po przełączeniu aplikacji lub wyłączeniu ekranu.",
 keep_awake_unsupported_mobile: "Blokada uśpienia ekranu nie jest dostępna w tym WebView.",
 update_open_apk_button: "Pobierz APK v{version} w przeglądarce",
+update_open_ipa_button: "Pobierz .ipa v{version} w przeglądarce",
 update_open_release_page: "Otwórz stronę pobierania",
 keep_ps5_awake_mode: "Utrzymuj PS5 aktywną",
 keep_awake_mode_off: "Wyłączone",

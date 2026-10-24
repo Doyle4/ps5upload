@@ -2493,6 +2493,7 @@ keep_awake_on_mobile: "Keep the screen on while PS5 Upload is in the foreground"
 keep_awake_hint_mobile: "Stops the display from dimming and locking while the app is visible — useful during long uploads. Released automatically when you switch apps or turn the screen off.",
 keep_awake_unsupported_mobile: "Screen wake lock isn't available in this WebView.",
 update_open_apk_button: "Get v{version} APK in browser",
+update_open_ipa_button: "Get v{version} .ipa in browser",
 update_open_release_page: "Open download page",
 keep_ps5_awake_mode: "Keep the PS5 awake",
 keep_awake_mode_off: "Off",

@@ -1685,6 +1685,7 @@ keep_awake_on_mobile: "Jaga layar menyala saat PS5 Upload berada di latar depan"
 keep_awake_hint_mobile: "Mencegah layar meredup dan terkunci selama aplikasi terlihat — berguna saat unggahan panjang. Dilepas otomatis ketika Anda berpindah aplikasi atau mematikan layar.",
 keep_awake_unsupported_mobile: "Wake lock layar tidak tersedia di WebView ini.",
 update_open_apk_button: "Ambil APK v{version} di browser",
+update_open_ipa_button: "Unduh .ipa v{version} di peramban",
 update_open_release_page: "Buka halaman unduhan",
 keep_ps5_awake_mode: "Jaga PS5 tetap aktif",
 keep_awake_mode_off: "Mati",

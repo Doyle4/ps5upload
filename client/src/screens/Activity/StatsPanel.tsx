@@ -33,9 +33,9 @@ export function StatsPanel({ entries }: { entries: ActivityEntry[] }) {
         const { browserDownloadText } = await import("../../lib/browserDownload");
         browserDownloadText(fileName, csv, "text/csv");
       } else {
-        const { save } = await import("@tauri-apps/plugin-dialog");
+        const { pickSaveDest } = await import("../../lib/pickSaveDest");
         const { writeTextFileToPath } = await import("../../lib/saveTextFile");
-        const dest = await save({
+        const dest = await pickSaveDest({
           defaultPath: fileName,
           filters: [{ name: "CSV", extensions: ["csv"] }],
         });

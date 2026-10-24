@@ -27,8 +27,8 @@ export async function saveReport(
     await downloadBugBundle(entries, b.filename);
     return { dest: b.filename, bytes: 0 };
   }
-  const { save } = await import("@tauri-apps/plugin-dialog");
-  const dest = await save({ defaultPath: b.filename, filters: [{ name: "Zip", extensions: ["zip"] }] });
+  const { pickSaveDest } = await import("./pickSaveDest");
+  const dest = await pickSaveDest({ defaultPath: b.filename, filters: [{ name: "Zip", extensions: ["zip"] }] });
   if (!dest || typeof dest !== "string") return null;
   const report = b.entries.find((e) => e.path === "report.json");
   const res = await invoke<{ dest: string; bytes: number }>("bug_report_build", {

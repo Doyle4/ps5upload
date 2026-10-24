@@ -35,7 +35,7 @@ import {
   Gamepad2,
 } from "lucide-react";
 
-import { isAndroid } from "../../lib/platform";
+import { isMobile } from "../../lib/platform";
 import { pickPath, pickPaths } from "../../lib/pickPath";
 import { isTauriEnv, safeUnlisten } from "../../lib/tauriEnv";
 import { engineIsOnThisDevice } from "../../state/engine";
@@ -854,7 +854,7 @@ export default function InstallPackageScreen() {
     }
     setPicking(true);
     try {
-      const sel = isAndroid()
+      const sel = isMobile()
         ? await pickPath({
             mode: "file",
             filters: [{ name: "PlayStation Package", extensions: ["pkg", "fpkg"] }],

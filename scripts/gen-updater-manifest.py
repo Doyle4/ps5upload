@@ -66,6 +66,8 @@ PLATFORM_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     # Single universal APK (built --target aarch64 --target armv7), so one
     # "android" key — matches current_platform_key() in commands/updates.rs.
     ("android",         re.compile(r".*-android\.apk$")),
+    # The unsigned iPhone .ipa — current_platform_key() returns "ios" there.
+    ("ios",             re.compile(r".*-ios-unsigned\.ipa$")),
 ]
 
 

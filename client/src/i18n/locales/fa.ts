@@ -2330,6 +2330,7 @@ keep_awake_on_mobile: "تا زمانی که PS5 Upload در پیش‌زمینه 
 keep_awake_hint_mobile: "جلوگیری از تار شدن و قفل شدن نمایشگر تا زمانی که برنامه قابل مشاهده است — برای بارگذاری‌های طولانی مفید است. با سوییچ برنامه‌ها یا خاموش کردن صفحه به‌طور خودکار آزاد می‌شود.",
 keep_awake_unsupported_mobile: "قفل بیدار نگه‌داشتن صفحه در این WebView در دسترس نیست.",
 update_open_apk_button: "دریافت APK نسخه‌ی v{version} در مرورگر",
+update_open_ipa_button: "دریافت ‎.ipa نسخه v{version} در مرورگر",
 update_open_release_page: "باز کردن صفحه‌ی دانلود",
 keep_ps5_awake_mode: "بیدار نگه‌داشتن PS5",
 keep_awake_mode_off: "خاموش",

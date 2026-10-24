@@ -15,7 +15,7 @@ import {
   withoutNames,
 } from "../../lib/appCaptures";
 import { useConfirm } from "../../components/ConfirmDialog";
-import { isAndroid } from "../../lib/platform";
+import { isMobile } from "../../lib/platform";
 
 /** Images that go in the zip: the app's own captures (desktop, by path) and added files. */
 export interface Attached {
@@ -151,7 +151,7 @@ export default function ScreenshotsSection({
                 <Button variant="ghost" size="sm" leftIcon={<Maximize2 size={13} />} onClick={() => view()}>
                   {tr("cap_view_all", undefined, "View captures")}
                 </Button>
-                {!isAndroid() && (
+                {!isMobile() && (
                   <Button
                     variant="ghost"
                     size="sm"

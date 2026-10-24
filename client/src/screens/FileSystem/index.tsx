@@ -70,7 +70,7 @@ import {
   type SortKey,
   type SortState,
 } from "./fsBrowse";
-import { save as saveDialog } from "@tauri-apps/plugin-dialog";
+import { pickSaveDest as saveDialog } from "../../lib/pickSaveDest";
 import { isTauriEnv } from "../../lib/tauriEnv";
 import { isWindows } from "../../lib/platform";
 import {

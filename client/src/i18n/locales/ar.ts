@@ -1676,6 +1676,7 @@ keep_awake_on_mobile: "استمر في تشغيل الشاشة أثناء وجو
 keep_awake_hint_mobile: "يوقف الشاشة عن التعتيم والقفل أثناء ظهور التطبيق — وهو مفيد أثناء التحميلات الطويلة. يتم إصدارها تلقائيًا عند تبديل التطبيقات أو إيقاف تشغيل الشاشة.",
 keep_awake_unsupported_mobile: "قفل تنبيه الشاشة غير متوفر في WebView هذا.",
 update_open_apk_button: "احصل على الإصدار{version} APK في المتصفح",
+update_open_ipa_button: "تنزيل ‎.ipa للإصدار v{version} في المتصفح",
 update_open_release_page: "فتح صفحة التنزيل",
 keep_ps5_awake_mode: "حافظ على جهاز PS5 مستيقظًا",
 keep_awake_mode_off: "إيقاف",

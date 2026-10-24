@@ -21,7 +21,7 @@ import {
 import clsx from "clsx";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
-import { isAndroid } from "../../lib/platform";
+import { isAndroid, isMobile } from "../../lib/platform";
 import { pkgKindLabel } from "./pkgKind";
 import { pickLocalPath, pickLocalPaths } from "../../state/localPicker";
 import { isTauriEnv, safeUnlisten } from "../../lib/tauriEnv";
@@ -251,7 +251,7 @@ export default function UploadScreen() {
   //     circuit on `cancelled` at entry.
   useEffect(() => {
     if (!isTauriEnv()) return; // browser dev/test contexts skip Tauri-only APIs
-    if (isAndroid()) return; // no drag-and-drop on Android; pickers below cover it
+    if (isMobile()) return; // no drag-and-drop on a phone; pickers below cover it
     // A dropped folder is a path on this device; a remote engine can't read it.
     if (!engineIsOnThisDevice()) return;
     let unlisten: (() => void) | null = null;
@@ -313,7 +313,7 @@ export default function UploadScreen() {
 
   const handleScanFolder = async () => {
     try {
-      const folder = isAndroid() || !isTauriEnv()
+      const folder = isMobile() || !isTauriEnv()
         ? await pickLocalPath({ mode: "folder", title: tr("batch_scan_pick", undefined, "Choose the folder that holds your games") })
         : await openDialog({ directory: true, multiple: false, title: tr("batch_scan_pick", undefined, "Choose the folder that holds your games") });
       if (typeof folder !== "string") return;
@@ -331,7 +331,7 @@ export default function UploadScreen() {
       // the wrong machine anyway (the browser's, not the engine's) — same
       // in-app browser, pointed at the engine's filesystem instead (see
       // api/localFs.ts).
-      const selected = isAndroid() || !isTauriEnv()
+      const selected = isMobile() || !isTauriEnv()
         ? await pickLocalPaths({ mode: "file" })
         : await openDialog({ directory: false, multiple: true });
       const list = Array.isArray(selected) ? selected : typeof selected === "string" ? [selected] : [];
@@ -360,7 +360,7 @@ export default function UploadScreen() {
       // in-app real-path browser so folder upload works. Browser (no
       // Tauri): same in-app browser, pointed at the engine's own
       // filesystem instead — see handleChooseFile above.
-      const selected = isAndroid() || !isTauriEnv()
+      const selected = isMobile() || !isTauriEnv()
         ? await pickLocalPaths({ mode: "folder" })
         : await openDialog({ directory: true, multiple: true });
       const list = Array.isArray(selected) ? selected : typeof selected === "string" ? [selected] : [];
@@ -904,7 +904,7 @@ function Step1Picker({
         <UploadIcon size={24} aria-hidden />
       </div>
       <div className="relative text-base font-semibold tracking-[-0.01em]">
-        {isAndroid()
+        {isMobile()
           ? tr(
               "upload_pick_here_mobile",
               undefined,

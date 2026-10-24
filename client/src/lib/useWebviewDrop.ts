@@ -4,7 +4,7 @@
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { useEffect, useRef, useState } from "react";
 
-import { isAndroid } from "./platform";
+import { isMobile } from "./platform";
 import { isTauriEnv } from "./tauriEnv";
 import { engineIsOnThisDevice } from "../state/engine";
 
@@ -46,7 +46,7 @@ function useWebviewDropCore(onDrop: (paths: string[]) => void, enabled: boolean)
 
   useEffect(() => {
     // A dropped path is on this device; a remote engine can't open it.
-    if (!isTauriEnv() || isAndroid() || !engineIsOnThisDevice()) return;
+    if (!isTauriEnv() || isMobile() || !engineIsOnThisDevice()) return;
     let unlisten: (() => void) | null = null;
     let cancelled = false;
     const p = getCurrentWebview().onDragDropEvent((e) => {

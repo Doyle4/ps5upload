@@ -66,7 +66,7 @@ import { hasBetaItems } from "../../layout/navItems";
 import { useRestAfterUploadStore } from "../../state/restAfterUpload";
 import { userConfigPath, resetAllAppData } from "../../state/userConfig";
 import { useUpdateStore, type UpdatePhase } from "../../state/update";
-import { isMobile } from "../../lib/platform";
+import { isIOS, isMobile } from "../../lib/platform";
 import { settingsVisibility } from "./visibility";
 import type { LanguageCode } from "../../i18n";
 // Static imports for stores already pulled into the main bundle by
@@ -1245,9 +1245,9 @@ function BackupRestorePanel() {
         );
         return;
       }
-      const { save } = await import("@tauri-apps/plugin-dialog");
+      const { pickSaveDest } = await import("../../lib/pickSaveDest");
       const { writeTextFileToPath } = await import("../../lib/saveTextFile");
-      const dest = await save({
+      const dest = await pickSaveDest({
         defaultPath: fileName,
         filters: [{ name: "JSON", extensions: ["json"] }],
       });
@@ -1922,11 +1922,17 @@ function UpdatesPanel() {
           >
             <ExternalLink size={12} />
             {hasPlatformBundle
-              ? tr(
-                  "update_open_apk_button",
-                  { version: resultForNotes?.latest_version ?? "" },
-                  "Get v{version} APK in browser",
-                )
+              ? isIOS()
+                ? tr(
+                    "update_open_ipa_button",
+                    { version: resultForNotes?.latest_version ?? "" },
+                    "Get v{version} .ipa in browser",
+                  )
+                : tr(
+                    "update_open_apk_button",
+                    { version: resultForNotes?.latest_version ?? "" },
+                    "Get v{version} APK in browser",
+                  )
               : tr("update_open_release_page", undefined, "Open download page")}
           </button>
         )}

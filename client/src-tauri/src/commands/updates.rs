@@ -156,6 +156,12 @@ fn current_platform_key() -> &'static str {
     {
         return "android";
     }
+    // iPhone: the unsigned .ipa (arm64 only), which the person sideloads again with their tool.
+    // Keep in sync with the `-ios-unsigned.ipa` pattern in scripts/gen-updater-manifest.py.
+    #[cfg(target_os = "ios")]
+    {
+        return "ios";
+    }
     #[allow(unreachable_code)]
     {
         "unknown"

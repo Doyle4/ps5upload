@@ -39,8 +39,8 @@ export async function reportProblem(
     await captureCrashReport(trigger, { force: true });
 
     // 2. User picks where the zip goes.
-    const { save } = await import("@tauri-apps/plugin-dialog");
-    const dest = await save({
+    const { pickSaveDest } = await import("./pickSaveDest");
+    const dest = await pickSaveDest({
       defaultPath: `ps5upload-crash-reports-${Date.now()}.zip`,
       filters: [{ name: "Zip", extensions: ["zip"] }],
     });

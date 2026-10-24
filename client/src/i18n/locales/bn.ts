@@ -1676,6 +1676,7 @@ keep_awake_on_mobile: "PS5 আপলোড অগ্রভাগে থাকা
 keep_awake_hint_mobile: "অ্যাপটি দৃশ্যমান থাকা অবস্থায় ডিমিং এবং লকিং থেকে ডিসপ্লেটি বন্ধ করে দেয় — দীর্ঘ আপলোডের সময় দরকারী । আপনি অ্যাপ্লিকেশনগুলি স্যুইচ করার সময় বা স্ক্রিনটি বন্ধ করার সময় স্বয়ংক্রিয়ভাবে মুক্তি দেওয়া হয় ।",
 keep_awake_unsupported_mobile: "এই WebView-এ স্ক্রিন ওয়েক লক উপলভ্য নয় ।",
 update_open_apk_button: "ব্রাউজারে v{version} APK পান",
+update_open_ipa_button: "ব্রাউজারে v{version} .ipa নিন",
 update_open_release_page: "ডাউনলোড পৃষ্ঠা খুলুন",
 keep_ps5_awake_mode: "PS5 কে জাগিয়ে রাখুন",
 keep_awake_mode_off: "বন্ধ",

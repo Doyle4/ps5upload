@@ -18,9 +18,9 @@ export async function exportCollection(
     browserDownloadText(fileName, text, MIME[format]);
     return;
   }
-  const { save } = await import("@tauri-apps/plugin-dialog");
+  const { pickSaveDest } = await import("../../lib/pickSaveDest");
   const { writeTextFileToPath } = await import("../../lib/saveTextFile");
-  const dest = await save({
+  const dest = await pickSaveDest({
     defaultPath: fileName,
     filters: [{ name: format.toUpperCase(), extensions: [format] }],
   });

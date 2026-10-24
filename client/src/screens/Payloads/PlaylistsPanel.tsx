@@ -38,7 +38,7 @@ import {
 } from "../../lib/playlistOps";
 import { payloadsAddCustomRepo, payloadsCatalog, type PayloadInfo } from "../../api/ps5";
 import { buildPlaylistExport, parsePlaylistExport } from "../../lib/playlistShare";
-import { isAndroid } from "../../lib/platform";
+import { isAndroid, isMobile } from "../../lib/platform";
 import { isTauriEnv, safeUnlisten } from "../../lib/tauriEnv";
 import { log } from "../../state/logs";
 import { physicalPointInRect } from "./dropZone";
@@ -79,11 +79,11 @@ export function PlaylistsPanel({ host, port }: { host: string; port: number }) {
         setShareMsg({ ok: true, text: tr("playlists_exported", { name: fileName }, `Saved ${fileName}`) });
         return;
       }
-      const { save } = await import("@tauri-apps/plugin-dialog");
+      const { pickSaveDest } = await import("../../lib/pickSaveDest");
       const { writeTextFileToPath } = await import("../../lib/saveTextFile");
       const dest = isAndroid()
         ? ""
-        : await save({ defaultPath: fileName, filters: [{ name: "JSON", extensions: ["json"] }] });
+        : await pickSaveDest({ defaultPath: fileName, filters: [{ name: "JSON", extensions: ["json"] }] });
       if (!isAndroid() && (!dest || typeof dest !== "string")) return;
       await writeTextFileToPath(dest ?? "", json, fileName);
       setShareMsg({ ok: true, text: tr("playlists_exported", { name: dest || fileName }, `Saved ${dest || fileName}`) });
@@ -177,7 +177,7 @@ export function PlaylistsPanel({ host, port }: { host: string; port: number }) {
   const dropZoneRef = useRef<HTMLDivElement | null>(null);
   const dragHasPayloadRef = useRef(false);
   useEffect(() => {
-    if (!isTauriEnv() || isAndroid()) return;
+    if (!isTauriEnv() || isMobile()) return;
     let unlisten: (() => void) | null = null;
     let cancelled = false;
     // Tauri reports drop position in PHYSICAL pixels; getBoundingClientRect is
@@ -382,7 +382,7 @@ export function PlaylistsPanel({ host, port }: { host: string; port: number }) {
       {/* Drag-to-create zone (desktop). Drop one or more payloads to spin up
           a playlist; auto-detected by extension, so a stray .pkg or folder
           in the selection is simply ignored. */}
-      {!isAndroid() && (
+      {!isMobile() && (
         <div
           ref={dropZoneRef}
           data-own-drop=""
