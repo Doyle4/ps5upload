@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router";
-import { Eraser, File, Folder, FolderOpen, RefreshCw, Square, Trash2 } from "lucide-react";
+import { useLocation, useNavigate } from "react-router";
+import { Eraser, File, Folder, FolderOpen, RefreshCw, Square, Trash2, Wand2 } from "lucide-react";
 
 import {
   cleanupApply,
@@ -52,8 +52,10 @@ import {
 } from "../../lib/cleanupText";
 import { formatBytes } from "../../lib/format";
 import { saveFsLastPath } from "../../lib/fsLastPath";
+import { parseSpacePlanQuery } from "../../lib/spacePlan";
 import { useConnectionStore } from "../../state/connection";
 import { useTr } from "../../state/lang";
+import { SpacePlanner } from "./SpacePlanner";
 
 
 const SCAN_POLL_MS = 700;
@@ -309,6 +311,13 @@ export default function CleanupScreen() {
   const [freeBefore, setFreeBefore] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const live = useRef(0);
+  // "Plan space" from a refused install opens the planner with its size and drive filled in.
+  const location = useLocation();
+  const planRequest = useMemo(() => parseSpacePlanQuery(location.search), [location.search]);
+  const [planning, setPlanning] = useState(planRequest !== null);
+  useEffect(() => {
+    if (planRequest) setPlanning(true);
+  }, [planRequest]);
 
   const runScan = useCallback(
     async (keepSummary = false) => {
@@ -408,20 +417,43 @@ export default function CleanupScreen() {
           "Find what fills the PS5's drives and can safely go: updates, package files left behind, temporary files and leftovers of removed games. Nothing is removed until you pick it and confirm.",
         )}
         right={
-          <Button
-            variant="secondary"
-            size="sm"
-            leftIcon={<RefreshCw size={12} />}
-            onClick={() => void runScan()}
-            disabled={busy || !host || payloadStatus !== "up"}
-          >
-            {tr("cw_cleanup_scan_again", undefined, "Scan again")}
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="secondary"
+              size="sm"
+              leftIcon={<Wand2 size={12} />}
+              onClick={() => setPlanning(true)}
+              disabled={planning || !host || payloadStatus !== "up"}
+              data-testid="cleanup-make-room"
+            >
+              {tr("cleanup_plan_open", undefined, "Make room")}
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              leftIcon={<RefreshCw size={12} />}
+              onClick={() => void runScan()}
+              disabled={busy || !host || payloadStatus !== "up"}
+            >
+              {tr("cw_cleanup_scan_again", undefined, "Scan again")}
+            </Button>
+          </div>
         }
       />
       <ConnectionGate require="payload">
         <div className="min-w-0 space-y-3">
           {error ? <Callout tone="error" title={tr("cw_cleanup_failed", undefined, "Clean up stopped")}>{error}</Callout> : null}
+
+          {planning && host ? (
+            <SpacePlanner
+              host={host}
+              scanId={scan && scan.state === "done" && !scanning ? scan.scan_id : null}
+              items={items}
+              request={planRequest}
+              onClose={() => setPlanning(false)}
+              onRan={() => void runScan(true)}
+            />
+          ) : null}
 
           {scanning ? (
             <div className="flex flex-wrap items-center justify-center gap-2 text-xs text-[var(--color-muted)]" data-testid="cleanup-scanning">

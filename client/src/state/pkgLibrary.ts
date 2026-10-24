@@ -33,6 +33,7 @@ import {
   type Volume,
 } from "../api/ps5";
 import { formatBytes } from "../lib/format";
+import { spacePlanLink } from "../lib/spacePlan";
 import {
   startLinkDownload,
   type ExistingChoice,
@@ -2751,8 +2752,13 @@ const makePkgLibraryStore = () =>
           });
           pushNotification("warning", `Not enough space for ${label}`, {
             body: spaceWarn,
-            // Clean up finds leftovers and old updates that free room.
-            link: "/cleanup",
+            // Clean up's planner, with the size filled in: it proposes what to clear, move or
+            // uninstall, and offers to install this package again once it has run.
+            link: spacePlanLink({
+              neededBytes: entry?.size ?? 0,
+              drive: "internal",
+              retry: { kind: "pkg", path, label },
+            }),
           });
           outcome = { ok: false, message: spaceWarn };
           return outcome;
