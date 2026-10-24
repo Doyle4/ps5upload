@@ -436,7 +436,11 @@ export default function HardwareScreen() {
       )}
 
       <ConnectionGate require="payload">
-        <div className="grid gap-5 lg:grid-cols-2 xl:grid-cols-3">
+        {/* Columns, not a grid: the cards range from three rows (Uptime) to a fan chart
+            or a list of interfaces, and grid rows stretched every short card to its tallest
+            neighbour, leaving them hollow. Each column stacks at its own height; the order
+            reads down a column, which is also the DOM and focus order. */}
+        <div className="gap-5 lg:columns-2 xl:columns-3 [&>*]:mb-5 [&>*]:break-inside-avoid [&>*:last-child]:mb-0">
           <SensorCard
             icon={<Thermometer size={14} />}
             title={tr("hardware_temperatures", undefined, "Temperatures")}

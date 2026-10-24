@@ -724,8 +724,11 @@ export default function SettingsScreen() {
           {tr("settings_group_uploads", undefined, "Uploads")}
         </GroupHeading>
 
+        {/* Both full width: three toggles beside a single number box stretched the Speed
+            card to three times its content, an empty card as tall as the one beside it. */}
         <Section
           title={tr("settings_card_upload_behavior", undefined, "Behavior")}
+          full
         >
           <div className="grid gap-3">
             <Toggle
@@ -788,7 +791,7 @@ export default function SettingsScreen() {
           </div>
         </Section>
 
-        <Section title={tr("settings_card_upload_speed", undefined, "Speed")}>
+        <Section title={tr("settings_card_upload_speed", undefined, "Speed")} full>
           <div className="grid gap-3">
             <BandwidthControl
               value={bandwidthCapMbps}
@@ -860,7 +863,8 @@ export default function SettingsScreen() {
           {tr("settings_section_notifications", undefined, "Notifications")}
         </GroupHeading>
 
-        <Section title={tr("notifications", undefined, "Notifications")}>
+        {/* The band's only card: full width, not half a row with nothing beside it. */}
+        <Section title={tr("notifications", undefined, "Notifications")} full>
           {show.osNotifications && (
             <>
               <Toggle
