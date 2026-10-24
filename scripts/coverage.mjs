@@ -115,7 +115,22 @@ const llvmEnv = llvmToolEnv();
 // `cargo llvm-cov --lcov` and then `--html` ran every test twice, and the second pass
 // pushed the CI job past its time limit.
 const engineOpts = { cwd: path.join(repoRoot, "engine"), env: llvmEnv };
-run("engine llvm-cov test", "cargo", ["llvm-cov", "--workspace", "--no-report"], engineOpts);
+// Under nextest when it is installed (CI installs it): the same tests, run side by side the way
+// the PR gate runs them instead of one binary at a time, which was ~26 min of CI's ~32 min job.
+// engine/.config/nextest.toml serializes the timing-sensitive binaries; the `ci` profile keeps
+// going past a failure so one flaky test still reports. Doctests are in neither run.
+const hasNextest =
+  spawnSync("cargo", ["nextest", "--version"], { stdio: "ignore", shell: os.platform() === "win32" })
+    .status === 0;
+const nextestProfile = process.env.CI ? ["--profile", "ci"] : [];
+run(
+  hasNextest ? "engine llvm-cov test (nextest)" : "engine llvm-cov test",
+  "cargo",
+  hasNextest
+    ? ["llvm-cov", "nextest", "--workspace", "--no-report", ...nextestProfile]
+    : ["llvm-cov", "--workspace", "--no-report"],
+  engineOpts,
+);
 run("engine llvm-cov lcov", "cargo", [
   "llvm-cov",
   "report",

@@ -244,6 +244,14 @@ jobs:
         timeout-minutes: 10
         run: cargo test --doc ${{ matrix.select }}
 
+      # target/tmp is CARGO_TARGET_TMPDIR, test scratch space, not build output. The UFS2 writer
+      # tests leave sparse images there, one of them 68 GB apparent (lastcg.ffpkg): tar stored it
+      # as 68 GB of zeros and every restore wrote them all back, 200-400 s of the libs job's
+      # restore (the download itself took 14 s). The tests recreate what they need.
+      - name: Drop test scratch files before caching
+        if: github.ref == 'refs/heads/main'
+        run: rm -rf engine/target/tmp
+
       - name: Save cargo cache
         if: github.ref == 'refs/heads/main'
         uses: actions/cache/save@v6
@@ -747,6 +755,15 @@ jobs:
 
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov
+
+      # scripts/coverage.mjs runs the instrumented suite under nextest when it is installed:
+      # the same tests, side by side instead of one binary at a time (the serial pass took
+      # ~26 of this job's ~32 min). engine/.config/nextest.toml still serializes the
+      # timing-sensitive binaries.
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest
 
       - name: Generate coverage
         run: npm run coverage
