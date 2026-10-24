@@ -47,7 +47,7 @@ describe("space plan text", () => {
   it("sums up the plan in one line", () => {
     const plan = planSpace(input());
     expect(planSummary(tr, plan)).toBe(
-      "Free 144 GiB: clear 4.00 GiB of leftovers; move Bloodborne, Astro to USB 1; uninstall Control (your Collection has a copy)",
+      "Free 144 GiB: clear 4.00 GiB of leftovers; move Astro, Bloodborne to USB 1; uninstall Control (your Collection has a copy)",
     );
   });
 
@@ -55,8 +55,8 @@ describe("space plan text", () => {
     const lines = confirmLines(tr, planSpace(input())).split("\n");
     expect(lines).toEqual([
       "• Delete 1 leftovers (4.00 GiB): CUSA1.pkg",
-      "• Move Bloodborne (30.0 GiB) to USB 1: copied first, then the original is deleted",
       "• Move Astro (60.0 GiB) to USB 1: copied first, then the original is deleted",
+      "• Move Bloodborne (30.0 GiB) to USB 1: copied first, then the original is deleted",
       "• Uninstall Control (50.0 GiB): install it again from your Collection",
     ]);
   });

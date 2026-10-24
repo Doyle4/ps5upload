@@ -26,7 +26,7 @@ export interface SpaceCandidate {
   /** What doing it frees on the target drive. */
   bytes: number;
   /** When the app last saw the title being played (ms), null when it never did or has no
-   *  title to look up: shown as "unknown", ranked as the oldest. */
+   *  title to look up: shown as "unknown", ranked after games known to be a month old. */
   lastPlayedMs: number | null;
   /** uninstall: the Collection on this computer has a copy to install it again from. */
   hasCopy?: boolean;
@@ -73,9 +73,11 @@ export interface SpacePlan {
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 /** Coarse "last played" bands, oldest first. Within a band the larger item wins, so a plan
- *  takes one big game played two months ago over five small ones played that same month. */
+ *  takes one big game played two months ago over five small ones played that same month.
+ *  Unknown comes after games known to be a month or more old: the app only sees what is played
+ *  while it runs, so an unknown game may well be one played yesterday. */
 export function ageBand(lastPlayedMs: number | null, nowMs: number): number {
-  if (lastPlayedMs == null || lastPlayedMs <= 0) return 0;
+  if (lastPlayedMs == null || lastPlayedMs <= 0) return 2.5;
   const days = (nowMs - lastPlayedMs) / DAY_MS;
   if (days >= 90) return 1;
   if (days >= 30) return 2;

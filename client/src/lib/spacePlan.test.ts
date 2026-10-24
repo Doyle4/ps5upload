@@ -117,9 +117,11 @@ describe("planSpace", () => {
     expect(picked(p)).toEqual(["move:old"]);
   });
 
-  it("ranks never-seen-playing as the oldest", () => {
-    const p = planSpace(input({ candidates: [move("seen", 150, 400), move("unknown", 150, null)] }));
-    expect(picked(p)).toEqual(["move:unknown"]);
+  it("prefers a game known to be old over one never seen playing, but not over a recent one", () => {
+    const old = planSpace(input({ candidates: [move("seen", 150, 400), move("unknown", 150, null)] }));
+    expect(picked(old)).toEqual(["move:seen"]);
+    const recent = planSpace(input({ candidates: [move("recent", 150, 1), move("unknown", 150, null)] }));
+    expect(picked(recent)).toEqual(["move:unknown"]);
   });
 
   it("combines games least recently played first and drops any not needed", () => {
@@ -205,8 +207,8 @@ describe("planWithSelection", () => {
 });
 
 describe("ageBand", () => {
-  it("bands by days since last seen, unknown oldest", () => {
-    expect(ageBand(null, NOW)).toBe(0);
+  it("bands by days since last seen, unknown after a month old", () => {
+    expect(ageBand(null, NOW)).toBe(2.5);
     expect(ageBand(NOW - 100 * DAY, NOW)).toBe(1);
     expect(ageBand(NOW - 45 * DAY, NOW)).toBe(2);
     expect(ageBand(NOW - 10 * DAY, NOW)).toBe(3);
