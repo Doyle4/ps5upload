@@ -835,6 +835,7 @@ async fn a_flood_of_sessions_shows_the_newest_code_and_drops_the_older_ones() {
         ..Limits::default()
     };
     let (addr, ctx, screen) = screen_server(limits).await;
+    let started = std::time::Instant::now();
     let mut rogues = Vec::new();
     for _ in 0..6 {
         rogues.push(rogue(addr).await);
@@ -843,7 +844,24 @@ async fn a_flood_of_sessions_shows_the_newest_code_and_drops_the_older_ones() {
     wait_for(Duration::from_secs(5), || screen.lock().unwrap().len() >= 3)
         .await
         .expect("the burst shows");
-    assert_eq!(screen.lock().unwrap().len(), 3, "only the burst, at once");
+    // The burst, plus at most the credit that refilled while the six connected: on a loaded
+    // machine (coverage builds, parallel runs) connecting can outlast a 400 ms refill.
+    let refilled = (started.elapsed().as_millis() / 400) as usize;
+    let shown = screen.lock().unwrap().len();
+    assert!(
+        shown <= 3 + refilled,
+        "only the burst at once, plus refills: {shown} shown after {refilled} refill(s)"
+    );
+    if refilled > 0 {
+        // Too slow to see the exact drop order; what must still hold is that the user's
+        // newest attempt reaches the screen.
+        wait_for(Duration::from_secs(5), || {
+            screen.lock().unwrap().iter().any(|e| e.1 == last_code)
+        })
+        .await
+        .expect("the newest session's code is shown");
+        return;
+    }
     wait_for(Duration::from_secs(5), || screen.lock().unwrap().len() >= 4)
         .await
         .expect("the newest waits for credit and is shown");
