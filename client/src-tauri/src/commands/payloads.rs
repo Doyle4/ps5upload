@@ -1658,6 +1658,21 @@ fn payload_cache_dir(app: &AppHandle, id: &str) -> Result<PathBuf, String> {
     Ok(dir)
 }
 
+/// Remove every `.elf` in a payload's cache dir except `keep` (best effort).
+fn remove_other_elfs(dir: &std::path::Path, keep: &str) {
+    let Ok(read) = std::fs::read_dir(dir) else {
+        return;
+    };
+    for f in read.flatten() {
+        let p = f.path();
+        if p.extension().and_then(|e| e.to_str()) == Some("elf")
+            && f.file_name().to_str() != Some(keep)
+        {
+            let _ = std::fs::remove_file(&p);
+        }
+    }
+}
+
 /// Scan one payload's cache dir for its downloaded .elf and build an
 /// inventory entry, or None if nothing is cached. Shared by catalogue and
 /// custom-repo listing.
@@ -1862,6 +1877,10 @@ pub async fn payloads_download(
         )
     })?;
 
+    // One binary per payload: a copy cached under an earlier name would be
+    // what the inventory and the autoloader pick up just as well.
+    remove_other_elfs(&dir, &final_name);
+
     // Stash the version alongside the binary for inventory.
     let _ = std::fs::write(dir.join("VERSION"), version.as_bytes());
 
@@ -1915,7 +1934,27 @@ use std::io::Write;
 
 #[cfg(test)]
 mod cache_name_tests {
-    use super::cached_elf_name;
+    use super::{cached_elf_name, remove_other_elfs};
+
+    #[test]
+    fn a_new_download_leaves_only_its_own_elf() {
+        let dir =
+            std::env::temp_dir().join(format!("ps5upload-elf-cache-test-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        for name in ["custom-0a.elf", "kstuff.elf", "VERSION", "notes.txt"] {
+            std::fs::write(dir.join(name), b"x").unwrap();
+        }
+        remove_other_elfs(&dir, "kstuff.elf");
+        let mut left: Vec<String> = std::fs::read_dir(&dir)
+            .unwrap()
+            .flatten()
+            .map(|f| f.file_name().to_string_lossy().into_owned())
+            .collect();
+        left.sort();
+        assert_eq!(left, ["VERSION", "kstuff.elf", "notes.txt"]);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 
     #[test]
     fn a_custom_hint_cannot_name_a_path() {

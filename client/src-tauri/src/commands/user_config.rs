@@ -210,14 +210,34 @@ fn config_base_dir(app: &AppHandle) -> Result<PathBuf, String> {
 /// the filesystem. Returns a count of items removed.
 #[tauri::command]
 pub async fn app_data_reset(app: AppHandle) -> Result<usize, String> {
-    let mut removed = 0usize;
-
     // 0. Stop the sidecar so it cannot recreate what is removed below.
     crate::engine::stop().await;
 
+    // 1-3. A failed step is returned only after the restart below: an early
+    //      return left the app with no engine until it was relaunched.
+    let wiped = wipe_app_data(&app);
+
+    // 4. Bring the sidecar back so the reloaded window finds an engine. A
+    //    failure here is logged, not returned: the data is gone, and the
+    //    renderer's status polling reports an unreachable engine on its own.
+    match crate::engine::start(&app).await {
+        Ok(url) => {
+            use tauri::Emitter;
+            let _ = app.emit("ps5upload-engine-ready", &url);
+        }
+        Err(e) => eprintln!("[tauri] engine restart after data reset failed: {e:#}"),
+    }
+
+    wiped
+}
+
+/// Steps 1-3 of [`app_data_reset`]: the filesystem wipe, with the engine stopped.
+fn wipe_app_data(app: &AppHandle) -> Result<usize, String> {
+    let mut removed = 0usize;
+
     // 1. Config base dir — remove wholesale, then recreate empty so later
     //    writes don't fail on a missing parent.
-    if let Ok(base) = config_base_dir(&app) {
+    if let Ok(base) = config_base_dir(app) {
         if base.exists() {
             std::fs::remove_dir_all(&base).map_err(|e| format!("remove {base:?}: {e}"))?;
             removed += 1;
@@ -253,17 +273,6 @@ pub async fn app_data_reset(app: AppHandle) -> Result<usize, String> {
         };
         r.map_err(|e| format!("remove {p:?}: {e}"))?;
         removed += 1;
-    }
-
-    // 4. Bring the sidecar back so the reloaded window finds an engine. A
-    //    failure here is logged, not returned: the data is gone, and the
-    //    renderer's status polling reports an unreachable engine on its own.
-    match crate::engine::start(&app).await {
-        Ok(url) => {
-            use tauri::Emitter;
-            let _ = app.emit("ps5upload-engine-ready", &url);
-        }
-        Err(e) => eprintln!("[tauri] engine restart after data reset failed: {e:#}"),
     }
 
     Ok(removed)

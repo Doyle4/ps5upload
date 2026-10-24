@@ -146,7 +146,8 @@ export interface QueueItemProgress {
 
 /** Package uploads through the console queue (Install Package's uploader). */
 export interface PkgQueueApi {
-  /** Add a `pkg` item, start its console, and return the item's id. */
+  /** Add a `pkg` item, start its console, and return the item's id ("" when this tab cannot
+   *  queue: it is not the queue's runner). */
   add: (item: AddQueueItem) => string;
   /** Call `cb` now and on every change of item `id`; null once it is gone.
    *  Returns an unsubscribe. */

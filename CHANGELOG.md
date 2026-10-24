@@ -127,6 +127,21 @@ What's new in ps5upload, written for humans.
   refused together up front. In .exfat images a full-to-the-byte root folder no longer reads into
   its neighbour, and a file's unwritten tail reads as zeros at its full length.
 - **Health check remedies** no longer contain runs of spaces mid-sentence.
+- **Restart on a queue row keeps the queue going.** After restarting the item that was uploading,
+  the console's other waiting items stayed waiting with nothing running; they now follow as they
+  would have.
+- **An upload rides out an engine that stops answering for a while.** A few seconds of failed
+  progress reads used to count the transfer as lost and re-send the helper, which ended the
+  transfer that was still running. The queue now keeps asking for two minutes, and then re-sends
+  the helper only if it no longer answers.
+- **Files uploads never run the same file twice.** When progress reads failed, the retry started a
+  second upload of the same file beside the first; it now waits for the first one instead.
+- **The web UI recovers an upload that found no helper listening** by having the engine send the
+  helper, as the desktop app does, instead of failing the row.
+- **Reset all data always brings the engine back,** even when removing a file fails, and no longer
+  logs the planned restart as the engine having crashed.
+- **A re-downloaded payload replaces the old copy** instead of sitting beside it, where the old one
+  could be the one sent.
 Update the helper for everything below.
 
 - **Disc downloads really work now (#497).** 7.1.19 let the file browser open files on a data disc
