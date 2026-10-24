@@ -288,7 +288,10 @@ impl ExFat {
         let mut skip = (offset % cluster_size) as usize;
         let mut cluster = self.cluster_at(first, no_fat_chain, path, skip_clusters)?;
         let mut index = skip_clusters;
-        let mut out = Vec::with_capacity(len);
+        // Reserve at most a few MiB up front: `len` comes from the image's own records, and a
+        // damaged one must not make us reserve gigabytes before a byte is read. The vector
+        // still grows to whatever is really there.
+        let mut out = Vec::with_capacity(len.min(crate::PREALLOC_CAP));
         while out.len() < len {
             // How many clusters from here on are consecutive, up to what is still wanted.
             let want = len - out.len();

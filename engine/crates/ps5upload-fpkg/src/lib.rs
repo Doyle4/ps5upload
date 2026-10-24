@@ -6,6 +6,10 @@
 use std::io::{Read, Seek, SeekFrom};
 use std::path::Path;
 
+/// The most a reader reserves up front for a buffer whose length comes from an image's own
+/// records (it still grows to the real size): a damaged image cannot make us reserve gigabytes.
+pub const PREALLOC_CAP: usize = 8 << 20;
+
 pub mod ampr_index;
 pub mod ampr_pack;
 pub mod browse;

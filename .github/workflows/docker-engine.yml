@@ -69,7 +69,7 @@ jobs:
     # runner, so 10 cancelled ordinary runs (PR #338).
     timeout-minutes: 25
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Stage the committed DPI daemon for the embed
         # ps5upload.elf is not in the repo (it needs the payload SDK), so a
@@ -109,7 +109,7 @@ jobs:
     # runner, so 10 cancelled ordinary runs (PR #338).
     timeout-minutes: 25
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Stage the committed DPI daemon for the embed
         # ps5upload.elf is not in the repo (it needs the payload SDK), so a
@@ -196,11 +196,11 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ needs.resolve.outputs.tag }}
 
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version: 22
           # Always the newest 22.x (security releases; the runner image can lag).
@@ -257,7 +257,7 @@ jobs:
           test -s payload/ps5upload.elf
           test -s payload/installer/ps5upload-installer.elf
 
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: ps5upload-payload-elves
           path: |
@@ -284,7 +284,7 @@ jobs:
     env:
       IMAGE: ${{ needs.resolve.outputs.image }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ needs.resolve.outputs.tag }}
 
@@ -299,7 +299,7 @@ jobs:
       - name: Stage the PS5 ELF images for the engine embed
         id: elves
         continue-on-error: true
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           name: ps5upload-payload-elves
           path: /tmp/payload-elves
@@ -310,7 +310,7 @@ jobs:
 
       - name: Stage the PS5 ELF images for the engine embed (retry)
         if: steps.elves.outcome == 'failure'
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           name: ps5upload-payload-elves
           path: /tmp/payload-elves
@@ -374,7 +374,7 @@ jobs:
           mkdir -p /tmp/digests
           touch "/tmp/digests/${DIGEST#sha256:}"
 
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: digests-${{ env.PLATFORM_PAIR }}
           path: /tmp/digests/*
@@ -403,7 +403,7 @@ jobs:
     env:
       IMAGE: ${{ needs.resolve.outputs.image_webui }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ needs.resolve.outputs.tag }}
 
@@ -418,7 +418,7 @@ jobs:
       - name: Stage the PS5 ELF images for the engine embed
         id: elves
         continue-on-error: true
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           name: ps5upload-payload-elves
           path: /tmp/payload-elves
@@ -429,7 +429,7 @@ jobs:
 
       - name: Stage the PS5 ELF images for the engine embed (retry)
         if: steps.elves.outcome == 'failure'
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           name: ps5upload-payload-elves
           path: /tmp/payload-elves
@@ -507,7 +507,7 @@ jobs:
       # plain engine `merge` job's `pattern: digests-*` can't glob-match
       # these artifacts and fold a webui digest into the minimal image's
       # manifest.
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: webui-digests-${{ env.PLATFORM_PAIR }}
           path: /tmp/digests/*
@@ -527,7 +527,7 @@ jobs:
       IMAGE: ${{ needs.resolve.outputs.image }}
       VERSION: ${{ needs.resolve.outputs.version }}
     steps:
-      - uses: actions/download-artifact@v8
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           path: /tmp/digests
           pattern: digests-*
@@ -579,7 +579,7 @@ jobs:
       IMAGE: ${{ needs.resolve.outputs.image_webui }}
       VERSION: ${{ needs.resolve.outputs.version }}
     steps:
-      - uses: actions/download-artifact@v8
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           path: /tmp/digests
           pattern: webui-digests-*

@@ -1,0 +1,16 @@
+# CodeQL looks at code that ships in the app, the engine and the helper. Tests, examples,
+# fuzzers, the hardware lab tool and the developer scripts never reach a user: their fixed test
+# keys, debug prints and one-off file handling only produced noise.
+name: ps5upload
+paths-ignore:
+  - "**/tests/**"
+  - "**/*.test.ts"
+  - "**/*.test.tsx"
+  - "**/examples/**"
+  - "**/fuzz/**"
+  - "engine/crates/ava1-ctest/**"
+  - "engine/crates/ps5upload-tests/**"
+  - "engine/crates/ps5upload-lab/**"
+  - "client/e2e/**"
+  - "scripts/**"
+  - "bench/**"
