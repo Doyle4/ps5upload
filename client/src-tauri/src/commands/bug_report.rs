@@ -12,6 +12,7 @@
 //! bundle, it doesn't fail it.
 
 use std::io::Write;
+use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager};
@@ -271,7 +272,10 @@ fn replace_kv_values(s: &str, keys: &[&str], with: &str) -> String {
     out
 }
 
-/// `/Users/<name>`, `/home/<name>` and `X:\Users\<name>` become `~`.
+/// `/Users/<name>`, `/home/<name>` and `X:\Users\<name>` become `~`. The Windows form is also
+/// matched with its backslashes escaped (`C:\\Users\\bob` in JSON text, `C:\\\\Users\\\\bob` in a
+/// JSON string stored as a string) — report.json and app.jsonl are JSON, so that is how every
+/// Windows path in them is spelled.
 fn replace_home_dirs(s: &str) -> String {
     let b = s.as_bytes();
     let mut out = String::with_capacity(s.len());
@@ -307,19 +311,24 @@ fn replace_home_dirs(s: &str) -> String {
                 continue;
             }
         }
-        if i + 2 < b.len()
-            && b[i].is_ascii_alphabetic()
-            && b[i + 1] == b':'
-            && s[i + 2..].starts_with("\\Users\\")
-        {
-            let name_start = i + 2 + "\\Users\\".len();
-            let name_end = end_of_name(name_start, b'\\');
-            if name_end > name_start {
-                out.push_str(&s[cursor..i]);
-                out.push('~');
-                cursor = name_end;
-                i = name_end;
-                continue;
+        if i + 2 < b.len() && b[i].is_ascii_alphabetic() && b[i + 1] == b':' && b[i + 2] == b'\\' {
+            // The separator is one backslash, or the same run of them on both sides of
+            // `Users` when the path is JSON-escaped.
+            let mut k = i + 2;
+            while k < b.len() && b[k] == b'\\' {
+                k += 1;
+            }
+            let sep = &s[i + 2..k];
+            if s[k..].starts_with("Users") && s[k + "Users".len()..].starts_with(sep) {
+                let name_start = k + "Users".len() + sep.len();
+                let name_end = end_of_name(name_start, b'\\');
+                if name_end > name_start {
+                    out.push_str(&s[cursor..i]);
+                    out.push('~');
+                    cursor = name_end;
+                    i = name_end;
+                    continue;
+                }
             }
         }
         i += 1;
@@ -529,7 +538,21 @@ fn assemble_zip(
         .filter(|s| !s.trim().is_empty())
         .unwrap_or("ps5upload-bugreport.zip");
     let dest_path = super::save_dest::resolve_save_dest(&args.dest, fallback_name)?;
-    let f = std::fs::File::create(&dest_path)
+    let res = assemble_zip_at(args, dirs, now_ms, &dest_path);
+    if res.is_err() {
+        // A half-written zip would otherwise sit where the report was meant to be.
+        let _ = std::fs::remove_file(&dest_path);
+    }
+    res
+}
+
+fn assemble_zip_at(
+    args: &BugReportArgs,
+    dirs: &BundleDirs,
+    now_ms: u64,
+    dest_path: &Path,
+) -> Result<BugReportResult, String> {
+    let f = std::fs::File::create(dest_path)
         .map_err(|e| format!("create {}: {e}", dest_path.display()))?;
     let mut zw = zip::ZipWriter::new(f);
     let opts = SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
@@ -591,7 +614,7 @@ fn assemble_zip(
             (dirs.engine.join("engine.log"), "logs/engine.log"),
             (dirs.engine.join("engine.log.old"), "logs/engine.log.old"),
         ] {
-            if let Ok(data) = std::fs::read(&src) {
+            if let Some(data) = read_tail(&src, ENGINE_LOG_TAIL_BYTES) {
                 let text = red.text(&String::from_utf8_lossy(&data));
                 write_entry(&mut zw, name, text.as_bytes())?;
                 entries += 1;
@@ -702,7 +725,7 @@ fn assemble_zip(
 
     zw.finish().map_err(|e| format!("zip finish: {e}"))?;
 
-    let bytes = std::fs::metadata(&dest_path).map(|m| m.len()).unwrap_or(0);
+    let bytes = std::fs::metadata(dest_path).map(|m| m.len()).unwrap_or(0);
     Ok(BugReportResult {
         entries,
         bytes,
@@ -714,6 +737,30 @@ fn assemble_zip(
         crash_reports,
         images,
     })
+}
+
+/// How much of each engine log goes into the report. The sidecar rotates its log at 1 MiB, but
+/// a rotation can fail (a lock on the .old file on Windows), and a report must not read a file
+/// of hundreds of MB whole and then redact several copies of it.
+const ENGINE_LOG_TAIL_BYTES: u64 = 4 * 1024 * 1024;
+
+/// The last `max` bytes of `path` (the whole file when it is smaller), starting at a line
+/// boundary when the file was cut. `None` when the file cannot be read.
+fn read_tail(path: &Path, max: u64) -> Option<Vec<u8>> {
+    use std::io::{Read, Seek, SeekFrom};
+    let mut f = std::fs::File::open(path).ok()?;
+    let len = f.metadata().ok()?.len();
+    let mut data = Vec::new();
+    if len > max {
+        f.seek(SeekFrom::Start(len - max)).ok()?;
+        f.read_to_end(&mut data).ok()?;
+        if let Some(nl) = data.iter().position(|&b| b == b'\n') {
+            data.drain(..=nl);
+        }
+    } else {
+        f.read_to_end(&mut data).ok()?;
+    }
+    Some(data)
 }
 
 const README: &str = "ps5upload bug report bundle\n\
@@ -1077,6 +1124,24 @@ mod tests {
         for v in vectors {
             assert_eq!(Redactor::new(v.redact).text(&v.input), v.out, "{}", v.name);
         }
+    }
+
+    #[test]
+    fn engine_log_tail_starts_on_a_line_boundary() {
+        let root = std::env::temp_dir().join(format!("ps5upload-tail-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        let p = root.join("engine.log");
+        std::fs::write(&p, b"first line\nsecond line\nthird\n").unwrap();
+        // Small enough to be read whole.
+        assert_eq!(
+            read_tail(&p, 1024).unwrap(),
+            b"first line\nsecond line\nthird\n"
+        );
+        // Cut inside "second": the partial line is dropped, the rest kept.
+        assert_eq!(read_tail(&p, 10).unwrap(), b"third\n");
+        assert!(read_tail(&root.join("missing.log"), 10).is_none());
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]

@@ -115,8 +115,11 @@ async function backUpOne(host: string, entry: SaveEntry, dir: string, keep: numb
     const jobId = await startTransferDownload(entry.path, tempDir, consoleAddr(host), "folder");
     await waitForJob(jobId);
     await saveArchiveBackupFinalize(tempDir, entry.title_id);
-    const dest = await saveAutoBackupSlot(dir, entry.title_id, entry.user_id, backupTimestamp(), keep);
+    const stamp = backupTimestamp();
+    const dest = await saveAutoBackupSlot(dir, entry.title_id, entry.user_id, stamp, keep);
     await saveArchiveZip(tempDir, entry.title_id, dest, `${entry.title_id}.zip`);
+    // Older backups go only once the new one is there, so a failed zip never costs one.
+    await saveAutoBackupSlot(dir, entry.title_id, entry.user_id, stamp, keep, true);
   } finally {
     if (tempDir) await saveArchiveCleanupTemp(tempDir).catch(() => {});
   }

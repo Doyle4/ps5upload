@@ -8,11 +8,11 @@
 //! macOS/Linux, producing a split-brain user experience where the
 //! Changelog screen works on one platform and errors out on another.
 //!
-//! Embedding adds ~20 KB to the binary (the current size of both
-//! files combined) — a rounding error against the ~10 MB desktop
-//! binary — in exchange for "always works, no matter how the app is
-//! packaged." Updates to CHANGELOG/FAQ require a rebuild, which is
-//! how release cuts already work.
+//! Embedding adds a few hundred KB to the binary (the two files
+//! together; the FAQ alone is ~2000 lines) — small against the desktop
+//! binary with its embedded engine — in exchange for "always works, no
+//! matter how the app is packaged." Updates to CHANGELOG/FAQ require a
+//! rebuild, which is how release cuts already work.
 
 use tauri::AppHandle;
 

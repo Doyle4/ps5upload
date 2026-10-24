@@ -336,11 +336,26 @@ async fn do_payload_send(ip: &str, path: &str, target_port: u16) -> Result<u64, 
         None
     };
 
+    // Resolve first, on the lookup budget, so a slow DNS answer for a host
+    // name does not eat the connect timeout (#272); then each address gets
+    // the full connect timeout, as `connect_probe` does.
     let addr = format!("{ip}:{target_port}");
-    let mut stream = timeout(CONNECT_TIMEOUT, TcpStream::connect(&addr))
-        .await
-        .map_err(|_| format!("connect {addr}: timeout"))?
-        .map_err(|e| format!("connect {addr}: {e}"))?;
+    let targets = resolve_targets(ip, target_port).await?;
+    let mut stream = None;
+    let mut last = format!("connect {addr}: no addresses to try");
+    for sa in targets {
+        match timeout(CONNECT_TIMEOUT, TcpStream::connect(sa)).await {
+            Ok(Ok(s)) => {
+                stream = Some(s);
+                break;
+            }
+            Ok(Err(e)) => last = format!("connect {addr}: {e}"),
+            Err(_) => last = format!("connect {addr}: timeout"),
+        }
+    }
+    let Some(mut stream) = stream else {
+        return Err(last);
+    };
     let sent = timeout(SEND_TIMEOUT, async {
         let mut buf = [0u8; 64 * 1024];
         let mut total = 0u64;
@@ -527,7 +542,7 @@ static EXTRACT_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 /// hash stamp of the embedded gzip bytes; a new app build has a new
 /// stamp and re-extracts without reading the existing `.elf` back
 /// into memory.
-fn find_bundled_payload(app: &AppHandle) -> Result<PathBuf, String> {
+pub(crate) fn find_bundled_payload(app: &AppHandle) -> Result<PathBuf, String> {
     use std::fs;
     use std::io::{Read, Write};
 
@@ -722,7 +737,13 @@ pub async fn payload_probe(path: String) -> serde_json::Value {
         });
     }
 
-    let name_match = path.to_ascii_lowercase().contains("ps5upload");
+    // The file name only: the app's own data dir carries "ps5upload" in its
+    // name, which would make every cached catalogue payload look like ours.
+    let name_match = p
+        .file_name()
+        .and_then(|n| n.to_str())
+        .map(|n| n.to_ascii_lowercase().contains("ps5upload"))
+        .unwrap_or(false);
 
     // Only read the first 512 KiB — plenty to spot the ASCII signature at
     // the ELF's section headers, and keeps us off disk for big files.

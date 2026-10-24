@@ -181,6 +181,9 @@ pub async fn engine_restart(app: tauri::AppHandle) -> Result<String, String> {
         Ok(url) => {
             let url = url.to_string();
             let _ = app.emit("ps5upload-engine-ready", &url);
+            // The watcher is only started once the engine is up; when the first start failed,
+            // this restart is that moment (a no-op if it is already running).
+            crate::bg_activity::spawn(&app);
             Ok(url)
         }
         Err(e) => Err(format!("{e:#}")),

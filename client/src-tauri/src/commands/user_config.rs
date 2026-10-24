@@ -196,15 +196,24 @@ fn config_base_dir(app: &AppHandle) -> Result<PathBuf, String> {
 ///     the engine's cached cover art under `cache/icons/`, and any legacy
 ///     `*.ini` / profile files — the whole dir is exclusively
 ///     ours, so it's removed wholesale and recreated empty.
-///   - app_data caches (resume_txids.json, send_payload_history.json, the
-///     payloads/ cache) — removed surgically so we never touch the WebView's
-///     own storage that can also live under app_data_dir.
+///   - app_data stores (resume_txids.json, send_payload_history.json,
+///     upload_queue.json, payload_playlists.json) — removed surgically so we
+///     never touch the WebView's own storage that can also live under
+///     app_data_dir.
+///   - the downloaded-payload cache and the user's custom repos under
+///     app_local_data_dir/payloads.
 ///
-/// The renderer owns clearing its localStorage + reloading the window; this
-/// command only touches the filesystem. Returns a count of items removed.
+/// The engine sidecar keeps its connections and identity in memory and writes
+/// them back under the config base dir, so it is stopped before the wipe and
+/// started again afterwards (a remote engine is left alone). The renderer owns
+/// clearing its localStorage + reloading the window; this command only touches
+/// the filesystem. Returns a count of items removed.
 #[tauri::command]
 pub async fn app_data_reset(app: AppHandle) -> Result<usize, String> {
     let mut removed = 0usize;
+
+    // 0. Stop the sidecar so it cannot recreate what is removed below.
+    crate::engine::stop().await;
 
     // 1. Config base dir — remove wholesale, then recreate empty so later
     //    writes don't fail on a missing parent.
@@ -216,21 +225,45 @@ pub async fn app_data_reset(app: AppHandle) -> Result<usize, String> {
         let _ = std::fs::create_dir_all(&base);
     }
 
-    // 2. app_data caches — surgical (NOT the whole app_data_dir).
+    // 2. app_data stores — surgical (NOT the whole app_data_dir).
+    let mut targets: Vec<std::path::PathBuf> = Vec::new();
     if let Ok(data) = app.path().app_data_dir() {
-        for entry in ["resume_txids.json", "send_payload_history.json", "payloads"] {
-            let p = data.join(entry);
-            if !p.exists() {
-                continue;
-            }
-            let r = if p.is_dir() {
-                std::fs::remove_dir_all(&p)
-            } else {
-                std::fs::remove_file(&p)
-            };
-            r.map_err(|e| format!("remove {p:?}: {e}"))?;
-            removed += 1;
+        for entry in [
+            "resume_txids.json",
+            "send_payload_history.json",
+            "upload_queue.json",
+            "payload_playlists.json",
+            "payloads",
+        ] {
+            targets.push(data.join(entry));
         }
+    }
+    // 3. The payload cache and custom repos (app_local_data_dir/payloads).
+    if let Ok(local) = app.path().app_local_data_dir() {
+        targets.push(local.join("payloads"));
+    }
+    for p in targets {
+        if !p.exists() {
+            continue;
+        }
+        let r = if p.is_dir() {
+            std::fs::remove_dir_all(&p)
+        } else {
+            std::fs::remove_file(&p)
+        };
+        r.map_err(|e| format!("remove {p:?}: {e}"))?;
+        removed += 1;
+    }
+
+    // 4. Bring the sidecar back so the reloaded window finds an engine. A
+    //    failure here is logged, not returned: the data is gone, and the
+    //    renderer's status polling reports an unreachable engine on its own.
+    match crate::engine::start(&app).await {
+        Ok(url) => {
+            use tauri::Emitter;
+            let _ = app.emit("ps5upload-engine-ready", &url);
+        }
+        Err(e) => eprintln!("[tauri] engine restart after data reset failed: {e:#}"),
     }
 
     Ok(removed)

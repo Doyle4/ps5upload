@@ -76,5 +76,17 @@
     "redact": false,
     "in": "\"ps5upload.roster.v1\": \"{\\\"wake_credential\\\":\\\"c-123\\\",\\\"wake_regist_key\\\":\\\"rk\\\",\\\"wake_rp_key\\\":\\\"rp\\\",\\\"name\\\":\\\"Pro\\\"}\"",
     "out": "\"ps5upload.roster.v1\": \"{\\\"wake_credential\\\":\\\"<removed>\\\",\\\"wake_regist_key\\\":\\\"<removed>\\\",\\\"wake_rp_key\\\":\\\"<removed>\\\",\\\"name\\\":\\\"Pro\\\"}\""
+  },
+  {
+    "name": "Windows home folders inside JSON text",
+    "redact": true,
+    "in": "{\"dir\":\"C:\\\\Users\\\\bob\\\\Games\",\"log\":\"D:\\\\Users\\\\amy\"}",
+    "out": "{\"dir\":\"~\\\\Games\",\"log\":\"~\"}"
+  },
+  {
+    "name": "Windows home folders inside a stored JSON string",
+    "redact": true,
+    "in": "\"ps5upload.dest\": \"{\\\"dir\\\":\\\"C:\\\\\\\\Users\\\\\\\\bob\\\\\\\\x\\\"}\"",
+    "out": "\"ps5upload.dest\": \"{\\\"dir\\\":\\\"~\\\\\\\\x\\\"}\""
   }
 ]
