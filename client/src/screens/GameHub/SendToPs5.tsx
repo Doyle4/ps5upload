@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router";
+import { Link, useLocation, useNavigate } from "react-router";
 import { Layers, Upload } from "lucide-react";
 
 import type { CollectionGame, CollectionLocation } from "../../api/collection";
@@ -28,6 +28,7 @@ import { ActivityLine } from "./ActivityLine";
 import { useCopyActivity } from "../../state/copyActivity";
 import { useConnectionStore } from "../../state/connection";
 import { queueLinkFor } from "../../lib/gamePage";
+import { spacePlanLink } from "../../lib/spacePlan";
 
 type How = "as-is" | "image";
 
@@ -47,6 +48,7 @@ export function SendToPs5({
 }) {
   const tr = useTr();
   const navigate = useNavigate();
+  const location = useLocation();
   const [path, setPath] = useState(initial.absolute_path);
   const loc = copies.find((c) => c.absolute_path === path) ?? initial;
   const kind = sendKind(loc);
@@ -86,6 +88,12 @@ export function SendToPs5({
         ? "tight"
         : "yes";
   const plan: SendPlan = { host, volume, subpath, register };
+  // Clean up's planner with this game's size and drive filled in, and a way back here after.
+  const planLink = spacePlanLink({
+    neededBytes: needed,
+    drive: volume ?? "/data",
+    retry: { kind: "back", to: location.pathname, label: game.title },
+  });
   const dest = useMemo(() => sendDestination(loc, plan), [loc, volume, subpath]); // eslint-disable-line react-hooks/exhaustive-deps
   const busy = !!activity && activity.phase !== "done" && activity.phase !== "failed";
 
@@ -197,6 +205,10 @@ export function SendToPs5({
           {tr("collection.send_no_room", undefined, "Not enough room on that drive.")}{" "}
           <Link to="/cleanup" className="underline">
             {tr("collection.send_free_space", undefined, "Free up space")}
+          </Link>{" "}
+          ·{" "}
+          <Link to={planLink} className="underline">
+            {tr("cleanup_plan_link", undefined, "Plan space")}
           </Link>
         </p>
       )}
@@ -206,7 +218,10 @@ export function SendToPs5({
             "collection.send_tight",
             undefined,
             "It may not fit: the PS5 holds back more space as it writes.",
-          )}
+          )}{" "}
+          <Link to={planLink} className="underline">
+            {tr("cleanup_plan_link", undefined, "Plan space")}
+          </Link>
         </p>
       )}
       {how === "image" && pipelineBusy && !busy && (

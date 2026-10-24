@@ -15,8 +15,8 @@ import {
   runLibraryMove,
   stopLibraryMove,
   useLibraryMoveStore,
-  type LibraryMoveDeps,
 } from "../../state/libraryMove";
+import { libraryMoveDeps } from "../../lib/libraryMoveDeps";
 import {
   dismissWatchedJob,
   stopWatchedJob,
@@ -75,7 +75,6 @@ import {
   scanLibrary,
   fsDelete,
   fsChmod,
-  fsCopy,
   fsPathExists,
   fsMount,
   fsUnmount,
@@ -85,8 +84,6 @@ import {
   smpManualInstall,
   smpCheckoutBegin,
   smpStatus,
-  fsOpStatus,
-  fsOpCancel,
   fetchVolumes,
   fetchGameMeta,
   gameIconUrl,
@@ -134,7 +131,6 @@ import { useImageRetry } from "../../lib/useImageRetry";
 import { useStaleHostGuard } from "../../lib/staleHostGuard";
 import { isTauriEnv } from "../../lib/tauriEnv";
 import { createLimiter } from "../../lib/limitConcurrency";
-import { deleteWithRetry } from "../../lib/deleteWithRetry";
 import { filterLibraryEntries } from "../../lib/libraryFilter";
 import { humanizePs5Error } from "../../lib/humanizeError";
 import {
@@ -855,23 +851,6 @@ type BusyState =
   | "edit-checkout"
   | "heal";
 
-/** What a move needs from the app (see state/libraryMove). */
-const libraryMoveDeps: LibraryMoveDeps = {
-  copy: (addr, from, to, opId) => fsCopy(addr, from, to, opId),
-  opStatus: fsOpStatus,
-  opCancel: fsOpCancel,
-  deleteSource: (addr, path) =>
-    deleteWithRetry({
-      deleter: () => fsDelete(addr, path),
-      onAttemptFail: (attempt, e) =>
-        console.warn(
-          `[library] move delete attempt ${attempt}/3 for ${path} failed:`,
-          e,
-        ),
-    }),
-  sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
-  newOpId: () => Math.floor(Math.random() * Number.MAX_SAFE_INTEGER),
-};
 
 /** "Copied, but the source is still there": shown in the row and in the notification. */
 function moveDeleteFailedText(
