@@ -570,33 +570,16 @@ impl<R: Read + Seek> Ufs2Image<R> {
         // walker recurses unboundedly until stack overflow. Capacity
         // hint keeps the rehash count down on large files.
         let mut visited: HashSet<u64> = HashSet::with_capacity(64);
-        if remaining > 0 && inode.indirect[0] != 0 {
+        // A zero slot is a hole the size of everything under it (the walker zero-fills
+        // it), so data in a later slot stays at its offset and `out` ends at `size`.
+        for (level, &root) in inode.indirect.iter().enumerate() {
+            if remaining == 0 {
+                break;
+            }
             self.read_indirect(
                 inode.number,
-                inode.indirect[0],
-                1,
-                ptrs_per_block,
-                &mut remaining,
-                &mut out,
-                &mut visited,
-            )?;
-        }
-        if remaining > 0 && inode.indirect[1] != 0 {
-            self.read_indirect(
-                inode.number,
-                inode.indirect[1],
-                2,
-                ptrs_per_block,
-                &mut remaining,
-                &mut out,
-                &mut visited,
-            )?;
-        }
-        if remaining > 0 && inode.indirect[2] != 0 {
-            self.read_indirect(
-                inode.number,
-                inode.indirect[2],
-                3,
+                root,
+                level as u8 + 1,
                 ptrs_per_block,
                 &mut remaining,
                 &mut out,
@@ -715,7 +698,21 @@ impl<R: Read + Seek> Ufs2Image<R> {
         out: &mut Vec<u8>,
         visited: &mut HashSet<u64>,
     ) -> Result<(), Ufs2Error> {
-        if *remaining == 0 || block == 0 {
+        if *remaining == 0 {
+            return Ok(());
+        }
+        let bsize = self.superblock.block_size as u64;
+        if block == 0 {
+            // A null indirect pointer is a hole covering every block under it: zero-fill
+            // its span (bounded by what is left), so later data keeps its offset and the
+            // file is not returned short. Returning early here shifted the next level's
+            // bytes down and ended `out` before `size`, as a clean `Ok`.
+            let span = ptrs_per_block
+                .saturating_pow(u32::from(depth))
+                .saturating_mul(bsize);
+            let take = (*remaining).min(span);
+            out.resize(out.len() + take as usize, 0);
+            *remaining -= take;
             return Ok(());
         }
         // An indirect block pointer past the end of the image is
@@ -734,7 +731,6 @@ impl<R: Read + Seek> Ufs2Image<R> {
             // engine won't blow the stack either.
             return Ok(());
         }
-        let bsize = self.superblock.block_size as u64;
         let off = self.superblock.frag_offset(block);
         self.reader.seek(SeekFrom::Start(off))?;
         let mut buf = vec![0u8; bsize as usize];
@@ -1047,6 +1043,41 @@ mod tests {
         // Past the end stops at the end.
         assert!(img.read_range(&inode, inode.size, 8).unwrap().is_empty());
         assert_eq!(img.read_range(&inode, inode.size - 4, 64).unwrap().len(), 4);
+    }
+
+    /// A null indirect pointer is a hole the size of everything under it: `read_file`
+    /// zero-fills it, as `read_range` does, so data behind it keeps its offset and the
+    /// file keeps its length. Both a null top-level slot and a null entry inside a
+    /// double-indirect block are covered.
+    #[test]
+    fn a_null_indirect_pointer_reads_as_a_hole_of_its_whole_span() {
+        const BS: usize = 4096;
+        let (mut img, mut inode, file) = block_data();
+        // No single-indirect block at all; the double-indirect block at frag 20 holds a
+        // null first entry, then a pointer block at 25 whose first entry is data at 26.
+        inode.indirect = [0, 20, 0];
+        let image = img.reader.get_mut();
+        image[20 * BS..21 * BS].fill(0);
+        image[20 * BS + 8..20 * BS + 16].copy_from_slice(&25u64.to_le_bytes());
+        image[25 * BS..25 * BS + 8].copy_from_slice(&26u64.to_le_bytes());
+        image[26 * BS..27 * BS].fill(0xEE);
+        let hole = (BS / 8) * BS; // what one single-indirect block spans
+        inode.size = (NDADDR * BS + 2 * hole + BS) as u64;
+        let mut want = file[..NDADDR * BS].to_vec();
+        want.resize(NDADDR * BS + 2 * hole, 0);
+        want.extend(std::iter::repeat_n(0xEEu8, BS));
+
+        let whole = img.read_file(&inode, u64::MAX).unwrap();
+        assert_eq!(whole.len(), inode.size as usize);
+        assert!(
+            whole == want,
+            "the holes must be zeros and the data behind them in place"
+        );
+        let tail = inode.size - BS as u64 - 16;
+        assert_eq!(
+            img.read_range(&inode, tail, 32).unwrap(),
+            &want[tail as usize..tail as usize + 32]
+        );
     }
 
     /// A 4 KiB-block image holding one directory of `count` entries, each named `name_len`

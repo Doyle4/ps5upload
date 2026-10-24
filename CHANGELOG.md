@@ -100,6 +100,31 @@ What's new in ps5upload, written for humans.
 - **Docker instructions you can paste.** The website's `docker run` line and `make docker-engine-run`
   now set `PS5_ADDR` and `PS5UPLOAD_ALLOW_IP`; without them every request from another machine
   was refused with "403 loopback only".
+- **Convert no longer loses files from some .7z archives.** A 7z whose solid block has folders or
+  empty files between its files (upload already refuses these) was unpacked short and reported as
+  done; Convert now refuses it the same way, and any unpack that ends short of the archive's
+  listing is an error, not a success.
+- **Zip entry names are checked the same way before and during an upload.** An archive made by
+  Windows PowerShell's Compress-Archive (backslash paths) previewed as 0 files and then uploaded
+  flat files with backslashes in their names; the preview now says which entry is the problem and
+  the upload refuses it. Names like `./x` or `a//b` that previewed fine no longer fail the upload.
+  Names in old code-page zips show correctly in the preview.
+- **Long transfers survive repeated "console busy" answers.** A multi-hour upload, download or
+  console-to-console copy that reconnected several times could fail with "the console stayed
+  busy" even though every reconnect had been working; that budget now resets after each attempt
+  that made progress.
+- **Stop on a console job that has not started yet is honoured,** instead of the job running
+  anyway (or being started again after the console forgot it).
+- **Console-to-console sends no longer fall back to the relay while the receiver settles** many
+  small files after the last byte arrived.
+- **Extract all from a .ffpkg works for files over 4 GiB** and no longer holds each file in memory;
+  a .ffpkg with a sparse region reads back at its full length.
+- **Game images from a folder:** a dangling link or a file name with a backslash (or not valid
+  UTF-8) is reported by name before the build starts; reads from network or FUSE mounts no longer
+  fail with a spurious "ended at N of M bytes"; two paths that differ only by letter case are
+  refused together up front. In .exfat images a full-to-the-byte root folder no longer reads into
+  its neighbour, and a file's unwritten tail reads as zeros at its full length.
+- **Health check remedies** no longer contain runs of spaces mid-sentence.
 
 ## 7.1.19
 

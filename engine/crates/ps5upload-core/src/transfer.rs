@@ -216,19 +216,58 @@ pub const LIVE_ROUTE_RELAY: u8 = 2;
 /// called `名前 é.txt` landed on the PS5 as `σÉìσëì ├⌐.txt`. Like Info-ZIP
 /// and 7-Zip, use the raw bytes when they are valid UTF-8 and fall back to
 /// the crate's CP437 decoding only when they are not.
-pub(crate) fn zip_entry_name(raw: &[u8], decoded: &str) -> String {
+pub fn zip_entry_name(raw: &[u8], decoded: &str) -> String {
     match std::str::from_utf8(raw) {
         Ok(s) => s.to_string(),
         Err(_) => decoded.to_string(),
     }
 }
 
+/// [`zip_entry_name`] from the raw bytes alone: UTF-8 when they are, else CP437 (the
+/// `zip` crate's own fallback), so the central-directory parser, the inspector and the
+/// AVA1 zip source all spell a name the same way.
+pub fn zip_name_from_raw(raw: &[u8]) -> String {
+    match std::str::from_utf8(raw) {
+        Ok(s) => s.to_string(),
+        Err(_) => raw
+            .iter()
+            .map(|&b| {
+                if b < 0x80 {
+                    b as char
+                } else {
+                    CP437_HIGH[(b - 0x80) as usize]
+                }
+            })
+            .collect(),
+    }
+}
+
+/// IBM code page 437, bytes 0x80..=0xFF (the low half is ASCII).
+const CP437_HIGH: [char; 128] = [
+    '\u{00c7}', '\u{00fc}', '\u{00e9}', '\u{00e2}', '\u{00e4}', '\u{00e0}', '\u{00e5}', '\u{00e7}',
+    '\u{00ea}', '\u{00eb}', '\u{00e8}', '\u{00ef}', '\u{00ee}', '\u{00ec}', '\u{00c4}', '\u{00c5}',
+    '\u{00c9}', '\u{00e6}', '\u{00c6}', '\u{00f4}', '\u{00f6}', '\u{00f2}', '\u{00fb}', '\u{00f9}',
+    '\u{00ff}', '\u{00d6}', '\u{00dc}', '\u{00a2}', '\u{00a3}', '\u{00a5}', '\u{20a7}', '\u{0192}',
+    '\u{00e1}', '\u{00ed}', '\u{00f3}', '\u{00fa}', '\u{00f1}', '\u{00d1}', '\u{00aa}', '\u{00ba}',
+    '\u{00bf}', '\u{2310}', '\u{00ac}', '\u{00bd}', '\u{00bc}', '\u{00a1}', '\u{00ab}', '\u{00bb}',
+    '\u{2591}', '\u{2592}', '\u{2593}', '\u{2502}', '\u{2524}', '\u{2561}', '\u{2562}', '\u{2556}',
+    '\u{2555}', '\u{2563}', '\u{2551}', '\u{2557}', '\u{255d}', '\u{255c}', '\u{255b}', '\u{2510}',
+    '\u{2514}', '\u{2534}', '\u{252c}', '\u{251c}', '\u{2500}', '\u{253c}', '\u{255e}', '\u{255f}',
+    '\u{255a}', '\u{2554}', '\u{2569}', '\u{2566}', '\u{2560}', '\u{2550}', '\u{256c}', '\u{2567}',
+    '\u{2568}', '\u{2564}', '\u{2565}', '\u{2559}', '\u{2558}', '\u{2552}', '\u{2553}', '\u{256b}',
+    '\u{256a}', '\u{2518}', '\u{250c}', '\u{2588}', '\u{2584}', '\u{258c}', '\u{2590}', '\u{2580}',
+    '\u{03b1}', '\u{00df}', '\u{0393}', '\u{03c0}', '\u{03a3}', '\u{03c3}', '\u{00b5}', '\u{03c4}',
+    '\u{03a6}', '\u{0398}', '\u{03a9}', '\u{03b4}', '\u{221e}', '\u{03c6}', '\u{03b5}', '\u{2229}',
+    '\u{2261}', '\u{00b1}', '\u{2265}', '\u{2264}', '\u{2320}', '\u{2321}', '\u{00f7}', '\u{2248}',
+    '\u{00b0}', '\u{2219}', '\u{00b7}', '\u{221a}', '\u{207f}', '\u{00b2}', '\u{25a0}', '\u{00a0}',
+];
+
 /// Sanitize a zip entry name into a safe POSIX-relative path (forward
 /// slashes for the PS5). Rejects traversal (`..`), NUL, backslash segments,
 /// and absolute/empty paths — the same zip-slip defense as the client's
 /// `save_archive::sanitize_entry`, returning a string instead of a host
 /// `PathBuf`. Returns `None` for directory-only or unsafe names.
-pub(crate) fn sanitize_zip_entry(name: &str) -> Option<String> {
+pub fn sanitize_zip_entry(name: &str) -> Option<String> {
     let mut parts: Vec<&str> = Vec::new();
     for seg in name.split('/') {
         if seg.is_empty() || seg == "." {
@@ -425,8 +464,14 @@ pub fn zip_plan_preview_with_progress(
         if entry.is_dir {
             continue;
         }
+        // The same rule the AVA1 zip source applies when the upload opens the archive, so
+        // a name it refuses (a backslash path from PowerShell 5.1's Compress-Archive, a
+        // `..`) is refused here first instead of previewed as nothing.
         let Some(rel) = sanitize_zip_entry(&entry.name) else {
-            continue;
+            bail!(
+                "zip contains an unsafe or invalid entry path: {:?}",
+                entry.name
+            );
         };
         if !excludes.is_empty() && crate::excludes::is_excluded_strings(Path::new(&rel), excludes) {
             continue;
@@ -464,6 +509,43 @@ pub fn zip_plan_preview_with_progress(
 /// translated to forward slashes rather than rejected.
 pub fn sanitize_7z_entry(name: &str) -> Option<String> {
     sanitize_zip_entry(&name.replace('\\', "/"))
+}
+
+const WINDOWS_RESERVED: [&str; 6] = ["CON", "PRN", "AUX", "NUL", "CONIN$", "CONOUT$"];
+
+/// Why a path component cannot be written safely on every host, if it cannot. A ':'
+/// makes `C:/x` a drive path and `C:evil` a drive-relative one on Windows (and an
+/// alternate data stream on NTFS); the reserved device names and a trailing dot or
+/// space name something other than the file asked for. Shared by the AVA1 download
+/// side (peer-supplied names) and the archive unpacker (archive-supplied names).
+pub fn host_unsafe_component(comp: &str) -> Option<&'static str> {
+    // CONIN$ / CONOUT$ are device names too; a '$' alone is fine ("price$").
+    let device_stem = comp.split('.').next().unwrap_or(comp).trim_end_matches(' ');
+    if WINDOWS_RESERVED.contains(&device_stem.to_ascii_uppercase().as_str()) {
+        return Some("a reserved device name");
+    }
+    if comp.contains(':') {
+        return Some("a name with ':' (a drive or stream on Windows)");
+    }
+    if comp.ends_with('.') || comp.ends_with(' ') {
+        return Some("a name ending in '.' or a space");
+    }
+    // The device name is the part before the first dot: `CON.txt` is still CON.
+    let stem = comp.split('.').next().unwrap_or(comp).trim_end_matches(' ');
+    let up = stem.to_ascii_uppercase();
+    let numbered = |p: &str| {
+        up.strip_prefix(p).is_some_and(|n| {
+            let mut c = n.chars();
+            matches!(
+                (c.next(), c.next()),
+                (Some('1'..='9' | '\u{b9}' | '\u{b2}' | '\u{b3}'), None)
+            )
+        })
+    };
+    if WINDOWS_RESERVED.contains(&up.as_str()) || numbered("COM") || numbered("LPT") {
+        return Some("a reserved device name");
+    }
+    None
 }
 
 /// The refusal for a 7z whose solid block has stream-less entries (directories, empty
@@ -1826,6 +1908,20 @@ mod zip_sanitize_tests {
         // sanitize never has to reject a trailing-slash name — "dir/" simply
         // drops the empty segment and yields "dir".
         assert_eq!(sanitize_zip_entry("dir/").as_deref(), Some("dir"));
+    }
+
+    /// The central-directory parser spells names as the extractor and the AVA1 source do:
+    /// UTF-8 when the bytes are, else CP437 — never a lossy U+FFFD that folds two names.
+    #[test]
+    fn raw_names_decode_as_utf8_else_cp437() {
+        use super::zip_name_from_raw;
+        assert_eq!(zip_name_from_raw("名前 é.txt".as_bytes()), "名前 é.txt");
+        assert_eq!(zip_name_from_raw(b"caf\x82.txt"), "caf\u{e9}.txt");
+        assert_ne!(
+            zip_name_from_raw(b"\x82.txt"),
+            zip_name_from_raw(b"\x81.txt")
+        );
+        assert_eq!(zip_name_from_raw(b"plain/ascii.bin"), "plain/ascii.bin");
     }
 
     #[test]

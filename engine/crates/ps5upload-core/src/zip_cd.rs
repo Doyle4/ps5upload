@@ -173,7 +173,10 @@ pub fn read_central_directory_with_progress(
             u64::from(raw_uncompressed)
         };
 
-        let name = String::from_utf8_lossy(name_bytes).into_owned();
+        // UTF-8 when it is, else CP437: the rule the extractor and the AVA1 zip source
+        // use, so a CP437 name is the same string here (a lossy read gave U+FFFD, which
+        // could fold two names into one and miss the by-name lookup of param.json).
+        let name = crate::transfer::zip_name_from_raw(name_bytes);
         let is_dir = name.ends_with('/');
         entries.push(CentralDirEntry {
             name,

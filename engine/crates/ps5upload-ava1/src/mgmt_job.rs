@@ -135,6 +135,17 @@ fn failed(label: &str, st: &Status) -> anyhow::Error {
     .into()
 }
 
+/// A job stopped by this process before the console could report the stop: the error the
+/// console's own report of a cancelled job turns into (the same status and cause).
+fn cancelled(label: &str) -> anyhow::Error {
+    MgmtError {
+        label: label.to_string(),
+        status: gen::ERR_CANCELLED,
+        cause: conv::default_cause(gen::ERR_CANCELLED).to_string(),
+    }
+    .into()
+}
+
 /// May a job the console has forgotten be started again? A backup snapshot makes a new
 /// snapshot each time; every other operation gives the same outcome when repeated.
 fn reissuable(op: JobOp) -> bool {
@@ -197,6 +208,15 @@ impl AvaTransport {
                     hex(&job_id)
                 ));
             }
+            // A Stop that landed before the console acknowledged the run (or after it
+            // forgot the job): there is nothing to poll, and nothing is started again.
+            // A job the console does hold keeps being polled: it reports the cancel itself.
+            if !issued && cancel.load(Ordering::Relaxed) {
+                let _ = self
+                    .rpc(console, gen::METHOD_JOB_CANCEL, label, &by_id, RPC_TIMEOUT)
+                    .await;
+                return Err(cancelled(label));
+            }
             let (method, req) = if issued {
                 (gen::METHOD_JOB_STATUS, &by_id)
             } else {
@@ -232,6 +252,10 @@ impl AvaTransport {
                     // The console forgot the job (it restarted, or the job aged out): ask
                     // again, which is safe for every operation but a snapshot.
                     Some(m) if m.status == gen::ERR_UNKNOWN_JOB && issued => {
+                        // Forgotten after a Stop: the stop stands, the job is not run again.
+                        if cancel.load(Ordering::Relaxed) {
+                            return Err(cancelled(label));
+                        }
                         reissues += 1;
                         if reissues > REISSUE_LIMIT || !reissuable(op) {
                             return Err(MgmtError {

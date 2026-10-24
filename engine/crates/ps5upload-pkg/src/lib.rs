@@ -67,10 +67,10 @@ pub struct RootEntry {
     pub size: u64,
 }
 
-/// Maximum bytes we'll extract per call from a single inode.
-/// 4 GiB matches the UFS2 max file size in practice for game assets;
-/// callers can request again if they need more.
-const FFPKG_EXTRACT_MAX: u64 = 4 * 1024 * 1024 * 1024;
+/// How much of a file is read at a time while extracting: the file streams through
+/// the temp file in these pieces, so a multi-gigabyte asset is never held whole and no
+/// size cap cuts an "Extract all" short. The declared size is bounded by the image.
+const FFPKG_EXTRACT_CHUNK: u64 = 8 * 1024 * 1024;
 
 /// Max directory-tree depth `extract_dir_recursive` will descend. UFS dir
 /// entries are attacker-controllable in a hostile .ffpkg; a crafted entry
@@ -126,11 +126,10 @@ pub fn extract_from_ffpkg(
     };
     let leaf_name = components.last().copied().unwrap_or("root");
     if inode.is_file() {
-        let bytes = img.read_file(&inode, FFPKG_EXTRACT_MAX)?;
         let dest = dest_dir.join(leaf_name);
-        write_file_atomic(&dest, &bytes)?;
+        let written = extract_file(&mut img, &inode, &dest)?;
         result.file_count = 1;
-        result.bytes_written = bytes.len() as u64;
+        result.bytes_written = written;
         result.sample_paths.push(dest.display().to_string());
     } else if inode.is_dir() {
         let target = dest_dir.join(leaf_name);
@@ -219,10 +218,9 @@ fn extract_dir_recursive(
             create_dir_all(&child_path).map_err(Ufs2Error::Io)?;
             extract_dir_recursive(img, &child_inode, &child_path, result, depth + 1)?;
         } else if child_inode.is_file() {
-            let bytes = img.read_file(&child_inode, FFPKG_EXTRACT_MAX)?;
-            write_file_atomic(&child_path, &bytes)?;
+            let written = extract_file(img, &child_inode, &child_path)?;
             result.file_count += 1;
-            result.bytes_written += bytes.len() as u64;
+            result.bytes_written += written;
             // Cap sample list at 32 paths so the JSON response stays
             // bounded even on huge extracts.
             if result.sample_paths.len() < 32 {
@@ -237,18 +235,53 @@ fn extract_dir_recursive(
     Ok(())
 }
 
-fn write_file_atomic(path: &Path, bytes: &[u8]) -> Result<(), Ufs2Error> {
+/// Streams one file's bytes into `path` through a temp file and an atomic rename,
+/// [`FFPKG_EXTRACT_CHUNK`] at a time. Returns the bytes written. A size the image
+/// cannot hold is corruption (an inode is read straight off untrusted disk), refused
+/// as `FileTooLarge` before anything is written; a failed copy leaves no temp file.
+fn extract_file<R: Read + Seek>(
+    img: &mut Ufs2Image<R>,
+    inode: &ufs2::Inode,
+    path: &Path,
+) -> Result<u64, Ufs2Error> {
+    let sb = &img.superblock;
+    let cap = sb
+        .size_fragments
+        .saturating_mul(u64::from(sb.fragment_size));
+    if inode.size > cap {
+        return Err(Ufs2Error::FileTooLarge {
+            size: inode.size,
+            cap,
+        });
+    }
     if let Some(parent) = path.parent() {
         create_dir_all(parent).map_err(Ufs2Error::Io)?;
     }
     let tmp = path.with_extension("ffpkg-tmp");
-    {
+    let copied = (|| {
         let mut f = std::fs::File::create(&tmp).map_err(Ufs2Error::Io)?;
-        f.write_all(bytes).map_err(Ufs2Error::Io)?;
+        let mut off = 0u64;
+        while off < inode.size {
+            let chunk = img.read_range(inode, off, FFPKG_EXTRACT_CHUNK)?;
+            if chunk.is_empty() {
+                break;
+            }
+            f.write_all(&chunk).map_err(Ufs2Error::Io)?;
+            off += chunk.len() as u64;
+        }
         f.sync_all().map_err(Ufs2Error::Io)?;
+        Ok(off)
+    })();
+    match copied {
+        Ok(n) => {
+            std::fs::rename(&tmp, path).map_err(Ufs2Error::Io)?;
+            Ok(n)
+        }
+        Err(e) => {
+            let _ = std::fs::remove_file(&tmp);
+            Err(e)
+        }
     }
-    std::fs::rename(&tmp, path).map_err(Ufs2Error::Io)?;
-    Ok(())
 }
 
 /// Open a UFS2 image, walk its root + sce_sys, return everything the

@@ -20,6 +20,8 @@ use ava1::packlog::LoggedGroup;
 use ava1::recv::{download_job, is_fd_exhausted, LocalSink, RecvOptions, Sink};
 use ava1::send::{Progress, SendError};
 use ps5upload_core::download::DownloadKind;
+// Shared with the archive unpacker, so archive-supplied names follow the same rule.
+use ps5upload_core::transfer::host_unsafe_component;
 use zip::write::SimpleFileOptions;
 
 use crate::pool::{pool, Pool};
@@ -124,39 +126,6 @@ fn basename(src: &str) -> Result<&str> {
         return Err(anyhow!("{src:?} has no usable file name"));
     }
     Ok(name)
-}
-
-const WINDOWS_RESERVED: [&str; 6] = ["CON", "PRN", "AUX", "NUL", "CONIN$", "CONOUT$"];
-
-/// Why a path component cannot be written safely on every host, if it cannot.
-fn host_unsafe_component(comp: &str) -> Option<&'static str> {
-    // CONIN$ / CONOUT$ are device names too; a '$' alone is fine ("price$").
-    let device_stem = comp.split('.').next().unwrap_or(comp).trim_end_matches(' ');
-    if WINDOWS_RESERVED.contains(&device_stem.to_ascii_uppercase().as_str()) {
-        return Some("a reserved device name");
-    }
-    if comp.contains(':') {
-        return Some("a name with ':' (a drive or stream on Windows)");
-    }
-    if comp.ends_with('.') || comp.ends_with(' ') {
-        return Some("a name ending in '.' or a space");
-    }
-    // The device name is the part before the first dot: `CON.txt` is still CON.
-    let stem = comp.split('.').next().unwrap_or(comp).trim_end_matches(' ');
-    let up = stem.to_ascii_uppercase();
-    let numbered = |p: &str| {
-        up.strip_prefix(p).is_some_and(|n| {
-            let mut c = n.chars();
-            matches!(
-                (c.next(), c.next()),
-                (Some('1'..='9' | '\u{b9}' | '\u{b2}' | '\u{b3}'), None)
-            )
-        })
-    };
-    if WINDOWS_RESERVED.contains(&up.as_str()) || numbered("COM") || numbered("LPT") {
-        return Some("a reserved device name");
-    }
-    None
 }
 
 /// What the manifest of a download may look like (peer-supplied data: `Manifest::
@@ -726,7 +695,9 @@ fn run(
             let durable = progress.bytes_durable.load(Ordering::Relaxed);
             if dropped {
                 pool.forget_if(console, &session).await;
-                rearm(&mut backoff, started, work_before, durable);
+                if rearm(&mut backoff, started, work_before, durable) {
+                    busy = 0;
+                }
             }
             if fresh_per_attempt || !dropped {
                 let _ = std::fs::remove_dir_all(journal::job_dir(&jobs_dir, &id));

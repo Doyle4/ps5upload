@@ -752,12 +752,14 @@ pub fn ps5_to_ps5_capped(
                     );
                     from_pool.forget_if(from, &sa).await;
                     to_pool.forget_if(to, &sb).await;
-                    rearm(
+                    if rearm(
                         &mut backoff,
                         attempt_started,
                         durable,
                         progress.bytes_durable.load(Ordering::Relaxed),
-                    );
+                    ) {
+                        busy = 0;
+                    }
                     tokio::time::sleep(backoff).await;
                     backoff = (backoff * 2).min(Duration::from_secs(5));
                 }

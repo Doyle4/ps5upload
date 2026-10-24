@@ -11,12 +11,15 @@
 
 use std::fs::File;
 use std::io::{Read, Write};
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use anyhow::{anyhow, bail, Context, Result};
 
-use crate::transfer::{sanitize_7z_entry, sanitize_zip_entry, sevenz_decode_threads};
+use crate::transfer::{
+    host_unsafe_component, sanitize_7z_entry, sanitize_zip_entry, sevenz_check_layout,
+    sevenz_decode_threads,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ArchiveKind {
@@ -117,12 +120,12 @@ impl Sink<'_> {
 
     /// `rel` is already sanitised: relative, no `..`.
     fn dir(&self, rel: &str) -> Result<()> {
-        let p = self.dest.join(rel);
+        let p = host_path(self.dest, rel)?;
         std::fs::create_dir_all(&p).with_context(|| format!("create {}", p.display()))
     }
 
     fn file(&mut self, rel: &str, from: &mut dyn Read) -> Result<()> {
-        let p = self.dest.join(rel);
+        let p = host_path(self.dest, rel)?;
         if let Some(parent) = p.parent() {
             std::fs::create_dir_all(parent)
                 .with_context(|| format!("create {}", parent.display()))?;
@@ -144,6 +147,27 @@ impl Sink<'_> {
         }
         Ok(())
     }
+}
+
+/// Where `rel` (a sanitised archive path) lands under `dest`. The sanitisers keep `..`,
+/// NUL and backslashes out, but `Path::join` has its own ideas on Windows: `C:/x` and
+/// `C:evil` are drive paths that replace `dest`, and a reserved device name or a
+/// trailing dot names something else. Refused everywhere, like the download side, so
+/// an archive unpacks the same way on every host.
+fn host_path(dest: &Path, rel: &str) -> Result<PathBuf> {
+    for seg in rel.split('/') {
+        if let Some(why) = host_unsafe_component(seg) {
+            bail!("the archive has an entry path this computer cannot write, {why}: {rel:?}");
+        }
+    }
+    let p = dest.join(rel);
+    let inside = p
+        .strip_prefix(dest)
+        .is_ok_and(|r| r.components().all(|c| matches!(c, Component::Normal(_))));
+    if !inside {
+        bail!("the archive has an unsafe entry path: {rel:?}");
+    }
+    Ok(p)
 }
 
 fn open_zip(archive: &Path) -> Result<zip::ZipArchive<std::io::BufReader<File>>> {
@@ -188,8 +212,12 @@ fn read_7z_header(archive: &Path) -> Result<sevenz_rust2::Archive> {
     let mut src = std::io::BufReader::new(
         File::open(archive).with_context(|| format!("open {}", archive.display()))?,
     );
-    sevenz_rust2::Archive::read(&mut src, &sevenz_rust2::Password::from(""))
-        .map_err(|e| seven_err(archive, e))
+    let header = sevenz_rust2::Archive::read(&mut src, &sevenz_rust2::Password::from(""))
+        .map_err(|e| seven_err(archive, e))?;
+    // The same refusal the upload path makes: the per-block walk below would silently
+    // skip the last files of such a block, and Convert would report a short tree as done.
+    sevenz_check_layout(&header)?;
+    Ok(header)
 }
 
 fn seven_err(archive: &Path, e: sevenz_rust2::Error) -> anyhow::Error {
@@ -209,6 +237,7 @@ fn extract_7z(archive: &Path, sink: &mut Sink) -> Result<()> {
         sevenz_rust2::Password::from(""),
     )
     .map_err(|e| seven_err(archive, e))?;
+    sevenz_check_layout(reader.archive())?;
     reader.set_thread_count(sevenz_decode_threads());
     // The closure's error type is 7z's; ours are carried out beside it.
     let mut failure: Option<anyhow::Error> = None;
@@ -235,7 +264,17 @@ fn extract_7z(archive: &Path, sink: &mut Sink) -> Result<()> {
     if let Some(e) = failure {
         return Err(e);
     }
-    walked.map_err(|e| seven_err(archive, e))
+    walked.map_err(|e| seven_err(archive, e))?;
+    // Every file the header lists must have been written: a walk that ends short of the
+    // listing is a decoder gap, never a finished unpack.
+    if sink.done != sink.total {
+        bail!(
+            "unpacked {} of the {} bytes the 7z lists; the archive's layout is not supported, re-pack it with 7-Zip or extract it first",
+            sink.done,
+            sink.total
+        );
+    }
+    Ok(())
 }
 
 #[cfg(not(target_os = "android"))]
@@ -327,6 +366,36 @@ pub fn find_game(root: &Path) -> Result<PathBuf> {
                 "more than one game in the archive ({}); unpack it and convert one at a time",
                 names.join(", ")
             )
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::host_path;
+    use std::path::Path;
+
+    /// A sanitised archive path still has to land under `dest` on this host: a drive or
+    /// stream name, a reserved device name or a trailing dot would not.
+    #[test]
+    fn host_path_keeps_every_entry_under_dest() {
+        let dest = Path::new("/tmp/unpack");
+        for ok in ["a/b.txt", "sce_sys/param.json", "CONSOLE/x", "price$"] {
+            let p = host_path(dest, ok).unwrap_or_else(|e| panic!("{ok}: {e}"));
+            assert!(p.starts_with(dest), "{ok} -> {}", p.display());
+        }
+        for bad in [
+            "C:/x",
+            "C:evil",
+            "a/C:/x",
+            "CON",
+            "a/NUL.txt",
+            "x.",
+            "a/x ",
+            "s:stream",
+        ] {
+            let e = host_path(dest, bad).unwrap_err().to_string();
+            assert!(e.contains("cannot write") && e.contains(bad), "{bad}: {e}");
         }
     }
 }
