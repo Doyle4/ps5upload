@@ -722,6 +722,16 @@ static int xml_attr(const char *tag, const char *attr,
     return -1;
 }
 
+/* The opening tag [start, end) alone, NUL-terminated, cut at `cap`. xml_attr is then searched
+ * on this copy and not on the rest of the document, where a <Cheat> without a Description or
+ * Text would otherwise take the NEXT cheat's attribute. */
+static void xml_open_tag_copy(const char *start, const char *end, char *buf, size_t cap) {
+    size_t n = (end > start) ? (size_t)(end - start) : 0;
+    if (n >= cap) n = cap - 1;
+    memcpy(buf, start, n);
+    buf[n] = '\0';
+}
+
 /* Extract text between <tag>...</tag>. */
 static int xml_text(const char *start, const char *tag_name,
                     char *out, size_t cap) {
@@ -788,11 +798,14 @@ static int parse_shn_file(const char *xml, size_t xml_len,
     cf->process[0] = '\0';
 
     /* Extract game name from <Trainer Game="..."> */
+    char open_tag[1024]; /* one opening tag at a time (the frame stays within the stack budget) */
     const char *trainer = strstr(xml, "<Trainer");
     if (trainer) {
-        xml_attr(trainer, "Game", cf->game_name, sizeof(cf->game_name));
+        const char *tend = strchr(trainer, '>');
+        xml_open_tag_copy(trainer, tend ? tend + 1 : trainer + strlen(trainer), open_tag, sizeof(open_tag));
+        xml_attr(open_tag, "Game", cf->game_name, sizeof(cf->game_name));
         if (!cf->game_name[0])
-            xml_attr(trainer, "GameName", cf->game_name,
+            xml_attr(open_tag, "GameName", cf->game_name,
                      sizeof(cf->game_name));
     }
 
@@ -819,14 +832,16 @@ static int parse_shn_file(const char *xml, size_t xml_len,
         strcpy(m->type, "checkbox");
         m->incomplete = cheat_cut;
 
-        xml_attr(cheat_start, "Text", m->name, sizeof(m->name));
+        /* Attributes come from this cheat's opening tag only (xml_open_tag_copy). */
+        xml_open_tag_copy(cheat_start, cheat_end, open_tag, sizeof(open_tag));
+        xml_attr(open_tag, "Text", m->name, sizeof(m->name));
         if (!m->name[0])
-            xml_attr(cheat_start, "CheatName", m->name, sizeof(m->name));
+            xml_attr(open_tag, "CheatName", m->name, sizeof(m->name));
         if (!m->name[0])
-            xml_attr(cheat_start, "Name", m->name, sizeof(m->name));
+            xml_attr(open_tag, "Name", m->name, sizeof(m->name));
 
         char desc[256];
-        if (xml_attr(cheat_start, "Description", desc, sizeof(desc)) == 0) {
+        if (xml_attr(open_tag, "Description", desc, sizeof(desc)) == 0) {
             snprintf(m->hint, sizeof(m->hint), "%s", desc);
         }
 

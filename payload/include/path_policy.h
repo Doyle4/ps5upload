@@ -19,7 +19,12 @@ int path_resolve_allowed(const char *p, int (*lexical_ok)(const char *));
 /* The trust store. `/data/ps5upload/ava` holds this console's AVA1 identity and its list of paired peers;
  * a paired peer that could overwrite, delete or read them could hijack the console's trust. So the
  * directory and everything under it is denied to EVERY path policy that goes through this file
- * (runtime.c's is_path_allowed, so the management handlers and AVA1's fs.* / job ops).
+ * (runtime.c's is_path_allowed, so the management handlers and AVA1's fs.* / job ops). The saved
+ * network shares' secrets, `/data/ps5upload/smb` (the encrypted share file and its key), are
+ * denied the same way by path_in_protected / path_contains_protected: readable, they would give
+ * every saved share password away. path_protected_forms covers only the trust store: a walker whose
+ * root could reach the SMB directory is an ancestor of the trust store too, so it is refused before
+ * it starts.
  *
  * path_in_protected: `p` is the directory or below it, judged on three forms of the path: as written,
  * lexically normalised (`//`, `.`, `..` collapsed), and canonical (symlinks resolved, with the deepest
