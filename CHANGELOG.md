@@ -4,6 +4,13 @@ What's new in ps5upload, written for humans.
 
 ---
 
+## 7.4.1
+
+- Dependency updates: Tauri 2.12.5, Tauri CLI 2.12.4, Vite 8.3.5, lucide-react 1.61.0 and
+  crc32fast 1.5.3.
+- The new security scan no longer flags the Wake screen's made-up sample key, and a test no
+  longer trips the repository's old-port check.
+
 ## 7.4.0
 
 - **Security scanning on every change.** Every pull request now runs a security scan: known
