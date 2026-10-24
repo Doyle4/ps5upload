@@ -762,17 +762,13 @@ jobs:
 
   # ─────────────────────────────────────────────────────────────────────
   # Payload ELF — compile against the ps5-payload-sdk so we catch any
-  # breakage to the C code, then `make test-payload`: the ~50 host self-tests
-  # in payload/tests (built with the runner's cc, -Wall -Wextra -Werror), the
-  # archive extractor's host tests, check-per-console-isolation.sh and
-  # check-sony-api-lock.sh — the same gate CONTRIBUTING.md asks for locally,
-  # which CI only claimed to run until 7.1.19. Plus the lockfile guard
-  # (make test-root) and the Linux launcher self-test, which validate-repo
-  # runs and CI did not. Doesn't upload artifacts; publish.yml does that on
-  # tagged runs. Keeps PR feedback loop tight.
+  # breakage to the C code, plus the lockfile guard (make test-root) and the
+  # Linux launcher self-test, which validate-repo runs and CI did not. The
+  # ELFs go to `payload-selftests` below as an artifact; publish.yml builds
+  # the release copies on tagged runs.
   # ─────────────────────────────────────────────────────────────────────
   payload:
-    name: payload (ELF + host self-tests)
+    name: payload (ELF)
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -830,15 +826,13 @@ jobs:
       - name: Install pinned PS5 Payload SDK
         run: sudo env PS5_SDK_INSTALL_DIR=/opt/ps5-payload-sdk bash scripts/install-ps5-sdk.sh
 
-      # `test-payload` depends on `payload`, so this builds both ELFs and
-      # then runs every host self-test and check script against them.
-      - name: Build payload + host self-tests
+      - name: Build payload
         env:
           PS5_PAYLOAD_SDK: /opt/ps5-payload-sdk
           # SDK v0.42's prospero-llvm-config candidate search maxes at 21,
           # so point it at the CI-installed LLVM 22 explicitly.
           LLVM_CONFIG: /usr/bin/llvm-config-22
-        run: make test-payload
+        run: make payload
 
       - name: Lockfile guard (client/package-lock.json keeps its libc fields)
         run: make test-root
@@ -873,6 +867,57 @@ jobs:
             echo "::error::PS5Upload installer ELF is smaller than expected"
             exit 1
           fi
+
+      - name: Hand the ELFs to the self-test job
+        uses: actions/upload-artifact@v7
+        with:
+          name: payload-elves-ci
+          path: |
+            payload/ps5upload.elf
+            payload/ps5upload.elf.gz
+            payload/installer/ps5upload-installer.elf
+            payload/installer/ps5upload-installer.elf.gz
+          if-no-files-found: error
+          retention-days: 1
+
+  # ─────────────────────────────────────────────────────────────────────
+  # `make test-payload` — the gate CONTRIBUTING.md and TESTING.md ask for
+  # locally, which CI only claimed to run until now: it validates the two
+  # ELFs above, then runs the ~75 host self-tests in payload/tests
+  # (-Wall -Wextra -Werror), the archive extractor's host tests,
+  # check-per-console-isolation.sh and check-sony-api-lock.sh.
+  #
+  # On macOS on purpose, the platform the gate is written for and run on:
+  # the self-tests compile payload sources that include <sys/sysctl.h>
+  # (activity.c and nine others), which glibc removed in 2.32, so they cannot
+  # build on an ubuntu runner; and GCC's -Wformat-truncation rejects three
+  # files clang accepts (payload/extractor/src/xsink.c:136,172,
+  # payload/tests/unregister_outcome_selftest.c:121-123). `-o payload` reuses
+  # the ELFs the payload job built instead of needing the PS5 SDK + LLVM here.
+  # ─────────────────────────────────────────────────────────────────────
+  payload-selftests:
+    name: payload host self-tests (make test-payload)
+    needs: payload
+    runs-on: macos-14
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: payload-elves-ci
+          path: payload
+
+      # sqlite3.c/.h are not committed; the SDK installer fetches the pinned,
+      # checksum-verified amalgamation into payload/third_party/sqlite3. The
+      # SDK itself lands in the runner's temp dir and is not used.
+      - name: Fetch the pinned SQLite amalgamation
+        run: PS5_SDK_INSTALL_DIR="$RUNNER_TEMP/ps5-payload-sdk" bash scripts/install-ps5-sdk.sh
+
+      - name: make test-payload
+        env:
+          PS5_PAYLOAD_SDK: ${{ runner.temp }}/ps5-payload-sdk
+        run: make -o payload test-payload
 
   # ─────────────────────────────────────────────────────────────────────
   # Android APK (Tauri mobile). Verifies the whole mobile pipeline builds
@@ -1055,6 +1100,7 @@ jobs:
       - client-frontend
       - repo-scripts
       - payload
+      - payload-selftests
       - android
     runs-on: ubuntu-24.04
     timeout-minutes: 5
