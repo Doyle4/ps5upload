@@ -28,6 +28,14 @@ permissions:
 
 env:
   CARGO_TERM_COLOR: always
+  # No incremental artifacts in CI: they only pay off when the same tree is
+  # rebuilt on one machine, and here every job starts from a cache saved by a
+  # different commit. They were a large share of the 1-3 GiB per-job caches
+  # (restores took 190-200 s on the test, desktop and android jobs) and the
+  # repository sat at the 10 GiB cache cap, evicting the lint/test/ctest
+  # caches so those jobs compiled cold. Same code, same tests, same flags
+  # otherwise (the profiles in engine/Cargo.toml still apply).
+  CARGO_INCREMENTAL: "0"
 
 jobs:
   # ─────────────────────────────────────────────────────────────────────
@@ -86,9 +94,13 @@ jobs:
         working-directory: engine
         run: cargo fmt --all -- --check
 
+      # --locked: Cargo.lock must already satisfy every Cargo.toml. Two green
+      # PRs that each touched the lockfile squash-merged into a main where
+      # Cargo.toml asked for a version the lock did not have; nothing here
+      # noticed because cargo quietly re-resolved. Costs nothing on a good tree.
       - name: cargo clippy
         working-directory: engine
-        run: cargo clippy --workspace -- -D warnings
+        run: cargo clippy --locked --workspace -- -D warnings
 
       # The webui feature (rust-embed + static serving) is only enabled
       # in the Docker webui build, not the default workspace clippy/test
@@ -582,9 +594,10 @@ jobs:
           printf 'engine stub for CI\n' > "$exe"
 
       # No separate `cargo check --all-targets`: clippy --all-targets type-checks the same code.
+      # --locked for the same reason as the engine workspace's clippy step.
       - name: cargo clippy
         working-directory: client/src-tauri
-        run: cargo clippy --all-targets -- -D warnings
+        run: cargo clippy --locked --all-targets -- -D warnings
 
       - name: cargo test
         working-directory: client/src-tauri
@@ -749,8 +762,10 @@ jobs:
 
   # ─────────────────────────────────────────────────────────────────────
   # Payload ELF — compile against the ps5-payload-sdk so we catch any
-  # breakage to the C code. Doesn't upload artifacts; publish.yml does
-  # that on tagged runs. Keeps PR feedback loop tight.
+  # breakage to the C code, plus the lockfile guard (make test-root) and the
+  # Linux launcher self-test, which validate-repo runs and CI did not. The
+  # ELFs go to `payload-selftests` below as an artifact; publish.yml builds
+  # the release copies on tagged runs.
   # ─────────────────────────────────────────────────────────────────────
   payload:
     name: payload (ELF)
@@ -819,6 +834,12 @@ jobs:
           LLVM_CONFIG: /usr/bin/llvm-config-22
         run: make payload
 
+      - name: Lockfile guard (client/package-lock.json keeps its libc fields)
+        run: make test-root
+
+      - name: Linux launcher self-test
+        run: sh scripts/release/linux-launcher-selftest.sh
+
       - name: Verify ELF
         run: |
           file payload/ps5upload.elf payload/installer/ps5upload-installer.elf
@@ -846,6 +867,57 @@ jobs:
             echo "::error::PS5Upload installer ELF is smaller than expected"
             exit 1
           fi
+
+      - name: Hand the ELFs to the self-test job
+        uses: actions/upload-artifact@v7
+        with:
+          name: payload-elves-ci
+          path: |
+            payload/ps5upload.elf
+            payload/ps5upload.elf.gz
+            payload/installer/ps5upload-installer.elf
+            payload/installer/ps5upload-installer.elf.gz
+          if-no-files-found: error
+          retention-days: 1
+
+  # ─────────────────────────────────────────────────────────────────────
+  # `make test-payload` — the gate CONTRIBUTING.md and TESTING.md ask for
+  # locally, which CI only claimed to run until now: it validates the two
+  # ELFs above, then runs the ~75 host self-tests in payload/tests
+  # (-Wall -Wextra -Werror), the archive extractor's host tests,
+  # check-per-console-isolation.sh and check-sony-api-lock.sh.
+  #
+  # On macOS on purpose, the platform the gate is written for and run on:
+  # the self-tests compile payload sources that include <sys/sysctl.h>
+  # (activity.c and nine others), which glibc removed in 2.32, so they cannot
+  # build on an ubuntu runner; and GCC's -Wformat-truncation rejects three
+  # files clang accepts (payload/extractor/src/xsink.c:136,172,
+  # payload/tests/unregister_outcome_selftest.c:121-123). `-o payload` reuses
+  # the ELFs the payload job built instead of needing the PS5 SDK + LLVM here.
+  # ─────────────────────────────────────────────────────────────────────
+  payload-selftests:
+    name: payload host self-tests (make test-payload)
+    needs: payload
+    runs-on: macos-14
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: payload-elves-ci
+          path: payload
+
+      # sqlite3.c/.h are not committed; the SDK installer fetches the pinned,
+      # checksum-verified amalgamation into payload/third_party/sqlite3. The
+      # SDK itself lands in the runner's temp dir and is not used.
+      - name: Fetch the pinned SQLite amalgamation
+        run: PS5_SDK_INSTALL_DIR="$RUNNER_TEMP/ps5-payload-sdk" bash scripts/install-ps5-sdk.sh
+
+      - name: make test-payload
+        env:
+          PS5_PAYLOAD_SDK: ${{ runner.temp }}/ps5-payload-sdk
+        run: make -o payload test-payload
 
   # ─────────────────────────────────────────────────────────────────────
   # Android APK (Tauri mobile). Verifies the whole mobile pipeline builds
@@ -1028,6 +1100,7 @@ jobs:
       - client-frontend
       - repo-scripts
       - payload
+      - payload-selftests
       - android
     runs-on: ubuntu-24.04
     timeout-minutes: 5

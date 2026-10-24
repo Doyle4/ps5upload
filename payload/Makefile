@@ -197,7 +197,9 @@ SMBD_DEPS := $(wildcard $(SMBD_DIR)/*.c $(SMBD_DIR)/*.h) $(SMBD_DIR)/Makefile \
                    third_party/libsmb2/include/smb2/*.h) third_party/libsmb2/config.h include/smbd_proto.h include/config.h \
         src/pkg_info.c include/pkg_info.h
 CLIENT_DIR := ../client
-WEBUI_PAGE_DEPS := $(shell find $(CLIENT_DIR)/src/console -type f ! -name '*.test.ts' 2>/dev/null) \
+# src/lib too: the page imports lib/format, lib/fanTargets, lib/archiveName, lib/filePermissions,
+# lib/sdkVersionHex, lib/cleanupModel and lib/cleanupText, and an edit there left a stale page.
+WEBUI_PAGE_DEPS := $(shell find $(CLIENT_DIR)/src/console $(CLIENT_DIR)/src/lib -type f ! -name '*.test.ts' 2>/dev/null) \
         $(wildcard $(CLIENT_DIR)/src/i18n/locales/*.ts) $(CLIENT_DIR)/src/index.css \
         $(CLIENT_DIR)/public/logo-square.png $(CLIENT_DIR)/vite.console.config.ts \
         $(CLIENT_DIR)/package.json $(CLIENT_DIR)/package-lock.json ../scripts/build-console-strings.mjs

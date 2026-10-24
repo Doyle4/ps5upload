@@ -68,8 +68,19 @@ fi
 target="$(cat VERSION)"
 tag="v${target}"
 
+# The sync above reports but never re-reads; prove every downstream file now
+# agrees with VERSION before anything is committed or tagged.
+node scripts/update-version.js --check
+
 if git rev-parse -q --verify "refs/tags/${tag}" >/dev/null; then
   echo "release: tag ${tag} already exists — bump VERSION to release again" >&2
+  exit 1
+fi
+
+# publish.yml refuses a release whose CHANGELOG has no section for the
+# version, and a pushed tag cannot be moved — so refuse here, before the tag.
+if ! grep -qx "## ${target}" CHANGELOG.md; then
+  echo "release: CHANGELOG.md has no '## ${target}' section — write the entry (and commit it) first" >&2
   exit 1
 fi
 

@@ -72,7 +72,9 @@ WORKDIR /build/engine
 # rust-embed will bake every file in this directory into the binary.
 COPY --from=frontend /repo/client/dist/ ./crates/ps5upload-engine/webui/
 
-RUN cargo build --release -p ps5upload-engine --features webui
+# --locked: the image is built from a tag; the lockfile must already satisfy
+# Cargo.toml (a stale lock after a squash merge fails here, not re-resolves).
+RUN cargo build --locked --release -p ps5upload-engine --features webui
 
 # The runtime image is `scratch`, which has no /tmp and no home: the engine
 # could not stage an uploaded package ("could not create upload dir:

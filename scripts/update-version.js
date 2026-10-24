@@ -203,17 +203,35 @@ const results = [
 
 const pad = results.reduce((n, r) => Math.max(n, r.path.length), 0);
 const drift = [];
+// A pattern that found nothing to patch (`<no-match>`) or a JSON field that
+// is not there (`<missing>`) was reported as "updated" and the run exited 0,
+// so a reshuffled Cargo.toml or config.h would have kept its old version
+// through a release. Nothing was written for these; they are failures.
+const unpatchable = [];
 
 for (const r of results) {
+  const broken = r.current === "<no-match>" || r.current === "<missing>";
   const status = r.ok
     ? checkMode
       ? "ok"
       : "ok (unchanged)"
-    : checkMode
-      ? `DRIFT (has ${r.current})`
-      : `updated (was ${r.current})`;
-  if (!r.ok) drift.push(r);
+    : broken
+      ? `ERROR (${r.current}: nothing to patch)`
+      : checkMode
+        ? `DRIFT (has ${r.current})`
+        : `updated (was ${r.current})`;
+  if (broken) unpatchable.push(r);
+  else if (!r.ok) drift.push(r);
   console.log(`  ${r.path.padEnd(pad)}  ${status}`);
+}
+
+if (unpatchable.length > 0) {
+  console.error("");
+  console.error(
+    `update-version: ${unpatchable.length} file(s) have no version line this script recognises: ${unpatchable.map((r) => r.path).join(", ")}.`,
+  );
+  console.error("Fix the file (or the pattern in scripts/update-version.js) before releasing.");
+  process.exit(1);
 }
 
 if (checkMode && drift.length > 0) {

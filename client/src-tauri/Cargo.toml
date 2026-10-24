@@ -148,6 +148,18 @@ jni = "0.21"
 # Default: build Tauri-native (no custom features yet)
 default = []
 
+# Dev builds only (`make run-client`, `cargo test`, CI's clippy/test): the
+# release profile below is untouched. Mirrors engine/Cargo.toml — line tables
+# are enough for a backtrace, and dependencies (tauri, wry, tokio, the image
+# crates) carry no debug info at all, which is most of what the linker chews
+# through on every rebuild. Dependencies stay unoptimized on purpose; see the
+# engine's note on why optimized deps broke timing-sensitive tests.
+[profile.dev]
+debug = "line-tables-only"
+
+[profile.dev.package."*"]
+debug = false
+
 [profile.release]
 # Smaller binary + slightly faster; Tauri recommends these.
 codegen-units = 1

@@ -730,8 +730,9 @@ run-android run-android-background: android-deps payload setup-client
 #──────────────────────────────────────────────────────────────────────────────
 # Docker — self-hosted engine image. Mirrors what .github/workflows/
 # docker-engine.yml publishes to ghcr.io/<owner>/ps5upload-engine on each
-# release tag (multi-arch there; single-arch host build here). `engine/` is the
-# build context; the Dockerfile is a scratch image wrapping the static binary.
+# release tag (multi-arch there; single-arch host build here). The REPO ROOT is
+# the build context (the Dockerfile copies payload/ and third_party/ too); the
+# Dockerfile is a scratch image wrapping the static binary.
 #
 # SECURITY: the engine API is unauthenticated. Bind to a LAN interface and set
 # PS5UPLOAD_ALLOW_IP only on a trusted network — never expose it to the
@@ -740,6 +741,17 @@ run-android run-android-background: android-deps payload setup-client
 
 DOCKER ?= docker
 DOCKER_ENGINE_IMAGE ?= ps5upload-engine
+# Who may reach the engine through the published port. With `-p` the container
+# sees Docker's bridge gateway, not loopback, so without this every request got
+# "403 loopback only" (engine/Dockerfile header). 172.17.0.1 is the default
+# bridge on Linux, 192.168.65.x the VM gateway on Docker Desktop; override with
+# your LAN range (DOCKER_ALLOW_IP=192.168.1.0/24) to use it from other machines.
+DOCKER_ALLOW_IP ?= 172.16.0.0/12,192.168.65.0/24
+# This host's LAN IP, which the PS5 fetches package bytes from during a stream
+# install. Required on Docker Desktop (macOS/Windows), where the container's
+# own guess is a NAT address the PS5 cannot reach; on Linux prefer
+# `docker run --network host` (engine/compose.yaml) and leave it empty.
+DOCKER_PKG_HOST_IP ?=
 
 docker-engine:
 	@command -v $(DOCKER) >/dev/null 2>&1 || { echo "ERROR: docker not found on PATH."; exit 1; }
@@ -748,10 +760,14 @@ docker-engine:
 	@echo "✓ Built image $(DOCKER_ENGINE_IMAGE) — run with: make docker-engine-run"
 
 # Run the locally-built engine image. Binds the published port and points it at
-# the PS5 (AVA1, port 9120). Override PS5_HOST / the bind address as needed.
+# the PS5 (AVA1, port 9120). Override PS5_HOST, DOCKER_ALLOW_IP and
+# DOCKER_PKG_HOST_IP as needed.
 docker-engine-run: docker-engine
-	@echo "Running $(DOCKER_ENGINE_IMAGE) — engine on :19113, PS5 at $(PS5_HOST) ..."
-	@$(DOCKER) run --rm -p 19113:19113 -e PS5_ADDR=$(PS5_HOST) $(DOCKER_ENGINE_IMAGE)
+	@echo "Running $(DOCKER_ENGINE_IMAGE) — engine on :19113, PS5 at $(PS5_HOST), allowed from $(DOCKER_ALLOW_IP) ..."
+	@$(DOCKER) run --rm -p 19113:19113 -e PS5_ADDR=$(PS5_HOST) \
+		-e PS5UPLOAD_ALLOW_IP=$(DOCKER_ALLOW_IP) \
+		$(if $(DOCKER_PKG_HOST_IP),-e PS5UPLOAD_PKG_HOST_IP=$(DOCKER_PKG_HOST_IP),) \
+		$(DOCKER_ENGINE_IMAGE)
 
 #──────────────────────────────────────────────────────────────────────────────
 # Testing

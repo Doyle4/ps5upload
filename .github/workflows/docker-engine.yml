@@ -12,6 +12,14 @@ name: docker-engine
 # images, in lockstep — one release cuts both. PRs that touch engine/ or
 # client/ get a build-only smoke-check of both Dockerfiles (no push).
 #
+# Image tags follow the release policy: every release is cut as a PRE-RELEASE
+# and promoted to a full release by hand on GitHub once it has run on a
+# console. A tag push therefore publishes ONLY `:<version>`; `:latest` and
+# `:<major.minor>` move when the release is promoted (the `release:
+# released` event, which fires when a pre-release becomes a release, not when
+# a pre-release is published), so `docker pull ...:latest` never gets a build
+# nobody has tested — the same contract as the updater's stable channel.
+#
 # Both images embed the two PS5 ELF images (ps5upload.elf and the DPI
 # install daemon) so a browser driving a self-hosted engine can bring the
 # DPI daemon up and put the helper back afterwards — the fallback that
@@ -33,16 +41,23 @@ on:
       tag:
         description: "Release tag to publish (e.g. v3.3.16). Must already exist."
         required: true
+  # A pre-release promoted to a release: retag its images as :latest and
+  # :<major.minor> (the `promote` job). Nothing is rebuilt.
+  release:
+    types: [released]
 
 # Least privilege at the top: read-only by default. Only the jobs that actually
-# push to GHCR (build*, merge*) opt into packages:write below — the PR
+# push to GHCR (build*, merge*, promote) opt into packages:write below — the PR
 # `verify`/`verify-webui` jobs inherit read-only and never get a write-capable
 # token.
 permissions:
   contents: read
 
+# The promotion run gets its own group: it shares the tag's ref, and sharing
+# the build run's group would cancel a still-running image build the moment
+# the release is promoted.
 concurrency:
-  group: docker-engine-${{ github.event.inputs.tag || github.ref }}
+  group: docker-engine-${{ github.event_name == 'release' && 'promote-' || '' }}${{ github.event.inputs.tag || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -108,11 +123,15 @@ jobs:
 
       - uses: docker/setup-buildx-action@v4
 
+      # Built exactly as the published image is (no build-args: root prefix).
+      # The URL prefix is applied at run time from PS5UPLOAD_BASE_URL and the
+      # bundle's asset paths are relative, so the prefixed deployment is the
+      # same image run with that variable — smoke-tested below without a
+      # second build (which used to be a full engine rebuild).
       - uses: docker/build-push-action@v7
         with:
           context: .
           file: engine/Dockerfile.webui
-          build-args: PS5UPLOAD_BASE_URL=/ps5/
           platforms: linux/amd64
           push: false
           load: true
@@ -120,7 +139,10 @@ jobs:
           cache-from: type=gha,scope=webui
           cache-to: type=gha,mode=min,scope=webui
 
-      - name: Smoke-test the prefixed image
+      - name: Smoke-test the image
+        run: scripts/docker-smoke.sh ps5upload-engine-webui:smoke --webui
+
+      - name: Smoke-test the same image under a URL prefix
         env:
           SMOKE_BASE_PATH: /ps5
         run: scripts/docker-smoke.sh ps5upload-engine-webui:smoke --webui
@@ -170,7 +192,7 @@ jobs:
   # daemon to the loader on :9021 and then puts ps5upload back afterwards.
   build-payload:
     needs: resolve
-    if: github.event_name != 'pull_request'
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -247,7 +269,7 @@ jobs:
   # ── Per-arch native build, push by digest (no tag yet) ─────────────────────
   build:
     needs: [resolve, build-payload]
-    if: github.event_name != 'pull_request'
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     permissions:
@@ -271,7 +293,23 @@ jobs:
           PLATFORM: ${{ matrix.platform }}
         run: echo "PLATFORM_PAIR=$(printf '%s' "$PLATFORM" | tr '/' '-')" >> "$GITHUB_ENV"
 
+      # Both arm64 legs of v7.1.19 failed right here ("Artifact download failed
+      # after 5 retries", a 25 s blob-store flake), and the release's images
+      # waited hours for a hand re-run. One more attempt after a pause.
       - name: Stage the PS5 ELF images for the engine embed
+        id: elves
+        continue-on-error: true
+        uses: actions/download-artifact@v8
+        with:
+          name: ps5upload-payload-elves
+          path: /tmp/payload-elves
+
+      - name: Wait before retrying the artifact download
+        if: steps.elves.outcome == 'failure'
+        run: sleep 30
+
+      - name: Stage the PS5 ELF images for the engine embed (retry)
+        if: steps.elves.outcome == 'failure'
         uses: actions/download-artifact@v8
         with:
           name: ps5upload-payload-elves
@@ -350,7 +388,7 @@ jobs:
   # keep the plain engine image publishing on time.
   build-webui:
     needs: [resolve, build-payload]
-    if: github.event_name != 'pull_request'
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     permissions:
@@ -374,7 +412,23 @@ jobs:
           PLATFORM: ${{ matrix.platform }}
         run: echo "PLATFORM_PAIR=$(printf '%s' "$PLATFORM" | tr '/' '-')" >> "$GITHUB_ENV"
 
+      # Both arm64 legs of v7.1.19 failed right here ("Artifact download failed
+      # after 5 retries", a 25 s blob-store flake), and the release's images
+      # waited hours for a hand re-run. One more attempt after a pause.
       - name: Stage the PS5 ELF images for the engine embed
+        id: elves
+        continue-on-error: true
+        uses: actions/download-artifact@v8
+        with:
+          name: ps5upload-payload-elves
+          path: /tmp/payload-elves
+
+      - name: Wait before retrying the artifact download
+        if: steps.elves.outcome == 'failure'
+        run: sleep 30
+
+      - name: Stage the PS5 ELF images for the engine embed (retry)
+        if: steps.elves.outcome == 'failure'
         uses: actions/download-artifact@v8
         with:
           name: ps5upload-payload-elves
@@ -407,18 +461,25 @@ jobs:
 
       # Same build, loaded locally and run before anything is pushed: a
       # release tag can't be moved, so a broken image would need a new release.
+      # No build-args, so this IS the image pushed below (the push step is a
+      # cache hit): it used to be built with PS5UPLOAD_BASE_URL=/ps5/, which
+      # tested a different image and rebuilt the whole engine for the push.
+      # The prefix is applied at run time, so the prefixed deployment is
+      # covered by running the same image with that variable set.
       - name: Build for the smoke test
         uses: docker/build-push-action@v7
         with:
           context: .
           file: engine/Dockerfile.webui
-          build-args: PS5UPLOAD_BASE_URL=/ps5/
           platforms: ${{ matrix.platform }}
           load: true
           tags: ps5upload-smoke:local
           cache-from: type=registry,ref=${{ env.IMAGE }}:buildcache-${{ env.PLATFORM_PAIR }}
 
-      - name: Smoke-test the prefixed image
+      - name: Smoke-test the image
+        run: scripts/docker-smoke.sh ps5upload-smoke:local --webui
+
+      - name: Smoke-test the same image under a URL prefix
         env:
           SMOKE_BASE_PATH: /ps5
         run: scripts/docker-smoke.sh ps5upload-smoke:local --webui
@@ -456,7 +517,7 @@ jobs:
   # ── Merge per-arch digests into a multi-arch manifest ──────────────────────
   merge:
     needs: [resolve, build]
-    if: github.event_name != 'pull_request'
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -465,7 +526,6 @@ jobs:
     env:
       IMAGE: ${{ needs.resolve.outputs.image }}
       VERSION: ${{ needs.resolve.outputs.version }}
-      MAJOR_MINOR: ${{ needs.resolve.outputs.major_minor }}
     steps:
       - uses: actions/download-artifact@v8
         with:
@@ -485,10 +545,10 @@ jobs:
         id: meta
         with:
           images: ${{ env.IMAGE }}
+          # Only the version: :latest and :<major.minor> are moved by `promote`
+          # when the pre-release is promoted (see the header).
           tags: |
             type=raw,value=${{ env.VERSION }}
-            type=raw,value=${{ env.MAJOR_MINOR }}
-            type=raw,value=latest
 
       - name: Create and push multi-arch manifest
         working-directory: /tmp/digests
@@ -509,7 +569,7 @@ jobs:
   # ── Merge the webui image's per-arch digests ────────────────────────────────
   merge-webui:
     needs: [resolve, build-webui]
-    if: github.event_name != 'pull_request'
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -518,7 +578,6 @@ jobs:
     env:
       IMAGE: ${{ needs.resolve.outputs.image_webui }}
       VERSION: ${{ needs.resolve.outputs.version }}
-      MAJOR_MINOR: ${{ needs.resolve.outputs.major_minor }}
     steps:
       - uses: actions/download-artifact@v8
         with:
@@ -538,10 +597,10 @@ jobs:
         id: meta
         with:
           images: ${{ env.IMAGE }}
+          # Only the version: :latest and :<major.minor> are moved by `promote`
+          # when the pre-release is promoted (see the header).
           tags: |
             type=raw,value=${{ env.VERSION }}
-            type=raw,value=${{ env.MAJOR_MINOR }}
-            type=raw,value=latest
 
       - name: Create and push multi-arch manifest
         working-directory: /tmp/digests
@@ -555,3 +614,45 @@ jobs:
 
       - name: Inspect manifest
         run: docker buildx imagetools inspect "${IMAGE}:${VERSION}"
+
+  # ── Promotion: a pre-release became a release → move :latest + :<major.minor> ─
+  # Fires on `release: released` only (promoting a pre-release by hand, or an
+  # edit that clears the pre-release flag), never on the pre-release that
+  # create-release publishes. Nothing is rebuilt: the multi-arch manifest the
+  # tag run pushed as :<version> is re-tagged, for both images. Fails loudly
+  # if that manifest is missing (the tag run never finished).
+  promote:
+    needs: resolve
+    if: github.event_name == 'release'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      packages: write
+    env:
+      VERSION: ${{ needs.resolve.outputs.version }}
+      MAJOR_MINOR: ${{ needs.resolve.outputs.major_minor }}
+    steps:
+      - uses: docker/setup-buildx-action@v4
+
+      - uses: docker/login-action@v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Retag both images as latest and major.minor
+        env:
+          IMAGES: ${{ needs.resolve.outputs.image }} ${{ needs.resolve.outputs.image_webui }}
+        run: |
+          set -euo pipefail
+          for image in $IMAGES; do
+            if ! docker buildx imagetools inspect "${image}:${VERSION}" >/dev/null; then
+              echo "::error::${image}:${VERSION} was never published — did the tag's docker-engine run finish?"
+              exit 1
+            fi
+            docker buildx imagetools create \
+              -t "${image}:latest" -t "${image}:${MAJOR_MINOR}" \
+              "${image}:${VERSION}"
+            docker buildx imagetools inspect "${image}:latest"
+          done

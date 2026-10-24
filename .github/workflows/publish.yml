@@ -71,6 +71,25 @@ jobs:
           check-latest: true
           cache: npm
           cache-dependency-path: client/package-lock.json
+      # Every binary below takes its version from VERSION, so a tag that says
+      # otherwise would ship assets named for one version reporting another.
+      # Checked here, in the first job, so nothing is built for a bad tag.
+      - name: Tag must match VERSION
+        env:
+          INPUT_TAG: ${{ github.event.inputs.tag || github.ref_name }}
+        run: |
+          raw_tag="$INPUT_TAG"
+          if ! echo "$raw_tag" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+([-+._A-Za-z0-9]*)?$'; then
+            echo "::error::Refusing to proceed: '$raw_tag' does not look like a version tag"
+            exit 1
+          fi
+          expected="$(tr -d '[:space:]' < VERSION)"
+          if [ "v$expected" != "$raw_tag" ]; then
+            echo "::error::VERSION says '$expected' but the tag is '$raw_tag'. Fix VERSION (scripts/update-version.js) and cut the next version; a pushed tag cannot be moved."
+            exit 1
+          fi
+          echo "tag $raw_tag matches VERSION $expected"
+
       - name: Sync version from VERSION
         run: node scripts/update-version.js
 
@@ -318,7 +337,10 @@ jobs:
         shell: bash
         env:
           RUST_TARGET: ${{ matrix.rust_target }}
-        run: cargo build --release -p ps5upload-engine --target "$RUST_TARGET"
+        # --locked: the lockfile is the release's bill of materials; a Cargo.toml
+        # that outgrew it (two green PRs squash-merged, see CI's clippy step)
+        # must fail here, not quietly resolve to something newer.
+        run: cargo build --locked --release -p ps5upload-engine --target "$RUST_TARGET"
 
       - name: Verify engine binary in place
         shell: bash
@@ -397,7 +419,12 @@ jobs:
           ls -R "$bundle" || true
           case "$PLATFORM" in
             macos)
-              find "$bundle" -type f -name "*.dmg" -exec cp -v {} "$dist_abs/" \;
+              dmg="$(find "$bundle" -type f -name "*.dmg" | head -n1)"
+              if [ -z "$dmg" ]; then
+                echo "::error::no .dmg produced by tauri"
+                exit 1
+              fi
+              cp -v "$dmg" "$dist_abs/"
               ;;
             linux)
               app="$(find "$bundle" -type f -name "*.AppImage" | head -n1)"
@@ -448,7 +475,10 @@ jobs:
               if [ -n "$nsis_setup" ] && [ -f "$nsis_setup" ]; then
                 cp -v "$nsis_setup" "$dist_abs/PS5Upload-setup.exe"
               else
-                echo "::warning::NSIS installer not found (WebView2 bootstrapper not bundled)"
+                # Windows 10 users need it (#221); a release without it is a
+                # broken release, not a warning.
+                echo "::error::NSIS installer not found (WebView2 bootstrapper not bundled)"
+                exit 1
               fi
               ;;
           esac
@@ -490,18 +520,19 @@ jobs:
     # so a missing APK just means "no Android asset this release".
     #
     # We keep continue-on-error so a flaky Android build doesn't block the
-    # release, but we emit a prominent warning annotation so the failure
-    # is never silent.
+    # release, but we emit a prominent warning annotation (last step) so the
+    # failure is never silent.
+    #
+    # continue-on-error covers a FAILED job, not a job that hits its
+    # timeout-minutes: that one is reported as cancelled, and create-release
+    # `needs` this job, so a hung Gradle would have cancelled the whole
+    # release. The long steps therefore carry their own timeouts, which turn
+    # a hang into a step failure that continue-on-error does cover.
     continue-on-error: true
     steps:
       - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.inputs.tag || github.ref_name }}
-
-      - name: Warn if Android build fails
-        if: failure()
-        run: |
-          echo "::warning::Android APK build failed — release will ship without an Android artifact. Check the build-android job logs."
 
       - uses: actions/setup-node@v7
         with:
@@ -581,6 +612,7 @@ jobs:
 
       - name: Scaffold Android project (gen/ is gitignored)
         working-directory: client
+        timeout-minutes: 5
         run: npx tauri android init
 
       # Post-init manifest patches: (1) loopback-only cleartext so the
@@ -590,8 +622,11 @@ jobs:
       - name: Patch manifest (loopback cleartext + backup rules)
         run: bash scripts/release/android-postinit-patch.sh
 
+      # ~11 min on v7.1.19; a hang fails the step (and only the step, see the
+      # job's continue-on-error note) well inside the job's 40.
       - name: Build release APK (arm64 + armv7)
         working-directory: client
+        timeout-minutes: 25
         run: npx tauri android build --apk --target aarch64 --target armv7
 
       - name: Sign APK
@@ -609,6 +644,13 @@ jobs:
           name: ps5upload-android
           path: PS5Upload-android.apk
           if-no-files-found: error
+
+      # Last on purpose: `if: failure()` looks at the steps BEFORE it, so as
+      # the second step it could never fire.
+      - name: Warn if Android build fails
+        if: failure()
+        run: |
+          echo "::warning::Android APK build failed — release will ship without an Android artifact. Check the build-android job logs."
 
   create-release:
     name: create-release
@@ -642,9 +684,12 @@ jobs:
         env:
           TAG_VERSION: ${{ steps.tag.outputs.version }}
         run: |
+          # build-payload already refused such a tag; this is the same rule
+          # at the point of no return (the release is created right after).
           expected="$(tr -d '[:space:]' < VERSION)"
           if [ "$expected" != "$TAG_VERSION" ]; then
-            echo "::warning::VERSION file says '$expected' but tag says '$TAG_VERSION'. Proceeding anyway, but update VERSION in a follow-up commit."
+            echo "::error::VERSION file says '$expected' but tag says '$TAG_VERSION'; the binaries report '$expected'."
+            exit 1
           fi
 
       - name: Download all artifacts
@@ -704,6 +749,53 @@ jobs:
           count="$(find release -mindepth 1 -maxdepth 1 | wc -l | tr -d ' ')"
           echo "count=$count" >> "$GITHUB_OUTPUT"
 
+      # The copies above are globs, so a build job that produced nothing
+      # (or an artifact renamed on one side) used to ship as a release with a
+      # hole in it and nothing red. Every platform asset is required; only the
+      # APK is optional (build-android is continue-on-error by design).
+      - name: Every expected asset is present
+        env:
+          TAG_VERSION: ${{ steps.tag.outputs.version }}
+        run: |
+          missing=0
+          for name in \
+            "PS5Upload-${TAG_VERSION}-mac-arm64.dmg" \
+            "PS5Upload-${TAG_VERSION}-mac-x64.dmg" \
+            "PS5Upload-${TAG_VERSION}-win-x64.zip" \
+            "PS5Upload-${TAG_VERSION}-win-arm64.zip" \
+            "PS5Upload-${TAG_VERSION}-win-x64-setup.exe" \
+            "PS5Upload-${TAG_VERSION}-win-arm64-setup.exe" \
+            "PS5Upload-${TAG_VERSION}-linux-x64.zip" \
+            "PS5Upload-${TAG_VERSION}-linux-arm64.zip" \
+            "PS5Upload-${TAG_VERSION}-linux-x64.deb" \
+            "PS5Upload-${TAG_VERSION}-linux-arm64.deb" \
+            "PS5Upload-${TAG_VERSION}-linux-x64.rpm" \
+            "PS5Upload-${TAG_VERSION}-linux-arm64.rpm" \
+            "ps5upload-engine-${TAG_VERSION}-macos-arm64" \
+            "ps5upload-engine-${TAG_VERSION}-macos-x64" \
+            "ps5upload-engine-${TAG_VERSION}-linux-x64" \
+            "ps5upload-engine-${TAG_VERSION}-linux-arm64" \
+            "ps5upload-engine-${TAG_VERSION}-windows-x64.exe" \
+            "ps5upload-engine-${TAG_VERSION}-windows-arm64.exe" \
+            "ps5upload-${TAG_VERSION}.elf"; do
+            if [ ! -s "release/$name" ]; then
+              echo "::error::release asset missing or empty: $name"
+              missing=$((missing + 1))
+            fi
+          done
+          if [ "$missing" -gt 0 ]; then
+            echo "::error::$missing expected release asset(s) missing — not creating the release"
+            exit 1
+          fi
+          if [ ! -s "release/PS5Upload-${TAG_VERSION}-android.apk" ]; then
+            echo "::warning::no Android APK in this release (build-android failed; it is not a gate)"
+          fi
+          echo "all expected release assets present"
+
+      # The release body is the CHANGELOG section for this version. The old
+      # "See CHANGELOG.md" placeholder shipped whenever the entry was missing
+      # (scripts/release.sh tags before the changelog is written if you forget
+      # it), and a release with no notes is a release page nobody can read.
       - name: Extract release notes from CHANGELOG
         env:
           TAG_VERSION: ${{ steps.tag.outputs.version }}
@@ -715,8 +807,9 @@ jobs:
             found && $0 ~ "^---$" { exit }
             found { print }
           ' CHANGELOG.md > "$notes"
-          if [ ! -s "$notes" ]; then
-            printf "Release %s.\n\nSee CHANGELOG.md for details.\n" "$TAG_VERSION" > "$notes"
+          if [ -z "$(tr -d '[:space:]' < "$notes")" ]; then
+            echo "::error::CHANGELOG.md has no '## $TAG_VERSION' section (or it is empty). Write the entry, then cut the next version — a pushed tag cannot be moved."
+            exit 1
           fi
           echo "---RELEASE_NOTES.md---"
           cat "$notes"
