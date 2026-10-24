@@ -50,6 +50,7 @@ import { isMacOrLinuxDesktop } from "../../lib/platform";
 import RosterPicker from "../../layout/RosterPicker";
 import { useBetaFeaturesStore } from "../../state/betaFeatures";
 import NotificationInbox from "../../layout/NotificationInbox";
+import { UpdateCheckButton } from "../../layout/UpdateCheckButton";
 import {
   BUG_REPORT_NAV_ITEM,
   isFixedNav,
@@ -271,9 +272,13 @@ export default function MoreScreen() {
               footer — so the panel must grow leftward or it lands off the
               edge of the phone. */}
           <NotificationInbox align="right" />
-          <span className="text-xs tabular-nums text-[var(--color-muted)]">
-            {version ? `v${version}` : "—"}
-          </span>
+          {isTauriEnv() ? (
+            <UpdateCheckButton variant="chip" />
+          ) : (
+            <span className="text-xs tabular-nums text-[var(--color-muted)]">
+              {version ? `v${version}` : "—"}
+            </span>
+          )}
         </div>
       </div>
     </div>

@@ -102,6 +102,7 @@ import {
 import { isDragOutCopy } from "../lib/dragOut";
 import { keepMinionOff } from "../state/minionMemory";
 import { startRosterShare } from "../state/rosterShare";
+import { UpdateCheckButton } from "./UpdateCheckButton";
 import { useTransferStore } from "../state/transfer";
 import { useUploadSettingsStore } from "../state/uploadSettings";
 import { ensurePayloadCurrent } from "../lib/ensurePayloadCurrent";
@@ -1650,6 +1651,7 @@ function TopBarActions() {
           {typeof navigator !== "undefined" && /mac/i.test(navigator.platform) ? "⌘K" : "Ctrl K"}
         </kbd>
       </button>
+      <UpdateCheckButton variant="orb" />
       <NotificationInbox align="right" placement="below" variant="orb" />
       <button
         type="button"

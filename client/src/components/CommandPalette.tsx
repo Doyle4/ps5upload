@@ -1,6 +1,7 @@
 import { useCollectionStore } from "../state/collection";
 import { gamePath } from "../lib/gamePage";
 import { gamesApi, type InstalledGame } from "../api/games";
+import { checkForUpdatesNow } from "../layout/UpdateCheckButton";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import { ArrowRight, Search } from "lucide-react";
@@ -202,6 +203,21 @@ function useCommands(close: () => void, open: boolean): Command[] {
         ? [nav("/payloads?tab=send", "payloads_tab_send", "Send payload", ["send payload"])]
         : []),
       nav("/logs?tab=kernel", "logs_tab_kernel", "Kernel log", ["dmesg", "klog"]),
+      // Desktop and mobile only: the web page updates with the engine that serves it.
+      ...(isTauriEnv()
+        ? [
+            {
+              id: "update:check",
+              label: tr("update_check_button", undefined, "Check for updates"),
+              keywords: ["update", "upgrade", "new version", "release"],
+              group: "Window" as const,
+              run: () => {
+                close();
+                void checkForUpdatesNow(tr, () => navigate("/settings"));
+              },
+            },
+          ]
+        : []),
       {
         id: "theme:toggle",
         label: tr("cmdpalette_toggle_theme", undefined, "Toggle theme"),
