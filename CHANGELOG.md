@@ -4,6 +4,32 @@ What's new in ps5upload, written for humans.
 
 ---
 
+## 7.3.1
+
+- **Drag files and folders between Files and your computer.** In the desktop app, drag files or
+  folders (or everything you selected) out of Files onto the desktop, Finder, Explorer or your
+  Linux file manager to copy them to this computer; drag them in from there to copy them into the
+  open folder. Hold Alt (⌥ Option on a Mac) while dragging to move them into a folder on the PS5
+  instead. One drag fetches up to 4 GB; right-click → Download is for more. In the browser web UI,
+  files dropped on Files go up to the PS5 too.
+- **Minion: network access and Remove.** Settings → PS5Upload Minion can now let other devices on
+  your network open Minion (with its address and an Open here button), and has a Remove button: it
+  turns Minion off and deletes what it keeps on the PS5 (its Files favourites and recent folders,
+  its game Library cache, its controller log). Saved network shares, cheats and backups stay; the
+  PC app uses them too.
+- **Minion stays off.** Off was already kept by the PS5 across helper restarts. Now, if the PS5
+  loses Minion's settings (its PS5Upload folder was wiped), the next connection from a computer
+  that turned Minion off turns it off again instead of letting it come back.
+- **iPad and Android tablets.** A tablet held upright starts with the icon rail instead of the
+  full sidebar, so screens keep their width, and buttons that only appeared on mouse hover (the
+  sidebar's pin and hide, notification and payload actions) can be tapped on a touch screen.
+- **More links between screens.** An "installed" notification opens the game's page. Game
+  Activity, Saves and Processes link each game to its page, and the game page's "Back up /
+  restore in Saves" opens Saves on that game. The game page can show the game's folder in Files
+  and search its files. "Not enough space" messages offer Clean up. Uninstalling a game installed
+  from a package warns when your Collection has no copy of it.
+- Faster CI: test shards balanced by measured time, fuzzers run side by side, fewer queued jobs.
+
 ## 7.3.0
 
 - **Convert from Collection.** Every game in Collection has a menu with Convert…, and the game

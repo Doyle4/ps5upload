@@ -687,6 +687,13 @@ or AirDrop). The app's file browser starts there, and exports such as logs and s
 there too. Keep the app open and the screen on while a transfer or install runs: iOS pauses apps
 in the background.
 
+**Q: Does it work on an iPad or an Android tablet?**
+Yes: the iPhone `.ipa` installs on an iPad, and the Android `.apk` on an Android tablet. On a
+wide screen the app shows the sidebar like the desktop app; held upright, a tablet starts with the
+narrow icon rail so screens keep their width (the arrow at the bottom of the rail opens the full
+sidebar, and the app remembers your choice). Buttons that appear on mouse hover on a computer are
+shown on a touch screen.
+
 **Q: Updating the iPhone app.**
 When a new version is out, the app's update check offers the new `.ipa`. Install it the same way
 over the old one (AltStore: My Apps → +; Sideloadly: Start again); your settings and pairings
@@ -897,6 +904,17 @@ In **Files**, select it and choose **Move to…**, then pick the drive's homebre
 folder). It says first whether the move is instant (same drive) or a copy to the other drive,
 and whether it fits; a copy removes the original only after checking it. **Set permissions
 (777)** in the same menu makes files and folders readable and runnable.
+
+**Q: Can I drag files between Files and my computer?**
+Yes, in the desktop app. Drag files or folders (or everything you selected) out of **Files** onto
+the desktop, Finder, Explorer or your Linux file manager to copy them to this computer. The first
+drag fetches them; keep holding the mouse button and the drop happens when they are ready, or let
+go and drag again once the app says they are ready. One drag fetches up to 4 GB; for more, right-click
+→ **Download**. Drag files or folders from your computer into Files to copy them into the open
+folder. To move items into another folder on the PS5 instead, hold **Alt** (**⌥ Option** on a
+Mac) while you drag them onto that folder or a part of the path at the top. In the browser web UI
+you can drop files (not folders) onto Files; they go to the server first, then to the PS5. The
+Android and iPhone apps have no drag and drop.
 
 **Q: Can I copy files off a disc in the PS5's drive?**
 Yes. A data DVD or Blu-ray in the drive shows up in **File System** at `/mnt/disc`; browse it
@@ -1883,6 +1901,17 @@ On the console, **Settings → Turn off PS5Upload Minion**; in the app on your P
 PS5Upload Minion** has the same On/Off switch. Off removes the home-screen tile and stops the
 page on port 9180, and it stays off after a restart (the helper keeps the choice in its
 `webui.json`). The PC app keeps working, and only it can turn Minion back on.
+
+**Q: How do I remove PS5Upload Minion completely?**
+In the app on your PC, **Settings → PS5Upload Minion → Remove Minion from this PS5**. It turns
+Minion off (no tile, no page on port 9180) and deletes what Minion keeps on the PS5: its Files
+favourites and recent folders, its game Library cache and its controller log. It keeps saved
+network shares, cheats and backups, which the PC app uses too. Minion is part of the helper, so
+nothing is installed again when the helper starts: the helper reads its `webui.json`, which says
+off. If that file is lost (the `/data/ps5upload` folder was wiped), the next connection from a
+computer that turned Minion off turns it off again. You can turn Minion back on from the same
+place at any time. The same Settings section can also let other devices on your network open
+Minion, and shows the address to open.
 
 **Q: Which network shares does the Library see, and where do I set them up?**
 The SMB shares kept on the PS5: add them in Minion's **Files → Network shares**, or from the
