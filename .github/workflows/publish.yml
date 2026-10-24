@@ -173,6 +173,10 @@ jobs:
     # The Intel macOS runner took ~33 min for v5.35/5.36 and ran past 45 on
     # v5.37.0, cancelling the whole release (create-release needs every build).
     timeout-minutes: 75
+    env:
+      # "true" once the Azure Artifact Signing secrets are set (scripts/release/azure-sign.ps1).
+      # A step cannot read secrets in its `if`, so the switch is here.
+      WINDOWS_SIGNING: ${{ secrets.AZURE_SIGNING_ACCOUNT != '' }}
     strategy:
       fail-fast: false
       matrix:
@@ -403,6 +407,22 @@ jobs:
             ls -la "$target_root/ps5upload-engine"
           fi
 
+      # Windows signing (Azure Artifact Signing) — only when the secrets exist; otherwise
+      # releases ship unsigned exactly as before. The engine exe is signed here because the app
+      # embeds it; the app exe and the installer are signed by Tauri's signCommand below.
+      - name: Sign the engine (Windows, when signing is set up)
+        if: runner.os == 'Windows' && env.WINDOWS_SIGNING == 'true'
+        shell: pwsh
+        env:
+          RUST_TARGET: ${{ matrix.rust_target }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_SIGNING_ENDPOINT: ${{ secrets.AZURE_SIGNING_ENDPOINT }}
+          AZURE_SIGNING_ACCOUNT: ${{ secrets.AZURE_SIGNING_ACCOUNT }}
+          AZURE_SIGNING_PROFILE: ${{ secrets.AZURE_SIGNING_PROFILE }}
+        run: ./scripts/release/azure-sign.ps1 "engine/target/$env:RUST_TARGET/release/ps5upload-engine.exe"
+
       - name: Diagnose linuxdeploy (Linux only)
         if: matrix.platform == 'linux'
         env:
@@ -432,6 +452,12 @@ jobs:
         working-directory: client
         shell: bash
         env:
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_SIGNING_ENDPOINT: ${{ secrets.AZURE_SIGNING_ENDPOINT }}
+          AZURE_SIGNING_ACCOUNT: ${{ secrets.AZURE_SIGNING_ACCOUNT }}
+          AZURE_SIGNING_PROFILE: ${{ secrets.AZURE_SIGNING_PROFILE }}
           APPLE_SIGNING_IDENTITY: "-"
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
           RUST_TARGET: ${{ matrix.rust_target }}
@@ -450,7 +476,13 @@ jobs:
             # and packs it. A separate --no-bundle build first only made the
             # second command compile the app crate again (208-294 s on
             # v7.1.20); the exe shipped was always the second, stamped one.
-            npx tauri build --target "$RUST_TARGET" --ci --bundles nsis
+            # With signing set up, Tauri signs the app exe and the installer it makes.
+            sign=()
+            if [ -n "${AZURE_SIGNING_ACCOUNT:-}" ]; then
+              script="$(cygpath -w "$GITHUB_WORKSPACE/scripts/release/azure-sign.ps1")"
+              sign=(--config "$(node -e 'console.log(JSON.stringify({bundle:{windows:{signCommand:{cmd:"pwsh",args:["-NoProfile","-File",process.argv[1],"%1"]}}}}))' "$script")")
+            fi
+            npx tauri build --target "$RUST_TARGET" --ci --bundles nsis "${sign[@]}"
           else
             npx tauri build --target "$RUST_TARGET" --ci --verbose
           fi
