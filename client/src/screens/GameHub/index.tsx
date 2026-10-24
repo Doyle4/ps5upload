@@ -76,6 +76,7 @@ import { playFor, useTrackedPlay } from "../../lib/trackedPlay";
 import { runningAfterClose, runningOn, useRunningAppsStore } from "../../state/runningApps";
 // Direct import to avoid the barrel's circular-dep warning at build.
 import { useConfirm } from "../../components/ConfirmDialog";
+import { SaveBackupsList } from "./SaveBackupsList";
 import { useStaleHostGuard } from "../../lib/staleHostGuard";
 import { formatBytes, formatDuration } from "../../lib/format";
 
@@ -863,6 +864,7 @@ function SavesTab({ titleId, host }: { titleId: string; host: string | null }) {
                       <span>· {formatDate(new Date(s.mtime * 1000))}</span>
                     )}
                   </div>
+                  {host && <SaveBackupsList host={host} save={s} />}
                 </div>
               </li>
             ))}

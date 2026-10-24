@@ -23,7 +23,7 @@ pub const MAX_AGE_MS: u64 = 7 * 86_400_000;
 const COLLAPSE_MS: u64 = 60_000;
 
 /// UTC (year, month, day) from ms since the epoch (Howard Hinnant's civil-from-days; no chrono).
-fn ymd_from_ms(ts: u64) -> (i64, u32, u32) {
+pub(crate) fn ymd_from_ms(ts: u64) -> (i64, u32, u32) {
     let z = (ts / 86_400_000) as i64 + 719_468;
     let era = z.div_euclid(146_097);
     let doe = z.rem_euclid(146_097);

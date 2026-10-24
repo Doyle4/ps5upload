@@ -1,42 +1,35 @@
 import { describe, expect, it } from "vitest";
-import { clampKeep, savesNeedingBackup, SETTLE_SECS } from "./autoSaveBackup";
-import type { SaveEntry } from "../api/ps5";
 
-const NOW = 2_000_000_000;
-const save = (path: string, mtime: number): SaveEntry => ({
-  title_id: "CUSA00900",
-  user_id: 0x1234,
-  path,
-  size: 1,
-  mtime,
-  kind: "ps4",
-});
+import { backupHosts, clampKeep, legacySettings } from "./autoSaveBackup";
+import { stampLabel } from "../screens/GameHub/SaveBackupsList";
 
-describe("automatic save backup", () => {
-  it("backs up a save that changed since its last backup, and one never backed up", () => {
-    const a = save("/a", NOW - 3600);
-    const b = save("/b", NOW - 3600);
-    const c = save("/c", NOW - 3600);
-    const done = { "ps5|/a": NOW - 3600, "ps5|/b": NOW - 7200 };
-    expect(savesNeedingBackup("ps5", [a, b, c], done, NOW).map((e) => e.path)).toEqual(["/b", "/c"]);
+describe("automatic save backup (engine-run)", () => {
+  it("hands over an older version's settings only when a folder was set", () => {
+    expect(legacySettings(JSON.stringify({ enabled: true, dir: "/Users/me/saves", keep: 99 }))).toEqual({
+      enabled: true,
+      dir: "/Users/me/saves",
+      keep: 50,
+    });
+    expect(legacySettings(JSON.stringify({ enabled: true, dir: " " }))).toBeNull();
+    expect(legacySettings(null)).toBeNull();
+    expect(legacySettings("not json")).toBeNull();
   });
 
-  it("waits for a save that was written a moment ago", () => {
-    const fresh = save("/a", NOW - (SETTLE_SECS - 1));
-    const settled = save("/b", NOW - SETTLE_SECS);
-    expect(savesNeedingBackup("ps5", [fresh, settled], {}, NOW).map((e) => e.path)).toEqual(["/b"]);
+  it("gives the engine every console once, by bare address", () => {
+    expect(backupHosts([{ host: "192.168.1.9" }, { host: "192.168.1.9:9021" }, { host: "10.0.0.2" }, { host: "" }])).toEqual([
+      "10.0.0.2",
+      "192.168.1.9",
+    ]);
   });
 
-  it("keeps each console's record apart, and ignores a save with no time", () => {
-    const a = save("/a", NOW - 3600);
-    expect(savesNeedingBackup("other", [a], { "ps5|/a": NOW - 3600 }, NOW)).toHaveLength(1);
-    expect(savesNeedingBackup("ps5", [save("/z", 0)], {}, NOW)).toHaveLength(0);
-  });
-
-  it("keeps between 1 and 50 versions", () => {
+  it("keeps the version count between 1 and 50", () => {
     expect(clampKeep(0)).toBe(1);
-    expect(clampKeep(500)).toBe(50);
-    expect(clampKeep(undefined)).toBe(5);
-    expect(clampKeep(3.4)).toBe(3);
+    expect(clampKeep(80)).toBe(50);
+    expect(clampKeep("x")).toBe(5);
+  });
+
+  it("labels a backup's time in UTC", () => {
+    expect(stampLabel("2026-10-24_101530")).toBe("2026-10-24 10:15 UTC");
+    expect(stampLabel("odd")).toBe("odd");
   });
 });

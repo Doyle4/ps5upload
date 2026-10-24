@@ -21,7 +21,7 @@ import {
 import { usePayloadPlaylistsStore } from "../state/payloadPlaylists";
 import { log } from "../state/logs";
 import { playlistResendsOurHelper } from "../lib/playlistOps";
-import { useAutoSaveBackup } from "./useAutoSaveBackup";
+import { startSaveBackupSync } from "../state/autoSaveBackup";
 import { useConsoleHandoff } from "./useConsoleHandoff";
 import {
   autoRunStillLoaded,
@@ -1453,7 +1453,6 @@ function AndroidLocalNetworkBanner() {
 
 export default function AppShell() {
   useStatusPolling();
-  useAutoSaveBackup();
   useConsoleHandoff();
   useAutoRedeployDownHelpers();
   useMovedConsoleWatch();
@@ -1483,6 +1482,8 @@ export default function AppShell() {
     // The self-hosted web UI keeps the console list in the engine, so every browser sees the
     // same consoles. No-op in the desktop and mobile apps.
     const stopRosterShare = startRosterShare();
+    // Automatic save backups are run by the engine; it backs up the consoles in this list.
+    const stopSaveBackupSync = startSaveBackupSync();
     // Subscribe-once: cross-store accumulator that credits running
     // titles with elapsed wall-clock between updates. Idempotent.
     installPlayTimeAccumulator();
@@ -1501,6 +1502,7 @@ export default function AppShell() {
     return () => {
       window.clearInterval(pruneTimer);
       stopRosterShare();
+      stopSaveBackupSync();
     };
   }, []);
   // Window title follows the active console so the macOS Dock / app

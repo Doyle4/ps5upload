@@ -81,6 +81,7 @@ mod profile_image;
 mod remote;
 mod remote_download;
 mod remote_pkg;
+mod save_backup;
 mod shared_state;
 mod state_io;
 mod telemetry;
@@ -10828,6 +10829,13 @@ async fn run(cfg: EngineConfig) -> anyhow::Result<()> {
         )
         .route("/api/games/installed", get(games_api::list_installed))
         .route(
+            "/api/save-backup",
+            get(save_backup::get_view).put(save_backup::put_settings),
+        )
+        .route("/api/save-backup/run", post(save_backup::post_run))
+        .route("/api/save-backup/list", get(save_backup::get_list))
+        .route("/api/save-backup/restore", post(save_backup::post_restore))
+        .route(
             "/api/shared/{name}",
             get(shared_state::get_doc).put(shared_state::put_doc),
         )
@@ -11349,6 +11357,11 @@ async fn run(cfg: EngineConfig) -> anyhow::Result<()> {
     // whether the engine was actually listening.
     println!("[ps5upload-engine] listening on http://{bind}  (ps5={ps5_addr})");
     crate::log_info!("listening on http://{bind}  (ps5={ps5_addr})");
+    // Automatic save backups run here, not in a window: they carry on with no app open.
+    save_backup::spawn(
+        &bind,
+        &std::env::var("PS5UPLOAD_BASE_URL").unwrap_or_default(),
+    );
     // Graceful shutdown: when the parent-watcher fires (stdin EOF), the
     // SHUTDOWN Notify wakes this future, axum stops
     // accepting new connections, drains in-flight ones, then returns.
