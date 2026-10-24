@@ -48,9 +48,11 @@ static LOCAL_CHILD_RUNNING: AtomicBool = AtomicBool::new(false);
 /// sidecar without a restart.
 static SIDECAR_URL: RwLock<Option<String>> = RwLock::new(None);
 
-/// Bumped every time a child is put in the slot. The stderr watcher of an
-/// earlier child compares it before taking "its" child out of the slot, so
-/// a watcher waking up after a restart cannot take the newer child.
+/// Bumped every time a child is put in the slot, and when `stop()` takes one
+/// out. The stderr watcher of an earlier child compares it before taking
+/// "its" child out of the slot, so a watcher waking up after a restart cannot
+/// take the newer child, and one whose child was stopped on purpose does not
+/// report that as the engine exiting.
 static SPAWN_GENERATION: AtomicU64 = AtomicU64::new(0);
 
 fn set_sidecar_url(url: Option<String>) {
@@ -883,6 +885,9 @@ pub async fn stop() {
     let Some(mut child) = guard.take() else {
         return;
     };
+    // Its stderr watcher sees the EOF this causes: a stop asked for is not an
+    // engine exit, so retire its generation (the watcher then returns quietly).
+    SPAWN_GENERATION.fetch_add(1, Ordering::SeqCst);
     mark_sidecar_stopped();
 
     // The engine's parent watch (PS5UPLOAD_PARENT_WATCH) exits on stdin

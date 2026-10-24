@@ -279,6 +279,64 @@ describe("runFsUpload", () => {
     ).toBe("connection reset");
   });
 
+  it("a status read that fails keeps watching the same job, with no second job", async () => {
+    const e = fakeEngine({
+      "job-1": [{ status: "running", bytes_sent: 1, total_bytes: 2 } as Snap],
+    });
+    let reads = 0;
+    const r = await runFsUpload(
+      { host: HOST, addr: HOST, destDir: "/data/x", srcPaths: ["/pc/a.bin"] },
+      {
+        ...e.deps,
+        shouldRetry: () => true,
+        jobStatus: async (id) => {
+          if (++reads <= 2) throw new Error("fetch failed");
+          return e.deps.jobStatus(id);
+        },
+      },
+    );
+    expect(r.ok).toBe(true);
+    expect(e.started).toHaveLength(1);
+  });
+
+  it("a retry after status reads kept failing watches the job still running, not a second one", async () => {
+    const e = fakeEngine({
+      "job-1": [{ status: "running", bytes_sent: 1, total_bytes: 2 } as Snap],
+    });
+    let reads = 0;
+    const r = await runFsUpload(
+      { host: HOST, addr: HOST, destDir: "/data/x", srcPaths: ["/pc/a.bin"] },
+      {
+        ...e.deps,
+        shouldRetry: () => true,
+        jobStatus: async (id) => {
+          if (++reads <= 6) throw new Error("fetch failed");
+          return e.deps.jobStatus(id);
+        },
+      },
+    );
+    expect(r.ok).toBe(true);
+    expect(e.started).toHaveLength(1);
+    expect(e.cancelled).toEqual([]);
+  });
+
+  it("a retry starts the step again once the engine no longer knows the last job", async () => {
+    const e = fakeEngine();
+    const r = await runFsUpload(
+      { host: HOST, addr: HOST, destDir: "/data/x", srcPaths: ["/pc/a.bin"] },
+      {
+        ...e.deps,
+        shouldRetry: () => true,
+        jobStatus: async (id) => {
+          if (id === "job-1") throw new Error("job not found");
+          return e.deps.jobStatus(id);
+        },
+      },
+    );
+    expect(r.ok).toBe(true);
+    expect(e.started.map((x) => x.src)).toEqual(["/pc/a.bin", "/pc/a.bin"]);
+  });
+
   it("does not retry a failure a retry cannot fix", async () => {
     const e = fakeEngine({
       "job-1": [

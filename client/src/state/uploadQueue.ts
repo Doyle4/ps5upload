@@ -508,6 +508,15 @@ const POLL_INTERVAL_MS = 500;
  *  transfer.ts's single-shot poller uses). The transfer runs on the engine by itself: a
  *  failed read is not a failed transfer. */
 export const MAX_POLL_FAILURES = 6;
+/** Past MAX_POLL_FAILURES the queue keeps asking at this slower pace (transfer.ts's
+ *  lost-contact interval) instead of giving the transfer up at once. */
+const LOST_POLL_INTERVAL_MS = 5000;
+/** How long reads may keep failing before the transfer counts as lost and goes to recovery. */
+export const LOST_CONTACT_GIVE_UP_MS = 120_000;
+/** Errors thrown because status reads kept failing (not because the transfer failed): the
+ *  recovery for these re-sends the helper only when it no longer answers, since the
+ *  transfer may still be running on it. */
+const lostContactErrors = new WeakSet<object>();
 /** The engine answered that it has no such job (it restarted): the transfer is gone. */
 const isJobUnknownError = (e: unknown) =>
   /job not found/i.test(e instanceof Error ? e.message : String(e));
@@ -1252,7 +1261,10 @@ export const useUploadQueueStore = create<QueueState>((set, get) => {
     // the engine runs by itself: it used to throw into the recovery path, which
     // re-sent the helper to the console and killed the live transfer (the
     // single-shot poller in transfer.ts tolerates MAX_POLL_FAILURES misses).
+    // Past MAX_POLL_FAILURES it keeps asking every LOST_POLL_INTERVAL_MS for
+    // LOST_CONTACT_GIVE_UP_MS before giving the transfer to the recovery path.
     let pollFailures = 0;
+    let lostSince: number | null = null;
     while (isLive()) {
       let snap: JobSnapshot | null = null;
       let readErr: unknown = null;
@@ -1267,11 +1279,25 @@ export const useUploadQueueStore = create<QueueState>((set, get) => {
       if (snap === null) {
         // The engine has no such job (it restarted): the transfer is gone, and
         // the recovery path's resume is the right answer.
-        if (isJobUnknownError(readErr) || ++pollFailures >= MAX_POLL_FAILURES) throw readErr;
-        await sleep(POLL_INTERVAL_MS, { poll: true });
+        if (isJobUnknownError(readErr)) throw readErr;
+        if (++pollFailures >= MAX_POLL_FAILURES) {
+          if (lostSince === null) {
+            lostSince = Date.now();
+            set((s) => ({ items: patchItem(s.items, item.id, { bytesPerSec: 0 }) }));
+          }
+          if (Date.now() - lostSince >= LOST_CONTACT_GIVE_UP_MS) {
+            const lost = readErr instanceof Error ? readErr : new Error(String(readErr));
+            lostContactErrors.add(lost);
+            throw lost;
+          }
+        }
+        await sleep(pollFailures >= MAX_POLL_FAILURES ? LOST_POLL_INTERVAL_MS : POLL_INTERVAL_MS, {
+          poll: true,
+        });
         continue;
       }
       pollFailures = 0;
+      lostSince = null;
       if (snap.status === "done") {
         if (!isFolder && !isArchive) {
           // Nothing left to resume: the next upload of this file is a new job.
@@ -1904,9 +1930,8 @@ export const useUploadQueueStore = create<QueueState>((set, get) => {
             !isInstall &&
             autoResume &&
             recoverAttempt < MAX_AUTO_RECOVER_ATTEMPTS &&
-            shouldAutoRecover(e, reason, message, {
-              canSendHelper: isTauriEnv(),
-            });
+            // Every build can send the helper: the browser has the engine send it.
+            shouldAutoRecover(e, reason, message, { canSendHelper: true });
 
           if (!canRecover) {
             set((s) => ({
@@ -1989,12 +2014,15 @@ export const useUploadQueueStore = create<QueueState>((set, get) => {
           // boot wait, never re-uploaded data.
           // `() => !isLive()` lets a Stop bail out of the ~30 s boot-wait
           // promptly instead of leaving a ghost push running.
+          // Not when only the status reads failed: the transfer may still be running on the
+          // helper, so re-send it only if it no longer answers (the retry then adopts the job).
+          const forceRedeploy = !(e instanceof Error && lostContactErrors.has(e));
           try {
             // Unattended: a console whose helper the user stopped is left alone (#471).
             await ensurePayloadCurrent(
               hostOf(next.addr),
               () => !isLive(),
-              true,
+              forceRedeploy,
               "auto",
             );
           } catch (healErr) {
@@ -2487,9 +2515,15 @@ export const useUploadQueueStore = create<QueueState>((set, get) => {
       const item = get().items.find((candidate) => candidate.id === id);
       if (!item || item.status !== "running" || item.sourceKind === "install") return;
       const host = hostOf(item.addr);
+      // Restart the run the person started, not just this item: a full Start stays full, and a
+      // limited run (an install, a click's items) keeps its scope.
+      const scope = runScope.get(host);
+      const again = scope
+        ? { installsOnly: scope.installs, onlyIds: [...scope.ids, id] }
+        : undefined;
       get().stopHost(host);
       // Let the engine let go of the job; the next run resumes it from the console's journal.
-      setTimeout(() => void get().startHost(host, { onlyIds: [id] }), 1500);
+      setTimeout(() => void get().startHost(host, again), 1500);
     },
 
     retryItem(id) {
@@ -2551,9 +2585,7 @@ export const useUploadQueueStore = create<QueueState>((set, get) => {
           // Never re-run an install by itself (a repeated patch install can
           // wipe the base game): only uploads resume on reconnect.
           it.sourceKind !== "install" &&
-          isAutoRecoverable(it.errorReason, it.error, {
-            canSendHelper: isTauriEnv(),
-          }),
+          isAutoRecoverable(it.errorReason, it.error, { canSendHelper: true }),
       );
       let resumed = 0;
       for (const it of candidates) {
@@ -2794,10 +2826,9 @@ export const useUploadQueueStore = create<QueueState>((set, get) => {
 registerInstallEnqueuer((input) => useUploadQueueStore.getState().enqueueInstall(input));
 registerPkgQueueApi({
   add(item) {
-    const q = useUploadQueueStore.getState();
-    q.add(item);
-    const items = useUploadQueueStore.getState().items;
-    const id = items[items.length - 1].id;
+    // A tab that is not the queue's runner adds nothing (its add returns no id).
+    const id = useUploadQueueStore.getState().add(item);
+    if (!id) return "";
     // Only this item: an Install Package upload is a click on that package, not
     // Start — uploads waiting for Start stay waiting (#410), and a run an install
     // scoped stays scoped.

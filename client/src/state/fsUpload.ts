@@ -196,6 +196,12 @@ export interface FsUploadDeps {
 
 /** How many times one step is tried again unasked, and the wait before each. */
 const RETRY_WAITS_MS = [5_000, 15_000, 30_000] as const;
+/** Status reads that may fail in a row before the step counts as failed (the queue's bound).
+ *  The engine runs the job by itself: one failed read is not a failed job. */
+const MAX_POLL_FAILURES = 6;
+/** The engine answered that it has no such job (it restarted, or the job ended long ago). */
+const jobNotFound = (e: unknown) =>
+  /job not found/i.test(e instanceof Error ? e.message : String(e));
 
 /** A failed job, with the engine's reason kept beside its message. */
 class JobFailed extends Error {
@@ -402,6 +408,10 @@ export async function runFsUpload(
       let sizes: Map<string, number> | null = null;
       let fellBack = false;
       let stepFailed: unknown = null;
+      /** The last try's job when it failed without the engine saying it ended (its status
+       *  reads failed): it may still be running, so the next try watches it rather than
+       *  start a second job onto the same files. */
+      let unsettledJob = "";
       for (let attempt = 0; ; attempt++) {
         base.jobId = "";
         base.retry = null;
@@ -416,6 +426,19 @@ export async function runFsUpload(
             const old = await deps.jobStatus(req.attachJobId).catch(() => null);
             if (old?.status === "done") break;
             if (old?.status === "running") jobId = req.attachJobId;
+          }
+          if (!jobId && unsettledJob) {
+            const prev = unsettledJob;
+            let old: JobSnapshot | null = null;
+            try {
+              old = await deps.jobStatus(prev);
+            } catch (e) {
+              // Still no answer: starting now could run beside it. This try fails instead.
+              if (!jobNotFound(e)) throw e;
+            }
+            unsettledJob = "";
+            if (old?.status === "done") break;
+            if (old?.status === "running") jobId = prev;
           }
           if (!jobId) {
             const cap = deps.bandwidthCapMbps?.() ?? 0;
@@ -452,8 +475,17 @@ export async function runFsUpload(
           // A Cancel pressed before the job id arrived had nothing to end: end it now.
           if (cancelled()) void deps.jobCancel(jobId).catch(() => {});
           let askedFiles = false;
+          let misses = 0;
           for (;;) {
-            const snap = await deps.jobStatus(jobId);
+            let snap: JobSnapshot;
+            try {
+              snap = await deps.jobStatus(jobId);
+            } catch (e) {
+              if (jobNotFound(e) || ++misses >= MAX_POLL_FAILURES) throw e;
+              await deps.sleep(500);
+              continue;
+            }
+            misses = 0;
             if (snap.status === "done") break;
             if (snap.status === "failed") {
               if (cancelled()) break;
@@ -499,6 +531,7 @@ export async function runFsUpload(
         } catch (e) {
           const raw = e instanceof Error ? e.message : String(e);
           const reason = e instanceof JobFailed ? e.reason : undefined;
+          if (base.jobId) unsettledJob = e instanceof JobFailed ? "" : base.jobId;
           if (
             cancelled() ||
             attempt >= RETRY_WAITS_MS.length ||

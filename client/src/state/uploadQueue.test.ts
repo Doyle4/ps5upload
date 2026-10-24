@@ -84,7 +84,13 @@ import {
   type InstallResult,
 } from "./consoleQueueBridge";
 import { pkgQueue } from "./consoleQueueBridge";
-import { isUploadItem, libraryInstallStates, MAX_POLL_FAILURES, sameInstall } from "./uploadQueue";
+import {
+  isUploadItem,
+  libraryInstallStates,
+  LOST_CONTACT_GIVE_UP_MS,
+  MAX_POLL_FAILURES,
+  sameInstall,
+} from "./uploadQueue";
 
 // The store before any test stubs its actions (some blocks replace startHost).
 const pristineQueue = useUploadQueueStore.getState();
@@ -709,6 +715,50 @@ describe("cancelItem (per-item cancel)", () => {
     });
   });
 
+  it("Restart of the running item keeps the whole run going: the console's other items still go", async () => {
+    addItem("192.168.1.10:9113", "A1");
+    addItem("192.168.1.10:9113", "A2");
+    let finish = false;
+    mockedJobStatus.mockImplementation(
+      async () =>
+        ({ status: finish ? "done" : "running", bytes_sent: 1 }) as Awaited<
+          ReturnType<typeof jobStatus>
+        >,
+    );
+
+    void useUploadQueueStore.getState().startHost("192.168.1.10");
+    await vi.advanceTimersByTimeAsync(50);
+    useUploadQueueStore.getState().restartItem(byId("A1").id);
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(byId("A1").status).toBe("running");
+
+    finish = true;
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(byId("A1").status).toBe("done");
+    expect(byId("A2").status).toBe("done");
+  });
+
+  it("Restart inside a run limited to some items keeps that limit", async () => {
+    addItem("192.168.1.10:9113", "A1");
+    addItem("192.168.1.10:9113", "A2");
+    let finish = false;
+    mockedJobStatus.mockImplementation(
+      async () =>
+        ({ status: finish ? "done" : "running", bytes_sent: 1 }) as Awaited<
+          ReturnType<typeof jobStatus>
+        >,
+    );
+
+    void useUploadQueueStore.getState().startHost("192.168.1.10", { onlyIds: [byId("A1").id] });
+    await vi.advanceTimersByTimeAsync(50);
+    useUploadQueueStore.getState().restartItem(byId("A1").id);
+    await vi.advanceTimersByTimeAsync(2_000);
+    finish = true;
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(byId("A1").status).toBe("done");
+    expect(byId("A2").status).toBe("pending");
+  });
+
   it("cancelling the only running item leaves the console idle", async () => {
     addItem("192.168.1.10:9113", "A1");
 
@@ -964,11 +1014,11 @@ describe("upload runner auto-resume", () => {
     expect(item.recoverAttempt ?? 0).toBe(0);
   });
 
-  it("gives up on a status read that keeps failing, through the recovery path", async () => {
+  it("keeps asking, more slowly, past MAX_POLL_FAILURES misses; the transfer is not given up", async () => {
     addItem(ADDR, "A1");
     let misses = 0;
     mockedJobStatus.mockImplementation(async () => {
-      if (misses < MAX_POLL_FAILURES + 2) {
+      if (misses < MAX_POLL_FAILURES + 10) {
         misses++;
         throw new Error("fetch failed");
       }
@@ -976,13 +1026,32 @@ describe("upload runner auto-resume", () => {
     });
 
     const p = useUploadQueueStore.getState().start();
-    await vi.advanceTimersByTimeAsync(60_000);
+    await vi.advanceTimersByTimeAsync(90_000);
     await p;
 
     expect(itemsByStatus("done")).toHaveLength(1);
-    // MAX_POLL_FAILURES misses in a row → the item recovered once (resume + redeploy).
-    expect(mockedStartFile).toHaveBeenCalledTimes(2);
+    expect(mockedStartFile).toHaveBeenCalledTimes(1);
+    expect(mockedEnsurePayload).toHaveBeenCalledTimes(1);
+  });
+
+  it("gives up on a status read that keeps failing, through the recovery path, without forcing a re-send", async () => {
+    addItem(ADDR, "A1");
+    const t0 = Date.now();
+    mockedJobStatus.mockImplementation(async () => {
+      if (Date.now() - t0 < LOST_CONTACT_GIVE_UP_MS + 10_000) throw new Error("fetch failed");
+      return { status: "done", bytes_sent: 100 } as Awaited<ReturnType<typeof jobStatus>>;
+    });
+
+    const p = useUploadQueueStore.getState().start();
+    await vi.advanceTimersByTimeAsync(LOST_CONTACT_GIVE_UP_MS + 60_000);
+    await p;
+
+    expect(itemsByStatus("done")).toHaveLength(1);
+    expect(mockedStartFile.mock.calls.length).toBeGreaterThanOrEqual(1);
+    // Recovery ran (preflight + recovery), and only asked for the helper to be current: the
+    // transfer may still be running on it.
     expect(mockedEnsurePayload.mock.calls.length).toBeGreaterThanOrEqual(2);
+    expect(mockedEnsurePayload.mock.calls.slice(1).every((c) => c[2] === false)).toBe(true);
   });
 
   it("Stop during a recovery backoff aborts cleanly without retrying", async () => {

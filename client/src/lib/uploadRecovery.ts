@@ -153,7 +153,7 @@ export class PostUploadStepError extends Error {
 }
 
 export interface RecoverOptions {
-  /** True where the app can send the helper itself (desktop). Default true. */
+  /** False where the helper cannot be sent (re-sending it is no recovery then). Default true. */
   canSendHelper?: boolean;
 }
 
@@ -172,8 +172,8 @@ export function isAutoRecoverable(
   opts: RecoverOptions = {},
 ): boolean {
   const r = (reason ?? "").toLowerCase();
-  // No AVA1 listener: re-sending the helper is the recovery, but only where this build can send
-  // it. The browser build cannot (no payload_send), so retrying would just fail the same way.
+  // No AVA1 listener: re-sending the helper is the recovery, but only where the caller can send
+  // it (the desktop sends it itself; the browser build has the engine send it).
   if (r === "helper_not_ava1" && opts.canSendHelper === false) return false;
   if (FATAL_REASON_SUBSTRINGS.some((s) => r.includes(s))) return false;
 
