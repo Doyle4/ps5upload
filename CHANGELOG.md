@@ -4,6 +4,14 @@ What's new in ps5upload, written for humans.
 
 ---
 
+## 7.4.3
+
+- **Check for updates from anywhere.** A button in the top bar (desktop and tablet) shows your
+  version and checks GitHub when you press it: it says when you are up to date, or the update bar
+  appears. With an update waiting it lights up and opens Settings → Updates. On a phone the
+  version at the foot of More is the same button, and "Check for updates" is in the command
+  palette (Cmd/Ctrl+K). The web UI updates with its engine, so it has no button.
+
 ## 7.4.2
 
 - **Web UI and Docker: every browser sees the same consoles.** The consoles you add in the web
