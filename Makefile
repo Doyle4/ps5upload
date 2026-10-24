@@ -826,9 +826,20 @@ test-root:
 
 test-engine: setup-engine
 	@echo "Running Rust engine tests..."
-	@cd $(ENGINE_DIR) && $(CARGO) test --workspace --exclude ava1-ctest
-	@# The C interop tests share one C server and must run serially (as in CI).
-	@cd $(ENGINE_DIR) && $(CARGO) test -p ava1-ctest -- --test-threads=1
+	@# With cargo-nextest installed this runs the same tests the way scripts/validate-repo.mjs
+	@# does (and CI, except for the C interop suite): test binaries side by side (most sit in
+	@# network sleeps), each test in its own process, so the C interop tests' one server per
+	@# process holds without --test-threads=1; engine/.config/nextest.toml serializes the
+	@# timing-sensitive binaries.
+	@# nextest skips doctests, so they run separately. Without nextest: cargo test, serially.
+	@if $(CARGO) nextest --version >/dev/null 2>&1; then \
+		cd $(ENGINE_DIR) && $(CARGO) nextest run --workspace --exclude ava1-ctest && \
+		$(CARGO) test --workspace --exclude ava1-ctest --doc && \
+		$(CARGO) nextest run -p ava1-ctest; \
+	else \
+		cd $(ENGINE_DIR) && $(CARGO) test --workspace --exclude ava1-ctest && \
+		$(CARGO) test -p ava1-ctest -- --test-threads=1; \
+	fi
 	@echo "✓ Engine tests passed"
 	@# Android cross-compile check. The engine cfg's some code out on
 	@# Android (RAR, which needs the UnRAR C++ dep), so a call site added
@@ -852,7 +863,8 @@ test-engine-coverage:
 
 test-desktop: setup-engine
 	@echo "Checking Tauri Rust shell..."
-	@cd $(CLIENT_DIR)/src-tauri && $(CARGO) check --all-targets
+	@# No separate `cargo check --all-targets`: clippy --all-targets type-checks the same code
+	@# (CI and scripts/validate-repo.mjs dropped it for the same reason).
 	@cd $(CLIENT_DIR)/src-tauri && $(CARGO) clippy --all-targets -- -D warnings
 	@cd $(CLIENT_DIR)/src-tauri && $(CARGO) test
 	@echo "✓ Desktop Rust checks passed"
