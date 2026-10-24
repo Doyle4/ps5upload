@@ -1,7 +1,10 @@
 # ps5upload
 
 <p align="center">
-  <img src="logo.png" alt="ps5upload" width="420" />
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="branding/png/lockup-horizontal-white.png" />
+    <img src="logo.png" alt="PS5Upload" width="440" />
+  </picture>
 </p>
 
 <p align="center">
