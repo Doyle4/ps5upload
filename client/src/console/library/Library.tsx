@@ -293,7 +293,8 @@ async function load(): Promise<void> {
 async function scanAll(): Promise<void> {
   if (lib.task) return;
   stopAsked = false;
-  patch({ message: null });
+  // busy before the first await, so a second press cannot start a second run
+  patch({ message: null, task: { key: "scan", text: t("cw_lib_scanning", { name: consoleSource().name, n: 0 }), stoppable: true } });
   const failed: string[] = [];
   let list = lib.sources;
   try {
@@ -313,6 +314,7 @@ async function scanAll(): Promise<void> {
         onStatus: (st: SmbJob) => patch({ task: { key: "scan", text: t("cw_lib_scanning", { name: s.name, n: st.files_total }), stoppable: true } }),
       });
       if (end.end === "failed") failed.push(`${s.name}: ${failText(new ApiError(502, end.status.error ?? "io_error"))}`);
+      else if (end.end === "gone") failed.push(`${s.name}: ${failText(new ApiError(502, "smb_job_lost"))}`);
       const scan = await readScan(s.id);
       patch({ scans: new Map(lib.scans).set(s.id, scan) });
     } catch (e) {
@@ -341,8 +343,8 @@ async function copyIn(src: string, dest: string, name: string): Promise<boolean>
 async function install(e: Entry): Promise<void> {
   if (lib.task) return;
   stopAsked = false;
-  patch({ message: null });
   const name = displayName(e);
+  patch({ message: null, task: { key: "install", text: t("cw_pkg_phase_starting"), stoppable: true } });
   let path = e.at;
   let staged = false;
   try {
@@ -388,11 +390,12 @@ async function install(e: Entry): Promise<void> {
 async function copy(e: Entry, drive: string): Promise<void> {
   if (lib.task) return;
   stopAsked = false;
-  patch({ message: null });
+  const name = displayName(e);
+  patch({ message: null, task: { key: "copy", text: t("cw_lib_copying", { name, pct: 0, size: formatBytes(e.size) }), stoppable: true } });
   const dest = copyDest(drive, e);
   try {
     await call("/api/fs/mkdir", { path: dest.slice(0, dest.lastIndexOf("/")) });
-    await copyIn(e.at, dest, displayName(e));
+    await copyIn(e.at, dest, name);
     patch({
       task: null,
       ...(e.kind === "folder" ? { copied: { key: e.key, path: dest } } : {}),

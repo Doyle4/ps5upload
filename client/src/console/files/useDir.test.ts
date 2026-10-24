@@ -51,6 +51,19 @@ describe("useDir", () => {
     ]);
   });
 
+  it("carries a cut-short share listing", async () => {
+    mockCall.mockResolvedValue({ entries: [file("a")], more: false, next: 1, truncated: true } as never);
+    let last: DirState | null = null;
+    const loader = createDirLoader("smb://s1/big", (s) => {
+      last = s;
+    });
+    await loader.loadMore();
+    expect(last!.truncated).toBe(true);
+    mockCall.mockResolvedValue({ entries: [file("a")], more: false, next: 1 } as never);
+    await loader.refresh();
+    expect(last!.truncated).toBe(false);
+  });
+
   it("never asks for two pages at once", async () => {
     serve(3);
     const loader = createDirLoader("/d", () => {});

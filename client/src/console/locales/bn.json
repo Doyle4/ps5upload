@@ -363,6 +363,7 @@
   "cw_files_kind_file": "ফাইল",
   "cw_files_kind_link": "লিংক",
   "cw_files_last_gone": "শেষবার খোলা ফোল্ডারটি ({path}) আর নেই।",
+  "cw_files_list_truncated": "এই শেয়ার ফোল্ডারটি পুরোটা দেখানোর জন্য খুব বড়: শুধু প্রথম 100,000টি আইটেম দেখানো হচ্ছে।",
   "cw_files_load_all": "সব লোড করুন",
   "cw_files_more": "আরও দেখান",
   "cw_files_move_to": "এখানে সরান…",

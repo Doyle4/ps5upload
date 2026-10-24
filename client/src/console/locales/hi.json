@@ -363,6 +363,7 @@
   "cw_files_kind_file": "फ़ाइल",
   "cw_files_kind_link": "लिंक",
   "cw_files_last_gone": "पिछली बार खोला गया फ़ोल्डर ({path}) अब मौजूद नहीं है।",
+  "cw_files_list_truncated": "यह शेयर फ़ोल्डर पूरी सूची दिखाने के लिए बहुत बड़ा है: सिर्फ़ इसकी पहली 1,00,000 चीज़ें दिख रही हैं।",
   "cw_files_load_all": "सब लोड करें",
   "cw_files_more": "और दिखाएँ",
   "cw_files_move_to": "यहाँ ले जाएँ…",

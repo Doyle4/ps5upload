@@ -4559,6 +4559,7 @@ c2c_test_deep_bad: "لم يصل الإرسال التجريبي بحجم 4 KiB: 
 "cw_files_filter_clear": "مسح التصفية",
 "cw_files_load_all": "تحميل الكل",
 "cw_files_capped": "تُعرض أول {n} عناصر؛ في المجلد المزيد.",
+"cw_files_list_truncated": "مجلد المشاركة هذا أكبر من أن يُعرض كاملًا: تُعرض أول 100,000 عنصر فقط.",
 "cw_files_rows_more": "عرض المزيد من الصفوف (تبقى {n})",
 "cw_files_select_all": "تحديد الكل",
 "cw_files_select_none": "إلغاء التحديد",

@@ -154,6 +154,10 @@ Update the helper for everything below.
   - A key-file read error no longer silently resets the key that protects saved share passwords,
     and those secrets can no longer be read through the file browser or downloads.
   - A folder with more than 65,536 entries lists up to 100,000 and says the list is cut short.
+  - Library: pressing Install, Copy or Scan twice quickly no longer starts the same job twice, and a
+    scan whose share connection was lost says so instead of quietly keeping the old list.
+- **Clean up (console page):** Stop right after a new scan started stops that scan, not the one
+  before it.
 - **Cheats:** a cheat in an XML (SHN) file without a description no longer shows the next
   cheat's description, and one without a name no longer takes the next cheat's name.
 

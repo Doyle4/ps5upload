@@ -4568,6 +4568,7 @@ c2c_test_deep_bad: "การส่งทดสอบ 4 KiB ไปไม่ถ�
 "cw_files_filter_clear": "ล้างตัวกรอง",
 "cw_files_load_all": "โหลดทั้งหมด",
 "cw_files_capped": "แสดง {n} รายการแรก โฟลเดอร์นี้ยังมีอีก",
+"cw_files_list_truncated": "โฟลเดอร์แชร์นี้ใหญ่เกินกว่าจะแสดงทั้งหมด แสดงเฉพาะ 100,000 รายการแรก",
 "cw_files_rows_more": "แสดงแถวเพิ่ม (เหลือ {n})",
 "cw_files_select_all": "เลือกทั้งหมด",
 "cw_files_select_none": "ไม่เลือกเลย",

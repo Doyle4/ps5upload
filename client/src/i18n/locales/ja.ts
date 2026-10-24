@@ -4580,6 +4580,7 @@ c2c_test_deep_bad: "4 KiB のテスト送信が届きませんでした: {detail
 "cw_files_filter_clear": "絞り込みを解除",
 "cw_files_load_all": "すべて読み込む",
 "cw_files_capped": "先頭の {n} 件を表示中です。フォルダにはまだあります。",
+"cw_files_list_truncated": "この共有フォルダは大きすぎて全部を一覧できません。先頭の 100,000 件だけを表示しています。",
 "cw_files_rows_more": "行をさらに表示 (残り {n})",
 "cw_files_select_all": "すべて選択",
 "cw_files_select_none": "選択を解除",
