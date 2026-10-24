@@ -307,7 +307,7 @@ function NotificationRow({
         <button
           type="button"
           onClick={onRemove}
-          className="opacity-0 transition-opacity group-hover:opacity-100"
+          className="opacity-0 transition-opacity group-hover:opacity-100 [@media(hover:none)]:opacity-100"
           aria-label={tr("notifications_remove", undefined, "Dismiss")}
         >
           <X size={11} className="text-[var(--color-muted)]" />

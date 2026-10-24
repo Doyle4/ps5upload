@@ -32,9 +32,13 @@ const COLLAPSED_KEY = "ps5upload.desktop-sidebar.collapsed.v1";
  */
 export default function Sidebar() {
   const tr = useTr();
-  const [collapsed, setCollapsed] = useState(
-    () => safeGetItem(COLLAPSED_KEY) === "1",
-  );
+  // Until a choice is saved, a narrow window (a tablet held upright) starts with the icon rail,
+  // which leaves the screen its width; the labeled sidebar fits from 1024 px.
+  const [collapsed, setCollapsed] = useState(() => {
+    const saved = safeGetItem(COLLAPSED_KEY);
+    if (saved === "1" || saved === "0") return saved === "1";
+    return typeof window !== "undefined" && window.innerWidth < 1024;
+  });
   // Brand eyebrow. Resolved once on mount; `getAppVersion` hits the engine
   // over HTTP in browser mode, so a failure has to degrade to an empty
   // string rather than throw. The span below renders unconditionally so it
@@ -143,7 +147,7 @@ export default function Sidebar() {
     const isPinned = pinned.includes(item.to);
     const draggable = kind === "pinned" && !collapsed && dragReorderWorks;
     const buttonClass =
-      "flex h-7 w-7 items-center justify-center rounded-full bg-[var(--color-float)] text-[var(--color-muted)] opacity-0 hover:text-[var(--color-text)] focus-visible:opacity-100 group-hover:opacity-100 disabled:cursor-not-allowed disabled:hover:text-[var(--color-muted)]";
+      "flex h-7 w-7 items-center justify-center rounded-full bg-[var(--color-float)] text-[var(--color-muted)] opacity-0 hover:text-[var(--color-text)] focus-visible:opacity-100 group-hover:opacity-100 [@media(hover:none)]:group-has-[[aria-current=page]]:opacity-100 disabled:cursor-not-allowed disabled:hover:text-[var(--color-muted)]";
     const pinLabel = isPinned
       ? tr("nav_unpin_item", { name: label }, "Unpin {name}")
       : tr("nav_pin_item", { name: label }, "Pin {name}");

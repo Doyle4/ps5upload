@@ -10,7 +10,7 @@
 #   stop    shuts down the simulator `ensure` booted (PS5UPLOAD_IOS_SIM_UDID).
 #   status  lists the iPhone simulators and which are booted.
 #
-# Pick a device with PS5UPLOAD_IOS_SIM="iPhone 17 Pro" (any model `xcrun simctl list devicetypes`
+# Pick a device with PS5UPLOAD_IOS_SIM="iPhone 17 Pro" or "iPad Air 11-inch (M4)" (any model `xcrun simctl list devicetypes`
 # can create); by default a booted iPhone, else the newest Pro Max (created on first use).
 #
 # The Simulator needs Xcode's iOS platform once (several GB):  xcodebuild -downloadPlatform iOS
@@ -42,8 +42,9 @@ if not ios:
     sys.exit(0)
 ver = lambda r: [int(x) for x in r["version"].split(".")]
 ios.sort(key=ver, reverse=True)  # newest first
+# iPads too: PS5UPLOAD_IOS_SIM="iPad Pro 11-inch (M5)" runs the tablet layout.
 phones = [(r, d) for r in ios for d in devices.get(r["identifier"], [])
-          if d.get("isAvailable") and d["name"].startswith("iPhone")]
+          if d.get("isAvailable") and d["name"].startswith(("iPhone", "iPad"))]
 if not want:
     for r, d in phones:
         if d["state"] == "Booted":
@@ -122,7 +123,7 @@ grant() {
 
 status() {
   need_xcode
-  xcrun simctl list devices available | grep -E '^-- iOS|iPhone' || echo "no iOS Simulator runtime installed (xcodebuild -downloadPlatform iOS)"
+  xcrun simctl list devices available | grep -E '^-- iOS|iPhone|iPad' || echo "no iOS Simulator runtime installed (xcodebuild -downloadPlatform iOS)"
   local p; p="$(plan "${PS5UPLOAD_IOS_SIM:-}" 2>&1)" || true
   echo "run-ios would use: ${p:-nothing}"
 }

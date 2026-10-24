@@ -204,7 +204,7 @@ export default function ScreenshotsSection({
                         onClick={() => view(s.name)}
                         aria-label={`${tr("cap_preview", undefined, "Preview")} ${s.name}`}
                         title={tr("cap_preview", undefined, "Preview")}
-                        className="glass-float absolute bottom-2 end-2 rounded-full p-1.5 text-[var(--color-text)] opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
+                        className="glass-float absolute bottom-2 end-2 rounded-full p-1.5 text-[var(--color-text)] opacity-0 transition-opacity group-hover:opacity-100 [@media(hover:none)]:opacity-100 focus-visible:opacity-100"
                       >
                         <Maximize2 size={12} />
                       </button>

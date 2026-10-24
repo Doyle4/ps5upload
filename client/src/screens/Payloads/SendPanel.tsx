@@ -700,7 +700,7 @@ function HistoryPanel({
                 </div>
                 <RotateCcw
                   size={12}
-                  className="mt-0.5 shrink-0 text-[var(--color-muted)] opacity-0 group-hover:opacity-100"
+                  className="mt-0.5 shrink-0 text-[var(--color-muted)] opacity-0 group-hover:opacity-100 [@media(hover:none)]:opacity-100"
                 />
               </button>
             </li>
