@@ -31,6 +31,7 @@ import {
 } from "../../api/ps5";
 import { useConnectionStore } from "../../state/connection";
 import { healthFor, scanHealth, scanHealthIfStale, useHealthStore } from "../../state/health";
+import { NetworkDoctorCard } from "./NetworkDoctorCard";
 import { SpeedTestCard } from "./SpeedTestCard";
 
 /** Visual treatment per status.
@@ -281,6 +282,8 @@ export default function HealthScreen() {
         )}
 
         {host && report && <SpeedTestCard host={host} />}
+
+        {host && <NetworkDoctorCard host={host} />}
 
         {grouped.map((g) => (
           <section key={g.cat} className="mb-5">

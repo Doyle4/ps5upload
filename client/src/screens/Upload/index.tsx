@@ -109,6 +109,7 @@ import { QueuePanel } from "./QueuePanel";
 import { RunningEngineJobs } from "../../components/RunningEngineJobs";
 import { BottleneckLine, JobLiveNotes, UnsettledLine } from "./Bottleneck";
 import { WhySlowPanel } from "./WhySlow";
+import { SlowTransferHint } from "./SlowTransferHint";
 import { humanizePs5Error } from "../../lib/humanizeError";
 import { formatBytes } from "../../lib/format";
 import { resumeSummary } from "../../lib/resumeSummary";
@@ -2092,6 +2093,13 @@ function TransferStatus({ onRetry }: { onRetry: () => void }) {
           </div>
         )}
         <JobLiveNotes live={phase.live} />
+        {!isFinalizing && !phase.lostContact && (
+          <SlowTransferHint
+            host={host}
+            bytesPerSec={bytesPerSec}
+            bottleneck={phase.live?.bottleneck ?? null}
+          />
+        )}
         {isFinalizing && (
           // Explanatory line so users with big multi-file uploads
           // understand that 100% is not the end — the PS5 still has

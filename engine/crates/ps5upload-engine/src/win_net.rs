@@ -276,7 +276,7 @@ pub(crate) fn encoded_command(script: &str) -> String {
 }
 
 #[cfg(windows)]
-mod win {
+pub(crate) mod win {
     use std::os::windows::process::CommandExt;
     use std::process::{Command, Stdio};
     use std::time::{Duration, Instant};
@@ -286,7 +286,7 @@ mod win {
 
     /// Runs `script` in Windows PowerShell and returns its stdout and exit code; `None` when it
     /// cannot start or does not finish within `limit`.
-    pub(super) fn powershell(script: &str, limit: Duration) -> Option<(String, i32)> {
+    pub(crate) fn powershell(script: &str, limit: Duration) -> Option<(String, i32)> {
         let mut child = Command::new("powershell.exe")
             .args([
                 "-NoProfile",
