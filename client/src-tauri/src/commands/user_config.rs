@@ -225,7 +225,14 @@ pub async fn app_data_reset(app: AppHandle) -> Result<usize, String> {
             use tauri::Emitter;
             let _ = app.emit("ps5upload-engine-ready", &url);
         }
-        Err(e) => eprintln!("[tauri] engine restart after data reset failed: {e:#}"),
+        Err(e) => {
+            // Not eprintln!: it panics when the parent's stderr is gone.
+            use std::io::Write;
+            let _ = writeln!(
+                std::io::stderr(),
+                "[tauri] engine restart after data reset failed: {e:#}"
+            );
+        }
     }
 
     wiped
