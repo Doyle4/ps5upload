@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Check,
   Download,
@@ -48,12 +48,15 @@ export function LinkInstallCard({
   host,
   hostReady,
   checking,
+  prefill,
   onInstall,
 }: {
   host: string;
   hostReady: boolean;
   /** The link is being checked (the button waits). */
   checking: boolean;
+  /** A link shared to the app: put in the field (once per `key`), not started. */
+  prefill?: { url: string; key: string } | null;
   onInstall: (link: {
     url: string;
     name: string;
@@ -74,6 +77,15 @@ export function LinkInstallCard({
     null,
   );
   const facts = linkModeFacts(mode);
+  const cardRef = useRef<HTMLElement>(null);
+  const prefillKey = prefill?.key;
+  useEffect(() => {
+    if (!prefill) return;
+    setUrl(prefill.url);
+    setName("");
+    cardRef.current?.scrollIntoView?.({ block: "start", behavior: "smooth" });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prefillKey]);
 
   const modeTitle = (m: LinkInstallMode) =>
     m === "direct"
@@ -106,6 +118,7 @@ export function LinkInstallCard({
 
   return (
     <section
+      ref={cardRef}
       className="rounded-[var(--radius-panel)] border border-[var(--glass-edge)] bg-[var(--color-surface-raised)] shadow-[var(--edge-highlight),var(--shadow-1)] p-4"
       data-testid="link-install-card"
     >
