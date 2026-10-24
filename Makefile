@@ -104,7 +104,7 @@ ADB ?= $(ANDROID_HOME)/platform-tools/adb
 .PHONY: run-engine run-client dev start _check-tauri-system-deps
 .PHONY: install-engine uninstall-engine
 .PHONY: dist dist-win dist-win-arm dist-mac dist-mac-x64 dist-linux dist-linux-arm
-.PHONY: ios-init ios-build android-deps android-init android-build android-deploy _android-install-if-device run-android run-android-background
+.PHONY: ios-init ios-build run-ios android-deps android-init android-build android-deploy _android-install-if-device run-android run-android-background
 .PHONY: emu-create emu-start emu-stop emu-status emu-test
 .PHONY: send-payload gen-fixtures sweep validate validate-xl
 .PHONY: sync-version sync-version-check
@@ -179,6 +179,7 @@ help:
 	@echo "  make android-build    - Build a debug APK (no device needed)"
 	@echo "  make android-init     - One-time: scaffold src-tauri/gen/android"
 	@echo "  make ios-build        - Build an unsigned iPhone .ipa for sideloading (macOS + Xcode)"
+	@echo "  make run-ios          - Run the app in the iPhone Simulator with live reload (macOS + Xcode)"
 	@echo "  make android-deps     - Check the Android toolchain is ready"
 	@echo "  make emu-test         - Build + run the app on a headless emulator, with a screenshot"
 	@echo "  make emu-start        - Boot the test emulator (headless); emu-stop to shut it down"
@@ -718,6 +719,29 @@ ios-build: payload setup-client
 	@echo "Building unsigned iPhone IPA (arm64)..."
 	@cd $(CLIENT_DIR) && npx tauri ios build --ci --target aarch64 --no-sign
 	@python3 scripts/release/verify-ios-ipa.py output/PS5Upload-ios-unsigned.ipa
+
+# iPhone Simulator: see the app on a simulated iPhone, with live reload, like run-android.
+# Reuses a booted iPhone simulator or boots one (scripts/ios-sim.sh) and shuts down only one it
+# booted. PS5UPLOAD_IOS_SIM="iPhone 17 Pro" picks the device. Needs Xcode's iOS platform once:
+# `xcodebuild -downloadPlatform iOS`. For a real iPhone, build the .ipa (make ios-build).
+IOS_VITE_PORT ?= 1440
+IOS_SIM_RUST_TARGET := $(if $(filter arm64,$(shell uname -m)),aarch64-apple-ios-sim,x86_64-apple-ios)
+
+run-ios: payload setup-client
+	@command -v xcodebuild >/dev/null 2>&1 || { echo "ERROR: run-ios needs macOS with Xcode"; exit 1; }
+	@rustup target list --installed 2>/dev/null | grep -qx '$(IOS_SIM_RUST_TARGET)' || rustup target add $(IOS_SIM_RUST_TARGET)
+	@test -d $(IOS_GEN_DIR) || $(MAKE) ios-init
+	@bash scripts/release/ios-postinit-patch.sh
+	@out=$$(bash $(CURDIR)/scripts/ios-sim.sh ensure) || exit 1; \
+	state=$$(printf '%s' "$$out" | cut -f1); name=$$(printf '%s' "$$out" | cut -f2); udid=$$(printf '%s' "$$out" | cut -f3); \
+	if [ "$$state" = "booted" ]; then \
+		trap 'trap - EXIT INT TERM; echo ""; echo "Shutting down the simulator this run booted..."; PS5UPLOAD_IOS_SIM_UDID='"$$udid"' bash $(CURDIR)/scripts/ios-sim.sh stop' EXIT INT TERM; \
+	else \
+		echo "  (leaving the running simulator up)"; \
+	fi; \
+	echo "Launching on $$name (tauri ios dev)..."; \
+	cd $(CLIENT_DIR) && PS5UPLOAD_VITE_PORT=$(IOS_VITE_PORT) npx tauri ios dev "$$name" \
+		--config '{"build":{"devUrl":"http://localhost:$(IOS_VITE_PORT)"}}'
 
 # Boots the headless test emulator when nothing is attached, and shuts down
 # ONLY an emulator this invocation booted -- a phone you plugged in, or an

@@ -178,12 +178,30 @@ Windows/Linux targets, so CI is the source of truth there.
 make android-deps      # verify SDK / JDK 17 / NDK / rustup target
 make android-build     # debug APK, no device needed
 make android-deploy    # build + install on connected devices
-make run-android       # run on a device with live reload
+make run-android       # run on the emulator (or a plugged-in phone) with live reload
 ```
+
+`make run-android` boots a Pixel 10 Pro XL emulator with its window when no device is attached
+(`PS5UPLOAD_AVD_DEVICE=pixel_9_pro` picks another profile; each gets its own AVD) and shuts it
+down when the run ends, if it booted it.
 
 Android links the engine **in-process** rather than spawning a sidecar,
 so engine startup failures surface differently — check the in-app log.
 `.rar` is desktop-only (the UnRAR C dependency is excluded).
+
+## iPhone
+
+```sh
+make run-ios           # run in the iPhone Simulator with live reload (macOS + Xcode)
+make ios-build         # unsigned .ipa for a real iPhone (sideload it, see the FAQ)
+```
+
+`make run-ios` uses a booted iPhone simulator, or boots the newest Pro Max the installed iOS
+runtimes support (`PS5UPLOAD_IOS_SIM="iPhone 17 Pro"` picks another), and shuts it down at the
+end if it booted it. Xcode needs its iOS platform once: `xcodebuild -downloadPlatform iOS`.
+The simulator shows how the app looks and works and can reach a PS5 on this Mac's network; the
+limits of a real iPhone (background suspension, the local-network prompt) only show on one. As on
+Android the engine runs in-process; unlike Android, `.rar` works.
 
 ## Self-hosted engine
 

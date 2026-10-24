@@ -63,6 +63,13 @@ export default defineConfig({
   plugins: [react(), tailwindcss(), bundledDocs(), oneLangPerSelector()],
   clearScreen: false,
   base: process.env.VITE_BASE_URL || "./",
+  // Scan only the app's own page for dependencies to pre-bundle. By default Vite scans every
+  // .html in the project, which includes the console page (src/console/index.html): its
+  // `virtual:pc-tokens.css` import only resolves in vite.console.config.ts, so the scan
+  // aborted and the dependencies were bundled during the first page load instead, reloading
+  // the page under it. A phone or simulator then showed "script failed to load" until the
+  // app was opened again (make run-ios, run-android).
+  optimizeDeps: { entries: ["index.html"] },
   server: {
     port,
     strictPort: true,

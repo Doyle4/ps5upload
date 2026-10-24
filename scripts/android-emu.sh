@@ -40,7 +40,11 @@ EMULATOR="$SDK/emulator/emulator"
 ADB="$SDK/platform-tools/adb"
 AVDMANAGER="$SDK/cmdline-tools/latest/bin/avdmanager"
 
-AVD_NAME="${PS5UPLOAD_AVD:-ps5upload-test}"
+# The phone the emulator imitates (any `avdmanager list device -c` id). Each device gets its own
+# AVD, so switching never rebuilds one in place. pixel_10_pro_xl needs command-line tools 23+;
+# an older SDK falls back to the newest Pixel Pro XL it knows (see device_profile).
+AVD_DEVICE="${PS5UPLOAD_AVD_DEVICE:-pixel_10_pro_xl}"
+AVD_NAME="${PS5UPLOAD_AVD:-ps5upload-$AVD_DEVICE}"
 APP_ID="com.phantomptr.ps5upload"
 # Boot can be slow on a cold AVD; well past that and something is wrong, so
 # fail loudly rather than hang a CI job or a developer's terminal forever.
@@ -135,13 +139,51 @@ wait_booted() {
 
 # Raise the emulator's window. Best effort: macOS via AppleScript, Linux via
 # wmctrl when it is installed; elsewhere the window simply stays where it is.
+# A test emulator, so no "isn't responding" dialogs: with software rendering the first boot of a
+# big-screen profile (Pixel 10 Pro XL, 1344x2992) is slow enough that the launcher misses its
+# input deadline, and the dialog sat over the home screen. Hide those dialogs (a developer
+# setting, it keeps working) and go home, which also restarts a launcher the dialog closed.
+settle_after_boot() {
+  "$ADB" -s "$1" shell settings put global hide_error_dialogs 1 >/dev/null 2>&1 || true
+  "$ADB" -s "$1" shell input keyevent KEYCODE_HOME >/dev/null 2>&1 || true
+}
+
 bring_to_front() {
   case "$(uname -s)" in
     Darwin)
-      osascript -e 'tell application "System Events" to set frontmost of (first process whose unix id is '"$(pgrep -f "qemu-system.*-avd $AVD_NAME" | head -1)"') to true' >/dev/null 2>&1 || true ;;
+      # macOS registers the emulator's binary as its "app", so `open -a <that binary>`
+      # activates the running emulator (it does not start a second one) with no extra
+      # permission. Scripted activation (System Events, NSRunningApplication) is refused or
+      # needs Accessibility permission, which left the window behind everything else.
+      local pid bin; pid="$(pgrep -f "qemu-system.*-avd $AVD_NAME" | head -1)"
+      [ -n "$pid" ] || return 0
+      bin="$(ps -o comm= -p "$pid" 2>/dev/null)"
+      [ -x "$bin" ] || return 0
+      # Twice: right after boot the first request can land before the window is ready. macOS
+      # may still keep the window behind an app you are typing in (focus-steal protection).
+      open -a "$bin" >/dev/null 2>&1 || true
+      sleep 1
+      open -a "$bin" >/dev/null 2>&1 || true
+      say "  The emulator window is open (its Dock icon is qemu-system-aarch64)." >&2 ;;
     Linux)
       command -v wmctrl >/dev/null 2>&1 && wmctrl -a "Android Emulator" >/dev/null 2>&1 || true ;;
   esac
+}
+
+# The requested device profile, or (on command-line tools that predate it) the newest Pixel
+# Pro XL this SDK knows, with a note on how to get the requested one.
+device_profile() {
+  local known; known="$("$AVDMANAGER" list device -c 2>/dev/null)"
+  if printf '%s\n' "$known" | grep -qx "$AVD_DEVICE"; then
+    printf '%s\n' "$AVD_DEVICE"
+    return
+  fi
+  local fallback
+  fallback="$(printf '%s\n' "$known" | grep -E '^pixel_[0-9]+_pro_xl$' | sort -t_ -k2,2n | tail -n1)"
+  [ -n "$fallback" ] || fallback="pixel_6"
+  say "  $AVD_DEVICE is not known to these command-line tools; using $fallback. Update them for it:" >&2
+  say "    $SDK/cmdline-tools/latest/bin/sdkmanager 'cmdline-tools;latest'" >&2
+  printf '%s\n' "$fallback"
 }
 
 cmd_create() {
@@ -153,10 +195,11 @@ cmd_create() {
   local img
   img="$(pick_image)" || die "no arm64-v8a system image installed. Install one:
   $SDK/cmdline-tools/latest/bin/sdkmanager 'system-images;android-36.1;google_apis;arm64-v8a'"
-  say "Creating AVD '$AVD_NAME' from $img ..."
-  # `-d pixel_6` gives a sane screen size; without a device profile the AVD
-  # defaults to a shape that makes screenshots hard to read.
-  printf 'no\n' | "$AVDMANAGER" create avd -n "$AVD_NAME" -k "$img" -d pixel_6 --force >/dev/null \
+  local device; device="$(device_profile)"
+  say "Creating AVD '$AVD_NAME' ($device) from $img ..."
+  # A device profile gives the real phone's screen; without one the AVD defaults to a shape
+  # that makes screenshots hard to read.
+  printf 'no\n' | "$AVDMANAGER" create avd -n "$AVD_NAME" -k "$img" -d "$device" --force >/dev/null \
     || die "avdmanager could not create the AVD"
   say "✓ Created AVD '$AVD_NAME'"
 }
@@ -223,6 +266,7 @@ cmd_start() {
       if [ "$booted" = "1" ]; then
         trap - INT TERM
         say "✓ Emulator booted ($serial) after ${waited}s"
+        settle_after_boot "$serial"
         return 0
       fi
     fi
