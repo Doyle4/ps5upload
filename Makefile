@@ -104,7 +104,7 @@ ADB ?= $(ANDROID_HOME)/platform-tools/adb
 .PHONY: run-engine run-client dev start _check-tauri-system-deps
 .PHONY: install-engine uninstall-engine
 .PHONY: dist dist-win dist-win-arm dist-mac dist-mac-x64 dist-linux dist-linux-arm
-.PHONY: android-deps android-init android-build android-deploy _android-install-if-device run-android run-android-background
+.PHONY: ios-init ios-build android-deps android-init android-build android-deploy _android-install-if-device run-android run-android-background
 .PHONY: emu-create emu-start emu-stop emu-status emu-test
 .PHONY: send-payload gen-fixtures sweep validate validate-xl
 .PHONY: sync-version sync-version-check
@@ -178,6 +178,7 @@ help:
 	@echo "  make android-deploy   - Build APK + install/update it on connected device(s)"
 	@echo "  make android-build    - Build a debug APK (no device needed)"
 	@echo "  make android-init     - One-time: scaffold src-tauri/gen/android"
+	@echo "  make ios-build        - Build an unsigned iPhone .ipa for sideloading (macOS + Xcode)"
 	@echo "  make android-deps     - Check the Android toolchain is ready"
 	@echo "  make emu-test         - Build + run the app on a headless emulator, with a screenshot"
 	@echo "  make emu-start        - Boot the test emulator (headless); emu-stop to shut it down"
@@ -700,6 +701,23 @@ android-build: android-deps payload setup-client
 	@cd $(CLIENT_DIR) && $(ANDROID_ENV) npx tauri android build --debug --apk --target $(ANDROID_TARGET)
 	@apk=$$(find "$(ANDROID_GEN_DIR)/app/build/outputs/apk" -name 'app-*-debug.apk' -print -quit 2>/dev/null); \
 		echo "✓ APK built: $${apk:-under $(ANDROID_GEN_DIR)/app/build/outputs/apk}"
+
+# iPhone: an unsigned .ipa for sideloading (AltStore, Sideloadly), as the release
+# builds it. macOS with Xcode only; Xcode needs its iOS platform once
+# (`xcodebuild -downloadPlatform iOS`).
+IOS_GEN_DIR := $(CLIENT_DIR)/src-tauri/gen/apple
+
+ios-init: setup-client
+	@echo "Scaffolding iOS project (tauri ios init)..."
+	@cd $(CLIENT_DIR) && npx tauri ios init --ci
+	@bash scripts/release/ios-postinit-patch.sh
+
+ios-build: payload setup-client
+	@test -d $(IOS_GEN_DIR) || $(MAKE) ios-init
+	@bash scripts/release/ios-postinit-patch.sh
+	@echo "Building unsigned iPhone IPA (arm64)..."
+	@cd $(CLIENT_DIR) && npx tauri ios build --ci --target aarch64 --no-sign
+	@python3 scripts/release/verify-ios-ipa.py output/PS5Upload-ios-unsigned.ipa
 
 # Boots the headless test emulator when nothing is attached, and shuts down
 # ONLY an emulator this invocation booted -- a phone you plugged in, or an

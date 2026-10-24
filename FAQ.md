@@ -632,6 +632,29 @@ that needs **Update helper**). Run **Set up your PS5** or send it from the **Pay
 
 ---
 
+## iPhone
+
+**Q: Is there an iPhone app? How do I install it?**
+Yes, as an unsigned `.ipa` on each release (`PS5Upload-<ver>-ios-unsigned.ipa`). It is not on the
+App Store, so you sideload it, and no jailbreak is needed. It is the same app as on Android, with
+the engine running inside it. It is new and not yet tested on many iPhones; please report what
+you find.
+
+1. Install **AltStore** (altstore.io, with AltServer on a Mac or PC) or **Sideloadly**
+   (sideloadly.io) on your computer, and connect the iPhone by cable the first time.
+2. Give the tool the `.ipa` and an Apple ID. A free one works; a separate Apple ID made just for
+   this keeps your main account out of it. The tool signs the app with that Apple ID.
+3. On the iPhone (iOS 16 and later): **Settings → Privacy & Security → Developer Mode** on,
+   restart, then **Settings → General → VPN & Device Management →** your Apple ID **→ Trust**.
+4. Open PS5Upload, allow **Local Network** when asked, and enter the PS5's IP address.
+
+With a free Apple ID the app must be re-signed every 7 days. AltStore does that by itself while
+your computer runs AltServer on the same Wi-Fi; with Sideloadly, sideload the same `.ipa` again.
+
+**Q: How do I get games onto the iPhone to send them?**
+Copy them with the **Files** app into **On My iPhone → PS5Upload**; the app's file browser starts
+there. Keep the app open while a transfer or install runs: iOS pauses apps in the background.
+
 ## Network setup — direct Ethernet (optional, best stability + speed)
 
 **Q: Do I need anything special on my network?**

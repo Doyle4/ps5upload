@@ -30,6 +30,9 @@ def main() -> None:
             raise SystemExit(f"not a device build: {info.get('CFBundleSupportedPlatforms')}")
         if not info.get("NSLocalNetworkUsageDescription"):
             raise SystemExit("NSLocalNetworkUsageDescription is missing (Info.ios.plist not merged?)")
+        name = info.get("CFBundleDisplayName") or info.get("CFBundleName")
+        if name != "PS5Upload":
+            raise SystemExit(f"home-screen name is {name!r}, not PS5Upload")
         exe = info.get("CFBundleExecutable", "")
         if not exe or "/" in exe:
             raise SystemExit(f"bad CFBundleExecutable {exe!r}")

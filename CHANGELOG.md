@@ -6,10 +6,10 @@ What's new in ps5upload, written for humans.
 
 ## Unreleased
 
-- **iPhone build (unsigned, for sideloading).** The mobile app now also builds for iPhone: a manual
-  GitHub Actions workflow makes an unsigned `.ipa` that AltStore, Sideloadly or Signulous sign with
-  your own Apple ID. Games go in the app's folder in the Files app. Not yet tried on a real iPhone
-  with a PS5; based on the iOS work in a community fork.
+- **iPhone app (unsigned, for sideloading).** Each release now includes
+  `PS5Upload-<ver>-ios-unsigned.ipa`, the same app as on Android with the PS5Upload name and icon.
+  Sideload it with AltStore or Sideloadly and an Apple ID (a free one works); the FAQ has the
+  steps. Games go in the app's folder in the Files app. New and not yet tested on many iPhones.
 - **Text size on the console page (#505).** PS5Upload Minion's Settings has a Text size row (75% to
   130%). It is kept per screen, so the TV and a computer browser can each have their own. Update
   the helper for this one.

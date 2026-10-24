@@ -4,8 +4,8 @@
 # (src/engine_mobile.rs), as on Android. Adapted from the iOS work in a community fork
 # (Ralfmalph/ps5upload, branch codex/ios-signulous).
 #
-# Manual for now (Actions → ios → Run workflow): the build is not yet part of a release and has
-# not been run on a real iPhone against a PS5.
+# Manual (Actions → ios → Run workflow) for trying an iOS change between releases; every release
+# also builds the .ipa (publish.yml, build-ios). Not yet run on a real iPhone against a PS5.
 name: ios
 
 on:
@@ -106,6 +106,8 @@ jobs:
       - name: Generate the iOS project
         working-directory: client
         run: npx tauri ios init --ci
+      - name: PS5Upload icons into the Xcode project
+        run: bash scripts/release/ios-postinit-patch.sh
       - name: Build the unsigned IPA
         working-directory: client
         run: npx tauri ios build --ci --target aarch64 --no-sign

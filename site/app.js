@@ -84,6 +84,7 @@ const KINDS = [
   { re: /-linux-arm64\.rpm$/, os: "linux", label: "ARM64 Fedora, openSUSE", note: ".rpm" },
   { re: /-linux-arm64\.zip$/, os: "linux", label: "ARM64 any distro", note: ".zip" },
   { re: /-android\.apk$/, os: "android", label: "Phones and tablets", note: ".apk" },
+  { re: /-ios-unsigned\.ipa$/, os: "ios", label: "iPhone, sideload", note: ".ipa" },
   { re: /^ps5upload-[\d.]+\.elf$/, os: "extra", label: "PS5 helper (payload)", note: ".elf" },
   { re: /^ps5upload-engine-/, os: "extra", label: null, note: "" },
 ];
@@ -92,11 +93,13 @@ const OS = {
   windows: "Windows",
   linux: "Linux",
   android: "Android",
+  ios: "iPhone",
 };
 
 function detectOs() {
   const ua = navigator.userAgent;
   if (/android/i.test(ua)) return "android";
+  if (/iphone|ipad|ipod/i.test(ua)) return "ios";
   if (/windows/i.test(ua)) return "windows";
   if (/mac os x|macintosh/i.test(ua) && !/iphone|ipad/i.test(ua)) return "mac";
   if (/linux|x11/i.test(ua)) return "linux";
@@ -196,7 +199,7 @@ function markdown(md) {
 // ── Render ─────────────────────────────────────────────────────────────────
 
 function renderDownloads(rel, mine) {
-  const groups = { mac: [], windows: [], linux: [], android: [], extra: [] };
+  const groups = { mac: [], windows: [], linux: [], android: [], ios: [], extra: [] };
   for (const a of rel.assets) {
     const i = KINDS.findIndex((k) => k.re.test(a.name));
     if (i < 0) continue;
@@ -205,7 +208,7 @@ function renderDownloads(rel, mine) {
   }
   // KINDS order (x64 before ARM64, installer before portable), not GitHub's alphabetical one.
   for (const g of Object.values(groups)) g.sort((a, b) => a.order - b.order);
-  const order = ["mac", "windows", "linux", "android"].sort((a, b) => (a === mine ? -1 : b === mine ? 1 : 0));
+  const order = ["mac", "windows", "linux", "android", "ios"].sort((a, b) => (a === mine ? -1 : b === mine ? 1 : 0));
   const el = document.getElementById("downloads");
   el.innerHTML = order
     .filter((os) => groups[os].length)

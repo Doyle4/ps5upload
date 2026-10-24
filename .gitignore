@@ -230,6 +230,8 @@ client/src-tauri/gen/
 # Locally-built/signed Android artifacts (release flow produces these)
 PS5Upload-android.apk
 PS5Upload-android.apk.idsig
+# iPhone builds (make ios-build, the release workflow).
+*.ipa
 *.idsig
 
 # NEVER commit signing material. The Android release keystore + passwords

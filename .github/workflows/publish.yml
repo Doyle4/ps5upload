@@ -707,12 +707,104 @@ jobs:
         run: |
           echo "::warning::Android APK build failed — release will ship without an Android artifact. Check the build-android job logs."
 
+  # ─────────────────────────────────────────────────────────────────────
+  # iPhone .ipa, unsigned, for sideloading (AltStore, Sideloadly, a signing
+  # service): the tool signs it with the user's own Apple ID, so no Apple
+  # developer account is needed here. The engine runs in-process, as on
+  # Android. Optional like the APK: a failure warns and the release ships.
+  # ─────────────────────────────────────────────────────────────────────
+  build-ios:
+    name: build-ios
+    # Starts with build-payload and waits for its ELFs (see build-client).
+    runs-on: macos-15
+    timeout-minutes: 45
+    # Same reasoning as build-android: continue-on-error covers a failed job,
+    # and the long steps carry their own timeouts so a hang fails a step
+    # instead of cancelling the release.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref_name }}
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          check-latest: true
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+
+      - name: Sync version from VERSION
+        run: node scripts/update-version.js
+
+      - name: Setup Rust + iOS target
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios
+
+      - name: Apple toolchain
+        run: |
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-path
+          command -v xcodegen || brew install xcodegen
+          command -v pod || brew install cocoapods
+
+      - name: Install client deps
+        working-directory: client
+        run: npm ci --no-audit --no-fund
+
+      - name: Wait for the payload ELF
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/release/wait-for-artifact.mjs ps5upload-payload build-payload
+
+      - name: Restore real payload ELF
+        uses: actions/download-artifact@v8
+        with:
+          name: ps5upload-payload
+          path: payload
+
+      - name: Verify payload resource in place
+        run: |
+          test -s payload/ps5upload.elf.gz
+          test -s payload/installer/ps5upload-installer.elf.gz
+
+      - name: Scaffold iOS project (gen/ is gitignored)
+        working-directory: client
+        timeout-minutes: 10
+        run: npx tauri ios init --ci
+
+      - name: PS5Upload icons into the Xcode project
+        run: bash scripts/release/ios-postinit-patch.sh
+
+      - name: Build unsigned IPA (arm64)
+        working-directory: client
+        timeout-minutes: 30
+        run: npx tauri ios build --ci --target aarch64 --no-sign
+
+      - name: Check the IPA
+        run: python3 scripts/release/verify-ios-ipa.py PS5Upload-ios-unsigned.ipa
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@v7
+        with:
+          name: ps5upload-ios
+          path: PS5Upload-ios-unsigned.ipa
+          if-no-files-found: error
+
+      # Last on purpose: `if: failure()` looks at the steps before it.
+      - name: Warn if iOS build fails
+        if: failure()
+        run: |
+          echo "::warning::iOS IPA build failed — release will ship without an iPhone artifact. Check the build-ios job logs."
+
   create-release:
     name: create-release
     needs:
       - build-payload
       - build-client
       - build-android
+      - build-ios
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -799,6 +891,10 @@ jobs:
             cp -v artifacts/ps5upload-android/PS5Upload-android.apk \
               "release/PS5Upload-${TAG_VERSION}-android.apk"
           fi
+          if [ -f artifacts/ps5upload-ios/PS5Upload-ios-unsigned.ipa ]; then
+            cp -v artifacts/ps5upload-ios/PS5Upload-ios-unsigned.ipa \
+              "release/PS5Upload-${TAG_VERSION}-ios-unsigned.ipa"
+          fi
           echo "---release/ contents---"
           ls -la release
           count="$(find release -mindepth 1 -maxdepth 1 | wc -l | tr -d ' ')"
@@ -807,7 +903,7 @@ jobs:
       # The copies above are globs, so a build job that produced nothing
       # (or an artifact renamed on one side) used to ship as a release with a
       # hole in it and nothing red. Every platform asset is required; only the
-      # APK is optional (build-android is continue-on-error by design).
+      # APK and the IPA are optional (build-android and build-ios are continue-on-error by design).
       - name: Every expected asset is present
         env:
           TAG_VERSION: ${{ steps.tag.outputs.version }}
@@ -844,6 +940,9 @@ jobs:
           fi
           if [ ! -s "release/PS5Upload-${TAG_VERSION}-android.apk" ]; then
             echo "::warning::no Android APK in this release (build-android failed; it is not a gate)"
+          fi
+          if [ ! -s "release/PS5Upload-${TAG_VERSION}-ios-unsigned.ipa" ]; then
+            echo "::warning::no iPhone IPA in this release (build-ios failed; it is not a gate)"
           fi
           echo "all expected release assets present"
 

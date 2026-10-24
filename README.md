@@ -11,7 +11,7 @@
 <p align="center">
   <a href="https://github.com/phantomptr/ps5upload/releases"><img alt="release" src="https://img.shields.io/github/v/release/phantomptr/ps5upload?display_name=tag&sort=semver&color=blue" /></a>
   <a href="LICENSE"><img alt="license" src="https://img.shields.io/badge/license-GPL--3-green" /></a>
-  <img alt="platforms" src="https://img.shields.io/badge/platforms-macOS_·_Linux_·_Windows_·_Android_·_Web-lightgrey" />
+  <img alt="platforms" src="https://img.shields.io/badge/platforms-macOS_·_Linux_·_Windows_·_Android_·_iPhone_·_Web-lightgrey" />
   <img alt="firmware" src="https://img.shields.io/badge/PS5_firmware-1.00_–_14.10_supported_•_5.10,_9.60_&_13.60_tested-brightgreen" />
   <a href="https://discord.gg/fzK3xddtrM"><img alt="discord" src="https://img.shields.io/badge/discord-join-5865F2" /></a>
 </p>
@@ -45,7 +45,7 @@
   screen, port 9180), made for the controller: games, a library scanned from your network shares
   and drives, files (SMB shares, archive extraction, package install, payload loading), cheats,
   fan, processes, clean-up and settings, with no PC nearby.
-- **Runs everywhere:** macOS, Windows, Linux, Android, or any browser through the self-hosted
+- **Runs everywhere:** macOS, Windows, Linux, Android, iPhone (sideloaded), or any browser through the self-hosted
   Docker web UI ([compose file](engine/compose.yaml), see
   [Self-hosted engine and web UI](#self-hosted-engine-and-web-ui)). 21 languages.
 
@@ -73,6 +73,7 @@ Pre-built downloads land on the
 | Linux — any distro (x64 / ARM64) | `PS5Upload-<ver>-linux-{x64,arm64}.zip` | Universal fallback (no install). Unzip, then `chmod +x PS5Upload.sh PS5Upload.AppImage` and run **`./PS5Upload.sh`** (the wrapper — handles the FUSE-less and WebKit white-screen cases for you). Running `./PS5Upload.AppImage` directly also works if your system has libfuse2 and a happy WebKitGTK. |
 | Linux — NixOS (x64 / ARM64) | no release artifact | Packaged in [NUR](https://github.com/GriefNorth/nur-packages) as `ps5upload` — see **NixOS** below. |
 | Android | `PS5Upload-<ver>-android.apk` | Enable "install unknown apps" for your browser/file manager, then open the `.apk`. Same interface, mobile-friendly; connects to and manages your PS5 over Wi-Fi. On Android 17, allow local network access ("nearby devices") when asked. |
+| iPhone | `PS5Upload-<ver>-ios-unsigned.ipa` | Sideload with AltStore or Sideloadly and an Apple ID (a free one works; it is re-signed every 7 days). Turn on Developer Mode and trust your Apple ID on the iPhone; see the FAQ. Copy games into the app's folder with the Files app. |
 
 ### NixOS
 
@@ -282,6 +283,8 @@ See [`TESTING.md`](TESTING.md) for the full workflow, and [`CONTRIBUTING.md`](CO
 
 - **Desktop:** macOS, Linux and Windows, x64 and arm64.
 - **Android:** the `.apk` from Releases.
+- **iPhone:** the unsigned `.ipa` from Releases, sideloaded with AltStore or Sideloadly (see the
+  FAQ). New and not yet widely tested.
 - **Web UI:** the self-hosted Docker image, in any browser on your LAN (see below).
 - **PS5 firmware:** 1.00 through 14.10 on every model; one payload binary for all. Tested on
   5.10, 9.60 and 13.60 (14.00 and 14.10 are new in SDK v0.45 and not tested yet). In practice the limit is your jailbreak's ELF loader on port 9021.

@@ -2,6 +2,9 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<!-- The name under the home-screen icon, as on Android. -->
+	<key>CFBundleDisplayName</key>
+	<string>PS5Upload</string>
 	<!-- The app's Documents folder shows in the Files app: put games there to send them. -->
 	<key>LSSupportsOpeningDocumentsInPlace</key>
 	<true/>
