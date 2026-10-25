@@ -4,6 +4,17 @@ What's new in ps5upload, written for humans.
 
 ---
 
+## 8.0.1
+
+- **No red "cannot reach its engine" flash at launch (#515).** On Windows the engine can take a
+  few seconds to start, and the app showed the error banner until it answered. The app now waits
+  up to 20 seconds for a starting engine before calling it down; a real start failure or crash
+  still shows at once.
+- **Restart engine in Settings.** Settings › Engine has a **Restart engine** button (desktop app)
+  to stop and start this computer's engine without closing the app.
+- **Devices and Mesh Drive say when the engine is too old** (an engine elsewhere, such as an older
+  Docker container) instead of showing "request failed (404)".
+
 ## 8.0.0
 
 Several devices, one PS5. Your computers, phones and Docker setup can now all use the same console

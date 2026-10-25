@@ -25,6 +25,7 @@ import {
   Type,
   Vibrate,
   Waves,
+  RotateCcw,
 } from "lucide-react";
 import { useThemeStore, type Theme } from "../../state/theme";
 import {
@@ -58,7 +59,9 @@ import { useKeepAwakeStore } from "../../state/keepAwake";
 import { useNotificationsStore } from "../../state/notifications";
 import { useLangStore, useTr, LANGUAGES } from "../../state/lang";
 import { useUploadSettingsStore } from "../../state/uploadSettings";
-import { useEngineStore, DEFAULT_ENGINE_URL } from "../../state/engine";
+import { useEngineStore, DEFAULT_ENGINE_URL, setLiveEngineUrl } from "../../state/engine";
+import { engineRestart } from "../../lib/engineDiagnosis";
+import { useConnectionStore } from "../../state/connection";
 import { useSaveSettingsStore, DEFAULT_SAVE_PATH } from "../../state/saveSettings";
 import { useBetaFeaturesStore } from "../../state/betaFeatures";
 import { useInstallPathFallbackStore } from "../../state/installPathFallback";
@@ -301,7 +304,55 @@ function EngineUrlSection() {
           ) : null
         }
       />
+      {isTauriEnv() && engineUrl === DEFAULT_ENGINE_URL && <RestartEngineRow />}
     </Section>
+  );
+}
+
+/** Stop and start this computer's engine, without restarting the app: picks up a rebuilt
+ *  engine, or clears one that misbehaves. Asks first, since transfers it runs stop. */
+function RestartEngineRow() {
+  const tr = useTr();
+  const { confirm, dialog } = useConfirm();
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState<{ ok: boolean; text: string } | null>(null);
+  const restart = async () => {
+    const ok = await confirm({
+      title: tr("engine_restart_title", undefined, "Restart the engine?"),
+      message: tr(
+        "engine_restart_body",
+        undefined,
+        "The engine on this computer stops and starts again. Transfers it is running stop; uploads pick up where they left off.",
+      ),
+      confirmLabel: tr("engine_restart_go", undefined, "Restart engine"),
+    });
+    if (!ok) return;
+    setBusy(true);
+    setNote(null);
+    try {
+      const url = await engineRestart();
+      setLiveEngineUrl(url);
+      useConnectionStore.getState().setStatus({ engineStatus: "up", engineError: null });
+      setNote({ ok: true, text: tr("engine_restart_done", undefined, "The engine restarted.") });
+    } catch (e) {
+      setNote({ ok: false, text: e instanceof Error ? e.message : String(e) });
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="mt-3 flex flex-wrap items-center gap-3">
+      {dialog}
+      <Button size="sm" variant="secondary" loading={busy} onClick={() => void restart()}>
+        <RotateCcw size={14} />
+        {tr("engine_restart_go", undefined, "Restart engine")}
+      </Button>
+      {note && (
+        <span className={`text-xs ${note.ok ? "text-[var(--color-good)]" : "text-[var(--color-bad)]"}`}>
+          {note.text}
+        </span>
+      )}
+    </div>
   );
 }
 

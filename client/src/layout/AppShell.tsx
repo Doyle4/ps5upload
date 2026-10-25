@@ -299,11 +299,18 @@ function useStatusPolling() {
   useEffect(() => {
     if (!visible) return;
     let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
     const tick = async () => {
       const up = await engineApi.ping();
-      if (!cancelled) {
+      if (cancelled) return;
+      const before = useConnectionStore.getState().engineStatus;
+      // The engine starts with the window and can take a few seconds (Windows, many consoles):
+      // until it has answered once, a miss inside the grace period is "starting", not "down"
+      // (#515: the red banner flashed on every launch). A failed start or a crash is reported
+      // by the shell itself (engineStartupEvents) and shows at once.
+      const starting = !up && before === "unknown" && engineStartupGrace();
+      if (!starting) {
         // Only the changes go to the journal: "unreachable" and "reachable again".
-        const before = useConnectionStore.getState().engineStatus;
         if (up && before === "down")
           recordAppEvent({ cat: "app", level: "info", code: "engine_up", msg: "engine reachable again" });
         if (!up && before !== "down")
@@ -313,12 +320,12 @@ function useStatusPolling() {
           ...(up ? { engineError: null } : {}),
         });
       }
+      timer = setTimeout(tick, starting ? 1000 : 5000);
     };
-    tick();
-    const h = setInterval(tick, 5000);
+    void tick();
     return () => {
       cancelled = true;
-      clearInterval(h);
+      if (timer) clearTimeout(timer);
     };
   }, [setStatus, visible]);
 
@@ -1474,6 +1481,13 @@ function AndroidLocalNetworkBanner() {
       </div>
     </div>
   );
+}
+
+/** How long after the app opened an engine that has not answered yet is still "starting". */
+export const ENGINE_STARTUP_GRACE_MS = 20_000;
+const appOpenedAt = Date.now();
+export function engineStartupGrace(now = Date.now()): boolean {
+  return now - appOpenedAt < ENGINE_STARTUP_GRACE_MS;
 }
 
 export default function AppShell() {
