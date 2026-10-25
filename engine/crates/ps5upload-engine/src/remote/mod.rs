@@ -113,6 +113,90 @@ pub trait RemoteFs: Send + Sync {
             "this server cannot remove {path}"
         )))
     }
+
+    // ── Writing files: downloads from a console to a server (8.0.0) ──
+
+    /// Writes the local file `src` to `path`, creating or truncating it. `progress` hears the
+    /// bytes as they go; a set `cancel` stops the write (the partial file is left for the
+    /// caller to remove).
+    async fn put_file(
+        &self,
+        path: &str,
+        _src: &std::path::Path,
+        _progress: &PutProgress,
+    ) -> Result<(), RemoteError> {
+        Err(RemoteError::Unsupported(format!(
+            "this server cannot write {path}"
+        )))
+    }
+
+    /// Removes one file.
+    async fn remove_file(&self, path: &str) -> Result<(), RemoteError> {
+        Err(RemoteError::Unsupported(format!(
+            "this server cannot remove {path}"
+        )))
+    }
+}
+
+/// What a file write reports to, and listens to.
+pub struct PutProgress {
+    /// Bytes sent since the last call.
+    pub add: Box<dyn Fn(u64) + Send + Sync>,
+    pub cancel: Arc<std::sync::atomic::AtomicBool>,
+}
+
+impl PutProgress {
+    pub fn cancelled(&self) -> bool {
+        self.cancel.load(std::sync::atomic::Ordering::Relaxed)
+    }
+}
+
+/// The bytes a write sends at a time.
+pub(crate) const PUT_CHUNK: usize = 1 << 20;
+
+/// A local file read for a write, counting what goes and stopping when cancelled.
+pub(crate) struct CountingReader<'a> {
+    pub file: std::fs::File,
+    pub progress: &'a PutProgress,
+}
+
+impl std::io::Read for CountingReader<'_> {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        if self.progress.cancelled() {
+            return Err(std::io::Error::other("cancelled"));
+        }
+        let n = self.file.read(buf)?;
+        (self.progress.add)(n as u64);
+        Ok(n)
+    }
+}
+
+/// The same for the async writers.
+pub(crate) struct AsyncCountingReader<'a> {
+    pub file: tokio::fs::File,
+    pub progress: &'a PutProgress,
+}
+
+impl tokio::io::AsyncRead for AsyncCountingReader<'_> {
+    fn poll_read(
+        mut self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+        buf: &mut tokio::io::ReadBuf<'_>,
+    ) -> std::task::Poll<std::io::Result<()>> {
+        if self.progress.cancelled() {
+            return std::task::Poll::Ready(Err(std::io::Error::other("cancelled")));
+        }
+        let before = buf.filled().len();
+        let r = std::pin::Pin::new(&mut self.file).poll_read(cx, buf);
+        if let std::task::Poll::Ready(Ok(())) = &r {
+            (self.progress.add)((buf.filled().len() - before) as u64);
+        }
+        r
+    }
+}
+
+fn local_io(e: std::io::Error) -> RemoteError {
+    RemoteError::Io(format!("reading the local copy: {e}"))
 }
 
 #[cfg(test)]
@@ -543,6 +627,35 @@ impl RemoteFs for MemFs {
             }
             self.dirs.lock().unwrap().remove(&p);
             Ok(())
+        })
+    }
+
+    async fn put_file(
+        &self,
+        path: &str,
+        src: &std::path::Path,
+        progress: &PutProgress,
+    ) -> Result<(), RemoteError> {
+        let p = normal(path);
+        if progress.cancelled() {
+            return Err(RemoteError::Io("cancelled".into()));
+        }
+        let bytes = std::fs::read(src).map_err(local_io)?;
+        self.write(|| {
+            if !self.is_dir(&Self::parent_of(&p)) {
+                return Err(RemoteError::NotFound(format!("no folder for {p}")));
+            }
+            (progress.add)(bytes.len() as u64);
+            self.files.lock().unwrap().insert(p.clone(), bytes.clone());
+            Ok(())
+        })
+    }
+
+    async fn remove_file(&self, path: &str) -> Result<(), RemoteError> {
+        let p = normal(path);
+        self.write(|| match self.files.lock().unwrap().remove(&p) {
+            Some(_) => Ok(()),
+            None => Err(RemoteError::NotFound(format!("{p} not found"))),
         })
     }
 }

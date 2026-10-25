@@ -673,6 +673,8 @@ impl RemoteFs for FtpFs {
             {
                 Ok(st) if st.is_dir => Ok(()),
                 Ok(_) => Err(RemoteError::Exists(format!("{path} is a file"))),
+                // LIST hides dot-folders on many servers: one that lists is there.
+                Err(_) if self.entries(path).await.is_ok() => Ok(()),
                 Err(_) => Err(e),
             },
             Err(e) => Err(e),
@@ -700,6 +702,38 @@ impl RemoteFs for FtpFs {
             s.rename(src.as_str(), dst.as_str())
                 .await
                 .map_err(|e| map_err(host, e))
+        })
+        .await
+    }
+
+    /// STOR in binary mode on the shared session: no timeout of its own (a game file takes
+    /// minutes), the reader stops it when cancelled.
+    async fn put_file(
+        &self,
+        path: &str,
+        src: &std::path::Path,
+        progress: &super::PutProgress,
+    ) -> Result<(), RemoteError> {
+        let full = under(&self.home, path);
+        let file = tokio::fs::File::open(src).await.map_err(super::local_io)?;
+        let mut reader = super::AsyncCountingReader { file, progress };
+        let mut s = self.session.lock().await;
+        let host = self.host.as_str();
+        s.transfer_type(FileType::Binary)
+            .await
+            .map_err(|e| map_err(host, e))?;
+        s.put_file(full.as_str(), &mut reader)
+            .await
+            .map_err(|e| map_err(host, e))?;
+        Ok(())
+    }
+
+    async fn remove_file(&self, path: &str) -> Result<(), RemoteError> {
+        let full = under(&self.home, path);
+        let mut s = self.session.lock().await;
+        let host = self.host.as_str();
+        timed(host, "removing a file", async {
+            s.rm(full.as_str()).await.map_err(|e| map_err(host, e))
         })
         .await
     }

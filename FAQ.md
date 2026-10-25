@@ -2070,6 +2070,13 @@ screen.
 No. Every drive folder holds a `.ps5upload-mesh` file. A folder without it counts as offline, and
 nothing is copied to or deleted from it until it is back.
 
+**Q: Can I download from the PS5 straight to my NAS?**
+Yes (8.0.0). Save the NAS under **Servers** (SMB, FTP, FTPS, SFTP or WebDAV). Then, in **Files**,
+open a file or folder's menu and choose **Download to <your NAS>**, and pick the folder on it.
+The bytes pass through the engine on the way (the Docker container, if you use the web UI on the
+NAS), one file at a time, so it only needs room for the largest single file. If the NAS folder
+is also mounted into the container, plain **Download** into that folder works too.
+
 **Q: Docker: the console lists my container as a new device after every update.**
 Map `/data` to a folder or named volume (`-v /your/folder:/data`). Without that, every update
 starts the container with a new identity. The Devices screen warns when this is the case.

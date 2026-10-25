@@ -355,6 +355,43 @@ impl RemoteFs for SftpFs {
         }
     }
 
+    async fn put_file(
+        &self,
+        path: &str,
+        src: &std::path::Path,
+        progress: &super::PutProgress,
+    ) -> Result<(), RemoteError> {
+        use tokio::io::AsyncWriteExt;
+        let full = under(&self.home, path);
+        let host = self.host.as_str();
+        let mut out = self
+            .sftp
+            .create(full)
+            .await
+            .map_err(|e| sftp_err(host, e))?;
+        let file = tokio::fs::File::open(src).await.map_err(super::local_io)?;
+        let mut reader = super::AsyncCountingReader { file, progress };
+        tokio::io::copy(&mut reader, &mut out)
+            .await
+            .map_err(|e| RemoteError::Io(format!("{host}: writing {path}: {e}")))?;
+        out.shutdown()
+            .await
+            .map_err(|e| RemoteError::Io(format!("{host}: closing {path}: {e}")))?;
+        Ok(())
+    }
+
+    async fn remove_file(&self, path: &str) -> Result<(), RemoteError> {
+        let full = under(&self.home, path);
+        let host = self.host.as_str();
+        timed(host, "removing a file", async {
+            self.sftp
+                .remove_file(full.clone())
+                .await
+                .map_err(|e| sftp_err(host, e))
+        })
+        .await
+    }
+
     /// SSH_FXP_RENAME (v3), which refuses an existing target (OpenSSH links the new name, so
     /// the refusal is atomic there). The posix-rename extension, which replaces, is never
     /// used. The target is also looked up first, for servers that bend the v3 rule.

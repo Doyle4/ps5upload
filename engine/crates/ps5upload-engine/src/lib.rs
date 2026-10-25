@@ -52,6 +52,7 @@ mod console_shares_api;
 mod console_snapshot;
 mod convert_source;
 mod disk_usage;
+mod download_relay;
 mod elfldr_guard;
 mod engine_log;
 mod event_journal;
@@ -9597,6 +9598,8 @@ enum Ava1DownloadTarget {
     Folder(std::path::PathBuf),
     /// One `.zip` at this path, Stored (resumable) or Deflated (cannot resume).
     Zip(std::path::PathBuf, ps5upload_ava1::download::ZipCompression),
+    /// A folder on a saved server (`remote://id/dir`), through this engine (download_relay.rs).
+    Server(String),
 }
 
 /// Starts a console -> computer download over AVA1 and answers `ACCEPTED` with the job id.
@@ -9629,6 +9632,7 @@ fn start_ava1_download(
     let dest_display = match &target {
         Ava1DownloadTarget::Folder(dir) => dir.join(&basename).to_string_lossy().to_string(),
         Ava1DownloadTarget::Zip(zip, _) => zip.to_string_lossy().to_string(),
+        Ava1DownloadTarget::Server(dir) => format!("{}/{basename}", dir.trim_end_matches('/')),
     };
     crate::log_info!("transfer_download: job={job_id} protocol=ava1 src={src} dest={dest_display}");
     let progress = Arc::new(AtomicU64::new(0));
@@ -9719,6 +9723,18 @@ fn start_ava1_download(
                     id,
                     &counters,
                     Some(cancel),
+                ),
+                Ava1DownloadTarget::Server(dir) => download_relay::to_server(
+                    &addr,
+                    &src,
+                    kind,
+                    dir,
+                    unsafe_read,
+                    &counters,
+                    cancel,
+                    &crate::remote::store::data_dir()
+                        .unwrap_or_else(std::env::temp_dir)
+                        .join("relay"),
                 ),
             },
         );
@@ -9829,6 +9845,20 @@ async fn transfer_download_handler(
     }
     if req.dest_dir.trim().is_empty() {
         return json_err(StatusCode::BAD_REQUEST, "dest_dir cannot be empty").into_response();
+    }
+    // A folder on a saved server (a NAS share, FTP, SFTP, WebDAV): through this engine.
+    if download_relay::is_server_dest(&req.dest_dir) {
+        if let Err(e) = crate::remote::path::parse(&req.dest_dir) {
+            return json_err(StatusCode::BAD_REQUEST, format!("{e}")).into_response();
+        }
+        return start_ava1_download(
+            &state,
+            mgmt_addr,
+            req.src_path.clone(),
+            kind,
+            req_unsafe,
+            Ava1DownloadTarget::Server(req.dest_dir.clone()),
+        );
     }
 
     let dest_dir = std::path::PathBuf::from(&req.dest_dir);

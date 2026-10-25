@@ -45,6 +45,12 @@ this version once; every device then connects to it.
     to confirm.
   - A folder that goes missing (an unplugged drive) is treated as offline, never as "everything
     was deleted".
+- **Download straight to your NAS.** In Files, a file or folder's menu now offers **Download to
+  <server>** for each saved server (SMB share, FTP, FTPS, SFTP or WebDAV): pick a folder on it and
+  the download goes there instead of to this computer. Handy with the Docker web UI running on
+  the NAS. The engine passes each file through on its way, so it needs room for the largest
+  single file, not the whole download; a file already there is replaced, and an interrupted copy
+  never leaves a half file under the real name.
 - **Docker:** the web UI warns when `/data` is not kept by the host, since every update would then
   make the container a new device.
 

@@ -638,6 +638,84 @@ impl RemoteFs for WebdavFs {
         }
     }
 
+    /// PUT of the file's bytes, streamed. No redirect is followed (the body is read once).
+    async fn put_file(
+        &self,
+        path: &str,
+        src: &std::path::Path,
+        progress: &super::PutProgress,
+    ) -> Result<(), RemoteError> {
+        let agent = self.dav.clone();
+        let url = self.url(&normal(path));
+        let auth = self.auth.clone();
+        let host = self.host.clone();
+        let src = src.to_path_buf();
+        let path = path.to_string();
+        // The progress lives on the caller's stack; the blocking thread gets its own handles.
+        let add = Arc::new(std::sync::Mutex::new(0u64));
+        let sent = Arc::clone(&add);
+        let cancel = Arc::clone(&progress.cancel);
+        let job = tokio::task::spawn_blocking(move || {
+            let size = std::fs::metadata(&src).map_err(super::local_io)?.len();
+            let file = std::fs::File::open(&src).map_err(super::local_io)?;
+            let local = super::PutProgress {
+                add: Box::new(move |n| *sent.lock().unwrap_or_else(|e| e.into_inner()) += n),
+                cancel,
+            };
+            let mut reader = super::CountingReader {
+                file,
+                progress: &local,
+            };
+            let mut req = ureq::http::Request::builder()
+                .method("PUT")
+                .uri(&url)
+                .header("User-Agent", "ps5upload")
+                .header("Content-Length", size.to_string());
+            if let Some(a) = &auth {
+                req = req.header("Authorization", a);
+            }
+            let req = req
+                .body(ureq::SendBody::from_reader(&mut reader))
+                .map_err(|e| RemoteError::Io(format!("{host}: {e}")))?;
+            let resp = agent.run(req).map_err(|e| map_err(&host, e))?;
+            match resp.status().as_u16() {
+                200 | 201 | 204 => Ok(()),
+                s @ (401 | 403) => Err(RemoteError::Auth(auth_reason(s))),
+                409 => Err(RemoteError::NotFound(format!("no folder for {path}"))),
+                s => Err(RemoteError::Io(format!(
+                    "{host}: PUT {path} returned HTTP {s}"
+                ))),
+            }
+        });
+        // Pass the count on while the upload runs.
+        let mut job = job;
+        let mut reported = 0u64;
+        loop {
+            tokio::select! {
+                r = &mut job => {
+                    let total = *add.lock().unwrap_or_else(|e| e.into_inner());
+                    (progress.add)(total - reported);
+                    return r.map_err(|e| RemoteError::Io(format!("{e}")))?;
+                }
+                _ = tokio::time::sleep(std::time::Duration::from_millis(250)) => {
+                    let total = *add.lock().unwrap_or_else(|e| e.into_inner());
+                    (progress.add)(total - reported);
+                    reported = total;
+                }
+            }
+        }
+    }
+
+    async fn remove_file(&self, path: &str) -> Result<(), RemoteError> {
+        match self.send("DELETE", &normal(path), Vec::new()).await? {
+            200 | 202 | 204 | 404 => Ok(()),
+            s => Err(RemoteError::Io(format!(
+                "{}: DELETE {path} returned HTTP {s}",
+                self.host
+            ))),
+        }
+    }
+
     /// Never: DELETE on a collection removes it with everything in it, so even after a
     /// listing showed it empty, a file landing in the moment before the DELETE would go too.
     /// An emptied folder is left in place.

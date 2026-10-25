@@ -58,7 +58,11 @@ import {
   FolderInput,
   KeyRound,
   Send,
+  Network,
 } from "lucide-react";
+import type { Connection } from "../../api/remote";
+import { useConnectionsStore } from "../../state/connections";
+import { pickLocalPath } from "../../state/localPicker";
 import { pickPath, pickPaths } from "../../lib/pickPath";
 import { useWebviewDropAll } from "../../lib/useWebviewDrop";
 import { writeClipboard } from "../../lib/clipboard";
@@ -515,6 +519,13 @@ export default function FileSystemScreen() {
   // even if the user switches tabs mid-run.
   const fsBulk = fsBulkOpHandle(host);
   const fsDownload = fsDownloadOpHandle(host);
+  // Saved servers, offered as download destinations (8.0.0).
+  const savedServers = useConnectionsStore((st) => st.connections);
+  const loadServers = useConnectionsStore((st) => st.load);
+  const serversLoaded = useConnectionsStore((st) => st.loaded);
+  useEffect(() => {
+    if (!serversLoaded) void loadServers().catch(() => {});
+  }, [serversLoaded, loadServers]);
   // Custom confirm modal — replaces window.confirm() which is a
   // no-op in Tauri webview and falls through to plugin-dialog's
   // ACL-gated confirm command.
@@ -2500,7 +2511,7 @@ export default function FileSystemScreen() {
    *  flow as Library's per-row Download — pick a host folder, kick
    *  off `transfer_download`, poll jobStatus to terminal. Single-
    *  flight at the screen level: only one download at a time. */
-  const runDownload = async (entry: DirEntry, asZip = false) => {
+  const runDownload = async (entry: DirEntry, asZip = false, server?: Connection) => {
     // Single-flight per console: only one download at a time on THIS
     // console (others download concurrently into their own slots).
     if (fsDownload.active) return;
@@ -2529,14 +2540,25 @@ export default function FileSystemScreen() {
       start = () =>
         startTransferDownloadZip(remote, destZip, addr, kind, systemFileRead);
     } else {
-      const picked = await pickPath({
-        mode: "folder",
-        title: tr(
-          "fs_download_dialog_title",
-          { name: entry.name },
-          'Pick a destination folder for "{name}"',
-        ),
-      });
+      // A saved server (8.0.0): the engine pulls it off the console and writes it there.
+      const picked = server
+        ? await pickLocalPath({
+            mode: "folder",
+            source: { connectionId: server.id },
+            title: tr(
+              "fs_download_server_title",
+              { name: entry.name, server: server.name },
+              'Pick a folder on {server} for "{name}"',
+            ),
+          })
+        : await pickPath({
+            mode: "folder",
+            title: tr(
+              "fs_download_dialog_title",
+              { name: entry.name },
+              'Pick a destination folder for "{name}"',
+            ),
+          });
       if (typeof picked !== "string") return;
       dest = picked;
       rootName = entry.name;
@@ -2819,6 +2841,13 @@ export default function FileSystemScreen() {
               run: () => void runDownload(menuEntry),
               disabled: downloadOp.active,
             },
+            // 8.0.0: straight to a NAS share or another saved server.
+            ...savedServers.slice(0, 6).map((c) => ({
+              icon: Network,
+              label: tr("fs_menu_download_to_server", { server: c.name }, "Download to {server}…"),
+              run: () => void runDownload(menuEntry, false, c),
+              disabled: downloadOp.active,
+            })),
             {
               icon: FolderInput,
               label: tr("fs_move_to", undefined, "Move to…"),

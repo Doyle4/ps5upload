@@ -342,6 +342,52 @@ impl RemoteFs for SmbFs {
             .map_err(|e| map_err(&self.host, e))
     }
 
+    async fn put_file(
+        &self,
+        path: &str,
+        src: &std::path::Path,
+        progress: &super::PutProgress,
+    ) -> Result<(), RemoteError> {
+        use tokio::io::AsyncReadExt;
+        self.finish_closes().await?;
+        let mut writer = {
+            let s = self.session.lock().await;
+            let (client, tree) = &*s;
+            client
+                .create_file_writer(tree, &share_path(path))
+                .await
+                .map_err(|e| map_err(&self.host, e))?
+        };
+        let mut file = tokio::fs::File::open(src).await.map_err(super::local_io)?;
+        let mut buf = vec![0u8; super::PUT_CHUNK];
+        loop {
+            if progress.cancelled() {
+                return Err(RemoteError::Io("cancelled".into()));
+            }
+            let n = file.read(&mut buf).await.map_err(super::local_io)?;
+            if n == 0 {
+                break;
+            }
+            writer
+                .write_chunk(&buf[..n])
+                .await
+                .map_err(|e| map_err(&self.host, e))?;
+            (progress.add)(n as u64);
+        }
+        writer.finish().await.map_err(|e| map_err(&self.host, e))?;
+        Ok(())
+    }
+
+    async fn remove_file(&self, path: &str) -> Result<(), RemoteError> {
+        self.finish_closes().await?;
+        let mut s = self.session.lock().await;
+        let (client, tree) = &mut *s;
+        client
+            .delete_file(tree, &share_path(path))
+            .await
+            .map_err(|e| map_err(&self.host, e))
+    }
+
     async fn remove_dir(&self, path: &str) -> Result<(), RemoteError> {
         if share_path(path).is_empty() {
             return Err(RemoteError::BadPath(
