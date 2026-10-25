@@ -26,7 +26,8 @@ export interface SettingsVisibility {
 export function settingsVisibility(p: SettingsPlatform): SettingsVisibility {
   return {
     engineUrl: p.tauri && !p.mobile,
-    keepDeviceAwake: p.tauri,
+    // The browser build keeps the screen on (a page cannot hold the computer awake).
+    keepDeviceAwake: true,
     settingsFile: p.tauri,
     osNotifications: p.tauri,
     reconnectAfterRest: p.tauri,

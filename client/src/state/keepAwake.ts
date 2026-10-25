@@ -42,18 +42,12 @@ export const useKeepAwakeStore = create<KeepAwakeState>((set, get) => ({
   lastError: null,
 
   async setEnabled(on) {
-    // The browser build: keeping a computer awake is an OS power assertion on
-    // the machine running the app, which a web page can't make. Say so, don't
-    // surface the native command's error.
-    if (!isTauriEnv()) {
-      set({ supported: false, lastError: null });
-      return;
-    }
-    // Android: the Rust inhibitor is a no-op here (keep_awake.rs has no
-    // Android arm), so drive a screen wake lock instead — and report
-    // `supported` from the WebView API, not the backend. Kept entirely
-    // client-side so the manual toggle works the same as desktop.
-    if (isMobile()) {
+    // Android, iPhone and the browser build: the Rust inhibitor is a no-op on
+    // mobile (keep_awake.rs has no mobile arm) and a web page can't make an OS
+    // power assertion, so drive a screen wake lock instead — and report
+    // `supported` from the API, not the backend. Kept entirely client-side so
+    // the manual toggle works the same as desktop.
+    if (isMobile() || !isTauriEnv()) {
       setScreenWakeReason(MANUAL_REASON, on);
       safeSetItem(STORAGE_KEY, on ? "on" : "off");
       set({ enabled: on, supported: screenWakeSupported(), lastError: null });
@@ -80,14 +74,10 @@ export const useKeepAwakeStore = create<KeepAwakeState>((set, get) => ({
   },
 
   async syncFromBackend() {
-    if (!isTauriEnv()) {
-      set({ supported: false, lastError: null });
-      return;
-    }
-    // Android: no backend state to read. Re-apply the persisted manual
-    // preference (a screen wake lock doesn't survive an app restart) and
-    // report support from the WebView.
-    if (isMobile()) {
+    // Phones and the browser build: no backend state to read. Re-apply the
+    // persisted manual preference (a screen wake lock doesn't survive a
+    // restart or reload) and report support from the API.
+    if (isMobile() || !isTauriEnv()) {
       const want = get().enabled;
       setScreenWakeReason(MANUAL_REASON, want);
       set({ supported: screenWakeSupported(), lastError: null });

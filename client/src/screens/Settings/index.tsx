@@ -470,6 +470,8 @@ export default function SettingsScreen() {
   const mobile = isMobile();
   const tauri = isTauriEnv();
   const show = settingsVisibility({ tauri, mobile });
+  // Phones and the browser build keep the screen on; the desktop app keeps the computer awake.
+  const screenOnly = mobile || !tauri;
 
   const [cfgPath, setCfgPath] = useState<string | null>(null);
 
@@ -551,7 +553,7 @@ export default function SettingsScreen() {
         {show.keepDeviceAwake && (
         <Section
           title={
-            mobile
+            screenOnly
               ? tr("keep_awake_mobile", undefined, "Keep screen on")
               : tr("keep_awake", undefined, "Keep computer awake")
           }
@@ -564,7 +566,7 @@ export default function SettingsScreen() {
               label={
                 <span className="inline-flex items-center gap-2 font-medium">
                   <SleepIcon size={14} />
-                  {mobile
+                  {screenOnly
                     ? tr(
                         "keep_awake_on_mobile",
                         undefined,
@@ -578,7 +580,7 @@ export default function SettingsScreen() {
                 </span>
               }
               hint={
-                mobile
+                screenOnly
                   ? tr(
                       "keep_awake_hint_mobile",
                       undefined,
@@ -593,7 +595,7 @@ export default function SettingsScreen() {
             />
             {!supported && (
               <div className="mt-1 text-xs text-[var(--color-warn)]">
-                {mobile
+                {screenOnly
                   ? tr(
                       "keep_awake_unsupported_mobile",
                       undefined,

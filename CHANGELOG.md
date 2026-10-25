@@ -6,6 +6,11 @@ What's new in ps5upload, written for humans.
 
 ## 7.5.3
 
+- **The web UI keeps the screen on during transfers.** In a browser (Docker), the page now holds
+  the screen on while an upload, download or install runs, so a laptop or phone does not sleep
+  and stop the tab that drives the queue, and Settings offers **Keep screen on** there too. The
+  desktop apps already kept the computer awake, the phone apps the screen, and every platform
+  can keep the PS5 awake (Settings › Uploads).
 - **Docker: settings follow you between browsers.** In the self-hosted web UI, pinned and hidden
   tabs, upload, install, convert and link settings, the save path, beta features and a few facts
   about each console (helper stopped on purpose, Minion off) are now kept in the container, so

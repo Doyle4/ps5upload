@@ -1,4 +1,5 @@
 import { isMobile } from "./platform";
+import { isTauriEnv } from "./tauriEnv";
 
 // Android screen keep-awake, via the W3C Screen Wake Lock API.
 //
@@ -46,10 +47,17 @@ function wakeLockApi(): WakeLockLike | null {
   return wl ?? null;
 }
 
-/** True when this platform can hold a screen wake lock (Android + the
- *  WebView exposes the API). Drives the Settings toggle's `supported`. */
+/** Where the screen lock is the keep-awake: the phone apps (the native inhibitor has no mobile
+ *  arm) and the self-hosted web UI in any browser (a page cannot hold the computer awake, but it
+ *  can keep the screen on, which keeps the tab that drives the queue from being suspended). */
+function screenWakePlatform(): boolean {
+  return isMobile() || !isTauriEnv();
+}
+
+/** True when this platform can hold a screen wake lock (phone apps, or a browser with the API).
+ *  Drives the Settings toggle's `supported`. */
 export function screenWakeSupported(): boolean {
-  return isMobile() && wakeLockApi() !== null;
+  return screenWakePlatform() && wakeLockApi() !== null;
 }
 
 const reasons = new Set<string>();
@@ -109,7 +117,7 @@ function wireVisibility(): void {
  * Rust inhibitor, which is strictly better — it works while minimized).
  */
 export function setScreenWakeReason(reason: string, active: boolean): void {
-  if (!isMobile()) return;
+  if (!screenWakePlatform()) return;
   wireVisibility();
   const had = reasons.size > 0;
   if (active) reasons.add(reason);

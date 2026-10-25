@@ -44,10 +44,10 @@ describe("settingsVisibility", () => {
     expect(v.appUpdates).toBe(true);
   });
 
-  it("hides what the browser build cannot do", () => {
+  it("hides what the browser build cannot do, and keeps the screen-on switch", () => {
     expect(settingsVisibility({ tauri: false, mobile: false })).toEqual({
       engineUrl: false,
-      keepDeviceAwake: false,
+      keepDeviceAwake: true,
       settingsFile: false,
       osNotifications: false,
       reconnectAfterRest: false,
@@ -88,6 +88,8 @@ describe("Settings screen per platform", () => {
       expect(html).not.toContain(gone);
     }
     expect(html).toContain("pull the new Docker image");
+    // The page can keep the screen on, which keeps the tab driving the queue awake.
+    expect(html).toContain("Keep screen on");
     expect(html).toContain("this browser keeps");
   });
 
