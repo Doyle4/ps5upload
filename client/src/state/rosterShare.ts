@@ -135,6 +135,10 @@ export class RosterShare {
   constructor(
     private readonly api: ShareApi,
     private readonly store = useRosterStore,
+    /** "replace": on first contact the shared list wins (the Docker engine's list is the one list).
+     *  "union": the two lists are merged, nothing dropped (a console's copy only holds what the
+     *  devices that met it knew; 8.0.0 mesh). */
+    private readonly firstContact: "replace" | "union" = "replace",
   ) {}
 
   private local(): SharedProfile[] {
@@ -169,6 +173,12 @@ export class RosterShare {
       }
       this.rev = doc.rev;
       this.base = profilesOf(doc);
+      if (this.firstContact === "union") {
+        const merged = mergeShared([], this.local(), this.base);
+        this.apply(merged);
+        if (!same(merged, this.base)) await this.save();
+        return;
+      }
       this.apply(this.base);
     });
   }

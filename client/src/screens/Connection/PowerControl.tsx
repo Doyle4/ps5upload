@@ -26,6 +26,8 @@ import { withConsolePrefix } from "../../state/roster";
 import { audit } from "../../state/auditLog";
 import { powerStateFromDdp, wakeUi, type PowerState } from "../../lib/wakeState";
 import WakeSetup from "./WakeSetup";
+import { busyText } from "../../lib/helperGuard";
+import { meshFor, othersBusy, useMeshStore } from "../../state/mesh";
 
 /**
  * Compact power-control panel — one row of buttons (reboot, standby,
@@ -103,9 +105,18 @@ export default function PowerControl({ host }: { host: string }) {
     fn: (addr: string) => Promise<PowerControlAck>,
   ) {
     if (!host?.trim()) return;
+    // Other devices working on this console lose that work too (8.0.0): say who.
+    const busy = othersBusy(meshFor(useMeshStore.getState(), host).state);
+    const busyNote = busy.length
+      ? `\n\n${tr(
+          "mesh_power_busy",
+          { work: busyText(busy) },
+          `Other devices are using this console: ${busyText(busy)}. Their work stops too.`,
+        )}`
+      : "";
     const ok = await confirmDialog({
       title: tr("power_confirm_title", { kind }, `Confirm ${kind}`),
-      message: confirmText,
+      message: confirmText + busyNote,
       destructive: true,
       confirmLabel:
         kind === "reboot"

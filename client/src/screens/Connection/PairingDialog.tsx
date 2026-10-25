@@ -160,6 +160,33 @@ export function PairingPanel({
     );
   }
 
+  if (view?.state === "blocked") {
+    return (
+      <>
+        <div className="flex flex-col gap-2 p-4 text-sm">
+          <p className="font-medium">
+            {tr("pairing_blocked_title", undefined, "This device is blocked on this PS5")}
+          </p>
+          <p className="text-[var(--color-muted)]">
+            {tr(
+              "pairing_blocked_body",
+              undefined,
+              "Someone blocked it from the console's device list. On a device that can still connect, open Devices and press Unblock next to this one.",
+            )}
+          </p>
+        </div>
+        <div className="flex items-center justify-end gap-2 border-t border-[var(--color-border)] px-4 py-3">
+          <Button variant="ghost" onClick={onCancel}>
+            {tr("close", undefined, "Close")}
+          </Button>
+          <Button variant="primary" loading={busy} onClick={onRetry}>
+            {tr("pairing_retry", undefined, "Try again")}
+          </Button>
+        </div>
+      </>
+    );
+  }
+
   if (view?.state === "closed") {
     return (
       <>
@@ -173,9 +200,9 @@ export function PairingPanel({
           </p>
           <p className="text-[var(--color-muted)]">
             {tr(
-              "pairing_closed_body_v2",
+              "pairing_closed_body_v3",
               undefined,
-              "On a device that is already paired (your desktop app, say), open Connection and press Let another device pair, then try again here. Or press Resend helper, which pairs this app by itself. If neither works, restart the helper on the console.",
+              "This PS5 asks before a new device connects. On a device that is already connected (your desktop app, say), open Connection and press Let another device pair, then try again here. Or press Resend helper, which lets this app in by itself. The owner can turn the question off in Devices.",
             )}
           </p>
         </div>

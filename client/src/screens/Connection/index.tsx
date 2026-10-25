@@ -42,6 +42,7 @@ import { selectConsoleByAddress } from "../../state/roster";
 import { useTr } from "../../state/lang";
 import PowerControl from "./PowerControl";
 import { BringUpPanel } from "./BringUpPanel";
+import { useHelperReplaceGuard } from "./useHelperReplaceGuard";
 import { formatBytes } from "../../lib/format";
 
 /** "rest": the console answered that it is in rest mode — not a failure, so it reads calm. */
@@ -264,6 +265,7 @@ let pendingAutoCheck: string | null = null;
 
 export default function ConnectionScreen() {
   const tr = useTr();
+  const { guard: guardReplace, dialog: replaceDialog } = useHelperReplaceGuard();
   const host = useConnectionStore((s) => s.host);
   const payloadStatus = useConnectionStore((s) => s.payloadStatus);
   const payloadStatusHost = useConnectionStore((s) => s.payloadStatusHost);
@@ -590,6 +592,8 @@ export default function ConnectionScreen() {
     const target = host.trim();
     if (step1 !== "ok") return;
     if (step2 === "busy") return;
+    // Another device may be busy there, or run a newer helper (8.0.0): ask first.
+    if (!(await guardReplace(target))) return;
     setTransientStep2(null);
     setTransientStep2Msg(null);
     // Version and kernel are stale from the moment Send is pressed: the run turns the
@@ -600,6 +604,7 @@ export default function ConnectionScreen() {
 
   return (
     <div className="app-page">
+      {replaceDialog}
       <PageHeader
         icon={Cable}
         title={tr("connection_title", undefined, "Connect to your PS5")}

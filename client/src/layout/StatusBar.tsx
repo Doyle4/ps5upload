@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Camera, Check, AlertTriangle, Images, Zap } from "lucide-react";
+import { Camera, Check, AlertTriangle, Images, MonitorSmartphone, Zap } from "lucide-react";
+import { useNavigate } from "react-router";
 
 import { useConnectionStore, EMPTY_HOST_RUNTIME } from "../state/connection";
 import { parsePS5Firmware } from "../lib/ps5Firmware";
@@ -24,6 +25,7 @@ import {
   type ConsoleLight,
 } from "../lib/consolePower";
 import { consoleLightLabel } from "../lib/consoleLightLabel";
+import { deviceName, meshFor, othersOnline, useMeshStore } from "../state/mesh";
 
 /**
  * App-footer status strip: engine + payload liveness, plus the versions
@@ -177,12 +179,45 @@ export default function StatusBar() {
       {/* Right cluster — live activity + power/capture controls. */}
       <div className="ms-auto flex items-center gap-3">
         <ActivityStatusSlot />
+        <OtherDevicesChip />
         <KeepAwakeIndicator />
         {/* Saving a capture is native; the web build's Bug Report attaches files instead. */}
         {isTauriEnv() && <CaptureButton />}
         {isTauriEnv() && <ViewCapturesButton />}
       </div>
     </div>
+  );
+}
+
+/** The other devices using the selected console right now (8.0.0): a count, their names and
+ *  what they are doing in the tooltip; a click opens Devices. Nothing when there are none or the
+ *  helper predates the device list. */
+function OtherDevicesChip() {
+  const tr = useTr();
+  const navigate = useNavigate();
+  const host = useConnectionStore((s) => s.host);
+  const state = useMeshStore((s) => meshFor(s, host).state);
+  const others = othersOnline(state);
+  if (!others.length) return null;
+  const lines = others.map((d) => {
+    const work = d.activity
+      .filter((a) => a.kind !== "browsers")
+      .map((a) => `${a.kind}${a.title ? ` ${a.title}` : ""}${typeof a.pct === "number" ? ` ${a.pct}%` : ""}`);
+    return work.length ? `${deviceName(d)}: ${work.join(", ")}` : deviceName(d);
+  });
+  const busy = others.some((d) => d.activity.some((a) => a.kind !== "browsers"));
+  const label = tr("mesh_chip", { count: others.length }, `${others.length} other device(s)`);
+  return (
+    <button
+      type="button"
+      onClick={() => navigate("/devices")}
+      title={[label, ...lines].join("\n")}
+      aria-label={label}
+      className={`flex items-center gap-1 rounded-full px-1.5 py-0.5 hover:bg-[var(--color-surface)] ${busy ? "text-[var(--color-accent-bright)]" : ""}`}
+    >
+      <MonitorSmartphone size={12} aria-hidden />
+      <span>{others.length}</span>
+    </button>
   );
 }
 

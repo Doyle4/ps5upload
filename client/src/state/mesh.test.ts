@@ -1,0 +1,103 @@
+import { describe, expect, it } from "vitest";
+
+import { toMeshState, type MeshState } from "../api/mesh";
+import { busyText, replaceCheck } from "../lib/helperGuard";
+import { deviceName, othersBusy, othersOnline, presenceItems } from "./mesh";
+import { mergeShared, type SharedProfile } from "./rosterShare";
+import type { Task } from "./tasks";
+
+const dev = (id: string, extra: Record<string, unknown> = {}) => ({
+  id,
+  name: `dev ${id}`,
+  nick: "",
+  kind: "desktop",
+  os: "macOS",
+  app: "8.0.0",
+  first: 1,
+  last: 2,
+  ip: "1.2.3.4",
+  online: true,
+  blocked: false,
+  activity: [],
+  ...extra,
+});
+
+function state(devices: Record<string, unknown>[]): MeshState {
+  const a = toMeshState({ supported: true, rev: 5, now: 10, you: "me", helper: "8.0.0", devices, locks: [], events: [], ev: 0 });
+  if (!a.supported || a.same) throw new Error("expected a full state");
+  return a as MeshState;
+}
+
+describe("toMeshState", () => {
+  it("reads an older helper as unsupported and a quiet poll as same", () => {
+    expect(toMeshState({ supported: false })).toEqual({ supported: false });
+    expect(toMeshState({ supported: true, same: true, rev: 9 })).toEqual({ supported: true, same: true, rev: 9 });
+  });
+  it("drops malformed devices and activity", () => {
+    const s = state([dev("a", { activity: [{ kind: "Upload", title: "X", pct: 4 }, { nope: 1 }, 7] }), { name: "no id" }]);
+    expect(s.devices).toHaveLength(1);
+    expect(s.devices[0].activity).toEqual([{ kind: "Upload", title: "X", pct: 4, stage: undefined, count: undefined }]);
+  });
+});
+
+describe("who is busy", () => {
+  it("leaves this device, offline devices and browser counts out", () => {
+    const s = state([
+      dev("me", { activity: [{ kind: "Upload", title: "Mine" }] }),
+      dev("b", { activity: [{ kind: "Install", title: "Astro Bot", pct: 42 }] }),
+      dev("c", { online: false, activity: [{ kind: "Upload", title: "Old" }] }),
+      dev("d", { activity: [{ kind: "browsers", count: 2 }] }),
+    ]);
+    expect(othersOnline(s).map((d) => d.id)).toEqual(["b", "d"]);
+    const busy = othersBusy(s);
+    expect(busy.map((b) => b.device.id)).toEqual(["b"]);
+    expect(busyText(busy)).toBe("dev b: Install Astro Bot 42%");
+  });
+
+  it("names an app from before 8.0.0 plainly, and prefers the nickname", () => {
+    expect(deviceName({ nick: "", name: "ps5upload", app: "" })).toBe("PS5Upload (older version)");
+    expect(deviceName({ nick: "Office PC", name: "DESKTOP-1", app: "8.0.0" })).toBe("Office PC");
+  });
+});
+
+describe("replaceCheck", () => {
+  it("flags a downgrade only when the running helper is newer", () => {
+    expect(replaceCheck(null, "8.1.0", "8.0.0").downgrade).toEqual({ running: "8.1.0", ours: "8.0.0" });
+    expect(replaceCheck(null, "7.5.3", "8.0.0").downgrade).toBeNull();
+    expect(replaceCheck(null, null, "8.0.0").downgrade).toBeNull();
+  });
+});
+
+describe("presenceItems", () => {
+  it("publishes this console's running work with a percentage", () => {
+    const t = (over: Partial<Task>): Task =>
+      ({
+        id: "t",
+        kind: "upload-file",
+        origin: "x",
+        createdAt: "",
+        status: "running",
+        attempts: 0,
+        maxAttempts: 1,
+        consoleId: "192.168.86.99",
+        payload: {},
+        label: "Astro Bot",
+        updatedAtMs: 0,
+        progress: { current: 25, total: 100, unit: "bytes" },
+        ...over,
+      }) as Task;
+    const items = presenceItems(
+      [t({}), t({ id: "2", status: "done" }), t({ id: "3", consoleId: "10.0.0.1" }), t({ id: "4", status: "queued" })],
+      "192.168.86.99:9120",
+    );
+    expect(items).toEqual([{ kind: "Upload", title: "Astro Bot", pct: 25 }]);
+  });
+});
+
+describe("console list merge on first contact", () => {
+  const p = (id: string, name = id): SharedProfile => ({ id, name, host: `${id}.lan` }) as SharedProfile;
+  it("keeps the consoles each side knew (nothing dropped)", () => {
+    const merged = mergeShared([], [p("phat"), p("pro")], [p("phat", "Phat (renamed)"), p("tv")]);
+    expect(merged.map((x) => x.id).sort()).toEqual(["phat", "pro", "tv"]);
+  });
+});

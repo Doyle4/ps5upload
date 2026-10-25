@@ -74,6 +74,31 @@ const SHARED = new Set(SHARED_KEYS);
 /** The sidebar keys: applied to an open page as they arrive (the rest at the next load). */
 export const LIVE_KEYS: ReadonlySet<string> = new Set(SHARED_KEYS.slice(0, 3));
 
+/**
+ * The settings every device that uses a console shares through it (8.0.0, the console's "prefs"
+ * document). The Docker list minus what belongs to one device: its bandwidth (each device has its
+ * own network), where it saves and converts to (a path on that device), and its log level.
+ */
+export const MESH_KEYS: readonly string[] = SHARED_KEYS.filter(
+  (k) =>
+    k !== "ps5upload.bandwidth_cap_mbps" &&
+    k !== "ps5upload.convert.output_dir" &&
+    k !== "ps5upload.save_path" &&
+    k !== "ps5upload.log_level",
+);
+
+/** Which keys a sync covers and where it keeps its own bookkeeping. */
+export interface Channel {
+  keys: ReadonlySet<string>;
+  metaKey: string;
+}
+
+/** The Docker engine's shared settings (`/api/shared/prefs`). */
+export const ENGINE_CHANNEL: Channel = { keys: new Set(SHARED_KEYS), metaKey: "ps5upload.shared_prefs.meta.v1" };
+/** A console's shared settings (the mesh "prefs" document). One bookkeeping for every console:
+ *  when a key changed here is the same fact whichever console hears it. */
+export const MESH_CHANNEL: Channel = { keys: new Set(MESH_KEYS), metaKey: "ps5upload.mesh_prefs.meta.v1" };
+
 /** One key's shared value: the raw localStorage string (null: removed) and when it changed. */
 export interface Entry {
   v: string | null;
@@ -88,22 +113,21 @@ export interface Doc {
 
 /** This browser's sync state: the last revision it agreed on, and when each key last changed
  *  here or was taken from the engine. Device-only, never shared. */
-const META_KEY = "ps5upload.shared_prefs.meta.v1";
 interface Meta {
   rev: number;
   at: Record<string, number>;
 }
 
-function loadMeta(): Meta {
+function loadMeta(ch: Channel = ENGINE_CHANNEL): Meta {
   try {
-    const m = JSON.parse(safeGetItem(META_KEY) ?? "null") as Partial<Meta> | null;
+    const m = JSON.parse(safeGetItem(ch.metaKey) ?? "null") as Partial<Meta> | null;
     if (m && typeof m.rev === "number" && m.at && typeof m.at === "object") return { rev: m.rev, at: { ...m.at } };
   } catch {
     // A bad meta starts over: the engine's values win, this browser's unshared ones are offered.
   }
   return { rev: 0, at: {} };
 }
-const saveMeta = (m: Meta) => safeSetItem(META_KEY, JSON.stringify(m));
+const saveMeta = (m: Meta, ch: Channel = ENGINE_CHANNEL) => safeSetItem(ch.metaKey, JSON.stringify(m));
 
 /** The engine's answer, checked: anything else is an error, so a misread answer can never
  *  overwrite this browser's settings. Entries that are not well formed are dropped. */
@@ -137,9 +161,13 @@ export function mergeEntries(a: Entries, b: Entries): Entries {
 }
 
 /** What this browser has for the shared keys, with when each changed (0: before sharing). */
-export function localEntries(read: (k: string) => string | null, at: Record<string, number>): Entries {
+export function localEntries(
+  read: (k: string) => string | null,
+  at: Record<string, number>,
+  keys: Iterable<string> = SHARED_KEYS,
+): Entries {
   const out: Entries = {};
-  for (const k of SHARED_KEYS) {
+  for (const k of keys) {
     const v = read(k);
     const when = at[k] ?? 0;
     if (v === null && when === 0) continue; // never set here: nothing to offer
@@ -157,6 +185,7 @@ export function plan(
   local: Entries,
   remote: Entries,
   now: number,
+  shared: ReadonlySet<string> = SHARED,
 ): { apply: Entries; send: Entries | null } {
   const apply: Entries = {};
   let sendNeeded = false;
@@ -172,7 +201,7 @@ export function plan(
     }
   }
   for (const [k, r] of Object.entries(remote)) {
-    if (!SHARED.has(k)) continue;
+    if (!shared.has(k)) continue;
     const e = local[k];
     if (!e || r.at > e.at) apply[k] = r;
   }
@@ -234,29 +263,29 @@ function writeLocal(entries: Entries, meta: Meta): string[] {
 
 /** One sync round: take what is newer on the engine, send what is newer here. Retries a few times
  *  when another browser saves in between. Returns the keys written here. */
-export async function syncOnce(api: PrefsApi, signal?: AbortSignal): Promise<string[]> {
-  const meta = loadMeta();
+export async function syncOnce(api: PrefsApi, signal?: AbortSignal, ch: Channel = ENGINE_CHANNEL): Promise<string[]> {
+  const meta = loadMeta(ch);
   let doc = await api.get(signal);
   const written: string[] = [];
   for (let attempt = 0; attempt < 4; attempt++) {
     const remote = doc.value?.keys ?? {};
-    const { apply, send } = plan(localEntries(safeGetItem, meta.at), remote, Date.now());
+    const { apply, send } = plan(localEntries(safeGetItem, meta.at, ch.keys), remote, Date.now(), ch.keys);
     written.push(...writeLocal(apply, meta));
     meta.rev = doc.rev;
     if (!send) {
-      saveMeta(meta);
+      saveMeta(meta, ch);
       return written;
     }
     const r = await api.put(doc.rev, send);
     if ("rev" in r) {
-      for (const [k, e] of Object.entries(send)) if (SHARED.has(k)) meta.at[k] = e.at;
+      for (const [k, e] of Object.entries(send)) if (ch.keys.has(k)) meta.at[k] = e.at;
       meta.rev = r.rev;
-      saveMeta(meta);
+      saveMeta(meta, ch);
       return written;
     }
     doc = r.conflict;
   }
-  saveMeta(meta);
+  saveMeta(meta, ch);
   return written;
 }
 
@@ -287,13 +316,17 @@ const PUSH_DEBOUNCE_MS = 500;
  * browsers' changes. `onLive` gets the sidebar keys that changed so the open page can show them.
  * Returns a stop.
  */
-export function startSharedPrefs(onLive: (keys: string[]) => void, api: PrefsApi = enginePrefsApi): () => void {
+export function startSharedPrefs(
+  onLive: (keys: string[]) => void,
+  api: PrefsApi = enginePrefsApi,
+  ch: Channel = ENGINE_CHANNEL,
+): () => void {
   let timer: number | undefined;
   let running: Promise<void> = Promise.resolve();
   const warn = (e: unknown) => console.warn("[shared-prefs]", e instanceof Error ? e.message : String(e));
   const run = () => {
     running = running
-      .then(() => syncOnce(api))
+      .then(() => syncOnce(api, undefined, ch))
       .then((written) => {
         const live = written.filter((k) => LIVE_KEYS.has(k));
         if (live.length) onLive(live);
@@ -301,10 +334,10 @@ export function startSharedPrefs(onLive: (keys: string[]) => void, api: PrefsApi
       .catch(warn);
   };
   const stopWrites = onStorageWrite((key) => {
-    if (applying || !SHARED.has(key)) return;
-    const meta = loadMeta();
+    if (applying || !ch.keys.has(key)) return;
+    const meta = loadMeta(ch);
     meta.at[key] = Date.now();
-    saveMeta(meta);
+    saveMeta(meta, ch);
     window.clearTimeout(timer);
     timer = window.setTimeout(run, PUSH_DEBOUNCE_MS);
   });

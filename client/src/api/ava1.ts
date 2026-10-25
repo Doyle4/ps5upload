@@ -16,6 +16,7 @@ export type PairingView =
   | { state: "none" }
   | { state: "accepted" }
   | { state: "closed" }
+  | { state: "blocked" }
   | { state: "wrong_console" }
   | { state: "code"; consoleName: string }
   | { state: "wrong_code"; consoleName: string };
@@ -33,6 +34,7 @@ function toView(w: PairingWire): PairingView {
   if (
     w.state === "accepted" ||
     w.state === "closed" ||
+    w.state === "blocked" ||
     w.state === "wrong_console"
   ) {
     return { state: w.state };

@@ -163,6 +163,8 @@ pub enum Pairing {
     WrongConsole,
     /// The console is not accepting new pairings (its window is closed).
     Closed,
+    /// The console's owner blocked this device (8.0.0 device list).
+    Blocked,
 }
 
 /// Sessions that ended under us this many times within `Churn::window` mean something else
@@ -735,8 +737,14 @@ impl Pool {
                     return Ok(Pairing::Code { peer_name });
                 }
                 Ok((s, _)) => s.close().await, // already trusted: the cached path below
-                Err(Ava1Error::Refused { code, .. }) if code == ava1::gen::ERR_PAIRING_CLOSED => {
-                    return Ok(Pairing::Closed)
+                Err(Ava1Error::Refused { code, message })
+                    if code == ava1::gen::ERR_PAIRING_CLOSED =>
+                {
+                    return Ok(if message.contains("blocked") {
+                        Pairing::Blocked
+                    } else {
+                        Pairing::Closed
+                    });
                 }
                 Err(Ava1Error::WrongPeer) => return Ok(Pairing::WrongConsole),
                 Err(e) => return Err(e),

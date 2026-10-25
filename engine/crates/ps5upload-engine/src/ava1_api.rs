@@ -161,6 +161,7 @@ fn pairing_body(
     match r {
         Ok(Pairing::Paired) => (StatusCode::OK, serde_json::json!({ "state": "accepted" })),
         Ok(Pairing::Closed) => (StatusCode::OK, serde_json::json!({ "state": "closed" })),
+        Ok(Pairing::Blocked) => (StatusCode::OK, serde_json::json!({ "state": "blocked" })),
         Ok(Pairing::WrongConsole) => (
             StatusCode::OK,
             serde_json::json!({ "state": "wrong_console" }),

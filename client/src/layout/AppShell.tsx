@@ -103,6 +103,10 @@ import { isDragOutCopy } from "../lib/dragOut";
 import { keepMinionOff } from "../state/minionMemory";
 import { startRosterShare } from "../state/rosterShare";
 import { startSharedPrefs } from "../lib/sharedPrefs";
+import { startMeshShare } from "../lib/meshShare";
+import { useToastStore } from "../state/toasts";
+import { useMeshSync } from "./useMeshSync";
+import { compareVersions } from "../lib/semver";
 import { useNavSidebarStore, navListsFromStorage } from "../state/navSidebar";
 import { UpdateCheckButton } from "./UpdateCheckButton";
 import { useTransferStore } from "../state/transfer";
@@ -1231,6 +1235,9 @@ function HelperVersionBanner() {
     payloadVersion !== appVersion;
   const pair = `${payloadVersion}->${appVersion}`;
   if (!mismatch || dismissed === pair) return null;
+  // The helper is the newer one (another device sent it, 8.0.0): sending ours would take that
+  // away from every device. The fix is updating this app.
+  const appOlder = compareVersions(payloadVersion, appVersion) === 1;
 
   return (
     <div className="mx-3 mt-3 rounded-[var(--radius-card)] border border-[color-mix(in_srgb,var(--color-warn)_35%,transparent)] bg-[var(--color-warn-soft)] px-4 py-2.5 backdrop-blur-xl md:mx-5 text-[var(--color-text)]">
@@ -1249,11 +1256,17 @@ function HelperVersionBanner() {
               )}
             </p>
             <p className="text-xs text-[var(--color-muted)]">
-              {tr(
-                "helper_mismatch_body_v2",
-                undefined,
-                "Nothing to do on the PS5 itself: press Reload helper and this app sends the matching helper to the console. Fixes and features from the newer version won't work until then.",
-              )}
+              {appOlder
+                ? tr(
+                    "helper_mismatch_app_older",
+                    undefined,
+                    "Another device sent a newer helper. Update this app to match it; sending this app's helper would replace it with an older one for every device.",
+                  )
+                : tr(
+                    "helper_mismatch_body_v2",
+                    undefined,
+                    "Nothing to do on the PS5 itself: press Reload helper and this app sends the matching helper to the console. Fixes and features from the newer version won't work until then.",
+                  )}
             </p>
           </div>
         </div>
@@ -1261,9 +1274,18 @@ function HelperVersionBanner() {
           <Button
             size="sm"
             variant="primary"
-            onClick={() => navigate("/connection")}
+            onClick={() => {
+              if (appOlder) {
+                void useUpdateStore.getState().checkNow();
+                navigate("/settings");
+              } else {
+                navigate("/connection");
+              }
+            }}
           >
-            {tr("helper_mismatch_go", undefined, "Reload helper")}
+            {appOlder
+              ? tr("helper_mismatch_update_app", undefined, "Update this app")
+              : tr("helper_mismatch_go", undefined, "Reload helper")}
           </Button>
           <Button
             size="sm"
@@ -1455,8 +1477,14 @@ function AndroidLocalNetworkBanner() {
 }
 
 export default function AppShell() {
+  const shellTr = useTr();
+  const trRef = useRef(shellTr);
+  useEffect(() => {
+    trRef.current = shellTr;
+  });
   useStatusPolling();
   useConsoleHandoff();
+  useMeshSync();
   useAutoRedeployDownHelpers();
   useMovedConsoleWatch();
   useUpdateCheckOnMount();
@@ -1490,6 +1518,21 @@ export default function AppShell() {
     const stopSharedPrefs = isTauriEnv()
       ? () => {}
       : startSharedPrefs(() => useNavSidebarStore.setState(navListsFromStorage()));
+    // 8.0.0: every device that uses a console shares the console list and set-up through it.
+    const stopMeshShare = startMeshShare(
+      () => useNavSidebarStore.setState(navListsFromStorage()),
+      (count) =>
+        useToastStore.getState().push({
+          tone: "info",
+          duration: 12_000,
+          message: trRef.current(
+            "mesh_settings_arrived",
+            { count },
+            `${count} setting(s) came from your other devices. They apply when the app reloads.`,
+          ),
+          action: { label: trRef.current("mesh_reload", undefined, "Reload"), onClick: () => window.location.reload() },
+        }),
+    );
     // Automatic save backups are run by the engine; it backs up the consoles in this list.
     const stopSaveBackupSync = startSaveBackupSync();
     // Subscribe-once: cross-store accumulator that credits running
@@ -1511,6 +1554,7 @@ export default function AppShell() {
       window.clearInterval(pruneTimer);
       stopRosterShare();
       stopSharedPrefs();
+      stopMeshShare();
       stopSaveBackupSync();
     };
   }, []);
