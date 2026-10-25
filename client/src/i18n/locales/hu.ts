@@ -374,6 +374,11 @@ update_notif_body:
 update_autocheck_label: "Frissítések automatikus ellenőrzése",
 update_autocheck_hint:
   "Indításkor (naponta legfeljebb egyszer) keres új kiadást, és értesít, ha elérhető.",
+update_install_restart: "Telepítés és újraindítás",
+update_install_restart_hint: "A PS5Upload bezárul, telepíti az új verziót, majd újra megnyílik. Előbb várd meg, hogy a futó átvitelek befejeződjenek.",
+update_autoinstall_label: "Frissítések automatikus telepítése",
+update_autoinstall_hint: "Letölti az új kiadást, megvárja, amíg nincs folyamatban átvitel, majd telepíti és újraindítja a PS5Uploadot. A Windows-telepítővel és -zippel, macOS-en és a Linux AppImage-dzsel működik; .deb vagy .rpm telepítésnél továbbra is egy parancsot kell futtatni.",
+update_autoinstall_now: "A v{ver} telepítése: a PS5Upload mindjárt újraindul",
 update_channel_prerelease_label: "Pre-release verziók kérése",
 update_channel_prerelease_hint: "Az új kiadásokat azonnal felajánlja, ahogy megjelennek, mielőtt valódi hardveren ellenőrizték volna. Hagyd kikapcsolva, hogy csak ellenőrzött kiadásokat kapj.",
 update_step_quit: "Zárd be a PS5Uploadot.",

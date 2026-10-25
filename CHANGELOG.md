@@ -6,6 +6,12 @@ What's new in ps5upload, written for humans.
 
 ## 7.5.3
 
+- **Install and restart.** After an update downloads on Windows, macOS or a Linux AppImage, one
+  button installs it and opens the new version: the app closes, the update goes in (the Windows
+  installer runs silently), and PS5Upload starts again. If anything goes wrong, the old version
+  starts instead. A `.deb` / `.rpm` install still shows the one command to run; phones are
+  unchanged. New in Settings › Updates, off by default: **Install updates automatically**, which
+  waits until nothing is transferring before it restarts the app (#513).
 - **A NAS that renames files no longer breaks games.** A Samba share (most Linux NAS boxes)
   shows a file whose name Windows cannot hold, with a `:` or `?` in it or a trailing dot, under
   a made-up short name like `C69YSY~1.TXT`. Uploading or converting a game folder from such a

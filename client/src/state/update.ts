@@ -4,6 +4,7 @@ import { openExternalUrl } from "../lib/openExternalUrl";
 import {
   updateCheck,
   updateDownload,
+  updateInstall,
   type UpdateCheck,
   type UpdateDownload,
 } from "../api/ps5";
@@ -41,6 +42,29 @@ const AUTOCHECK_KEY = "ps5upload.update.autocheck";
 // and must survive a restart, hence localStorage rather than the session cache.
 const CHANNEL_KEY = "ps5upload.update.channel";
 const NOTIFIED_KEY = "ps5upload.update.notified-version";
+// Install updates without asking (desktop copies that can, commands/self_install.rs). Off unless
+// the user turns it on: it quits and restarts the app.
+const AUTOINSTALL_KEY = "ps5upload.update.autoinstall";
+/** How often an automatic install waiting for the app to be idle looks again. */
+const IDLE_RECHECK_MS = 60_000;
+
+function loadAutoInstall(): boolean {
+  if (typeof localStorage === "undefined") return false;
+  return safeGetItem(AUTOINSTALL_KEY) === "1";
+}
+
+/** Nothing would be cut short by a restart: no queue running and no one-off transfer. Read
+ *  lazily so this store does not pull the transfer stores in at start. */
+async function appIdle(): Promise<boolean> {
+  const [{ useUploadQueueStore }, { useTransferStore }] = await Promise.all([
+    import("./uploadQueue"),
+    import("./transfer"),
+  ]);
+  if (useUploadQueueStore.getState().running) return false;
+  return !Object.values(useTransferStore.getState().phasesByHost).some(
+    (p) => p.kind === "starting" || p.kind === "running",
+  );
+}
 
 /** Read the auto-check preference. Defaults to ON when unset (first run) —
  *  the feature is opt-out, not opt-in. */
@@ -174,6 +198,15 @@ interface UpdateStore {
    *  clickable again after a failure or after the user dismissed the
    *  "downloaded" panel. */
   dismissDownload: () => void;
+  /** Install the downloaded update and restart into it. Only when the download says this copy
+   *  can (`download.can_install`); otherwise the user installs it by hand. */
+  install: () => Promise<void>;
+  /** An install has started: the app is about to quit. */
+  installing: boolean;
+  /** Install new releases by themselves (download, wait until nothing transfers, install,
+   *  restart). Off by default; desktop copies that can install only. */
+  autoInstallEnabled: boolean;
+  setAutoInstallEnabled: (enabled: boolean) => void;
 }
 
 function loadCache(): CachedCheck | null {
@@ -236,6 +269,7 @@ export const useUpdateStore = create<UpdateStore>((set, get) => {
       // new version — the toast bar is dismissible/session-scoped, this is
       // the durable "you have an update" record.
       notifyAvailableOnce(result);
+      if (result.available && get().autoInstallEnabled && !isMobile()) void autoInstall();
     } catch (e) {
       set({
         phase: {
@@ -247,9 +281,67 @@ export const useUpdateStore = create<UpdateStore>((set, get) => {
     }
   };
 
+  let autoInstallRunning = false;
+  /** Download, wait for the app to be idle, install. One at a time; gives up quietly (the
+   *  update stays offered as usual) when this copy cannot install by itself. */
+  const autoInstall = async () => {
+    if (autoInstallRunning) return;
+    autoInstallRunning = true;
+    try {
+      if (get().phase.kind === "available") await get().download();
+      const phase = get().phase;
+      if (phase.kind !== "downloaded" || !phase.download.can_install) return;
+      while (get().autoInstallEnabled && !(await appIdle())) {
+        await new Promise((r) => setTimeout(r, IDLE_RECHECK_MS));
+      }
+      if (!get().autoInstallEnabled) return;
+      pushNotification(
+        "info",
+        trFb(
+          "update_autoinstall_now",
+          { ver: phase.result.latest_version },
+          `Installing v${phase.result.latest_version}: PS5Upload restarts in a moment`,
+        ),
+      );
+      await get().install();
+    } finally {
+      autoInstallRunning = false;
+    }
+  };
+
   return {
     phase: initialPhase,
     lastCheckedMs: initialLastChecked,
+    installing: false,
+    autoInstallEnabled: loadAutoInstall(),
+
+    setAutoInstallEnabled(enabled: boolean) {
+      if (typeof localStorage !== "undefined") safeSetItem(AUTOINSTALL_KEY, enabled ? "1" : "0");
+      set({ autoInstallEnabled: enabled });
+      const phase = get().phase;
+      if (enabled && !isMobile() && (phase.kind === "available" || phase.kind === "downloaded")) {
+        void autoInstall();
+      }
+    },
+
+    async install() {
+      const phase = get().phase;
+      if (phase.kind !== "downloaded" || !phase.download.can_install || get().installing) return;
+      set({ installing: true });
+      try {
+        await updateInstall(phase.download.path);
+        // The app quits from here; nothing else to do.
+      } catch (e) {
+        set({
+          installing: false,
+          phase: {
+            kind: "download-failed",
+            result: phase.result,
+            message: e instanceof Error ? e.message : String(e),
+          },
+        });
+      }
+    },
     autoCheckEnabled: loadAutoCheck(),
     channel: loadChannel(),
 

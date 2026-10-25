@@ -82,6 +82,7 @@ const NATIVE_ONLY: Record<string, string> = {
   keep_awake_release: "native: OS power assertion",
   update_check: "native: desktop self-update",
   update_download: "native: desktop self-update",
+  update_install: "native: desktop self-update",
   changelog_load: "native: reads a bundled resource",
   faq_load: "native: reads a bundled resource",
 

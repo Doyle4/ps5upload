@@ -581,6 +581,7 @@ pub fn run() {
             // commands/updates.rs for the full flow.
             commands::update_check,
             commands::update_download,
+            commands::update_install,
             // ── Title metadata fetch (cover art + display title) ────
             // Server-side fetch (Rust/reqwest) of the public PS5
             // title-info site, bypassing renderer CSP/CORS. Hostname

@@ -40,6 +40,7 @@ pub mod save_dest;
 pub mod save_text_file;
 pub mod saves_screenshots;
 pub mod screenshot_convert;
+pub mod self_install;
 pub mod smp;
 pub mod system_power;
 pub mod title_meta;
@@ -97,6 +98,7 @@ pub use screenshot_convert::*;
 pub use smp::*;
 pub use system_power::*;
 pub use title_meta::*;
+pub use self_install::*;
 pub use updates::*;
 pub use usb_autoloader::*;
 

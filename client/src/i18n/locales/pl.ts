@@ -359,6 +359,11 @@ update_notif_body:
 update_autocheck_label: "Sprawdzaj aktualizacje automatycznie",
 update_autocheck_hint:
   "Sprawdza nowe wydania przy uruchomieniu (co najwyżej raz dziennie) i informuje cię, jeśli jest dostępne.",
+update_install_restart: "Zainstaluj i uruchom ponownie",
+update_install_restart_hint: "PS5Upload zamknie się, zainstaluje nową wersję i uruchomi się ponownie. Najpierw poczekaj, aż trwające przesyłania się zakończą.",
+update_autoinstall_label: "Instaluj aktualizacje automatycznie",
+update_autoinstall_hint: "Pobiera nową wersję, czeka, aż nic nie będzie przesyłane, a potem ją instaluje i uruchamia PS5Upload ponownie. Działa z instalatorem i zipem dla Windows, macOS i AppImage dla Linuksa; instalacja z .deb lub .rpm nadal wymaga uruchomienia jednego polecenia.",
+update_autoinstall_now: "Instalowanie v{ver}: PS5Upload za chwilę uruchomi się ponownie",
 update_step_quit: "Wyjdź z PS5Upload.",
 update_step_run_command: "Uruchom to w terminalu:",
 update_step_launch: "Uruchom nową wersję.",

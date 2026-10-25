@@ -1774,6 +1774,10 @@ function UpdatesPanel() {
   const checkNow = useUpdateStore((s) => s.checkNow);
   const download = useUpdateStore((s) => s.download);
   const dismissDownload = useUpdateStore((s) => s.dismissDownload);
+  const install = useUpdateStore((s) => s.install);
+  const installing = useUpdateStore((s) => s.installing);
+  const autoInstallEnabled = useUpdateStore((s) => s.autoInstallEnabled);
+  const setAutoInstallEnabled = useUpdateStore((s) => s.setAutoInstallEnabled);
   const autoCheckEnabled = useUpdateStore((s) => s.autoCheckEnabled);
   const setAutoCheckEnabled = useUpdateStore((s) => s.setAutoCheckEnabled);
   const channel = useUpdateStore((s) => s.channel);
@@ -1842,6 +1846,26 @@ function UpdatesPanel() {
           <div className="mb-2 font-mono text-[var(--color-text)]">
             {phase.download.path}
           </div>
+          {phase.download.can_install ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                disabled={installing}
+                onClick={() => void install()}
+                className="inline-flex items-center gap-1.5 rounded-[var(--radius-card)] bg-[var(--color-accent)] px-3 py-1.5 text-xs font-medium text-[var(--color-accent-contrast)] disabled:opacity-60 max-md:min-h-11"
+              >
+                {installing ? <Spinner size={12} tone="inherit" /> : <RefreshCw size={12} />}
+                {tr("update_install_restart", undefined, "Install and restart")}
+              </button>
+              <span className="text-[var(--color-muted)]">
+                {tr(
+                  "update_install_restart_hint",
+                  undefined,
+                  "PS5Upload closes, installs the new version and opens again. Wait for running transfers to finish first.",
+                )}
+              </span>
+            </div>
+          ) : (
           <ol className="list-inside list-decimal space-y-0.5 text-[var(--color-muted)]">
             <li>{tr("update_step_quit", undefined, "Quit PS5Upload.")}</li>
             {phase.download.install_command ? (
@@ -1867,6 +1891,7 @@ function UpdatesPanel() {
               {tr("update_step_launch", undefined, "Launch the new version.")}
             </li>
           </ol>
+          )}
           <button
             type="button"
             onClick={dismissDownload}
@@ -1875,6 +1900,25 @@ function UpdatesPanel() {
             {tr("update_dismiss", undefined, "Dismiss")}
           </button>
         </div>
+      )}
+      {/* Install by itself: desktop copies that can (the switch does nothing elsewhere, so it is
+          not shown on a phone). It waits for transfers to finish before restarting. */}
+      {!mobile && isTauriEnv() && (
+        <Toggle
+          checked={autoInstallEnabled}
+          onChange={(checked) => setAutoInstallEnabled(checked)}
+          label={
+            <span className="font-medium text-[var(--color-text)]">
+              {tr("update_autoinstall_label", undefined, "Install updates automatically")}
+            </span>
+          }
+          hint={tr(
+            "update_autoinstall_hint",
+            undefined,
+            "Downloads a new release, waits until nothing is transferring, then installs it and restarts PS5Upload. Works for the Windows installer and zip, macOS, and the Linux AppImage; a .deb or .rpm install still asks you to run one command.",
+          )}
+          className="text-xs"
+        />
       )}
       {/* Auto-check preference (default on). When off, the launch check is
           skipped entirely — the user drives updates from the button below. */}

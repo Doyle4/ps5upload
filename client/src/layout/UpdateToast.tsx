@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router";
-import { Download, X, Sparkles } from "lucide-react";
+import { Download, RefreshCw, X, Sparkles } from "lucide-react";
 
 import { useUpdateStore } from "../state/update";
 import { useTr } from "../state/lang";
@@ -21,6 +21,8 @@ export function UpdateToast() {
   const navigate = useNavigate();
   const phase = useUpdateStore((s) => s.phase);
   const download = useUpdateStore((s) => s.download);
+  const install = useUpdateStore((s) => s.install);
+  const installing = useUpdateStore((s) => s.installing);
   // Dismiss is keyed by version so a NEWER release later in the session
   // re-surfaces the bar instead of staying hidden.
   const [dismissedVersion, setDismissedVersion] = useState<string | null>(null);
@@ -40,6 +42,7 @@ export function UpdateToast() {
   const downloading = phase.kind === "downloading";
   const downloaded = phase.kind === "downloaded";
   const failed = phase.kind === "download-failed";
+  const canInstall = phase.kind === "downloaded" && !!phase.download.can_install;
 
   return (
     <div className="mx-3 mt-2 flex items-center gap-3 rounded-full border border-[color-mix(in_srgb,var(--color-accent)_35%,transparent)] bg-[var(--color-accent-soft)] px-4 py-2 text-sm md:mx-6">
@@ -53,7 +56,7 @@ export function UpdateToast() {
               : tr("update_toast_title", undefined, "Update available")}
         </span>
         <span className="text-[var(--color-muted)]"> — v{version}</span>
-        {downloaded && (
+        {downloaded && !canInstall && (
           <span className="text-[var(--color-muted)]">
             {" · "}
             {tr(
@@ -90,6 +93,17 @@ export function UpdateToast() {
             : failed
               ? tr("update_toast_retry", undefined, "Retry")
               : tr("update_toast_download", undefined, "Download")}
+        </button>
+      )}
+      {canInstall && (
+        <button
+          type="button"
+          disabled={installing}
+          onClick={() => void install()}
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-[var(--color-accent)] px-2.5 py-1 text-xs font-medium text-[var(--color-accent)] disabled:opacity-60"
+        >
+          {installing ? <Spinner size={14} /> : <RefreshCw size={13} />}
+          {tr("update_install_restart", undefined, "Install and restart")}
         </button>
       )}
       <button

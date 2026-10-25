@@ -401,6 +401,11 @@ update_notif_body:
 update_autocheck_label: "Check for updates automatically",
 update_autocheck_hint:
   "Looks for a new release on launch (at most once a day) and notifies you if one is available.",
+update_install_restart: "Install and restart",
+update_install_restart_hint: "PS5Upload closes, installs the new version and opens again. Wait for running transfers to finish first.",
+update_autoinstall_label: "Install updates automatically",
+update_autoinstall_hint: "Downloads a new release, waits until nothing is transferring, then installs it and restarts PS5Upload. Works for the Windows installer and zip, macOS, and the Linux AppImage; a .deb or .rpm install still asks you to run one command.",
+update_autoinstall_now: "Installing v{ver}: PS5Upload restarts in a moment",
 update_channel_prerelease_label: "Get pre-release versions",
 update_channel_prerelease_hint: "Offers new releases as soon as they are published, before they have been checked on real hardware. Leave this off to be offered only releases that have been verified.",
 update_step_quit: "Quit PS5Upload.",

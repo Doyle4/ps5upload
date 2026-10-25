@@ -544,6 +544,11 @@ pub async fn update_check(app: AppHandle, channel: Option<String>) -> Result<Upd
 /// standard one first; if it's missing (CI / sandboxed accounts) we
 /// fall back to the Tauri app's own config dir so we always have
 /// somewhere writeable to land the file.
+/// Where `update_download` saves updates (`update_install` installs only from here).
+pub(crate) fn downloads_dir(app: &AppHandle) -> Result<PathBuf, String> {
+    resolve_downloads_dir(app)
+}
+
 fn resolve_downloads_dir(app: &AppHandle) -> Result<PathBuf, String> {
     if let Ok(p) = app.path().download_dir() {
         if p.exists() || std::fs::create_dir_all(&p).is_ok() {
@@ -570,6 +575,8 @@ pub struct UpdateDownload {
     /// a terminal (#456: on Bazzite, `rpm-ostree uninstall ps5-upload --install <rpm>`).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub install_command: Option<String>,
+    /// `update_install` can install this download and restart into it (commands/self_install).
+    pub can_install: bool,
 }
 
 /// `path` quoted for a POSIX shell.
@@ -740,6 +747,7 @@ pub async fn update_download(
             let path = target.to_string_lossy().into_owned();
             return Ok(UpdateDownload {
                 install_command: install_command(&path),
+                can_install: super::self_install::can_install(&path),
                 path,
                 bytes: meta.len(),
             });
@@ -805,6 +813,7 @@ pub async fn update_download(
     let path = target.to_string_lossy().into_owned();
     Ok(UpdateDownload {
         install_command: install_command(&path),
+        can_install: super::self_install::can_install(&path),
         path,
         bytes: total,
     })

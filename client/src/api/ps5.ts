@@ -4791,6 +4791,8 @@ export interface UpdateDownload {
   bytes: number;
   /** A packaged Linux install: the command that installs the download (#456). */
   install_command?: string;
+  /** This copy can install the download and restart into it (`updateInstall`). */
+  can_install?: boolean;
 }
 
 /** Ask GitHub for the latest-release manifest and compare to our
@@ -4812,6 +4814,13 @@ export async function updateDownload(
   filename: string,
 ): Promise<UpdateDownload> {
   return invoke<UpdateDownload>("update_download", { url, filename });
+}
+
+/** Install a downloaded update and restart into it (desktop: Windows, macOS, a Linux
+ *  AppImage). The app quits once the install has started and comes back as the new version;
+ *  a rejection means nothing changed. */
+export async function updateInstall(path: string): Promise<void> {
+  return invoke<void>("update_install", { path });
 }
 
 /** Whether the console's loader on :9021 answers (`healthy`), took the connection and never
