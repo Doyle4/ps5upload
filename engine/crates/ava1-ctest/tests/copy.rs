@@ -641,13 +641,18 @@ async fn a_move_reports_a_source_file_it_could_not_delete() {
         start(&s, job, &src, &d.join("data/g"), gen::JF_MOVE).await,
         0
     );
-    for _ in 0..200 {
+    // Up to 20 s for the copy phase to end: a loaded CI runner took longer than the 2 s this
+    // allowed (7.5.2's CI). The delete phase then holds for copy_delete_delay_ms.
+    for _ in 0..2000 {
         if srv.copy_delete_active() {
             break;
         }
         tokio::time::sleep(Duration::from_millis(10)).await;
     }
-    assert!(srv.copy_delete_active());
+    assert!(
+        srv.copy_delete_active(),
+        "the move never reached its delete phase"
+    );
     let extra = src.join("added-after-copy.bin");
     std::fs::write(&extra, b"must stay at source").unwrap();
     let st = wait_finished(&s, job).await;
