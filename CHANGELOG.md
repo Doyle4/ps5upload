@@ -6,6 +6,10 @@ What's new in ps5upload, written for humans.
 
 ## 7.5.3
 
+- **Clean up points at the biggest wins.** Clean up now also counts the installed games and apps
+  never seen running and opens Installed Apps on exactly that list, where each can be
+  uninstalled. Home shows a **Clean up** card when one of the PS5's drives is nearly full (under
+  10% or 20 GB free).
 - **Extracting on the PS5, made easier.** A `.zip`, `.7z` or `.rar` on the console now has an
   **Extract** button right on its row in Files (it was only in the menu before). The dialog can
   **delete the archive afterwards** (only when every file came out), warns when the drive has

@@ -759,7 +759,8 @@ export default function InstalledAppsScreen() {
   const [backportTitle, setBackportTitle] = useState<InstalledTitle | null>(null);
   // A game handed over for backporting (the Collection's "Backport…"): its panel opens once
   // the list has it.
-  const handedBackport = (useLocation().state as { backportTitleId?: string } | null)
+  const location = useLocation();
+  const handedBackport = (location.state as { backportTitleId?: string } | null)
     ?.backportTitleId;
   const backportOpened = useRef<string | null>(null);
   useEffect(() => {
@@ -824,7 +825,10 @@ export default function InstalledAppsScreen() {
   // "find games to remove" surface. Off by default so the default view is
   // unchanged (name order, everything shown).
   const [sortByPlaytime, setSortByPlaytime] = useState(false);
-  const [onlyUnplayed, setOnlyUnplayed] = useState(false);
+  // Clean up's "Not played" card links here with `unplayed=1` to open on that list.
+  const [onlyUnplayed, setOnlyUnplayed] = useState(
+    () => new URLSearchParams(location.search).get("unplayed") === "1",
+  );
   /** Title ids whose home-screen icon is hidden (#407), read from the console; null when it
    *  could not say (an older helper), which hides the feature rather than guessing. */
   const [hiddenIds, setHiddenIds] = useState<Set<string> | null>(null);

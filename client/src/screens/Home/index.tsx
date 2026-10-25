@@ -32,6 +32,7 @@ import { openExternalUrl } from "../../lib/openExternalUrl";
 import { COFFEE_URL } from "../../lib/supportLinks";
 import { ServersCard } from "./ServersCard";
 import { HealthCard } from "./HealthCard";
+import { LowSpaceCard } from "./LowSpaceCard";
 import { RecentGames } from "./RecentGames";
 import { greetingPart } from "./greeting";
 import {
@@ -234,6 +235,7 @@ export default function HomeScreen() {
             {/* What needs attention, before what just happened: a blocked port or a full drive
               is the reason the next action would fail. Only once the helper answers; without it
               the console panel already says what is wrong. */}
+            {host && connected ? <LowSpaceCard host={host} /> : null}
             {host && connected ? <HealthCard host={host} /> : null}
 
             <section>

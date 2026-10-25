@@ -56,6 +56,7 @@ import { parseSpacePlanQuery } from "../../lib/spacePlan";
 import { useConnectionStore } from "../../state/connection";
 import { useTr } from "../../state/lang";
 import { SpacePlanner } from "./SpacePlanner";
+import { NotPlayedCard } from "./NotPlayedCard";
 
 
 const SCAN_POLL_MS = 700;
@@ -443,6 +444,7 @@ export default function CleanupScreen() {
       <ConnectionGate require="payload">
         <div className="min-w-0 space-y-3">
           {error ? <Callout tone="error" title={tr("cw_cleanup_failed", undefined, "Clean up stopped")}>{error}</Callout> : null}
+          {payloadStatus === "up" && !planning ? <NotPlayedCard host={host} /> : null}
 
           {planning && host ? (
             <SpacePlanner
