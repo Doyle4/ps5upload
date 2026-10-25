@@ -64,6 +64,7 @@ import { transferScreenBusy } from "../lib/ps5Transfers";
 import { useInstallSettingsStore } from "./installSettings";
 import { useConnectionStore } from "./connection";
 import { log } from "./logs";
+import { guardSet } from "../lib/renderLoopGuard";
 import { pushNotification } from "./notifications";
 import { sleep as wakeableSleep } from "../lib/wakeableSleep";
 import { labelEngineJob } from "../lib/bgWork";
@@ -2236,7 +2237,10 @@ const pkgAddsInFlight = new Set<string>();
  * `host` (it matches this instance's console) and uses it for addresses.
  */
 const makePkgLibraryStore = () =>
-  createStore<PkgLibraryState>((set, get) => {
+  createStore<PkgLibraryState>((rawSet, get) => {
+  // An install's progress writes land here too: a render loop elsewhere must not fail them
+  // (lib/renderLoopGuard). The queue logs the loop's stack; this one only says it happened.
+  const set = guardSet(rawSet, () => log.warn("pkglib", "render loop during a library update (kept going)"));
   // The console whose refresh was held for a running install (see refreshDeferred).
   let deferredHost: string | null = null;
   const endInstall = () => {

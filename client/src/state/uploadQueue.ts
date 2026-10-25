@@ -61,6 +61,7 @@ import { useUploadSettingsStore } from "./uploadSettings";
 import { useRecentHostMetricsStore } from "./recentHostMetrics";
 import { pushNotification } from "./notifications";
 import { sleep } from "../lib/wakeableSleep";
+import { guardSet } from "../lib/renderLoopGuard";
 import { wakeForUpload } from "../lib/wakeForUpload";
 import { labelEngineJob } from "../lib/bgWork";
 import { withConsolePrefix } from "./roster";
@@ -737,7 +738,19 @@ export function clearNotice(
   return null;
 }
 
-export const useUploadQueueStore = create<QueueState>((set, get) => {
+export const useUploadQueueStore = create<QueueState>((rawSet, get) => {
+  // A render loop elsewhere in the UI must not fail a transfer (lib/renderLoopGuard). The stack
+  // is logged once per run of loops, which is what a bug report needs to find the component.
+  let loopLogged = 0;
+  const set = guardSet(rawSet, (e) => {
+    const now = Date.now();
+    if (now - loopLogged < 60_000) return;
+    loopLogged = now;
+    log.error(
+      "queue",
+      `render loop during a queue update (kept going): ${e instanceof Error ? (e.stack ?? e.message) : String(e)}`,
+    );
+  });
   // PER-CONSOLE generation counters. Each console drains in its own loop;
   // every startHost() bumps a monotonic counter and stamps it as that
   // host's live generation. A loop captures its generation and bails

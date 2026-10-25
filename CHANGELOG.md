@@ -4,6 +4,14 @@ What's new in ps5upload, written for humans.
 
 ---
 
+## 7.5.3
+
+- **A display error no longer fails an install.** On Android a stream install could end in
+  "Didn't finish … (React #185)" while the transfer itself was fine: a screen stuck in a redraw
+  loop made the queue's next progress write throw, and the queue took that for a failed
+  transfer. The write has already happened when that error comes, so it is now logged (with the
+  details a bug report needs to find the screen) and the install carries on.
+
 ## 7.5.2
 
 - **Uploads wake a sleeping PS5.** When an upload is waiting for a PS5 in rest mode, the app now
