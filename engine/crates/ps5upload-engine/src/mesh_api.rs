@@ -143,6 +143,11 @@ fn name() -> String {
     saved_name().unwrap_or_else(default_name)
 }
 
+/// This device's name, as the consoles list it.
+pub(crate) fn device_name() -> String {
+    name()
+}
+
 fn hello_info() -> Hello {
     Hello {
         name: name(),
@@ -152,7 +157,7 @@ fn hello_info() -> Hello {
     }
 }
 
-fn id_hex() -> Option<String> {
+pub(crate) fn id_hex() -> Option<String> {
     let id = crate::ava1_api::identity()?;
     Some(id.public().iter().map(|b| format!("{b:02x}")).collect())
 }
@@ -244,14 +249,14 @@ fn with_supported(v: Option<Value>) -> Value {
 
 /// Hello if due, then `f`; a helper that has not met us (it restarted) gets a hello and the call
 /// once more. `Ok(None)`: the helper predates the mesh.
-fn call(
+pub(crate) fn call(
     addr: &str,
     f: impl Fn() -> anyhow::Result<Option<Value>>,
 ) -> anyhow::Result<Option<Value>> {
     let due = lock_consoles()
         .get(addr)
         .and_then(|c| c.hello_at)
-        .map_or(true, |t| t.elapsed() >= HELLO_EVERY);
+        .is_none_or(|t| t.elapsed() >= HELLO_EVERY);
     if due && !hello(addr)? {
         return Ok(None);
     }
@@ -341,10 +346,6 @@ fn answer_result(r: anyhow::Result<Value>) -> Response {
     }
 }
 
-fn addr_or_400(addr: Option<String>) -> Result<String, Response> {
-    crate::required_console_addr(addr).ok_or_else(crate::missing_console_addr)
-}
-
 #[derive(Deserialize)]
 pub struct StateQuery {
     addr: Option<String>,
@@ -354,9 +355,8 @@ pub struct StateQuery {
 }
 
 pub async fn state(Query(q): Query<StateQuery>) -> Response {
-    let addr = match addr_or_400(q.addr) {
-        Ok(a) => a,
-        Err(r) => return r,
+    let Some(addr) = crate::required_console_addr(q.addr) else {
+        return crate::missing_console_addr();
     };
     answer(move || {
         seen(&addr, q.client.as_deref());
@@ -379,9 +379,8 @@ pub struct ActivityReq {
 }
 
 pub async fn activity(Json(req): Json<ActivityReq>) -> Response {
-    let addr = match addr_or_400(req.addr) {
-        Ok(a) => a,
-        Err(r) => return r,
+    let Some(addr) = crate::required_console_addr(req.addr) else {
+        return crate::missing_console_addr();
     };
     answer(move || {
         if req.client.is_empty() || req.client.len() > 64 {
@@ -414,9 +413,8 @@ pub struct LockReq {
 }
 
 pub async fn lock(Json(req): Json<LockReq>) -> Response {
-    let addr = match addr_or_400(req.addr) {
-        Ok(a) => a,
-        Err(r) => return r,
+    let Some(addr) = crate::required_console_addr(req.addr) else {
+        return crate::missing_console_addr();
     };
     answer(move || {
         let r = call(&addr, || {
@@ -443,9 +441,8 @@ pub struct DeviceReq {
 }
 
 pub async fn device(Json(req): Json<DeviceReq>) -> Response {
-    let addr = match addr_or_400(req.addr) {
-        Ok(a) => a,
-        Err(r) => return r,
+    let Some(addr) = crate::required_console_addr(req.addr) else {
+        return crate::missing_console_addr();
     };
     answer(move || {
         let r = call(&addr, || {
@@ -464,9 +461,8 @@ pub struct SettingsReq {
 }
 
 pub async fn settings(Json(req): Json<SettingsReq>) -> Response {
-    let addr = match addr_or_400(req.addr) {
-        Ok(a) => a,
-        Err(r) => return r,
+    let Some(addr) = crate::required_console_addr(req.addr) else {
+        return crate::missing_console_addr();
     };
     answer(move || {
         let r = call(&addr, || {
@@ -484,9 +480,8 @@ pub struct DocQuery {
 }
 
 pub async fn doc_get(Query(q): Query<DocQuery>) -> Response {
-    let addr = match addr_or_400(q.addr) {
-        Ok(a) => a,
-        Err(r) => return r,
+    let Some(addr) = crate::required_console_addr(q.addr) else {
+        return crate::missing_console_addr();
     };
     answer(move || {
         Ok(with_supported(call(&addr, || {
@@ -505,9 +500,8 @@ pub struct DocPut {
 }
 
 pub async fn doc_put(Json(req): Json<DocPut>) -> Response {
-    let addr = match addr_or_400(req.addr) {
-        Ok(a) => a,
-        Err(r) => return r,
+    let Some(addr) = crate::required_console_addr(req.addr) else {
+        return crate::missing_console_addr();
     };
     if !req.doc.is_object() {
         return json_err(StatusCode::BAD_REQUEST, "doc must be an object").into_response();
@@ -530,9 +524,8 @@ pub struct AnnounceReq {
 }
 
 pub async fn announce(Json(req): Json<AnnounceReq>) -> Response {
-    let addr = match addr_or_400(req.addr) {
-        Ok(a) => a,
-        Err(r) => return r,
+    let Some(addr) = crate::required_console_addr(req.addr) else {
+        return crate::missing_console_addr();
     };
     answer(move || {
         let r = call(&addr, || mesh::announce(&addr, &req.kind, &req.text))?;

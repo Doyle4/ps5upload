@@ -35,6 +35,7 @@ import HomeScreen from "./screens/Home";
 // before the first paint of Home.
 const ConnectionScreen = lazyWithReload(() => import("./screens/Connection"));
 const DevicesScreen = lazyWithReload(() => import("./screens/Devices"));
+const MeshDriveScreen = lazyWithReload(() => import("./screens/MeshDrive"));
 const SettingsScreen = lazyWithReload(() => import("./screens/Settings"));
 
 const MoreScreen = lazyWithReload(() => import("./screens/More"));
@@ -197,6 +198,14 @@ function AppRoutes({ location }: { location: Location }) {
           element={
             <Suspense fallback={<ScreenLoader />}>
               <DevicesScreen />
+            </Suspense>
+          }
+        />
+        <Route
+          path="/mesh-drive"
+          element={
+            <Suspense fallback={<ScreenLoader />}>
+              <MeshDriveScreen />
             </Suspense>
           }
         />

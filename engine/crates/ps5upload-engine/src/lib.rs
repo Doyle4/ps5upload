@@ -72,6 +72,8 @@ mod link;
 mod local_fs;
 mod log_dedup;
 mod mesh_api;
+mod mesh_drive;
+mod mesh_drive_plan;
 mod mgmt_route;
 mod migrate_6;
 mod net_doctor;
@@ -11003,6 +11005,16 @@ async fn run(cfg: EngineConfig) -> anyhow::Result<()> {
             get(mesh_api::doc_get).post(mesh_api::doc_put),
         )
         .route("/api/mesh/announce", post(mesh_api::announce))
+        // 8.0.0 Mesh Drive (mesh_drive.rs).
+        .route("/api/drive", get(mesh_drive::list))
+        .route("/api/drive/create", post(mesh_drive::create))
+        .route("/api/drive/join", post(mesh_drive::join))
+        .route("/api/drive/approve", post(mesh_drive::approve))
+        .route("/api/drive/leave", post(mesh_drive::leave))
+        .route("/api/drive/delete", post(mesh_drive::delete))
+        .route("/api/drive/pause", post(mesh_drive::pause))
+        .route("/api/drive/sync", post(mesh_drive::sync_now))
+        .route("/api/drive/confirm", post(mesh_drive::confirm))
         .route(
             "/api/ps5/files/prefs",
             get(console_files_api::prefs_get_handler),
@@ -11415,6 +11427,8 @@ async fn run(cfg: EngineConfig) -> anyhow::Result<()> {
         &bind,
         &std::env::var("PS5UPLOAD_BASE_URL").unwrap_or_default(),
     );
+    // Mesh Drive folders are kept in sync here too, app open or not.
+    mesh_drive::spawn();
     // Graceful shutdown: when the parent-watcher fires (stdin EOF), the
     // SHUTDOWN Notify wakes this future, axum stops
     // accepting new connections, drains in-flight ones, then returns.
