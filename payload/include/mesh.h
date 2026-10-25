@@ -48,6 +48,9 @@ typedef struct {
     uint64_t (*now_ms)(void);
 } mesh_hooks_t;
 
+/* Wall-clock milliseconds since 1970: the clock the device list's dates use. */
+uint64_t mesh_wall_ms(void);
+
 /* Loads the device list and settings from dir (created when missing). 0, or -1 when dir cannot be
  * made (the module then keeps everything in memory). Calling it again replaces the state (tests). */
 int mesh_start(const char *dir, const mesh_hooks_t *hooks, const char *helper_version);

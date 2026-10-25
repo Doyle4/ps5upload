@@ -10,6 +10,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <time.h>
 #include <unistd.h>
 
 #include "webui_codec.h"
@@ -70,6 +71,12 @@ static struct {
 /* ---- small helpers ---- */
 
 static uint64_t now_ms(void) { return M.h.now_ms ? M.h.now_ms() : 0; }
+
+uint64_t mesh_wall_ms(void) {
+    struct timespec ts;
+    clock_gettime(CLOCK_REALTIME, &ts);
+    return (uint64_t)ts.tv_sec * 1000u + (uint64_t)ts.tv_nsec / 1000000u;
+}
 
 static void to_hex(const uint8_t key[32], char out[65]) {
     static const char d[] = "0123456789abcdef";
@@ -574,7 +581,7 @@ static void put_settings(buf_t *b) {
 static int do_hello(const uint8_t caller[32], const char *body, size_t n, char *out, size_t cap,
                     const mesh_online_t *on, int non) {
     char name[NAME_MAX_], kind[KIND_MAX], os[OS_MAX], app[APP_MAX], hex[65], tmp[NAME_MAX_];
-    uint8_t ev[32], gone[MESH_MAX_DEVICES][32];
+    uint8_t ev[32], (*gone)[32];
     int evicted = 0, isnew = 0, ngone = 0, i, j;
     uint32_t ip = 0;
     dev_t_ *d;
@@ -586,11 +593,14 @@ static int do_hello(const uint8_t caller[32], const char *body, size_t n, char *
     if (webui_json_str(body, n, "app", tmp, sizeof tmp) == 1) clean_field(app, sizeof app, tmp);
     for (i = 0; i < non; i++)
         if (memcmp(on[i].key, caller, 32) == 0) ip = on[i].ip;
+    /* Heap: the RPC workers' stacks are small. */
+    if (!(gone = calloc(MESH_MAX_DEVICES, sizeof *gone))) return fail(out, cap, "out_of_memory");
     pthread_mutex_lock(&g_mu);
     d = find_dev(caller);
     if (!d) {
         if (!(d = new_dev(caller, ev, &evicted))) {
             pthread_mutex_unlock(&g_mu);
+            free(gone);
             return fail(out, cap, "devices_full");
         }
         d->first = now_ms();
@@ -630,6 +640,7 @@ static int do_hello(const uint8_t caller[32], const char *body, size_t n, char *
     if (evicted && M.h.forget) (void)M.h.forget(ev);
     for (j = 0; j < ngone; j++)
         if (M.h.forget) (void)M.h.forget(gone[j]);
+    free(gone);
     return b.err ? fail(out, cap, "reply_too_large") : (int)b.len;
 }
 
@@ -655,10 +666,11 @@ static int prune_locked(uint64_t t, const mesh_online_t *on, int non, uint8_t ou
 static int do_state(const uint8_t caller[32], const char *body, size_t n, char *out, size_t cap,
                     const mesh_online_t *on, int non) {
     uint64_t since = 0, ev_since = 0, t = now_ms(), sig;
-    uint8_t pruned[2 * MESH_MAX_DEVICES][32];
+    uint8_t (*pruned)[32] = calloc(2 * MESH_MAX_DEVICES, 32);
     int npruned = 0, i, first;
     char hex[65], ipt[16];
     buf_t b = { out, 0, cap, 0 };
+    if (!pruned) return fail(out, cap, "out_of_memory");
     (void)webui_json_u64(body, n, "since", &since);
     (void)webui_json_u64(body, n, "ev", &ev_since);
     pthread_mutex_lock(&g_mu);
@@ -766,6 +778,7 @@ done:
     pthread_mutex_unlock(&g_mu);
     for (i = 0; i < npruned; i++)
         if (M.h.forget) (void)M.h.forget(pruned[i]);
+    free(pruned);
     return b.err ? fail(out, cap, "reply_too_large") : (int)b.len;
 }
 
@@ -1076,8 +1089,8 @@ static int do_announce(const uint8_t caller[32], const char *body, size_t n, cha
 }
 
 int mesh_call(int which, const uint8_t caller[32], const char *body, size_t n, char *out, size_t cap) {
-    mesh_online_t on[MESH_MAX_DEVICES];
-    int non = 0;
+    mesh_online_t *on = NULL;
+    int non = 0, r;
     if (!out || cap < 64) return -1;
     if (!body) {
         body = "{}";
@@ -1088,18 +1101,23 @@ int mesh_call(int which, const uint8_t caller[32], const char *body, size_t n, c
         n = 2;
     }
     if (n > MESH_REQ_MAX) return fail(out, cap, "too_large");
-    if (which == MESH_HELLO || which == MESH_STATE || which == MESH_LOCK)
+    if (which == MESH_HELLO || which == MESH_STATE || which == MESH_LOCK) {
+        /* Heap: the RPC workers' stacks are small. */
+        if (!(on = calloc(MESH_MAX_DEVICES, sizeof *on))) return fail(out, cap, "out_of_memory");
         non = M.h.online ? M.h.online(on, MESH_MAX_DEVICES) : 0;
-    switch (which) {
-    case MESH_HELLO: return do_hello(caller, body, n, out, cap, on, non);
-    case MESH_STATE: return do_state(caller, body, n, out, cap, on, non);
-    case MESH_ACTIVITY: return do_activity(caller, body, n, out, cap);
-    case MESH_LOCK: return do_lock(caller, body, n, out, cap, on, non);
-    case MESH_DEVICE: return do_device(caller, body, n, out, cap);
-    case MESH_SETTINGS: return do_settings(caller, body, n, out, cap);
-    case MESH_DOC_GET: return do_doc_get(body, n, out, cap);
-    case MESH_DOC_PUT: return do_doc_put(body, n, out, cap);
-    case MESH_ANNOUNCE: return do_announce(caller, body, n, out, cap);
-    default: return fail(out, cap, "bad_method");
     }
+    switch (which) {
+    case MESH_HELLO: r = do_hello(caller, body, n, out, cap, on, non); break;
+    case MESH_STATE: r = do_state(caller, body, n, out, cap, on, non); break;
+    case MESH_ACTIVITY: r = do_activity(caller, body, n, out, cap); break;
+    case MESH_LOCK: r = do_lock(caller, body, n, out, cap, on, non); break;
+    case MESH_DEVICE: r = do_device(caller, body, n, out, cap); break;
+    case MESH_SETTINGS: r = do_settings(caller, body, n, out, cap); break;
+    case MESH_DOC_GET: r = do_doc_get(body, n, out, cap); break;
+    case MESH_DOC_PUT: r = do_doc_put(body, n, out, cap); break;
+    case MESH_ANNOUNCE: r = do_announce(caller, body, n, out, cap); break;
+    default: r = fail(out, cap, "bad_method"); break;
+    }
+    free(on);
+    return r;
 }

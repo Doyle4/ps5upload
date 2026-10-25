@@ -73,25 +73,23 @@ static void on_log(const char *msg) { fprintf(stderr, "%s\n", msg); }
 /* The mesh (mesh.c) answers who may connect and keeps the device list; it reaches the server through
  * these. */
 static int mesh_online_hook(mesh_online_t *out, int max) {
-    ava1_online_t on[MESH_MAX_DEVICES];
+    ava1_online_t *on;
     int n, i;
     if (max > MESH_MAX_DEVICES) max = MESH_MAX_DEVICES;
+    if (!(on = calloc((size_t)max, sizeof *on))) return 0; /* heap: a worker's stack is small */
     n = ava1_server_online(on, max);
     for (i = 0; i < n; i++) {
         memcpy(out[i].key, on[i].key, 32);
         out[i].ip = on[i].ip;
         memcpy(out[i].name, on[i].name, sizeof out[i].name);
     }
+    free(on);
     return n;
 }
 
-static uint64_t mesh_now_ms(void) {
-    struct timespec ts;
-    clock_gettime(CLOCK_REALTIME, &ts);
-    return (uint64_t)ts.tv_sec * 1000u + (uint64_t)ts.tv_nsec / 1000000u;
-}
-
-static const mesh_hooks_t MESH_HOOKS = { mesh_online_hook, ava1_server_forget, mesh_now_ms };
+/* The mesh keeps "last seen" dates and forgets old devices by the calendar, so it reads the wall
+ * clock itself (mesh_wall_ms); nothing in AVA1's timing does. */
+static const mesh_hooks_t MESH_HOOKS = { mesh_online_hook, ava1_server_forget, mesh_wall_ms };
 
 static uint64_t mono_us(void) {
     struct timespec ts;
