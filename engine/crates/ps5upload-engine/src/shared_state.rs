@@ -1,5 +1,5 @@
 //! Settings that belong to the engine's install rather than to one browser: in the self-hosted
-//! web UI (Docker) every browser that opens the page sees the same consoles. Each document has a
+//! web UI (Docker) every browser that opens the page sees the same consoles and settings. Each document has a
 //! revision; a write names the revision it was made from and is refused (409, with the current
 //! document) when another browser saved in between, so the browser merges and tries again instead
 //! of overwriting. Kept in `state/web-shared.json` under the data folder (the Docker volume).
@@ -19,7 +19,9 @@ use serde_json::Value;
 
 /// The documents the page may keep here. Anything else is refused, so the store can't become a
 /// general dumping ground.
-pub const NAMES: &[&str] = &["consoles"];
+/// `consoles`: the console list (client state/rosterShare.ts). `prefs`: the settings every browser
+/// shares, per key with the time it changed (client lib/sharedPrefs.ts).
+pub const NAMES: &[&str] = &["consoles", "prefs"];
 
 /// Largest document accepted (a roster of a few consoles is a few KiB).
 pub const MAX_BYTES: usize = 256 * 1024;

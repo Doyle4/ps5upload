@@ -16,12 +16,32 @@
  * These wrappers absorb the throw and log to console.warn for debugging.
  */
 
+/** Told the key of every write and removal (lib/sharedPrefs sends the shared ones). */
+const writeListeners = new Set<(key: string) => void>();
+
+export function onStorageWrite(fn: (key: string) => void): () => void {
+  writeListeners.add(fn);
+  return () => writeListeners.delete(fn);
+}
+
+function wrote(key: string): void {
+  for (const fn of writeListeners) {
+    try {
+      fn(key);
+    } catch (e) {
+      console.warn(`storage write listener failed for key "${key}":`, e);
+    }
+  }
+}
+
 export function safeSetItem(key: string, value: string): void {
   try {
     window.localStorage.setItem(key, value);
   } catch (e) {
     console.warn(`localStorage.setItem failed for key "${key}":`, e);
+    return;
   }
+  wrote(key);
 }
 
 export function safeGetItem(key: string): string | null {
@@ -38,5 +58,7 @@ export function safeRemoveItem(key: string): void {
     window.localStorage.removeItem(key);
   } catch (e) {
     console.warn(`localStorage.removeItem failed for key "${key}":`, e);
+    return;
   }
+  wrote(key);
 }

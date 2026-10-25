@@ -74,6 +74,15 @@ function moved(list: string[], to: string, index: number): string[] {
   return next;
 }
 
+/** The three lists as stored now (lib/sharedPrefs shows another browser's change with it). */
+export function navListsFromStorage(): { hidden: string[]; closedSections: string[]; pinned: string[] } {
+  return {
+    hidden: loadList(HIDDEN_KEY),
+    closedSections: loadList(CLOSED_KEY),
+    pinned: cleanPinned(loadList(PINNED_KEY)),
+  };
+}
+
 export const useNavSidebarStore = create<NavSidebarState>((set) => ({
   hidden: loadList(HIDDEN_KEY),
   closedSections: loadList(CLOSED_KEY),

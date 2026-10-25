@@ -6,6 +6,12 @@ What's new in ps5upload, written for humans.
 
 ## 7.5.3
 
+- **Docker: settings follow you between browsers.** In the self-hosted web UI, pinned and hidden
+  tabs, upload, install, convert and link settings, the save path, beta features and a few facts
+  about each console (helper stopped on purpose, Minion off) are now kept in the container, so
+  every browser and device sees the same set-up. Pinned tabs update in an open page as soon as
+  another browser changes them. Theme, language, text size and which console is on screen stay
+  per device. The desktop and phone apps are unchanged.
 - **Minion notices a USB drive.** Plug a USB stick into the PS5 with Minion open and Home offers
   **Find games on it** (Library scans it for packages, game folders and images to install or
   copy) or **Open in Files**: a PS5-only workflow with no computer.

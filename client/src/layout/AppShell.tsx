@@ -102,6 +102,8 @@ import {
 import { isDragOutCopy } from "../lib/dragOut";
 import { keepMinionOff } from "../state/minionMemory";
 import { startRosterShare } from "../state/rosterShare";
+import { startSharedPrefs } from "../lib/sharedPrefs";
+import { useNavSidebarStore, navListsFromStorage } from "../state/navSidebar";
 import { UpdateCheckButton } from "./UpdateCheckButton";
 import { useTransferStore } from "../state/transfer";
 import { useUploadSettingsStore } from "../state/uploadSettings";
@@ -1483,6 +1485,11 @@ export default function AppShell() {
     // The self-hosted web UI keeps the console list in the engine, so every browser sees the
     // same consoles. No-op in the desktop and mobile apps.
     const stopRosterShare = startRosterShare();
+    // ...and the settings every browser shares (lib/sharedPrefs). The sidebar follows another
+    // browser's change at once; the rest at the next page load.
+    const stopSharedPrefs = isTauriEnv()
+      ? () => {}
+      : startSharedPrefs(() => useNavSidebarStore.setState(navListsFromStorage()));
     // Automatic save backups are run by the engine; it backs up the consoles in this list.
     const stopSaveBackupSync = startSaveBackupSync();
     // Subscribe-once: cross-store accumulator that credits running
@@ -1503,6 +1510,7 @@ export default function AppShell() {
     return () => {
       window.clearInterval(pruneTimer);
       stopRosterShare();
+      stopSharedPrefs();
       stopSaveBackupSync();
     };
   }, []);
