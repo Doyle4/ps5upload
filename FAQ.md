@@ -714,6 +714,16 @@ With a free Apple ID an app runs for 7 days at a time. AltStore re-signs it auto
 your computer runs AltServer on the same Wi-Fi (or tap **Refresh All** in AltStore). If you let it
 lapse, the app will not open until you refresh it; your settings stay.
 
+**Q: Can AltStore, SideStore or Feather update the app for me?**
+Yes. Add this source once, and the app shows up there with its updates:
+
+`https://github.com/phantomptr/ps5upload/releases/latest/download/altstore.json`
+
+In AltStore or SideStore: **Browse → Sources → +** and paste it. In Feather: **Sources → +**. The
+source always lists the newest full release (not pre-releases); installing from it is the same as
+installing the `.ipa` by hand. Sideloadly has no sources: download the new `.ipa` and drag it in
+again.
+
 **Q: How do I install it with Sideloadly? (quickest one-off install)**
 1. Install **Sideloadly** from sideloadly.io on your computer and open it.
 2. Connect the iPhone with a cable, unlock it and tap **Trust**.

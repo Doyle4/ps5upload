@@ -6,6 +6,9 @@ What's new in ps5upload, written for humans.
 
 ## 7.5.3
 
+- **An iOS source for AltStore, SideStore and Feather.** Add
+  `https://github.com/phantomptr/ps5upload/releases/latest/download/altstore.json` as a source
+  and the iPhone app updates from there; it always names the newest full release (#512).
 - **Install and restart.** After an update downloads on Windows, macOS or a Linux AppImage, one
   button installs it and opens the new version: the app closes, the update goes in (the Windows
   installer runs silently), and PS5Upload starts again. If anything goes wrong, the old version
