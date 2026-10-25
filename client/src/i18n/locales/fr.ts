@@ -4145,6 +4145,8 @@ stats_description_v2: "Totaux sur les opérations affichées pour cette console.
 status_keep_awake_tooltip_v2: "Le maintien en éveil est réglé sur « Toujours quand connecté » — les consoles connectées ne passent pas automatiquement en mode repos tant que l'application est ouverte. Modifiable dans Paramètres → Console.",
 update_idle_v2: "Pas encore vérifié. Avec les vérifications automatiques, l'application cherche en arrière-plan au lancement, au plus une fois par jour.",
 upload_auto_resume_hint_browser: "Si un transfert s'interrompt en cours de route, il reprend là où il s'était arrêté dès que l'assistant de la PS5 répond à nouveau, avec quelques nouvelles tentatives avant d'abandonner. Cette page ne peut pas renvoyer l'assistant elle-même : si la PS5 a redémarré, renvoyez-le d'abord. Les problèmes fatals, comme une PS5 à court d'espace, arrêtent toujours immédiatement. Activé par défaut.",
+upload_wake_for_uploads: "Réveiller la PS5 pour un envoi en attente",
+upload_wake_for_uploads_hint: "Quand un envoi attend une PS5 en mode repos, lui envoyer un signal de réveil et reprendre dès que son assistant est revenu. Uniquement pour une console dont le réveil est configuré dans l'écran Connexion. Activé par défaut.",
 upload_picker_from_ps5_hint: "Vous copiez depuis une autre PS5 ? Sélectionnez les fichiers dans le Système de fichiers et choisissez Envoyer vers une autre console.",
 usb_wizard_title_v2: "Clé USB de payloads",
 v5_qa_ready: "Prêt",

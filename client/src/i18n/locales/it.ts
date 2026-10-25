@@ -4077,6 +4077,8 @@ stats_description_v2: "Totali delle operazioni mostrate per questa console. L'ap
 status_keep_awake_tooltip_v2: "Mantieni attiva è impostato su “Sempre quando connesso” — le console connesse non entrano automaticamente in modalità riposo finché l'app è aperta. Modificalo in Impostazioni → Console.",
 update_idle_v2: "Non ancora controllato. Con i controlli automatici attivi, l'app controlla in background all'avvio, al massimo una volta al giorno.",
 upload_auto_resume_hint_browser: "Se un caricamento si interrompe a metà, riprende da dove si era fermato appena l'helper della PS5 risponde di nuovo, ritentando alcune volte prima di arrendersi. Questa pagina non può reinviare l'helper da sola: se la PS5 si è riavviata, invialo di nuovo prima. I problemi gravi, come la PS5 senza spazio, si fermano comunque subito. Attivo per impostazione predefinita.",
+upload_wake_for_uploads: "Riattiva la PS5 per un caricamento in attesa",
+upload_wake_for_uploads_hint: "Quando un caricamento attende una PS5 in modalità riposo, le invia un segnale di riattivazione e riprende appena il suo helper torna attivo. Solo per le console con la riattivazione configurata nella schermata Connessione. Attivo per impostazione predefinita.",
 upload_picker_from_ps5_hint: "Copi da un'altra PS5? Seleziona i file nel File system e scegli Invia a un’altra console.",
 usb_wizard_title_v2: "Chiavetta USB di payload",
 v5_qa_ready: "Pronto",

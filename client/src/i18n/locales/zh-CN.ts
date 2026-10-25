@@ -4083,6 +4083,8 @@ stats_description_v2: "此主机所显示操作的汇总。应用保留最近 {c
 status_keep_awake_tooltip_v2: "保持唤醒设置为“连接期间始终保持”——应用打开期间，已连接的主机不会自动进入休息模式。可在 设置 → 主机 中更改。",
 update_idle_v2: "尚未检查。开启自动检查后，应用会在启动时于后台检查，每天最多一次。",
 upload_auto_resume_hint_browser: "如果上传在传输中途中断，会在 PS5 的助手再次响应后从中断处继续，重试几次后才放弃。此页面无法重新发送助手本身：如果 PS5 已重启，请先重新发送助手。PS5 空间不足等致命问题仍会立即停止。默认开启。",
+upload_wake_for_uploads: "为等待中的上传唤醒 PS5",
+upload_wake_for_uploads_hint: "当上传正在等待处于休息模式的 PS5 时，向它发送唤醒信号，并在助手恢复后继续。仅适用于已在“连接”页面设置唤醒的主机。默认开启。",
 upload_picker_from_ps5_hint: "要从另一台 PS5 复制？在文件系统中选择文件，然后选择“发送到另一台主机”。",
 usb_wizard_title_v2: "USB payload 盘",
 v5_qa_ready: "就绪",

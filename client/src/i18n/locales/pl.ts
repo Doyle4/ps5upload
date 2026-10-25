@@ -4363,6 +4363,8 @@ stats_description_v2: "Sumy dla operacji pokazanych dla tej konsoli. Aplikacja p
 status_keep_awake_tooltip_v2: "Utrzymywanie aktywności ustawiono na „Zawsze podczas połączenia” — połączone konsole nie przejdą automatycznie w tryb spoczynku, dopóki aplikacja jest otwarta. Zmień w Ustawienia → Konsola.",
 update_idle_v2: "Jeszcze nie sprawdzono. Przy włączonym automatycznym sprawdzaniu aplikacja sprawdza w tle przy uruchomieniu, najwyżej raz dziennie.",
 upload_auto_resume_hint_browser: "Jeśli wysyłanie przerwie się w trakcie, wznów je od miejsca przerwania, gdy helper PS5 znów odpowie, ponawiając kilka razy przed rezygnacją. Ta strona nie może sama ponownie wysłać helpera: jeśli PS5 została uruchomiona ponownie, najpierw wyślij go jeszcze raz. Poważne problemy, takie jak brak miejsca na PS5, nadal zatrzymują wysyłanie od razu. Domyślnie włączone.",
+upload_wake_for_uploads: "Wybudzaj PS5 dla czekającego przesyłania",
+upload_wake_for_uploads_hint: "Gdy przesyłanie czeka na PS5 w trybie odpoczynku, wyślij jej sygnał wybudzenia i kontynuuj, gdy pomocnik wróci. Tylko dla konsol z wybudzaniem skonfigurowanym na ekranie Połączenie. Domyślnie włączone.",
 upload_picker_from_ps5_hint: "Kopiujesz z innej PS5? Zaznacz pliki w Systemie Plików i wybierz Wyślij na inną konsolę.",
 usb_wizard_title_v2: "Pendrive z payloadami",
 autoloader_title_v2: "Playlista przy połączeniu",

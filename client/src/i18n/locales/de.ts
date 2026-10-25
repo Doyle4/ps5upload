@@ -4135,6 +4135,8 @@ stats_description_v2: "Summen über die für diese Konsole angezeigten Vorgänge
 status_keep_awake_tooltip_v2: "Wachhalten ist auf „Immer solange verbunden“ gestellt — verbundene Konsolen gehen nicht automatisch in den Ruhemodus, solange die App geöffnet ist. Änderbar unter Einstellungen → Konsole.",
 update_idle_v2: "Noch nicht geprüft. Mit automatischen Prüfungen sucht die App beim Start im Hintergrund, höchstens einmal am Tag.",
 upload_auto_resume_hint_browser: "Bricht ein Upload mitten in der Übertragung ab, wird er dort fortgesetzt, wo er aufgehört hat, sobald der Helfer der PS5 wieder antwortet; vor dem Aufgeben wird einige Male erneut versucht. Diese Seite kann den Helfer selbst nicht erneut senden: Wurde die PS5 neu gestartet, sende ihn zuerst erneut. Schwerwiegende Probleme wie ein voller PS5-Speicher stoppen weiterhin sofort. Standardmäßig an.",
+upload_wake_for_uploads: "PS5 für einen wartenden Upload aufwecken",
+upload_wake_for_uploads_hint: "Wartet ein Upload auf eine PS5 im Ruhemodus, wird ihr ein Wecksignal gesendet und es geht weiter, sobald der Helfer wieder da ist. Nur für Konsolen, bei denen das Aufwecken auf dem Verbindungsbildschirm eingerichtet ist. Standardmäßig an.",
 upload_picker_from_ps5_hint: "Kopierst du von einer anderen PS5? Wähle die Dateien im Dateisystem aus und wähle An andere Konsole senden.",
 usb_wizard_title_v2: "USB-Payload-Stick",
 v5_qa_ready: "Bereit",

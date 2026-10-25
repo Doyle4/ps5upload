@@ -4077,6 +4077,8 @@ stats_description_v2: "此主機所顯示操作的總計。應用程式保留最
 status_keep_awake_tooltip_v2: "保持喚醒設為「連線時永遠保持」——應用程式開啟期間，已連線的主機不會自動進入休息模式。可在 設定 → 主機 中變更。",
 update_idle_v2: "尚未檢查。開啟自動檢查後，應用程式會在啟動時於背景檢查，每天最多一次。",
 upload_auto_resume_hint_browser: "如果上傳在傳輸中途中斷，會在 PS5 的輔助程式再次回應後從中斷處繼續，重試幾次後才放棄。此頁面無法重新傳送輔助程式本身：如果 PS5 已重新啟動，請先重新傳送輔助程式。PS5 空間不足等嚴重問題仍會立即停止。預設開啟。",
+upload_wake_for_uploads: "為等待中的上傳喚醒 PS5",
+upload_wake_for_uploads_hint: "當上傳正在等待處於休息模式的 PS5 時，向它傳送喚醒訊號，並在助手恢復後繼續。僅適用於已在「連線」頁面設定喚醒的主機。預設開啟。",
 upload_picker_from_ps5_hint: "要從另一台 PS5 複製？在檔案系統中選取檔案，然後選擇「傳送到另一台主機」。",
 usb_wizard_title_v2: "USB payload 隨身碟",
 v5_qa_ready: "就緒",

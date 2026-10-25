@@ -444,6 +444,7 @@ export default function SettingsScreen() {
     alwaysOverwrite,
     showTransferFiles,
     autoResume,
+    wakeForUploads,
     keepPs5AwakeMode,
     autoRedeployOnWake,
     autoBringUp,
@@ -452,6 +453,7 @@ export default function SettingsScreen() {
     setAlwaysOverwrite,
     setShowTransferFiles,
     setAutoResume,
+    setWakeForUploads,
     setKeepPs5AwakeMode,
     setBandwidthCapMbps,
     setAutoRedeployOnWake,
@@ -787,6 +789,17 @@ export default function SettingsScreen() {
                       "If an upload drops mid-transfer, resume it from where it left off once the PS5's helper answers again, retrying a few times before giving up. This page cannot re-send the helper itself: if the PS5 restarted, send it again first. Fatal problems like the PS5 running out of space still stop right away. On by default.",
                     )
               }
+            />
+
+            <Toggle
+              checked={wakeForUploads}
+              onChange={(checked) => setWakeForUploads(checked)}
+              label={tr("upload_wake_for_uploads", undefined, "Wake the PS5 for a waiting upload")}
+              hint={tr(
+                "upload_wake_for_uploads_hint",
+                undefined,
+                "When an upload is waiting for a PS5 in rest mode, send it a wake signal and carry on once its helper is back. Only for a console with wake set up on the Connection screen. On by default.",
+              )}
             />
           </div>
         </Section>

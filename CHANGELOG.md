@@ -4,6 +4,16 @@ What's new in ps5upload, written for humans.
 
 ---
 
+## 7.5.2
+
+- **Uploads wake a sleeping PS5.** When an upload is waiting for a PS5 in rest mode, the app now
+  sends it a wake signal, re-sends the helper once it is up, and carries on. Only for a console
+  with wake set up on the Connection screen; turn it off under Settings › Uploads ("Wake the PS5
+  for a waiting upload").
+- **Start all no longer spins on a sleeping PS5.** With two or more uploads queued for a console
+  in rest mode, Start all restarted that console over and over without end. The uploads now wait
+  for the wake.
+
 ## 7.5.1
 
 - **Security scan clean-up.** Every finding of the new code scan was reviewed. A damaged game

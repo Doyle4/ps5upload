@@ -4134,6 +4134,8 @@ stats_description_v2: "Bu konsol için gösterilen işlemlerin toplamları. Uygu
 status_keep_awake_tooltip_v2: "Uyanık tutma “Bağlıyken her zaman” olarak ayarlı — uygulama açıkken bağlı konsollar otomatik olarak dinlenme moduna geçmez. Ayarlar → Konsol'dan değiştirin.",
 update_idle_v2: "Henüz denetlenmedi. Otomatik denetim açıkken uygulama açılışta, en fazla günde bir kez arka planda bakar.",
 upload_auto_resume_hint_browser: "Bir yükleme aktarım sırasında kesilirse, PS5'in yardımcısı yeniden yanıt verdiğinde kaldığı yerden devam ettirir ve vazgeçmeden önce birkaç kez yeniden dener. Bu sayfa yardımcının kendisini yeniden gönderemez: PS5 yeniden başladıysa önce onu yeniden gönderin. PS5'te yer kalmaması gibi ciddi sorunlar yine hemen durdurur. Varsayılan olarak açık.",
+upload_wake_for_uploads: "Bekleyen yükleme için PS5'i uyandır",
+upload_wake_for_uploads_hint: "Bir yükleme dinlenme modundaki bir PS5'i beklediğinde ona uyandırma sinyali gönder ve yardımcısı geri gelince devam et. Yalnızca Bağlantı ekranında uyandırma ayarlanmış konsollar için. Varsayılan olarak açık.",
 upload_picker_from_ps5_hint: "Başka bir PS5'ten mi kopyalıyorsunuz? Dosyaları Dosya sistemi'nde seçin ve Başka bir konsola gönder'i seçin.",
 usb_wizard_title_v2: "USB yük belleği",
 v5_qa_ready: "Hazır",

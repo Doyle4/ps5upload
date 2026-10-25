@@ -4144,6 +4144,8 @@ stats_description_v2: "Totais das operações exibidas para este console. O app 
 status_keep_awake_tooltip_v2: "Manter acordado está em “Sempre enquanto conectado” — consoles conectados não entram em modo repouso automaticamente enquanto o app estiver aberto. Altere em Configurações → Console.",
 update_idle_v2: "Ainda não verificado. Com as verificações automáticas ativadas, o app procura em segundo plano ao iniciar, no máximo uma vez por dia.",
 upload_auto_resume_hint_browser: "Se um envio cair no meio da transferência, ele é retomado de onde parou assim que o auxiliar do PS5 responder de novo, tentando algumas vezes antes de desistir. Esta página não consegue reenviar o auxiliar sozinha: se o PS5 reiniciou, envie-o de novo primeiro. Problemas fatais, como o PS5 ficar sem espaço, continuam parando na hora. Ativado por padrão.",
+upload_wake_for_uploads: "Acordar o PS5 para um envio em espera",
+upload_wake_for_uploads_hint: "Quando um envio está esperando um PS5 em modo de repouso, envia um sinal para acordá-lo e continua assim que o ajudante voltar. Só para consoles com o despertar configurado na tela Conexão. Ativado por padrão.",
 upload_picker_from_ps5_hint: "Copiando de outro PS5? Selecione os arquivos no Sistema de arquivos e escolha Enviar para outro console.",
 usb_wizard_title_v2: "Pendrive de payloads",
 v5_qa_ready: "Pronto",

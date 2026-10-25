@@ -4423,6 +4423,8 @@ stats_description_v2: "Összesítések az ehhez a konzolhoz megjelenített műve
 status_keep_awake_tooltip_v2: "Az ébren tartás „Mindig, amíg csatlakoztatva van” módra van állítva — a csatlakoztatott konzolok nem lépnek automatikusan pihenő módba, amíg az alkalmazás nyitva van. Módosítás: Beállítások → Konzol.",
 update_idle_v2: "Még nincs ellenőrizve. Bekapcsolt automatikus ellenőrzés mellett az alkalmazás indításkor a háttérben ellenőriz, legfeljebb naponta egyszer.",
 upload_auto_resume_hint_browser: "Ha egy feltöltés átvitel közben megszakad, folytatja onnan, ahol abbamaradt, amint a PS5 segédprogramja ismét válaszol, és néhányszor újrapróbálkozik, mielőtt feladja. Ez az oldal maga nem tudja újraküldeni a segédprogramot: ha a PS5 újraindult, előbb küldd el újra. A végzetes problémák, például ha a PS5-ön elfogy a hely, továbbra is azonnal leállítják. Alapértelmezetten bekapcsolva.",
+upload_wake_for_uploads: "PS5 felébresztése egy várakozó feltöltéshez",
+upload_wake_for_uploads_hint: "Ha egy feltöltés pihenő módban lévő PS5-re vár, ébresztőjelet küld neki, és folytatja, amint a segédje újra fut. Csak olyan konzolnál, amelynél az ébresztés be van állítva a Kapcsolat képernyőn. Alapértelmezés szerint be.",
 upload_picker_from_ps5_hint: "Másik PS5-ről másolsz? Jelöld ki a fájlokat a Fájlrendszerben, és válaszd a Küldés másik konzolra lehetőséget.",
 usb_wizard_title_v2: "USB payload pendrive",
 autoloader_title_v2: "Lejátszási lista csatlakozáskor",

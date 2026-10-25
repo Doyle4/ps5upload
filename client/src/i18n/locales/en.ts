@@ -376,6 +376,8 @@ upload_auto_resume: "Auto-resume uploads after a failure",
 upload_auto_resume_hint:
   "If an upload drops mid-transfer — most often because the PS5 payload crashed — automatically re-send the payload and resume from where it left off, retrying a few times before giving up. Fatal problems like the PS5 running out of space still stop right away. On by default.",
 upload_auto_resume_hint_browser: "If an upload drops mid-transfer, resume it from where it left off once the PS5's helper answers again, retrying a few times before giving up. This page cannot re-send the helper itself: if the PS5 restarted, send it again first. Fatal problems like the PS5 running out of space still stop right away. On by default.",
+upload_wake_for_uploads: "Wake the PS5 for a waiting upload",
+upload_wake_for_uploads_hint: "When an upload is waiting for a PS5 in rest mode, send it a wake signal and carry on once its helper is back. Only for a console with wake set up on the Connection screen. On by default.",
 upload_rest_after: "Put the PS5 in rest mode after uploads finish",
 upload_rest_after_hint:
   "When a console's upload queue finishes, ask it to enter rest mode — handy for an overnight queue. Only fires when at least one upload actually completed (not after a Stop or an all-failed run). Off by default. Standby may be unavailable on some firmware; you'll get a notice if it's declined.",

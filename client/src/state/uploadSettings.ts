@@ -24,6 +24,7 @@ const KEY_KEEP_PS5_AWAKE = "ps5upload.keep_ps5_awake";
 const KEY_AUTO_REDEPLOY_ON_WAKE = "ps5upload.auto_redeploy_on_wake";
 const KEY_AUTO_BRING_UP = "ps5upload.auto_bring_up";
 const KEY_SYSTEM_FILE_READ = "ps5upload.system_file_read";
+const KEY_WAKE_FOR_UPLOADS = "ps5upload.wake_for_uploads";
 
 // 6.0 upgrade: 5.x saved a user-picked stream count here. AVA1 sizes its lanes itself, so the
 // setting is gone and its stale value is dropped once (every other setting carries over as is).
@@ -104,6 +105,14 @@ function loadAutoResume(): boolean {
   return safeGetItem(KEY_AUTO_RESUME) !== "false";
 }
 
+/** Wake a console in rest mode when an upload is waiting for it (lib/wakeForUpload). Default
+ *  ON: it only acts on a console with a saved wake credential, which the user set up to wake it.
+ *  Stored as the string "false" only when the user disables it. */
+function loadWakeForUploads(): boolean {
+  if (typeof window === "undefined") return true;
+  return safeGetItem(KEY_WAKE_FOR_UPLOADS) !== "false";
+}
+
 /** Auto-redeploy the helper when a console goes offline and the app is
  *  open. Default ON: the PS5's payload dies every time the console rests
  *  (Sony tears down userspace on suspend), and without re-deploying it the
@@ -162,6 +171,8 @@ interface UploadSettingsState {
    *  the payload if it crashed, then resume. Bounded retries; fatal errors
    *  still surface. */
   autoResume: boolean;
+  /** Wake a sleeping console for a waiting upload. See loadWakeForUploads. */
+  wakeForUploads: boolean;
   /** Keep-PS5-awake policy — see KeepPs5AwakeMode. */
   keepPs5AwakeMode: KeepPs5AwakeMode;
   /** Auto-redeploy the bundled helper to a console after it goes offline
@@ -181,6 +192,7 @@ interface UploadSettingsState {
   setShowTransferFiles: (on: boolean) => void;
   setBandwidthCapMbps: (n: number) => void;
   setAutoResume: (on: boolean) => void;
+  setWakeForUploads: (on: boolean) => void;
   setKeepPs5AwakeMode: (mode: KeepPs5AwakeMode) => void;
   setAutoRedeployOnWake: (on: boolean) => void;
   setAutoBringUp: (on: boolean) => void;
@@ -193,6 +205,7 @@ export const useUploadSettingsStore = create<UploadSettingsState>((set) => ({
   showTransferFiles: loadShowFiles(),
   bandwidthCapMbps: loadBandwidthCap(),
   autoResume: loadAutoResume(),
+  wakeForUploads: loadWakeForUploads(),
   keepPs5AwakeMode: loadKeepPs5AwakeMode(),
   autoRedeployOnWake: loadAutoRedeployOnWake(),
   autoBringUp: loadAutoBringUp(),
@@ -225,6 +238,10 @@ export const useUploadSettingsStore = create<UploadSettingsState>((set) => ({
   setAutoResume: (autoResume) => {
     safeSetItem(KEY_AUTO_RESUME, autoResume ? "true" : "false");
     set({ autoResume });
+  },
+  setWakeForUploads: (wakeForUploads) => {
+    safeSetItem(KEY_WAKE_FOR_UPLOADS, wakeForUploads ? "true" : "false");
+    set({ wakeForUploads });
   },
   setKeepPs5AwakeMode: (keepPs5AwakeMode) => {
     safeSetItem(KEY_KEEP_PS5_AWAKE_MODE, keepPs5AwakeMode);

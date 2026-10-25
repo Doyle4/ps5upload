@@ -4136,6 +4136,8 @@ stats_description_v2: "Total dari operasi yang ditampilkan untuk konsol ini. Apl
 status_keep_awake_tooltip_v2: "Tetap aktif diatur ke “Selalu saat terhubung” — konsol yang terhubung tidak akan masuk mode istirahat otomatis selama aplikasi terbuka. Ubah di Pengaturan → Konsol.",
 update_idle_v2: "Belum diperiksa. Dengan pemeriksaan otomatis aktif, aplikasi memeriksa di latar belakang saat dibuka, paling sering sekali sehari.",
 upload_auto_resume_hint_browser: "Jika unggahan terputus di tengah transfer, lanjutkan dari titik terakhir setelah helper PS5 menjawab lagi, dengan mencoba ulang beberapa kali sebelum menyerah. Halaman ini tidak dapat mengirim ulang helper itu sendiri: jika PS5 dimulai ulang, kirim lagi helper terlebih dahulu. Masalah fatal seperti PS5 kehabisan ruang tetap langsung menghentikan unggahan. Aktif secara bawaan.",
+upload_wake_for_uploads: "Bangunkan PS5 untuk unggahan yang menunggu",
+upload_wake_for_uploads_hint: "Saat unggahan menunggu PS5 dalam mode istirahat, kirim sinyal bangun lalu lanjutkan begitu helper-nya kembali. Hanya untuk konsol yang pengaturan bangunnya sudah disiapkan di layar Koneksi. Aktif secara default.",
 upload_picker_from_ps5_hint: "Menyalin dari PS5 lain? Pilih file di Sistem file lalu pilih Kirim ke konsol lain.",
 usb_wizard_title_v2: "Stik payload USB",
 v5_qa_ready: "Siap",

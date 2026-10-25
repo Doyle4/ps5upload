@@ -4077,6 +4077,8 @@ stats_description_v2: "Totales de las operaciones mostradas para esta consola. L
 status_keep_awake_tooltip_v2: "Mantener despierta está en «Siempre mientras esté conectada» — las consolas conectadas no entrarán solas en modo reposo mientras la app esté abierta. Cámbialo en Configuración → Consola.",
 update_idle_v2: "Aún no se ha comprobado. Con las comprobaciones automáticas activadas, la app busca en segundo plano al iniciarse, como mucho una vez al día.",
 upload_auto_resume_hint_browser: "Si una subida se corta a mitad de transferencia, se reanuda desde donde se quedó en cuanto el helper de la PS5 vuelve a responder, reintentando unas cuantas veces antes de rendirse. Esta página no puede volver a enviar el helper por sí misma: si la PS5 se reinició, envíalo de nuevo primero. Los problemas graves, como que la PS5 se quede sin espacio, siguen deteniéndose al instante. Activado por defecto.",
+upload_wake_for_uploads: "Despertar la PS5 para una subida en espera",
+upload_wake_for_uploads_hint: "Cuando una subida espera a una PS5 en modo de reposo, le envía una señal para despertarla y continúa en cuanto vuelve su asistente. Solo para consolas con el despertar configurado en la pantalla Conexión. Activado por defecto.",
 upload_picker_from_ps5_hint: "¿Copiando desde otra PS5? Selecciona los archivos en Sistema de archivos y elige Enviar a otra consola.",
 usb_wizard_title_v2: "Memoria USB de payloads",
 v5_qa_ready: "Lista",

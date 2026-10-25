@@ -61,6 +61,7 @@ import { useUploadSettingsStore } from "./uploadSettings";
 import { useRecentHostMetricsStore } from "./recentHostMetrics";
 import { pushNotification } from "./notifications";
 import { sleep } from "../lib/wakeableSleep";
+import { wakeForUpload } from "../lib/wakeForUpload";
 import { labelEngineJob } from "../lib/bgWork";
 import { withConsolePrefix } from "./roster";
 import { hostOf, mgmtAddr } from "../lib/addr";
@@ -1734,6 +1735,7 @@ export const useUploadQueueStore = create<QueueState>((set, get) => {
       }),
     }));
     scheduleSave();
+    wakeForUpload(item.addr, useUploadSettingsStore.getState().wakeForUploads);
     log.info(
       "queue",
       `${hostOf(item.addr)} is in rest mode — ${item.sourcePath || item.id} waits for the PS5 to wake` +
@@ -2772,10 +2774,12 @@ export const useUploadQueueStore = create<QueueState>((set, get) => {
       // loop ever claims it (no cross-loop claim race).
       for (let pass = 0; ; pass++) {
         // The first pass is the user's Start and takes rows parked for a sleeping console too;
-        // later passes leave them to the wake, or a console still asleep would loop here.
+        // later passes leave them to the wake, or a console still asleep would loop here. That
+        // goes for the whole console: a later pass restarting it for a second row would un-park
+        // the first, which parks again ahead of it, forever.
         const hosts = distinctPendingHosts(get().items, {
           includeWaitingForWake: pass === 0,
-        }).filter((h) => !get().runningHosts[h]);
+        }).filter((h) => !get().runningHosts[h] && (pass === 0 || !hostAsleep(h)));
         if (hosts.length === 0) break;
         await Promise.all(hosts.map((h) => get().startHost(h)));
         if (!get().continueOnFailure) break;

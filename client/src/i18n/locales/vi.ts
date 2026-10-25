@@ -4129,6 +4129,8 @@ stats_description_v2: "Tổng của các thao tác hiển thị cho máy này. �
 status_keep_awake_tooltip_v2: "Giữ thức đang đặt là “Luôn khi đã kết nối” — các máy đã kết nối sẽ không tự vào chế độ nghỉ khi ứng dụng đang mở. Thay đổi trong Cài đặt → Máy chơi game.",
 update_idle_v2: "Chưa kiểm tra. Khi bật kiểm tra tự động, ứng dụng kiểm tra ngầm lúc khởi động, tối đa một lần mỗi ngày.",
 upload_auto_resume_hint_browser: "Nếu lượt tải lên bị ngắt giữa chừng, tiếp tục từ chỗ dừng khi trình trợ giúp của PS5 phản hồi lại, thử lại vài lần trước khi bỏ cuộc. Trang này không thể tự gửi lại trình trợ giúp: nếu PS5 đã khởi động lại, hãy gửi lại nó trước. Lỗi nghiêm trọng như PS5 hết dung lượng vẫn dừng ngay. Bật theo mặc định.",
+upload_wake_for_uploads: "Đánh thức PS5 cho lượt tải lên đang chờ",
+upload_wake_for_uploads_hint: "Khi một lượt tải lên đang chờ PS5 ở chế độ nghỉ, gửi tín hiệu đánh thức rồi tiếp tục ngay khi trình trợ giúp chạy lại. Chỉ áp dụng cho máy đã thiết lập đánh thức ở màn hình Kết nối. Bật theo mặc định.",
 upload_picker_from_ps5_hint: "Sao chép từ PS5 khác? Chọn tệp trong Hệ thống tệp và chọn Gửi sang máy khác.",
 usb_wizard_title_v2: "USB payload",
 v5_qa_ready: "Sẵn sàng",
