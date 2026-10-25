@@ -6,6 +6,12 @@ What's new in ps5upload, written for humans.
 
 ## 7.5.3
 
+- **Android: bug reports and exports no longer leave a 0-byte file.** The save dialog created an
+  empty file where you pointed it, while the real file went to Downloads, so the report looked
+  empty. Bug reports, logs, settings and other exports now go straight to **Downloads** (the
+  report screen shows the exact name), with no dialog and no empty file. Every report save is
+  now written to the app log with where it went and its size, and a report that comes out empty
+  says so instead of looking saved.
 - **The web UI keeps the screen on during transfers.** In a browser (Docker), the page now holds
   the screen on while an upload, download or install runs, so a laptop or phone does not sleep
   and stop the tab that drives the queue, and Settings offers **Keep screen on** there too. The

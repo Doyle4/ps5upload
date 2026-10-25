@@ -1,14 +1,18 @@
 // Where an export (settings backup, logs, a bug report, a save backup, a folder as .zip...) goes.
 //
-// Desktop and Android: the system save dialog. `null` means the person cancelled; Android's
-// dialog answers with a content:// URI, which the backend redirects into Downloads (see
-// save_dest.rs).
+// Desktop: the system save dialog. `null` means the person cancelled.
+//
+// Android: no dialog either. The dialog answered with a content:// URI the backend cannot write,
+// so the backend wrote the file into Downloads instead (save_dest.rs), and the empty file the
+// dialog had already created where the person pointed stayed behind: "the bug report zip is zero
+// bytes". The file goes straight into Downloads, the folder every Android file manager shows,
+// under the suggested name (" (2)", " (3)"... when taken).
 //
 // iPhone: the save dialog does not hand back a path this app can write, so there is no dialog:
 // the file goes into the app's own Documents folder, the one the Files app shows under
 // On My iPhone → PS5Upload, under the suggested name (with " (2)", " (3)"... when taken).
 import { localFs } from "../api/localFs";
-import { isIOS } from "./platform";
+import { isAndroid, isIOS } from "./platform";
 
 export interface SaveDestOptions {
   defaultPath?: string;
@@ -16,16 +20,33 @@ export interface SaveDestOptions {
   title?: string;
 }
 
-export async function pickSaveDest(opts: SaveDestOptions): Promise<string | null> {
+export async function pickSaveDest(
+  opts: SaveDestOptions,
+): Promise<string | null> {
   if (isIOS()) return documentsDest(opts.defaultPath ?? "ps5upload-export");
+  if (isAndroid())
+    return freeDest(ANDROID_DOWNLOADS, opts.defaultPath ?? "ps5upload-export");
   const { save } = await import("@tauri-apps/plugin-dialog");
   return save(opts);
 }
 
+/** Android's public Downloads folder (the backend's ANDROID_PUBLIC_DOWNLOADS). */
+const ANDROID_DOWNLOADS = "/storage/emulated/0/Download";
+
 /** A free name in the iPhone app's Documents folder. Exported for tests. */
 export async function documentsDest(suggested: string): Promise<string> {
-  const leaf = suggested.split(/[\\/]/).pop()?.trim() || "ps5upload-export";
   const [docs] = await localFs.storageRoots();
+  return freeDest(docs, suggested);
+}
+
+/** A free name for `suggested` in `dir`: the name itself, else "name (2).ext", "name (3).ext"…
+ *  A folder that cannot be listed gets the name as it is. Exported for tests. */
+export async function freeDest(
+  dir: string,
+  suggested: string,
+): Promise<string> {
+  const leaf = suggested.split(/[\\/]/).pop()?.trim() || "ps5upload-export";
+  const docs = dir;
   const taken = new Set(
     (await localFs.listDir(docs).catch(() => [])).map((e) => e.name),
   );

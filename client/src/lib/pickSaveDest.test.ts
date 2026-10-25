@@ -1,13 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { mockIsIOS, mockRoots, mockList, mockSave } = vi.hoisted(() => ({
+const { mockIsIOS, mockIsAndroid, mockRoots, mockList, mockSave } = vi.hoisted(() => ({
   mockIsIOS: vi.fn(),
+  mockIsAndroid: vi.fn(),
   mockRoots: vi.fn(),
   mockList: vi.fn(),
   mockSave: vi.fn(),
 }));
 
-vi.mock("./platform", () => ({ isIOS: () => mockIsIOS() }));
+vi.mock("./platform", () => ({ isIOS: () => mockIsIOS(), isAndroid: () => mockIsAndroid() }));
 vi.mock("../api/localFs", () => ({
   localFs: { storageRoots: () => mockRoots(), listDir: (p: string) => mockList(p) },
 }));
@@ -22,6 +23,7 @@ describe("pickSaveDest", () => {
     vi.clearAllMocks();
     mockRoots.mockResolvedValue([DOCS]);
     mockList.mockResolvedValue([]);
+    mockIsAndroid.mockReturnValue(false);
   });
 
   it("uses the system save dialog off iPhone", async () => {
@@ -52,5 +54,21 @@ describe("pickSaveDest", () => {
   it("names an export with no suggestion", async () => {
     mockIsIOS.mockReturnValue(true);
     expect(await pickSaveDest({})).toBe(`${DOCS}/ps5upload-export`);
+  });
+
+  it("writes straight into Downloads on Android: the dialog left an empty file behind", async () => {
+    mockIsIOS.mockReturnValue(false);
+    mockIsAndroid.mockReturnValue(true);
+    mockList.mockResolvedValue([{ name: "report.zip" }]);
+    expect(await pickSaveDest({ defaultPath: "report.zip" })).toBe("/storage/emulated/0/Download/report (2).zip");
+    expect(mockList).toHaveBeenCalledWith("/storage/emulated/0/Download");
+    expect(mockSave).not.toHaveBeenCalled();
+  });
+
+  it("an unreadable Downloads folder still gets the name as it is", async () => {
+    mockIsIOS.mockReturnValue(false);
+    mockIsAndroid.mockReturnValue(true);
+    mockList.mockRejectedValue(new Error("no access"));
+    expect(await pickSaveDest({ defaultPath: "x.csv" })).toBe("/storage/emulated/0/Download/x.csv");
   });
 });
