@@ -174,7 +174,7 @@ pub mod ffi {
 
     #[repr(C)]
     pub struct CPeers {
-        pub p: [CPeer; 32],
+        pub p: [CPeer; 64], // AVA1_MAX_PEERS (ava1_store.h)
         pub n: c_int,
     }
 

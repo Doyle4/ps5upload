@@ -49,6 +49,7 @@
  *   src/smb_client.c      1  dir    SMB daemon key: <key>.tmp -> key
  *   src/smb_shares.c      1  dir    saved shares: <file>.tmp -> file
  *   src/files_prefs.c     1  dir    files-prefs.json: tmp -> final
+ *   src/mesh.c            1  dir    device list, settings and shared documents: <file>.tmp -> file
  *   src/webui_files.c     2  dir    text save and upload: .ps5u-<hex>.part beside the target -> target
  *                                   (the device is compared too, same_device_as, failing closed)
  *   ava1/ava1_events.c    1  dir    events.log -> events.log.old
