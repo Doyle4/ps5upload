@@ -48,6 +48,10 @@
   screen, port 9180), made for the controller: games, a library scanned from your network shares
   and drives, files (SMB shares, archive extraction, package install, payload loading), cheats,
   fan, processes, clean-up and settings, with no PC nearby.
+- **Several devices, one PS5.** Computers, phones and Docker connect at once with no pairing
+  code, see what the others are doing (Devices), share your consoles and settings, and stay out
+  of each other's way. **Mesh Drive** keeps a folder the same on all of them, at home on the
+  console.
 - **Runs everywhere:** macOS, Windows, Linux, Android, iPhone (sideloaded), or any browser through the self-hosted
   Docker web UI ([compose file](engine/compose.yaml), see
   [Self-hosted engine and web UI](#self-hosted-engine-and-web-ui)). 21 languages.
@@ -236,10 +240,10 @@ For per-platform bundles only (no full dev env): `make dist-mac`,
 
 1. Jailbreak the PS5 and keep an ELF loader running on port **9021**.
 2. Launch ps5upload and open **Connection**. Enter the PS5's IP address.
-3. Click **Check**, then **Send payload**. The app launches the helper and pairs with it by
-   itself.
-4. If you loaded the helper another way, the console shows a **6-digit code**. Enter it in the
-   app once; the computer is remembered.
+3. Click **Check**, then **Send payload**. The app launches the helper and connects to it.
+4. Other computers, phones and Docker setups connect to the same helper with no code; the console
+   remembers each one (**Devices**). To make new devices type a code shown on the TV first, turn
+   on **Ask before a new device can connect** there.
 
 The helper stays until the PS5 reboots or enters rest mode. The app only needs ports **9120**
 (the helper) and **9021** (the loader); allow both in your firewall. 6.0 cannot talk to a
@@ -311,8 +315,9 @@ with **Settings → Engine URL**.
   the allowlist every browser but the host's own gets a `403`.
 - Open `http://<host>:19113`. The file picker browses the engine's disk; mount your games
   folder into the container and set `PS5UPLOAD_BROWSE_ROOTS`.
-- Map `/data` to a host folder (on Unraid, `/mnt/user/appdata/ps5upload`): it holds the pairing
-  key, so the PS5 keeps trusting the web UI after the container is recreated.
+- Map `/data` to a host folder (on Unraid, `/mnt/user/appdata/ps5upload`): it holds the
+  container's key, so the PS5 knows it as the same device (and its Mesh Drive folders) after the
+  container is recreated.
 - An upload keeps running when you close the tab.
 - **No password.** Anyone allowed can read, write and delete on your PS5. Keep it on a trusted
   LAN, never on the internet.

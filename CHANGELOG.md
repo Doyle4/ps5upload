@@ -4,6 +4,50 @@ What's new in ps5upload, written for humans.
 
 ---
 
+## 8.0.0
+
+Several devices, one PS5. Your computers, phones and Docker setup can now all use the same console
+at once, see what the others are doing, and stay out of each other's way. Send the helper from
+this version once; every device then connects to it.
+
+- **No more pairing codes.** Any device on your network that reaches the helper connects, and the
+  console remembers it. Devices paired before keep working. (Anyone on your network could already
+  send the helper and get in, so the code protected nothing.) If you want the old behaviour, turn
+  on **Ask before a new device can connect** in **Devices**: a new device then needs the code on
+  the TV, or a connected device to let it in.
+- **Devices.** A new screen lists every phone, computer and Docker setup that uses the console:
+  online or last seen, its app version, and what it is doing right now. Rename, remove or block
+  any of them, and choose how long a device that stopped coming stays on the list (never, 30, 90
+  or 180 days). The list is kept on the console, so every device sees the same one. The footer
+  shows how many other devices are connected and what they are doing.
+- **No surprises from other devices.**
+  - Sending the helper asks first when another device is busy on the console, and every device is
+    told before the helper restarts.
+  - An app older than the console's helper no longer offers to replace it; it asks you to update
+    the app instead, since sending it would downgrade the helper for everyone.
+  - Rest mode and restart say which devices are in the middle of something.
+  - A package install waits its turn while another device is installing: a PS5 installs one at a
+    time.
+  - An upload into a folder another device is writing into says so.
+  - A blocked device is told it is blocked instead of "pairing is closed".
+- **Your set-up follows you.** The console list and the settings that describe how you use
+  PS5Upload (sidebar pins, upload, install, convert and link settings, saved searches and more)
+  are shared through each console, so a new phone or computer gets your consoles and set-up the
+  first time it connects. Theme, language, text size, where files are saved and the bandwidth cap
+  stay per device.
+- **Mesh Drive.** A folder kept the same on your computers, phones and Docker, with its home in a
+  folder on the console. Create one, pick a folder on each device that should keep a copy, and a
+  device already in lets the new one in. Every device syncs with the console every half minute
+  while the helper runs (Docker keeps going with no app open), so a file added anywhere reaches
+  everyone.
+  - A file changed in two places at once keeps both copies, one renamed "(conflict from …)".
+  - Deleted files go to a trash folder for 30 days, and deleting many files at once waits for you
+    to confirm.
+  - A folder that goes missing (an unplugged drive) is treated as offline, never as "everything
+    was deleted".
+- **Docker:** the web UI warns when `/data` is not kept by the host, since every update would then
+  make the container a new device.
+
 ## 7.5.3
 
 - **Android: bug reports and exports no longer leave a 0-byte file.** The save dialog created an

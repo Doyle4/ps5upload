@@ -137,6 +137,15 @@ ones (`ava1-ctest/tests/mgmt*.rs`, `ps5upload-ava1/tests/mgmt*.rs`). Methods 119
 | SmbSharesList 310 | 170 `smb.shares_list` | `MgmtText` {} -> {ok, shares[], max} | `src/runtime.c` `handle_smb_shares_list` (`src/webui_smb.c`) | `ps5upload-core/src/console_shares.rs` | the shares the console page (Files, Library) uses; never a password (has_password) |
 | SmbSharesSave 312 | 171 `smb.shares_save` | `MgmtText` {id?, name, server, share, user, password?, domain, start_path} -> {ok, share, dialect} | `src/runtime.c` `handle_smb_shares_save` | `ps5upload-core/src/console_shares.rs` | signs in through the SMB daemon first; no password with an id keeps the saved one |
 | SmbSharesRemove 314 | 172 `smb.shares_remove` | `MgmtText` {id} -> {ok} | `src/runtime.c` `handle_smb_shares_remove` | `ps5upload-core/src/console_shares.rs` |  |
+| MeshHello 316 | 173 `mesh.hello` | `MgmtText` {name, kind, os, app} -> {you, helper, rev, new, settings}: the caller's device record (made on first sight) | `src/runtime.c` `handle_mesh_hello` (`src/mesh.c`) | `ps5upload-core/src/mesh.rs` | `payload/tests/mesh_selftest.c` |
+| MeshState 318 | 174 `mesh.state` | `MgmtText` {since, ev} -> {rev, same} or the whole picture: devices (online, activity), locks, events after `ev`, settings; prunes devices unseen for `prune_days` | `src/runtime.c` `handle_mesh_state` (`src/mesh.c`) | `ps5upload-core/src/mesh.rs` | `payload/tests/mesh_selftest.c` |
+| MeshActivity 320 | 175 `mesh.activity` | `MgmtText` {items: [...]} -> {ok, rev}: the caller's presence (a JSON array, 1.5 KiB) | `src/runtime.c` `handle_mesh_activity` (`src/mesh.c`) | `ps5upload-core/src/mesh.rs` | `payload/tests/mesh_selftest.c` |
+| MeshLock 322 | 176 `mesh.lock` | `MgmtText` {op: take/release, name, ttl, force, label} -> {ok, got, by?, by_name?, label?, until}; a lock lapses when it runs out or its holder goes offline | `src/runtime.c` `handle_mesh_lock` (`src/mesh.c`) | `ps5upload-core/src/mesh.rs` | `payload/tests/mesh_selftest.c` |
+| MeshDevice 324 | 177 `mesh.device` | `MgmtText` {op: rename/remove/block/unblock, id, name?} -> {ok, rev}; remove and block forget the key (AVA1 trust store) and end its sessions | `src/runtime.c` `handle_mesh_device` (`src/mesh.c`) | `ps5upload-core/src/mesh.rs` | `payload/tests/mesh_selftest.c` |
+| MeshSettings 326 | 178 `mesh.settings` | `MgmtText` {require_approval?, prune_days?} -> {ok, settings} | `src/runtime.c` `handle_mesh_settings` (`src/mesh.c`) | `ps5upload-core/src/mesh.rs` | `payload/tests/mesh_selftest.c` |
+| MeshDocGet 328 | 179 `mesh.doc_get` | `MgmtText` {name} -> {rev, doc} | `src/runtime.c` `handle_mesh_doc_get` (`src/mesh.c`) | `ps5upload-core/src/mesh.rs` | `payload/tests/mesh_selftest.c` |
+| MeshDocPut 330 | 180 `mesh.doc_put` | `MgmtText` {name, base, doc} -> {saved: true, rev} or {saved: false, rev, doc} (written since `base`) | `src/runtime.c` `handle_mesh_doc_put` (`src/mesh.c`) | `ps5upload-core/src/mesh.rs` | `payload/tests/mesh_selftest.c` |
+| MeshAnnounce 332 | 181 `mesh.announce` | `MgmtText` {kind, text} -> {ok, rev}: an event every device sees | `src/runtime.c` `handle_mesh_announce` (`src/mesh.c`) | `ps5upload-core/src/mesh.rs` | `payload/tests/mesh_selftest.c` |
 | — | 21 `job.list` | empty -> `JobListResult` | `ava1/ava1_data.c` (the data plane) | none | `ava1-ctest/tests/job_run.rs` `repeat_job_run_is_idempotent`, `at_most_eight_operations_run_at_once_and_an_unknown_op_is_refused` (listing); no engine caller yet |
 | — | 34 `fs.stat` | `FsPath` -> `FsStat` | native `src/mgmt_fs.c` `mgmt_run_fs_stat` | none | host-tested |
 | — | 44 `fs.freespace` | `FsPath` -> `FsFreeSpace{usable, free, total, reserve, dev}`: the room an upload may fill on the drive holding the path (nearest existing ancestor): free less the working margin (1/64th, at most 1 GiB), never the memory admit budget or the hidden allocator pool; the engine's up-front space check (review 015 #02) | native `src/mgmt_fs.c` `mgmt_run_fs_freespace` | `ps5upload-core/src/volumes.rs` `free_space` (`ps5upload-ava1/src/space.rs`) | `ava1-ctest/tests/mgmt_fs.rs` `fs_freespace_is_the_post_reserve_figure_of_the_drive_holding_the_path`; engine `ps5upload-ava1/tests/mgmt.rs` |
@@ -177,6 +186,9 @@ detect truncation (SPEC §7.3): a buffer smaller than the answer is `ERR_INTERNA
 | smb.shares_list | <= 64 KiB (16 shares) | fits |
 | smb.shares_save, smb.shares_remove | <= 4 KiB | fits |
 | files.prefs_get, files.prefs_set | 64 KiB (`FILES_PREFS_FILE_MAX`) | fits |
+| mesh.state | <= 200 KiB (`MESH_REPLY_MAX`: 64 devices, 1.5 KiB of presence each) | fits |
+| mesh.doc_get, mesh.doc_put | 160 KiB document (`MESH_DOC_MAX`) | fits |
+| mesh.hello, mesh.activity, mesh.lock, mesh.device, mesh.settings, mesh.announce | <= 2 KiB | fits |
 | files.handoff_put, files.handoff_take | <= 6.2 KiB (`FILES_HANDOFF_OUT_MAX`) | fits |
 | app.db_query | 64 KiB | fits |
 | proc.focus | 8 KiB | fits |

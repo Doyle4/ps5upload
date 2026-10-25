@@ -311,7 +311,7 @@ static int top_value(const char *s, size_t n, const char *key, const char **v, s
 /* ---- files ---- */
 
 static int write_atomic(const char *path, const char *data, size_t len) {
-    char tmp[300];
+    char tmp[600];
     int fd, ok;
     if (snprintf(tmp, sizeof tmp, "%s.tmp", path) >= (int)sizeof tmp) return -1;
     fd = open(tmp, O_WRONLY | O_CREAT | O_TRUNC, 0600);
@@ -351,7 +351,7 @@ static void path_of(char *out, size_t cap, const char *name) { snprintf(out, cap
 /* Under g_mu. */
 static void save_devices(void) {
     size_t cap = (size_t)MESH_MAX_DEVICES * 512u;
-    char *p, path[300], hex[65];
+    char *p, path[512], hex[65];
     buf_t b;
     int i;
     if (!M.persist) return;
@@ -375,7 +375,7 @@ static void save_devices(void) {
 }
 
 static void save_settings(void) {
-    char path[300], text[96];
+    char path[512], text[96];
     int n;
     if (!M.persist) return;
     n = snprintf(text, sizeof text, "require_approval=%d\nprune_days=%u\n", M.require_approval, M.prune_days);
@@ -384,7 +384,7 @@ static void save_settings(void) {
 }
 
 static void load_settings(void) {
-    char path[300], *p, *q;
+    char path[512], *p, *q;
     size_t n;
     M.require_approval = 0;
     M.prune_days = MESH_PRUNE_DEFAULT_DAYS;
@@ -411,7 +411,7 @@ static int split_tabs(char *line, char **f, int max) {
 }
 
 static void load_devices(void) {
-    char path[300], *p, *line, *save = NULL;
+    char path[512], *p, *line, *save = NULL;
     size_t n;
     int slot = 0;
     path_of(path, sizeof path, "devices");
@@ -512,7 +512,7 @@ static int lock_live(const lock_t_ *l, uint64_t t, const mesh_online_t *on, int 
 /* ---- public ---- */
 
 int mesh_start(const char *dir, const mesh_hooks_t *hooks, const char *helper_version) {
-    char v1[300];
+    char v1[512];
     int rc = 0;
     pthread_mutex_lock(&g_mu);
     memset(&M, 0, sizeof M);
@@ -958,7 +958,7 @@ static int doc_name_ok(const char *s) {
 
 /* A document file: "<rev>\n<json>". Under g_mu. *rev 0 and NULL when there is none. */
 static char *doc_load(const char *name, uint64_t *rev, size_t *len) {
-    char path[300], file[64], *p, *nl;
+    char path[512], file[64], *p, *nl;
     size_t n;
     *rev = 0;
     *len = 0;
@@ -978,7 +978,7 @@ static char *doc_load(const char *name, uint64_t *rev, size_t *len) {
 }
 
 static int doc_count(void) {
-    char v1[300];
+    char v1[512];
     DIR *dir;
     struct dirent *e;
     int n = 0;
@@ -1009,7 +1009,7 @@ static int do_doc_get(const char *body, size_t n, char *out, size_t cap) {
 }
 
 static int do_doc_put(const char *body, size_t n, char *out, size_t cap) {
-    char name[48], path[300], file[64];
+    char name[48], path[512], file[64];
     uint64_t base = 0, rev;
     const char *v;
     size_t vl, len;
