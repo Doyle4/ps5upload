@@ -2075,3 +2075,17 @@ button {
 .cw-cleanup-bar .cw-button {
   margin-left: 0.6rem;
 }
+
+/* Home: a USB stick just plugged in (Find games / Open in Files). */
+.cw-usb-new {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4em;
+}
+.cw-usb-new-title {
+  font-weight: 600;
+  margin: 0;
+}
+.cw-usb-new .cw-dim {
+  margin: 0;
+}

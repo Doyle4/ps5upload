@@ -422,13 +422,18 @@ async function register(path: string, name: string): Promise<void> {
 }
 
 /** The Library section: games on the saved shares and this console's drives, installed or copied from the controller. */
-export function Library() {
+export function Library({ scan = false }: { scan?: boolean } = {}) {
   const [, bump] = useReducer((n: number) => n + 1, 0);
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState<Entry | null>(null);
   const [drives, setDrives] = useState<Volume[]>([]);
   const live = useRef(true);
   const root = useRef<HTMLDivElement>(null);
+
+  // Opened to scan (a USB drive just connected): start one, unless one is running already.
+  useEffect(() => {
+    if (scan && !lib.task) void scanAll();
+  }, [scan]);
 
   useEffect(() => {
     live.current = true;

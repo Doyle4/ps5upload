@@ -6,6 +6,9 @@ What's new in ps5upload, written for humans.
 
 ## 7.5.3
 
+- **Minion notices a USB drive.** Plug a USB stick into the PS5 with Minion open and Home offers
+  **Find games on it** (Library scans it for packages, game folders and images to install or
+  copy) or **Open in Files**: a PS5-only workflow with no computer.
 - **Clean up points at the biggest wins.** Clean up now also counts the installed games and apps
   never seen running and opens Installed Apps on exactly that list, where each can be
   uninstalled. Home shows a **Clean up** card when one of the PS5's drives is nearly full (under

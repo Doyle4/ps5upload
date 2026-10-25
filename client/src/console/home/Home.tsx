@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Eraser, Gamepad2, HardDrive, Sparkles, Usb, X } from "lucide-react";
 import { formatBytes } from "../../lib/format";
 import { ApiError, call, callBlob, isOffline } from "../api";
@@ -44,6 +44,13 @@ export interface Message {
 
 const isUsbStick = (v: Volume) => /^\/mnt\/usb\d+$/.test(v.path);
 const isExt = (v: Volume) => /^\/mnt\/ext\d+$/.test(v.path);
+/** A USB stick that was not there on the previous read (`seen`, null on the first: what is
+ *  plugged in when the page opens is not news). */
+export function newUsbStick(seen: ReadonlySet<string> | null, volumes: readonly Volume[]): Volume | null {
+  if (!seen) return null;
+  return volumes.find((v) => isUsbStick(v) && !seen.has(v.path)) ?? null;
+}
+
 /** A USB drive formatted as PS5 extended storage (M.2 is /dev/nvme*). */
 const isUsbExt = (v: Volume) => isExt(v) && v.mount_from.startsWith("/dev/da");
 
@@ -152,6 +159,11 @@ export interface HomeViewProps {
   onOpenCleanup?: (() => void) | null;
   /** What the last clean-up scan of this page found, or null before one ran. */
   cleanupFound?: { bytes: number; count: number } | null;
+  /** A USB stick just plugged in, or null. */
+  usbNew?: Volume | null;
+  /** Look for games on it: Library, scanning; null while there is no Library. */
+  onFindGames?: (() => void) | null;
+  onDismissUsb?: () => void;
 }
 
 /** One drive. Focusable; ✕ (a click) opens Files there when `onOpen` is given. */
@@ -229,6 +241,33 @@ export function HomeView(p: HomeViewProps) {
         <div className={`cw-msg is-${p.message.tone}`} role={p.message.tone === "error" ? "alert" : "status"}>
           {p.message.text}
         </div>
+      ) : null}
+
+      {p.usbNew ? (
+        <section className="cw-card cw-usb-new" role="status" aria-label={t("cw_home_usb_new_title")} data-usb-new={p.usbNew.path}>
+          <p className="cw-usb-new-title">{t("cw_home_usb_new_title")}</p>
+          <p className="cw-dim">{t("cw_home_usb_new_body", { free: formatBytes(p.usbNew.free_bytes) })}</p>
+          <div className="cw-dialog-buttons">
+            {p.onFindGames ? (
+              <button type="button" className="cw-focusable cw-button is-primary" data-action="usb-find-games" onClick={p.onFindGames}>
+                <span>{t("cw_home_usb_find")}</span>
+              </button>
+            ) : null}
+            {p.onOpenDrive ? (
+              <button
+                type="button"
+                className="cw-focusable cw-button"
+                data-action="usb-open"
+                onClick={() => p.onOpenDrive?.(p.usbNew!.path)}
+              >
+                <span>{t("cw_home_usb_open")}</span>
+              </button>
+            ) : null}
+            <button type="button" className="cw-focusable cw-button" data-action="usb-dismiss" onClick={p.onDismissUsb}>
+              <span>{t("cw_files_close")}</span>
+            </button>
+          </div>
+        </section>
       ) : null}
 
       <section className="cw-card cw-game" aria-label={t("cw_home_now_running")}>
@@ -486,6 +525,18 @@ export function Home({ ctx }: { ctx: SectionContext }) {
   const onOpenCleanup = hasSection("cleanup") ? () => openSection("cleanup") : null;
   const [cleanupFound, setCleanupFound] = useState(cleanupLastFound);
   useEffect(() => onCleanupFound(() => setCleanupFound(cleanupLastFound())), []);
+  // A USB stick plugged in while the page is open: offer to find games on it. Cleared when it
+  // goes away.
+  const seenDrives = useRef<Set<string> | null>(null);
+  const [usbNew, setUsbNew] = useState<Volume | null>(null);
+  useEffect(() => {
+    if (!volumes) return;
+    const fresh = newUsbStick(seenDrives.current, volumes);
+    seenDrives.current = new Set(volumes.map((v) => v.path));
+    if (fresh) setUsbNew(fresh);
+    else setUsbNew((cur) => (cur && seenDrives.current?.has(cur.path) ? cur : null));
+  }, [volumes]);
+  const onFindGames = hasSection("library") ? () => openSection("library", { scan: "1" }) : null;
 
   return (
     <HomeView
@@ -514,6 +565,9 @@ export function Home({ ctx }: { ctx: SectionContext }) {
       onOpenDrive={onOpenDrive}
       onOpenCleanup={onOpenCleanup}
       cleanupFound={cleanupFound}
+      usbNew={usbNew}
+      onFindGames={onFindGames}
+      onDismissUsb={() => setUsbNew(null)}
     />
   );
 }

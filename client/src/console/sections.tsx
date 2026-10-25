@@ -63,7 +63,9 @@ export const SECTIONS: Section[] = [
     id: "library",
     icon: LibraryBig,
     labelKey: "cw_lib_title",
-    render: () => <Library />,
+    // Home's "USB drive connected" opens it scanning (params.scan).
+    render: (ctx) => <Library scan={ctx.params?.scan === "1"} />,
+    acceptsParams: true,
   },
   {
     id: "files",

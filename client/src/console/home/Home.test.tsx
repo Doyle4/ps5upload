@@ -15,6 +15,7 @@ import {
   keepsDialogOpen,
   HomeView,
   MAX_TASK_ROWS,
+  newUsbStick,
   runAsk,
   VolumeCard,
   type Ask,
@@ -329,5 +330,24 @@ describe("ConfirmDialog", () => {
     expect(onCancel).toHaveBeenCalledTimes(1);
     expect(handle("nextSection")).toBe(true);
     expect(onCancel).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("newUsbStick", () => {
+  const v = (path: string): Volume => ({
+    path,
+    mount_from: "/dev/da0s1",
+    fs_type: "exfatfs",
+    total_bytes: 64e9,
+    free_bytes: 32e9,
+    writable: true,
+  });
+  it("is quiet on the first read: what is plugged in at page open is not news", () => {
+    expect(newUsbStick(null, [v("/data"), v("/mnt/usb0")])).toBeNull();
+  });
+  it("names a USB stick that was not there before, and nothing else", () => {
+    const seen = new Set(["/data", "/mnt/usb0"]);
+    expect(newUsbStick(seen, [v("/data"), v("/mnt/usb0"), v("/mnt/usb1")])?.path).toBe("/mnt/usb1");
+    expect(newUsbStick(seen, [v("/data"), v("/mnt/usb0"), v("/mnt/ext0")])).toBeNull();
   });
 });
