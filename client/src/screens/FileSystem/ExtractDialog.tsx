@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { FileArchive } from "lucide-react";
 
-import { Button, Input, Modal, SegmentedControl } from "../../components";
+import { Button, Checkbox, Input, Modal, SegmentedControl } from "../../components";
+import { formatBytes } from "../../lib/format";
 import { archiveFolderName, freeFolderName, validFolderName } from "../../lib/archiveName";
 import { useTr } from "../../state/lang";
 
@@ -14,6 +15,16 @@ export interface ExtractChoice {
   merge: boolean;
   replace: boolean;
   password: string;
+}
+
+/** What to do once the archive is out: delete it (only when everything came out). */
+export interface ExtractAfter {
+  deleteArchive: boolean;
+}
+
+/** A drive with less room than the archive itself certainly cannot hold what is in it. */
+export function extractRoomShort(archiveBytes: number, freeBytes: number | null | undefined): boolean {
+  return typeof freeBytes === "number" && archiveBytes > 0 && freeBytes < archiveBytes;
 }
 
 /** The choice the dialog starts a job with: Keep both picks a free name, Merge keeps the one taken. */
@@ -37,6 +48,8 @@ export function ExtractDialog({
   exists,
   passwordAsk = null,
   initial = null,
+  archiveBytes = 0,
+  freeBytes = null,
   onCancel,
   onConfirm,
 }: {
@@ -50,19 +63,24 @@ export function ExtractDialog({
   passwordAsk?: "required" | "wrong" | null;
   /** The choice of the run that needs a password: kept as it was. */
   initial?: ExtractChoice | null;
+  /** The archive's size, and the room on its drive (null: not known). */
+  archiveBytes?: number;
+  freeBytes?: number | null;
   onCancel: () => void;
-  onConfirm: (choice: ExtractChoice) => void;
+  onConfirm: (choice: ExtractChoice, after: ExtractAfter) => void;
 }) {
   const tr = useTr();
   const [folder, setFolder] = useState(() => archiveFolderName(name));
   const [mode, setMode] = useState<ExtractMode>("new");
   const [password, setPassword] = useState("");
+  const [deleteArchive, setDeleteArchive] = useState(false);
 
   useEffect(() => {
     if (!open) return;
     setFolder(initial?.folder ?? archiveFolderName(name));
     setMode(initial ? (initial.replace ? "replace" : initial.merge ? "merge" : "new") : "new");
     setPassword("");
+    if (!initial) setDeleteArchive(false);
   }, [open, name, initial]);
 
   const asking = passwordAsk != null;
@@ -74,10 +92,10 @@ export function ExtractDialog({
   const confirm = () => {
     if (blocked) return;
     if (asking && initial) {
-      onConfirm({ ...initial, password });
+      onConfirm({ ...initial, password }, { deleteArchive });
       return;
     }
-    onConfirm(extractChoice(folder.trim(), mode, exists, password));
+    onConfirm(extractChoice(folder.trim(), mode, exists, password), { deleteArchive });
   };
 
   return (
@@ -159,6 +177,27 @@ export function ExtractDialog({
               </div>
             )}
           </>
+        )}
+        {!asking && extractRoomShort(archiveBytes, freeBytes) && (
+          <p role="alert" className="text-[var(--color-warn,inherit)]" data-testid="fs-extract-room">
+            {tr(
+              "fs_extract_room_short",
+              { free: formatBytes(freeBytes ?? 0), size: formatBytes(archiveBytes) },
+              `This drive has ${formatBytes(freeBytes ?? 0)} free, less than the archive itself (${formatBytes(archiveBytes)}): what is in it will not fit. Free some space or move the archive to another drive first.`,
+            )}
+          </p>
+        )}
+        {!asking && (
+          <Checkbox
+            checked={deleteArchive}
+            onChange={setDeleteArchive}
+            label={tr("fs_extract_delete_after", undefined, "Delete the archive after extracting")}
+            hint={tr(
+              "fs_extract_delete_after_hint",
+              undefined,
+              "Only when every file came out. A split archive's other parts stay.",
+            )}
+          />
         )}
         <Input
           type="password"

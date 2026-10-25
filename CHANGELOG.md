@@ -6,6 +6,12 @@ What's new in ps5upload, written for humans.
 
 ## 7.5.3
 
+- **Extracting on the PS5, made easier.** A `.zip`, `.7z` or `.rar` on the console now has an
+  **Extract** button right on its row in Files (it was only in the menu before). The dialog can
+  **delete the archive afterwards** (only when every file came out), warns when the drive has
+  less room than the archive itself, and the finished notice opens the new folder and says
+  what to do next: install the packages inside, or register the game folder. Minion's Extract
+  can delete the archive afterwards too.
 - **An iOS source for AltStore, SideStore and Feather.** Add
   `https://github.com/phantomptr/ps5upload/releases/latest/download/altstore.json` as a source
   and the iPhone app updates from there; it always names the newest full release (#512).

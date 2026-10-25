@@ -1838,8 +1838,33 @@ export function Files({ ctx }: { ctx: SectionContext }) {
             refresh();
             return;
           }
-          setMessage(extractMessage(done, start.merge));
+          const msg = extractMessage(done, start.merge);
           if (done.end === "done") focusName.current = baseName(start.dest);
+          if (done.end === "done" && start.deleteAfter && msg) {
+            // Only when every entry came out: a skipped unsafe path or link keeps the archive.
+            const r = toExtractResult(opResult<unknown>(done.status));
+            if (r.unsafe > 0 || r.links > 0) {
+              setMessage({ ...msg, text: `${msg.text} ${t("cw_files_extract_kept_archive")}` });
+              refresh();
+              return;
+            }
+            deleteItems([src], { waitJob: (id) => waitJob(id, () => false) })
+              .then(
+                (del) => {
+                  if (!mounted.current) return;
+                  const ok = del.failed.length === 0 && del.jobFailed.length === 0;
+                  setMessage({ ...msg, text: `${msg.text} ${t(ok ? "cw_files_extract_deleted" : "cw_files_extract_delete_failed")}` });
+                  refresh();
+                },
+                () => {
+                  if (!mounted.current) return;
+                  setMessage({ ...msg, text: `${msg.text} ${t("cw_files_extract_delete_failed")}` });
+                  refresh();
+                },
+              );
+            return;
+          }
+          setMessage(msg);
           refresh();
         },
         () => undefined,

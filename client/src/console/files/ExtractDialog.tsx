@@ -19,6 +19,8 @@ export interface ExtractStart {
   dest: string;
   merge: boolean;
   replace: boolean;
+  /** Delete the archive once every entry came out. */
+  deleteAfter?: boolean;
 }
 
 /** An extract cause token (fs_extract_no_space, …) as a sentence, or null when it has none. */
@@ -110,6 +112,7 @@ export function ExtractDialog({
   const [naming, setNaming] = useState(false);
   const [nameError, setNameError] = useState<string | null>(null);
   const [confirmReplace, setConfirmReplace] = useState(false);
+  const [deleteAfter, setDeleteAfter] = useState(false);
   const preset = initial != null;
   useEffect(() => {
     if (preset) return;
@@ -162,7 +165,7 @@ export function ExtractDialog({
         body={t("cw_files_extract_replace_body")}
         confirmLabel={t("cw_files_extract_merge_replace")}
         danger
-        onConfirm={() => onStart({ dest, merge: true, replace: true })}
+        onConfirm={() => onStart({ dest, merge: true, replace: true, deleteAfter })}
         onCancel={() => setConfirmReplace(false)}
       />
     );
@@ -219,6 +222,17 @@ export function ExtractDialog({
         </p>
       ) : null}
       {busy ? <p className="cw-dim">{t("cw_files_extract_wait_batch")}</p> : null}
+      <button
+        type="button"
+        role="switch"
+        aria-checked={deleteAfter}
+        className="cw-focusable cw-button"
+        data-action="extract-delete-after"
+        onClick={() => setDeleteAfter((v) => !v)}
+      >
+        <span>{t("cw_files_extract_delete_after")}</span>
+        <span className={`cw-tag${deleteAfter ? " is-on" : ""}`}>{t(deleteAfter ? "cw_settings_on" : "cw_settings_off")}</span>
+      </button>
       <div className="cw-dialog-buttons">
         <button type="button" className="cw-focusable cw-button" data-nav-default="" onClick={onCancel}>
           <span>{t("cw_dialog_cancel")}</span>
@@ -233,7 +247,7 @@ export function ExtractDialog({
               className="cw-focusable cw-button"
               data-action="extract-merge"
               disabled={busy}
-              onClick={() => onStart({ dest, merge: true, replace: false })}
+              onClick={() => onStart({ dest, merge: true, replace: false, deleteAfter })}
             >
               <span>{t("cw_files_extract_merge")}</span>
             </button>
@@ -253,7 +267,7 @@ export function ExtractDialog({
             className="cw-focusable cw-button is-primary"
             data-action="extract-go"
             disabled={!canStart}
-            onClick={() => onStart({ dest, merge: false, replace: false })}
+            onClick={() => onStart({ dest, merge: false, replace: false, deleteAfter })}
           >
             <span>{t("cw_files_extract_go")}</span>
           </button>

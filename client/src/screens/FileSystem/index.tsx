@@ -4,8 +4,9 @@ import { consoleAddr, hostOf } from "../../lib/addr";
 import { trStatic } from "../../lib/trStatic";
 import { rememberDestination } from "../../lib/moveTo";
 import { MoveToDialog, type MoveItem } from "./MoveToDialog";
-import { ExtractDialog, type ExtractChoice } from "./ExtractDialog";
+import { ExtractDialog, type ExtractAfter, type ExtractChoice } from "./ExtractDialog";
 import { extractCause, isExtractableArchive, needsPassword } from "../../lib/archiveName";
+import { extractedNext } from "../../lib/extractNext";
 import { SendToConsoleDialog } from "./SendToConsoleDialog";
 import {
   RowActionButtons,
@@ -100,6 +101,7 @@ import {
   fsMkdir,
   fsCopy,
   fsListDir,
+  volumeForPath,
   fsOpStatus,
   fsOpCancel,
   jobStatus,
@@ -1871,9 +1873,15 @@ export default function FileSystemScreen() {
     dir: string;
     passwordAsk: "required" | "wrong" | null;
     choice: ExtractChoice | null;
+    after?: ExtractAfter;
   } | null>(null);
   const extractNameTaken = (n: string) => !!entries?.some((e) => e.name === n);
-  const runExtract = async (entry: DirEntry, dir: string, choice: ExtractChoice) => {
+  const runExtract = async (
+    entry: DirEntry,
+    dir: string,
+    choice: ExtractChoice,
+    after: ExtractAfter = { deleteArchive: false },
+  ) => {
     if (!host?.trim() || extractOp) return;
     const src = joinPath(dir, entry.name);
     const dest = joinPath(dir, choice.folder);
@@ -1923,14 +1931,39 @@ export default function FileSystemScreen() {
           ? tr("fs_extract_done_links", { n: out.links }, `${out.links} links or special files were not extracted.`)
           : "",
       ].filter(Boolean);
+      const into = out.path || dest;
+      // Delete the archive only when everything came out of it.
+      let deleted = false;
+      if (after.deleteArchive && out.unsafe === 0 && out.links === 0) {
+        try {
+          await fsDelete(addr, src);
+          deleted = true;
+        } catch (e) {
+          extra.push(
+            tr("fs_extract_delete_failed", { error: humanizePs5Error(String(e)) || String(e) }, `The archive could not be deleted: ${String(e)}`),
+          );
+        }
+      } else if (after.deleteArchive) {
+        extra.push(tr("fs_extract_kept_archive", undefined, "The archive was kept, since not every entry came out."));
+      }
+      if (deleted) extra.push(tr("fs_extract_deleted", undefined, "The archive was deleted."));
+      // What came out decides the next step: packages to install, or a game folder to register.
+      const next = await extractedNext(addr, into);
+      if (next.packages > 0)
+        extra.push(
+          tr("fs_extract_next_pkgs", { n: next.packages }, `It holds ${next.packages} package(s): install them from Games › Install Package, or from their row here.`),
+        );
+      else if (next.game)
+        extra.push(tr("fs_extract_next_game", undefined, "It is a game folder: register it from its row menu to put it on the home screen."));
       pushNotification(
         "success",
         withConsolePrefix(host, tr("fs_extract_done", { name: entry.name }, `Extracted ${entry.name}`)),
         {
           body: [
-            tr("fs_extract_done_body", { n: out.files, path: out.path || dest }, `${out.files} files into ${out.path || dest}`),
+            tr("fs_extract_done_body", { n: out.files, path: into }, `${out.files} files into ${into}`),
             ...extra,
           ].join(" "),
+          link: `/files?path=${encodeURIComponent(into)}`,
         },
       );
       void refresh();
@@ -1947,6 +1980,7 @@ export default function FileSystemScreen() {
           dir,
           passwordAsk: extractCause(msg) === "fs_extract_wrong_password" ? "wrong" : "required",
           choice,
+          after,
         });
       } else {
         task.fail(e);
@@ -2712,6 +2746,11 @@ export default function FileSystemScreen() {
     install: (e) => void runInstallPkg(e),
     loadPayload: (e) => void runLoadPayload(e),
     loadingPayloadName,
+    extract: (e) => {
+      const entry = entries?.find((x) => x.name === e.name);
+      if (entry) setExtractAsk({ entry, dir: path, passwordAsk: null, choice: null });
+    },
+    extractBusy: extractOp !== null,
     remove: (e) => void runDelete(e.name),
   };
   const actionsMenuEntry =
@@ -2922,11 +2961,13 @@ export default function FileSystemScreen() {
           exists={extractAsk.dir === path ? extractNameTaken : () => false}
           passwordAsk={extractAsk.passwordAsk}
           initial={extractAsk.choice}
+          archiveBytes={extractAsk.entry.size}
+          freeBytes={volumes ? (volumeForPath(volumes, extractAsk.dir)?.free_bytes ?? null) : null}
           onCancel={() => setExtractAsk(null)}
-          onConfirm={(choice) => {
+          onConfirm={(choice, after) => {
             const ask = extractAsk;
             setExtractAsk(null);
-            void runExtract(ask.entry, ask.dir, choice);
+            void runExtract(ask.entry, ask.dir, choice, ask.after ?? after);
           }}
         />
       )}

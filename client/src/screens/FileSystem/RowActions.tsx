@@ -15,6 +15,7 @@ import {
   Hash,
   Info,
   MoreVertical,
+  PackageOpen,
   PackagePlus,
   Pencil,
   Rocket,
@@ -26,6 +27,7 @@ import {
 import { Spinner } from "../../components";
 import { menuKeyAction } from "../../lib/menuKeys";
 import { isInstallPackagePath } from "../../lib/pkgDropDedupe";
+import { isExtractableArchive } from "../../lib/archiveName";
 import type { Translator } from "../../state/lang";
 
 type IconType = ComponentType<{ size?: number; className?: string }>;
@@ -109,6 +111,10 @@ export interface RowActionsContext {
   /** The entry a payload load is sending now. */
   loadingPayloadName?: string | null;
   remove: (e: RowEntry) => void;
+  /** Extract an archive on the console (absent: not offered). */
+  extract?: (e: RowEntry) => void;
+  /** An extract is running (one at a time). */
+  extractBusy?: boolean;
 }
 
 /** A file offered to the console's payload loader (:9021): .elf or .bin. */
@@ -151,6 +157,17 @@ export function buildRowActions(e: RowEntry, ctx: RowActionsContext): RowAction[
       },
     );
   }
+  // An archive's main action, so it leads the row rather than hiding in the menu.
+  if (!isDir && ctx.extract && ctx.hasHost && isExtractableArchive(e.name))
+    actions.push({
+      id: "extract",
+      icon: PackageOpen,
+      label: tr("fs_extract_action", undefined, "Extract…"),
+      title: tr("fs_extract_row_tooltip", undefined, "Extract on the console, into a folder next to it"),
+      run: () => ctx.extract?.(e),
+      disabled: ctx.extractBusy,
+      tone: "accent",
+    });
   actions.push({
     id: "rename",
     icon: Pencil,
