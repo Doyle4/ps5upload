@@ -23,8 +23,10 @@ import { isTerminal, type Task } from "./tasks";
 import { shortLabel } from "./activitySummary";
 
 export interface ConsoleMesh {
-  /** null until the first answer; false for a helper from before 8.0.0. */
+  /** null until the first answer; false for a helper (or engine) from before 8.0.0. */
   supported: boolean | null;
+  /** The engine itself predates 8.0.0 (not the helper). */
+  engineOld?: boolean;
   state: MeshState | null;
   error: string | null;
   /** When the last answer came (ms). */
@@ -104,7 +106,7 @@ export async function pollMesh(host: string): Promise<void> {
   try {
     const a = await fetchMeshState(key, cur.rev, cur.ev, meshClientId());
     if (!a.supported) {
-      put(key, { supported: false, state: null, error: null, at: Date.now() });
+      put(key, { supported: false, engineOld: !!a.engineOld, state: null, error: null, at: Date.now() });
       return;
     }
     if (a.same) {

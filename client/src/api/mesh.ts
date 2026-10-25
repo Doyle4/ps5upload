@@ -65,7 +65,7 @@ export interface MeshState {
 }
 
 export type MeshStateAnswer =
-  | { supported: false }
+  | { supported: false; engineOld?: boolean }
   | { supported: true; same: true; rev: number }
   | ({ supported: true; same?: false } & MeshState);
 
@@ -79,11 +79,21 @@ export interface MeshMe {
   docker_volume: boolean | null;
 }
 
+/** The engine this app talks to predates 8.0.0 (a stale dev build, or a remote engine such as an
+ *  older Docker container): it has no mesh routes at all. */
+export class EngineTooOldError extends Error {
+  constructor() {
+    super("The engine behind this app is older than 8.0.0");
+    this.name = "EngineTooOldError";
+  }
+}
+
 async function engineJson(route: string, init?: RequestInit): Promise<Record<string, unknown>> {
   const res = await fetch(`${getEngineUrl()}${route}`, {
     ...init,
     signal: AbortSignal.timeout(20_000),
   });
+  if (res.status === 404) throw new EngineTooOldError();
   const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
   if (!res.ok) {
     throw new Error(typeof body.error === "string" && body.error ? body.error : `request failed (${res.status})`);
@@ -164,7 +174,12 @@ export async function fetchMeshState(host: string, since: number, ev: number, cl
     ev: String(ev),
     client,
   });
-  return toMeshState(await engineJson(`/api/mesh/state?${q}`));
+  try {
+    return toMeshState(await engineJson(`/api/mesh/state?${q}`));
+  } catch (e) {
+    if (e instanceof EngineTooOldError) return { supported: false, engineOld: true };
+    throw e;
+  }
 }
 
 export async function postMeshActivity(host: string, client: string, items: MeshActivityItem[]): Promise<boolean> {

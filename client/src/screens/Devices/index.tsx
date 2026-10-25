@@ -18,12 +18,32 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
-import { Badge, Button, Callout, Card, PageHeader, Select, Toggle } from "../../components";
+import {
+  Badge,
+  Button,
+  Callout,
+  Card,
+  PageHeader,
+  Select,
+  Toggle,
+} from "../../components";
 import { useConfirm, usePrompt } from "../../components/ConfirmDialog";
-import { meshDevice, meshSettings, setMeshName, type MeshDevice } from "../../api/mesh";
+import {
+  meshDevice,
+  meshSettings,
+  setMeshName,
+  type MeshDevice,
+} from "../../api/mesh";
 import { useConnectionStore } from "../../state/connection";
 import { useTr, type Translator } from "../../state/lang";
-import { deviceName, loadMeshMe, meshFor, pollMesh, resetMeshCursor, useMeshStore } from "../../state/mesh";
+import {
+  deviceName,
+  loadMeshMe,
+  meshFor,
+  pollMesh,
+  resetMeshCursor,
+  useMeshStore,
+} from "../../state/mesh";
 
 const KIND_ICONS: Record<string, LucideIcon> = {
   android: Smartphone,
@@ -41,7 +61,8 @@ function KindIcon({ kind }: { kind: string }) {
 export function agoText(tr: Translator, ms: number): string {
   const min = Math.floor(ms / 60_000);
   if (min < 1) return tr("activity_just_now", undefined, "just now");
-  if (min < 60) return tr("activity_minutes_ago", { count: min }, `${min}m ago`);
+  if (min < 60)
+    return tr("activity_minutes_ago", { count: min }, `${min}m ago`);
   const h = Math.floor(min / 60);
   if (h < 48) return tr("activity_hours_ago", { count: h }, `${h}h ago`);
   const d = Math.floor(h / 24);
@@ -69,7 +90,9 @@ function ActivityLines({ d }: { d: MeshDevice }) {
   const browsers = d.activity.find((a) => a.kind === "browsers")?.count ?? 0;
   if (!items.length && !browsers) {
     return d.online ? (
-      <p className="text-xs text-[var(--color-muted)]">{tr("mesh_idle", undefined, "Not doing anything right now")}</p>
+      <p className="text-xs text-[var(--color-muted)]">
+        {tr("mesh_idle", undefined, "Not doing anything right now")}
+      </p>
     ) : null;
   }
   return (
@@ -84,7 +107,11 @@ function ActivityLines({ d }: { d: MeshDevice }) {
       ))}
       {browsers > 0 && (
         <li className="text-[var(--color-muted)]">
-          {tr("mesh_browsers", { count: browsers }, `${browsers} browser(s) using it`)}
+          {tr(
+            "mesh_browsers",
+            { count: browsers },
+            `${browsers} browser(s) using it`,
+          )}
         </li>
       )}
     </ul>
@@ -122,23 +149,39 @@ function DeviceCard({
         <div className="min-w-0 flex-1 space-y-1">
           <div className="flex flex-wrap items-center gap-2">
             <span className="truncate font-medium">{deviceName(d)}</span>
-            {me && <Badge tone="accent">{tr("mesh_this_device", undefined, "This device")}</Badge>}
+            {me && (
+              <Badge tone="accent">
+                {tr("mesh_this_device", undefined, "This device")}
+              </Badge>
+            )}
             {d.blocked ? (
-              <Badge tone="bad">{tr("mesh_blocked", undefined, "Blocked")}</Badge>
+              <Badge tone="bad">
+                {tr("mesh_blocked", undefined, "Blocked")}
+              </Badge>
             ) : d.online ? (
               <Badge tone="good" dot>
                 {tr("mesh_online", undefined, "Online")}
               </Badge>
             ) : (
               <Badge tone="neutral">
-                {tr("mesh_last_seen", { ago: agoText(tr, now - d.last) }, `Seen ${agoText(tr, now - d.last)}`)}
+                {tr(
+                  "mesh_last_seen",
+                  { ago: agoText(tr, now - d.last) },
+                  `Seen ${agoText(tr, now - d.last)}`,
+                )}
               </Badge>
             )}
           </div>
           <p className="text-xs text-[var(--color-muted)]">
             {older
-              ? tr("mesh_older_app", undefined, "An app from before 8.0.0: update it to see more about it here")
-              : [kindLabel(tr, d), d.os, d.app ? `v${d.app}` : "", d.ip].filter(Boolean).join(" · ")}
+              ? tr(
+                  "mesh_older_app",
+                  undefined,
+                  "An app from before 8.0.0: update it to see more about it here",
+                )
+              : [kindLabel(tr, d), d.os, d.app ? `v${d.app}` : "", d.ip]
+                  .filter(Boolean)
+                  .join(" · ")}
             {d.nick && d.name && d.nick !== d.name ? ` · ${d.name}` : ""}
           </p>
           {!d.blocked && <ActivityLines d={d} />}
@@ -208,14 +251,19 @@ export default function DevicesScreen() {
   const consoleNow = state ? state.now + (now - mesh.at) : now;
   const devices = useMemo(() => {
     const list = state?.devices ?? [];
-    const rank = (d: MeshDevice) => (d.id === state?.you ? 0 : d.blocked ? 3 : d.online ? 1 : 2);
+    const rank = (d: MeshDevice) =>
+      d.id === state?.you ? 0 : d.blocked ? 3 : d.online ? 1 : 2;
     return [...list].sort((a, b) => rank(a) - rank(b) || b.last - a.last);
   }, [state]);
 
   const rename = async (d: MeshDevice) => {
     const name = await prompt({
       title: tr("mesh_rename_title", undefined, "Rename this device"),
-      message: tr("mesh_rename_body", undefined, "Every device that uses this console sees the new name."),
+      message: tr(
+        "mesh_rename_body",
+        undefined,
+        "Every device that uses this console sees the new name.",
+      ),
       defaultValue: deviceName(d),
     });
     if (name === null) return;
@@ -225,7 +273,11 @@ export default function DevicesScreen() {
 
   const remove = async (d: MeshDevice) => {
     const ok = await confirm({
-      title: tr("mesh_remove_title", { name: deviceName(d) }, `Remove ${deviceName(d)}?`),
+      title: tr(
+        "mesh_remove_title",
+        { name: deviceName(d) },
+        `Remove ${deviceName(d)}?`,
+      ),
       message: tr(
         "mesh_remove_body",
         undefined,
@@ -239,7 +291,11 @@ export default function DevicesScreen() {
 
   const block = async (d: MeshDevice) => {
     const ok = await confirm({
-      title: tr("mesh_block_title", { name: deviceName(d) }, `Block ${deviceName(d)}?`),
+      title: tr(
+        "mesh_block_title",
+        { name: deviceName(d) },
+        `Block ${deviceName(d)}?`,
+      ),
       message: tr(
         "mesh_block_body",
         undefined,
@@ -277,21 +333,49 @@ export default function DevicesScreen() {
         <Callout
           tone="info"
           title={
-            !up
-              ? tr("mesh_need_helper", undefined, "Connect to a console to see its devices")
-              : tr("mesh_old_helper", undefined, "Update the helper to see devices")
+            mesh.engineOld
+              ? tr(
+                  "mesh_old_engine",
+                  undefined,
+                  "This app's engine is older than 8.0.0",
+                )
+              : !up
+                ? tr(
+                    "mesh_need_helper",
+                    undefined,
+                    "Connect to a console to see its devices",
+                  )
+                : tr(
+                    "mesh_old_helper",
+                    undefined,
+                    "Update the helper to see devices",
+                  )
           }
         >
           <p className="mb-2">
-            {!up
-              ? tr("mesh_need_helper_body", undefined, "The list lives on the console, so its helper has to be running.")
-              : tr(
-                  "mesh_old_helper_body",
+            {mesh.engineOld
+              ? tr(
+                  "mesh_old_engine_body",
                   undefined,
-                  "This console runs a helper from before 8.0.0. Send this app's helper from Connection, and every device that uses this console shows up here.",
-                )}
+                  "The engine this app talks to has no device list yet. Restart the app; if it uses an engine elsewhere (a Docker container), update that to 8.0.0.",
+                )
+              : !up
+                ? tr(
+                    "mesh_need_helper_body",
+                    undefined,
+                    "The list lives on the console, so its helper has to be running.",
+                  )
+                : tr(
+                    "mesh_old_helper_body",
+                    undefined,
+                    "This console runs a helper from before 8.0.0. Send this app's helper from Connection, and every device that uses this console shows up here.",
+                  )}
           </p>
-          <Button size="sm" variant="secondary" onClick={() => navigate("/connection")}>
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => navigate("/connection")}
+          >
             {tr("connect", undefined, "Connection")}
           </Button>
         </Callout>
@@ -305,12 +389,22 @@ export default function DevicesScreen() {
       {promptDialog}
       {header}
       {error && (
-        <Callout tone="error" title={tr("mesh_failed", undefined, "That didn't work")}>
+        <Callout
+          tone="error"
+          title={tr("mesh_failed", undefined, "That didn't work")}
+        >
           {error}
         </Callout>
       )}
       {me?.kind === "docker" && me.docker_volume === false && (
-        <Callout tone="warn" title={tr("mesh_docker_volume_title", undefined, "This Docker setup forgets who it is")}>
+        <Callout
+          tone="warn"
+          title={tr(
+            "mesh_docker_volume_title",
+            undefined,
+            "This Docker setup forgets who it is",
+          )}
+        >
           {tr(
             "mesh_docker_volume_body",
             undefined,
@@ -321,7 +415,9 @@ export default function DevicesScreen() {
 
       <Card title={tr("mesh_list", undefined, "Devices on this console")}>
         {!state ? (
-          <p className="text-sm text-[var(--color-muted)]">{tr("loading", undefined, "Loading…")}</p>
+          <p className="text-sm text-[var(--color-muted)]">
+            {tr("loading", undefined, "Loading…")}
+          </p>
         ) : (
           <div className="space-y-2">
             {devices.map((d) => (
@@ -333,7 +429,9 @@ export default function DevicesScreen() {
                 onRename={() => void rename(d)}
                 onRemove={() => void remove(d)}
                 onBlock={() => void block(d)}
-                onUnblock={() => void run(() => meshDevice(host, "unblock", d.id))}
+                onUnblock={() =>
+                  void run(() => meshDevice(host, "unblock", d.id))
+                }
               />
             ))}
           </div>
@@ -345,8 +443,14 @@ export default function DevicesScreen() {
           <div className="space-y-4">
             <Toggle
               checked={state.settings.require_approval}
-              onChange={(v) => void run(() => meshSettings(host, { require_approval: v }))}
-              label={tr("mesh_require_approval", undefined, "Ask before a new device can connect")}
+              onChange={(v) =>
+                void run(() => meshSettings(host, { require_approval: v }))
+              }
+              label={tr(
+                "mesh_require_approval",
+                undefined,
+                "Ask before a new device can connect",
+              )}
               hint={tr(
                 "mesh_require_approval_hint",
                 undefined,
@@ -356,12 +460,28 @@ export default function DevicesScreen() {
             <Select
               label={tr("mesh_prune", undefined, "Remove devices not seen for")}
               value={String(state.settings.prune_days)}
-              onChange={(e) => void run(() => meshSettings(host, { prune_days: Number(e.target.value) }))}
+              onChange={(e) =>
+                void run(() =>
+                  meshSettings(host, { prune_days: Number(e.target.value) }),
+                )
+              }
               options={[
-                { value: "0", label: tr("mesh_prune_never", undefined, "Never") },
-                { value: "30", label: tr("mesh_prune_days", { count: 30 }, "30 days") },
-                { value: "90", label: tr("mesh_prune_days", { count: 90 }, "90 days") },
-                { value: "180", label: tr("mesh_prune_days", { count: 180 }, "180 days") },
+                {
+                  value: "0",
+                  label: tr("mesh_prune_never", undefined, "Never"),
+                },
+                {
+                  value: "30",
+                  label: tr("mesh_prune_days", { count: 30 }, "30 days"),
+                },
+                {
+                  value: "90",
+                  label: tr("mesh_prune_days", { count: 90 }, "90 days"),
+                },
+                {
+                  value: "180",
+                  label: tr("mesh_prune_days", { count: 180 }, "180 days"),
+                },
               ]}
             />
           </div>

@@ -3,6 +3,7 @@
 
 import { getEngineUrl } from "../state/engine";
 import { consoleAddr } from "../lib/addr";
+import { EngineTooOldError } from "./mesh";
 
 export interface DriveMember {
   id: string;
@@ -43,11 +44,12 @@ export interface LocalDriveMember {
 }
 
 export type DrivesAnswer =
-  | { supported: false }
+  | { supported: false; engineOld?: boolean }
   | { supported: true; me: string | null; kind: string; suggest: string | null; drives: Drive[]; local: LocalDriveMember[] };
 
 async function engineJson(route: string, init?: RequestInit): Promise<Record<string, unknown>> {
   const res = await fetch(`${getEngineUrl()}${route}`, { ...init, signal: AbortSignal.timeout(60_000) });
+  if (res.status === 404) throw new EngineTooOldError();
   const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
   if (!res.ok) {
     throw new Error(typeof body.error === "string" && body.error ? body.error : `request failed (${res.status})`);
@@ -59,7 +61,13 @@ const post = (route: string, body: object) =>
   engineJson(route, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
 
 export async function fetchDrives(host: string): Promise<DrivesAnswer> {
-  const b = await engineJson(`/api/drive?addr=${encodeURIComponent(consoleAddr(host))}`);
+  let b: Record<string, unknown>;
+  try {
+    b = await engineJson(`/api/drive?addr=${encodeURIComponent(consoleAddr(host))}`);
+  } catch (e) {
+    if (e instanceof EngineTooOldError) return { supported: false, engineOld: true };
+    throw e;
+  }
   if (b.supported !== true) return { supported: false };
   return {
     supported: true,

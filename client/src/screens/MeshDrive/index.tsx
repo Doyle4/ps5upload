@@ -5,9 +5,26 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router";
-import { Check, FolderOpen, FolderSync, Pause, Play, Plus, RefreshCw, Trash2, X } from "lucide-react";
+import {
+  Check,
+  FolderOpen,
+  FolderSync,
+  Pause,
+  Play,
+  Plus,
+  RefreshCw,
+  Trash2,
+  X,
+} from "lucide-react";
 
-import { Badge, Button, Callout, Card, Input, PageHeader } from "../../components";
+import {
+  Badge,
+  Button,
+  Callout,
+  Card,
+  Input,
+  PageHeader,
+} from "../../components";
 import { useConfirm } from "../../components/ConfirmDialog";
 import {
   consolePathOf,
@@ -23,7 +40,11 @@ import { useConnectionStore } from "../../state/connection";
 import { useTr, type Translator } from "../../state/lang";
 import { agoText } from "../Devices";
 
-function statusText(tr: Translator, l: LocalDriveMember, now: number): { tone: "good" | "warn" | "bad" | "neutral" | "accent"; text: string } {
+function statusText(
+  tr: Translator,
+  l: LocalDriveMember,
+  now: number,
+): { tone: "good" | "warn" | "bad" | "neutral" | "accent"; text: string } {
   const s = l.status;
   switch (s.state) {
     case "idle":
@@ -31,20 +52,41 @@ function statusText(tr: Translator, l: LocalDriveMember, now: number): { tone: "
         tone: "good",
         text: tr(
           "drive_synced",
-          { count: s.files, ago: s.last_ok ? agoText(tr, now - s.last_ok) : "" },
+          {
+            count: s.files,
+            ago: s.last_ok ? agoText(tr, now - s.last_ok) : "",
+          },
           `In sync · ${s.files} files · ${s.last_ok ? agoText(tr, now - s.last_ok) : ""}`,
         ),
       };
     case "syncing":
-      return { tone: "accent", text: tr("drive_syncing", undefined, "Syncing…") };
+      return {
+        tone: "accent",
+        text: tr("drive_syncing", undefined, "Syncing…"),
+      };
     case "waiting":
-      return { tone: "neutral", text: s.detail || tr("drive_waiting", undefined, "Another device is syncing it") };
+      return {
+        tone: "neutral",
+        text:
+          s.detail ||
+          tr("drive_waiting", undefined, "Another device is syncing it"),
+      };
     case "pending":
-      return { tone: "warn", text: tr("drive_pending", undefined, "Waiting for a device in this drive to let this one in") };
+      return {
+        tone: "warn",
+        text: tr(
+          "drive_pending",
+          undefined,
+          "Waiting for a device in this drive to let this one in",
+        ),
+      };
     case "paused":
       return { tone: "neutral", text: tr("drive_paused", undefined, "Paused") };
     case "offline":
-      return { tone: "warn", text: s.detail || tr("drive_offline", undefined, "Folder offline") };
+      return {
+        tone: "warn",
+        text: s.detail || tr("drive_offline", undefined, "Folder offline"),
+      };
     case "confirm":
       return {
         tone: "warn",
@@ -55,11 +97,20 @@ function statusText(tr: Translator, l: LocalDriveMember, now: number): { tone: "
         ),
       };
     case "error":
-      return { tone: "bad", text: s.detail || tr("drive_error", undefined, "The last sync failed") };
+      return {
+        tone: "bad",
+        text: s.detail || tr("drive_error", undefined, "The last sync failed"),
+      };
     case "removed":
-      return { tone: "neutral", text: tr("drive_removed", undefined, "No longer in this drive") };
+      return {
+        tone: "neutral",
+        text: tr("drive_removed", undefined, "No longer in this drive"),
+      };
     default:
-      return { tone: "neutral", text: tr("drive_starting", undefined, "Starting…") };
+      return {
+        tone: "neutral",
+        text: tr("drive_starting", undefined, "Starting…"),
+      };
   }
 }
 
@@ -94,12 +145,30 @@ function MemberRow({
     <li className="flex flex-col gap-1 rounded-[var(--radius-card)] border border-[var(--color-border)] px-3 py-2 sm:flex-row sm:items-center">
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2 text-sm">
-          <span className="font-medium">{m.device_name || tr("mesh_another_device", undefined, "Another device")}</span>
-          {isMe && <Badge tone="accent">{tr("mesh_this_device", undefined, "This device")}</Badge>}
-          {!m.approved && <Badge tone="warn">{tr("drive_asks_to_join", undefined, "Asks to join")}</Badge>}
-          {m.paused && <Badge tone="neutral">{tr("drive_paused", undefined, "Paused")}</Badge>}
+          <span className="font-medium">
+            {m.device_name ||
+              tr("mesh_another_device", undefined, "Another device")}
+          </span>
+          {isMe && (
+            <Badge tone="accent">
+              {tr("mesh_this_device", undefined, "This device")}
+            </Badge>
+          )}
+          {!m.approved && (
+            <Badge tone="warn">
+              {tr("drive_asks_to_join", undefined, "Asks to join")}
+            </Badge>
+          )}
+          {m.paused && (
+            <Badge tone="neutral">
+              {tr("drive_paused", undefined, "Paused")}
+            </Badge>
+          )}
         </div>
-        <p className="truncate text-xs text-[var(--color-muted)]" title={m.path}>
+        <p
+          className="truncate text-xs text-[var(--color-muted)]"
+          title={m.path}
+        >
           {m.path}
         </p>
         {st && <p className={`text-xs ${TONE_CLASS[st.tone]}`}>{st.text}</p>}
@@ -135,13 +204,24 @@ function DriveCard({
 }) {
   const tr = useTr();
   const { confirm, dialog } = useConfirm();
-  const [joinPath, setJoinPath] = useState(data.suggest ? `${data.suggest}/${d.name}` : "");
+  const [joinPath, setJoinPath] = useState(
+    data.suggest ? `${data.suggest}/${d.name}` : "",
+  );
   const mine = data.local.find((l) => l.drive === d.id);
   const myMember = d.members.find((m) => m.id === mine?.member);
-  const iAmIn = d.members.some((m) => m.device === data.me && m.approved) || d.by === data.me;
+  const iAmIn =
+    d.members.some((m) => m.device === data.me && m.approved) ||
+    d.by === data.me;
 
   const browse = async () => {
-    const p = await pickPath({ mode: "folder", title: tr("drive_pick_folder", undefined, "Choose a folder for this drive") });
+    const p = await pickPath({
+      mode: "folder",
+      title: tr(
+        "drive_pick_folder",
+        undefined,
+        "Choose a folder for this drive",
+      ),
+    });
     if (p) setJoinPath(p);
   };
 
@@ -166,8 +246,12 @@ function DriveCard({
               isMe={m.device === data.me}
               canApprove={iAmIn}
               now={now}
-              onApprove={() => void run(() => driveApi.approve(host, d.id, m.id, true))}
-              onDecline={() => void run(() => driveApi.approve(host, d.id, m.id, false))}
+              onApprove={() =>
+                void run(() => driveApi.approve(host, d.id, m.id, true))
+              }
+              onDecline={() =>
+                void run(() => driveApi.approve(host, d.id, m.id, false))
+              }
             />
           ))}
           {d.members.length === 0 && (
@@ -185,39 +269,62 @@ function DriveCard({
                 variant="primary"
                 onClick={async () => {
                   const ok = await confirm({
-                    title: tr("drive_confirm_title", { count: mine.status.held_deletes }, `Delete ${mine.status.held_deletes} files everywhere?`),
+                    title: tr(
+                      "drive_confirm_title",
+                      { count: mine.status.held_deletes },
+                      `Delete ${mine.status.held_deletes} files everywhere?`,
+                    ),
                     message: tr(
                       "drive_confirm_body",
                       undefined,
                       "They were deleted in one place, so the drive would delete them on every device. Check that no folder was moved or a drive unplugged first. Deleted files stay in the drive's trash folder for 30 days.",
                     ),
-                    confirmLabel: tr("drive_confirm_go", undefined, "Delete everywhere"),
+                    confirmLabel: tr(
+                      "drive_confirm_go",
+                      undefined,
+                      "Delete everywhere",
+                    ),
                     destructive: true,
                   });
-                  if (ok) await run(() => driveApi.confirm(host, d.id, mine.member));
+                  if (ok)
+                    await run(() => driveApi.confirm(host, d.id, mine.member));
                 }}
               >
                 {tr("drive_confirm_review", undefined, "Review the deletes")}
               </Button>
             )}
-            <Button size="sm" variant="secondary" onClick={() => void run(() => driveApi.sync(host, d.id))}>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => void run(() => driveApi.sync(host, d.id))}
+            >
               <RefreshCw size={14} />
               {tr("drive_sync_now", undefined, "Sync now")}
             </Button>
             <Button
               size="sm"
               variant="ghost"
-              onClick={() => void run(() => driveApi.pause(host, d.id, mine.member, !myMember.paused))}
+              onClick={() =>
+                void run(() =>
+                  driveApi.pause(host, d.id, mine.member, !myMember.paused),
+                )
+              }
             >
               {myMember.paused ? <Play size={14} /> : <Pause size={14} />}
-              {myMember.paused ? tr("drive_resume", undefined, "Resume") : tr("drive_pause", undefined, "Pause")}
+              {myMember.paused
+                ? tr("drive_resume", undefined, "Resume")
+                : tr("drive_pause", undefined, "Pause")}
             </Button>
             <Button
               size="sm"
               variant="ghost"
               onClick={async () => {
                 const ok = await confirm({
-                  title: tr("drive_leave_title", undefined, "Stop keeping this drive on this device?"),
+                  title: tr(
+                    "drive_leave_title",
+                    undefined,
+                    "Stop keeping this drive on this device?",
+                  ),
                   message: tr(
                     "drive_leave_body",
                     { path: mine.path },
@@ -226,7 +333,8 @@ function DriveCard({
                   confirmLabel: tr("drive_leave", undefined, "Leave"),
                   destructive: true,
                 });
-                if (ok) await run(() => driveApi.leave(host, d.id, mine.member));
+                if (ok)
+                  await run(() => driveApi.leave(host, d.id, mine.member));
               }}
             >
               {tr("drive_leave", undefined, "Leave")}
@@ -235,11 +343,19 @@ function DriveCard({
         ) : (
           <div className="space-y-2 rounded-[var(--radius-card)] bg-[var(--color-surface)] p-3">
             <p className="text-sm">
-              {tr("drive_join_lead", undefined, "Keep a copy of this drive on this device:")}
+              {tr(
+                "drive_join_lead",
+                undefined,
+                "Keep a copy of this drive on this device:",
+              )}
             </p>
             <div className="flex flex-col gap-2 sm:flex-row">
               <div className="min-w-0 flex-1">
-                <Input value={joinPath} onChange={(e) => setJoinPath(e.target.value)} placeholder="/path/to/folder" />
+                <Input
+                  value={joinPath}
+                  onChange={(e) => setJoinPath(e.target.value)}
+                  placeholder="/path/to/folder"
+                />
               </div>
               <Button variant="ghost" onClick={() => void browse()}>
                 <FolderOpen size={16} />
@@ -248,7 +364,9 @@ function DriveCard({
               <Button
                 variant="primary"
                 disabled={!joinPath.trim()}
-                onClick={() => void run(() => driveApi.join(host, d.id, joinPath.trim()))}
+                onClick={() =>
+                  void run(() => driveApi.join(host, d.id, joinPath.trim()))
+                }
               >
                 {tr("drive_join", undefined, "Join")}
               </Button>
@@ -270,7 +388,11 @@ function DriveCard({
               variant="ghost"
               onClick={async () => {
                 const ok = await confirm({
-                  title: tr("drive_delete_title", { name: d.name }, `Delete the drive ${d.name}?`),
+                  title: tr(
+                    "drive_delete_title",
+                    { name: d.name },
+                    `Delete the drive ${d.name}?`,
+                  ),
                   message: tr(
                     "drive_delete_body",
                     undefined,
@@ -292,7 +414,15 @@ function DriveCard({
   );
 }
 
-function CreateCard({ host, data, run }: { host: string; data: Extract<DrivesAnswer, { supported: true }>; run: (f: () => Promise<unknown>) => Promise<void> }) {
+function CreateCard({
+  host,
+  data,
+  run,
+}: {
+  host: string;
+  data: Extract<DrivesAnswer, { supported: true }>;
+  run: (f: () => Promise<unknown>) => Promise<void>;
+}) {
   const tr = useTr();
   const [name, setName] = useState("Mesh Drive");
   const [hub, setHub] = useState("/data/PS5Upload Mesh Drive");
@@ -300,11 +430,19 @@ function CreateCard({ host, data, run }: { host: string; data: Extract<DrivesAns
   return (
     <Card title={tr("drive_create", undefined, "New Mesh Drive")} icon={Plus}>
       <div className="space-y-3">
-        <Input label={tr("drive_name", undefined, "Name")} value={name} onChange={(e) => setName(e.target.value)} />
+        <Input
+          label={tr("drive_name", undefined, "Name")}
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+        />
         <div className="flex items-end gap-2">
           <div className="min-w-0 flex-1">
             <Input
-              label={tr("drive_hub_label", undefined, "Its home: a folder on this console")}
+              label={tr(
+                "drive_hub_label",
+                undefined,
+                "Its home: a folder on this console",
+              )}
               value={hub}
               onChange={(e) => setHub(e.target.value)}
             />
@@ -312,7 +450,10 @@ function CreateCard({ host, data, run }: { host: string; data: Extract<DrivesAns
           <Button
             variant="ghost"
             onClick={async () => {
-              const p = await pickPath({ mode: "folder", source: { console: host } });
+              const p = await pickPath({
+                mode: "folder",
+                source: { console: host },
+              });
               if (p) setHub(consolePathOf(p));
             }}
           >
@@ -323,7 +464,11 @@ function CreateCard({ host, data, run }: { host: string; data: Extract<DrivesAns
         <div className="flex items-end gap-2">
           <div className="min-w-0 flex-1">
             <Input
-              label={tr("drive_local_label", undefined, "This device's copy (optional)")}
+              label={tr(
+                "drive_local_label",
+                undefined,
+                "This device's copy (optional)",
+              )}
               value={path}
               onChange={(e) => setPath(e.target.value)}
             />
@@ -343,7 +488,16 @@ function CreateCard({ host, data, run }: { host: string; data: Extract<DrivesAns
           <Button
             variant="primary"
             disabled={!name.trim() || !hub.trim().startsWith("/")}
-            onClick={() => void run(() => driveApi.create(host, name.trim(), hub.trim(), path.trim() || null))}
+            onClick={() =>
+              void run(() =>
+                driveApi.create(
+                  host,
+                  name.trim(),
+                  hub.trim(),
+                  path.trim() || null,
+                ),
+              )
+            }
           >
             <Plus size={16} />
             {tr("drive_create_go", undefined, "Create")}
@@ -416,14 +570,42 @@ export default function MeshDriveScreen() {
         <Callout
           tone="info"
           title={
-            !up
-              ? tr("drive_need_console", undefined, "Connect to a console to use Mesh Drive")
-              : tr("mesh_old_helper", undefined, "Update the helper to see devices")
+            data?.supported === false && data.engineOld
+              ? tr(
+                  "mesh_old_engine",
+                  undefined,
+                  "This app's engine is older than 8.0.0",
+                )
+              : !up
+                ? tr(
+                    "drive_need_console",
+                    undefined,
+                    "Connect to a console to use Mesh Drive",
+                  )
+                : tr(
+                    "mesh_old_helper",
+                    undefined,
+                    "Update the helper to see devices",
+                  )
           }
         >
-          <Button size="sm" variant="secondary" onClick={() => navigate("/connection")}>
-            {tr("connect", undefined, "Connection")}
-          </Button>
+          {data?.supported === false && data.engineOld ? (
+            <p>
+              {tr(
+                "mesh_old_engine_body",
+                undefined,
+                "The engine this app talks to has no device list yet. Restart the app; if it uses an engine elsewhere (a Docker container), update that to 8.0.0.",
+              )}
+            </p>
+          ) : (
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => navigate("/connection")}
+            >
+              {tr("connect", undefined, "Connection")}
+            </Button>
+          )}
         </Callout>
       </div>
     );
@@ -433,22 +615,56 @@ export default function MeshDriveScreen() {
     <div className="app-page space-y-4">
       {header}
       {error && (
-        <Callout tone="error" title={tr("mesh_failed", undefined, "That didn't work")}>
+        <Callout
+          tone="error"
+          title={tr("mesh_failed", undefined, "That didn't work")}
+        >
           {error}
         </Callout>
       )}
       {data?.supported && (
         <>
           {data.drives.map((d) => (
-            <DriveCard key={d.id} d={d} data={data} host={host} now={now} run={run} />
+            <DriveCard
+              key={d.id}
+              d={d}
+              data={data}
+              host={host}
+              now={now}
+              run={run}
+            />
           ))}
           <CreateCard host={host} data={data} run={run} />
           <Card title={tr("drive_how", undefined, "How it works")}>
             <ul className="list-disc space-y-1 ps-5 text-sm text-[var(--color-muted)]">
-              <li>{tr("drive_how_1", undefined, "Every device in the drive syncs with its home folder on the console every half minute while the console's helper runs. Docker keeps going with no app open.")}</li>
-              <li>{tr("drive_how_2", undefined, "Changed in two places at once: both are kept, one renamed \"(conflict from …)\".")}</li>
-              <li>{tr("drive_how_3", undefined, "Deleted files go to the drive's .ps5upload-trash folder for 30 days. Deleting many files at once waits for you to confirm.")}</li>
-              <li>{tr("drive_how_4", undefined, "A folder missing its .ps5upload-mesh file (an unplugged drive) is treated as offline, never as deleted.")}</li>
+              <li>
+                {tr(
+                  "drive_how_1",
+                  undefined,
+                  "Every device in the drive syncs with its home folder on the console every half minute while the console's helper runs. Docker keeps going with no app open.",
+                )}
+              </li>
+              <li>
+                {tr(
+                  "drive_how_2",
+                  undefined,
+                  'Changed in two places at once: both are kept, one renamed "(conflict from …)".',
+                )}
+              </li>
+              <li>
+                {tr(
+                  "drive_how_3",
+                  undefined,
+                  "Deleted files go to the drive's .ps5upload-trash folder for 30 days. Deleting many files at once waits for you to confirm.",
+                )}
+              </li>
+              <li>
+                {tr(
+                  "drive_how_4",
+                  undefined,
+                  "A folder missing its .ps5upload-mesh file (an unplugged drive) is treated as offline, never as deleted.",
+                )}
+              </li>
             </ul>
           </Card>
         </>
