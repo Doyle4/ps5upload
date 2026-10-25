@@ -26,7 +26,7 @@ import { fileURLToPath } from "node:url";
 import { gzipSync } from "node:zlib";
 import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
-import { appcacheManifest, serviceWorkerSource } from "./src/console/offline/offlineCopy";
+import { appcacheManifest, serviceWorkerSource } from "./src/console/offline/offlineCopy.ts";
 
 const RAW_BUDGET = 768 * 1024;
 const GZIP_BUDGET = 220 * 1024; // ruling R19 (was 150 KiB)

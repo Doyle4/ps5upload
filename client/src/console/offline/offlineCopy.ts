@@ -20,7 +20,7 @@
  * main.tsx shows the offline screen (OfflinePage) and reloads once it answers.
  */
 
-import { markUpdateReady } from "./update";
+import { markUpdateReady } from "./update.ts";
 
 /** The service worker. `__CW_SW_V__` is replaced with the page's build hash. */
 export const SW_SOURCE = `/* PS5Upload Minion: offline copy of the page (generated; see offlineCopy.ts) */
