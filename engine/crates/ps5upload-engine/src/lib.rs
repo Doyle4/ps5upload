@@ -71,6 +71,7 @@ mod install;
 mod link;
 mod local_fs;
 mod log_dedup;
+mod mesh_api;
 mod mgmt_route;
 mod migrate_6;
 mod net_doctor;
@@ -10990,6 +10991,18 @@ async fn run(cfg: EngineConfig) -> anyhow::Result<()> {
         )
         .route("/api/ps5/focus", get(ps5_focus))
         .route("/api/ps5/net/ports", get(ps5_net_ports))
+        // 8.0.0: this engine as one of the devices that use a console (mesh_api.rs).
+        .route("/api/mesh/me", get(mesh_api::me_get).post(mesh_api::me_set))
+        .route("/api/mesh/state", get(mesh_api::state))
+        .route("/api/mesh/activity", post(mesh_api::activity))
+        .route("/api/mesh/lock", post(mesh_api::lock))
+        .route("/api/mesh/device", post(mesh_api::device))
+        .route("/api/mesh/settings", post(mesh_api::settings))
+        .route(
+            "/api/mesh/doc",
+            get(mesh_api::doc_get).post(mesh_api::doc_put),
+        )
+        .route("/api/mesh/announce", post(mesh_api::announce))
         .route(
             "/api/ps5/files/prefs",
             get(console_files_api::prefs_get_handler),

@@ -69,6 +69,12 @@ typedef struct ava1_server_cfg {
     uint8_t launch_token[16];
     /* An unknown device started pairing: show its name and the code. */
     void (*on_pair_request)(const char *peer_name, uint32_t code);
+    /* A key that is not in the trust store finished its handshake (not a ticket): 1 trust it now,
+     * stored as a pairing would be; 0 the pairing rules above; -1 refuse it. NULL = 0. Called
+     * with no server lock held. */
+    int (*admit_new)(const uint8_t key[32], const char *peer_name, uint32_t ip);
+    /* Nonzero: refuse this key even though it is trusted (the user blocked it). NULL = never. */
+    int (*refused)(const uint8_t key[32]);
     /* What an operator should know (an unreadable peers file, a pairing not stored). */
     void (*log)(const char *msg);
     /* Runs on a worker thread. Returns an AVA1 status; writes the body to out. */
@@ -86,6 +92,19 @@ uint16_t ava1_server_port(void);
 void ava1_server_open_pairing(uint32_t seconds);
 int ava1_server_pairing_open(void);
 uint32_t ava1_server_pair_guesses(void);
+
+/* A device with a live session right now (full sessions only: not another console's ticket,
+ * not a console this one dialled). */
+typedef struct {
+    uint8_t key[32];
+    uint32_t ip; /* network order */
+    char name[64]; /* what the device called itself in its handshake */
+} ava1_online_t;
+/* Fills up to max entries, one per device; returns how many. */
+int ava1_server_online(ava1_online_t *out, int max);
+/* Removes key from the trust store (saved) and ends its sessions. 0, or -1 when the store could
+ * not be written (nothing changed). A key that was not trusted still has its sessions ended. */
+int ava1_server_forget(const uint8_t key[32]);
 int ava1_server_conns(void);
 /* RPC workers running right now, all sessions (they are detached: this is the only count of them). */
 int ava1_server_rpc_inflight(void);

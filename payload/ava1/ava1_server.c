@@ -697,6 +697,30 @@ static int pair_pake(ava1_conn_t *c, int idx, uint32_t ip, uint32_t ch, const ui
 /* SPEC.md 5.5, the second half: the client's key confirmation must verify (it knew the
  * code), and ours goes back so the client can tell this is the console it meant. A refusal
  * is counted and ends the session: one attempt each. */
+/* Stores key as trusted, as a confirmed pairing does. 0, or -1 (unreadable store, no memory, the
+ * write failed). */
+static int trust_key(const uint8_t key[32], const char *name) {
+    ava1_peers_t *next = malloc(sizeof *next);
+    int rc = -1;
+    if (!next) return -1;
+    pthread_mutex_lock(&store_mu);
+    pthread_mutex_lock(&mu);
+    if (S.peers_ok) {
+        *next = S.peers;
+        ava1_peers_put(next, key, name, (uint64_t)time(NULL));
+        rc = 0;
+    }
+    pthread_mutex_unlock(&mu);
+    if (rc == 0 && (rc = ava1_peers_save(next, S.cfg.peers_path)) == 0) {
+        pthread_mutex_lock(&mu);
+        S.peers = *next;
+        pthread_mutex_unlock(&mu);
+    }
+    pthread_mutex_unlock(&store_mu);
+    free(next);
+    return rc == 0 ? 0 : -1;
+}
+
 static int pair_confirm(ava1_conn_t *c, int idx, uint32_t ip, uint32_t ch, const uint8_t *body, size_t len) {
     ava1_pair_result_t r;
     ava1_pair_confirm_t m;
@@ -1170,6 +1194,23 @@ static void run_control(conn_t *k, uint8_t *buf, size_t len) {
         (void)send_error(&k->io, AVA1_ERR_PROTOCOL, "bad ClientInfo");
         goto out;
     }
+    /* The owner's rules for devices (admit_new / refused) decide before the pairing rules. A
+     * console with a ticket is not a device joining: its ticket decides below. */
+    if (!ci.has_token && (S.cfg.admit_new || S.cfg.refused)) {
+        int trusted, verdict = 0;
+        pthread_mutex_lock(&mu);
+        trusted = ava1_peers_contains(&S.peers, ns.rs);
+        pthread_mutex_unlock(&mu);
+        if (S.cfg.refused && S.cfg.refused(ns.rs)) verdict = -1;
+        else if (!trusted && S.cfg.admit_new) verdict = S.cfg.admit_new(ns.rs, peer_name, k->ip);
+        if (verdict < 0) {
+            (void)send_error(&k->io, AVA1_ERR_PAIRING_CLOSED, "this device is blocked on this console");
+            goto out;
+        }
+        /* A store that cannot be written leaves the device to the pairing rules. */
+        if (verdict > 0 && trust_key(ns.rs, peer_name) != 0)
+            slog("ava1: %s not trusted: cannot write %s", peer_name, S.cfg.peers_path);
+    }
     pthread_mutex_lock(&mu);
     known = ava1_peers_contains(&S.peers, ns.rs);
     open = now_ms() < S.pairing_until_ms;
@@ -1557,6 +1598,57 @@ uint32_t ava1_server_pair_guesses(void) {
     n = S.pl.total;
     pthread_mutex_unlock(&mu);
     return n;
+}
+
+int ava1_server_online(ava1_online_t *out, int max) {
+    int i, j, n = 0;
+    pthread_mutex_lock(&mu);
+    for (i = 0; i < MAX_SESSIONS && n < max; i++) {
+        sess_t *s = &S.sessions[i];
+        int dup = 0;
+        if (!s->used || s->reserved || s->superseded || !s->paired || s->restricted || s->outbound) continue;
+        for (j = 0; j < n; j++)
+            if (memcmp(out[j].key, s->peer_key, 32) == 0) dup = 1;
+        if (dup) continue;
+        memcpy(out[n].key, s->peer_key, 32);
+        out[n].ip = s->conn[0] ? s->conn[0]->ip : 0;
+        snprintf(out[n].name, sizeof out[n].name, "%s", s->peer_name);
+        n++;
+    }
+    pthread_mutex_unlock(&mu);
+    return n;
+}
+
+int ava1_server_forget(const uint8_t key[32]) {
+    ava1_peers_t *next = malloc(sizeof *next);
+    int i, m, rc = 0, had;
+    if (!next) return -1;
+    pthread_mutex_lock(&store_mu);
+    pthread_mutex_lock(&mu);
+    had = S.peers_ok && ava1_peers_contains(&S.peers, key);
+    if (had) {
+        *next = S.peers;
+        ava1_peers_remove(next, key);
+    }
+    pthread_mutex_unlock(&mu);
+    if (had && (rc = ava1_peers_save(next, S.cfg.peers_path)) == 0) {
+        pthread_mutex_lock(&mu);
+        S.peers = *next;
+        pthread_mutex_unlock(&mu);
+    }
+    pthread_mutex_unlock(&store_mu);
+    free(next);
+    if (rc != 0) return -1;
+    pthread_mutex_lock(&mu);
+    for (i = 0; i < MAX_SESSIONS; i++) {
+        sess_t *s = &S.sessions[i];
+        if (!s->used || s->outbound || memcmp(s->peer_key, key, 32) != 0) continue;
+        s->superseded = 1;
+        for (m = 0; m < MEMBERS; m++)
+            if (s->members[m]) shutdown(s->members[m]->io.fd, SHUT_RDWR);
+    }
+    pthread_mutex_unlock(&mu);
+    return 0;
 }
 
 int ava1_server_pairing_open(void) {

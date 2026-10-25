@@ -75,6 +75,8 @@
 #include "ava1_glue.h"
 #include "ownership_record.h"
 #include "storage_cleanup.h"
+#include "mesh.h"
+#include "ava1_server.h"
 
 /* Capacity policy mirrored by ps5upload-core::volumes. Keep a small working
  * margin -- 1 GiB, scaled down for small volumes -- out of every filesystem
@@ -302,6 +304,25 @@
 #define MGMT_FRAME_SMB_SHARES_SAVE_ACK 313u
 #define MGMT_FRAME_SMB_SHARES_REMOVE 314u
 #define MGMT_FRAME_SMB_SHARES_REMOVE_ACK 315u
+/* the devices that use this console and what they share (mesh.c) */
+#define MGMT_FRAME_MESH_HELLO 316u
+#define MGMT_FRAME_MESH_HELLO_ACK 317u
+#define MGMT_FRAME_MESH_STATE 318u
+#define MGMT_FRAME_MESH_STATE_ACK 319u
+#define MGMT_FRAME_MESH_ACTIVITY 320u
+#define MGMT_FRAME_MESH_ACTIVITY_ACK 321u
+#define MGMT_FRAME_MESH_LOCK 322u
+#define MGMT_FRAME_MESH_LOCK_ACK 323u
+#define MGMT_FRAME_MESH_DEVICE 324u
+#define MGMT_FRAME_MESH_DEVICE_ACK 325u
+#define MGMT_FRAME_MESH_SETTINGS 326u
+#define MGMT_FRAME_MESH_SETTINGS_ACK 327u
+#define MGMT_FRAME_MESH_DOC_GET 328u
+#define MGMT_FRAME_MESH_DOC_GET_ACK 329u
+#define MGMT_FRAME_MESH_DOC_PUT 330u
+#define MGMT_FRAME_MESH_DOC_PUT_ACK 331u
+#define MGMT_FRAME_MESH_ANNOUNCE 332u
+#define MGMT_FRAME_MESH_ANNOUNCE_ACK 333u
 #define MGMT_FRAME_SDK_SCAN 214u
 #define MGMT_FRAME_SDK_SCAN_ACK 215u
 #define MGMT_FRAME_SDK_PATCH 216u
@@ -8116,6 +8137,59 @@ static int handle_smb_shares_save(runtime_state_t *state, const char *body, uint
 }
 static int handle_smb_shares_remove(runtime_state_t *state, const char *body, uint64_t body_len) {
     return smb_pc_reply(state, MGMT_FRAME_SMB_SHARES_REMOVE_ACK, webui_smb_pc_remove, body, body_len);
+}
+
+/* ── The devices that use this console (mesh.c) ─────────────────────────
+ * Every call acts as the device whose session made it (the AVA1 RPC identity). */
+static int mesh_reply(runtime_state_t *state, uint16_t ack, int which, const char *body, uint64_t body_len) {
+    char *out;
+    int n, rc;
+    if (!state) return -1;
+    if (body_len > MESH_REQ_MAX) {
+        const char *err = "{\"ok\":false,\"err\":\"too_large\"}";
+        return mgmt_reply(ack, err, strlen(err));
+    }
+    out = malloc(MESH_REPLY_MAX);
+    if (!out) {
+        const char *err = "{\"ok\":false,\"err\":\"out_of_memory\"}";
+        return mgmt_reply(ack, err, strlen(err));
+    }
+    n = mesh_call(which, ava1_server_rpc_peer(), body, (size_t)body_len, out, MESH_REPLY_MAX);
+    if (n < 0) {
+        const char *err = "{\"ok\":false,\"err\":\"internal\"}";
+        rc = mgmt_reply(ack, err, strlen(err));
+    } else {
+        rc = mgmt_reply(ack, out, (uint64_t)n);
+    }
+    free(out);
+    return rc;
+}
+static int handle_mesh_hello(runtime_state_t *state, const char *body, uint64_t body_len) {
+    return mesh_reply(state, MGMT_FRAME_MESH_HELLO_ACK, MESH_HELLO, body, body_len);
+}
+static int handle_mesh_state(runtime_state_t *state, const char *body, uint64_t body_len) {
+    return mesh_reply(state, MGMT_FRAME_MESH_STATE_ACK, MESH_STATE, body, body_len);
+}
+static int handle_mesh_activity(runtime_state_t *state, const char *body, uint64_t body_len) {
+    return mesh_reply(state, MGMT_FRAME_MESH_ACTIVITY_ACK, MESH_ACTIVITY, body, body_len);
+}
+static int handle_mesh_lock(runtime_state_t *state, const char *body, uint64_t body_len) {
+    return mesh_reply(state, MGMT_FRAME_MESH_LOCK_ACK, MESH_LOCK, body, body_len);
+}
+static int handle_mesh_device(runtime_state_t *state, const char *body, uint64_t body_len) {
+    return mesh_reply(state, MGMT_FRAME_MESH_DEVICE_ACK, MESH_DEVICE, body, body_len);
+}
+static int handle_mesh_settings(runtime_state_t *state, const char *body, uint64_t body_len) {
+    return mesh_reply(state, MGMT_FRAME_MESH_SETTINGS_ACK, MESH_SETTINGS, body, body_len);
+}
+static int handle_mesh_doc_get(runtime_state_t *state, const char *body, uint64_t body_len) {
+    return mesh_reply(state, MGMT_FRAME_MESH_DOC_GET_ACK, MESH_DOC_GET, body, body_len);
+}
+static int handle_mesh_doc_put(runtime_state_t *state, const char *body, uint64_t body_len) {
+    return mesh_reply(state, MGMT_FRAME_MESH_DOC_PUT_ACK, MESH_DOC_PUT, body, body_len);
+}
+static int handle_mesh_announce(runtime_state_t *state, const char *body, uint64_t body_len) {
+    return mesh_reply(state, MGMT_FRAME_MESH_ANNOUNCE_ACK, MESH_ANNOUNCE, body, body_len);
 }
 
 /* ── Network round-trip ack ──────────────────────────────────────────── */

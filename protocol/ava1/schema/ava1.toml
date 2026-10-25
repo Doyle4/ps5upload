@@ -1136,6 +1136,42 @@ name = "METHOD_SMB_SHARES_REMOVE"
 ty = "u16"
 value = 172
 [[const]]
+name = "METHOD_MESH_HELLO"
+ty = "u16"
+value = 173
+[[const]]
+name = "METHOD_MESH_STATE"
+ty = "u16"
+value = 174
+[[const]]
+name = "METHOD_MESH_ACTIVITY"
+ty = "u16"
+value = 175
+[[const]]
+name = "METHOD_MESH_LOCK"
+ty = "u16"
+value = 176
+[[const]]
+name = "METHOD_MESH_DEVICE"
+ty = "u16"
+value = 177
+[[const]]
+name = "METHOD_MESH_SETTINGS"
+ty = "u16"
+value = 178
+[[const]]
+name = "METHOD_MESH_DOC_GET"
+ty = "u16"
+value = 179
+[[const]]
+name = "METHOD_MESH_DOC_PUT"
+ty = "u16"
+value = 180
+[[const]]
+name = "METHOD_MESH_ANNOUNCE"
+ty = "u16"
+value = 181
+[[const]]
 name = "JOB_OP_DELETE"
 ty = "u8"
 value = 1

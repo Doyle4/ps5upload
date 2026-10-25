@@ -126,6 +126,13 @@ void ava1_peers_put(ava1_peers_t *ps, const uint8_t key[32], const char *name, u
     ps->n++;
 }
 
+void ava1_peers_remove(ava1_peers_t *ps, const uint8_t key[32]) {
+    int i, j;
+    for (i = 0, j = 0; i < ps->n; i++)
+        if (memcmp(ps->p[i].key, key, 32) != 0) ps->p[j++] = ps->p[i];
+    ps->n = j;
+}
+
 int ava1_peers_save(const ava1_peers_t *ps, const char *path) {
     size_t cap = (size_t)AVA1_MAX_PEERS * 160, len = 0;
     char *text = malloc(cap);

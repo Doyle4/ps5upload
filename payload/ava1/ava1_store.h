@@ -6,7 +6,7 @@
 
 #include "ava1_keys.h"
 
-#define AVA1_MAX_PEERS 32
+#define AVA1_MAX_PEERS 64
 
 typedef struct {
     uint8_t key[32];
@@ -29,6 +29,8 @@ int ava1_peers_load(ava1_peers_t *ps, const char *path);
 int ava1_peers_contains(const ava1_peers_t *ps, const uint8_t key[32]);
 /* Adds or replaces key in memory (oldest dropped past AVA1_MAX_PEERS). */
 void ava1_peers_put(ava1_peers_t *ps, const uint8_t key[32], const char *name, uint64_t added_unix);
+/* Drops key from the list in memory (nothing when it is not there). */
+void ava1_peers_remove(ava1_peers_t *ps, const uint8_t key[32]);
 /* Writes the store atomically (temp file + fsync + rename in the same directory). Slow:
  * never call it holding a lock other threads need. */
 int ava1_peers_save(const ava1_peers_t *ps, const char *path);

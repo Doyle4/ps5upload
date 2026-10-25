@@ -1,0 +1,599 @@
+//! This engine as one of the devices that use a console (8.0.0, `ps5upload_core::mesh`).
+//!
+//! * `GET  /api/mesh/me`                      -> `{id,name,kind,os,app,docker_volume}`
+//! * `POST /api/mesh/me`        `{name}`      -> the same (renames this device everywhere)
+//! * `GET  /api/mesh/state?addr=&since=&ev=&client=` -> the console's picture, or `{"same":true}`
+//! * `POST /api/mesh/activity`  `{addr,client,items}` -> what one window of this app is doing
+//! * `POST /api/mesh/lock`      `{addr,op,name,ttl?,force?,label?}`
+//! * `POST /api/mesh/device`    `{addr,op,id,name?}`
+//! * `POST /api/mesh/settings`  `{addr,require_approval?,prune_days?}`
+//! * `GET  /api/mesh/doc?addr=&name=` / `POST /api/mesh/doc` `{addr,name,base,doc}`
+//! * `POST /api/mesh/announce`  `{addr,kind,text?}`
+//!
+//! Each answer carries `supported`: false when the helper predates the mesh, and the app then
+//! behaves as before. The engine says hello to a console before its first mesh call and again
+//! every few minutes, and whenever the helper says it has not met us (a restarted helper).
+//!
+//! Presence: every window of this app (the desktop window, each browser on a Docker engine) posts
+//! what it is doing; the engine sends the console the union, and drops a window that stopped
+//! posting. On a Docker engine the number of browsers using it rides along as one more item.
+use std::collections::HashMap;
+use std::path::PathBuf;
+use std::sync::{Mutex, OnceLock};
+use std::time::{Duration, Instant};
+
+use axum::extract::Query;
+use axum::http::StatusCode;
+use axum::response::{IntoResponse, Response};
+use axum::Json;
+use ps5upload_core::mesh::{self, Hello};
+use serde::Deserialize;
+use serde_json::{json, Value};
+
+use crate::json_err;
+
+/// Say hello again after this long, so the console's "last seen" and our name stay current.
+const HELLO_EVERY: Duration = Duration::from_secs(300);
+/// A window that has not posted its activity or polled for this long is gone.
+const CLIENT_GONE: Duration = Duration::from_secs(20);
+
+#[derive(Default)]
+struct ConsoleState {
+    hello_at: Option<Instant>,
+    /// Per window: when it last spoke, and its items.
+    clients: HashMap<String, (Instant, Vec<Value>)>,
+    /// What the console last accepted from us.
+    pushed: Option<Value>,
+}
+
+fn consoles() -> &'static Mutex<HashMap<String, ConsoleState>> {
+    static C: OnceLock<Mutex<HashMap<String, ConsoleState>>> = OnceLock::new();
+    C.get_or_init(Default::default)
+}
+
+fn lock_consoles() -> std::sync::MutexGuard<'static, HashMap<String, ConsoleState>> {
+    consoles().lock().unwrap_or_else(|e| e.into_inner())
+}
+
+// ---- who we are ----
+
+pub fn kind() -> &'static str {
+    if cfg!(target_os = "android") {
+        "android"
+    } else if cfg!(target_os = "ios") {
+        "ios"
+    } else if is_docker() {
+        "docker"
+    } else {
+        "desktop"
+    }
+}
+
+fn is_docker() -> bool {
+    std::env::var_os("PS5UPLOAD_DOCKER").is_some() || std::path::Path::new("/.dockerenv").exists()
+}
+
+fn os_label() -> String {
+    match std::env::consts::OS {
+        "macos" => "macOS".into(),
+        "windows" => "Windows".into(),
+        "linux" => "Linux".into(),
+        "android" => "Android".into(),
+        "ios" => "iOS".into(),
+        other => other.into(),
+    }
+}
+
+fn me_path() -> Option<PathBuf> {
+    Some(crate::remote::store::data_dir()?.join("mesh-me.json"))
+}
+
+fn saved_name() -> Option<String> {
+    let text = std::fs::read_to_string(me_path()?).ok()?;
+    let v: Value = serde_json::from_str(&text).ok()?;
+    let n = v.get("name")?.as_str()?.trim().to_string();
+    (!n.is_empty()).then_some(n)
+}
+
+/// The computer's own name, without starting a program on a phone.
+fn host_name() -> Option<String> {
+    let clean = |s: String| {
+        let s = s.trim().to_string();
+        (!s.is_empty()).then_some(s)
+    };
+    if let Ok(n) = std::env::var("PS5UPLOAD_DEVICE_NAME") {
+        if let Some(n) = clean(n) {
+            return Some(n);
+        }
+    }
+    if cfg!(target_os = "android") || cfg!(target_os = "ios") {
+        return None;
+    }
+    if cfg!(target_os = "windows") {
+        return std::env::var("COMPUTERNAME").ok().and_then(clean);
+    }
+    if cfg!(target_os = "macos") {
+        if let Ok(o) = std::process::Command::new("scutil")
+            .args(["--get", "ComputerName"])
+            .output()
+        {
+            if let Some(n) = clean(String::from_utf8_lossy(&o.stdout).into_owned()) {
+                return Some(n);
+            }
+        }
+    }
+    if is_docker() {
+        return None; // the container's host name is its id: say "Docker" instead
+    }
+    std::fs::read_to_string("/etc/hostname")
+        .ok()
+        .and_then(clean)
+}
+
+fn default_name() -> String {
+    match kind() {
+        "android" => "Android device".into(),
+        "ios" => "iPhone or iPad".into(),
+        "docker" => host_name().unwrap_or_else(|| "Docker".into()),
+        _ => host_name().unwrap_or_else(|| format!("{} computer", os_label())),
+    }
+}
+
+fn name() -> String {
+    saved_name().unwrap_or_else(default_name)
+}
+
+fn hello_info() -> Hello {
+    Hello {
+        name: name(),
+        kind: kind().into(),
+        os: os_label(),
+        app: env!("CARGO_PKG_VERSION").into(),
+    }
+}
+
+fn id_hex() -> Option<String> {
+    let id = crate::ava1_api::identity()?;
+    Some(id.public().iter().map(|b| format!("{b:02x}")).collect())
+}
+
+/// Docker only: whether /data is a volume the host keeps (a named volume or a folder), not the
+/// anonymous one Docker makes when none was given (a new one, so a new device, on every update).
+/// None outside Docker or when it cannot be told.
+fn docker_volume_kept() -> Option<bool> {
+    if kind() != "docker" {
+        return None;
+    }
+    let info = std::fs::read_to_string("/proc/self/mountinfo").ok()?;
+    for line in info.lines() {
+        let f: Vec<&str> = line.split(' ').collect();
+        if f.len() > 4 && f[4] == "/data" {
+            // Field 3 is the source path inside its filesystem. An anonymous volume is
+            // .../volumes/<64 hex>/_data.
+            let root = f[3];
+            let anon = root
+                .split('/')
+                .any(|p| p.len() == 64 && p.bytes().all(|b| b.is_ascii_hexdigit()))
+                && root.ends_with("/_data");
+            return Some(!anon);
+        }
+    }
+    Some(false) // no mount at /data at all: the container's own disk, gone with it
+}
+
+fn me_json() -> Value {
+    json!({
+        "id": id_hex(),
+        "name": name(),
+        "kind": kind(),
+        "os": os_label(),
+        "app": env!("CARGO_PKG_VERSION"),
+        "docker_volume": docker_volume_kept(),
+    })
+}
+
+pub async fn me_get() -> Response {
+    let v = tokio::task::spawn_blocking(me_json)
+        .await
+        .unwrap_or(Value::Null);
+    Json(v).into_response()
+}
+
+#[derive(Deserialize)]
+pub struct MeSet {
+    name: String,
+}
+
+pub async fn me_set(Json(req): Json<MeSet>) -> Response {
+    let n: String = req.name.trim().chars().take(60).collect();
+    let r = tokio::task::spawn_blocking(move || -> anyhow::Result<Value> {
+        let path = me_path().ok_or_else(|| anyhow::anyhow!("no data directory"))?;
+        if n.is_empty() {
+            let _ = std::fs::remove_file(&path);
+        } else {
+            std::fs::write(&path, serde_json::to_vec(&json!({ "name": n }))?)?;
+        }
+        // Every console hears the new name on our next call.
+        for c in lock_consoles().values_mut() {
+            c.hello_at = None;
+        }
+        Ok(me_json())
+    })
+    .await
+    .map_err(anyhow::Error::from)
+    .and_then(|r| r);
+    answer_result(r)
+}
+
+// ---- calls ----
+
+fn unsupported() -> Value {
+    json!({ "supported": false })
+}
+
+fn with_supported(v: Option<Value>) -> Value {
+    match v {
+        None => unsupported(),
+        Some(Value::Object(mut o)) => {
+            o.insert("supported".into(), true.into());
+            Value::Object(o)
+        }
+        Some(other) => json!({ "supported": true, "value": other }),
+    }
+}
+
+/// Hello if due, then `f`; a helper that has not met us (it restarted) gets a hello and the call
+/// once more. `Ok(None)`: the helper predates the mesh.
+fn call(
+    addr: &str,
+    f: impl Fn() -> anyhow::Result<Option<Value>>,
+) -> anyhow::Result<Option<Value>> {
+    let due = lock_consoles()
+        .get(addr)
+        .and_then(|c| c.hello_at)
+        .map_or(true, |t| t.elapsed() >= HELLO_EVERY);
+    if due && !hello(addr)? {
+        return Ok(None);
+    }
+    match f() {
+        Err(e) if mesh::needs_hello(&e) => {
+            if !hello(addr)? {
+                return Ok(None);
+            }
+            f()
+        }
+        r => r,
+    }
+}
+
+/// false: the helper predates the mesh.
+fn hello(addr: &str) -> anyhow::Result<bool> {
+    let r = mesh::hello(addr, &hello_info())?;
+    let mut map = lock_consoles();
+    let c = map.entry(addr.to_string()).or_default();
+    c.hello_at = Some(Instant::now());
+    // A restarted helper forgot our presence: send it again.
+    c.pushed = None;
+    Ok(r.is_some())
+}
+
+/// The union of every live window's items (plus, on Docker, how many browsers use this engine), if
+/// it differs from what the console has.
+fn presence_due(addr: &str, now: Instant) -> Option<Value> {
+    let mut map = lock_consoles();
+    let c = map.entry(addr.to_string()).or_default();
+    c.clients
+        .retain(|_, (t, _)| now.duration_since(*t) < CLIENT_GONE);
+    let mut items: Vec<Value> = c.clients.values().flat_map(|(_, i)| i.clone()).collect();
+    if kind() == "docker" && !c.clients.is_empty() {
+        items.push(json!({ "kind": "browsers", "count": c.clients.len() }));
+    }
+    // The console keeps 1.5 KiB per device: the newest items first, cut to fit.
+    let mut v = Value::Array(items);
+    while serde_json::to_vec(&v).map_or(0, |b| b.len()) > 1400 {
+        match &mut v {
+            Value::Array(a) if !a.is_empty() => {
+                a.pop();
+            }
+            _ => break,
+        }
+    }
+    if c.pushed.as_ref() == Some(&v) {
+        None
+    } else {
+        Some(v)
+    }
+}
+
+fn push_presence(addr: &str) -> anyhow::Result<()> {
+    if let Some(items) = presence_due(addr, Instant::now()) {
+        if call(addr, || mesh::activity(addr, &items))?.is_some() {
+            lock_consoles().entry(addr.to_string()).or_default().pushed = Some(items);
+        }
+    }
+    Ok(())
+}
+
+fn seen(addr: &str, client: Option<&str>) {
+    if let Some(cl) = client.filter(|c| !c.is_empty() && c.len() <= 64) {
+        let mut map = lock_consoles();
+        let c = map.entry(addr.to_string()).or_default();
+        let e = c
+            .clients
+            .entry(cl.to_string())
+            .or_insert_with(|| (Instant::now(), Vec::new()));
+        e.0 = Instant::now();
+    }
+}
+
+async fn answer(f: impl FnOnce() -> anyhow::Result<Value> + Send + 'static) -> Response {
+    let r = tokio::task::spawn_blocking(f)
+        .await
+        .map_err(anyhow::Error::from)
+        .and_then(|r| r);
+    answer_result(r)
+}
+
+fn answer_result(r: anyhow::Result<Value>) -> Response {
+    match r {
+        Ok(v) => (StatusCode::OK, Json(v)).into_response(),
+        Err(e) => json_err(StatusCode::BAD_GATEWAY, format!("{e:#}")).into_response(),
+    }
+}
+
+fn addr_or_400(addr: Option<String>) -> Result<String, Response> {
+    crate::required_console_addr(addr).ok_or_else(crate::missing_console_addr)
+}
+
+#[derive(Deserialize)]
+pub struct StateQuery {
+    addr: Option<String>,
+    since: Option<u64>,
+    ev: Option<u64>,
+    client: Option<String>,
+}
+
+pub async fn state(Query(q): Query<StateQuery>) -> Response {
+    let addr = match addr_or_400(q.addr) {
+        Ok(a) => a,
+        Err(r) => return r,
+    };
+    answer(move || {
+        seen(&addr, q.client.as_deref());
+        // Presence first, so the answer already shows it.
+        let _ = push_presence(&addr);
+        let r = call(&addr, || {
+            mesh::state(&addr, q.since.unwrap_or(0), q.ev.unwrap_or(0))
+        })?;
+        Ok(with_supported(r))
+    })
+    .await
+}
+
+#[derive(Deserialize)]
+pub struct ActivityReq {
+    addr: Option<String>,
+    client: String,
+    #[serde(default)]
+    items: Vec<Value>,
+}
+
+pub async fn activity(Json(req): Json<ActivityReq>) -> Response {
+    let addr = match addr_or_400(req.addr) {
+        Ok(a) => a,
+        Err(r) => return r,
+    };
+    answer(move || {
+        if req.client.is_empty() || req.client.len() > 64 {
+            anyhow::bail!("bad client id");
+        }
+        lock_consoles()
+            .entry(addr.clone())
+            .or_default()
+            .clients
+            .insert(
+                req.client,
+                (Instant::now(), req.items.into_iter().take(16).collect()),
+            );
+        push_presence(&addr)?;
+        Ok(json!({ "supported": true, "ok": true }))
+    })
+    .await
+}
+
+#[derive(Deserialize)]
+pub struct LockReq {
+    addr: Option<String>,
+    op: String,
+    name: String,
+    ttl: Option<u64>,
+    #[serde(default)]
+    force: bool,
+    #[serde(default)]
+    label: String,
+}
+
+pub async fn lock(Json(req): Json<LockReq>) -> Response {
+    let addr = match addr_or_400(req.addr) {
+        Ok(a) => a,
+        Err(r) => return r,
+    };
+    answer(move || {
+        let r = call(&addr, || {
+            mesh::lock(
+                &addr,
+                &req.op,
+                &req.name,
+                req.ttl.unwrap_or(60),
+                req.force,
+                &req.label,
+            )
+        })?;
+        Ok(with_supported(r))
+    })
+    .await
+}
+
+#[derive(Deserialize)]
+pub struct DeviceReq {
+    addr: Option<String>,
+    op: String,
+    id: String,
+    name: Option<String>,
+}
+
+pub async fn device(Json(req): Json<DeviceReq>) -> Response {
+    let addr = match addr_or_400(req.addr) {
+        Ok(a) => a,
+        Err(r) => return r,
+    };
+    answer(move || {
+        let r = call(&addr, || {
+            mesh::device(&addr, &req.op, &req.id, req.name.as_deref())
+        })?;
+        Ok(with_supported(r))
+    })
+    .await
+}
+
+#[derive(Deserialize)]
+pub struct SettingsReq {
+    addr: Option<String>,
+    require_approval: Option<bool>,
+    prune_days: Option<u64>,
+}
+
+pub async fn settings(Json(req): Json<SettingsReq>) -> Response {
+    let addr = match addr_or_400(req.addr) {
+        Ok(a) => a,
+        Err(r) => return r,
+    };
+    answer(move || {
+        let r = call(&addr, || {
+            mesh::settings(&addr, req.require_approval, req.prune_days)
+        })?;
+        Ok(with_supported(r))
+    })
+    .await
+}
+
+#[derive(Deserialize)]
+pub struct DocQuery {
+    addr: Option<String>,
+    name: String,
+}
+
+pub async fn doc_get(Query(q): Query<DocQuery>) -> Response {
+    let addr = match addr_or_400(q.addr) {
+        Ok(a) => a,
+        Err(r) => return r,
+    };
+    answer(move || {
+        Ok(with_supported(call(&addr, || {
+            mesh::doc_get(&addr, &q.name)
+        })?))
+    })
+    .await
+}
+
+#[derive(Deserialize)]
+pub struct DocPut {
+    addr: Option<String>,
+    name: String,
+    base: u64,
+    doc: Value,
+}
+
+pub async fn doc_put(Json(req): Json<DocPut>) -> Response {
+    let addr = match addr_or_400(req.addr) {
+        Ok(a) => a,
+        Err(r) => return r,
+    };
+    if !req.doc.is_object() {
+        return json_err(StatusCode::BAD_REQUEST, "doc must be an object").into_response();
+    }
+    answer(move || {
+        let r = call(&addr, || {
+            mesh::doc_put(&addr, &req.name, req.base, &req.doc)
+        })?;
+        Ok(with_supported(r))
+    })
+    .await
+}
+
+#[derive(Deserialize)]
+pub struct AnnounceReq {
+    addr: Option<String>,
+    kind: String,
+    #[serde(default)]
+    text: String,
+}
+
+pub async fn announce(Json(req): Json<AnnounceReq>) -> Response {
+    let addr = match addr_or_400(req.addr) {
+        Ok(a) => a,
+        Err(r) => return r,
+    };
+    answer(move || {
+        let r = call(&addr, || mesh::announce(&addr, &req.kind, &req.text))?;
+        Ok(with_supported(r))
+    })
+    .await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn presence_is_the_union_of_live_windows_and_only_sent_when_it_changed() {
+        let addr = "test-presence-1";
+        let now = Instant::now();
+        {
+            let mut map = lock_consoles();
+            let c = map.entry(addr.into()).or_default();
+            c.clients.insert(
+                "a".into(),
+                (now, vec![json!({"kind":"upload","title":"A"})]),
+            );
+            c.clients.insert(
+                "b".into(),
+                (
+                    now - Duration::from_secs(60),
+                    vec![json!({"kind":"upload","title":"B"})],
+                ),
+            );
+        }
+        let v = presence_due(addr, now).expect("first push");
+        let s = v.to_string();
+        assert!(s.contains("\"A\"") && !s.contains("\"B\""), "{s}");
+        lock_consoles().get_mut(addr).unwrap().pushed = Some(v);
+        assert!(presence_due(addr, now).is_none());
+    }
+
+    #[test]
+    fn presence_is_cut_to_what_the_console_keeps() {
+        let addr = "test-presence-2";
+        let now = Instant::now();
+        let many: Vec<Value> = (0..16)
+            .map(|i| json!({"kind":"upload","title": "x".repeat(150), "n": i}))
+            .collect();
+        lock_consoles()
+            .entry(addr.into())
+            .or_default()
+            .clients
+            .insert("a".into(), (now, many));
+        let v = presence_due(addr, now).unwrap();
+        assert!(serde_json::to_vec(&v).unwrap().len() <= 1400);
+        assert!(!v.as_array().unwrap().is_empty());
+    }
+
+    #[test]
+    fn an_older_helper_reads_as_unsupported() {
+        assert_eq!(with_supported(None), json!({"supported": false}));
+        assert_eq!(
+            with_supported(Some(json!({"ok": true}))),
+            json!({"ok": true, "supported": true})
+        );
+    }
+}

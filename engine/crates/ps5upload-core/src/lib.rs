@@ -24,6 +24,7 @@ pub mod hw;
 pub mod installer_client;
 pub mod local_image;
 pub mod log;
+pub mod mesh;
 pub mod mgmt;
 pub mod mgmt_proxy;
 pub mod net;

@@ -1068,6 +1068,13 @@ test-payload: payload
 		$(PAYLOAD_DIR)/ava1/gen/ava1_gen.c $(PAYLOAD_DIR)/ava1/ava1_wire.c
 	@/tmp/ps5upload-files-prefs-selftest
 	@echo "✓ pinned/recent folders stay bounded; a garbled prefs file reads as empty; saves are atomic"
+	@echo "Running multi-device mesh self-test (host build)..."
+	@cc -O2 -Wall -Wextra -Werror -pthread -I$(PAYLOAD_DIR)/include -I$(PAYLOAD_DIR)/ava1 -I$(PAYLOAD_DIR)/ava1/gen \
+		-o /tmp/ps5upload-mesh-selftest \
+		$(PAYLOAD_DIR)/tests/mesh_selftest.c $(PAYLOAD_DIR)/src/mesh.c $(PAYLOAD_DIR)/src/webui_codec.c \
+		$(PAYLOAD_DIR)/ava1/gen/ava1_gen.c $(PAYLOAD_DIR)/ava1/ava1_wire.c
+	@/tmp/ps5upload-mesh-selftest
+	@echo "✓ devices connect, are listed, renamed, blocked and pruned; locks lapse; shared documents keep their revision"
 	@echo "Running Show on TV / Show on PC handoff self-test (host build)..."
 	@cc -O2 -Wall -Wextra -Werror -pthread -I$(PAYLOAD_DIR)/include -I$(PAYLOAD_DIR)/ava1 -I$(PAYLOAD_DIR)/ava1/gen \
 		-o /tmp/ps5upload-files-handoff-selftest \
