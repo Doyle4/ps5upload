@@ -60,7 +60,9 @@
 
 ## A quick look
 
-<img width="1790" height="1425" alt="image" src="https://github.com/user-attachments/assets/a455f9b6-a7d4-49c2-a127-bf923c61d901" />
+<img width="1080" height="675" alt="ps5upload-a-free-open-source-app-that-does-everything-for-a-v0-e95o1uwuqhxh1" src="https://github.com/user-attachments/assets/df6839af-6fca-47ce-91b8-30e5a0d5da62" />
+<img width="1080" height="675" alt="ps5upload-a-free-open-source-app-that-does-everything-for-a-v0-8rh1ecgwqhxh1" src="https://github.com/user-attachments/assets/9688e93f-a80d-45cd-9b4f-0a0d189b7cd6" />
+<img width="1080" height="675" alt="ps5upload-a-free-open-source-app-that-does-everything-for-a-v0-i4cquz8xqhxh1" src="https://github.com/user-attachments/assets/a112c6a5-6270-47e2-84ce-c7ae3a455d50" />
 
 ## Install
 
