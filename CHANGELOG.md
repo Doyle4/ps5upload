@@ -15,6 +15,12 @@ What's new in ps5upload, written for humans.
   Their layout table marks stretches with no stored data, 256 KiB each, and the reader took
   them for blocks, so every offset after the first one was wrong. It now steps over them: Astro
   Bot's 166,714 files open in seconds and read back correctly.
+- **Save backups skip the console's own folders.** The PS5 lists its empty `sce_backup`
+  folders among the saves, and automatic backups saved each one as an empty zip (one of them
+  twice, since PS4 and PS5 both have one). Only games' saves are backed up now.
+- **Where to get the PPR patch for fake packages.** Installing a fake package needs
+  `a53_ppr_install_fast.elf`, which has no published download, so the payload catalogue cannot
+  offer it. Install Package and the catalogue now link its source, drakmor/ppr-patch.
 - **Start all no longer spins on a sleeping PS5.** With two or more uploads queued for a console
   in rest mode, Start all restarted that console over and over without end. The uploads now wait
   for the wake.

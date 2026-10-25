@@ -88,7 +88,8 @@ fn done_key(host: &str, path: &str) -> String {
     format!("{host}|{path}")
 }
 
-/// The saves that need a backup: changed since the last one, and not written to in the last few
+/// The saves that need a backup: a game's (not the console's own `sce_backup*` folders, which it
+/// lists among the saves, empty), changed since the last one, and not written to in the last few
 /// minutes. A save never backed up counts as changed.
 pub fn needing_backup<'a>(
     host: &str,
@@ -99,7 +100,8 @@ pub fn needing_backup<'a>(
     saves
         .iter()
         .filter(|e| {
-            e.mtime > 0
+            crate::looks_like_title_id(&e.title_id)
+                && e.mtime > 0
                 && now_secs - e.mtime >= SETTLE_SECS
                 && e.mtime > done.get(&done_key(host, &e.path)).copied().unwrap_or(0)
         })
@@ -712,6 +714,17 @@ mod tests {
         assert_eq!(due, vec!["/b"]);
         // Another console's record does not count for this one.
         assert_eq!(needing_backup("other", &saves, &done, 2000).len(), 2);
+    }
+
+    #[test]
+    fn the_consoles_own_backup_folders_are_not_games() {
+        // The PS5 lists its empty sce_backup folders (PS4 and PS5 both) among the saves.
+        let mut sys = save("/user/home/1/savedata/sce_backup2", 1000);
+        sys.title_id = "sce_backup2".into();
+        let saves = [sys, save("/user/home/1/savedata_prospero/PPSA01234", 1000)];
+        let due = needing_backup("h", &saves, &Done::new(), 2000);
+        assert_eq!(due.len(), 1);
+        assert_eq!(due[0].title_id, "PPSA01234");
     }
 
     #[test]

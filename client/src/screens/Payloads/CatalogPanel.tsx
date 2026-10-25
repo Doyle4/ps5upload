@@ -15,6 +15,7 @@ import {
   PackagePlus,
 } from "lucide-react";
 import { openExternalUrl as openExternal } from "../../lib/openExternalUrl";
+import { PPR_PATCH_REPO } from "../../lib/fpkgPrereqs";
 import { useConnectionStore } from "../../state/connection";
 import { pushNotification } from "../../state/notifications";
 import { withConsolePrefix } from "../../state/roster";
@@ -457,6 +458,20 @@ export default function CatalogPanel() {
               undefined,
               "If you are setting up a console for the first time, these three cover most of what ps5upload expects to find: kstuff-lite (kernel patches most homebrew relies on), ShadowMount+ (mount game images from storage) and nanoDNS (keep the console off Sony's update path). Everything else in this list is optional.",
             )}
+          </p>
+          <p className="mt-1 text-xs text-[var(--color-muted)]">
+            {tr(
+              "payloads_fpkg_ppr_note",
+              undefined,
+              "Installing fake packages also needs a53_ppr_install_fast.elf, which is not in this list: no download is published for it, and it is built from the source on GitHub. Install Package lists everything fake packages need, in order.",
+            )}{" "}
+            <button
+              type="button"
+              className="underline"
+              onClick={() => void openExternal(PPR_PATCH_REPO)}
+            >
+              {"drakmor/ppr-patch"}
+            </button>
           </p>
         </div>
         <p className="text-xs text-[var(--color-muted)]">

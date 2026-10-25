@@ -296,6 +296,15 @@ pub struct PkgSource {
     content_id: String,
 }
 
+/// The layout descriptor (`naps_pkg_layout.dat`) of the package at `path`, read through the
+/// outer image block by block: a package of any size, without holding its image.
+pub fn layout_descriptor(path: &Path, passcode: &str) -> Result<Vec<u8>> {
+    let file = std::fs::File::open(path)?;
+    let len = file.metadata()?.len();
+    let reader = PkgFile::from_reader(Box::new(file), len);
+    PkgSource::open_outer(reader, passcode).map(|(_, _, naps, _)| naps)
+}
+
 /// The game files of the package at `path`, opened with `passcode` (the debug default is
 /// [`crate::crypto::DEFAULT_PASSCODE`]).
 pub fn open(path: &Path, passcode: &str) -> Result<PkgSource> {
@@ -323,7 +332,12 @@ impl PkgSource {
         })
     }
 
-    fn open_inner(mut file: PkgFile, passcode: &str, label: &str) -> Result<Self> {
+    /// The outer image opened down to its two files: the inner image and the layout descriptor
+    /// (read whole; it is bounded by [`MAX_META_BYTES`]).
+    fn open_outer(
+        mut file: PkgFile,
+        passcode: &str,
+    ) -> Result<(Outer, OuterFile, Vec<u8>, String)> {
         let truncated = |what: &str| {
             bad(format!(
                 "the package is incomplete (it is cut short {what}); copy or download it again"
@@ -439,6 +453,11 @@ impl PkgSource {
             return Err(bad("the package's layout descriptor is impossibly large"));
         }
         let naps = naps_file.read(&mut outer, 0, naps_file.len)?;
+        Ok((outer, image, naps, content_id))
+    }
+
+    fn open_inner(file: PkgFile, passcode: &str, label: &str) -> Result<Self> {
+        let (outer, image, naps, content_id) = Self::open_outer(file, passcode)?;
 
         let mut me = Self {
             label: label.to_string(),

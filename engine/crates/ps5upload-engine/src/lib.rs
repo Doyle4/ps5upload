@@ -5105,8 +5105,8 @@ impl<'a> AppDbOnce<'a> {
 
 /// PS5 title-ids are 4 uppercase letters + 5 digits (PPSA01234, NPXS39041,
 /// CUSA00123, …). Used to filter stray non-title entries out of the
-/// /user/appmeta listing.
-fn looks_like_title_id(name: &str) -> bool {
+/// /user/appmeta listing, and the console's own folders out of save backups.
+pub(crate) fn looks_like_title_id(name: &str) -> bool {
     let b = name.as_bytes();
     b.len() == 9
         && b[..4].iter().all(|c| c.is_ascii_uppercase())

@@ -1,5 +1,7 @@
 import { planStreamSelection, type StreamSelectionItem } from "../../lib/streamSelection";
 import { invoke } from "../../lib/invokeLogged";
+import { openExternalUrl } from "../../lib/openExternalUrl";
+import { PPR_PATCH_REPO } from "../../lib/fpkgPrereqs";
 import { formatDate } from "../../lib/formatDate";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -2078,7 +2080,19 @@ export default function InstallPackageScreen() {
                   {tr(
                     "pkglib.fpkgsupport.ppr",
                     "— applies the PPR plaintext / no-auth patch",
-                  )}
+                  )}{" "}
+                  {tr(
+                    "pkglib.fpkgsupport.ppr_where",
+                    "No download is published for it: it is built from the source on GitHub,",
+                  )}{" "}
+                  <button
+                    type="button"
+                    className="underline"
+                    onClick={() => void openExternalUrl(PPR_PATCH_REPO)}
+                  >
+                    {"drakmor/ppr-patch"}
+                  </button>
+                  .
                 </li>
                 <li>
                   <strong className="text-[var(--color-text)]">
