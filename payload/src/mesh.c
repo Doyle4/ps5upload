@@ -37,12 +37,21 @@ typedef struct {
     uint64_t activity_at;
 } dev_t_;
 
+#define OWNER_MAX 40
+
 typedef struct {
     int used;
     char name[LOCK_NAME_MAX], label[LABEL_MAX];
     uint8_t by[32];
+    /* Which window of that device (a browser of a Docker engine, say): two windows of one device
+     * are two holders. "" for a caller that does not say. */
+    char owner[OWNER_MAX];
     uint64_t until; /* ms */
 } lock_t_;
+
+static int holds(const lock_t_ *l, const uint8_t caller[32], const char *owner) {
+    return memcmp(l->by, caller, 32) == 0 && strcmp(l->owner, owner) == 0;
+}
 
 typedef struct {
     uint64_t seq, at;
@@ -581,8 +590,8 @@ static void put_settings(buf_t *b) {
 static int do_hello(const uint8_t caller[32], const char *body, size_t n, char *out, size_t cap,
                     const mesh_online_t *on, int non) {
     char name[NAME_MAX_], kind[KIND_MAX], os[OS_MAX], app[APP_MAX], hex[65], tmp[NAME_MAX_];
-    uint8_t ev[32], (*gone)[32];
-    int evicted = 0, isnew = 0, ngone = 0, i, j;
+    uint8_t ev[32];
+    int evicted = 0, isnew = 0, i;
     uint32_t ip = 0;
     dev_t_ *d;
     buf_t b = { out, 0, cap, 0 };
@@ -593,14 +602,11 @@ static int do_hello(const uint8_t caller[32], const char *body, size_t n, char *
     if (webui_json_str(body, n, "app", tmp, sizeof tmp) == 1) clean_field(app, sizeof app, tmp);
     for (i = 0; i < non; i++)
         if (memcmp(on[i].key, caller, 32) == 0) ip = on[i].ip;
-    /* Heap: the RPC workers' stacks are small. */
-    if (!(gone = calloc(MESH_MAX_DEVICES, sizeof *gone))) return fail(out, cap, "out_of_memory");
     pthread_mutex_lock(&g_mu);
     d = find_dev(caller);
     if (!d) {
         if (!(d = new_dev(caller, ev, &evicted))) {
             pthread_mutex_unlock(&g_mu);
-            free(gone);
             return fail(out, cap, "devices_full");
         }
         d->first = now_ms();
@@ -614,15 +620,16 @@ static int do_hello(const uint8_t caller[32], const char *body, size_t n, char *
     d->last = now_ms();
     if (ip) d->ip = ip;
     if (isnew) add_event("joined", caller, "%s connected for the first time", shown_name(d));
-    /* The same device under a new key (a Docker engine whose /data was not kept, an app reinstalled):
-     * same name, kind and address, and the old one is not online. The old record goes. */
-    for (i = 0; i < MESH_MAX_DEVICES && d->name[0] && d->ip; i++) {
+    /* A Docker engine whose /data was not kept comes back under a new key after every update: the
+     * same name and address, kind docker, the old one offline. Only its list entry goes (its nickname
+     * carries over); its key stays trusted, so if it was a different engine after all it simply comes
+     * back. Phones and computers are never merged: default names and reused addresses are common. */
+    for (i = 0; i < MESH_MAX_DEVICES && d->name[0] && d->ip && !strcmp(d->kind, "docker"); i++) {
         dev_t_ *o = &M.dev[i];
         if (!o->used || o == d || o->blocked || strcmp(o->name, d->name) != 0 || strcmp(o->kind, d->kind) != 0 ||
             o->ip != d->ip || is_online(o->key, on, non))
             continue;
         if (!d->nick[0] && o->nick[0]) snprintf(d->nick, sizeof d->nick, "%s", o->nick);
-        memcpy(gone[ngone++], o->key, 32);
         o->used = 0;
         M.rev++;
     }
@@ -638,9 +645,6 @@ static int do_hello(const uint8_t caller[32], const char *body, size_t n, char *
     puts_(&b, "}");
     pthread_mutex_unlock(&g_mu);
     if (evicted && M.h.forget) (void)M.h.forget(ev);
-    for (j = 0; j < ngone; j++)
-        if (M.h.forget) (void)M.h.forget(gone[j]);
-    free(gone);
     return b.err ? fail(out, cap, "reply_too_large") : (int)b.len;
 }
 
@@ -808,11 +812,12 @@ static int do_activity(const uint8_t caller[32], const char *body, size_t n, cha
 
 static int do_lock(const uint8_t caller[32], const char *body, size_t n, char *out, size_t cap,
                    const mesh_online_t *on, int non) {
-    char op[16], name[LOCK_NAME_MAX], label[LABEL_MAX], hex[65];
+    char op[16], name[LOCK_NAME_MAX], label[LABEL_MAX], hex[65], owner[OWNER_MAX];
     uint64_t ttl = LOCK_TTL_DEFAULT_S, t = now_ms();
     int force = 0, i, slot = -1, held = -1;
     buf_t b = { out, 0, cap, 0 };
     label[0] = 0;
+    if (webui_json_str(body, n, "owner", owner, sizeof owner) != 1) owner[0] = 0;
     if (webui_json_str(body, n, "op", op, sizeof op) != 1 || webui_json_str(body, n, "name", name, sizeof name) != 1 ||
         !name[0])
         return fail(out, cap, "bad_request");
@@ -832,18 +837,20 @@ static int do_lock(const uint8_t caller[32], const char *body, size_t n, char *o
         else if (!l->used && slot < 0) slot = i;
     }
     if (!strcmp(op, "release")) {
-        if (held >= 0 && (force || memcmp(M.locks[held].by, caller, 32) == 0)) {
+        if (held >= 0 && (force || holds(&M.locks[held], caller, owner))) {
             M.locks[held].used = 0;
             M.rev++;
         }
         puts_(&b, "{\"ok\":true,\"got\":false}");
     } else if (!strcmp(op, "take")) {
         lock_t_ *l = NULL;
-        if (held >= 0 && memcmp(M.locks[held].by, caller, 32) != 0 && !force) {
+        if (held >= 0 && !holds(&M.locks[held], caller, owner) && !force) {
             lock_t_ *h = &M.locks[held];
             dev_t_ *hd = find_dev(h->by);
+            int same_device = memcmp(h->by, caller, 32) == 0;
             to_hex(h->by, hex);
-            putf(&b, "{\"ok\":true,\"got\":false,\"by\":\"%s\",\"by_name\":", hex);
+            putf(&b, "{\"ok\":true,\"got\":false,\"same_device\":%s,\"by\":\"%s\",\"by_name\":",
+                 same_device ? "true" : "false", hex);
             putstr(&b, hd ? shown_name(hd) : "Another device");
             puts_(&b, ",\"label\":");
             putstr(&b, h->label);
@@ -851,7 +858,7 @@ static int do_lock(const uint8_t caller[32], const char *body, size_t n, char *o
         } else {
             if (held >= 0) {
                 l = &M.locks[held];
-                if (memcmp(l->by, caller, 32) != 0) {
+                if (!holds(l, caller, owner)) {
                     dev_t_ *me = find_dev(caller), *was = find_dev(l->by);
                     add_event("takeover", caller, "%s took over from %s: %s", me ? shown_name(me) : "A device",
                               was ? shown_name(was) : "another device", l->label[0] ? l->label : l->name);
@@ -867,6 +874,7 @@ static int do_lock(const uint8_t caller[32], const char *body, size_t n, char *o
             snprintf(l->name, sizeof l->name, "%s", name);
             snprintf(l->label, sizeof l->label, "%s", label);
             memcpy(l->by, caller, 32);
+            snprintf(l->owner, sizeof l->owner, "%s", owner);
             l->until = t + ttl * 1000u;
             M.rev++;
             putf(&b, "{\"ok\":true,\"got\":true,\"until\":%llu}", (unsigned long long)l->until);

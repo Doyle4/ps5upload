@@ -410,6 +410,9 @@ pub struct LockReq {
     force: bool,
     #[serde(default)]
     label: String,
+    /// The window asking (a browser of this engine): its locks are its own.
+    #[serde(default)]
+    owner: String,
 }
 
 pub async fn lock(Json(req): Json<LockReq>) -> Response {
@@ -425,6 +428,7 @@ pub async fn lock(Json(req): Json<LockReq>) -> Response {
                 req.ttl.unwrap_or(60),
                 req.force,
                 &req.label,
+                &req.owner,
             )
         })?;
         Ok(with_supported(r))

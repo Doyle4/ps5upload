@@ -114,7 +114,10 @@ export async function pollMesh(host: string): Promise<void> {
       return;
     }
     const state = a as MeshState;
-    const prev = meshFor(useMeshStore.getState(), key).state;
+    // The helper restarted (its event numbers start again): forget what was seen of the old one.
+    const restarted = cur.primed && state.ev < cur.ev;
+    if (restarted) cur.ev = 0;
+    const prev = restarted ? null : meshFor(useMeshStore.getState(), key).state;
     // Events arrive only after the cursor; keep the recent ones for the Devices screen.
     const events = [...(prev?.events ?? []), ...state.events].filter(
       (e, i, all) => all.findIndex((x) => x.seq === e.seq) === i,
@@ -133,7 +136,7 @@ export async function pollMesh(host: string): Promise<void> {
         }
       }
     }
-    cursors.set(key, { rev: state.rev, ev: Math.max(cur.ev, state.ev), primed: true });
+    cursors.set(key, { rev: state.rev, ev: state.ev, primed: true });
   } catch (e) {
     put(key, { error: e instanceof Error ? e.message : String(e), at: Date.now() });
   }
@@ -237,21 +240,21 @@ export async function takeMeshLock(
   const none: LockOutcome = { ok: true, release: async () => {} };
   let a;
   try {
-    a = await meshLock(key, "take", name, { ttl: 90, force, label });
+    a = await meshLock(key, "take", name, { ttl: 90, force, label, owner: meshClientId() });
   } catch {
     return none;
   }
   if (!a.supported) return none;
   if (!a.got) return { ok: false, byName: a.byName, label: a.label };
   const timer = setInterval(() => {
-    void meshLock(key, "take", name, { ttl: 90, label }).catch(() => {});
+    void meshLock(key, "take", name, { ttl: 90, label, owner: meshClientId() }).catch(() => {});
   }, 30_000);
   return {
     ok: true,
     release: async () => {
       clearInterval(timer);
       try {
-        await meshLock(key, "release", name);
+        await meshLock(key, "release", name, { owner: meshClientId() });
       } catch {
         // It lapses by itself.
       }

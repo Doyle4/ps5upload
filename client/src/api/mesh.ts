@@ -196,7 +196,7 @@ export async function meshLock(
   host: string,
   op: "take" | "release",
   name: string,
-  opts: { ttl?: number; force?: boolean; label?: string } = {},
+  opts: { ttl?: number; force?: boolean; label?: string; owner?: string } = {},
 ): Promise<LockAnswer> {
   const b = await post("/api/mesh/lock", {
     addr: consoleAddr(host),
@@ -205,6 +205,7 @@ export async function meshLock(
     ttl: opts.ttl ?? 60,
     force: !!opts.force,
     label: opts.label ?? "",
+    owner: opts.owner ?? "",
   });
   if (b.supported !== true) return { supported: false };
   if (b.got === true) return { supported: true, got: true, until: num(b.until) };

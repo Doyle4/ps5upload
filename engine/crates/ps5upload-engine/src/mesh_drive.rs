@@ -52,6 +52,9 @@ pub const EVERY: Duration = Duration::from_secs(30);
 const MAX_FILES: usize = 50_000;
 /// A file changed this recently may still be being written: it waits for the next pass.
 const SETTLE_SECS: i64 = 10;
+/// The drive lock lasts this long, and a running pass renews it this often.
+const LOCK_TTL_S: u64 = 600;
+const LOCK_RENEW: Duration = Duration::from_secs(120);
 /// Trash is emptied after this long.
 const TRASH_DAYS: i64 = 30;
 
@@ -61,6 +64,9 @@ const TRASH_DAYS: i64 = 30;
 pub struct DriveDoc {
     #[serde(default)]
     pub drives: Vec<Drive>,
+    /// What a newer version keeps here: carried through untouched.
+    #[serde(flatten)]
+    pub other: serde_json::Map<String, Value>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -76,6 +82,8 @@ pub struct Drive {
     pub by: String,
     #[serde(default)]
     pub members: Vec<Member>,
+    #[serde(flatten)]
+    pub other: serde_json::Map<String, Value>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -94,6 +102,8 @@ pub struct Member {
     pub paused: bool,
     #[serde(default)]
     pub joined: u64,
+    #[serde(flatten)]
+    pub other: serde_json::Map<String, Value>,
 }
 
 fn now_ms() -> u64 {
@@ -113,8 +123,11 @@ fn doc_read(addr: &str) -> Result<Option<(u64, DriveDoc)>> {
         return Ok(None);
     };
     let rev = v.get("rev").and_then(Value::as_u64).unwrap_or(0);
+    // A list this version cannot read is never taken as empty: writing it back would drop every
+    // drive in it.
     let doc = match v.get("doc") {
-        Some(d) if d.is_object() => serde_json::from_value(d.clone()).unwrap_or_default(),
+        Some(d) if d.is_object() => serde_json::from_value(d.clone())
+            .map_err(|e| anyhow!("the console's drive list cannot be read by this version: {e}"))?,
         _ => DriveDoc::default(),
     };
     Ok(Some((rev, doc)))
@@ -387,6 +400,9 @@ struct Pass<'a> {
     member: &'a LocalMember,
     root: PathBuf,
     device_name: String,
+    /// The drive's lock, renewed while a long pass runs so no other engine starts on it.
+    lock_name: String,
+    lock_label: String,
 }
 
 impl Pass<'_> {
@@ -433,6 +449,16 @@ impl Pass<'_> {
         // Only goes when nothing else is downloading into it.
         let _ = std::fs::remove_dir(self.root.join(TMP));
         res
+    }
+
+    /// Whether this folder's file and the hub's hold the same bytes (BLAKE3 on both sides).
+    fn same_bytes(&self, rel: &str) -> Result<bool> {
+        let mut h = blake3::Hasher::new();
+        let mut f = std::fs::File::open(local_path(&self.root, rel))?;
+        std::io::copy(&mut f, &mut h)?;
+        let local = h.finalize().to_hex().to_string();
+        let hub = fs_ops::fs_hash(self.addr, &join_hub(&self.drive.hub, rel))?;
+        Ok(hub.hash.eq_ignore_ascii_case(&local))
     }
 
     fn trash_local(&self, rel: &str, today: &str) -> Result<()> {
@@ -505,7 +531,22 @@ impl Pass<'_> {
         let (today, stamp) = date_parts(now);
         let (mut up, mut down, mut del, mut conf) = (0, 0, 0, 0);
         let mut first_error: Option<String> = None;
+        let mut renewed = std::time::Instant::now();
         for op in &ops {
+            if renewed.elapsed() >= LOCK_RENEW {
+                renewed = std::time::Instant::now();
+                let _ = crate::mesh_api::call(self.addr, || {
+                    mesh::lock(
+                        self.addr,
+                        "take",
+                        &self.lock_name,
+                        LOCK_TTL_S,
+                        false,
+                        &self.lock_label,
+                        "",
+                    )
+                });
+            }
             let rel = op.path().to_string();
             let r: Result<()> = (|| {
                 match op {
@@ -549,9 +590,21 @@ impl Pass<'_> {
                         del += 1;
                         base.remove(&rel);
                     }
-                    Op::Agree(_) => {
-                        if let (Some(m), Some(h)) = (member.get(&rel), hub.get(&rel)) {
-                            base.insert(rel.clone(), BaseEntry { m: *m, h: *h });
+                    Op::Compare(_) => {
+                        if self.same_bytes(&rel)? {
+                            if let (Some(m), Some(h)) = (member.get(&rel), hub.get(&rel)) {
+                                base.insert(rel.clone(), BaseEntry { m: *m, h: *h });
+                            }
+                        } else {
+                            let renamed = conflict_name(&rel, &self.device_name, &stamp);
+                            let from = local_path(&self.root, &rel);
+                            std::fs::rename(&from, local_path(&self.root, &renamed))?;
+                            member.remove(&rel);
+                            self.download(&rel)?;
+                            conf += 1;
+                            if let (Some(m), Some(h)) = (local_stat(&from), hub.get(&rel)) {
+                                base.insert(rel.clone(), BaseEntry { m, h: *h });
+                            }
                         }
                     }
                     Op::Forget(_) => {
@@ -649,7 +702,7 @@ fn sync_member(lm: &LocalMember, me: &str) -> Result<()> {
     let lock_name = format!("drive:{}", drive.id);
     let label = format!("Syncing Mesh Drive {}", drive.name);
     let took = crate::mesh_api::call(addr, || {
-        mesh::lock(addr, "take", &lock_name, 900, false, &label)
+        mesh::lock(addr, "take", &lock_name, LOCK_TTL_S, false, &label, "")
     })?;
     if took
         .as_ref()
@@ -674,10 +727,12 @@ fn sync_member(lm: &LocalMember, me: &str) -> Result<()> {
         member: lm,
         root: PathBuf::from(&lm.path),
         device_name: crate::mesh_api::device_name(),
+        lock_name: lock_name.clone(),
+        lock_label: label.clone(),
     };
     let r = pass.run();
     let _ = crate::mesh_api::call(addr, || {
-        mesh::lock(addr, "release", &lock_name, 0, false, "")
+        mesh::lock(addr, "release", &lock_name, 0, false, "", "")
     });
     if let Err(e) = &r {
         set_status(&lm.member, |s| {
@@ -767,8 +822,18 @@ fn me_or_err() -> Result<String> {
 
 fn add_local(addr: &str, drive: &str, member: &str, path: &str) -> Result<()> {
     edit_config(|c| {
+        // The same folder joined again: its old entry (and what it agreed on) goes.
+        for old in c
+            .members
+            .iter()
+            .filter(|m| m.drive == drive && m.path == path && m.member != member)
+        {
+            if let Some(p) = base_path(drive, &old.member) {
+                let _ = std::fs::remove_file(p);
+            }
+        }
         c.members
-            .retain(|m| !(m.drive == drive && m.member == member));
+            .retain(|m| !(m.drive == drive && (m.member == member || m.path == path)));
         c.members.push(LocalMember {
             console: addr.to_string(),
             drive: drive.to_string(),
@@ -875,8 +940,19 @@ pub async fn create(Json(req): Json<CreateReq>) -> Response {
         let id = new_id();
         let member_id = new_id();
         let r = doc_update(&addr, |doc| {
-            if doc.drives.iter().any(|d| d.hub == hub) {
-                bail!("{hub} is already a Mesh Drive's folder");
+            // One drive's folder inside another's would sync the inner drive's files twice.
+            let inside = |a: &str, b: &str| {
+                a == b || a.starts_with(&format!("{}/", b.trim_end_matches('/')))
+            };
+            if let Some(d) = doc
+                .drives
+                .iter()
+                .find(|d| inside(&hub, &d.hub) || inside(&d.hub, &hub))
+            {
+                bail!(
+                    "{hub} is inside, or holds, the folder of the Mesh Drive {}",
+                    d.name
+                );
             }
             doc.drives.push(Drive {
                 id: id.clone(),
@@ -884,6 +960,7 @@ pub async fn create(Json(req): Json<CreateReq>) -> Response {
                 hub: hub.clone(),
                 created: now_ms(),
                 by: me.clone(),
+                other: Default::default(),
                 members: local
                     .iter()
                     .map(|p| Member {
@@ -894,6 +971,7 @@ pub async fn create(Json(req): Json<CreateReq>) -> Response {
                         approved: true,
                         paused: false,
                         joined: now_ms(),
+                        other: Default::default(),
                     })
                     .collect(),
             });
@@ -931,9 +1009,15 @@ pub async fn join(Json(req): Json<JoinReq>) -> Response {
                 .iter_mut()
                 .find(|d| d.id == req.drive)
                 .ok_or_else(|| anyhow!("that drive is gone"))?;
-            // A drive nobody syncs yet (made from the console side only) lets the first device in.
-            let approved = !d.members.iter().any(|m| m.approved);
+            // This device joining again with the same folder replaces its old entry, and keeps its
+            // place: a device already let in stays in.
+            let was_in = d
+                .members
+                .iter()
+                .any(|m| m.device == me && m.path == path && m.approved);
             d.members.retain(|m| !(m.device == me && m.path == path));
+            // A drive nobody syncs yet (made from the console side only) lets the first device in.
+            let approved = was_in || !d.members.iter().any(|m| m.approved);
             d.members.push(Member {
                 id: member_id.clone(),
                 device: me.clone(),
@@ -942,6 +1026,7 @@ pub async fn join(Json(req): Json<JoinReq>) -> Response {
                 approved,
                 paused: false,
                 joined: now_ms(),
+                other: Default::default(),
             });
             Ok(approved)
         })?;

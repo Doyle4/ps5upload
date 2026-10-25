@@ -48,6 +48,7 @@ pub fn activity(addr: &str, items: &Value) -> Result<Option<Value>> {
 }
 
 /// `op` is `take` or `release`. A lock someone else holds answers `got: false` with who.
+/// `owner` tells two windows of this device apart (each holds its own locks); "" for the engine.
 pub fn lock(
     addr: &str,
     op: &str,
@@ -55,11 +56,12 @@ pub fn lock(
     ttl_s: u64,
     force: bool,
     label: &str,
+    owner: &str,
 ) -> Result<Option<Value>> {
     call_json(
         addr,
         m::MESH_LOCK,
-        &json!({ "op": op, "name": name, "ttl": ttl_s, "force": force, "label": label }),
+        &json!({ "op": op, "name": name, "ttl": ttl_s, "force": force, "label": label, "owner": owner }),
     )
 }
 

@@ -5,10 +5,11 @@
 //! A side "changed" a file when its size or modification time differs from what that side had at
 //! the last agreement (each side's own time: the two clocks are never compared). Then:
 //! * changed on one side only: it is copied to the other;
-//! * changed on both: a conflict, both kept (the member's copy is renamed, the hub's comes over);
+//! * changed on both: a conflict, both kept (the member's copy is renamed, the hub's comes over),
+//!   unless the two hold the same bytes (same size: the executor compares hashes, `Compare`);
 //! * gone from one side and unchanged on the other: deleted there too (into the trash);
 //! * gone from one side but changed on the other: the change wins, it is copied back;
-//! * new on both with the same size: taken as the same file.
+//! * new on both: the same, if their bytes are (same size, then hashes); else a conflict.
 use std::collections::{BTreeMap, BTreeSet};
 
 use serde::{Deserialize, Serialize};
@@ -42,8 +43,9 @@ pub enum Op {
     DeleteHub(String),
     /// Both changed: the member's copy is renamed, then the hub's is downloaded.
     Conflict(String),
-    /// Already the same on both sides: record the agreement.
-    Agree(String),
+    /// Changed (or new) on both with the same size: the same file if their hashes match, a
+    /// conflict otherwise. Two different edits of a fixed-size file (a save) must not pass for one.
+    Compare(String),
     /// Gone from both: forget it.
     Forget(String),
 }
@@ -56,7 +58,7 @@ impl Op {
             | Op::DeleteMember(p)
             | Op::DeleteHub(p)
             | Op::Conflict(p)
-            | Op::Agree(p)
+            | Op::Compare(p)
             | Op::Forget(p) => p,
         }
     }
@@ -75,7 +77,7 @@ pub fn plan(member: &Listing, hub: &Listing, base: &Base) -> Vec<Op> {
             (None, Some(_), None) => Op::Download(p.clone()),
             (Some(m), Some(h), None) => {
                 if m.size == h.size {
-                    Op::Agree(p.clone())
+                    Op::Compare(p.clone())
                 } else {
                     Op::Conflict(p.clone())
                 }
@@ -86,7 +88,7 @@ pub fn plan(member: &Listing, hub: &Listing, base: &Base) -> Vec<Op> {
                 (false, true) => Op::Download(p.clone()),
                 (true, true) => {
                     if m.size == h.size {
-                        Op::Agree(p.clone())
+                        Op::Compare(p.clone())
                     } else {
                         Op::Conflict(p.clone())
                     }
@@ -273,7 +275,7 @@ mod tests {
         let h = listing(&[("c", 6, 100), ("s", 7, 100)]);
         assert_eq!(
             plan(&m, &h, &base),
-            vec![Op::Conflict("c".into()), Op::Agree("s".into())]
+            vec![Op::Conflict("c".into()), Op::Compare("s".into())]
         );
     }
 

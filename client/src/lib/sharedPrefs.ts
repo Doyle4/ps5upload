@@ -84,7 +84,12 @@ export const MESH_KEYS: readonly string[] = SHARED_KEYS.filter(
     k !== "ps5upload.bandwidth_cap_mbps" &&
     k !== "ps5upload.convert.output_dir" &&
     k !== "ps5upload.save_path" &&
-    k !== "ps5upload.log_level",
+    k !== "ps5upload.log_level" &&
+    // How THIS device reaches each console (a phone on mobile data goes direct), keyed by the
+    // address it uses: another device's routes mean nothing here.
+    k !== "ps5upload.c2c.routes.v1" &&
+    // "This computer turned Minion off" (kept off by this device): per device by design.
+    k !== "ps5upload.minionOff",
 );
 
 /** Which keys a sync covers and where it keeps its own bookkeeping. */

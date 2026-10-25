@@ -144,13 +144,21 @@ static void test_hello_and_state(void) {
     g_non = 1; /* the phone went to sleep */
     r = call(MESH_STATE, 1, "{}");
     CHECK(!has(r, "Astro Bot") && has(r, "\"online\":false"));
-    /* A new key with the same name, kind and address replaces the old record (and forgets it). */
+    /* Two phones with one name on a reused address are two devices. */
     online(3, 0x0200a8c0u);
     g_nforgot = 0;
     call(MESH_HELLO, 3, "{\"name\":\"Pixel 9\",\"kind\":\"android\"}");
-    CHECK(g_nforgot == 1 && g_forgot[0][0] == 2);
     r = call(MESH_STATE, 1, "{}");
-    CHECK(!has(r, "\"id\":\"0200") && has(r, "\"id\":\"0300"));
+    CHECK(g_nforgot == 0 && has(r, "\"id\":\"0200") && has(r, "\"id\":\"0300"));
+    /* A Docker engine back under a new key replaces its old entry, and its old key stays trusted. */
+    g_non = 1;
+    online(4, 0x0400a8c0u);
+    call(MESH_HELLO, 4, "{\"name\":\"Docker\",\"kind\":\"docker\"}");
+    g_non = 1;
+    online(5, 0x0400a8c0u);
+    call(MESH_HELLO, 5, "{\"name\":\"Docker\",\"kind\":\"docker\"}");
+    r = call(MESH_STATE, 1, "{}");
+    CHECK(g_nforgot == 0 && !has(r, "\"id\":\"0400") && has(r, "\"id\":\"0500"));
     /* Rename sets the nickname shown to everyone. */
     call(MESH_DEVICE, 1, "{\"op\":\"rename\",\"id\":\"03000000000000000000000000000000000000000000000000000000000000ab\",\"name\":\"My phone\"}");
     CHECK(has(call(MESH_STATE, 1, "{}"), "\"nick\":\"My phone\""));
@@ -183,6 +191,14 @@ static void test_locks(void) {
     CHECK(has(call(MESH_LOCK, 1, "{\"op\":\"take\",\"name\":\"install:PPSA01234\"}"), "\"got\":false"));
     call(MESH_LOCK, 2, "{\"op\":\"release\",\"name\":\"install:PPSA01234\"}");
     CHECK(has(call(MESH_LOCK, 1, "{\"op\":\"take\",\"name\":\"install:PPSA01234\"}"), "\"got\":true"));
+    /* Two windows of one device (browsers of a Docker engine) are two holders. */
+    CHECK(has(call(MESH_LOCK, 1, "{\"op\":\"take\",\"name\":\"w\",\"owner\":\"tab1\"}"), "\"got\":true"));
+    r = call(MESH_LOCK, 1, "{\"op\":\"take\",\"name\":\"w\",\"owner\":\"tab2\"}");
+    CHECK(has(r, "\"got\":false") && has(r, "\"same_device\":true"));
+    call(MESH_LOCK, 1, "{\"op\":\"release\",\"name\":\"w\",\"owner\":\"tab2\"}"); /* not its lock */
+    CHECK(has(call(MESH_LOCK, 1, "{\"op\":\"take\",\"name\":\"w\",\"owner\":\"tab2\"}"), "\"got\":false"));
+    call(MESH_LOCK, 1, "{\"op\":\"release\",\"name\":\"w\",\"owner\":\"tab1\"}");
+    CHECK(has(call(MESH_LOCK, 1, "{\"op\":\"take\",\"name\":\"w\",\"owner\":\"tab2\"}"), "\"got\":true"));
     CHECK(has(call(MESH_LOCK, 1, "{\"op\":\"steal\",\"name\":\"x\"}"), "bad_op"));
     CHECK(has(call(MESH_LOCK, 1, "{\"op\":\"take\"}"), "bad_request"));
 }
