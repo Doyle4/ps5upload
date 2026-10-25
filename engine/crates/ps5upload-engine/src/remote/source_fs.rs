@@ -33,6 +33,8 @@ pub struct RemoteSourceFs {
     pool: Arc<Pool>,
     store: Arc<Store>,
     id: String,
+    /// The server is SMB: a name Samba made up stops a walk (see `entries`).
+    smb: bool,
     /// What listings already said about each path, so the per-file stats that follow a walk
     /// cost no round trip.
     known: std::sync::Mutex<std::collections::HashMap<String, Known>>,
@@ -53,12 +55,16 @@ impl RemoteSourceFs {
         connection_id: &str,
     ) -> Result<Self, RemoteError> {
         let fs = pool.fs(&store, connection_id).await?;
+        let smb = store
+            .get(connection_id)
+            .is_some_and(|(c, _)| c.protocol == super::store::Protocol::Smb);
         Ok(Self {
             handle: tokio::runtime::Handle::current(),
             _fs: fs,
             pool,
             store,
             id: connection_id.to_string(),
+            smb,
             known: std::sync::Mutex::new(std::collections::HashMap::new()),
         })
     }
@@ -192,7 +198,36 @@ impl SourceFs for RemoteSourceFs {
 impl RemoteSourceFs {
     /// Every entry of the server folder `dir` (a server path), names exactly as the server
     /// gave them. Remembered for the stats that follow.
+    ///
+    /// On an SMB server, a folder holding names Samba made up (see
+    /// [`super::smb_fs::looks_renamed_by_samba`]) is an error: copied or converted, the game gets
+    /// those files under the wrong names. Browsing the folder lists them as they are.
     pub fn entries(&self, dir: &str) -> std::io::Result<Vec<super::Entry>> {
+        let out = self.listed(dir)?;
+        if self.smb {
+            let renamed: Vec<&str> = out
+                .iter()
+                .map(|e| e.name.as_str())
+                .filter(|n| super::smb_fs::looks_renamed_by_samba(n))
+                .collect();
+            if let Some(first) = renamed.first() {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    format!(
+                        "the server renamed {} file(s) in {dir} (for example \"{first}\"): their \
+                         real names hold characters Windows file sharing cannot, such as : ? * or \
+                         a trailing dot, and the real names cannot be read back over SMB. Copied \
+                         like this the game would get the wrong file names. Add this server over \
+                         SFTP or FTP instead, which keep the real names.",
+                        renamed.len()
+                    ),
+                ));
+            }
+        }
+        Ok(out)
+    }
+
+    fn listed(&self, dir: &str) -> std::io::Result<Vec<super::Entry>> {
         let mut out = Vec::new();
         let mut cursor = None;
         loop {
@@ -397,6 +432,19 @@ mod tests {
         let names: Vec<_> = files.iter().map(|f| f.rel_path.as_str()).collect();
         assert_eq!(names, ["eboot.bin", "sce_sys/param.json"]);
         assert_eq!(total, 12);
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_folder_holding_names_samba_made_up_fails_the_walk() {
+        // `sce_sys:param.json` on a Linux NAS, as Samba lists it.
+        let fs = setup(&[("/g/eboot.bin", b"e"), ("/g/S3UXDG~T", b"p")]).await;
+        let err = tokio::task::spawn_blocking(move || fs.read_dir(Path::new("/g")))
+            .await
+            .unwrap()
+            .unwrap_err();
+        assert_eq!(err.kind(), std::io::ErrorKind::InvalidData);
+        assert!(err.to_string().contains("S3UXDG~T"), "{err}");
+        assert!(err.to_string().contains("SFTP or FTP"), "{err}");
     }
 
     #[tokio::test(flavor = "multi_thread")]

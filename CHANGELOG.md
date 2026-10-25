@@ -6,6 +6,12 @@ What's new in ps5upload, written for humans.
 
 ## 7.5.3
 
+- **A NAS that renames files no longer breaks games.** A Samba share (most Linux NAS boxes)
+  shows a file whose name Windows cannot hold, with a `:` or `?` in it or a trailing dot, under
+  a made-up short name like `C69YSY~1.TXT`. Uploading or converting a game folder from such a
+  share copied those made-up names, and the game would not start. Such a folder is now refused
+  before anything is sent, naming a renamed file, with the fix: add the server over SFTP or FTP,
+  which keep the real names.
 - **A display error no longer fails an install.** On Android a stream install could end in
   "Didn't finish … (React #185)" while the transfer itself was fine: a screen stuck in a redraw
   loop made the queue's next progress write throw, and the queue took that for a failed

@@ -27,6 +27,24 @@ pub struct Share {
 }
 
 /// `host:port` for the crate, from whatever the user typed as the host.
+/// Whether `name` is a name Samba made up. A Samba server shows a file whose real name Windows
+/// cannot hold (a `:`, `?`, `*`, a trailing dot or space…) under a hashed 8.3 name instead:
+/// `colon:name.txt` lists as `C69YSY~1.TXT`, `x?.pkg` as `XTHJTC~A.PKG` (measured on Samba
+/// 4.19). The real name cannot be recovered from it, so a game copied through it gets files
+/// under the wrong names and does not start.
+pub(crate) fn looks_renamed_by_samba(name: &str) -> bool {
+    let ok = |c: u8| c.is_ascii_uppercase() || c.is_ascii_digit() || c == b'_';
+    let (base, ext) = name.split_once('.').unwrap_or((name, ""));
+    let b = base.as_bytes();
+    b.len() == 8
+        && b[..6].iter().all(|&c| ok(c))
+        && b[6] == b'~'
+        && ok(b[7])
+        && ext.len() <= 3
+        && ext.bytes().all(ok)
+        && !(name.contains('.') && ext.is_empty())
+}
+
 fn server_addr(host: &str, port: u16) -> String {
     let mut h = host.trim();
     for scheme in ["smb://", "cifs://", "//", "\\\\"] {
@@ -342,6 +360,36 @@ impl RemoteFs for SmbFs {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn samba_made_up_names_are_recognised() {
+        // Every one listed by Samba 4.19 for a name Windows cannot hold.
+        for made_up in [
+            "C69YSY~1.TXT",
+            "Q822F5~G.TXT",
+            "TYCOL1~X",
+            "_PTVME~B.TXT",
+            "U8JPQ9~I.ELF",
+            "XTHJTC~A.PKG",
+            "LPM47I~9",
+        ] {
+            assert!(super::looks_renamed_by_samba(made_up), "{made_up}");
+        }
+        for real in [
+            "eboot.bin",
+            "param.json",
+            "Case.txt",
+            "a very long file name.bin",
+            "ABCDEFG~1.TXT",
+            "abcdef~1.txt",
+            "ABCDEF~1.",
+            "ABCDEF~1.TEXT",
+            "ABCDEF_1.TXT",
+        ] {
+            assert!(!super::looks_renamed_by_samba(real), "{real}");
+        }
+    }
+
     use super::*;
 
     #[test]
