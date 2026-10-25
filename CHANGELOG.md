@@ -10,6 +10,11 @@ What's new in ps5upload, written for humans.
   sends it a wake signal, re-sends the helper once it is up, and carries on. Only for a console
   with wake set up on the Connection screen; turn it off under Settings › Uploads ("Wake the PS5
   for a waiting upload").
+- **Convert reads big Sony-compressed packages.** Some large PS5 packages (Astro Bot, for one)
+  failed in Convert with "the package's inner image uses a layout this reader does not know".
+  Their layout table marks stretches with no stored data, 256 KiB each, and the reader took
+  them for blocks, so every offset after the first one was wrong. It now steps over them: Astro
+  Bot's 166,714 files open in seconds and read back correctly.
 - **Start all no longer spins on a sleeping PS5.** With two or more uploads queued for a console
   in rest mode, Start all restarted that console over and over without end. The uploads now wait
   for the wake.

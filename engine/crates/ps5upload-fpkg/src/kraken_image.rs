@@ -23,6 +23,8 @@ use crate::{format_err, Result};
 
 const UBLOCK: u64 = 0x4_0000;
 const WINDOW: u64 = 0x4_0000;
+/// The `fidx` type byte of an entry that starts a stretch with no stored data.
+const GAP_TYPE: u8 = 0x40;
 
 /// What a block holds.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -420,6 +422,13 @@ fn anchor_record(position: u64) -> u128 {
 /// The descriptor for `image`, with `fidx` its boundary table: each file's logical start in
 /// afid order, then the data end, the metadata base and the mount size.
 pub fn layout(image: &KrakenImage, file_starts: &[u64]) -> Result<Vec<u8>> {
+    let entries: Vec<(u64, u8)> = file_starts.iter().map(|&s| (s, 0)).collect();
+    layout_entries(image, &entries)
+}
+
+/// [`layout`] with each `fidx` entry's type given: a [`GAP_TYPE`] entry starts a stretch no block
+/// covers, the way Sony's own descriptors leave one (ours never do; the tests do).
+fn layout_entries(image: &KrakenImage, entries: &[(u64, u8)]) -> Result<Vec<u8>> {
     // Bit 66 of a record says the next record is an anchor. It is how a reader tells the two
     // apart — nothing in an anchor itself does — so it is set before every anchor, and two
     // anchors never follow each other.
@@ -482,7 +491,7 @@ pub fn layout(image: &KrakenImage, file_starts: &[u64]) -> Result<Vec<u8>> {
     }
 
     let ublocks = image.mount_size.div_ceil(UBLOCK);
-    let files = file_starts.len() + 3;
+    let files = entries.len() + 3;
     let outer_blocks = image.image_len.div_ceil(crate::BLOCK);
     let records = recs.len();
     if records < 2 || records - 2 > 0xFF_FFFF || ublocks > 0xFF_FFFF {
@@ -506,7 +515,7 @@ pub fn layout(image: &KrakenImage, file_starts: &[u64]) -> Result<Vec<u8>> {
     blob.extend_from_slice(&word0.to_le_bytes());
     blob.extend_from_slice(&word1.to_le_bytes());
     blob.resize(blob.len() + outer_blocks as usize * 8, 0);
-    let mut fidx: Vec<(u64, u8)> = file_starts.iter().map(|&s| (s, 0)).collect();
+    let mut fidx: Vec<(u64, u8)> = entries.to_vec();
     fidx.push((image.data_end, 0));
     fidx.push((image.meta_base, 0));
     fidx.push((image.mount_size, 0x40));
@@ -602,15 +611,36 @@ pub fn describe(blob: &[u8]) -> Result<Vec<DescribedBlock>> {
     if blob.len() < rec_at + records * 9 {
         return format_err("descriptor shorter than its records");
     }
-    let mut bounds: Vec<u64> = (0..files)
+    let entries: Vec<(u64, u8)> = (0..files)
         .map(|i| {
             let r = &blob[fidx_at + i * 6..fidx_at + i * 6 + 6];
-            u64::from_le_bytes([r[0], r[1], r[2], r[3], r[4], 0, 0, 0])
+            (
+                u64::from_le_bytes([r[0], r[1], r[2], r[3], r[4], 0, 0, 0]),
+                r[5],
+            )
         })
         .collect();
-    let mount = *bounds.last().unwrap_or(&0);
+    let mount = entries.last().map_or(0, |e| e.0);
+    let mut bounds: Vec<u64> = entries.iter().map(|e| e.0).collect();
     bounds.sort_unstable();
     bounds.dedup();
+    // An entry of type 0x40 starts a stretch with no stored data: no record describes it and the
+    // walk steps over it to the next entry (Sony's Astro Bot has 1,988 of them; the last entry,
+    // the mount's end, carries the same type). Where an ordinary entry starts at the same offset,
+    // that one wins.
+    let ordinary: std::collections::HashSet<u64> = entries
+        .iter()
+        .filter(|e| e.1 != GAP_TYPE)
+        .map(|e| e.0)
+        .collect();
+    let gaps: std::collections::HashMap<u64, u64> = entries
+        .iter()
+        .filter(|e| e.1 == GAP_TYPE && e.0 < mount && !ordinary.contains(&e.0))
+        .map(|e| {
+            let at = bounds.partition_point(|&b| b <= e.0);
+            (e.0, bounds.get(at).copied().unwrap_or(mount))
+        })
+        .collect();
     let mut out = Vec::new();
     let (mut cursor, mut logical) = (0u64, 0u64);
     let mut next_is_anchor = true; // index 0 is the start anchor
@@ -635,6 +665,9 @@ pub fn describe(blob: &[u8]) -> Result<Vec<DescribedBlock>> {
                 ));
             }
             continue;
+        }
+        while let Some(&end) = gaps.get(&logical) {
+            logical = end;
         }
         if i > 0 && nibble != logical & 0xF {
             return format_err(format!(
@@ -678,6 +711,9 @@ pub fn describe(blob: &[u8]) -> Result<Vec<DescribedBlock>> {
         });
         cursor = end;
         logical += len;
+    }
+    while let Some(&end) = gaps.get(&logical) {
+        logical = end;
     }
     if logical != mount {
         return format_err(format!(
@@ -858,6 +894,52 @@ mod tests {
             assert_eq!(got.stored_len, want.stored_len());
             assert_eq!(got.even_len, u64::from(want.halves[0].0));
         }
+    }
+
+    /// Sony's descriptors mark a stretch with no stored data by a `fidx` entry of type 0x40 (Astro
+    /// Bot has 1,988, each one 256 KiB): no record describes it, and the walk steps over it. Read
+    /// as a block, everything after the first one was placed 256 KiB late.
+    #[test]
+    fn a_gap_entry_has_no_record_and_is_stepped_over() {
+        let blocks = vec![
+            b(
+                0,
+                0x40000,
+                0,
+                &[(0x100, true), (0x80, true)],
+                Owner::File(0),
+            ),
+            // 0x40000..0x80000: the gap, no block.
+            b(0x80000, 0x230, 0x180, &[(0x230, false)], Owner::File(2)),
+            b(0x80230, 0x1000, 0x3b0, &[(0x40, true)], Owner::File(3)),
+            b(
+                0x81230,
+                0x3edd0,
+                0x3f0,
+                &[(0x30, true), (0x30, true)],
+                Owner::Gap,
+            ),
+            b(
+                0xc0000,
+                0x40000,
+                0x10000,
+                &[(0x200, true), (0x200, true)],
+                Owner::Meta,
+            ),
+        ];
+        let img = image_of(blocks.clone(), 0x100000, 0x81230, 0xc0000);
+        let entries = [(0, 0), (0x40000, GAP_TYPE), (0x80000, 0), (0x80230, 0)];
+        let blob = layout_entries(&img, &entries).unwrap();
+        let d = describe(&blob).unwrap();
+        assert_eq!(d.len(), blocks.len());
+        for (want, got) in blocks.iter().zip(&d) {
+            assert_eq!(got.logical, want.logical);
+            assert_eq!(got.len, u64::from(want.len));
+            assert_eq!(got.stored_at, want.stored_at);
+        }
+        // The same entry as an ordinary file start is a stretch with a block missing.
+        let plain: Vec<(u64, u8)> = entries.iter().map(|&(o, _)| (o, 0)).collect();
+        assert!(layout_entries(&img, &plain).is_err());
     }
 
     #[test]
