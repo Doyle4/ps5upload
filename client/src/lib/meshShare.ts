@@ -13,7 +13,7 @@ import { meshDocGet, meshDocPut } from "../api/mesh";
 import { useConnectionStore } from "../state/connection";
 import { meshFor, useMeshStore } from "../state/mesh";
 import { RosterShare, type SharedProfile, type ShareApi } from "../state/rosterShare";
-import { useRosterStore } from "../state/roster";
+import { collapseByHost, useRosterStore } from "../state/roster";
 import { hostOf } from "./addr";
 import { asDoc, MESH_CHANNEL, startSharedPrefs, syncOnce, type Entries, type PrefsApi } from "./sharedPrefs";
 
@@ -50,11 +50,33 @@ export const meshPrefsApi: PrefsApi = {
   },
 };
 
+/**
+ * A console list from another device, in this device's terms. Each device names a console with
+ * an id of its own, so the same PS5 added on two devices has two ids: matched by address, an
+ * incoming entry takes this device's id (tasks and the selected console refer to it), and the
+ * list keeps one entry per address. (8.0.0 matched by id only and listed such a PS5 twice.)
+ */
+export function inLocalTerms(list: readonly SharedProfile[], local: readonly { id: string; host: string }[]): SharedProfile[] {
+  const idByHost = new Map<string, string>();
+  for (const p of local) {
+    const key = hostOf(p.host);
+    if (key && !idByHost.has(key)) idByHost.set(key, p.id);
+  }
+  const mapped = list.map((p) => {
+    const id = idByHost.get(hostOf(p.host));
+    return id ? { ...p, id } : p;
+  });
+  return collapseByHost(mapped);
+}
+
 /** `host`'s "consoles" document. */
 export function meshRosterApi(host: string): ShareApi {
   const asRoster = (rev: number, doc: Record<string, unknown> | null) => ({
     rev,
-    value: doc && Array.isArray(doc.profiles) ? { profiles: doc.profiles as SharedProfile[] } : null,
+    value:
+      doc && Array.isArray(doc.profiles)
+        ? { profiles: inLocalTerms(doc.profiles as SharedProfile[], useRosterStore.getState().profiles) }
+        : null,
   });
   return {
     async get() {
@@ -63,7 +85,7 @@ export function meshRosterApi(host: string): ShareApi {
       return asRoster(d.rev, d.doc);
     },
     async put(baseRev, profiles) {
-      const r = await meshDocPut(host, "consoles", baseRev, { profiles });
+      const r = await meshDocPut(host, "consoles", baseRev, { profiles: collapseByHost(profiles) });
       if (!r.supported) throw new NoConsole();
       if (r.saved) return { rev: r.rev };
       return { conflict: asRoster(r.rev, r.doc) };
@@ -98,6 +120,8 @@ export function startMeshShare(
     return s;
   };
   const syncHost = (host: string) => {
+    // Duplicates left by 8.0.0 (or added by hand) go before anything is shared.
+    useRosterStore.getState().dedupeByHost();
     const s = shareFor(host);
     const job = s.started ? s.share.pull() : s.share.start().then(() => void (s.started = true));
     void job.catch(warn);

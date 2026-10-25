@@ -109,6 +109,10 @@ interface RosterState {
    *  `state/rosterShare.ts`): this browser's last-seen cache is kept per console, and the
    *  selected console stays selected while it still exists. */
   replaceShared: (profiles: PS5Profile[]) => void;
+  /** One entry per console address (8.0.1): the same PS5 added on two devices came back twice
+   *  through the 8.0.0 mesh share. The selected entry (else the first) is kept, filled in from
+   *  the others. Returns how many entries went. */
+  dedupeByHost: () => number;
   /** Called by AppShell's status poller when a probe lands a fresh
    *  kernel/payload pair, so the roster row stays current without
    *  the user opening Settings. */
@@ -192,6 +196,46 @@ function genId(): string {
   return (
     "p_" + Math.random().toString(36).slice(2, 10) + Date.now().toString(36)
   );
+}
+
+/**
+ * One entry per console address, in first-seen order. `prefer` (the selected console) is kept
+ * when it is one of the copies, else the first copy. The kept entry takes what it lacks (a name,
+ * notes, wake keys) from the others. Entries without an address are kept as they are.
+ */
+export function collapseByHost<T extends Pick<PS5Profile, "id" | "host" | "name" | "notes" | "wake_credential" | "wake_regist_key">>(
+  profiles: readonly T[],
+  prefer: string | null = null,
+): T[] {
+  const groups = new Map<string, T[]>();
+  const order: (string | T)[] = [];
+  for (const p of profiles) {
+    const key = hostOf(p.host);
+    if (!key) {
+      order.push(p);
+      continue;
+    }
+    const g = groups.get(key);
+    if (g) g.push(p);
+    else {
+      groups.set(key, [p]);
+      order.push(key);
+    }
+  }
+  return order.map((o) => {
+    if (typeof o !== "string") return o;
+    const g = groups.get(o)!;
+    const keep = g.find((p) => p.id === prefer) ?? g[0];
+    const out = { ...keep };
+    for (const other of g) {
+      if (other === keep) continue;
+      for (const k of Object.keys(other) as (keyof T)[]) {
+        if ((out[k] === undefined || out[k] === null || out[k] === "") && other[k] != null && other[k] !== "")
+          out[k] = other[k];
+      }
+    }
+    return out;
+  });
 }
 
 const initial = loadStored();
@@ -424,6 +468,21 @@ export const useRosterStore = create<RosterState>((set, get) => ({
       useRunningAppsStore.getState().clearForHostChange(newActive.host);
       useConnectionStore.getState().setHost(newActive.host);
     }
+  },
+  dedupeByHost: () => {
+    const { profiles, active_id } = get();
+    const next = collapseByHost(profiles, active_id);
+    const removed = profiles.length - next.length;
+    if (removed === 0) return 0;
+    const keepActive = next.some((p) => p.id === active_id);
+    // The selected console was a duplicate: select the entry kept for its address.
+    const activeHost = profiles.find((p) => p.id === active_id)?.host;
+    const nextActive = keepActive
+      ? active_id
+      : (next.find((p) => activeHost && hostOf(p.host) === hostOf(activeHost))?.id ?? next[0]?.id ?? null);
+    set({ profiles: next, active_id: nextActive });
+    persist(next, nextActive);
+    return removed;
   },
   noteSeen: (id, patch) => {
     const now = Math.floor(Date.now() / 1000);
