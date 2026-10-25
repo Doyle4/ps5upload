@@ -95,10 +95,10 @@ pub use save_archive::*;
 pub use save_text_file::*;
 pub use saves_screenshots::*;
 pub use screenshot_convert::*;
+pub use self_install::*;
 pub use smp::*;
 pub use system_power::*;
 pub use title_meta::*;
-pub use self_install::*;
 pub use updates::*;
 pub use usb_autoloader::*;
 
