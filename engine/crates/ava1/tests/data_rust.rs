@@ -303,7 +303,9 @@ async fn ordered_download(tag: &str, job: u8, timing: ava1::session::Timing) {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn an_ordered_download_reaches_the_sink_in_file_order() {
-    ordered_download("rr-ordered", 3, common::fast()).await;
+    // The default timing, not fast(): this tests the order of writes, and fast()'s 500 ms
+    // dead-after ended the connection on a loaded coverage runner (7.5.3's CI) mid-download.
+    ordered_download("rr-ordered", 3, ava1::session::Timing::default()).await;
 }
 
 #[tokio::test(flavor = "multi_thread")]
