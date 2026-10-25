@@ -103,22 +103,6 @@ describe("console list merge on first contact", () => {
 });
 
 describe("the same PS5 from two devices (8.0.0 listed it twice)", () => {
-  // Imported here so the earlier blocks do not depend on the roster store.
-  it("takes this device's id for a console it already has, and keeps one entry per address", async () => {
-    const { inLocalTerms } = await import("../lib/meshShare");
-    const local = [{ id: "mine-phat", host: "192.168.86.99" }];
-    const theirs = [
-      { id: "their-phat", name: "Phat", host: "192.168.86.99" },
-      { id: "their-pro", name: "Pro", host: "192.168.86.100" },
-      { id: "their-phat-2", name: "Phat copy", host: "192.168.86.99:9120" },
-    ] as SharedProfile[];
-    const got = inLocalTerms(theirs, local);
-    expect(got.map((p) => [p.id, p.host])).toEqual([
-      ["mine-phat", "192.168.86.99"],
-      ["their-pro", "192.168.86.100"],
-    ]);
-  });
-
   it("collapses duplicates already saved, keeping the selected one and filling in what it lacks", async () => {
     const { collapseByHost } = await import("./roster");
     const list = [

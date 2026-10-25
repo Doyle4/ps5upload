@@ -1,21 +1,185 @@
 /**
- * Settings and the console list, shared by every device that uses a console (8.0.0). Each console
- * keeps two documents: "prefs" (the keys in `MESH_KEYS`, newest change per key wins) and
- * "consoles" (the console list, merged per console so nobody's console is dropped). The app syncs
- * with the console on screen whenever its helper answers: on connecting, on a change here, on
- * focus and every minute. A new device therefore gets the household's consoles and set-up the
- * first time it connects; a change made on one device reaches the others through whichever
- * console they next meet.
+ * Settings and the console list, the same on every device that uses a console (8.0.0; rebuilt
+ * on a CRDT in 8.0.1).
+ *
+ * Each console keeps one document, "state": a last-writer-wins map stamped with hybrid logical
+ * clocks (lib/meshCrdt.ts). Keys:
+ *   p:<setting key>          a shared setting's raw value (null: removed);
+ *   c:<address>              whether that console is in the list (1, or null once removed);
+ *   c:<address>:<field>      one field of it (its name, notes, wake keys...).
+ * A console is known by its address on every device (each device names it with an id of its own),
+ * and each field is its own register, so a rename on one device and a wake key set on another
+ * both survive. A removal is a stamped register, so a console deleted on one device stays deleted
+ * whichever console another device syncs through next.
+ *
+ * Every device keeps its own copy of the map (with its stamps). A change made here is stamped when
+ * it happens (or found and stamped before the next sync); a sync merges this copy with the
+ * console's, applies what changed to this device, and writes the merge back when the console's
+ * copy lacked something. Merging is order-independent, so the copies on every device and console
+ * converge.
  *
  * A console with a helper from before 8.0.0 has no documents: nothing is shared through it.
  */
 import { meshDocGet, meshDocPut } from "../api/mesh";
 import { useConnectionStore } from "../state/connection";
 import { meshFor, useMeshStore } from "../state/mesh";
-import { RosterShare, type SharedProfile, type ShareApi } from "../state/rosterShare";
-import { collapseByHost, useRosterStore } from "../state/roster";
+import { useRosterStore, type PS5Profile } from "../state/roster";
 import { hostOf } from "./addr";
-import { asDoc, MESH_CHANNEL, startSharedPrefs, syncOnce, type Entries, type PrefsApi } from "./sharedPrefs";
+import { asMap, Clock, maxHlc, merge, pruneTombstones, sameMap, type Hlc, type LwwMap } from "./meshCrdt";
+import { onStorageWrite, safeGetItem, safeRemoveItem, safeSetItem } from "./safeStorage";
+import { MESH_KEYS } from "./sharedPrefs";
+
+const STATE_KEY = "ps5upload.mesh_state.v2";
+const DOC = "state";
+
+/** Fields of a console that are this device's own, never shared. */
+const LOCAL_FIELDS = new Set(["id", "last_seen_at", "last_seen_kernel", "last_seen_payload"]);
+
+interface Persisted {
+  device: string;
+  clock: { t: number; c: number };
+  m: LwwMap;
+}
+
+function randomId(): string {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
+  return "d_" + Math.random().toString(36).slice(2) + Date.now().toString(36);
+}
+
+export function loadState(): Persisted {
+  try {
+    const p = JSON.parse(safeGetItem(STATE_KEY) ?? "null") as Partial<Persisted> | null;
+    if (p && typeof p.device === "string" && p.device && p.clock && typeof p.clock.t === "number") {
+      return { device: p.device, clock: { t: p.clock.t, c: p.clock.c ?? 0 }, m: asMap(p.m) };
+    }
+  } catch {
+    // A bad copy starts over: the consoles' copies bring everything back.
+  }
+  return { device: randomId(), clock: { t: 0, c: 0 }, m: {} };
+}
+
+function saveState(s: Persisted) {
+  safeSetItem(STATE_KEY, JSON.stringify(s));
+}
+
+// ---- this device's values, as map keys ----
+
+const P = "p:";
+const C = "c:";
+
+export function settingKey(k: string) {
+  return P + k;
+}
+export function consoleKey(host: string) {
+  return C + hostOf(host);
+}
+export function fieldKey(host: string, field: string) {
+  return `${C}${hostOf(host)}:${field}`;
+}
+const isConsoleKey = (k: string) => k.startsWith(C) && !k.slice(C.length).includes(":");
+
+/** What this device has now, for every shared key it holds. */
+export function localView(profiles: readonly PS5Profile[], read: (k: string) => string | null): Map<string, unknown> {
+  const out = new Map<string, unknown>();
+  for (const k of MESH_KEYS) out.set(settingKey(k), read(k));
+  for (const p of profiles) {
+    if (!hostOf(p.host)) continue;
+    out.set(consoleKey(p.host), 1);
+    for (const [f, v] of Object.entries(p)) {
+      if (LOCAL_FIELDS.has(f)) continue;
+      out.set(fieldKey(p.host, f), v ?? null);
+    }
+  }
+  return out;
+}
+
+const same = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+
+/**
+ * Stamps what changed here since the map last saw it. A value the map has never had gets the
+ * lowest stamp (the set-up from before sharing loses to any change made anywhere since); a
+ * console that left this device's list gets a removal.
+ */
+export function stampLocal(m: LwwMap, view: Map<string, unknown>, clock: Clock): LwwMap {
+  const out: LwwMap = { ...m };
+  for (const [k, v] of view) {
+    const cur = out[k];
+    if (!cur) {
+      if (v === null) continue; // nothing here and nothing known: nothing to say
+      out[k] = { v, h: { t: 0, c: 0, d: clock.device } };
+    } else if (!same(cur.v, v)) {
+      out[k] = { v, h: clock.now() };
+    }
+  }
+  // Consoles this map lists that are no longer here: removed on this device.
+  for (const [k, r] of Object.entries(m)) {
+    if (isConsoleKey(k) && r.v !== null && !view.has(k)) out[k] = { v: null, h: clock.now() };
+  }
+  return out;
+}
+
+/**
+ * The console list this map describes, starting from this device's (order and ids kept): consoles
+ * removed elsewhere go, fields changed elsewhere are taken, consoles added elsewhere are appended.
+ */
+export function rosterFrom(
+  m: LwwMap,
+  local: readonly PS5Profile[],
+  newId: () => string = randomId,
+): PS5Profile[] {
+  const fieldsOf = (hk: string): Record<string, unknown> => {
+    const out: Record<string, unknown> = {};
+    const prefix = `${C}${hk}:`;
+    for (const [k, r] of Object.entries(m)) if (k.startsWith(prefix)) out[k.slice(prefix.length)] = r.v;
+    return out;
+  };
+  const next: PS5Profile[] = [];
+  const seen = new Set<string>();
+  for (const p of local) {
+    const hk = hostOf(p.host);
+    if (!hk) {
+      next.push(p);
+      continue;
+    }
+    if (seen.has(hk)) continue; // one entry per address
+    const exists = m[C + hk];
+    if (exists && exists.v === null) continue; // removed on some device, after it was added here
+    seen.add(hk);
+    next.push({ ...p, ...(fieldsOf(hk) as Partial<PS5Profile>), id: p.id });
+  }
+  for (const [k, r] of Object.entries(m)) {
+    if (!isConsoleKey(k)) continue;
+    const hk = k.slice(C.length);
+    if (r.v === null || seen.has(hk)) continue;
+    const f = fieldsOf(hk);
+    if (typeof f.host !== "string" || !f.host) continue;
+    seen.add(hk);
+    next.push({ ...(f as unknown as PS5Profile), id: newId(), name: String(f.name ?? f.host) });
+  }
+  return next;
+}
+
+/** What this device must change to match the map: settings to write, and the new console list
+ *  (null when it is the same). */
+export function plan(
+  m: LwwMap,
+  view: Map<string, unknown>,
+  profiles: readonly PS5Profile[],
+  newId?: () => string,
+): { settings: [string, string | null][]; roster: PS5Profile[] | null } {
+  const settings: [string, string | null][] = [];
+  for (const k of MESH_KEYS) {
+    const r = m[settingKey(k)];
+    if (!r) continue;
+    if (!same(r.v, view.get(settingKey(k)))) settings.push([k, typeof r.v === "string" ? r.v : null]);
+  }
+  const roster = rosterFrom(m, profiles, newId);
+  const strip = (l: readonly PS5Profile[]) =>
+    l.map((p) => Object.fromEntries(Object.entries(p).filter(([f]) => !LOCAL_FIELDS.has(f) || f === "id")));
+  return { settings, roster: same(strip(roster), strip(profiles)) ? null : roster };
+}
+
+// ---- the console's copy ----
 
 /** The console on screen, when its helper keeps documents; else null. */
 export function meshHost(): string | null {
@@ -25,75 +189,93 @@ export function meshHost(): string | null {
   return meshFor(useMeshStore.getState(), host).supported === true ? host : null;
 }
 
-class NoConsole extends Error {
-  constructor() {
-    super("no console that keeps shared settings");
+const LEGACY: Hlc = { t: 0, c: 0, d: "legacy" };
+
+/** The 8.0.0 documents ("prefs" with per-key times, "consoles" as a list), as a map: read once,
+ *  when a console has no "state" document yet. */
+async function legacy(host: string): Promise<LwwMap> {
+  const out: LwwMap = {};
+  const prefs = await meshDocGet(host, "prefs").catch(() => null);
+  const keys =
+    prefs && prefs.supported && prefs.doc ? (prefs.doc.keys as Record<string, { v?: unknown; at?: unknown }>) : null;
+  if (keys && typeof keys === "object") {
+    for (const k of MESH_KEYS) {
+      const e = keys[k];
+      if (!e || typeof e.at !== "number") continue;
+      out[settingKey(k)] = { v: typeof e.v === "string" ? e.v : null, h: { ...LEGACY, t: e.at } };
+    }
   }
+  const consoles = await meshDocGet(host, "consoles").catch(() => null);
+  const list = consoles && consoles.supported && consoles.doc ? consoles.doc.profiles : null;
+  if (Array.isArray(list)) {
+    for (const p of list as Record<string, unknown>[]) {
+      if (typeof p?.host !== "string" || !hostOf(p.host)) continue;
+      out[consoleKey(p.host)] = { v: 1, h: LEGACY };
+      for (const [f, v] of Object.entries(p)) if (!LOCAL_FIELDS.has(f)) out[fieldKey(p.host, f)] = { v: v ?? null, h: LEGACY };
+    }
+  }
+  return out;
 }
 
-/** The "prefs" document of the console on screen. */
-export const meshPrefsApi: PrefsApi = {
-  async get() {
-    const host = meshHost();
-    if (!host) throw new NoConsole();
-    const d = await meshDocGet(host, "prefs");
-    if (!d.supported) throw new NoConsole();
-    return asDoc({ rev: d.rev, value: d.doc });
-  },
-  async put(baseRev: number, keys: Entries) {
-    const host = meshHost();
-    if (!host) throw new NoConsole();
-    const r = await meshDocPut(host, "prefs", baseRev, { keys });
-    if (!r.supported) throw new NoConsole();
-    if (r.saved) return { rev: r.rev };
-    return { conflict: asDoc({ rev: r.rev, value: r.doc }) };
-  },
-};
+// ---- running it ----
 
-/**
- * A console list from another device, in this device's terms. Each device names a console with
- * an id of its own, so the same PS5 added on two devices has two ids: matched by address, an
- * incoming entry takes this device's id (tasks and the selected console refer to it), and the
- * list keeps one entry per address. (8.0.0 matched by id only and listed such a PS5 twice.)
- */
-export function inLocalTerms(list: readonly SharedProfile[], local: readonly { id: string; host: string }[]): SharedProfile[] {
-  const idByHost = new Map<string, string>();
-  for (const p of local) {
-    const key = hostOf(p.host);
-    if (key && !idByHost.has(key)) idByHost.set(key, p.id);
-  }
-  const mapped = list.map((p) => {
-    const id = idByHost.get(hostOf(p.host));
-    return id ? { ...p, id } : p;
-  });
-  return collapseByHost(mapped);
+/** Set while this module writes settings or the list, so those writes are not stamped as local
+ *  changes. */
+let applying = false;
+
+/** Stamps this device's changes into its copy. Returns the copy, and whether anything changed
+ *  (a status poll touches the console list on every round without changing anything shared). */
+function stampNow(): { st: Persisted; changed: boolean } {
+  const st = loadState();
+  const clock = new Clock(st.device, st.clock);
+  const view = localView(useRosterStore.getState().profiles, safeGetItem);
+  const m = stampLocal(st.m, view, clock);
+  const changed = !sameMap(m, st.m);
+  if (changed) saveState({ device: st.device, clock: clock.last, m });
+  return { st: { device: st.device, clock: clock.last, m }, changed };
 }
 
-/** `host`'s "consoles" document. */
-export function meshRosterApi(host: string): ShareApi {
-  const asRoster = (rev: number, doc: Record<string, unknown> | null) => ({
-    rev,
-    value:
-      doc && Array.isArray(doc.profiles)
-        ? { profiles: inLocalTerms(doc.profiles as SharedProfile[], useRosterStore.getState().profiles) }
-        : null,
-  });
-  return {
-    async get() {
-      const d = await meshDocGet(host, "consoles");
-      if (!d.supported) throw new NoConsole();
-      return asRoster(d.rev, d.doc);
-    },
-    async put(baseRev, profiles) {
-      const r = await meshDocPut(host, "consoles", baseRev, { profiles: collapseByHost(profiles) });
-      if (!r.supported) throw new NoConsole();
-      if (r.saved) return { rev: r.rev };
-      return { conflict: asRoster(r.rev, r.doc) };
-    },
-  };
+/** One sync with `host`. Returns the settings it changed here. */
+export async function syncWith(host: string): Promise<string[]> {
+  let { st } = stampNow();
+  const clock = new Clock(st.device, st.clock);
+  const got = await meshDocGet(host, DOC);
+  if (!got.supported) return [];
+  let rev = got.rev;
+  let remote = asMap((got.doc as { m?: unknown } | null)?.m);
+  if (rev === 0) remote = merge(await legacy(host), remote);
+  const written: string[] = [];
+  for (let attempt = 0; attempt < 4; attempt++) {
+    clock.observe(maxHlc(remote));
+    const merged = pruneTombstones(merge(st.m, remote), Date.now());
+    // Apply to this device what the merge changed.
+    const profiles = useRosterStore.getState().profiles;
+    const todo = plan(merged, localView(profiles, safeGetItem), profiles);
+    applying = true;
+    try {
+      for (const [k, v] of todo.settings) {
+        if (v === null) safeRemoveItem(k);
+        else safeSetItem(k, v);
+        written.push(k);
+      }
+      if (todo.roster) useRosterStore.getState().replaceShared(todo.roster);
+    } finally {
+      applying = false;
+    }
+    st = { device: st.device, clock: clock.last, m: merged };
+    saveState(st);
+    if (sameMap(merged, remote)) return written;
+    const put = await meshDocPut(host, DOC, rev, { v: 2, m: merged });
+    if (!put.supported || put.saved) return written;
+    // Another device wrote in between: merge theirs in too and try again.
+    rev = put.rev;
+    remote = asMap((put.doc as { m?: unknown } | null)?.m);
+  }
+  return written;
 }
 
 const PULL_MS = 60_000;
+const PUSH_DEBOUNCE_MS = 800;
 
 /** Starts sharing; returns a stop. `onLive` gets the sidebar keys another device changed;
  *  `onSettingsArrived` how many other settings arrived (they apply when the app next starts). */
@@ -101,72 +283,65 @@ export function startMeshShare(
   onLive: (keys: string[]) => void,
   onSettingsArrived: (count: number) => void = () => {},
 ): () => void {
-  const warn = (e: unknown) => {
-    if (e instanceof NoConsole) return;
-    console.warn("[mesh-share]", e instanceof Error ? e.message : String(e));
+  const warn = (e: unknown) => console.warn("[mesh-share]", e instanceof Error ? e.message : String(e));
+  // Duplicates left by 8.0.0 go before anything is shared.
+  useRosterStore.getState().dedupeByHost();
+  // The baseline: what this device has now is "from before" (lowest stamp, the first time a key is
+  // seen), so a change made from here on is stamped as a change.
+  stampNow();
+  let running: Promise<void> = Promise.resolve();
+  const run = () => {
+    running = running
+      .then(async () => {
+        const host = meshHost();
+        if (!host) {
+          stampNow(); // keep the change's real time for when a console is reachable
+          return;
+        }
+        const written = await syncWith(host);
+        const live = written.filter((k) => k.startsWith("ps5upload.desktop-sidebar."));
+        if (live.length) onLive(live);
+        if (written.length > live.length) onSettingsArrived(written.length - live.length);
+      })
+      .catch(warn);
   };
-  // Settings: changes here are sent as they happen, the console's fetched on focus and every
-  // minute (through whichever console is on screen at that moment).
-  const stopPrefs = startSharedPrefs(onLive, meshPrefsApi, MESH_CHANNEL);
-
-  // The console list, one share per console met.
-  const shares = new Map<string, { share: RosterShare; started: boolean }>();
-  const shareFor = (host: string) => {
-    let s = shares.get(host);
-    if (!s) {
-      s = { share: new RosterShare(meshRosterApi(host), useRosterStore, "union"), started: false };
-      shares.set(host, s);
-    }
-    return s;
+  let timer: number | undefined;
+  const soon = () => {
+    window.clearTimeout(timer);
+    timer = window.setTimeout(run, PUSH_DEBOUNCE_MS);
   };
-  const syncHost = (host: string) => {
-    // Duplicates left by 8.0.0 (or added by hand) go before anything is shared.
-    useRosterStore.getState().dedupeByHost();
-    const s = shareFor(host);
-    const job = s.started ? s.share.pull() : s.share.start().then(() => void (s.started = true));
-    void job.catch(warn);
-  };
-
-  // Whenever the console on screen becomes one that keeps documents: settings and list now.
+  const shared = new Set(MESH_KEYS);
+  const stopWrites = onStorageWrite((key) => {
+    if (applying || !shared.has(key)) return;
+    if (stampNow().changed) soon();
+  });
+  const unsubRoster = useRosterStore.subscribe((s, prev) => {
+    if (applying || s.profiles === prev.profiles) return;
+    if (stampNow().changed) soon();
+  });
+  // A console that keeps documents came on screen: sync now.
   let lastHost: string | null = null;
   const onMesh = () => {
     const host = meshHost();
     if (host === lastHost) return;
     lastHost = host;
-    if (!host) return;
-    void syncOnce(meshPrefsApi, undefined, MESH_CHANNEL)
-      .then((written) => {
-        const live = written.filter((k) => k.startsWith("ps5upload.desktop-sidebar."));
-        if (live.length) onLive(live);
-        // The rest are read when the app starts: say so, once per batch.
-        if (written.length > live.length) onSettingsArrived(written.length - live.length);
-      })
-      .catch(warn);
-    syncHost(host);
+    if (host) run();
   };
   const unsubMesh = useMeshStore.subscribe(onMesh);
   const unsubConn = useConnectionStore.subscribe(onMesh);
   onMesh();
-
-  const unsubRoster = useRosterStore.subscribe((st, prev) => {
-    if (st.profiles === prev.profiles) return;
-    const host = meshHost();
-    if (!host) return;
-    const s = shareFor(host);
-    if (!s.started || s.share.applyingRemote) return;
-    void s.share.push().catch(warn);
-  });
-
-  const timer = window.setInterval(() => {
-    const host = meshHost();
-    if (host && document.visibilityState === "visible") syncHost(host);
-  }, PULL_MS);
-
+  const pull = () => {
+    if (document.visibilityState === "visible") run();
+  };
+  const interval = window.setInterval(pull, PULL_MS);
+  window.addEventListener("focus", pull);
   return () => {
-    stopPrefs();
+    stopWrites();
+    unsubRoster();
     unsubMesh();
     unsubConn();
-    unsubRoster();
-    window.clearInterval(timer);
+    window.clearTimeout(timer);
+    window.clearInterval(interval);
+    window.removeEventListener("focus", pull);
   };
 }
