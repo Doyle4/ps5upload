@@ -77,6 +77,31 @@ export interface DriveStatus {
   done?: number;
   current?: string;
   skipped?: string[];
+  /** While the folder's own console is away (8.2.0): why, and since when (unix ms). */
+  away?: "rest" | "unreachable" | "helper" | "";
+  away_since?: number;
+}
+
+/** One of this device's folders, read from the engine alone (answers with every console away). */
+export interface LocalFolder {
+  drive: string;
+  member: string;
+  /** The drive's name when this folder joined it. */
+  name: string;
+  console: string;
+  path: string;
+  links: string[];
+  status: DriveStatus;
+}
+
+/** This device's folders on every console (`GET /api/drive/local`); [] from an engine before 8.2.0. */
+export async function fetchLocalFolders(): Promise<LocalFolder[]> {
+  try {
+    const b = await engineJson("/api/drive/local");
+    return Array.isArray(b.folders) ? (b.folders as LocalFolder[]) : [];
+  } catch {
+    return [];
+  }
 }
 
 export interface LocalDriveMember {

@@ -2127,6 +2127,22 @@ page (**Review the deletes**).
 No. Every drive folder holds a `.ps5upload-mesh` file. A folder without it counts as offline, and
 nothing is copied to or deleted from it until it is back.
 
+**Q: What happens when the console goes to rest mode, or is turned off?**
+Nothing is lost (8.2.0). Your devices keep their folders; changes made on them wait and go up
+when the console is back. Mesh Drive says what is going on: **Console asleep** (rest mode),
+**Helper not running** (the console woke up, but the helper does not survive rest mode), or
+**Console away** (off, or on another network), with how long it has been away.
+
+- A sync that is running when the console goes to sleep stops by itself within about a
+  minute and keeps the files it already copied. Nothing counts as a failed file.
+- When the console wakes, Mesh Drive notices within one round (about half a minute) and offers
+  **Send helper**; once the helper runs, syncing carries on where it stopped.
+- **Wake console** shows when the app has the console's wake setup (Connection › Power).
+- If the console you have selected is asleep, the Mesh Drive page still lists **Your folders**
+  with their state.
+- With the drive linked to a second console, devices sync through that one while their own
+  sleeps.
+
 **Q: I have two consoles. Can a drive be on both?**
 Yes (8.1.0). Each console is the master of its own circle: the devices that sync the drive
 through it. On the drive's card, open ⋯ › **Link to another console…**, pick the other console

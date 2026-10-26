@@ -4,7 +4,25 @@ What's new in ps5upload, written for humans.
 
 ---
 
-## Unreleased
+## 8.2.0
+
+### Mesh Drive when a console sleeps or is off
+
+- **A console going to rest mode mid-sync no longer hangs the sync.** The copy in flight waited
+  for the console forever, holding every drive behind it, and each file it gave up on counted as
+  failing (three times and it sat out for ten minutes after the wake). The sync now stops within
+  about a minute, keeps what it copied, and blames no file.
+- **It says what's wrong, not "Problem".** A folder shows **Console asleep**, **Helper not
+  running** (just woke, the helper does not survive rest) or **Console away** (off, other
+  network), since when, and that changes made here are kept. **Wake console** and **Send helper**
+  are on the card.
+- **Back within a round.** A sleeping console is checked over the network each round; when it
+  wakes, syncing resumes in about half a minute instead of after a growing wait. A console that is
+  away is not asked again and again by every folder (each ask used to cost seconds).
+- **Your folders, even with the console asleep.** The Mesh Drive page lists this device's folders
+  and their state when the selected console cannot be reached.
+- **Much faster uploads of many files.** New and changed files go up in batches instead of one job
+  each: 520 files took 25 s instead of about four minutes in a test on a PS5.
 
 ### Pop-ups stay on screen on phones
 

@@ -49,6 +49,7 @@ import { agoText, KIND_ICONS } from "../Devices";
 import { CreateDriveDialog, JoinDriveDialog, PasswordDialog } from "./DriveDialogs";
 import { ConflictsDialog, LinkDialog, LinkedConsoles, linkName } from "./LinksAndConflicts";
 import { useRosterStore } from "../../state/roster";
+import { AwayActions, AwayFolders, awayText, useConsoleName } from "./AwayFolders";
 
 type Tone = "good" | "warn" | "bad" | "neutral" | "accent";
 
@@ -62,11 +63,29 @@ const TONE_TEXT: Record<Tone, string> = {
 
 type Loaded = Extract<DrivesAnswer, { supported: true }>;
 
-function statusOf(tr: Translator, l: LocalDriveMember, now: number): { tone: Tone; short: string; long: string } {
+function statusOf(
+  tr: Translator,
+  l: LocalDriveMember,
+  now: number,
+  consoleName: string,
+): { tone: Tone; short: string; long: string } {
   const s = l.status;
   const ago = s.last_ok ? agoText(tr, now - s.last_ok) : "";
+  // Its console is away: say which way, and that nothing made here is lost.
+  if (s.state === "offline" && s.away) return { tone: "warn", ...awayText(tr, s, consoleName, now) };
   switch (s.state) {
     case "idle":
+      // A linked console stands in while this one is away.
+      if (s.away)
+        return {
+          tone: "good",
+          short: tr("drive_badge_synced", undefined, "In sync"),
+          long: tr(
+            "drive_away_via",
+            { name: consoleName },
+            `${consoleName} is away: synced through a linked console`,
+          ),
+        };
       return {
         tone: "good",
         short: tr("drive_badge_synced", undefined, "In sync"),
@@ -284,7 +303,8 @@ function DriveCard({
   const profiles = useRosterStore((s) => s.profiles);
   const myMember = d.members.find((m) => m.id === mine?.member);
   const iAmIn = d.members.some((m) => m.device === data.me) || d.by === data.me;
-  const st = mine ? statusOf(tr, mine, now) : null;
+  const consoleName = useConsoleName(host);
+  const st = mine ? statusOf(tr, mine, now, consoleName) : null;
   const devices = new Set(d.members.map((m) => m.device)).size;
   const free = data.free[d.id];
   // A folder of this device opens in Finder / Explorer; a phone or a Docker engine has none to show.
@@ -454,7 +474,12 @@ function DriveCard({
                 {tr("drive_here_at", { path: mine.path }, `Here: ${mine.path}`)}
               </p>
             )}
-            {st?.long && <p className={`mt-1 truncate text-xs ${TONE_TEXT[st.tone]}`}>{st.long}</p>}
+            {st?.long && <p className={`mt-1 text-xs ${TONE_TEXT[st.tone]}`}>{st.long}</p>}
+            {mine?.status.state === "offline" && mine.status.away && (
+              <div className="mt-2">
+                <AwayActions console={host} why={mine.status.away} />
+              </div>
+            )}
             {!!mine?.status.skipped?.length && (
               <p className="mt-1 text-xs text-[var(--color-warn)]" title={mine.status.skipped.join("\n")}>
                 {tr(
@@ -638,7 +663,7 @@ export default function MeshDriveScreen() {
   if (!up || data?.supported === false) {
     const engineOld = data?.supported === false && data.engineOld;
     return (
-      <div className="app-page">
+      <div className="app-page space-y-4">
         {header}
         <Callout
           tone="info"
@@ -664,6 +689,7 @@ export default function MeshDriveScreen() {
             </Button>
           )}
         </Callout>
+        {!engineOld && <AwayFolders />}
       </div>
     );
   }

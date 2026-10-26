@@ -362,6 +362,11 @@ pub struct Status {
     pub current: String,
     /// Files left out: they kept failing (tried again later), or this device cannot hold their name.
     pub skipped: Vec<String>,
+    /// While the folder's own console is away: `rest`, `unreachable` or `helper` (empty
+    /// otherwise), and since when (unix ms). Set with `offline`, and with `idle` while a linked
+    /// console stands in.
+    pub away: String,
+    pub away_since: u64,
 }
 
 /// What a member's engine remembers between passes (not saved: a restart lists everything again).
@@ -397,6 +402,219 @@ const FAIL_LIMIT: u32 = 3;
 const FAIL_REST: Duration = Duration::from_secs(600);
 /// A member's report on the console is written again at least this often.
 const REPORT_EVERY_MS: u64 = 10 * 60 * 1000;
+
+// ---- consoles that are away (8.2.0) ----
+
+/// Why a console cannot be synced with right now.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum AwayWhy {
+    /// Rest mode (DDP said 620): every port refuses until it wakes.
+    Rest,
+    /// Nothing answers: off, on another network, or in rest without its network features.
+    Unreachable,
+    /// Awake, but the helper is not running (it does not survive rest mode).
+    Helper,
+}
+
+impl AwayWhy {
+    fn as_str(self) -> &'static str {
+        match self {
+            AwayWhy::Rest => "rest",
+            AwayWhy::Unreachable => "unreachable",
+            AwayWhy::Helper => "helper",
+        }
+    }
+}
+
+struct Away {
+    why: AwayWhy,
+    /// Unix ms it was first found away.
+    since: u64,
+    /// Tries that failed since; the next one waits longer.
+    tries: u32,
+    next: std::time::Instant,
+    /// When DDP was last asked whether it woke (once per round is plenty).
+    probed: Option<std::time::Instant>,
+}
+
+fn aways() -> &'static Mutex<HashMap<String, Away>> {
+    static A: OnceLock<Mutex<HashMap<String, Away>>> = OnceLock::new();
+    A.get_or_init(Default::default)
+}
+
+/// How often a sleeping or silent console is asked over DDP whether it woke.
+const DDP_EVERY: Duration = Duration::from_secs(20);
+
+/// The wait after `tries` failed tries in a row: 30 s, 1, 2, 4 min, then 5 min.
+fn away_backoff(tries: u32) -> Duration {
+    let secs = 30u64.saturating_mul(1 << tries.saturating_sub(1).min(4));
+    Duration::from_secs(secs.min(300))
+}
+
+/// Why `e` means the console is away (not a fault of the file or the folder), when it does.
+fn away_why(e: &anyhow::Error) -> Option<AwayWhy> {
+    use ps5upload_core::mgmt::{error_token, AVA1_UNREACHABLE, CONSOLE_REST_MODE, HELPER_NOT_AVA1};
+    match error_token(e).as_deref() {
+        Some(CONSOLE_REST_MODE) => Some(AwayWhy::Rest),
+        Some(AVA1_UNREACHABLE) => Some(AwayWhy::Unreachable),
+        Some(HELPER_NOT_AVA1) => Some(AwayWhy::Helper),
+        _ => None,
+    }
+}
+
+/// After an error of no known kind: does the console still answer? One read of the drive list
+/// decides (a dropped session mid-copy surfaces as a plain I/O error).
+fn confirm_away(addr: &str, e: &anyhow::Error) -> Option<AwayWhy> {
+    if let Some(w) = away_why(e) {
+        return Some(w);
+    }
+    match doc_read(addr) {
+        Err(e2) => Some(away_why(&e2).unwrap_or(AwayWhy::Unreachable)),
+        Ok(_) => None,
+    }
+}
+
+fn mark_away(addr: &str, why: AwayWhy) {
+    let mut m = aways().lock().unwrap_or_else(|e| e.into_inner());
+    let a = m.entry(addr.to_string()).or_insert_with(|| {
+        crate::log_info!("mesh drive: {addr} is away ({})", why.as_str());
+        Away {
+            why,
+            since: now_ms(),
+            tries: 0,
+            next: std::time::Instant::now(),
+            probed: None,
+        }
+    });
+    a.why = why;
+    a.tries += 1;
+    // A missing helper is usually sent again within a minute (the app does it on its own for
+    // the console it shows): look again sooner than for a console that sleeps.
+    let wait = match why {
+        AwayWhy::Helper => away_backoff(a.tries).min(Duration::from_secs(60)),
+        _ => away_backoff(a.tries),
+    };
+    a.next = std::time::Instant::now() + wait;
+}
+
+/// The console answered: it is back. Its folders look at everything again (the quiet shortcut
+/// and per-file failures from before are forgotten).
+fn mark_back(addr: &str) {
+    let was = aways()
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .remove(addr);
+    if let Some(a) = was {
+        crate::log_info!(
+            "mesh drive: {addr} is back after {} s",
+            now_ms().saturating_sub(a.since) / 1000
+        );
+        let members: Vec<String> = load_config()
+            .members
+            .iter()
+            .filter(|m| m.console == addr)
+            .map(|m| m.member.clone())
+            .collect();
+        let mut rts = runtimes().lock().unwrap_or_else(|e| e.into_inner());
+        for (id, rt) in rts.iter_mut() {
+            if members.contains(id) || id.starts_with("link:") {
+                rt.quiet_local = None;
+                rt.side_rev = None;
+                rt.last_full = None;
+                rt.fails.clear();
+            }
+        }
+    }
+}
+
+/// `(why, since)` while `addr` is away.
+fn away_of(addr: &str) -> Option<(AwayWhy, u64)> {
+    aways()
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .get(addr)
+        .map(|a| (a.why, a.since))
+}
+
+/// Whether to try `addr` this round: not away, its wait is over, or (asleep or silent) DDP now
+/// says it is awake, so a wake is noticed within a round instead of after the wait.
+fn worth_trying(addr: &str) -> bool {
+    let (why, due) = {
+        let mut m = aways().lock().unwrap_or_else(|e| e.into_inner());
+        match m.get_mut(addr) {
+            None => return true,
+            Some(a) => {
+                if a.next <= std::time::Instant::now() {
+                    return true;
+                }
+                let fresh = a.probed.is_some_and(|t| t.elapsed() < DDP_EVERY);
+                if !fresh {
+                    a.probed = Some(std::time::Instant::now());
+                }
+                (a.why, fresh)
+            }
+        }
+    };
+    // Asked DDP a moment ago (another folder on the same console this round): same answer.
+    if due {
+        return false;
+    }
+    match why {
+        AwayWhy::Helper => false,
+        AwayWhy::Rest | AwayWhy::Unreachable => {
+            // `ip`, `ip:port`, `[v6]` or `[v6]:port`: DDP wants the bare host.
+            let host = match addr.strip_prefix('[') {
+                Some(rest) => rest.split(']').next().unwrap_or(rest),
+                None if addr.matches(':').count() == 1 => addr.split(':').next().unwrap_or(addr),
+                None => addr,
+            };
+            let code = ps5upload_core::ddp::standby_probe(
+                host,
+                ps5upload_core::ddp::STANDBY_PROBE_BUDGET,
+                ps5upload_core::ddp::STANDBY_PROBE_SENDS,
+            );
+            match (why, code) {
+                (_, Some(200)) => true,
+                // Silent before, asleep now: still asleep, but say so.
+                (AwayWhy::Unreachable, Some(620)) => {
+                    if let Some(a) = aways()
+                        .lock()
+                        .unwrap_or_else(|e| e.into_inner())
+                        .get_mut(addr)
+                    {
+                        a.why = AwayWhy::Rest;
+                    }
+                    false
+                }
+                _ => false,
+            }
+        }
+    }
+}
+
+/// A folder's status while its console is away.
+fn set_away_status(member: &str, addr: &str) {
+    let (why, since) = away_of(addr).unwrap_or((AwayWhy::Unreachable, now_ms()));
+    set_status(member, |s| {
+        s.state = "offline".into();
+        s.away = why.as_str().into();
+        s.away_since = since;
+        s.detail = match why {
+            AwayWhy::Rest => {
+                format!("{addr} is in rest mode; changes made here sync when it wakes")
+            }
+            AwayWhy::Unreachable => {
+                format!("{addr} does not answer; changes made here sync when it is back")
+            }
+            AwayWhy::Helper => {
+                format!("{addr} is on but its helper is not running; send it and syncing resumes")
+            }
+        };
+        s.todo = 0;
+        s.done = 0;
+        s.current.clear();
+    });
+}
 
 /// A name this device's file system cannot hold (only Windows refuses names the console takes).
 fn unstorable(rel: &str) -> bool {
@@ -755,6 +973,11 @@ trait Side {
     fn exists(&self, rel: &str) -> bool;
     /// This side's `rel` to the hub's `rel`.
     fn send(&self, hub_addr: &str, hub: &str, rel: &str) -> Result<()>;
+    /// Several files to the hub in one job, when this side can (a folder on this device):
+    /// false when it cannot, and each goes with `send`.
+    fn send_many(&self, _hub_addr: &str, _hub: &str, _rels: &[String]) -> Result<bool> {
+        Ok(false)
+    }
     /// The hub's `rel` to this side; never over a file that is no longer `expect`.
     fn fetch(&self, hub_addr: &str, hub: &str, rel: &str, expect: Option<Meta>) -> Result<()>;
     /// BLAKE3, hex.
@@ -772,6 +995,10 @@ trait Side {
     /// A name this side cannot hold.
     fn unstorable(&self, rel: &str) -> bool;
     fn case_insensitive(&self) -> bool;
+    /// The console this side is on, when it is one (a link's far end).
+    fn console(&self) -> Option<&str> {
+        None
+    }
 }
 
 struct LocalSide {
@@ -818,11 +1045,27 @@ impl Side for LocalSide {
         if let Some(parent) = dest.rsplit_once('/').map(|(d, _)| d) {
             fs_ops::fs_mkdir(hub_addr, parent)?;
         }
-        let cfg = crate::make_transfer_config(hub_addr);
+        let mut cfg = crate::make_transfer_config(hub_addr);
+        cfg.cancel = Some(xfer_cancel());
         let job: [u8; 16] = ava1::keys::random_bytes()?;
         ps5upload_ava1::upload::upload_file(&cfg, job, &dest, &src)
             .map_err(|e| anyhow!("upload {rel}: {e:#}"))?;
         Ok(())
+    }
+    fn send_many(&self, hub_addr: &str, hub: &str, rels: &[String]) -> Result<bool> {
+        let entries: Vec<ps5upload_core::transfer::FileListEntry> = rels
+            .iter()
+            .map(|rel| ps5upload_core::transfer::FileListEntry {
+                src: local_path(&self.root, rel).to_string_lossy().into_owned(),
+                dest: join_hub(hub, rel),
+            })
+            .collect();
+        let mut cfg = crate::make_transfer_config(hub_addr);
+        cfg.cancel = Some(xfer_cancel());
+        let job: [u8; 16] = ava1::keys::random_bytes()?;
+        ps5upload_ava1::upload::upload_list(&cfg, job, hub, &entries)
+            .map_err(|e| anyhow!("upload {} files: {e:#}", rels.len()))?;
+        Ok(true)
     }
     fn fetch(&self, hub_addr: &str, hub: &str, rel: &str, expect: Option<Meta>) -> Result<()> {
         let src = join_hub(hub, rel);
@@ -838,7 +1081,7 @@ impl Side for LocalSide {
             false,
             job,
             &ps5upload_ava1::download::Counters::default(),
-            None,
+            Some(xfer_cancel()),
         );
         let name = rel.rsplit('/').next().unwrap_or(rel);
         let got = tmp_dir.join(name);
@@ -927,6 +1170,86 @@ impl ConsoleSide {
     }
 }
 
+thread_local! {
+    /// The running pass's cancel flag: its copies stop when it flips (see [`Watchdog`]).
+    static XFER_CANCEL: std::cell::RefCell<Option<std::sync::Arc<AtomicBool>>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+/// The flag a copy started now obeys: the running pass's, or one that never flips.
+fn xfer_cancel() -> std::sync::Arc<AtomicBool> {
+    XFER_CANCEL
+        .with(|c| c.borrow().clone())
+        .unwrap_or_else(|| std::sync::Arc::new(AtomicBool::new(false)))
+}
+
+/// A batch of uploads holds at most this many files, or this many bytes (a batch is one job: the
+/// pass's progress moves, and what it did is saved, between batches).
+const BATCH_FILES: usize = 200;
+const BATCH_BYTES: u64 = 512 << 20;
+
+/// How often a running pass checks that its consoles still answer.
+const WATCH_EVERY: Duration = Duration::from_secs(10);
+
+/// Watches a pass's consoles while it copies. A copy waits out a dropped connection for as long
+/// as it takes (right for a person's upload, which resumes when the console is back), so a
+/// console put to rest mid-copy would hold the pass, and every drive behind it, until it woke.
+/// Two missed checks in a row (or the drive's lock lost) flip the pass's cancel flag: the copy
+/// stops, the pass finds the console away and ends, keeping what it did.
+struct Watchdog {
+    stop: std::sync::Arc<AtomicBool>,
+    thread: Option<std::thread::JoinHandle<()>>,
+}
+
+impl Watchdog {
+    fn start(consoles: Vec<String>, lost: std::sync::Arc<AtomicBool>) -> Self {
+        let cancel = std::sync::Arc::new(AtomicBool::new(false));
+        XFER_CANCEL.with(|c| *c.borrow_mut() = Some(cancel.clone()));
+        let stop = std::sync::Arc::new(AtomicBool::new(false));
+        let st = stop.clone();
+        let thread = std::thread::Builder::new()
+            .name("mesh-drive-watch".into())
+            .spawn(move || {
+                let mut misses = 0;
+                let mut last = std::time::Instant::now();
+                while !st.load(Ordering::SeqCst) {
+                    std::thread::sleep(Duration::from_millis(500));
+                    if lost.load(Ordering::SeqCst) {
+                        cancel.store(true, Ordering::SeqCst);
+                        return;
+                    }
+                    if last.elapsed() < WATCH_EVERY {
+                        continue;
+                    }
+                    last = std::time::Instant::now();
+                    let answers = consoles.iter().all(|c| {
+                        crate::mesh_api::call(c, || mesh::state(c, u64::MAX, u64::MAX)).is_ok()
+                    });
+                    misses = if answers { 0 } else { misses + 1 };
+                    if misses >= 2 {
+                        crate::log_info!(
+                            "mesh drive: a console stopped answering mid-pass; its copy stops"
+                        );
+                        cancel.store(true, Ordering::SeqCst);
+                        return;
+                    }
+                }
+            })
+            .ok();
+        Self { stop, thread }
+    }
+}
+
+impl Drop for Watchdog {
+    fn drop(&mut self) {
+        self.stop.store(true, Ordering::SeqCst);
+        if let Some(t) = self.thread.take() {
+            let _ = t.join();
+        }
+        XFER_CANCEL.with(|c| *c.borrow_mut() = None);
+    }
+}
+
 /// Copies one file between consoles: directly when they can reach each other, else through
 /// this computer.
 fn console_copy(from: &str, src: &str, to: &str, dest: &str) -> Result<()> {
@@ -941,7 +1264,7 @@ fn console_copy(from: &str, src: &str, to: &str, dest: &str) -> Result<()> {
         dest,
         job,
         std::sync::Arc::default(),
-        std::sync::Arc::new(AtomicBool::new(false)),
+        xfer_cancel(),
         None,
         &ps5upload_ava1::c2c::RouteOptions::default(),
         |_| {},
@@ -953,6 +1276,9 @@ fn console_copy(from: &str, src: &str, to: &str, dest: &str) -> Result<()> {
 impl Side for ConsoleSide {
     fn describe(&self) -> String {
         format!("{} on {}", self.root, self.addr)
+    }
+    fn console(&self) -> Option<&str> {
+        Some(&self.addr)
     }
     fn has_marker(&self) -> bool {
         hub_stat(&self.addr, &self.path(MARKER)).is_some()
@@ -1153,6 +1479,17 @@ impl Pass<'_> {
             })
     }
 
+    /// After a failure: the console (the hub's, or the far end of a link) that went away, and
+    /// why. None: the console answers, so the failure belongs to the file.
+    fn gone(&self, e: &anyhow::Error) -> Option<(String, AwayWhy)> {
+        if let Some(w) = confirm_away(self.addr, e) {
+            return Some((self.addr.to_string(), w));
+        }
+        let other = self.side.console()?;
+        let w = confirm_away(other, e)?;
+        Some((other.to_string(), w))
+    }
+
     /// One pass. Returns whether it changed the hub, and whether it changed this member's side.
     fn run(&self) -> Result<Changed> {
         let member_id = self.member_id.as_str();
@@ -1288,6 +1625,8 @@ impl Pass<'_> {
         // Uploaded while being edited: left for the next pass, never settled from a listing.
         let mut edited: std::collections::HashSet<String> = std::collections::HashSet::new();
         let mut first_error: Option<String> = None;
+        // The console that went away mid-pass: the pass stops, keeping what it did.
+        let mut went: Option<String> = None;
         let todo = ops.len();
         set_status(member_id, |s| {
             s.todo = todo;
@@ -1295,7 +1634,37 @@ impl Pass<'_> {
         });
         let hub_addr = self.addr;
         let hub_root = self.drive.hub.as_str();
-        for op in &ops {
+        let watch = (!ops.is_empty()).then(|| {
+            let mut consoles = vec![self.addr.to_string()];
+            consoles.extend(self.side.console().map(str::to_string));
+            Watchdog::start(consoles, self.lost.clone())
+        });
+        // Uploads go in batches (one job for many small files is far faster than a job each);
+        // a batch that fails is not counted against its files: each then goes on its own.
+        let mut batched: std::collections::HashSet<String> = std::collections::HashSet::new();
+        let mut batching = true;
+        for (i, op) in ops.iter().enumerate() {
+            if batching && matches!(op, Op::Upload(_)) && !batched.contains(op.path()) {
+                let mut chunk: Vec<String> = Vec::new();
+                let mut bytes = 0u64;
+                for o in ops[i..].iter().filter(|o| matches!(o, Op::Upload(_))) {
+                    if chunk.len() >= BATCH_FILES || bytes >= BATCH_BYTES {
+                        break;
+                    }
+                    bytes += member.get(o.path()).map_or(0, |m| m.size);
+                    chunk.push(o.path().to_string());
+                }
+                if chunk.len() >= 2 {
+                    match self.side.send_many(hub_addr, hub_root, &chunk) {
+                        Ok(true) => batched.extend(chunk),
+                        Ok(false) => batching = false,
+                        Err(e) => {
+                            crate::log_warn!("mesh drive {}: {e:#}", self.drive.name);
+                            batching = false;
+                        }
+                    }
+                }
+            }
             if self.lost.load(Ordering::SeqCst) {
                 first_error.get_or_insert_with(|| {
                     "another device took over the drive's lock; this pass stopped".into()
@@ -1314,6 +1683,19 @@ impl Pass<'_> {
                 match op {
                     Op::Upload(_) => {
                         let before = self.side.stat(&rel);
+                        if batched.contains(&rel) {
+                            // Sent in a batch: what went is what the listing showed.
+                            let listed = member.get(&rel).copied();
+                            up += 1;
+                            if before != listed {
+                                edited.insert(rel.clone());
+                            }
+                            let h = hub_stat(hub_addr, &join_hub(hub_root, &rel));
+                            if let (Some(m), Some(h)) = (listed, h) {
+                                base.insert(rel.clone(), BaseEntry { m, h });
+                            }
+                            return Ok(());
+                        }
                         self.side.send(hub_addr, hub_root, &rel)?;
                         up += 1;
                         let after = self.side.stat(&rel);
@@ -1400,6 +1782,25 @@ impl Pass<'_> {
                     rt.fails.remove(&rel);
                 }),
                 Err(e) => {
+                    // Stopped because another device took the drive's lock: not the file's fault.
+                    if self.lost.load(Ordering::SeqCst) {
+                        first_error.get_or_insert_with(|| {
+                            "another device took over the drive's lock; this pass stopped".into()
+                        });
+                        break;
+                    }
+                    if let Some((addr, why)) = self.gone(&e) {
+                        // Not this file's fault: it is not counted, and nothing else is tried
+                        // (each would wait out the same silence).
+                        crate::log_info!(
+                            "mesh drive {}: {addr} went away mid-pass ({}); stopping",
+                            self.drive.name,
+                            why.as_str()
+                        );
+                        mark_away(&addr, why);
+                        went = Some(addr);
+                        break;
+                    }
                     crate::log_warn!("mesh drive {}: {e:#}", self.drive.name);
                     first_error.get_or_insert_with(|| format!("{e:#}"));
                     with_runtime(member_id, |rt| {
@@ -1423,7 +1824,8 @@ impl Pass<'_> {
         // changed again and copy or compare it once more. One listing of each side settles it:
         // entries that still match what the op left (same size, time within 2 s) are recorded
         // as listed; anything else (edited meanwhile) is left for the next pass.
-        if !touched.is_empty() && !self.lost.load(Ordering::SeqCst) {
+        drop(watch);
+        if !touched.is_empty() && !self.lost.load(Ordering::SeqCst) && went.is_none() {
             if let (Ok(side_now), Ok(hub_now)) = (self.side.walk(), walk_hub(hub_addr, hub_root)) {
                 let close = |a: Option<&Meta>, b: Option<Meta>| match (a, b) {
                     (Some(a), Some(b)) => a.size == b.size && (a.mtime - b.mtime).abs() <= 2,
@@ -1438,6 +1840,20 @@ impl Pass<'_> {
                     }
                 }
             }
+        }
+        if let Some(addr) = went {
+            // What was done is kept (a base that cannot be written now is rebuilt by comparing).
+            let _ = self.side.save_base(&self.drive.id, member_id, &base);
+            with_runtime(member_id, |rt| {
+                rt.quiet_local = None;
+                rt.side_rev = None;
+            });
+            set_away_status(member_id, &addr);
+            return Ok(Changed {
+                hub: hub_changed,
+                side: side_changed,
+                planned: false,
+            });
         }
         self.side.save_base(&self.drive.id, member_id, &base)?;
         let files = base.len();
@@ -1551,6 +1967,12 @@ fn pass_on(
     let r = pass.run();
     drop(lease);
     if let Err(e) = &r {
+        if let Some(why) = confirm_away(addr, e) {
+            // The console went away before or between the pass's reads: offline, not a fault.
+            mark_away(addr, why);
+            set_away_status(member_id, addr);
+            return Ok(Some(Ok(Changed::default())));
+        }
         set_status(member_id, |s| {
             s.state = "error".into();
             s.detail = format!("{e:#}");
@@ -1561,6 +1983,15 @@ fn pass_on(
 
 fn sync_member(lm: &LocalMember, me: &str) -> Result<()> {
     let addr = lm.console.as_str();
+    // Away, and not worth another try yet: nothing is read from it this round.
+    if !worth_trying(addr) {
+        let misses = with_runtime(&lm.member, |rt| rt.home_misses);
+        if misses >= 2 && !lm.paused && !lm.links.is_empty() {
+            return failover(lm);
+        }
+        set_away_status(&lm.member, addr);
+        return Ok(());
+    }
     let doc = match doc_read(addr) {
         Ok(Some((_, doc))) => doc,
         Ok(None) => {
@@ -1573,21 +2004,31 @@ fn sync_member(lm: &LocalMember, me: &str) -> Result<()> {
         // Its own console is away: a linked console holds the same drive (after a second miss
         // in a row: one dropped read is not "away").
         Err(e) => {
+            if away_why(&e).is_none() && e.to_string().contains("cannot be read by this version") {
+                set_status(&lm.member, |s| {
+                    s.state = "error".into();
+                    s.detail = format!("{e:#}");
+                });
+                return Ok(());
+            }
+            mark_away(addr, away_why(&e).unwrap_or(AwayWhy::Unreachable));
             let misses = with_runtime(&lm.member, |rt| {
                 rt.home_misses += 1;
                 rt.home_misses
             });
-            if misses < 2 || lm.paused {
-                set_status(&lm.member, |s| {
-                    s.state = "offline".into();
-                    s.detail = format!("the console ({}) does not answer: {e:#}", lm.console);
-                });
+            if misses < 2 || lm.paused || lm.links.is_empty() {
+                set_away_status(&lm.member, addr);
                 return Ok(());
             }
-            return failover(lm, e);
+            return failover(lm);
         }
     };
+    mark_back(addr);
     with_runtime(&lm.member, |rt| rt.home_misses = 0);
+    set_status(&lm.member, |s| {
+        s.away.clear();
+        s.away_since = 0;
+    });
     // The console's list read fine and no longer has this folder (the drive was deleted, or the
     // folder removed, from another device): forget it here too, so the folder can be used again.
     // Its files stay where they are.
@@ -1627,15 +2068,24 @@ fn sync_member(lm: &LocalMember, me: &str) -> Result<()> {
         root: PathBuf::from(&lm.path),
         via: String::new(),
     };
-    let Some(r) = pass_on(
+    let r = match pass_on(
         addr,
         drive,
         &lm.member,
         &side,
         crate::mesh_api::device_name(),
-    )?
-    else {
-        return Ok(());
+    ) {
+        Ok(Some(r)) => r,
+        Ok(None) => return Ok(()),
+        // The drive's lock could not be asked for: the console just went away.
+        Err(e) => {
+            if let Some(why) = confirm_away(addr, &e) {
+                mark_away(addr, why);
+                set_away_status(&lm.member, addr);
+                return Ok(());
+            }
+            return Err(e);
+        }
     };
     let hub_changed = r.as_ref().is_ok_and(|c| c.hub);
     if let Err(e) = report(addr, drive, member, &lm.member, hub_changed) {
@@ -1646,11 +2096,20 @@ fn sync_member(lm: &LocalMember, me: &str) -> Result<()> {
 
 /// This folder's own console does not answer: sync through a console the drive is linked to,
 /// with a base kept apart for it (the first such pass only adds and compares, never deletes).
-fn failover(lm: &LocalMember, home_err: anyhow::Error) -> Result<()> {
+fn failover(lm: &LocalMember) -> Result<()> {
     for b in &lm.links {
-        let Ok(Some((_, doc))) = doc_read(b) else {
+        if !worth_trying(b) {
             continue;
+        }
+        let doc = match doc_read(b) {
+            Ok(Some((_, doc))) => doc,
+            Ok(None) => continue,
+            Err(e) => {
+                mark_away(b, away_why(&e).unwrap_or(AwayWhy::Unreachable));
+                continue;
+            }
         };
+        mark_back(b);
         let Some(drive) = doc.drives.iter().find(|d| d.id == lm.drive) else {
             continue;
         };
@@ -1678,17 +2137,17 @@ fn failover(lm: &LocalMember, home_err: anyhow::Error) -> Result<()> {
                 Ok(())
             });
         }
+        let (why, since) = away_of(&lm.console).unwrap_or((AwayWhy::Unreachable, now_ms()));
         set_status(&lm.member, |s| {
             if s.state == "idle" {
                 s.detail = format!("{home_name} is away: synced through {b}");
+                s.away = why.as_str().into();
+                s.away_since = since;
             }
         });
         return r.map(|_| ());
     }
-    set_status(&lm.member, |s| {
-        s.state = "offline".into();
-        s.detail = format!("the console ({}) does not answer: {home_err:#}", lm.console);
-    });
+    set_away_status(&lm.member, &lm.console);
     Ok(())
 }
 
@@ -1719,8 +2178,16 @@ fn sync_links(me: &str) {
     consoles.dedup();
     let mut done = std::collections::HashSet::new();
     for a in consoles {
-        let Ok(Some((_, doc))) = doc_read(&a) else {
+        if !worth_trying(&a) {
             continue;
+        }
+        let doc = match doc_read(&a) {
+            Ok(Some((_, doc))) => doc,
+            Ok(None) => continue,
+            Err(e) => {
+                mark_away(&a, away_why(&e).unwrap_or(AwayWhy::Unreachable));
+                continue;
+            }
         };
         for drive in doc
             .drives
@@ -1752,8 +2219,21 @@ fn link_member_id(drive: &str, hi: &str) -> String {
 /// One pass between the drive's home folders on `lo` and `hi`.
 fn run_link(id: &str, lo: &str, hi: &str) -> Result<()> {
     let member_id = link_member_id(id, hi);
-    let Some((_, dlo)) = doc_read(lo)? else {
-        return Ok(());
+    // Either end away: the link waits (its state says so on the end that answers).
+    for (end, other) in [(lo, hi), (hi, lo)] {
+        if !worth_trying(end) {
+            set_link_state(other, id, end, "offline", "", false, None);
+            return Ok(());
+        }
+    }
+    let dlo = match doc_read(lo) {
+        Ok(Some((_, d))) => d,
+        Ok(None) => return Ok(()),
+        Err(e) => {
+            mark_away(lo, away_why(&e).unwrap_or(AwayWhy::Unreachable));
+            set_link_state(hi, id, lo, "offline", "", false, None);
+            return Ok(());
+        }
     };
     let Some(a) = dlo.drives.iter().find(|d| d.id == id) else {
         return Ok(());
@@ -1762,10 +2242,13 @@ fn run_link(id: &str, lo: &str, hi: &str) -> Result<()> {
         Ok(Some((_, d))) => d,
         Ok(None) => return Ok(()),
         Err(e) => {
-            set_link_state(lo, id, hi, "offline", &format!("{e:#}"), false, None);
+            mark_away(hi, away_why(&e).unwrap_or(AwayWhy::Unreachable));
+            set_link_state(lo, id, hi, "offline", "", false, None);
             return Ok(());
         }
     };
+    mark_back(lo);
+    mark_back(hi);
     let Some(b) = dhi.drives.iter().find(|d| d.id == id) else {
         // Unlinked from the other side: drop this end too.
         drop_link(lo, id, hi);
@@ -1819,10 +2302,15 @@ fn run_link(id: &str, lo: &str, hi: &str) -> Result<()> {
     drop(lease_hi);
     drop(lease_lo);
     if let Err(e) = &r {
-        set_status(&member_id, |s| {
-            s.state = "error".into();
-            s.detail = format!("{e:#}");
-        });
+        if let Some((end, why)) = pass.gone(e) {
+            mark_away(&end, why);
+            set_away_status(&member_id, &end);
+        } else {
+            set_status(&member_id, |s| {
+                s.state = "error".into();
+                s.detail = format!("{e:#}");
+            });
+        }
     }
     let st = statuses()
         .lock()
@@ -1876,6 +2364,10 @@ fn set_link_state(
     bump: bool,
     circle_and_consumed: Option<(u64, bool)>,
 ) {
+    // Nothing is written to a console that is away (it would only wait out the silence).
+    if away_of(at).is_some() {
+        return;
+    }
     let now = now_ms();
     let error: String = error.chars().take(300).collect();
     let r = doc_update(at, |doc| {
@@ -2664,6 +3156,33 @@ pub async fn list(Query(q): Query<ListQuery>) -> Response {
     .await
 }
 
+/// This device's folders on every console, with their status: read from this engine alone, so
+/// it answers while a console is asleep or off (the page shows them with what to do).
+pub async fn local() -> Response {
+    let folders: Vec<Value> = load_config()
+        .members
+        .into_iter()
+        .map(|m| {
+            let st = statuses()
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .get(&m.member)
+                .cloned()
+                .unwrap_or_default();
+            json!({
+                "drive": m.drive,
+                "member": m.member,
+                "name": m.name,
+                "console": m.console,
+                "path": m.path,
+                "links": m.links,
+                "status": st,
+            })
+        })
+        .collect();
+    Json(json!({ "supported": true, "folders": folders })).into_response()
+}
+
 /// Usable bytes on the console drive holding `hub`, at most a half-minute old.
 fn hub_free(addr: &str, hub: &str) -> Option<u64> {
     type Cache = Mutex<HashMap<String, (std::time::Instant, Option<u64>)>>;
@@ -3442,6 +3961,51 @@ pub async fn confirm(Json(req): Json<MemberReq>) -> Response {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn an_away_console_is_tried_less_and_less_often() {
+        let secs: Vec<u64> = (1..=7).map(|n| away_backoff(n).as_secs()).collect();
+        assert_eq!(secs, vec![30, 60, 120, 240, 300, 300, 300]);
+    }
+
+    #[test]
+    fn a_sleeping_or_silent_console_is_away_but_a_file_error_is_not() {
+        let e = |t: &str| anyhow::anyhow!("payload rejected MESH_DOC_GET: {t}");
+        assert_eq!(
+            away_why(&anyhow::anyhow!(
+                "console_rest_mode: The PS5 is in rest mode"
+            )),
+            Some(AwayWhy::Rest)
+        );
+        assert_eq!(
+            away_why(&anyhow::anyhow!("ava1_unreachable: nothing answered")),
+            Some(AwayWhy::Unreachable)
+        );
+        assert_eq!(
+            away_why(&anyhow::anyhow!("helper_not_ava1: not running")),
+            Some(AwayWhy::Helper)
+        );
+        assert_eq!(away_why(&e("fs_no_space")), None);
+        assert_eq!(away_why(&anyhow::anyhow!("permission denied")), None);
+    }
+
+    #[test]
+    fn a_console_that_comes_back_is_looked_at_in_full() {
+        let addr = "192.0.2.77";
+        mark_away(addr, AwayWhy::Rest);
+        assert!(away_of(addr).is_some_and(|(w, _)| w == AwayWhy::Rest));
+        with_runtime("link:x:192.0.2.77", |rt| {
+            rt.last_full = Some(std::time::Instant::now());
+            rt.fails
+                .insert("a.txt".into(), (3, std::time::Instant::now()));
+        });
+        mark_back(addr);
+        assert!(away_of(addr).is_none());
+        with_runtime("link:x:192.0.2.77", |rt| {
+            assert!(rt.last_full.is_none());
+            assert!(rt.fails.is_empty());
+        });
+    }
+
     use super::*;
 
     #[test]
