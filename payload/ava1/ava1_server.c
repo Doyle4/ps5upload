@@ -36,7 +36,10 @@
 #define RPC_OUT_MAX (256u * 1024u) /* SPEC.md §7.4: the largest reply body */
 #define RPC_REQ_MAX (56u * 1024u)  /* ... and the largest request body */
 #define MAX_PAIRING_WINDOW_S 600u
-#define MAX_CONNS_PER_IP 12u
+/* Several devices can share one address: a computer running the app and a Docker engine (Docker
+ * Desktop shows every container as the host), each holding a few sessions. 12 left room for only
+ * about three engines behind one address. */
+#define MAX_CONNS_PER_IP 24u
 #define MAX_UNPAIRED 2u
 #define PAIR_CONFIRM_MS 60000u
 #define NOTIFY_EVERY_MS 10000u

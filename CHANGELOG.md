@@ -62,6 +62,14 @@ What's new in ps5upload, written for humans.
   replaces first.
 - Downloads to a NAS: replacing a file on the server is safe even when the server cannot rename
   over a file (the old one comes back if the swap fails).
+- **More devices from one address.** The console allowed 12 connections per IP address, which
+  about three engines fill; a computer running the app and a Docker engine (Docker Desktop shows
+  every container as the host) could be refused with "too many connections from this address".
+  Now 24.
+- **Mesh Drive refuses a whole disk, a phone's whole storage or a home folder** (and the console's
+  `/data` or a whole USB drive) as a drive's folder: everything on it would be synced.
+- Check for updates has its own icon; a **Reload page** button sits in the top bar (on a phone,
+  in More).
 
 ## 8.0.0
 
