@@ -162,28 +162,62 @@ pub(crate) fn id_hex() -> Option<String> {
     Some(id.public().iter().map(|b| format!("{b:02x}")).collect())
 }
 
-/// Docker only: whether /data is a volume the host keeps (a named volume or a folder), not the
-/// anonymous one Docker makes when none was given (a new one, so a new device, on every update).
-/// None outside Docker or when it cannot be told.
+/// Docker only: whether the engine's data folder (/data, or wherever PS5UPLOAD_DATA_DIR points)
+/// is on a volume the host keeps (a named volume or a folder), not the anonymous one Docker makes
+/// when none was given (a new one, so a new device, on every update). None outside Docker or when
+/// it cannot be told.
 fn docker_volume_kept() -> Option<bool> {
     if kind() != "docker" {
         return None;
     }
     let info = std::fs::read_to_string("/proc/self/mountinfo").ok()?;
-    for line in info.lines() {
-        let f: Vec<&str> = line.split(' ').collect();
-        if f.len() > 4 && f[4] == "/data" {
-            // Field 3 is the source path inside its filesystem. An anonymous volume is
-            // .../volumes/<64 hex>/_data.
-            let root = f[3];
-            let anon = root
+    let dir = crate::remote::store::data_dir()?;
+    Some(kept_mount(&info, &dir.to_string_lossy()))
+}
+
+/// Whether the mount holding `dir` (the longest mount point it is under) is a kept volume.
+fn kept_mount(mountinfo: &str, dir: &str) -> bool {
+    let under = |mp: &str| mp == "/" || dir == mp || dir.starts_with(&format!("{mp}/"));
+    let best = mountinfo
+        .lines()
+        .filter_map(|line| {
+            let f: Vec<&str> = line.split(' ').collect();
+            (f.len() > 4 && under(f[4])).then(|| (f[4], f[3]))
+        })
+        .max_by_key(|(mp, _)| mp.len());
+    match best {
+        // The container's own disk: gone with the container.
+        None | Some(("/", _)) => false,
+        // Field 4 is the source path inside its filesystem. An anonymous volume is
+        // .../volumes/<64 hex>/_data.
+        Some((_, root)) => {
+            !(root
                 .split('/')
                 .any(|p| p.len() == 64 && p.bytes().all(|b| b.is_ascii_hexdigit()))
-                && root.ends_with("/_data");
-            return Some(!anon);
+                && root.ends_with("/_data"))
         }
     }
-    Some(false) // no mount at /data at all: the container's own disk, gone with it
+}
+
+#[cfg(test)]
+mod volume_tests {
+    use super::kept_mount;
+
+    const INFO: &str = "1 0 0:1 / / rw - overlay overlay rw\n\
+        2 1 0:2 /Users/me/ps5u/config /config rw - virtiofs x rw\n\
+        3 1 0:3 /var/lib/docker/volumes/0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef/_data /data rw - ext4 y rw\n\
+        4 1 0:4 /var/lib/docker/volumes/ps5u/_data /named rw - ext4 z rw";
+
+    #[test]
+    fn the_mount_holding_the_data_folder_decides() {
+        assert!(kept_mount(INFO, "/config"));
+        assert!(kept_mount(INFO, "/config/.ps5upload"));
+        assert!(!kept_mount(INFO, "/data")); // anonymous volume
+        assert!(!kept_mount(INFO, "/data/.ps5upload"));
+        assert!(kept_mount(INFO, "/named/x"));
+        assert!(!kept_mount(INFO, "/elsewhere")); // the container's own disk
+        assert!(!kept_mount(INFO, "/configx")); // not under /config
+    }
 }
 
 fn me_json() -> Value {

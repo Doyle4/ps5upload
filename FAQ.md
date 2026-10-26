@@ -2050,25 +2050,85 @@ each console. A new device picks them up the first time it connects (the app off
 they take effect). Theme, language, text size, the save folder and the bandwidth cap stay per
 device.
 
+**Q: Two devices changed the same setting. Which one wins?**
+The later change, on every device, whichever syncs first (8.0.1: each change carries a hybrid
+logical clock, so two devices with slightly different clocks still agree). A console removed on
+one device stays removed. Settings a new device had before it ever connected don't overwrite what
+your other devices already agreed on: it takes theirs.
+
+**Q: Are my settings backed up?**
+Yes (8.0.1). Once a day, and before a sync from your other devices or a restore changes several
+settings at once, the app saves a copy. The engine keeps the last 14 (in Docker, in its `/data`
+volume); each console you use keeps every app's latest copy. Open **Settings › Backup** to see
+both lists, press **Back up now**, or **Restore** one: the app keeps a copy of the settings it
+replaces first, then reloads. A wiped or new device can restore another device's copy from the
+console list. **Export bundle** still saves everything to a file you keep.
+
 **Q: What is Mesh Drive?**
 A folder kept the same on every device that joins it, with its home in a folder on the console.
-Open **Mesh Drive**, create a drive (its name, its folder on the console and, optionally, this
-device's folder), then on each other device press **Join** with a folder of its own. A device
-already in the drive presses **Let in**. Each device syncs with the console every half minute
-while the helper runs; Docker keeps syncing with no app open, phones only while the app is open.
+Open **Files › Mesh Drive** and press **New Mesh Drive**:
+
+1. Name the drive.
+2. Choose its home on the console: **Make a new folder** (pick where, and its name) or **Use a
+   folder that is there**. Files already in it join the drive.
+3. Choose the folder on this device that keeps it.
+4. Optionally, a password.
+
+The dialog checks each choice as you make it (a folder name already taken, a folder that belongs
+to another drive or sits inside one, the app's own data folder) and Create stays off until both
+folders are usable. On each other device, open the same tab and press **Keep on this device…** on
+the drive, then pick a folder there. Each device syncs with the console every half minute while
+the helper runs; Docker keeps syncing with no app open, phones only while the app is open.
+
+**Q: Do I need another device to let a new one in?**
+No (8.0.1). Any device joins from the tab. To keep others out, give the drive a password when you
+make it, or later from the drive's ⋯ menu (**Set a password…**); a device joining types it once.
+The console keeps only a salted hash of it. Any device in the drive can change or remove the
+password, and so can anyone who knows it, so it never locks you out when a device is gone. The
+password is a lock on joining, not encryption: the files on the console are readable with any
+file tool, as before.
+
+**Q: How do I see who is in a drive?**
+Each drive card lists **Devices in this drive**: name, kind (Desktop, Android, iOS, Docker), app
+version, its folder, how many files and how much it holds, when it last synced and any problem
+it has, with a dot for online. That list comes from the console, so every device sees the same
+one. Press **Remove** next to a device that is gone for good; its files stay where they are.
+
+**Q: How do I open the drive's folder?**
+On a computer, press **Open folder** on the drive card (Finder on a Mac, Explorer on Windows). **Show
+on the console** in the ⋯ menu opens the drive's home in Files. The card also shows the drive's
+file count, size, conflict copies and the free space left on the console.
+
+**Q: Mesh Drive with Docker or the web UI: where are the files?**
+On the engine's disk, inside the container. Map a host folder into the container (for example
+`-v /mnt/user/share/mesh:/mesh` on Unraid) and pick `/mesh/...` in the web UI's folder picker,
+which browses the container. Keep `/data` mapped too; the engine records which folders it syncs
+there. Every browser that opens the web UI sees the same drives, because the engine is the
+device.
 
 **Q: What happens if the same file changes on two devices?**
 Both are kept. The one that synced second is renamed `name (conflict from <device> <date>).ext` and
-reaches every device.
+reaches every device. A file you save while it is being synced is never overwritten; it is synced
+on the next pass.
+
+**Q: Some files are listed as "left out".**
+The drive card says how many and lists them when you hover. Either they failed three times in a
+row (they are tried again after ten minutes; the card says why), or this device cannot store their
+names: Windows refuses names with `: * ? " < > |` or ending in a dot, and macOS and Windows treat
+`Photo.jpg` and `photo.jpg` as one file. Rename them on the device that made them.
 
 **Q: I deleted a file by mistake.**
 Deleted files go to the drive's `.ps5upload-trash` folder (on each device and on the console),
 sorted by date, for 30 days. Deleting many files at once waits for you to confirm on the Mesh Drive
-screen.
+tab (**Review the deletes**).
 
 **Q: I unplugged the drive my Mesh Drive folder is on. Will it delete everything?**
 No. Every drive folder holds a `.ps5upload-mesh` file. A folder without it counts as offline, and
 nothing is copied to or deleted from it until it is back.
+
+**Q: I deleted a drive on one device. What happens on the others?**
+They stop syncing it on their next pass and free their folder for another drive. No files are
+deleted anywhere.
 
 **Q: Can I download from the PS5 straight to my NAS?**
 Yes (8.0.0). Save the NAS under **Servers** (SMB, FTP, FTPS, SFTP or WebDAV). Then, in **Files**,

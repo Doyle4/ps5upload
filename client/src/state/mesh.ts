@@ -98,9 +98,21 @@ const cursors = new Map<string, { rev: number; ev: number; primed: boolean }>();
 
 /** One poll of `host`. Merges the answer into the store and hands new events to the listeners
  *  (not the ones this device caused, and not the backlog the first poll brings). */
-export async function pollMesh(host: string): Promise<void> {
+export function pollMesh(host: string): Promise<void> {
   const key = hostOf(host);
-  if (!key) return;
+  if (!key) return Promise.resolve();
+  // One read per console at a time: a second caller (the tick, the window coming back, a Refresh
+  // button) shares it, so the cursor never goes back and no event is announced twice.
+  const running = polling.get(key);
+  if (running) return running;
+  const p = pollOnce(key).finally(() => polling.delete(key));
+  polling.set(key, p);
+  return p;
+}
+
+const polling = new Map<string, Promise<void>>();
+
+async function pollOnce(key: string): Promise<void> {
   const cur = cursors.get(key) ?? { rev: 0, ev: 0, primed: false };
   const put = useMeshStore.getState().put;
   try {

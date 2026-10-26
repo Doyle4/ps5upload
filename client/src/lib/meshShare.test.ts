@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { Clock, merge, type LwwMap } from "./meshCrdt";
-import { consoleKey, fieldKey, localView, plan, rosterFrom, settingKey, stampLocal } from "./meshShare";
+import { adoptBaseline, consoleKey, fieldKey, localView, plan, rosterFrom, settingKey, stampLocal } from "./meshShare";
 import type { PS5Profile } from "../state/roster";
 
 const PIN = "ps5upload.desktop-sidebar.pinned.v1";
@@ -15,7 +15,7 @@ function device(name: string, profiles: PS5Profile[], settings: Record<string, s
   let list = profiles;
   let n = 0;
   // The app takes its baseline when sharing starts.
-  m = stampLocal(m, localView(list, (k) => store.get(k) ?? null), clock);
+  m = stampLocal(m, localView(list, (k) => store.get(k) ?? null), clock, true);
   const d = {
     get list() {
       return list;
@@ -35,7 +35,7 @@ function device(name: string, profiles: PS5Profile[], settings: Record<string, s
     /** Syncs with a console's copy and returns the console's new copy. */
     sync(console: LwwMap): LwwMap {
       m = stampLocal(m, localView(list, (k) => store.get(k) ?? null), clock);
-      const merged = merge(m, console);
+      const merged = merge(adoptBaseline(m, console), console);
       const todo = plan(merged, localView(list, (k) => store.get(k) ?? null), list, () => `${name}-${++n}`);
       for (const [k, v] of todo.settings) {
         if (v === null) store.delete(k);
@@ -110,6 +110,61 @@ describe("console list through the consoles", () => {
       expect(d.list[0]).toMatchObject({ name: "Living room", wake_credential: "abc" });
     }
     expect(x[fieldKey("192.168.86.99", "name")].v).toBe("Living room");
+  });
+});
+
+describe("set-ups from before sharing", () => {
+  it("a second device takes the first one's console name, whatever their ids", () => {
+    for (const [first, second] of [
+      ["aaa", "zzz"],
+      ["zzz", "aaa"],
+    ]) {
+      const mac = device(first, [phat("m1", { name: "Living room" })]);
+      const phone = device(second, [phat("p1", { name: "PS5 (192.168.86.99)" })]);
+      const x = phone.sync(mac.sync({}));
+      mac.sync(x);
+      for (const d of [mac, phone]) expect(d.list[0].name).toBe("Living room");
+    }
+  });
+
+  it("a console added later on a new device keeps the name the others gave it", () => {
+    const mac = device("mac", [phat("m1", { name: "Fat" })]);
+    const browser = device("web", []);
+    let x = mac.sync({});
+    x = browser.sync(x); // the browser gets Fat from the Mac
+    browser.tick();
+    // The user also types the address in the browser before the list arrived: a default name.
+    const fresh = device("web2", []);
+    fresh.tick();
+    fresh.edit(() => [phat("w1", { name: "PS5 (192.168.86.99)" })]);
+    x = fresh.sync(x);
+    mac.sync(x);
+    for (const d of [mac, browser, fresh]) expect(d.list.find((p) => p.host === "192.168.86.99")?.name).toBe("Fat");
+  });
+
+  it("re-adding a console removed elsewhere brings it back", () => {
+    const mac = device("mac", [phat("m1"), pro("m2")]);
+    let x = mac.sync({});
+    mac.tick();
+    mac.edit((l) => l.filter((p) => p.name !== "Pro"));
+    x = mac.sync(x);
+    const phone = device("phone", []);
+    phone.tick(5000);
+    phone.edit(() => [pro("p1", { name: "Pro again" })]);
+    x = phone.sync(x);
+    mac.sync(x);
+    expect(mac.list.map((p) => p.host)).toContain("192.168.86.100");
+  });
+
+  it("a real change still beats any set-up", () => {
+    const mac = device("mac", [phat("m1", { name: "Living room" })]);
+    const phone = device("phone", [phat("p1", { name: "PS5" })]);
+    let x = mac.sync({});
+    phone.tick();
+    phone.edit((l) => l.map((p) => ({ ...p, name: "Bedroom" })));
+    x = phone.sync(x);
+    mac.sync(x);
+    expect(mac.list[0].name).toBe("Bedroom");
   });
 });
 

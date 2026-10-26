@@ -92,13 +92,34 @@ async fn place(
         }
         return Err(remote_err(e));
     }
-    // A file already there is replaced, as a download into a folder replaces.
-    match fs.stat(target).await {
-        Ok(e) if !e.is_dir => fs.remove_file(target).await.map_err(remote_err)?,
+    // A file already there is replaced, as a download into a folder replaces. Not every server
+    // renames over a file, so the old one steps aside first and comes back if the swap fails:
+    // a failure never leaves the server with neither.
+    let old = format!("{target}.ps5upload-old");
+    let had_old = match fs.stat(target).await {
+        Ok(e) if !e.is_dir => {
+            let _ = fs.remove_file(&old).await;
+            fs.rename(target, &old).await.map_err(remote_err)?;
+            true
+        }
         Ok(_) => bail!("{target} is a folder on the server"),
-        Err(_) => {}
+        Err(_) => false,
+    };
+    match fs.rename(&tmp, target).await {
+        Ok(()) => {
+            if had_old {
+                let _ = fs.remove_file(&old).await;
+            }
+            Ok(())
+        }
+        Err(e) => {
+            if had_old {
+                let _ = fs.rename(&old, target).await;
+            }
+            let _ = fs.remove_file(&tmp).await;
+            Err(remote_err(e))
+        }
     }
-    fs.rename(&tmp, target).await.map_err(remote_err)
 }
 
 /// Pulls `src` (a file or a folder) from the console at `addr` into `dest` (`remote://id/dir`).
@@ -148,6 +169,8 @@ pub fn to_server(
             let dl_bytes = Arc::clone(&dl.bytes);
             let shown = Arc::clone(&counters.bytes);
             let base = done;
+            // Before the progress thread starts: an early return must not leave it running.
+            let id: [u8; 16] = ava1::keys::random_bytes()?;
             let stop = Arc::new(AtomicBool::new(false));
             let mirror = {
                 let stop = Arc::clone(&stop);
@@ -161,7 +184,6 @@ pub fn to_server(
                     }
                 })
             };
-            let id: [u8; 16] = ava1::keys::random_bytes()?;
             let got = ps5upload_ava1::download::to_local(
                 addr,
                 path,

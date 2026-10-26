@@ -130,7 +130,7 @@ export interface FolderCheck {
   files: number;
   more: boolean;
   marker: boolean;
-  /** bad_name, not_absolute, no_parent, not_folder, exists, taken, inside, holds, app_data,
+  /** bad_name, not_absolute, no_parent, not_folder, exists, taken, inside, holds, app_data, too_broad,
    *  not_writable, unreadable. */
   problem: string | null;
   detail: string | null;

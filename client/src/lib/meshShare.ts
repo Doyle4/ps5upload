@@ -63,6 +63,14 @@ function saveState(s: Persisted) {
   safeSetItem(STATE_KEY, JSON.stringify(s));
 }
 
+/** This app's sync id, kept from the first time it is asked for (also names its settings backup
+ *  on the consoles, lib/settingsBackup). */
+export function syncId(): string {
+  const st = loadState();
+  if (!safeGetItem(STATE_KEY)) saveState(st);
+  return st.device;
+}
+
 // ---- this device's values, as map keys ----
 
 const P = "p:";
@@ -97,17 +105,28 @@ export function localView(profiles: readonly PS5Profile[], read: (k: string) => 
 const same = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
 
 /**
- * Stamps what changed here since the map last saw it. A value the map has never had gets the
- * lowest stamp (the set-up from before sharing loses to any change made anywhere since); a
- * console that left this device's list gets a removal.
+ * Stamps what changed here since the map last saw it; a console that left this device's list
+ * gets a removal. `baseline` is the look taken when sharing starts: a value the map has never had
+ * then is the set-up from before sharing and gets the lowest stamp (it loses to any change made
+ * anywhere since, and to what the consoles already hold, see adoptBaseline). Any other new value
+ * is a change made now.
  */
-export function stampLocal(m: LwwMap, view: Map<string, unknown>, clock: Clock): LwwMap {
+export function stampLocal(m: LwwMap, view: Map<string, unknown>, clock: Clock, baseline = false): LwwMap {
   const out: LwwMap = { ...m };
+  // Consoles added on this device since the last look: adding one is a change (it must beat an
+  // old removal), but its fields are only this device's defaults ("PS5 (192.168.1.5)"); the name
+  // and settings the other devices already gave that console must win over them.
+  const added = new Set<string>();
+  for (const k of view.keys()) if (isConsoleKey(k) && !(m[k] && m[k].v !== null)) added.add(k);
+  const ofAdded = (k: string) => {
+    const i = k.indexOf(":", C.length);
+    return i > 0 && added.has(k.slice(0, i));
+  };
   for (const [k, v] of view) {
     const cur = out[k];
     if (!cur) {
       if (v === null) continue; // nothing here and nothing known: nothing to say
-      out[k] = { v, h: { t: 0, c: 0, d: clock.device } };
+      out[k] = { v, h: baseline || ofAdded(k) ? { t: 0, c: 0, d: clock.device } : clock.now() };
     } else if (!same(cur.v, v)) {
       out[k] = { v, h: clock.now() };
     }
@@ -226,20 +245,33 @@ let applying = false;
 
 /** Stamps this device's changes into its copy. Returns the copy, and whether anything changed
  *  (a status poll touches the console list on every round without changing anything shared). */
-function stampNow(): { st: Persisted; changed: boolean } {
+function stampNow(baseline = false): { st: Persisted; changed: boolean } {
   const st = loadState();
   const clock = new Clock(st.device, st.clock);
   const view = localView(useRosterStore.getState().profiles, safeGetItem);
-  const m = stampLocal(st.m, view, clock);
+  const m = stampLocal(st.m, view, clock, baseline);
   const changed = !sameMap(m, st.m);
   if (changed) saveState({ device: st.device, clock: clock.last, m });
   return { st: { device: st.device, clock: clock.last, m }, changed };
 }
 
+/**
+ * A device's set-up from before sharing (stamp time 0) does not compete with what the consoles
+ * already hold: it takes theirs. Which of two untouched set-ups "wins" would otherwise come down
+ * to comparing random device ids, and a new phone's default console name could replace the one
+ * named on the Mac. The first device to share a value sets it; real changes still win by time.
+ */
+export function adoptBaseline(local: LwwMap, remote: LwwMap): LwwMap {
+  const out: LwwMap = { ...local };
+  for (const [k, r] of Object.entries(local)) {
+    const theirs = remote[k];
+    if (r.h.t === 0 && theirs && theirs.h.d !== r.h.d) delete out[k];
+  }
+  return out;
+}
+
 /** One sync with `host`. Returns the settings it changed here. */
 export async function syncWith(host: string): Promise<string[]> {
-  let { st } = stampNow();
-  const clock = new Clock(st.device, st.clock);
   const got = await meshDocGet(host, DOC);
   if (!got.supported) return [];
   let rev = got.rev;
@@ -247,8 +279,12 @@ export async function syncWith(host: string): Promise<string[]> {
   if (rev === 0) remote = merge(await legacy(host), remote);
   const written: string[] = [];
   for (let attempt = 0; attempt < 4; attempt++) {
+    // Stamped after every wait, never before: a change made while a request was out is part of
+    // this round instead of being undone by it.
+    const { st } = stampNow();
+    const clock = new Clock(st.device, st.clock);
     clock.observe(maxHlc(remote));
-    const merged = pruneTombstones(merge(st.m, remote), Date.now());
+    const merged = pruneTombstones(merge(adoptBaseline(st.m, remote), remote), Date.now());
     // Apply to this device what the merge changed.
     const profiles = useRosterStore.getState().profiles;
     const todo = plan(merged, localView(profiles, safeGetItem), profiles);
@@ -267,8 +303,7 @@ export async function syncWith(host: string): Promise<string[]> {
     } finally {
       applying = false;
     }
-    st = { device: st.device, clock: clock.last, m: merged };
-    saveState(st);
+    saveState({ device: st.device, clock: clock.last, m: merged });
     if (sameMap(merged, remote)) return written;
     const put = await meshDocPut(host, DOC, rev, { v: 2, m: merged });
     if (!put.supported || put.saved) return written;
@@ -293,7 +328,7 @@ export function startMeshShare(
   useRosterStore.getState().dedupeByHost();
   // The baseline: what this device has now is "from before" (lowest stamp, the first time a key is
   // seen), so a change made from here on is stamped as a change.
-  stampNow();
+  stampNow(true);
   let running: Promise<void> = Promise.resolve();
   const run = () => {
     running = running

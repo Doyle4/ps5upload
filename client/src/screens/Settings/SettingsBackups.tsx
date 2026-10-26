@@ -1,36 +1,33 @@
 // The settings backups the app keeps by itself (8.0.1, lib/settingsBackup): the engine's copies
-// and, per device, the copy on the connected console. Restoring asks first, keeps a copy of the
-// settings it replaces, and offers a reload.
+// and every app's copy on the connected console. Restoring asks first, keeps a copy of the
+// settings it replaces (or says it could not), then reloads: the running stores would otherwise
+// write their in-memory state back over what was restored.
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { History, HardDrive, Monitor, RotateCcw, Save } from "lucide-react";
 
 import { Button } from "../../components";
 import { useConfirm } from "../../components/ConfirmDialog";
 import { formatBytes } from "../../lib/format";
+import { syncId } from "../../lib/meshShare";
 import {
   applyBundle,
   backupBeforeChange,
   buildBundle,
-  getConsoleBackup,
   getEngineBackup,
+  listConsoleBackups,
   listEngineBackups,
   saveConsoleBackup,
   saveEngineBackup,
   type BackupEntry,
   type Bundle,
+  type ConsoleBackup,
 } from "../../lib/settingsBackup";
+import { backupLabel } from "../../layout/useMeshSync";
 import { useConnectionStore } from "../../state/connection";
 import { useTr, type Translator } from "../../state/lang";
-import { deviceName, meshFor, useMeshStore } from "../../state/mesh";
+import { meshFor, useMeshStore } from "../../state/mesh";
 import { useToastStore } from "../../state/toasts";
-
-interface ConsoleCopy {
-  deviceId: string;
-  name: string;
-  me: boolean;
-  bundle: Bundle;
-}
 
 function reasonText(tr: Translator, r: string): string {
   switch (r) {
@@ -45,48 +42,38 @@ function reasonText(tr: Translator, r: string): string {
   }
 }
 
+const errText = (e: unknown) => (e instanceof Error ? e.message : String(e));
+
 export function SettingsBackups() {
   const tr = useTr();
   const { confirm, dialog } = useConfirm();
   const host = useConnectionStore((s) => s.host);
   const up = useConnectionStore((s) => s.payloadStatus === "up");
-  const me = useMeshStore((s) => s.me);
-  const mesh = useMeshStore((s) => meshFor(s, host));
+  const engineName = useMeshStore((s) => s.me?.name);
+  const supported = useMeshStore((s) => meshFor(s, host).supported === true);
   const [local, setLocal] = useState<BackupEntry[] | null>(null);
-  const [onConsole, setOnConsole] = useState<ConsoleCopy[] | null>(null);
+  const [onConsole, setOnConsole] = useState<ConsoleBackup[] | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const consoleOk = !!host && up && mesh.supported === true;
-  // Who to look for: every device the console knows (a wiped device is a new one, and restores
-  // from its old self's copy).
-  const deviceKey = (mesh.state?.devices ?? []).map((d) => d.id).join(",");
+  const consoleOk = !!host && up && supported;
+  const me = syncId();
+  const label = backupLabel(engineName);
+  const seq = useRef(0);
 
+  // Only reads: an error from an action stays on screen until the next action.
   const load = useCallback(async () => {
-    setError(null);
-    try {
-      setLocal(await listEngineBackups());
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    }
-    if (!consoleOk) {
-      setOnConsole(null);
-      return;
-    }
-    const devices = useMeshStore.getState();
-    const known = meshFor(devices, host).state?.devices ?? [];
-    const copies = await Promise.all(
-      known.map(async (d) => {
-        const b = await getConsoleBackup(host, d.id).catch(() => null);
-        return b ? { deviceId: d.id, name: deviceName(d), me: d.id === devices.me?.id, bundle: b } : null;
+    const mine = ++seq.current;
+    const [l, c] = await Promise.all([
+      listEngineBackups().catch((e: unknown) => {
+        if (mine === seq.current) setError(errText(e));
+        return null;
       }),
-    );
-    setOnConsole(
-      copies
-        .filter((c): c is ConsoleCopy => !!c)
-        .sort((a, b) => Number(b.me) - Number(a.me) || b.bundle.meta.generated_at_ms - a.bundle.meta.generated_at_ms),
-    );
-    // deviceKey: look again when the console's device list changes.
-  }, [consoleOk, host, deviceKey]); // eslint-disable-line react-hooks/exhaustive-deps
+      consoleOk ? listConsoleBackups(host).catch(() => null) : Promise.resolve(null),
+    ]);
+    if (mine !== seq.current) return;
+    setLocal(l);
+    setOnConsole(c);
+  }, [consoleOk, host]);
 
   useEffect(() => {
     void load();
@@ -96,25 +83,25 @@ export function SettingsBackups() {
     setBusy(true);
     setError(null);
     try {
-      const b = buildBundle("manual", me?.name ?? "");
+      const b = buildBundle("manual", label);
       await saveEngineBackup(b);
-      if (consoleOk && me?.id) await saveConsoleBackup(host, me.id, b);
+      if (consoleOk) await saveConsoleBackup(host, me, label, b);
       useToastStore.getState().push({ tone: "success", message: tr("backup_saved", undefined, "Settings backed up") });
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(errText(e));
     } finally {
       setBusy(false);
-      void load();
     }
+    await load();
   };
 
-  const restore = async (get: () => Promise<Bundle>, label: string) => {
+  const restore = async (get: () => Promise<Bundle>, what: string) => {
     const ok = await confirm({
       title: tr("backup_restore_title", undefined, "Restore these settings?"),
       message: tr(
         "backup_restore_body",
-        { label },
-        `The settings from ${label} replace this app's. A copy of the current ones is kept first, so this can be undone from the same list.`,
+        { label: what },
+        `The settings from ${what} replace this app's. A copy of the current ones is kept first, so this can be undone from the same list.`,
       ),
       confirmLabel: tr("backup_restore", undefined, "Restore"),
     });
@@ -123,19 +110,28 @@ export function SettingsBackups() {
     setError(null);
     try {
       const bundle = await get();
-      await backupBeforeChange("before-restore", me?.name ?? "");
-      const n = applyBundle(bundle);
-      useToastStore.getState().push({
-        tone: "success",
-        duration: 15_000,
-        message: tr("settings_backup_restored", { count: n }, `Restored ${n} setting(s). Restart the app for all changes to take effect.`),
-        action: { label: tr("mesh_reload", undefined, "Reload"), onClick: () => window.location.reload() },
-      });
+      try {
+        await backupBeforeChange("before-restore", label);
+      } catch (e) {
+        const go = await confirm({
+          title: tr("backup_no_copy_title", undefined, "No copy of the current settings could be kept"),
+          message: tr(
+            "backup_no_copy_body",
+            { reason: errText(e) },
+            `${errText(e)}. Restore anyway? The current settings cannot be brought back afterwards.`,
+          ),
+          confirmLabel: tr("backup_restore_anyway", undefined, "Restore anyway"),
+          destructive: true,
+        });
+        if (!go) return;
+      }
+      applyBundle(bundle);
+      // Reload at once: the stores in memory would write their state back over the restore.
+      window.location.reload();
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(errText(e));
     } finally {
       setBusy(false);
-      void load();
     }
   };
 
@@ -167,14 +163,15 @@ export function SettingsBackups() {
           {(local ?? []).map((b) => (
             <li key={b.id} className="flex items-center gap-2 px-3 py-1.5">
               <History size={12} className="shrink-0 text-[var(--color-muted)]" aria-hidden />
-              <span className="min-w-0 flex-1 truncate text-xs">
-                {when(b.at)} · {reasonText(tr, b.reason)}
-                <span className="text-[var(--color-muted)]">
-                  {" · "}
-                  {tr("backup_keys", { count: b.keys }, `${b.keys} settings`)} · {formatBytes(b.bytes)}
+              <div className="min-w-0 flex-1 text-xs">
+                <p className="truncate">
+                  {when(b.at)} · {reasonText(tr, b.reason)}
+                </p>
+                <p className="truncate text-[var(--color-muted)]">
+                  {tr("backup_keys", { count: b.keys }, `Settings: ${b.keys}`)} · {formatBytes(b.bytes)}
                   {b.device ? ` · ${b.device}` : ""}
-                </span>
-              </span>
+                </p>
+              </div>
               <Button
                 size="sm"
                 variant="ghost"
@@ -200,30 +197,28 @@ export function SettingsBackups() {
           )}
           <ul className="divide-y divide-[var(--color-border)] rounded-[var(--radius-input,0.5rem)] border border-[var(--color-border)] empty:hidden">
             {(onConsole ?? []).map((c) => (
-              <li key={c.deviceId} className="flex items-center gap-2 px-3 py-1.5">
+              <li key={c.slot} className="flex items-center gap-2 px-3 py-1.5">
                 <History size={12} className="shrink-0 text-[var(--color-muted)]" aria-hidden />
-                <span className="min-w-0 flex-1 truncate text-xs">
-                  {c.name}
-                  {c.me && <span className="text-[var(--color-accent-bright)]"> · {tr("drive_you", undefined, "you")}</span>}
-                  <span className="text-[var(--color-muted)]">
-                    {" · "}
-                    {when(c.bundle.meta.generated_at_ms)} ·{" "}
-                    {tr(
-                      "backup_keys",
-                      { count: Object.keys(c.bundle.local_storage).length },
-                      `${Object.keys(c.bundle.local_storage).length} settings`,
+                <div className="min-w-0 flex-1 text-xs">
+                  <p className="truncate">
+                    {c.name || tr("mesh_another_device", undefined, "Another device")}
+                    {c.app === me && (
+                      <span className="text-[var(--color-accent-bright)]"> · {tr("drive_you", undefined, "you")}</span>
                     )}
-                    {c.bundle.meta.dropped?.length
-                      ? ` · ${tr("backup_trimmed", { count: c.bundle.meta.dropped.length }, `${c.bundle.meta.dropped.length} large items left out`)}`
+                  </p>
+                  <p className="truncate text-[var(--color-muted)]">
+                    {when(c.at)} · {tr("backup_keys", { count: c.keys }, `Settings: ${c.keys}`)}
+                    {c.bundle.meta?.dropped?.length
+                      ? ` · ${tr("backup_trimmed", { count: c.bundle.meta.dropped.length }, `Large items left out: ${c.bundle.meta.dropped.length}`)}`
                       : ""}
-                  </span>
-                </span>
+                  </p>
+                </div>
                 <Button
                   size="sm"
                   variant="ghost"
                   disabled={busy}
                   leftIcon={<RotateCcw size={12} />}
-                  onClick={() => void restore(() => Promise.resolve(c.bundle), `${c.name}, ${when(c.bundle.meta.generated_at_ms)}`)}
+                  onClick={() => void restore(() => Promise.resolve(c.bundle), `${c.name}, ${when(c.at)}`)}
                 >
                   {tr("backup_restore", undefined, "Restore")}
                 </Button>

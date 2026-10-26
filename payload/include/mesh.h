@@ -46,6 +46,8 @@ typedef struct {
     int (*forget)(const uint8_t key[32]);
     /* Wall-clock milliseconds since 1970. */
     uint64_t (*now_ms)(void);
+    /* Milliseconds on a clock that never jumps (lock expiry); NULL: CLOCK_MONOTONIC. */
+    uint64_t (*mono_ms)(void);
 } mesh_hooks_t;
 
 /* Wall-clock milliseconds since 1970: the clock the device list's dates use. */

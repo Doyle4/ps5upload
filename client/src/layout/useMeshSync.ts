@@ -1,6 +1,8 @@
 import { useEffect } from "react";
 
 import { hostOf } from "../lib/addr";
+import { isTauriEnv } from "../lib/tauriEnv";
+import { syncId } from "../lib/meshShare";
 import { dailyBackup } from "../lib/settingsBackup";
 import { useConnectionStore } from "../state/connection";
 import { useTr } from "../state/lang";
@@ -22,6 +24,13 @@ export const MESH_POLL_MS = 4_000;
 export const PRESENCE_MS = 3_000;
 /** The daily settings backup is looked at this often (it runs once a day; lib/settingsBackup). */
 const BACKUP_CHECK_MS = 60 * 60 * 1000;
+
+/** How a backup names the app that made it: a browser of a Docker engine says so (several
+ *  browsers share the engine's name). */
+export function backupLabel(engineName: string | undefined): string {
+  const name = engineName || "PS5Upload";
+  return isTauriEnv() ? name : `${name} (browser)`;
+}
 
 /**
  * The multi-device mesh, app-wide (8.0.0):
@@ -48,7 +57,7 @@ export function useMeshSync() {
       const mesh = useMeshStore.getState();
       const key = hostOf(conn.host);
       const supported = !!key && conn.payloadStatus === "up" && mesh.byHost[key]?.supported === true;
-      void dailyBackup(supported ? key : null, mesh.me?.id ?? null, mesh.me?.name ?? "");
+      void dailyBackup(supported ? key : null, syncId(), backupLabel(mesh.me?.name));
     };
     const first = window.setTimeout(run, 60_000);
     const id = window.setInterval(run, BACKUP_CHECK_MS);

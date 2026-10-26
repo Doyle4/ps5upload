@@ -46,7 +46,9 @@ typedef struct {
     /* Which window of that device (a browser of a Docker engine, say): two windows of one device
      * are two holders. "" for a caller that does not say. */
     char owner[OWNER_MAX];
-    uint64_t until; /* ms */
+    /* Expiry on the monotonic clock: the console's wall clock jumps (a date set, NTP), and a lock
+     * must neither die early nor outlive its holder because of that. */
+    uint64_t until_mono; /* ms */
 } lock_t_;
 
 static int holds(const lock_t_ *l, const uint8_t caller[32], const char *owner) {
@@ -80,6 +82,19 @@ static struct {
 /* ---- small helpers ---- */
 
 static uint64_t now_ms(void) { return M.h.now_ms ? M.h.now_ms() : 0; }
+
+static uint64_t mono_ms(void) {
+    struct timespec ts;
+    if (M.h.mono_ms) return M.h.mono_ms();
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (uint64_t)ts.tv_sec * 1000u + (uint64_t)ts.tv_nsec / 1000000u;
+}
+
+/* A lock's expiry as wall time (what callers show), from the wall time `t` taken now. */
+static uint64_t lock_until_wall(const lock_t_ *l, uint64_t t) {
+    uint64_t m = mono_ms();
+    return l->until_mono > m ? t + (l->until_mono - m) : t;
+}
 
 uint64_t mesh_wall_ms(void) {
     struct timespec ts;
@@ -522,7 +537,8 @@ static uint64_t sig_of(const mesh_online_t *on, int non) {
 
 /* A lock is free when it ran out, or its holder is gone. */
 static int lock_live(const lock_t_ *l, uint64_t t, const mesh_online_t *on, int non) {
-    return l->used && l->until > t && is_online(l->by, on, non);
+    (void)t;
+    return l->used && l->until_mono > mono_ms() && is_online(l->by, on, non);
 }
 
 /* ---- public ---- */
@@ -756,7 +772,7 @@ static int do_state(const uint8_t caller[32], const char *body, size_t n, char *
         putstr(&b, l->name);
         puts_(&b, ",\"label\":");
         putstr(&b, l->label);
-        putf(&b, ",\"by\":\"%s\",\"until\":%llu}", hex, (unsigned long long)l->until);
+        putf(&b, ",\"by\":\"%s\",\"until\":%llu}", hex, (unsigned long long)lock_until_wall(l, t));
         first = 0;
     }
     puts_(&b, "],\"events\":[");
@@ -854,7 +870,7 @@ static int do_lock(const uint8_t caller[32], const char *body, size_t n, char *o
             putstr(&b, hd ? shown_name(hd) : "Another device");
             puts_(&b, ",\"label\":");
             putstr(&b, h->label);
-            putf(&b, ",\"until\":%llu}", (unsigned long long)h->until);
+            putf(&b, ",\"until\":%llu}", (unsigned long long)lock_until_wall(h, t));
         } else {
             if (held >= 0) {
                 l = &M.locks[held];
@@ -875,9 +891,9 @@ static int do_lock(const uint8_t caller[32], const char *body, size_t n, char *o
             snprintf(l->label, sizeof l->label, "%s", label);
             memcpy(l->by, caller, 32);
             snprintf(l->owner, sizeof l->owner, "%s", owner);
-            l->until = t + ttl * 1000u;
+            l->until_mono = mono_ms() + ttl * 1000u;
             M.rev++;
-            putf(&b, "{\"ok\":true,\"got\":true,\"until\":%llu}", (unsigned long long)l->until);
+            putf(&b, "{\"ok\":true,\"got\":true,\"until\":%llu}", (unsigned long long)lock_until_wall(l, t));
         }
     } else {
         pthread_mutex_unlock(&g_mu);

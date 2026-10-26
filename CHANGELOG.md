@@ -15,6 +15,54 @@ What's new in ps5upload, written for humans.
 - **Devices and Mesh Drive say when the engine is too old** (an engine elsewhere, such as an older
   Docker container) instead of showing "request failed (404)".
 
+### Mesh Drive, reworked
+
+- **Mesh Drive moved into Files**, as a tab next to the console's files. Nothing is picked for
+  you any more: name the drive, then either make a new folder on the console (you choose where
+  and its name) or pick one that is already there, and pick the folder on this device. Every
+  choice is checked as you make it (a name that is taken, a folder inside another drive, a file
+  instead of a folder, the app's own data folder) and Create stays off until both are usable.
+- **No more "let in" step.** Joining used to wait for a device already in the drive to approve
+  it, which locked everyone out once that device was gone. Now any device joins from the tab. To
+  keep others out, give the drive a **password** (when you make it, or later from its ⋯ menu); a
+  device joining types it once. Only a salted hash (PBKDF2-SHA256) is kept on the console, and any
+  device in the drive, or anyone who knows the password, can change or remove it.
+- **Every device in the drive, as the console sees it.** Each device's engine reports to the
+  console after a pass: its state, how many files and how much it holds, its app version, and when
+  it last synced. The drive card lists them all with who is online, so you see who is in the
+  drive and how each is doing from any device; a device that is gone can be removed by any other.
+- **What you'd want to know about the folder:** files, total size, conflict copies, free space on
+  the console, live progress (file 12 of 40 and its name), and files that were left out and why.
+- **Open folder** opens this device's copy in Finder or Explorer (desktop app); **Show on the
+  console** opens the drive's home in the Files tab.
+- **Steadier syncing.** A pass skips re-reading the console's folder when nothing changed (until
+  two minutes pass); waits while a game installs; rests a file that keeps failing for ten minutes
+  instead of retrying it every pass; leaves out names this device cannot store (Windows) and names
+  that differ only in case (macOS, Windows); never overwrites a file you saved while it was being
+  synced; keeps both copies when the same file is trashed twice in a day or conflicts twice in a
+  minute; ignores a half-finished upload's `.ava-part`; and holds the drive's lock for however long
+  one big file takes. A drive deleted from another device stops syncing here by itself and frees
+  the folder.
+- **Console locks follow a clock that never jumps**, so setting the console's date no longer
+  frees (or keeps) a lock early.
+
+### Several devices
+
+- **The same PS5 from two devices is one console, not two.** Connecting from a second device no
+  longer adds a duplicate to the console list.
+- **Settings and the console list sync with a CRDT** (a last-writer-wins map with hybrid logical
+  clocks): the newest change wins on every device whichever syncs first, a removal stays removed,
+  and a change made on one device never undoes another's. A device's set-up from before it shared
+  takes what your other devices already agreed on instead of overwriting it.
+- **Settings backups.** The app backs up its settings once a day, and before a sync from your
+  other devices or a restore changes several at once. The engine keeps the last 14 (in Docker, in
+  the container's data volume, so the web UI's backups outlive the browser); each console you use
+  keeps every app's latest, so a wiped device gets its set-up back from there. **Settings ›
+  Backup** lists both, with **Back up now** and **Restore**; a restore keeps a copy of what it
+  replaces first.
+- Downloads to a NAS: replacing a file on the server is safe even when the server cannot rename
+  over a file (the old one comes back if the swap fails).
+
 ## 8.0.0
 
 Several devices, one PS5. Your computers, phones and Docker setup can now all use the same console

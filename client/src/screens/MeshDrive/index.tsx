@@ -5,7 +5,7 @@
 // asks for the password it was given. Making, joining and the password are guided dialogs
 // (DriveDialogs.tsx) where every folder is the user's choice and is checked before anything is made.
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import {
   FolderOpen,
@@ -64,7 +64,9 @@ function statusOf(tr: Translator, l: LocalDriveMember, now: number): { tone: Ton
       return {
         tone: "good",
         short: tr("drive_badge_synced", undefined, "In sync"),
-        long: tr("drive_synced", { count: s.files, ago }, `In sync · ${s.files} files · ${ago}`),
+        long: ago
+          ? tr("drive_synced", { count: s.files, ago }, `In sync · ${s.files} files · ${ago}`)
+          : tr("drive_member_files", { count: s.files }, `Files: ${s.files}`),
       };
     case "syncing":
       return {
@@ -176,7 +178,7 @@ function MemberRow({
         <p className="text-xs text-[var(--color-muted)]">
           {m.reported
             ? [
-                tr("drive_member_files", { count: m.files ?? 0 }, `${m.files ?? 0} files`),
+                tr("drive_member_files", { count: m.files ?? 0 }, `Files: ${m.files ?? 0}`),
                 formatBytes(m.bytes ?? 0),
                 m.last_sync
                   ? tr("drive_member_synced", { ago: agoText(tr, now - m.last_sync) }, `synced ${agoText(tr, now - m.last_sync)}`)
@@ -361,10 +363,10 @@ function DriveCard({
             <p className="text-xs text-[var(--color-muted)]">
               {[
                 tr("drive_device_count", { count: devices }, `Devices: ${devices}`),
-                d.stats ? tr("drive_member_files", { count: d.stats.files }, `${d.stats.files} files`) : null,
+                d.stats ? tr("drive_member_files", { count: d.stats.files }, `Files: ${d.stats.files}`) : null,
                 d.stats ? formatBytes(d.stats.bytes) : null,
                 d.stats?.conflicts
-                  ? tr("drive_conflict_count", { count: d.stats.conflicts }, `${d.stats.conflicts} conflict copies`)
+                  ? tr("drive_conflict_count", { count: d.stats.conflicts }, `Conflict copies: ${d.stats.conflicts}`)
                   : null,
                 free !== undefined ? tr("drive_free", { size: formatBytes(free) }, `${formatBytes(free)} free on the console`) : null,
               ]
@@ -382,7 +384,7 @@ function DriveCard({
                 {tr(
                   "drive_skipped",
                   { count: mine.status.skipped.length },
-                  `${mine.status.skipped.length} files left out: they keep failing, or this device cannot hold their names. Hover to see them.`,
+                  `Left out: ${mine.status.skipped.length}. They keep failing, or this device cannot hold their names. Hover to see them.`,
                 )}
               </p>
             )}
@@ -450,18 +452,45 @@ export default function MeshDriveTab({ tabs }: { tabs?: React.ReactNode }) {
   const [error, setError] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const [creating, setCreating] = useState(false);
-  const [joining, setJoining] = useState<Drive | null>(null);
-  const [locking, setLocking] = useState<Drive | null>(null);
+  // Dialogs hold the drive's id, and read the drive from the latest answer: a drive locked (or
+  // removed) by another device after the click is shown as it is now.
+  const [joiningId, setJoiningId] = useState<string | null>(null);
+  const [lockingId, setLockingId] = useState<string | null>(null);
+  const drives = data?.supported ? data.drives : [];
+  const joining = drives.find((d) => d.id === joiningId) ?? null;
+  const locking = drives.find((d) => d.id === lockingId) ?? null;
+  const seq = useRef(0);
+  const inFlight = useRef(false);
+  // A failed poll shows until a poll succeeds; an action's failure until the next action.
+  const [pollError, setPollError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    if (!host || !up) return;
+    if (!host || !up || inFlight.current) return;
+    const mine = ++seq.current;
+    inFlight.current = true;
     try {
-      setData(await fetchDrives(host));
+      const d = await fetchDrives(host);
+      if (mine !== seq.current) return; // the console changed meanwhile
+      setData(d);
+      setPollError(null);
       setNow(Date.now());
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      if (mine === seq.current) setPollError(e instanceof Error ? e.message : String(e));
+    } finally {
+      inFlight.current = false;
     }
   }, [host, up]);
+
+  // Another console: nothing of the last one's stays on screen.
+  useEffect(() => {
+    seq.current++;
+    inFlight.current = false;
+    setData(null);
+    setError(null);
+    setPollError(null);
+    setJoiningId(null);
+    setLockingId(null);
+  }, [host]);
 
   useEffect(() => {
     void load();
@@ -478,6 +507,7 @@ export default function MeshDriveTab({ tabs }: { tabs?: React.ReactNode }) {
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
+    inFlight.current = false;
     await load();
   };
 
@@ -539,9 +569,9 @@ export default function MeshDriveTab({ tabs }: { tabs?: React.ReactNode }) {
   return (
     <div className="app-page space-y-4">
       {header}
-      {error && (
+      {(error ?? pollError) && (
         <Callout tone="error" title={tr("mesh_failed", undefined, "That didn't work")}>
-          {error}
+          {error ?? pollError}
         </Callout>
       )}
       {data?.supported && data.drives.length === 0 && (
@@ -569,8 +599,8 @@ export default function MeshDriveTab({ tabs }: { tabs?: React.ReactNode }) {
             host={host}
             now={now}
             run={run}
-            onJoin={setJoining}
-            onPassword={setLocking}
+            onJoin={(x) => setJoiningId(x.id)}
+            onPassword={(x) => setLockingId(x.id)}
           />
         ))}
       {data?.supported && data.drives.length > 0 && (
@@ -615,41 +645,50 @@ export default function MeshDriveTab({ tabs }: { tabs?: React.ReactNode }) {
           </ul>
         </details>
       )}
-      <CreateDriveDialog
-        host={host}
-        open={creating}
-        onClose={() => setCreating(false)}
-        onDone={() => {
-          setCreating(false);
-          void load();
-        }}
-      />
-      <JoinDriveDialog
-        host={host}
-        drive={joining}
-        open={!!joining}
-        onClose={() => setJoining(null)}
-        onDone={() => {
-          const name = joining?.name ?? "";
-          setJoining(null);
-          useToastStore.getState().push({
-            tone: "success",
-            message: tr("drive_joined", { name }, `${name} is now kept on this device.`),
-          });
-          void load();
-        }}
-      />
-      <PasswordDialog
-        host={host}
-        drive={locking}
-        inDrive={!!locking && !!data?.supported && locking.members.some((m) => m.device === data.me)}
-        open={!!locking}
-        onClose={() => setLocking(null)}
-        onDone={() => {
-          setLocking(null);
-          void load();
-        }}
-      />
+      {/* Mounted only while open: each opening starts empty. */}
+      {creating && (
+        <CreateDriveDialog
+          host={host}
+          open
+          onClose={() => setCreating(false)}
+          onDone={() => {
+            setCreating(false);
+            void load();
+          }}
+        />
+      )}
+      {joining && (
+        <JoinDriveDialog
+          key={joining.id}
+          host={host}
+          drive={joining}
+          open
+          onClose={() => setJoiningId(null)}
+          onDone={() => {
+            const name = joining.name;
+            setJoiningId(null);
+            useToastStore.getState().push({
+              tone: "success",
+              message: tr("drive_joined", { name }, `${name} is now kept on this device.`),
+            });
+            void load();
+          }}
+        />
+      )}
+      {locking && data?.supported && (
+        <PasswordDialog
+          key={locking.id}
+          host={host}
+          drive={locking}
+          inDrive={locking.members.some((m) => m.device === data.me)}
+          open
+          onClose={() => setLockingId(null)}
+          onDone={() => {
+            setLockingId(null);
+            void load();
+          }}
+        />
+      )}
     </div>
   );
 }

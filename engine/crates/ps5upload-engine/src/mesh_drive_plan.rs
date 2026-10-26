@@ -138,6 +138,8 @@ pub fn ignored(name: &str) -> bool {
         || name.starts_with("._")
         || name.ends_with(".partial")
         || name.ends_with(".ps5upload-tmp")
+        // An upload to the console still under way (or cut off): never a file of the drive.
+        || name.ends_with(".ava-part")
 }
 
 /// The file at a member folder's and the hub's root that says "this is the drive". Missing:

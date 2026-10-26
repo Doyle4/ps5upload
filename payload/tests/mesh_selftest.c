@@ -38,7 +38,9 @@ static int hook_forget(const uint8_t key[32]) {
 }
 static uint64_t hook_now(void) { return g_now; }
 
-static const mesh_hooks_t HOOKS = { hook_online, hook_forget, hook_now };
+static uint64_t g_mono = 5000;
+static uint64_t hook_mono(void) { return g_mono; }
+static const mesh_hooks_t HOOKS = { hook_online, hook_forget, hook_now, hook_mono };
 
 static void key_of(int n, uint8_t k[32]) {
     memset(k, 0, 32);
@@ -182,8 +184,14 @@ static void test_locks(void) {
     /* The holder leaves: the lock lapses. */
     g_non = 1; /* only device 1 online */
     CHECK(has(call(MESH_LOCK, 1, "{\"op\":\"take\",\"name\":\"install:PPSA01234\"}"), "\"got\":true"));
+    /* The console's date jumps a day ahead (set by hand, NTP): the lock does not lapse. */
+    g_now += 86400000ull;
+    g_non = 2;
+    CHECK(has(call(MESH_LOCK, 2, "{\"op\":\"take\",\"name\":\"install:PPSA01234\"}"), "\"got\":false"));
+    g_non = 1;
     /* Time runs out. */
     g_now += 61000;
+    g_mono += 61000;
     online(2, 2);
     CHECK(has(call(MESH_LOCK, 2, "{\"op\":\"take\",\"name\":\"install:PPSA01234\"}"), "\"got\":true"));
     /* Release only by the holder (or forced). */

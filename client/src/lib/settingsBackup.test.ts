@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { applyBundle, buildBundle, consoleDocName, trimBundle, type Bundle } from "./settingsBackup";
+import { applyBundle, buildBundle, pickSlot, trimBundle, type Bundle } from "./settingsBackup";
 
 // The node test environment has no window: a small in-memory localStorage (as fsLastPath.test).
 function installLocalStorageStub() {
@@ -56,8 +56,18 @@ describe("settings bundles", () => {
     expect(t.meta.dropped).toEqual(["ps5upload.big"]);
   });
 
-  it("console document names stay within the helper's rules", () => {
-    const n = consoleDocName("AB12cd34".repeat(8));
-    expect(n).toMatch(/^[a-z0-9_-]{1,40}$/);
+  it("never backs up or restores this app's own sync identity", () => {
+    window.localStorage.setItem("ps5upload.mesh_state.v2", '{"device":"me"}');
+    expect(buildBundle().local_storage).toEqual({});
+    applyBundle({ local_storage: { "ps5upload.mesh_state.v2": '{"device":"other"}' } });
+    expect(window.localStorage.getItem("ps5upload.mesh_state.v2")).toBe('{"device":"me"}');
+  });
+
+  it("an app keeps its console slot; a new one takes a free slot, then the oldest", () => {
+    const e = (slot: number, app: string, at: number) => ({ slot, app, name: app, at, keys: 1 });
+    expect(pickSlot([e(1, "a", 5)], "a")).toBe(1);
+    expect(pickSlot([e(1, "a", 5)], "b")).toBe(2);
+    const full = Array.from({ length: 16 }, (_, i) => e(i + 1, `x${i}`, 100 - i));
+    expect(pickSlot(full, "new")).toBe(16);
   });
 });

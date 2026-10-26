@@ -1,7 +1,7 @@
 import { saveLastRoute } from "../lib/lastRoute";
 import { useLocation, useNavigate, useOutlet } from "react-router";
 import { Activity, useEffect, useRef, useState, type ReactNode } from "react";
-import { Lock, Moon, RefreshCw, Search, Sun, WifiOff, X } from "lucide-react";
+import { Lock, Moon, RefreshCw, RotateCw, Search, Sun, WifiOff, X } from "lucide-react";
 import { localNetworkBlocked, requestLocalNetwork } from "../lib/androidLocalNetwork";
 import StatusBar from "./StatusBar";
 import SessionBanner from "./SessionBanner";
@@ -1721,6 +1721,15 @@ function TopBarActions() {
         <kbd className={`rounded-full border border-[var(--color-border)] px-2 py-0.5 font-sans text-[0.625rem] ${fold.text}`}>
           {typeof navigator !== "undefined" && /mac/i.test(navigator.platform) ? "⌘K" : "Ctrl K"}
         </kbd>
+      </button>
+      <button
+        type="button"
+        onClick={() => window.location.reload()}
+        aria-label={tr("topbar_reload_page", undefined, "Reload page")}
+        title={tr("topbar_reload_page", undefined, "Reload page")}
+        className="icon-orb-button"
+      >
+        <RotateCw size={18} aria-hidden />
       </button>
       <UpdateCheckButton variant="orb" />
       <NotificationInbox align="right" placement="below" variant="orb" />

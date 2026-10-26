@@ -1,6 +1,6 @@
-// Files (8.0.1): the console's file system and Mesh Drive, a tab each. Both stay mounted (the
-// hidden one is paused, not thrown away), so a folder being browsed or a dialog half-filled in
-// one survives a look at the other.
+// Files (8.0.1): the console's file system and Mesh Drive, a tab each. The file system stays
+// mounted while hidden (paused, not thrown away), so the folder being browsed survives a look at
+// Mesh Drive; Mesh Drive loads when its tab is opened.
 
 import { Activity, lazy } from "react";
 import { useSearchParams } from "react-router";

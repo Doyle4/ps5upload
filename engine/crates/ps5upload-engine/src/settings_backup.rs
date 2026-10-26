@@ -135,10 +135,18 @@ fn save_now(req: SaveReq) -> Result<Value> {
     let at = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map_or(0, |t| t.as_millis() as u64);
-    let id = format!(
-        "{at}-{}.json",
-        if reason.is_empty() { "manual" } else { &reason }
-    );
+    // Two in the same millisecond: the later one takes the next free id, never overwrites.
+    let reason = if reason.is_empty() {
+        "manual".to_string()
+    } else {
+        reason
+    };
+    let mut at = at;
+    let mut id = format!("{at}-{reason}.json");
+    while d.join(&id).exists() {
+        at += 1;
+        id = format!("{at}-{reason}.json");
+    }
     let tmp = d.join(format!("{id}.tmp"));
     std::fs::write(&tmp, &body)?;
     std::fs::rename(&tmp, d.join(&id))?;

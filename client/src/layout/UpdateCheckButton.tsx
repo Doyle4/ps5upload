@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
-import { ArrowUpCircle, RefreshCw } from "lucide-react";
+import { ArrowUpCircle, CloudDownload } from "lucide-react";
 
 import { useUpdateStore, type UpdatePhase } from "../state/update";
 import { useToastStore } from "../state/toasts";
@@ -85,7 +85,8 @@ export function UpdateCheckButton({ variant }: { variant: "orb" | "chip" }) {
       ? tr("update_check_button_title", { version }, "Check for updates (you have v{version})")
       : tr("update_check_button", undefined, "Check for updates");
   const onClick = () => void checkForUpdatesNow(tr, () => navigate("/settings"));
-  const Icon = waiting ? ArrowUpCircle : RefreshCw;
+  // Not the circular arrows: those read as "reload the page", which is the button next to it.
+  const Icon = waiting ? ArrowUpCircle : CloudDownload;
   const icon = (
     <Icon
       size={variant === "orb" ? 18 : 15}

@@ -33,6 +33,7 @@ import {
   Moon,
   Pin,
   PinOff,
+  RotateCw,
   Search,
   Sun,
   X,
@@ -272,6 +273,16 @@ export default function MoreScreen() {
               footer — so the panel must grow leftward or it lands off the
               edge of the phone. */}
           <NotificationInbox align="right" />
+          {/* The app on a phone has no browser reload: this is it. */}
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            aria-label={tr("topbar_reload_page", undefined, "Reload page")}
+            title={tr("topbar_reload_page", undefined, "Reload page")}
+            className="chip h-11 w-11 justify-center text-[var(--color-muted)]"
+          >
+            <RotateCw size={15} aria-hidden />
+          </button>
           {isTauriEnv() ? (
             <UpdateCheckButton variant="chip" />
           ) : (

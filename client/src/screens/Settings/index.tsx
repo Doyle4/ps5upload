@@ -1314,9 +1314,18 @@ function BackupRestorePanel() {
   /** Validate-and-apply for an import's raw JSON text (native and browser read paths). A copy
    *  of the current settings is kept first, so an import can be undone from the list below. */
   async function applyBundleText(text: string): Promise<number> {
-    const parsed: unknown = JSON.parse(text);
-    await backupBeforeChange("before-restore");
-    return applyBundle(parsed);
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      throw new Error(tr("settings_backup_not_json", undefined, "That file is not a settings bundle (it is not JSON)."));
+    }
+    // Best effort here: the user holds the file they import, and asked for exactly this.
+    await backupBeforeChange("before-restore").catch(() => {});
+    const n = applyBundle(parsed);
+    // The stores in memory would write their state back over the import: start fresh.
+    window.setTimeout(() => window.location.reload(), 1200);
+    return n;
   }
 
   async function importBundle() {

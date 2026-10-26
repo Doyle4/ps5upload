@@ -89,7 +89,7 @@ static int mesh_online_hook(mesh_online_t *out, int max) {
 
 /* The mesh keeps "last seen" dates and forgets old devices by the calendar, so it reads the wall
  * clock itself (mesh_wall_ms); nothing in AVA1's timing does. */
-static const mesh_hooks_t MESH_HOOKS = { mesh_online_hook, ava1_server_forget, mesh_wall_ms };
+static const mesh_hooks_t MESH_HOOKS = { mesh_online_hook, ava1_server_forget, mesh_wall_ms, NULL };
 
 static uint64_t mono_us(void) {
     struct timespec ts;

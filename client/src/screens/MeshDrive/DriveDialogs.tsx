@@ -29,11 +29,15 @@ function useFolderCheck(host: string, q: { hub?: HubChoice; path?: string; drive
   const seq = useRef(0);
   useEffect(() => {
     const parsed = JSON.parse(key) as typeof q;
+    // A new choice: the last one's answer no longer says anything (and one still on its way is
+    // dropped by the sequence number).
+    const mine = ++seq.current;
+    setResult({ hub: null, local: null });
+    setError(null);
     if (!parsed || (!parsed.hub && !parsed.path)) {
-      setResult({ hub: null, local: null });
+      setBusy(false);
       return;
     }
-    const mine = ++seq.current;
     setBusy(true);
     const t = window.setTimeout(() => {
       checkFolders(host, parsed)
@@ -305,14 +309,14 @@ export function JoinDriveDialog({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const ready =
-    !!drive && !!local.path && !!checks.local?.ok && !checks.busy && !saving && (!locked || !!password);
+    !!drive && !!local.path && !!checks.local?.ok && !checks.busy && !saving && (!locked || !!password.trim());
 
   const join = async () => {
     if (!drive) return;
     setSaving(true);
     setError(null);
     try {
-      await driveApi.join(host, drive.id, local.path, locked ? password : undefined);
+      await driveApi.join(host, drive.id, local.path, locked ? password.trim() : undefined);
       onDone();
     } catch (e) {
       const code = refusalCode(e);
@@ -409,7 +413,7 @@ export function PasswordDialog({
     setSaving(true);
     setError(null);
     try {
-      await driveApi.setPassword(host, drive.id, value, needCurrent ? current : undefined);
+      await driveApi.setPassword(host, drive.id, value, needCurrent ? current.trim() : undefined);
       setNext("");
       setCurrent("");
       onDone();

@@ -38,6 +38,12 @@ export function folderCheckText(tr: Translator, c: FolderCheck, where: "console"
       return tr("drive_check_inside", { other }, `It is inside the folder of the drive ${other}.`);
     case "holds":
       return tr("drive_check_holds", { other }, `It holds the folder of the drive ${other}.`);
+    case "too_broad":
+      return tr(
+        "drive_check_too_broad",
+        undefined,
+        "That is a whole drive or home folder: everything on it would be synced. Choose or make a folder inside it.",
+      );
     case "app_data":
       return tr("drive_check_app_data", undefined, "That is the app's own data folder. Choose another.");
     case "not_writable":

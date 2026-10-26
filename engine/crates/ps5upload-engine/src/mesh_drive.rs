@@ -104,6 +104,8 @@ pub struct DriveLock {
     pub salt: String,
     pub hash: String,
     pub iter: u32,
+    #[serde(flatten)]
+    pub other: serde_json::Map<String, Value>,
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
@@ -113,6 +115,8 @@ pub struct DriveStats {
     /// Copies named "(conflict from ...)".
     pub conflicts: u64,
     pub updated: u64,
+    #[serde(flatten)]
+    pub other: serde_json::Map<String, Value>,
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
@@ -353,6 +357,25 @@ fn unstorable(rel: &str) -> bool {
     })
 }
 
+/// Paths here and on the console that differ only in case, on a device whose folders ignore case
+/// (`Foo.txt` here, `foo.txt` there): one would land on the other, so neither side moves them.
+fn case_clashes(member: &Listing, hub: &Listing) -> std::collections::HashSet<String> {
+    let mut out = std::collections::HashSet::new();
+    if !(cfg!(windows) || cfg!(target_os = "macos")) {
+        return out;
+    }
+    let low: HashMap<String, &String> = hub.keys().map(|k| (k.to_lowercase(), k)).collect();
+    for k in member.keys() {
+        if let Some(h) = low.get(&k.to_lowercase()) {
+            if *h != k {
+                out.insert(k.clone());
+                out.insert((*h).clone());
+            }
+        }
+    }
+    out
+}
+
 /// Paths of the console's folder that differ only in case from an earlier one: on a device whose
 /// folders ignore case they would land on the same file.
 fn case_twins(hub: &Listing) -> std::collections::HashSet<String> {
@@ -529,9 +552,99 @@ struct Pass<'a> {
     member: &'a LocalMember,
     root: PathBuf,
     device_name: String,
-    /// The drive's lock, renewed while a long pass runs so no other engine starts on it.
-    lock_name: String,
-    lock_label: String,
+    /// Set by the lock's heartbeat when another engine holds the drive now: the pass stops.
+    lost: std::sync::Arc<AtomicBool>,
+}
+
+/// The drive's lock, held while a pass runs: a heartbeat renews it however long one file takes,
+/// and dropping it (a panic included) stops the heartbeat and releases the lock.
+struct DriveLease {
+    addr: String,
+    name: String,
+    stop: std::sync::Arc<AtomicBool>,
+    lost: std::sync::Arc<AtomicBool>,
+    beat: Option<std::thread::JoinHandle<()>>,
+}
+
+impl DriveLease {
+    fn hold(addr: &str, name: &str, label: &str) -> Self {
+        let stop = std::sync::Arc::new(AtomicBool::new(false));
+        let lost = std::sync::Arc::new(AtomicBool::new(false));
+        let (a, n, l, st, lo) = (
+            addr.to_string(),
+            name.to_string(),
+            label.to_string(),
+            stop.clone(),
+            lost.clone(),
+        );
+        let beat = std::thread::Builder::new()
+            .name("mesh-drive-lease".into())
+            .spawn(move || {
+                let mut since = std::time::Instant::now();
+                while !st.load(Ordering::SeqCst) {
+                    std::thread::sleep(Duration::from_millis(500));
+                    if since.elapsed() < LOCK_RENEW {
+                        continue;
+                    }
+                    since = std::time::Instant::now();
+                    let r = crate::mesh_api::call(&a, || {
+                        mesh::lock(&a, "take", &n, LOCK_TTL_S, false, &l, "")
+                    });
+                    // Only a clear "someone else has it" counts; a missed renewal is retried.
+                    if let Ok(Some(v)) = r {
+                        if v.get("got").and_then(Value::as_bool) == Some(false) {
+                            lo.store(true, Ordering::SeqCst);
+                            return;
+                        }
+                    }
+                }
+            })
+            .ok();
+        Self {
+            addr: addr.to_string(),
+            name: name.to_string(),
+            stop,
+            lost,
+            beat,
+        }
+    }
+}
+
+impl Drop for DriveLease {
+    fn drop(&mut self) {
+        self.stop.store(true, Ordering::SeqCst);
+        if let Some(b) = self.beat.take() {
+            let _ = b.join();
+        }
+        if !self.lost.load(Ordering::SeqCst) {
+            let (a, n) = (self.addr.as_str(), self.name.as_str());
+            let _ = crate::mesh_api::call(a, || mesh::lock(a, "release", n, 0, false, "", ""));
+        }
+    }
+}
+
+/// `rel`, or `rel` with " (2)", " (3)"... before its extension when `taken` says that name is used.
+fn free_name(rel: &str, taken: impl Fn(&str) -> bool) -> String {
+    if !taken(rel) {
+        return rel.to_string();
+    }
+    let (dir, file) = rel.rsplit_once('/').map_or(("", rel), |(d, f)| (d, f));
+    let (stem, ext) = match file.rfind('.') {
+        Some(i) if i > 0 => (&file[..i], &file[i..]),
+        _ => (file, ""),
+    };
+    for n in 2..10_000 {
+        let name = format!("{stem} ({n}){ext}");
+        let cand = if dir.is_empty() {
+            name
+        } else {
+            format!("{dir}/{name}")
+        };
+        if !taken(&cand) {
+            return cand;
+        }
+    }
+    format!("{rel}.{}", new_id())
 }
 
 impl Pass<'_> {
@@ -548,7 +661,9 @@ impl Pass<'_> {
         Ok(())
     }
 
-    fn download(&self, rel: &str) -> Result<()> {
+    /// Fetches `rel` into this folder. `expect` is what this folder held there when the pass
+    /// planned (None: nothing); a file changed meanwhile is never overwritten.
+    fn download(&self, rel: &str, expect: Option<Meta>) -> Result<()> {
         let src = join_hub(&self.drive.hub, rel);
         let target = local_path(&self.root, rel);
         let tmp_dir = self.root.join(TMP).join(new_id());
@@ -572,12 +687,24 @@ impl Pass<'_> {
                 if let Some(parent) = target.parent() {
                     std::fs::create_dir_all(parent)?;
                 }
+                if local_stat(&target) != expect {
+                    bail!(
+                        "{rel} changed on this device while it was syncing; it is synced next pass"
+                    );
+                }
                 std::fs::rename(&got, &target).with_context(|| format!("place {rel}"))
             });
         let _ = std::fs::remove_dir_all(&tmp_dir);
         // Only goes when nothing else is downloading into it.
         let _ = std::fs::remove_dir(self.root.join(TMP));
         res
+    }
+
+    /// The name this device's copy of a conflicting file moves to, never one already used here.
+    fn conflict_copy(&self, rel: &str, stamp: &str) -> String {
+        free_name(&conflict_name(rel, &self.device_name, stamp), |r| {
+            local_path(&self.root, r).symlink_metadata().is_ok()
+        })
     }
 
     /// Whether this folder's file and the hub's hold the same bytes (BLAKE3 on both sides).
@@ -592,7 +719,12 @@ impl Pass<'_> {
 
     fn trash_local(&self, rel: &str, today: &str) -> Result<()> {
         let from = local_path(&self.root, rel);
-        let to = local_path(&self.root.join(TRASH).join(today), rel);
+        let day = self.root.join(TRASH).join(today);
+        // Deleted twice in a day: the second copy gets a new name, never replaces the first.
+        let to = local_path(
+            &day,
+            &free_name(rel, |r| local_path(&day, r).symlink_metadata().is_ok()),
+        );
         if let Some(parent) = to.parent() {
             std::fs::create_dir_all(parent)?;
         }
@@ -601,7 +733,11 @@ impl Pass<'_> {
 
     fn trash_hub(&self, rel: &str, today: &str) -> Result<()> {
         let from = join_hub(&self.drive.hub, rel);
-        let to = join_hub(&join_hub(&join_hub(&self.drive.hub, TRASH), today), rel);
+        let day = join_hub(&join_hub(&self.drive.hub, TRASH), today);
+        let to = join_hub(
+            &day,
+            &free_name(rel, |r| hub_stat(self.addr, &join_hub(&day, r)).is_some()),
+        );
         if let Some(parent) = to.rsplit_once('/').map(|(d, _)| d) {
             fs_ops::fs_mkdir(self.addr, parent)?;
         }
@@ -679,13 +815,14 @@ impl Pass<'_> {
         // Still being written: leave it for the next pass (and do not take its absence as a delete).
         let settling: Vec<String> = member
             .iter()
-            .filter(|(_, m)| now - m.mtime < SETTLE_SECS)
+            .filter(|(_, m)| (0..SETTLE_SECS).contains(&(now - m.mtime)))
             .map(|(p, _)| p.clone())
             .collect();
         let mut ops = plan(&member, &hub, &base);
         ops.retain(|o| safe_rel(o.path()) && !settling.iter().any(|p| p == o.path()));
         // Left out: what this device cannot name, and what keeps failing (until it has rested).
         let twins = case_twins(&hub);
+        let clash = case_clashes(&member, &hub);
         let mut skipped: Vec<String> = Vec::new();
         let resting: std::collections::HashSet<String> = with_runtime(member_id, |rt| {
             rt.fails
@@ -699,19 +836,21 @@ impl Pass<'_> {
         ops.retain(|o| {
             let p = o.path();
             let fetches = matches!(o, Op::Download(_) | Op::Conflict(_) | Op::Compare(_));
-            let keep = !(resting.contains(p) || (fetches && (unstorable(p) || twins.contains(p))));
+            let keep = !(resting.contains(p)
+                || clash.contains(p)
+                || (fetches && (unstorable(p) || twins.contains(p))));
             if !keep {
                 skipped.push(p.to_string());
             }
             keep
         });
         let mut held = 0;
-        if too_many_deletes(&ops, base.len())
-            && !confirmed()
-                .lock()
-                .unwrap_or_else(|e| e.into_inner())
-                .remove(member_id)
-        {
+        // A confirmation covers the deletes it was given for: used up by this pass either way.
+        let was_confirmed = confirmed()
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .remove(member_id);
+        if too_many_deletes(&ops, base.len()) && !was_confirmed {
             held = ops.iter().filter(|o| o.is_delete()).count();
             ops.retain(|o| !o.is_delete());
         }
@@ -724,21 +863,12 @@ impl Pass<'_> {
             s.todo = todo;
             s.done = 0;
         });
-        let mut renewed = std::time::Instant::now();
         for op in &ops {
-            if renewed.elapsed() >= LOCK_RENEW {
-                renewed = std::time::Instant::now();
-                let _ = crate::mesh_api::call(self.addr, || {
-                    mesh::lock(
-                        self.addr,
-                        "take",
-                        &self.lock_name,
-                        LOCK_TTL_S,
-                        false,
-                        &self.lock_label,
-                        "",
-                    )
+            if self.lost.load(Ordering::SeqCst) {
+                first_error.get_or_insert_with(|| {
+                    "another device took over the drive's lock; this pass stopped".into()
                 });
+                break;
             }
             let rel = op.path().to_string();
             set_status(member_id, |s| s.current = rel.clone());
@@ -746,16 +876,20 @@ impl Pass<'_> {
             let r: Result<()> = (|| {
                 match op {
                     Op::Upload(_) => {
+                        let before = local_stat(&local_path(&self.root, &rel));
                         self.upload(&rel)?;
                         up += 1;
-                        let m = local_stat(&local_path(&self.root, &rel));
+                        // Saved again while it went up: the base keeps the old state, so the next
+                        // pass sends the new bytes.
+                        let m = local_stat(&local_path(&self.root, &rel))
+                            .filter(|m| Some(*m) == before);
                         let h = hub_stat(self.addr, &join_hub(&self.drive.hub, &rel));
                         if let (Some(m), Some(h)) = (m, h) {
                             base.insert(rel.clone(), BaseEntry { m, h });
                         }
                     }
                     Op::Download(_) => {
-                        self.download(&rel)?;
+                        self.download(&rel, member.get(&rel).copied())?;
                         down += 1;
                         if let (Some(m), Some(h)) =
                             (local_stat(&local_path(&self.root, &rel)), hub.get(&rel))
@@ -765,11 +899,11 @@ impl Pass<'_> {
                     }
                     Op::Conflict(_) => {
                         // Ours keeps a new name (it reaches everyone next pass); theirs comes here.
-                        let renamed = conflict_name(&rel, &self.device_name, &stamp);
+                        let renamed = self.conflict_copy(&rel, &stamp);
                         let from = local_path(&self.root, &rel);
                         std::fs::rename(&from, local_path(&self.root, &renamed))?;
                         member.remove(&rel);
-                        self.download(&rel)?;
+                        self.download(&rel, None)?;
                         conf += 1;
                         if let (Some(m), Some(h)) = (local_stat(&from), hub.get(&rel)) {
                             base.insert(rel.clone(), BaseEntry { m, h: *h });
@@ -791,11 +925,11 @@ impl Pass<'_> {
                                 base.insert(rel.clone(), BaseEntry { m: *m, h: *h });
                             }
                         } else {
-                            let renamed = conflict_name(&rel, &self.device_name, &stamp);
+                            let renamed = self.conflict_copy(&rel, &stamp);
                             let from = local_path(&self.root, &rel);
                             std::fs::rename(&from, local_path(&self.root, &renamed))?;
                             member.remove(&rel);
-                            self.download(&rel)?;
+                            self.download(&rel, None)?;
                             conf += 1;
                             if let (Some(m), Some(h)) = (local_stat(&from), hub.get(&rel)) {
                                 base.insert(rel.clone(), BaseEntry { m, h: *h });
@@ -902,17 +1036,26 @@ fn sync_member(lm: &LocalMember, me: &str) -> Result<()> {
         });
         return Ok(());
     };
+    // The console's list read fine and no longer has this folder (the drive was deleted, or the
+    // folder removed, from another device): forget it here too, so the folder can be used again.
+    // Its files stay where they are.
     let Some(drive) = doc.drives.iter().find(|d| d.id == lm.drive) else {
-        set_status(&lm.member, |s| s.state = "removed".into());
-        return Ok(());
+        crate::log_info!(
+            "mesh drive {}: deleted on the console; this folder stops syncing",
+            lm.drive
+        );
+        return forget_local(lm);
     };
     let Some(member) = drive
         .members
         .iter()
         .find(|m| m.id == lm.member && m.device == me)
     else {
-        set_status(&lm.member, |s| s.state = "removed".into());
-        return Ok(());
+        crate::log_info!(
+            "mesh drive {}: this folder was removed from it; it stops syncing",
+            drive.name
+        );
+        return forget_local(lm);
     };
     if member.paused {
         set_status(&lm.member, |s| s.state = "paused".into());
@@ -931,6 +1074,10 @@ fn sync_member(lm: &LocalMember, me: &str) -> Result<()> {
         != Some(true)
     {
         set_status(&lm.member, |s| {
+            // In sync and another device is passing through: still in sync, nothing to say.
+            if s.state == "idle" {
+                return;
+            }
             s.state = "waiting".into();
             s.detail = took
                 .as_ref()
@@ -941,19 +1088,17 @@ fn sync_member(lm: &LocalMember, me: &str) -> Result<()> {
         });
         return Ok(());
     }
+    let lease = DriveLease::hold(addr, &lock_name, &label);
     let pass = Pass {
         addr,
         drive,
         member: lm,
         root: PathBuf::from(&lm.path),
         device_name: crate::mesh_api::device_name(),
-        lock_name: lock_name.clone(),
-        lock_label: label.clone(),
+        lost: lease.lost.clone(),
     };
     let r = pass.run();
-    let _ = crate::mesh_api::call(addr, || {
-        mesh::lock(addr, "release", &lock_name, 0, false, "", "")
-    });
+    drop(lease);
     if let Err(e) = &r {
         set_status(&lm.member, |s| {
             s.state = "error".into();
@@ -1013,6 +1158,7 @@ fn report(
             .filter(|k| k.contains("(conflict from "))
             .count() as u64,
         updated: now,
+        other: Default::default(),
     };
     doc_update(addr, |doc| {
         let Some(d) = doc.drives.iter_mut().find(|d| d.id == drive.id) else {
@@ -1041,6 +1187,18 @@ fn report(
         Ok(())
     })?;
     Ok(())
+}
+
+fn forget_local(lm: &LocalMember) -> Result<()> {
+    statuses()
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .remove(&lm.member);
+    runtimes()
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .remove(&lm.member);
+    remove_local(&lm.drive, Some(&lm.member))
 }
 
 static RUNNING: AtomicBool = AtomicBool::new(false);
@@ -1244,6 +1402,27 @@ fn count_local(root: &Path) -> (usize, bool) {
 /// The drive's home on the console. `new_name`: a folder to make under `path` (then `path` is its
 /// parent); otherwise `path` itself is the folder. `drive`: the drive it is checked for (its own
 /// folder is not "taken").
+/// The console's whole data area or a whole drive: everything on it would reach every device.
+fn hub_too_broad(path: &str) -> bool {
+    let p = path.trim_end_matches('/');
+    if p.is_empty()
+        || [
+            "/data",
+            "/mnt",
+            "/user",
+            "/system_data",
+            "/mnt/usb",
+            "/mnt/ext",
+        ]
+        .contains(&p)
+    {
+        return true;
+    }
+    // /mnt/usb0, /mnt/ext1 ...: a whole drive.
+    p.strip_prefix("/mnt/")
+        .is_some_and(|d| !d.contains('/') && (d.starts_with("usb") || d.starts_with("ext")))
+}
+
 pub fn check_hub(
     addr: &str,
     doc: &DriveDoc,
@@ -1260,6 +1439,9 @@ pub fn check_hub(
         Some(n) => format!("{}/{n}", if parent.is_empty() { "" } else { parent }),
         None => parent.to_string(),
     };
+    if hub_too_broad(&target) {
+        return fail_check(&target, "too_broad", None);
+    }
     for d in doc.drives.iter().filter(|d| Some(d.id.as_str()) != drive) {
         let problem = if inside(&target, &d.hub) && inside(&d.hub, &target) {
             "taken"
@@ -1322,6 +1504,34 @@ pub fn check_hub(
 
 /// This device's folder for a drive. `drive`: the drive it is for (its own entry here is not an
 /// overlap).
+/// A whole disk, a phone's whole storage or a home folder: syncing it would copy everything on the
+/// device to the console (a picker's "use this folder" at the top level is an easy slip).
+fn too_broad(p: &Path) -> bool {
+    use std::path::Component;
+    if !p.components().any(|c| matches!(c, Component::Normal(_))) {
+        return true; // "/", "C:\"
+    }
+    let s = p.to_string_lossy();
+    let s = s.trim_end_matches(['/', '\\']);
+    if [
+        "/storage/emulated/0",
+        "/storage/emulated",
+        "/sdcard",
+        "/storage",
+        "/Users",
+        "/home",
+        "/Volumes",
+        "/mnt",
+        "/media",
+    ]
+    .contains(&s)
+    {
+        return true;
+    }
+    std::env::var_os(if cfg!(windows) { "USERPROFILE" } else { "HOME" })
+        .is_some_and(|h| Path::new(&h) == Path::new(s))
+}
+
 pub fn check_local(path: &str, drive: Option<&str>) -> FolderCheck {
     let p = Path::new(path.trim());
     let shown = p.to_string_lossy().into_owned();
@@ -1333,6 +1543,9 @@ pub fn check_local(path: &str, drive: Option<&str>) -> FolderCheck {
         if inside(&a, &b) || inside(&b, &a) {
             return fail_check(&shown, "app_data", None);
         }
+    }
+    if too_broad(p) {
+        return fail_check(&shown, "too_broad", None);
     }
     for m in load_config()
         .members
@@ -1494,10 +1707,13 @@ fn make_lock(password: &str) -> Result<DriveLock> {
         salt: hex(&salt),
         hash: hex(&pbkdf2(password.as_bytes(), &salt, LOCK_ITER)),
         iter: LOCK_ITER,
+        other: Default::default(),
     })
 }
 
 fn lock_opens(lock: &DriveLock, password: &str) -> bool {
+    // Set trimmed, so checked trimmed (a phone keyboard adds a trailing space).
+    let password = password.trim();
     let salt: Vec<u8> = (0..lock.salt.len() / 2)
         .filter_map(|i| u8::from_str_radix(lock.salt.get(2 * i..2 * i + 2)?, 16).ok())
         .collect();
@@ -1714,7 +1930,14 @@ pub async fn create(Json(req): Json<CreateReq>) -> Response {
             return Ok(unsupported());
         }
         if let Some(p) = &local {
-            add_local(&addr, &id, &member_id, p, &name)?;
+            if let Err(e) = add_local(&addr, &id, &member_id, p, &name) {
+                // Never leave a drive on the console that this device cannot sync.
+                let _ = doc_update(&addr, |doc| {
+                    doc.drives.retain(|d| d.id != id);
+                    Ok(())
+                });
+                return Err(e);
+            }
             kick();
         }
         Ok(json!({ "supported": true, "ok": true, "drive": id }))
@@ -1809,7 +2032,15 @@ pub async fn join(Json(req): Json<JoinReq>) -> Response {
         let Some(drive_name) = joined else {
             return Ok(unsupported());
         };
-        add_local(&addr, &req.drive, &member_id, &path, &drive_name)?;
+        if let Err(e) = add_local(&addr, &req.drive, &member_id, &path, &drive_name) {
+            let _ = doc_update(&addr, |doc| {
+                if let Some(d) = doc.drives.iter_mut().find(|d| d.id == req.drive) {
+                    d.members.retain(|m| m.id != member_id);
+                }
+                Ok(())
+            });
+            return Err(e);
+        }
         kick();
         Ok(json!({ "supported": true, "ok": true, "member": member_id, "approved": true }))
     })
@@ -2002,10 +2233,73 @@ mod tests {
             salt: hex(b"0123456789abcdef"),
             hash: hex(&pbkdf2(b"open sesame", b"0123456789abcdef", 1000)),
             iter: 1000,
+            other: Default::default(),
         };
         assert!(lock_opens(&l, "open sesame"));
-        assert!(!lock_opens(&l, "open sesame "));
+        assert!(lock_opens(&l, "open sesame "));
+        assert!(!lock_opens(&l, "open sesam"));
         assert!(!lock_opens(&l, ""));
+    }
+
+    #[test]
+    fn console_roots_are_too_broad() {
+        for bad in ["/", "/data", "/data/", "/mnt/usb0", "/mnt/ext1", "/user"] {
+            assert!(hub_too_broad(bad), "{bad}");
+        }
+        for ok in ["/data/Shared", "/mnt/usb0/mesh", "/mnt/ext0/PS5Upload Mesh"] {
+            assert!(!hub_too_broad(ok), "{ok}");
+        }
+    }
+
+    #[test]
+    fn whole_disks_and_homes_are_too_broad() {
+        for bad in [
+            "/",
+            "/storage/emulated/0",
+            "/storage/emulated/0/",
+            "/sdcard",
+            "/Users",
+            "/mnt",
+        ] {
+            assert!(too_broad(Path::new(bad)), "{bad}");
+        }
+        for ok in [
+            "/mesh",
+            "/storage/emulated/0/Documents/Shared",
+            "/Users/me/Shared",
+            "/mnt/user/share",
+        ] {
+            assert!(!too_broad(Path::new(ok)), "{ok}");
+        }
+        if let Some(h) = std::env::var_os("HOME") {
+            assert!(too_broad(Path::new(&h)));
+        }
+    }
+
+    #[test]
+    fn free_name_never_reuses_a_name() {
+        let used = ["a/x.txt", "a/x (2).txt", "noext", ".hidden"];
+        let taken = |r: &str| used.contains(&r);
+        assert_eq!(free_name("a/y.txt", taken), "a/y.txt");
+        assert_eq!(free_name("a/x.txt", taken), "a/x (3).txt");
+        assert_eq!(free_name("noext", taken), "noext (2)");
+        assert_eq!(free_name(".hidden", taken), ".hidden (2)");
+    }
+
+    #[test]
+    fn case_clashes_hold_both_sides_back() {
+        let mut here = Listing::new();
+        let mut there = Listing::new();
+        here.insert("Foo.txt".into(), Meta { size: 1, mtime: 0 });
+        here.insert("same.txt".into(), Meta { size: 1, mtime: 0 });
+        there.insert("foo.txt".into(), Meta { size: 2, mtime: 0 });
+        there.insert("same.txt".into(), Meta { size: 1, mtime: 0 });
+        let c = case_clashes(&here, &there);
+        if cfg!(any(windows, target_os = "macos")) {
+            assert!(c.contains("Foo.txt") && c.contains("foo.txt") && !c.contains("same.txt"));
+        } else {
+            assert!(c.is_empty());
+        }
     }
 
     #[test]
