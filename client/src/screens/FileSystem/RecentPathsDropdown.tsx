@@ -1,8 +1,9 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { ChevronRight, Star, StarOff } from "lucide-react";
 
 import { useTr } from "../../state/lang";
 import { useRecentPathsStore } from "../../state/recentPaths";
+import { useFitOnScreen } from "../../components/useFitOnScreen";
 
 /** The open list of the Recent dropdown. An opaque raised surface (the
  *  app's floating-menu glass), stacked above the file list: on the plain
@@ -22,10 +23,14 @@ export function RecentPathsPanel({
   console?: ConsolePinsGroup;
 }) {
   const tr = useTr();
+  const ref = useRef<HTMLDivElement>(null);
+  const fit = useFitOnScreen(ref, true);
   return (
     <div
+      ref={ref}
       data-testid="fs-recent-list"
-      className="glass-float elev-2 absolute right-0 top-full z-40 mt-1 w-72 max-w-[calc(100vw-2rem)] overflow-hidden rounded-[var(--radius-card)]"
+      className="glass-float elev-2 absolute right-0 top-full z-40 mt-1 w-72 max-w-[calc(100vw-1rem)] overflow-y-auto rounded-[var(--radius-card)]"
+      style={fit}
     >
       {pinned && <ConsolePinnedGroup group={pinned} onPick={onPick} />}
       {paths.length > 0 && (

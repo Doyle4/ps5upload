@@ -4,6 +4,19 @@ What's new in ps5upload, written for humans.
 
 ---
 
+## Unreleased
+
+### Pop-ups stay on screen on phones
+
+- **Notifications open fully on Android and iPhone.** The panel from the bell in More grew off
+  the left edge of the screen; it now slides back to fit, and on a short or landscape screen it
+  scrolls instead of running off the bottom.
+- **Menus open the way they fit.** The Browse ▾ menu, the Files recent-folders list and the
+  console picker move back on screen and open upwards when there is no room below (above the
+  tab bar on a phone). The ⋯ menus no longer open under the top bar in landscape.
+- **Dialogs scroll on short screens.** Confirmations, the "already on your PS5" question and
+  the file-conflict question now scroll in landscape instead of being cut off top and bottom.
+
 ## 8.1.1
 
 ### Smoother syncing between devices

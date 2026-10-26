@@ -1821,8 +1821,8 @@ function ExistingDestinationDialog({
   );
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--overlay-scrim)] backdrop-blur-sm">
-      <div className="rounded-[var(--radius-panel)] border border-[var(--glass-edge)] bg-[var(--color-surface-raised)] shadow-[var(--edge-highlight),var(--shadow-1)] w-full max-w-md p-5 shadow-2xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--overlay-scrim)] p-4 backdrop-blur-sm">
+      <div className="rounded-[var(--radius-panel)] border border-[var(--glass-edge)] bg-[var(--color-surface-raised)] shadow-[var(--edge-highlight),var(--shadow-1)] max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto p-5 shadow-2xl">
         <h2 className="mb-1 text-base font-semibold">{title}</h2>
         <p className="mb-4 text-sm text-[var(--color-muted)]">{subtitle}</p>
 

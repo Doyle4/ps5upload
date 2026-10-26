@@ -9,6 +9,7 @@ import { ChevronDown, MoreHorizontal } from "lucide-react";
 
 import { Button, type ButtonVariant } from "./Button";
 import { MenuDropdown } from "./Menu";
+import { fitOnScreen, visibleArea } from "./useFitOnScreen";
 
 /**
  * One action inside an OverflowMenu.
@@ -107,11 +108,8 @@ export function OverflowMenu({
     }
     const menu = wrapperRef.current?.lastElementChild as HTMLElement | null;
     if (!menu || menu === wrapperRef.current?.firstElementChild) return;
-    const r = menu.getBoundingClientRect();
-    const margin = 8;
-    const vw = window.innerWidth;
-    const dx = r.left < margin ? margin - r.left : r.right > vw - margin ? vw - margin - r.right : 0;
-    setShiftX(Math.abs(dx) > 0.5 ? dx : 0);
+    const { dx } = fitOnScreen(menu.getBoundingClientRect(), visibleArea(menu));
+    setShiftX(dx);
   }, [open, placement]);
 
   useEffect(() => {
@@ -121,11 +119,11 @@ export function OverflowMenu({
       if (!el) return;
       const rect = el.getBoundingClientRect();
       const margin = 8;
-      // On a phone the floating tab bar covers the bottom of the screen: room ends above it.
-      const bar = document.querySelector("[data-bottom-nav]")?.getBoundingClientRect();
-      const vh = bar && bar.height > 0 ? Math.min(window.innerHeight, bar.top) : window.innerHeight;
-      const below = vh - rect.bottom - margin;
-      const above = rect.top - margin;
+      // Room ends above a phone's floating tab bar and inside the screen area (below the top
+      // bar): a menu flipped up on a short landscape phone ran under the top bar.
+      const area = visibleArea(el);
+      const below = area.bottom - rect.bottom - margin;
+      const above = rect.top - area.top - margin;
       // Flip up only when below is genuinely cramped and above has more room.
       const dropUp = below < 220 && above > below;
       setPlacement({

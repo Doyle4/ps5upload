@@ -149,7 +149,7 @@ export function useConfirm(): {
         aria-modal="true"
         aria-labelledby={titleId}
         aria-describedby={pending.message ? bodyId : undefined}
-        className="anim-pop glass-float elev-3 w-full max-w-md rounded-[var(--radius-panel)] p-6"
+        className="anim-pop glass-float elev-3 max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto rounded-[var(--radius-panel)] p-6"
         onClick={(e) => e.stopPropagation()}
       >
         <header
@@ -278,7 +278,7 @@ export function useAlert(): {
         aria-modal="true"
         aria-labelledby={titleId}
         aria-describedby={pending.message ? bodyId : undefined}
-        className="anim-pop glass-float elev-3 w-full max-w-md rounded-[var(--radius-panel)] p-6"
+        className="anim-pop glass-float elev-3 max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto rounded-[var(--radius-panel)] p-6"
         onClick={(e) => e.stopPropagation()}
       >
         <header
@@ -386,7 +386,7 @@ export function usePrompt(): {
         aria-modal="true"
         aria-labelledby={titleId}
         aria-describedby={pending.message ? bodyId : undefined}
-        className="anim-pop glass-float elev-3 w-full max-w-md rounded-[var(--radius-panel)] p-6"
+        className="anim-pop glass-float elev-3 max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto rounded-[var(--radius-panel)] p-6"
         onClick={(e) => e.stopPropagation()}
       >
         <header

@@ -17,6 +17,7 @@ import {
 } from "../state/notifications";
 import { useTr } from "../state/lang";
 import { formatDate } from "../lib/formatDate";
+import { useFitOnScreen } from "../components/useFitOnScreen";
 
 /**
  * Which Tailwind anchor class the panel gets for a given alignment.
@@ -94,6 +95,8 @@ export default function NotificationInbox({
     () => new Set(),
   );
   const wrapperRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const fit = useFitOnScreen(panelRef, open);
 
   // Filter-in-render is fine here: the render already subscribes to
   // the full `entries` array (visibleEntries below needs it), so a
@@ -183,8 +186,9 @@ export default function NotificationInbox({
           // edge of the bell it pins to, it grows AWAY from the nearest
           // window edge, and max-w-[calc(100vw-2rem)] keeps narrow windows
           // safe on the other side.
-          className={`anim-rise glass-float elev-2 absolute w-80 max-w-[calc(100vw-2rem)] overflow-hidden rounded-[var(--radius-card)] ${panelPlacementClass(placement)} ${panelAnchorClass(align)}`}
-          style={{ zIndex: 60 }}
+          ref={panelRef}
+          className={`anim-rise glass-float elev-2 absolute flex w-80 max-w-[calc(100vw-1rem)] flex-col overflow-hidden rounded-[var(--radius-card)] ${panelPlacementClass(placement)} ${panelAnchorClass(align)}`}
+          style={{ zIndex: 60, ...fit }}
         >
           <header className="flex items-center justify-between border-b border-[var(--color-border)] px-3 py-2">
             <h3 className="text-xs font-semibold">
@@ -231,7 +235,7 @@ export default function NotificationInbox({
               </button>
             </div>
           </header>
-          <div className="max-h-96 overflow-y-auto">
+          <div className="max-h-96 min-h-0 flex-1 overflow-y-auto">
             {visibleEntries.length === 0 ? (
               <div className="px-3 py-6 text-center text-xs text-[var(--color-muted)]">
                 {unreadOnly

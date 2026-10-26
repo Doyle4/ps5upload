@@ -24,6 +24,7 @@ import { Modal } from "../components/Modal";
 import { parsePS5Firmware } from "../lib/ps5Firmware";
 import { menuKeyTarget } from "../lib/menuKeys";
 import { formatDate } from "../lib/formatDate";
+import { useFitOnScreen } from "../components/useFitOnScreen";
 
 /**
  * Sidebar dropdown for switching between known PS5s.
@@ -54,6 +55,7 @@ export default function RosterPicker() {
   const wrapperRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const menuFit = useFitOnScreen(menuRef, open);
   const menuId = useId();
 
   const menuItems = () =>
@@ -171,7 +173,8 @@ export default function RosterPicker() {
           role="menu"
           aria-labelledby={`${menuId}-trigger`}
           onKeyDown={onMenuKeyDown}
-          className="glass-float elev-2 absolute left-0 right-0 top-[calc(100%+0.35rem)] z-40 overflow-hidden rounded-[var(--radius-card)] py-1.5"
+          className="glass-float elev-2 absolute left-0 right-0 top-[calc(100%+0.35rem)] z-40 overflow-y-auto rounded-[var(--radius-card)] py-1.5"
+          style={menuFit}
         >
           {profiles.length > 1 && (
             <ul className="max-h-40 overflow-y-auto" role="none">
