@@ -51,7 +51,7 @@
 - **Several devices, one PS5.** Computers, phones and Docker connect at once with no pairing
   code, see what the others are doing (Devices), share your consoles and settings, and stay out
   of each other's way. Settings are backed up daily, to the engine and to each console.
-  **Mesh Drive** (Files › Mesh Drive) keeps a folder the same on all of them, at home on the
+  **Mesh Drive** keeps a folder the same on all of them, at home on the
   console, with an optional join password and every device's state visible from any of them.
 - **Runs everywhere:** macOS, Windows, Linux, Android, iPhone (sideloaded), or any browser through the self-hosted
   Docker web UI ([compose file](engine/compose.yaml), see

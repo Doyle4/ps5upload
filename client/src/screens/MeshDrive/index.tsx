@@ -1,4 +1,4 @@
-// Mesh Drive, a tab of Files (8.0.1): folders kept the same on every device that joins them, at
+// Mesh Drive (8.0.0; reworked 8.0.1): folders kept the same on every device that joins them, at
 // home on the console. The tab lists the drives on this console: whether this device keeps each
 // one and how it is doing, and every device in it as that device last reported to the console (the
 // console is the one source all of them read). Joining needs no other device: a drive is open, or
@@ -312,11 +312,6 @@ function DriveCard({
         ]
       : []),
     {
-      label: tr("drive_show_on_console", undefined, "Show on the console"),
-      icon: <HardDrive size={12} />,
-      onSelect: () => navigate(`/files?path=${encodeURIComponent(d.hub)}`),
-    },
-    {
       label: d.lock
         ? tr("drive_password_change", undefined, "Change or remove password…")
         : tr("drive_password_set", undefined, "Set a password…"),
@@ -390,7 +385,16 @@ function DriveCard({
             )}
           </div>
         </div>
-        <div className="flex shrink-0 items-center gap-1.5">
+        <div className="flex shrink-0 flex-wrap items-center gap-1.5">
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => navigate(`/files?path=${encodeURIComponent(d.hub)}`)}
+            leftIcon={<HardDrive size={14} />}
+            title={d.hub}
+          >
+            {tr("drive_open_on_console", undefined, "Open on console")}
+          </Button>
           {canOpen && (
             <Button size="sm" variant="ghost" onClick={() => void run(openHere)} leftIcon={<FolderOpen size={14} />}>
               {tr("drive_open_folder", undefined, "Open folder")}
@@ -443,7 +447,7 @@ function DriveCard({
   );
 }
 
-export default function MeshDriveTab({ tabs }: { tabs?: React.ReactNode }) {
+export default function MeshDriveScreen() {
   const tr = useTr();
   const navigate = useNavigate();
   const host = useConnectionStore((s) => s.host);
@@ -529,7 +533,6 @@ export default function MeshDriveTab({ tabs }: { tabs?: React.ReactNode }) {
           ) : undefined
         }
       />
-      {tabs}
     </>
   );
 
@@ -618,7 +621,7 @@ export default function MeshDriveTab({ tabs }: { tabs?: React.ReactNode }) {
               {tr(
                 "drive_how_5",
                 undefined,
-                "Any device can join from this tab. To keep others out, give the drive a password; only its hash is kept on the console.",
+                "Any device can join from this page. To keep others out, give the drive a password; only its hash is kept on the console.",
               )}
             </li>
             <li>

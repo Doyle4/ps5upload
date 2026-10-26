@@ -50,6 +50,7 @@ import {
   FileArchive,
   X,
   HardDrive,
+  FolderSync,
   Usb,
   Eject,
   Eye,
@@ -224,6 +225,7 @@ import {
 import { useStaleHostGuard } from "../../lib/staleHostGuard";
 import { labelEngineJob } from "../../lib/bgWork";
 import { canEjectUsb, useUsbEject } from "../../lib/useUsbEject";
+import { useMeshDriveShortcuts } from "./useMeshDriveShortcuts";
 
 function parent(p: string): string {
   if (p === "/" || p === "") return "/";
@@ -377,11 +379,12 @@ function crumbs(p: string): { label: string; path: string }[] {
   return out;
 }
 
-export default function FileSystemScreen({ tabs }: { tabs?: React.ReactNode } = {}) {
+export default function FileSystemScreen() {
   const tr = useTr();
   const host = useConnectionStore((s) => s.host);
   const guard = useStaleHostGuard();
   const payloadStatus = useConnectionStore((s) => s.payloadStatus);
+  const meshDrives = useMeshDriveShortcuts(host ?? "", payloadStatus === "up");
   const clipboard = useFsClipboardStore();
   const systemFileRead = useUploadSettingsStore((s) => s.systemFileRead);
   const canDragOut = dragOutAvailable();
@@ -3068,7 +3071,6 @@ export default function FileSystemScreen({ tabs }: { tabs?: React.ReactNode } = 
           </div>
         }
       />
-      {tabs}
 
       <ConnectionGate require="payload">
         {/* An open edit session means the browsed mount is a game image
@@ -3156,6 +3158,24 @@ export default function FileSystemScreen({ tabs }: { tabs?: React.ReactNode } = 
                     {ejecting ? <Spinner size={12} /> : <Eject size={12} />}
                   </button>
                 </span>
+              );
+            })}
+            {/* Mesh Drives: a shortcut to each drive's home on the console. */}
+            {meshDrives.map((d) => {
+              const here = path === d.hub || path.startsWith(`${d.hub}/`);
+              return (
+                <button
+                  key={`mesh:${d.id}`}
+                  type="button"
+                  onClick={() => setPath(d.hub)}
+                  title={tr("fs_mesh_drive_shortcut", { name: d.name, path: d.hub }, `Mesh Drive ${d.name}: ${d.hub}`)}
+                  aria-current={here ? "true" : undefined}
+                  aria-pressed={here}
+                  className="chip shrink-0 gap-1 px-2 py-1 sm:gap-1.5 sm:px-3 sm:py-1.5"
+                >
+                  <FolderSync size={12} className="text-[var(--color-accent-bright)]" />
+                  {d.name}
+                </button>
               );
             })}
             {/* When the current path sits under no known volume, mirror the old

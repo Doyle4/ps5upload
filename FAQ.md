@@ -2066,7 +2066,7 @@ console list. **Export bundle** still saves everything to a file you keep.
 
 **Q: What is Mesh Drive?**
 A folder kept the same on every device that joins it, with its home in a folder on the console.
-Open **Files › Mesh Drive** and press **New Mesh Drive**:
+Open **Mesh Drive** in the sidebar (on a phone, under More) and press **New Mesh Drive**:
 
 1. Name the drive.
 2. Choose its home on the console: **Make a new folder** (pick where, and its name) or **Use a
@@ -2076,12 +2076,12 @@ Open **Files › Mesh Drive** and press **New Mesh Drive**:
 
 The dialog checks each choice as you make it (a folder name already taken, a folder that belongs
 to another drive or sits inside one, the app's own data folder) and Create stays off until both
-folders are usable. On each other device, open the same tab and press **Keep on this device…** on
+folders are usable. On each other device, open Mesh Drive and press **Keep on this device…** on
 the drive, then pick a folder there. Each device syncs with the console every half minute while
 the helper runs; Docker keeps syncing with no app open, phones only while the app is open.
 
 **Q: Do I need another device to let a new one in?**
-No (8.0.1). Any device joins from the tab. To keep others out, give the drive a password when you
+No (8.0.1). Any device joins from the Mesh Drive page. To keep others out, give the drive a password when you
 make it, or later from the drive's ⋯ menu (**Set a password…**); a device joining types it once.
 The console keeps only a salted hash of it. Any device in the drive can change or remove the
 password, and so can anyone who knows it, so it never locks you out when a device is gone. The
@@ -2095,8 +2095,9 @@ it has, with a dot for online. That list comes from the console, so every device
 one. Press **Remove** next to a device that is gone for good; its files stay where they are.
 
 **Q: How do I open the drive's folder?**
-On a computer, press **Open folder** on the drive card (Finder on a Mac, Explorer on Windows). **Show
-on the console** in the ⋯ menu opens the drive's home in Files. The card also shows the drive's
+On a computer, press **Open folder** on the drive card (Finder on a Mac, Explorer on Windows). **Open on
+console** opens the drive's home in Files, and Files lists every Mesh Drive in its **Drives** row
+(next to `/data` and your USB drives) so you can jump to one from there. The card also shows the drive's
 file count, size, conflict copies and the free space left on the console.
 
 **Q: Mesh Drive with Docker or the web UI: where are the files?**
@@ -2120,7 +2121,7 @@ names: Windows refuses names with `: * ? " < > |` or ending in a dot, and macOS 
 **Q: I deleted a file by mistake.**
 Deleted files go to the drive's `.ps5upload-trash` folder (on each device and on the console),
 sorted by date, for 30 days. Deleting many files at once waits for you to confirm on the Mesh Drive
-tab (**Review the deletes**).
+page (**Review the deletes**).
 
 **Q: I unplugged the drive my Mesh Drive folder is on. Will it delete everything?**
 No. Every drive folder holds a `.ps5upload-mesh` file. A folder without it counts as offline, and

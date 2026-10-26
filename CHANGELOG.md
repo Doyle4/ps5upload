@@ -17,8 +17,7 @@ What's new in ps5upload, written for humans.
 
 ### Mesh Drive, reworked
 
-- **Mesh Drive moved into Files**, as a tab next to the console's files. Nothing is picked for
-  you any more: name the drive, then either make a new folder on the console (you choose where
+- **Making a drive is guided.** Nothing is picked for you any more: name the drive, then either make a new folder on the console (you choose where
   and its name) or pick one that is already there, and pick the folder on this device. Every
   choice is checked as you make it (a name that is taken, a folder inside another drive, a file
   instead of a folder, the app's own data folder) and Create stays off until both are usable.
@@ -33,8 +32,9 @@ What's new in ps5upload, written for humans.
   drive and how each is doing from any device; a device that is gone can be removed by any other.
 - **What you'd want to know about the folder:** files, total size, conflict copies, free space on
   the console, live progress (file 12 of 40 and its name), and files that were left out and why.
-- **Open folder** opens this device's copy in Finder or Explorer (desktop app); **Show on the
-  console** opens the drive's home in the Files tab.
+- **Open folder** opens this device's copy in Finder or Explorer (desktop app); **Open on
+  console** opens the drive's home in Files. Files lists every Mesh Drive next to `/data` and the
+  USB drives in its **Drives** row, as a shortcut to its folder on the console.
 - **Steadier syncing.** A pass skips re-reading the console's folder when nothing changed (until
   two minutes pass); waits while a game installs; rests a file that keeps failing for ten minutes
   instead of retrying it every pass; leaves out names this device cannot store (Windows) and names
