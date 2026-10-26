@@ -3,6 +3,7 @@
 
 import { AlertTriangle, Check, ChevronDown, ChevronUp, X } from "lucide-react";
 
+import { humanizeJobErrorReason } from "../api/ps5";
 import { KindIcon } from "../components/TaskList";
 import { Spinner } from "../components/Spinner";
 import { formatBytes, formatDuration } from "../lib/format";
@@ -205,6 +206,12 @@ function agoText(ms: number, tr: ReturnType<typeof useTr>): string {
   return tr("activity_ago_hours", { hours }, `${hours} h ago`);
 }
 
+/** A failure in words: an engine token (`ava1_unreachable`) said the way the job screens say
+ *  it; any other text as it is. */
+export function failureText(message: string): string {
+  return (/^[a-z0-9_]+$/.test(message.trim()) && humanizeJobErrorReason(message.trim())) || message;
+}
+
 function FinishedRowView({ row, onOpen, onRetry, canRetry }: { row: FinishedRow } & ActivityPanelProps) {
   const tr = useTr();
   const { task, outcome } = row;
@@ -228,8 +235,8 @@ function FinishedRowView({ row, onOpen, onRetry, canRetry }: { row: FinishedRow 
       </button>
       <span className="shrink-0 text-[var(--color-muted)]">{agoText(row.agoMs, tr)}</span>
       {outcome === "failed" && task.lastError?.message && (
-        <span className="min-w-0 flex-1 truncate text-[var(--color-bad)]" title={task.lastError.message}>
-          {task.lastError.message}
+        <span className="min-w-0 flex-1 truncate text-[var(--color-bad)]" title={failureText(task.lastError.message)}>
+          {failureText(task.lastError.message)}
         </span>
       )}
       {canRetry(task) && (

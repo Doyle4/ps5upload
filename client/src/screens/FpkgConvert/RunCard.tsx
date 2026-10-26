@@ -55,6 +55,20 @@ const LABEL: Record<PipelineStage, [string, string]> = {
   install: ["fpkg.stage.install", "Install on PS5"],
 };
 
+/** An LZ4 image build (its pack stage ran) that came out no smaller than the source: the
+ *  game's data was already compressed. Said, rather than leaving "101% of" unexplained. */
+export function lz4SavedNothing(
+  p: { mode: string; packageBytes: number; stageMs: Partial<Record<string, number>> },
+  sourceBytes: number | undefined,
+): boolean {
+  return (
+    p.mode === "image" &&
+    p.stageMs.pack !== undefined &&
+    !!sourceBytes &&
+    p.packageBytes >= sourceBytes * 0.99
+  );
+}
+
 export interface RunCardProps {
   pipeline: Pipeline;
   /** The stream-install task, while one runs. */
@@ -435,6 +449,15 @@ export function RunCard(props: RunCardProps) {
             </span>
           )}
         </div>
+        {lz4SavedNothing(p, props.sourceBytes) && (
+          <div className="text-sm text-[var(--color-warn)]">
+            {tr(
+              "fpkg.lz4_saved_nothing",
+              undefined,
+              "LZ4 found nothing to compress: this game's files are already compressed by its developer, so the image stays the size of the game. It works as usual.",
+            )}
+          </div>
+        )}
         <div className="break-all text-sm text-[var(--color-text)]">
           {p.deleted ? tr("fpkg.deleted", undefined, "Package deleted") : p.packagePath}
         </div>

@@ -811,6 +811,9 @@ export default function InstalledAppsScreen() {
   const [smp, setSmp] = useState<SmpStatus | "checking" | null>("checking");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // A title action that failed (uninstall, hide): its own box, so it never reads as the list
+  // failing to load ("Couldn't read installed apps" over an uninstall refusal).
+  const [actionError, setActionError] = useState<{ title: string; detail: string } | null>(null);
   const [registeredUnavailable, setRegisteredUnavailable] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [launchingId, setLaunchingId] = useState<string | null>(null);
@@ -907,6 +910,7 @@ export default function InstalledAppsScreen() {
     setTitles(null);
     setSmp("checking");
     setError(null);
+    setActionError(null);
     setRunning(new Map());
     setSdkState({ titles: [] });
     setBackportTitle(null);
@@ -1251,7 +1255,7 @@ export default function InstalledAppsScreen() {
       });
       if (!ok || probe.isStale()) return;
       setBusyId(t.titleId);
-      setError(null);
+      setActionError(null);
       try {
         const res = await appUnregister(transferAddr(probe.host), t.titleId);
         audit("app_uninstall", withConsolePrefix(probe.host, t.titleName), { context: t.titleId });
@@ -1273,7 +1277,19 @@ export default function InstalledAppsScreen() {
       } catch (e) {
         if (probe.isStale()) return;
         const raw = e instanceof Error ? e.message : String(e);
-        setError(humanizePs5Error(raw));
+        // Sony's 0x80B2xxxx codes read as install failures in the shared wording ("rejected
+        // the install"): an uninstall says what it is.
+        const code = /0x80B2_?[0-9A-Fa-f]{4}/i.exec(raw)?.[0];
+        setActionError({
+          title: tr("installed_uninstall_failed", { name: t.titleName }, `Couldn't uninstall ${t.titleName}`),
+          detail: code
+            ? tr(
+                "installed_uninstall_refused",
+                { code },
+                `The PS5 refused to uninstall it (${code}). Close the game if it is running and try again; if it stays, delete it from the PS5's Settings → Storage.`,
+              )
+            : humanizePs5Error(raw),
+        });
       } finally {
         setBusyId(null);
       }
@@ -1305,7 +1321,7 @@ export default function InstalledAppsScreen() {
         if (!ok || probe.isStale()) return;
       }
       setBusyId(t.titleId);
-      setError(null);
+      setActionError(null);
       try {
         await setIconHidden(probe.host, t.titleId, hide);
         audit(hide ? "app_icon_hide" : "app_icon_show", withConsolePrefix(probe.host, t.titleName), {
@@ -1321,7 +1337,12 @@ export default function InstalledAppsScreen() {
       } catch (e) {
         if (probe.isStale()) return;
         const raw = e instanceof Error ? e.message : String(e);
-        setError(humanizePs5Error(raw));
+        setActionError({
+          title: hide
+            ? tr("installed_hide_failed", { name: t.titleName }, `Couldn't hide ${t.titleName}`)
+            : tr("installed_show_failed", { name: t.titleName }, `Couldn't show ${t.titleName}`),
+          detail: humanizePs5Error(raw),
+        });
       } finally {
         setBusyId(null);
       }
@@ -1609,6 +1630,7 @@ export default function InstalledAppsScreen() {
           />
         ) : null}
 
+        {actionError ? <ErrorCard title={actionError.title} detail={actionError.detail} /> : null}
         {error ? (
           <ErrorCard
             title={tr(

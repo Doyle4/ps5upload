@@ -129,3 +129,13 @@ describe("ActivityPanelView", () => {
     expect((out.match(/>Retry</g) ?? []).length).toBe(1);
   });
 });
+
+describe("failureText", () => {
+  it("says an engine token in words and leaves other text alone", async () => {
+    const { failureText } = await import("./ActivitySummary");
+    expect(failureText("ava1_unreachable")).toMatch(/could not be reached/);
+    expect(failureText("console_rest_mode")).toMatch(/rest mode/);
+    expect(failureText("USB gone")).toBe("USB gone");
+    expect(failureText("some_unknown_token")).toBe("some_unknown_token");
+  });
+});

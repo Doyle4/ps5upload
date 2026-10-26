@@ -4,6 +4,18 @@ What's new in ps5upload, written for humans.
 
 ---
 
+## Unreleased
+
+- **Installed Apps: a failed uninstall says so.** It showed under "Couldn't read installed apps"
+  with advice about installs (Sony's 0x80B2 codes). Uninstall and hide/show failures now have
+  their own message, and a refused uninstall says to close the game or remove it from the PS5's
+  Settings → Storage.
+- **Activity says why a job failed in words.** A queue that failed because the PS5 was not
+  answering showed `ava1_unreachable`; it now reads "The PS5 could not be reached…".
+- **Convert explains an LZ4 image that saved nothing.** A game whose files are already
+  compressed came out at 101% with no word why; the result now says LZ4 found nothing to
+  compress and the image works as usual.
+
 ## 8.3.0
 
 ### Updates install and restart, every time
