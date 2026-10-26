@@ -4266,6 +4266,7 @@ version = "8.0.0"
 dependencies = [
  "aes-gcm 0.11.0",
  "anyhow",
+ "argon2",
  "async-trait",
  "ava1",
  "axum",
