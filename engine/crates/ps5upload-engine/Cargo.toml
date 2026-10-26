@@ -53,6 +53,8 @@ suppaftp = { version = "12", default-features = false, features = ["tokio-rustls
 rustls = { version = "0.23", default-features = false, features = ["ring", "std", "logging"] }
 tokio-rustls = { version = "0.26", default-features = false, features = ["ring"] }
 sha2 = "0.11"
+# Mesh Drive passwords (Argon2id).
+argon2 = { version = "0.6", default-features = false, features = ["alloc"] }
 russh = { version = "0.64", default-features = false, features = ["ring", "rsa", "flate2"] }
 russh-sftp = "3"
 # Install-from-a-link fetches the package over many HTTP range connections at

@@ -24,7 +24,7 @@ What's new in ps5upload, written for humans.
 - **No more "let in" step.** Joining used to wait for a device already in the drive to approve
   it, which locked everyone out once that device was gone. Now any device joins from the tab. To
   keep others out, give the drive a **password** (when you make it, or later from its ⋯ menu); a
-  device joining types it once. Only a salted hash (PBKDF2-SHA256) is kept on the console, and any
+  device joining types it once. Only a salted Argon2id hash is kept on the console, and any
   device in the drive, or anyone who knows the password, can change or remove it.
 - **Every device in the drive, as the console sees it.** Each device's engine reports to the
   console after a pass: its state, how many files and how much it holds, its app version, and when

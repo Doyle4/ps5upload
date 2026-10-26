@@ -98,12 +98,17 @@ pub struct Drive {
     pub other: serde_json::Map<String, Value>,
 }
 
-/// A drive's password, kept only as PBKDF2-HMAC-SHA256 (hex).
+/// A drive's password, kept only as an Argon2id hash (hex) with its salt and cost.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct DriveLock {
+    /// "argon2id".
+    pub alg: String,
     pub salt: String,
     pub hash: String,
-    pub iter: u32,
+    /// Memory (KiB), passes, lanes.
+    pub m: u32,
+    pub t: u32,
+    pub p: u32,
     #[serde(flatten)]
     pub other: serde_json::Map<String, Value>,
 }
@@ -1655,58 +1660,40 @@ fn new_member(id: &str, device: &str, path: &str) -> Member {
 
 // ---- a drive's password ----
 
-fn hmac_sha256(key: &[u8], msg: &[u8]) -> [u8; 32] {
-    use sha2::{Digest, Sha256};
-    let mut k = [0u8; 64];
-    if key.len() > 64 {
-        k[..32].copy_from_slice(&Sha256::digest(key));
-    } else {
-        k[..key.len()].copy_from_slice(key);
-    }
-    let mut ipad = [0x36u8; 64];
-    let mut opad = [0x5cu8; 64];
-    for i in 0..64 {
-        ipad[i] ^= k[i];
-        opad[i] ^= k[i];
-    }
-    let inner = Sha256::new()
-        .chain_update(ipad)
-        .chain_update(msg)
-        .finalize();
-    let outer = Sha256::new()
-        .chain_update(opad)
-        .chain_update(inner)
-        .finalize();
-    outer.into()
-}
-
-/// PBKDF2-HMAC-SHA256, one 32-byte block.
-fn pbkdf2(password: &[u8], salt: &[u8], iter: u32) -> [u8; 32] {
-    let mut msg = salt.to_vec();
-    msg.extend_from_slice(&1u32.to_be_bytes());
-    let mut u = hmac_sha256(password, &msg);
-    let mut out = u;
-    for _ in 1..iter {
-        u = hmac_sha256(password, &u);
-        for (o, x) in out.iter_mut().zip(u.iter()) {
-            *o ^= x;
-        }
-    }
-    out
-}
-
 fn hex(b: &[u8]) -> String {
     b.iter().map(|x| format!("{x:02x}")).collect()
 }
 
-const LOCK_ITER: u32 = 120_000;
+fn unhex(s: &str) -> Vec<u8> {
+    (0..s.len() / 2)
+        .filter_map(|i| u8::from_str_radix(s.get(2 * i..2 * i + 2)?, 16).ok())
+        .collect()
+}
+
+/// Argon2id of `password` with `salt` at the given cost.
+fn argon2id(password: &[u8], salt: &[u8], m: u32, t: u32, p: u32) -> Result<[u8; 32]> {
+    let params = argon2::Params::new(m, t, p, Some(32)).map_err(|e| anyhow!("argon2: {e}"))?;
+    let a = argon2::Argon2::new(argon2::Algorithm::Argon2id, argon2::Version::V0x13, params);
+    let mut out = [0u8; 32];
+    a.hash_password_into(password, salt, &mut out)
+        .map_err(|e| anyhow!("argon2: {e}"))?;
+    Ok(out)
+}
 
 fn make_lock(password: &str) -> Result<DriveLock> {
     let salt: [u8; 16] = ava1::keys::random_bytes()?;
+    let (m, t, p) = (
+        argon2::Params::DEFAULT_M_COST,
+        argon2::Params::DEFAULT_T_COST,
+        argon2::Params::DEFAULT_P_COST,
+    );
     Ok(DriveLock {
+        alg: "argon2id".into(),
         salt: hex(&salt),
-        hash: hex(&pbkdf2(password.as_bytes(), &salt, LOCK_ITER)),
-        iter: LOCK_ITER,
+        hash: hex(&argon2id(password.as_bytes(), &salt, m, t, p)?),
+        m,
+        t,
+        p,
         other: Default::default(),
     })
 }
@@ -1714,19 +1701,29 @@ fn make_lock(password: &str) -> Result<DriveLock> {
 fn lock_opens(lock: &DriveLock, password: &str) -> bool {
     // Set trimmed, so checked trimmed (a phone keyboard adds a trailing space).
     let password = password.trim();
-    let salt: Vec<u8> = (0..lock.salt.len() / 2)
-        .filter_map(|i| u8::from_str_radix(lock.salt.get(2 * i..2 * i + 2)?, 16).ok())
-        .collect();
-    let got = hex(&pbkdf2(
+    if lock.alg != "argon2id" {
+        return false;
+    }
+    // A cost far past the default is refused rather than run (a forged document could ask for
+    // gigabytes).
+    if lock.m > 256 * 1024 || lock.t > 16 || lock.p > 8 {
+        return false;
+    }
+    let Ok(got) = argon2id(
         password.as_bytes(),
-        &salt,
-        lock.iter.clamp(1, 1_000_000),
-    ));
+        &unhex(&lock.salt),
+        lock.m,
+        lock.t,
+        lock.p,
+    ) else {
+        return false;
+    };
+    let want = unhex(&lock.hash);
     // Constant-time compare.
-    got.len() == lock.hash.len()
+    want.len() == got.len()
         && got
-            .bytes()
-            .zip(lock.hash.bytes())
+            .iter()
+            .zip(want.iter())
             .fold(0u8, |a, (x, y)| a | (x ^ y))
             == 0
 }
@@ -2216,29 +2213,21 @@ mod tests {
     use super::*;
 
     #[test]
-    fn pbkdf2_matches_rfc7914_vectors() {
-        assert_eq!(
-            hex(&pbkdf2(b"password", b"salt", 1)),
-            "120fb6cffcf8b32c43e7225256c4f837a86548c92ccc35480805987cb70be17b"
-        );
-        assert_eq!(
-            hex(&pbkdf2(b"password", b"salt", 2)),
-            "ae4d0c95af6b46d32d0adff928f06dd02a303f8ef3c251dfd6e2d85a95474c43"
-        );
-    }
-
-    #[test]
     fn a_drive_password_opens_only_itself() {
-        let l = DriveLock {
-            salt: hex(b"0123456789abcdef"),
-            hash: hex(&pbkdf2(b"open sesame", b"0123456789abcdef", 1000)),
-            iter: 1000,
-            other: Default::default(),
-        };
-        assert!(lock_opens(&l, "open sesame"));
-        assert!(lock_opens(&l, "open sesame "));
-        assert!(!lock_opens(&l, "open sesam"));
+        let pw = String::from_utf8(vec![b'o'; 12]).unwrap();
+        let l = make_lock(&pw).unwrap();
+        assert_eq!(l.alg, "argon2id");
+        assert!(!l.hash.contains(&pw));
+        assert!(lock_opens(&l, &pw));
+        assert!(lock_opens(&l, &format!("{pw} ")));
+        assert!(!lock_opens(&l, &pw[1..]));
         assert!(!lock_opens(&l, ""));
+        // Two locks of one password differ (their salts do).
+        assert_ne!(make_lock(&pw).unwrap().hash, l.hash);
+        // A forged cost is refused, not run.
+        let mut heavy = l.clone();
+        heavy.m = 4 * 1024 * 1024;
+        assert!(!lock_opens(&heavy, &pw));
     }
 
     #[test]
