@@ -72,6 +72,7 @@
   "cw_cleanup_err_busy": "此 PS5 上正在进行安装、传输或其他清理。请在完成后重试。",
   "cw_cleanup_err_expired": "此列表已超过 10 分钟。请重新扫描。",
   "cw_cleanup_err_install_running": "PS5 正在安装内容。请在完成后重试。",
+  "cw_cleanup_err_restarted": "PS5 上的助手已重启，此操作已丢失。请重新扫描。",
   "cw_cleanup_err_unsupported": "此 PS5 上的助手版本过旧，不支持清理。请更新助手。",
   "cw_cleanup_failed": "清理已停止",
   "cw_cleanup_found_so_far": "目前已找到 {count} 项",

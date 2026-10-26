@@ -72,6 +72,7 @@
   "cw_cleanup_err_busy": "يجري تثبيت أو نقل أو تنظيف آخر على هذا PS5. حاول مرة أخرى عند انتهائه.",
   "cw_cleanup_err_expired": "مرّ على هذه القائمة أكثر من 10 دقائق. افحص مرة أخرى.",
   "cw_cleanup_err_install_running": "PS5 يثبّت شيئًا الآن. حاول مرة أخرى عند انتهائه.",
+  "cw_cleanup_err_restarted": "أُعيد تشغيل المساعد على PS5 فضاع هذا. افحص مرة أخرى.",
   "cw_cleanup_err_unsupported": "المساعد على هذا PS5 قديم جدًا لميزة التنظيف. حدّث المساعد.",
   "cw_cleanup_failed": "توقف التنظيف",
   "cw_cleanup_found_so_far": "تم العثور على {count} حتى الآن",

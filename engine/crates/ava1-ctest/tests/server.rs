@@ -814,22 +814,24 @@ async fn the_c_server_caps_unconfirmed_sessions_and_connections_per_address() {
             ..opts(0)
         },
     );
+    // MAX_CONNS_PER_IP (24 since 8.1.0: a computer with the app and a Docker engine share one
+    // address).
     let mut held = Vec::new();
-    for _ in 0..12 {
+    for _ in 0..24 {
         held.push(TcpStream::connect(srv.addr()).await.unwrap());
     }
     let t = Instant::now();
-    while srv.conns() < 12 && t.elapsed() < Duration::from_secs(3) {
+    while srv.conns() < 24 && t.elapsed() < Duration::from_secs(3) {
         tokio::time::sleep(Duration::from_millis(10)).await;
     }
     let r = connect(&srv.addr(), me.clone(), peers.clone(), "laptop", fast()).await;
     assert!(
         is_busy(&r),
-        "a 13th connection from one address: {:?}",
+        "a 25th connection from one address: {:?}",
         r.err()
     );
     held.pop();
-    wait_conns(&srv, 11).await;
+    wait_conns(&srv, 23).await;
     connect(&srv.addr(), me, peers, "laptop", fast())
         .await
         .unwrap();

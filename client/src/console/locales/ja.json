@@ -72,6 +72,7 @@
   "cw_cleanup_err_busy": "このPS5でインストール、転送、または別のクリーンアップが実行中です。完了してからもう一度お試しください。",
   "cw_cleanup_err_expired": "このリストは10分以上前のものです。もう一度スキャンしてください。",
   "cw_cleanup_err_install_running": "PS5がインストール中です。完了してからもう一度お試しください。",
+  "cw_cleanup_err_restarted": "PS5 のヘルパーが再起動したため、この処理は失われました。もう一度スキャンしてください。",
   "cw_cleanup_err_unsupported": "このPS5のヘルパーはクリーンアップには古すぎます。ヘルパーを更新してください。",
   "cw_cleanup_failed": "クリーンアップが停止しました",
   "cw_cleanup_found_so_far": "これまでに{count}件見つかりました",

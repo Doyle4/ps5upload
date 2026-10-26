@@ -72,6 +72,7 @@
   "cw_cleanup_err_busy": "इस PS5 पर इंस्टॉल, ट्रांसफ़र या दूसरी सफ़ाई चल रही है। पूरी होने पर फिर कोशिश करें।",
   "cw_cleanup_err_expired": "यह सूची 10 मिनट से ज़्यादा पुरानी है। फिर से स्कैन करें।",
   "cw_cleanup_err_install_running": "PS5 कुछ इंस्टॉल कर रहा है। पूरा होने पर फिर कोशिश करें।",
+  "cw_cleanup_err_restarted": "PS5 पर हेल्पर फिर से शुरू हुआ और यह खो गया। फिर से स्कैन करें।",
   "cw_cleanup_err_unsupported": "इस PS5 का सहायक सफ़ाई के लिए बहुत पुराना है। सहायक अपडेट करें।",
   "cw_cleanup_failed": "सफ़ाई रुक गई",
   "cw_cleanup_found_so_far": "अब तक {count} मिले",

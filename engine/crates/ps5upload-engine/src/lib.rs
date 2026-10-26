@@ -11043,6 +11043,10 @@ async fn run(cfg: EngineConfig) -> anyhow::Result<()> {
         .route("/api/drive/join", post(mesh_drive::join))
         .route("/api/drive/approve", post(mesh_drive::approve))
         .route("/api/drive/password", post(mesh_drive::password))
+        .route("/api/drive/link", post(mesh_drive::link))
+        .route("/api/drive/unlink", post(mesh_drive::unlink))
+        .route("/api/drive/conflicts", get(mesh_drive::conflicts))
+        .route("/api/drive/resolve", post(mesh_drive::resolve))
         .route(
             "/api/settings-backup",
             get(settings_backup::list).post(settings_backup::save),

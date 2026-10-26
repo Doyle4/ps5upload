@@ -4,7 +4,32 @@ What's new in ps5upload, written for humans.
 
 ---
 
-## 8.0.1
+## 8.1.0
+
+### Mesh Drive across consoles
+
+- **Consoles are the masters of their circles.** A drive lives on a console, which keeps its home
+  folder, its devices and their reports; devices sync only through a console, never with each
+  other, and a device can use several consoles.
+- **Link a drive with another console** (the drive's ⋯ menu › **Link to another console…**):
+  pick a console from your list and a home folder on it. That console gets its own copy and
+  becomes the drive's master for the devices that sync through it; a computer or Docker in the
+  drive keeps the two consoles the same, the files going straight from console to console. Each
+  console holds a drive once, so links form a tree and a change never comes back around.
+- **Away is fine.** A device whose console is off syncs through a linked one (a separate record of
+  what agreed with which console, so nothing is deleted on the switch), and a console that was off
+  catches up when it is back. **Unlink** leaves each console with its copy as a drive of its own.
+- **Linked consoles on the drive card:** each with its state, how many devices sync through it,
+  when it last synced and which device carried it.
+
+### Conflicts
+
+- **Settle conflicts** on the drive card lists every conflict copy beside the file it is a copy of
+  (who made it, sizes and times) with one choice each: **Keep the original**, **Keep the copy** or
+  **Keep both** (the copy gets a name of its own). It is settled on the console and every device
+  and linked console follows; what goes is moved to the drive's trash for 30 days.
+
+### Also in this release
 
 - **No red "cannot reach its engine" flash at launch (#515).** On Windows the engine can take a
   few seconds to start, and the app showed the error banner until it answered. The app now waits
@@ -22,7 +47,7 @@ What's new in ps5upload, written for humans.
   choice is checked as you make it (a name that is taken, a folder inside another drive, a file
   instead of a folder, the app's own data folder) and Create stays off until both are usable.
 - **No more "let in" step.** Joining used to wait for a device already in the drive to approve
-  it, which locked everyone out once that device was gone. Now any device joins from the tab. To
+  it, which locked everyone out once that device was gone. Now any device joins from the Mesh Drive page. To
   keep others out, give the drive a **password** (when you make it, or later from its ⋯ menu); a
   device joining types it once. Only a salted Argon2id hash is kept on the console, and any
   device in the drive, or anyone who knows the password, can change or remove it.

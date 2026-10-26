@@ -72,6 +72,7 @@
   "cw_cleanup_err_busy": "Pemasangan, transfer, atau pembersihan lain sedang berjalan di PS5 ini. Coba lagi setelah selesai.",
   "cw_cleanup_err_expired": "Daftar ini sudah lebih dari 10 menit. Pindai lagi.",
   "cw_cleanup_err_install_running": "PS5 sedang memasang sesuatu. Coba lagi setelah selesai.",
+  "cw_cleanup_err_restarted": "Helper di PS5 dimulai ulang dan kehilangan ini. Pindai lagi.",
   "cw_cleanup_err_unsupported": "Pembantu di PS5 ini terlalu lama untuk Bersihkan. Perbarui pembantu.",
   "cw_cleanup_failed": "Pembersihan berhenti",
   "cw_cleanup_found_so_far": "{count} ditemukan sejauh ini",

@@ -2127,6 +2127,27 @@ page (**Review the deletes**).
 No. Every drive folder holds a `.ps5upload-mesh` file. A folder without it counts as offline, and
 nothing is copied to or deleted from it until it is back.
 
+**Q: I have two consoles. Can a drive be on both?**
+Yes (8.1.0). Each console is the master of its own circle: the devices that sync the drive
+through it. On the drive's card, open ⋯ › **Link to another console…**, pick the other console
+from your list and a home folder on it. From then on:
+
+- devices sync with their own console, and the two consoles are kept the same, file by file,
+  directly between them (a computer or Docker in the drive does it; Docker keeps doing it with no
+  app open);
+- a device whose console is off syncs through the linked one until its own is back;
+- the card lists each linked console with its state and how many devices use it.
+
+A console holds a drive once, so links never form a loop. **Unlink** leaves each console with its
+copy as a drive of its own; no files are deleted.
+
+**Q: How do I settle a conflict?**
+When a file changed in two places, both versions are kept and the drive card shows **Settle
+conflicts**. It lists each copy beside the file it is a copy of, with who made it, sizes and
+times. Choose **Keep the original**, **Keep the copy** (it takes the original's name) or **Keep
+both** (the copy gets a name of its own). Every device and linked console follows; what goes
+stays in the drive's trash for 30 days.
+
 **Q: I deleted a drive on one device. What happens on the others?**
 They stop syncing it on their next pass and free their folder for another drive. No files are
 deleted anywhere.

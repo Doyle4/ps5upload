@@ -72,6 +72,7 @@
   "cw_cleanup_err_busy": "이 PS5에서 설치, 전송 또는 다른 정리가 실행 중입니다. 끝난 뒤 다시 시도하세요.",
   "cw_cleanup_err_expired": "이 목록은 10분 넘게 지났습니다. 다시 검색하세요.",
   "cw_cleanup_err_install_running": "PS5가 무언가를 설치하는 중입니다. 끝난 뒤 다시 시도하세요.",
+  "cw_cleanup_err_restarted": "PS5의 헬퍼가 다시 시작되어 이 작업이 사라졌습니다. 다시 검사하세요.",
   "cw_cleanup_err_unsupported": "이 PS5의 헬퍼가 정리 기능을 쓰기에는 너무 오래되었습니다. 헬퍼를 업데이트하세요.",
   "cw_cleanup_failed": "정리가 중지됨",
   "cw_cleanup_found_so_far": "지금까지 {count}개 발견",

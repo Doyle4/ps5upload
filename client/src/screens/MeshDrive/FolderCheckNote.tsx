@@ -38,6 +38,8 @@ export function folderCheckText(tr: Translator, c: FolderCheck, where: "console"
       return tr("drive_check_inside", { other }, `It is inside the folder of the drive ${other}.`);
     case "holds":
       return tr("drive_check_holds", { other }, `It holds the folder of the drive ${other}.`);
+    case "already_linked":
+      return tr("drive_link_already", undefined, "That console already holds this drive.");
     case "too_broad":
       return tr(
         "drive_check_too_broad",

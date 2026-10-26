@@ -72,6 +72,7 @@
   "cw_cleanup_err_busy": "Su questa PS5 è in corso un'installazione, un trasferimento o un'altra pulizia. Riprova quando ha finito.",
   "cw_cleanup_err_expired": "Questa lista ha più di 10 minuti. Ripeti la scansione.",
   "cw_cleanup_err_install_running": "La PS5 sta installando qualcosa. Riprova quando ha finito.",
+  "cw_cleanup_err_restarted": "L'helper sulla PS5 si è riavviato e l'ha perso. Esegui di nuovo la scansione.",
   "cw_cleanup_err_unsupported": "L'helper su questa PS5 è troppo vecchio per Pulizia. Aggiorna l'helper.",
   "cw_cleanup_failed": "La pulizia si è interrotta",
   "cw_cleanup_found_so_far": "{count} trovati finora",

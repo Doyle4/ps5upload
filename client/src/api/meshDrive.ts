@@ -26,6 +26,22 @@ export interface DriveMember {
   reported?: number;
 }
 
+/** Another console holding this drive (8.1.0): the master of its own circle, kept the same as
+ *  this one by an engine in the drive. */
+export interface DriveLink {
+  console: string;
+  console_name: string;
+  hub: string;
+  created: number;
+  state: string;
+  error: string;
+  last_sync: number;
+  by_name: string;
+  /** Devices in that console's circle. */
+  circle: number;
+  allow_deletes?: boolean;
+}
+
 export interface DriveStats {
   files: number;
   bytes: number;
@@ -41,8 +57,9 @@ export interface Drive {
   by: string;
   members: DriveMember[];
   /** Present when joining asks for a password (only its PBKDF2 hash is kept). */
-  lock?: { iter: number } | null;
+  lock?: { alg: string } | null;
   stats?: DriveStats | null;
+  links?: DriveLink[];
 }
 
 export interface DriveStatus {
@@ -80,6 +97,8 @@ export type DrivesAnswer =
       local: LocalDriveMember[];
       /** Usable bytes where each drive's home is, by drive id. */
       free: Record<string, number>;
+      /** Drives here this device keeps through another (linked) console. */
+      elsewhere: { drive: string; console: string; path: string }[];
     };
 
 async function engineJson(route: string, init?: RequestInit): Promise<Record<string, unknown>> {
@@ -112,6 +131,7 @@ export async function fetchDrives(host: string): Promise<DrivesAnswer> {
     drives: Array.isArray(b.drives) ? (b.drives as Drive[]) : [],
     local: Array.isArray(b.local) ? (b.local as LocalDriveMember[]) : [],
     free: b.free && typeof b.free === "object" ? (b.free as Record<string, number>) : {},
+    elsewhere: Array.isArray(b.elsewhere) ? (b.elsewhere as { drive: string; console: string; path: string }[]) : [],
   };
 }
 
@@ -144,7 +164,7 @@ export interface HubChoice {
 
 export async function checkFolders(
   host: string,
-  q: { hub?: HubChoice; path?: string; drive?: string },
+  q: { hub?: HubChoice; path?: string; drive?: string; console?: string },
 ): Promise<{ hub: FolderCheck | null; local: FolderCheck | null }> {
   const b = await post("/api/drive/check", {
     addr: consoleAddr(host),
@@ -152,6 +172,7 @@ export async function checkFolders(
     hub_name: q.hub?.name,
     path: q.path,
     drive: q.drive,
+    console: q.console ? consoleAddr(q.console) : undefined,
   });
   return { hub: (b.hub as FolderCheck | null) ?? null, local: (b.local as FolderCheck | null) ?? null };
 }
@@ -169,6 +190,23 @@ export const driveApi = {
   pause: (host: string, drive: string, member: string, paused: boolean) =>
     call("/api/drive/pause")(host, { drive, member, paused }),
   sync: (host: string, drive: string) => call("/api/drive/sync")(host, { drive }),
+  /** Links the drive with another console (its home there: a folder, or a new one in `hub`). */
+  link: (host: string, drive: string, other: string, hub: HubChoice, name: string, hereName: string) =>
+    call("/api/drive/link")(host, {
+      drive,
+      console: consoleAddr(other),
+      hub: hub.path,
+      hub_name: hub.name,
+      name,
+      here_name: hereName,
+    }),
+  unlink: (host: string, drive: string, other: string) =>
+    call("/api/drive/unlink")(host, { drive, console: consoleAddr(other) }),
+  /** Lets a mass delete held back on a link run. */
+  allowLinkDeletes: (host: string, drive: string, other: string) =>
+    call("/api/drive/unlink")(host, { drive, console: consoleAddr(other), allow_deletes: true }),
+  resolve: (host: string, drive: string, copy: string, action: ResolveAction, name?: string) =>
+    call("/api/drive/resolve")(host, { drive, copy, action, name: name || undefined }),
   confirm: (host: string, drive: string, member: string) => call("/api/drive/confirm")(host, { drive, member }),
 };
 
@@ -184,4 +222,28 @@ export function consolePathOf(picked: string): string {
 export function refusalCode(e: unknown): string | null {
   const m = e instanceof Error ? /^(\w+):/.exec(e.message) : null;
   return m ? m[1] : null;
+}
+
+/** One conflict copy in a drive, with the file it is a copy of (8.1.0). */
+export interface DriveConflict {
+  copy: string;
+  original: string;
+  /** The device that made the copy (its changes lost the race). */
+  device: string;
+  /** "YYYY-MM-DD HHMM" (UTC). */
+  stamp: string;
+  copy_size: number;
+  copy_mtime: number;
+  /** null when the original is gone. */
+  original_size: number | null;
+  original_mtime: number | null;
+}
+
+export type ResolveAction = "keep_copy" | "keep_original" | "keep_both";
+
+export async function fetchConflicts(host: string, drive: string): Promise<DriveConflict[]> {
+  const b = await engineJson(
+    `/api/drive/conflicts?addr=${encodeURIComponent(consoleAddr(host))}&drive=${encodeURIComponent(drive)}`,
+  );
+  return Array.isArray(b.conflicts) ? (b.conflicts as DriveConflict[]) : [];
 }

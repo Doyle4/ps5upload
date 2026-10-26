@@ -72,6 +72,7 @@
   "cw_cleanup_err_busy": "PS5 này đang cài đặt, truyền tệp hoặc dọn dẹp khác. Hãy thử lại khi xong.",
   "cw_cleanup_err_expired": "Danh sách này đã quá 10 phút. Hãy quét lại.",
   "cw_cleanup_err_install_running": "PS5 đang cài đặt thứ gì đó. Hãy thử lại khi xong.",
+  "cw_cleanup_err_restarted": "Trình trợ giúp trên PS5 đã khởi động lại và mất dữ liệu này. Hãy quét lại.",
   "cw_cleanup_err_unsupported": "Trình trợ giúp trên PS5 này quá cũ để dùng Dọn dẹp. Hãy cập nhật trình trợ giúp.",
   "cw_cleanup_failed": "Dọn dẹp đã dừng",
   "cw_cleanup_found_so_far": "Đã tìm thấy {count} mục",

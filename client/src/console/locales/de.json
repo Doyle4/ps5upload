@@ -72,6 +72,7 @@
   "cw_cleanup_err_busy": "Auf dieser PS5 läuft eine Installation, Übertragung oder ein anderes Aufräumen. Versuche es erneut, wenn sie fertig ist.",
   "cw_cleanup_err_expired": "Diese Liste ist älter als 10 Minuten. Scanne erneut.",
   "cw_cleanup_err_install_running": "Die PS5 installiert gerade etwas. Versuche es erneut, wenn sie fertig ist.",
+  "cw_cleanup_err_restarted": "Der Helfer auf der PS5 wurde neu gestartet und hat dies verloren. Bitte erneut scannen.",
   "cw_cleanup_err_unsupported": "Der Helfer auf dieser PS5 ist zu alt für Aufräumen. Aktualisiere den Helfer.",
   "cw_cleanup_failed": "Aufräumen wurde angehalten",
   "cw_cleanup_found_so_far": "{count} bisher gefunden",

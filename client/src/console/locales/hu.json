@@ -72,6 +72,7 @@
   "cw_cleanup_err_busy": "Ezen a PS5-ön telepítés, átvitel vagy másik tisztítás fut. Próbáld újra, ha végzett.",
   "cw_cleanup_err_expired": "Ez a lista több mint 10 perces. Vizsgálj újra.",
   "cw_cleanup_err_install_running": "A PS5 éppen telepít valamit. Próbáld újra, ha végzett.",
+  "cw_cleanup_err_restarted": "A PS5-ön futó segéd újraindult, és ez elveszett. Keress újra.",
   "cw_cleanup_err_unsupported": "A PS5-ön lévő segédprogram túl régi a Tisztításhoz. Frissítsd a segédprogramot.",
   "cw_cleanup_failed": "A Tisztítás leállt",
   "cw_cleanup_found_so_far": "Eddig {count} találat",

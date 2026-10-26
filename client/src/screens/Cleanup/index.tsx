@@ -328,16 +328,31 @@ export default function CleanupScreen() {
       setError(null);
       if (!keepSummary) setSummary(null);
       try {
-        const { scan_id } = await cleanupScanStart(host);
-        for (;;) {
-          const s = await cleanupScanStatus(host, scan_id);
-          if (run !== live.current) return;
-          setScan(s);
-          if (s.state !== "running") {
-            setSelected(initialSelection(s.items ?? []));
-            break;
+        // A scan lives in the helper's memory: a helper restarted meanwhile (sent again, by this
+        // or another device) has forgotten it. Start it again rather than stop with an error.
+        for (let attempt = 0; ; attempt++) {
+          const { scan_id } = await cleanupScanStart(host);
+          let lost = false;
+          for (;;) {
+            let s: CleanupScan;
+            try {
+              s = await cleanupScanStatus(host, scan_id);
+            } catch (e) {
+              if (attempt < 2 && e instanceof CleanupError && (e.reason === "unknown_scan" || e.reason === "scan_expired")) {
+                lost = true;
+                break;
+              }
+              throw e;
+            }
+            if (run !== live.current) return;
+            setScan(s);
+            if (s.state !== "running") {
+              setSelected(initialSelection(s.items ?? []));
+              break;
+            }
+            await new Promise((r) => setTimeout(r, SCAN_POLL_MS));
           }
-          await new Promise((r) => setTimeout(r, SCAN_POLL_MS));
+          if (!lost || run !== live.current) break;
         }
       } catch (e) {
         if (run === live.current) setError(errorText(tr, e));
@@ -392,6 +407,7 @@ export default function CleanupScreen() {
     } finally {
       setApplying(null);
     }
+    // Read the console again either way (after a helper restart, some items may already be gone).
     void runScan(true);
   }
 

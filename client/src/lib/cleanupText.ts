@@ -174,6 +174,9 @@ export function refusalText(t: CleanupT, reason: string): string | null {
       return t("cw_cleanup_err_install_running");
     case "scan_expired":
       return t("cw_cleanup_err_expired");
+    case "unknown_scan":
+    case "unknown_apply":
+      return t("cw_cleanup_err_restarted");
     case "unsupported":
     case "unavailable":
     case "not_found":

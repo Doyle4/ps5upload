@@ -11,7 +11,9 @@ import {
   FolderOpen,
   FolderSync,
   HardDrive,
+  GitMerge,
   KeyRound,
+  Link2,
   Lock,
   MonitorSmartphone,
   Pencil,
@@ -45,6 +47,8 @@ import { useTr, type Translator } from "../../state/lang";
 import { useToastStore } from "../../state/toasts";
 import { agoText, KIND_ICONS } from "../Devices";
 import { CreateDriveDialog, JoinDriveDialog, PasswordDialog } from "./DriveDialogs";
+import { ConflictsDialog, LinkDialog, LinkedConsoles, linkName } from "./LinksAndConflicts";
+import { useRosterStore } from "../../state/roster";
 
 type Tone = "good" | "warn" | "bad" | "neutral" | "accent";
 
@@ -238,6 +242,8 @@ function DriveCard({
   run,
   onJoin,
   onPassword,
+  onLink,
+  onConflicts,
 }: {
   d: Drive;
   data: Loaded;
@@ -246,6 +252,8 @@ function DriveCard({
   run: (f: () => Promise<unknown>) => Promise<void>;
   onJoin: (d: Drive) => void;
   onPassword: (d: Drive) => void;
+  onLink: (d: Drive) => void;
+  onConflicts: (d: Drive) => void;
 }) {
   const tr = useTr();
   const navigate = useNavigate();
@@ -271,6 +279,9 @@ function DriveCard({
     });
   };
   const mine = data.local.find((l) => l.drive === d.id);
+  // Kept on this device through a linked console instead (one folder per drive per device).
+  const viaOther = mine ? undefined : data.elsewhere.find((e) => e.drive === d.id);
+  const profiles = useRosterStore((s) => s.profiles);
   const myMember = d.members.find((m) => m.id === mine?.member);
   const iAmIn = d.members.some((m) => m.device === data.me) || d.by === data.me;
   const st = mine ? statusOf(tr, mine, now) : null;
@@ -363,6 +374,15 @@ function DriveCard({
           { label: tr("drive_leave", undefined, "Leave"), icon: <X size={12} />, onSelect: () => void leave() },
         ]
       : []),
+    ...(iAmIn
+      ? [
+          {
+            label: tr("drive_link_menu", undefined, "Link to another console…"),
+            icon: <Link2 size={12} />,
+            onSelect: () => onLink(d),
+          },
+        ]
+      : []),
     {
       label: d.lock
         ? tr("drive_password_change", undefined, "Change or remove password…")
@@ -400,6 +420,14 @@ function DriveCard({
               {st ? (
                 <Badge tone={st.tone} dot>
                   {st.short}
+                </Badge>
+              ) : viaOther ? (
+                <Badge tone="neutral">
+                  {tr(
+                    "drive_kept_via",
+                    { name: linkName({ console: viaOther.console, console_name: "" }, profiles) },
+                    `Kept here through ${linkName({ console: viaOther.console, console_name: "" }, profiles)}`,
+                  )}
                 </Badge>
               ) : (
                 <Badge tone="neutral">{tr("drive_not_here", undefined, "Not on this device")}</Badge>
@@ -462,7 +490,7 @@ function DriveCard({
             >
               {tr("drive_sync_now", undefined, "Sync now")}
             </Button>
-          ) : (
+          ) : viaOther ? null : (
             <Button size="sm" variant="primary" onClick={() => onJoin(d)} leftIcon={<Plus size={14} />}>
               {tr("drive_keep_here", undefined, "Keep on this device…")}
             </Button>
@@ -470,13 +498,21 @@ function DriveCard({
           {menu.length > 0 && <OverflowMenu items={menu} ariaLabel={tr("more_actions", undefined, "More actions")} />}
         </div>
       </div>
-      {mine?.status.state === "confirm" && (
-        <div className="mt-3">
-          <Button size="sm" variant="primary" onClick={() => void reviewDeletes()}>
-            {tr("drive_confirm_review", undefined, "Review the deletes")}
-          </Button>
+      {(mine?.status.state === "confirm" || !!d.stats?.conflicts) && (
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          {mine?.status.state === "confirm" && (
+            <Button size="sm" variant="primary" onClick={() => void reviewDeletes()}>
+              {tr("drive_confirm_review", undefined, "Review the deletes")}
+            </Button>
+          )}
+          {!!d.stats?.conflicts && (
+            <Button size="sm" variant="secondary" leftIcon={<GitMerge size={14} />} onClick={() => onConflicts(d)}>
+              {tr("drive_conflicts_open", { count: d.stats.conflicts }, `Settle conflicts (${d.stats.conflicts})`)}
+            </Button>
+          )}
         </div>
       )}
+      <LinkedConsoles d={d} host={host} now={now} canManage={iAmIn} run={run} />
       {d.members.length > 0 && (
         <details className="mt-3 border-t border-[var(--color-border)] pt-2" open={d.members.length <= 4}>
           <summary className="cursor-pointer text-xs font-medium text-[var(--color-muted)]">
@@ -515,9 +551,13 @@ export default function MeshDriveScreen() {
   // removed) by another device after the click is shown as it is now.
   const [joiningId, setJoiningId] = useState<string | null>(null);
   const [lockingId, setLockingId] = useState<string | null>(null);
+  const [linkingId, setLinkingId] = useState<string | null>(null);
+  const [conflictsId, setConflictsId] = useState<string | null>(null);
   const drives = data?.supported ? data.drives : [];
   const joining = drives.find((d) => d.id === joiningId) ?? null;
   const locking = drives.find((d) => d.id === lockingId) ?? null;
+  const linking = drives.find((d) => d.id === linkingId) ?? null;
+  const settling = drives.find((d) => d.id === conflictsId) ?? null;
   const seq = useRef(0);
   const inFlight = useRef(false);
   // A failed poll shows until a poll succeeds; an action's failure until the next action.
@@ -549,6 +589,8 @@ export default function MeshDriveScreen() {
     setPollError(null);
     setJoiningId(null);
     setLockingId(null);
+    setLinkingId(null);
+    setConflictsId(null);
   }, [host]);
 
   useEffect(() => {
@@ -659,6 +701,8 @@ export default function MeshDriveScreen() {
             run={run}
             onJoin={(x) => setJoiningId(x.id)}
             onPassword={(x) => setLockingId(x.id)}
+            onLink={(x) => setLinkingId(x.id)}
+            onConflicts={(x) => setConflictsId(x.id)}
           />
         ))}
       {data?.supported && data.drives.length > 0 && (
@@ -731,6 +775,27 @@ export default function MeshDriveScreen() {
             });
             void load();
           }}
+        />
+      )}
+      {linking && (
+        <LinkDialog
+          key={linking.id}
+          host={host}
+          drive={linking}
+          onClose={() => setLinkingId(null)}
+          onDone={() => {
+            setLinkingId(null);
+            void load();
+          }}
+        />
+      )}
+      {settling && (
+        <ConflictsDialog
+          key={settling.id}
+          host={host}
+          drive={settling}
+          onClose={() => setConflictsId(null)}
+          onChanged={() => void load()}
         />
       )}
       {locking && data?.supported && (

@@ -44,8 +44,8 @@ use serde_json::{json, Value};
 
 use crate::json_err;
 use crate::mesh_drive_plan::{
-    conflict_name, date_parts, ignored, plan, too_many_deletes, Base, BaseEntry, Listing, Meta, Op,
-    MARKER, TMP, TRASH,
+    conflict_name, date_parts, ignored, parse_conflict, plan, too_many_deletes, Base, BaseEntry,
+    Listing, Meta, Op, BASE_FILE, MARKER, TMP, TRASH,
 };
 
 /// One pass per member this often.
@@ -94,6 +94,41 @@ pub struct Drive {
     /// The home folder, as the last pass that listed it saw it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub stats: Option<DriveStats>,
+    /// Other consoles holding this drive (8.1.0): each is the master of its own circle, and the
+    /// two masters keep their home folders the same. Listed on both consoles; links form a tree
+    /// (a console joins a drive's masters at most once), so a change never comes back around.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub links: Vec<Link>,
+    #[serde(flatten)]
+    pub other: serde_json::Map<String, Value>,
+}
+
+/// One master link, as seen from this console.
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
+pub struct Link {
+    /// The other console (address).
+    pub console: String,
+    #[serde(default)]
+    pub console_name: String,
+    /// The drive's home folder there.
+    pub hub: String,
+    #[serde(default)]
+    pub created: u64,
+    // What the engine that last carried the link reported.
+    #[serde(default)]
+    pub state: String,
+    #[serde(default)]
+    pub error: String,
+    #[serde(default)]
+    pub last_sync: u64,
+    #[serde(default)]
+    pub by_name: String,
+    /// Devices in that console's circle for this drive.
+    #[serde(default)]
+    pub circle: u64,
+    /// A person let a held-back mass delete through this link run (consumed by the next pass).
+    #[serde(default)]
+    pub allow_deletes: bool,
     #[serde(flatten)]
     pub other: serde_json::Map<String, Value>,
 }
@@ -228,6 +263,10 @@ struct LocalMember {
     /// The drive's name when this folder joined it (for messages; the console has the current one).
     #[serde(default)]
     name: String,
+    /// The consoles the drive is linked to, as last read: where this folder syncs while its own
+    /// console is away (8.1.0).
+    #[serde(default)]
+    links: Vec<String>,
 }
 
 fn state_dir() -> Option<PathBuf> {
@@ -364,9 +403,13 @@ fn unstorable(rel: &str) -> bool {
 
 /// Paths here and on the console that differ only in case, on a device whose folders ignore case
 /// (`Foo.txt` here, `foo.txt` there): one would land on the other, so neither side moves them.
-fn case_clashes(member: &Listing, hub: &Listing) -> std::collections::HashSet<String> {
+fn case_clashes(
+    member: &Listing,
+    hub: &Listing,
+    case_insensitive: bool,
+) -> std::collections::HashSet<String> {
     let mut out = std::collections::HashSet::new();
-    if !(cfg!(windows) || cfg!(target_os = "macos")) {
+    if !case_insensitive {
         return out;
     }
     let low: HashMap<String, &String> = hub.keys().map(|k| (k.to_lowercase(), k)).collect();
@@ -383,9 +426,9 @@ fn case_clashes(member: &Listing, hub: &Listing) -> std::collections::HashSet<St
 
 /// Paths of the console's folder that differ only in case from an earlier one: on a device whose
 /// folders ignore case they would land on the same file.
-fn case_twins(hub: &Listing) -> std::collections::HashSet<String> {
+fn case_twins(hub: &Listing, case_insensitive: bool) -> std::collections::HashSet<String> {
     let mut out = std::collections::HashSet::new();
-    if !(cfg!(windows) || cfg!(target_os = "macos")) {
+    if !case_insensitive {
         return out;
     }
     let mut seen: HashMap<String, &str> = HashMap::new();
@@ -551,11 +594,20 @@ fn safe_rel(rel: &str) -> bool {
 
 // ---- one pass ----
 
+/// What a pass changed: the hub, and the member's side.
+#[derive(Clone, Copy, Default)]
+struct Changed {
+    hub: bool,
+    side: bool,
+}
+
 struct Pass<'a> {
     addr: &'a str,
     drive: &'a Drive,
-    member: &'a LocalMember,
-    root: PathBuf,
+    member_id: String,
+    /// This member's copy: a folder on this device, or on a second console.
+    side: &'a dyn Side,
+    /// Names this member's conflict copies.
     device_name: String,
     /// Set by the lock's heartbeat when another engine holds the drive now: the pass stops.
     lost: std::sync::Arc<AtomicBool>,
@@ -573,8 +625,18 @@ struct DriveLease {
 
 impl DriveLease {
     fn hold(addr: &str, name: &str, label: &str) -> Self {
+        Self::hold_with(
+            addr,
+            name,
+            label,
+            std::sync::Arc::new(AtomicBool::new(false)),
+        )
+    }
+
+    /// Holds the lock with `lost` shared (a link holds the drive's lock on two consoles: losing
+    /// either stops the pass).
+    fn hold_with(addr: &str, name: &str, label: &str, lost: std::sync::Arc<AtomicBool>) -> Self {
         let stop = std::sync::Arc::new(AtomicBool::new(false));
-        let lost = std::sync::Arc::new(AtomicBool::new(false));
         let (a, n, l, st, lo) = (
             addr.to_string(),
             name.to_string(),
@@ -652,30 +714,93 @@ fn free_name(rel: &str, taken: impl Fn(&str) -> bool) -> String {
     format!("{rel}.{}", new_id())
 }
 
-impl Pass<'_> {
-    fn upload(&self, rel: &str) -> Result<()> {
-        let src = local_path(&self.root, rel);
-        let dest = join_hub(&self.drive.hub, rel);
-        if let Some(parent) = dest.rsplit_once('/').map(|(d, _)| d) {
-            fs_ops::fs_mkdir(self.addr, parent)?;
+// ---- the member's side: this device's folder, or a folder on another console (8.1.0) ----
+
+/// Where a member's copy lives. A pass reads and changes it only through this, so the same
+/// planner, safety rules and trash serve a folder on this device and one on a second console.
+trait Side {
+    /// For messages: the folder, and where it is.
+    fn describe(&self) -> String;
+    fn has_marker(&self) -> bool;
+    fn walk(&self) -> Result<Listing>;
+    fn stat(&self, rel: &str) -> Option<Meta>;
+    fn exists(&self, rel: &str) -> bool;
+    /// This side's `rel` to the hub's `rel`.
+    fn send(&self, hub_addr: &str, hub: &str, rel: &str) -> Result<()>;
+    /// The hub's `rel` to this side; never over a file that is no longer `expect`.
+    fn fetch(&self, hub_addr: &str, hub: &str, rel: &str, expect: Option<Meta>) -> Result<()>;
+    /// BLAKE3, hex.
+    fn hash(&self, rel: &str) -> Result<String>;
+    fn rename(&self, from: &str, to: &str) -> Result<()>;
+    fn trash(&self, rel: &str, today: &str) -> Result<()>;
+    fn empty_trash(&self, cutoff: &str);
+    fn load_base(&self, drive: &str, member: &str) -> Base;
+    fn save_base(&self, drive: &str, member: &str, base: &Base) -> Result<()>;
+    /// Whether a just-written file waits a pass (times come from this computer's clock).
+    fn settles(&self) -> bool;
+    /// A name this side cannot hold.
+    fn unstorable(&self, rel: &str) -> bool;
+    fn case_insensitive(&self) -> bool;
+}
+
+struct LocalSide {
+    root: PathBuf,
+    /// "" for the home console; the other console's address while failing over to it (its base
+    /// is kept apart: what this folder agreed with one console says nothing about another).
+    via: String,
+}
+
+impl LocalSide {
+    fn base_key(&self, member: &str) -> String {
+        if self.via.is_empty() {
+            member.to_string()
+        } else {
+            let tag: String = self
+                .via
+                .chars()
+                .map(|c| if c.is_ascii_alphanumeric() { c } else { '_' })
+                .collect();
+            format!("{member}@{tag}")
         }
-        let cfg = crate::make_transfer_config(self.addr);
+    }
+}
+
+impl Side for LocalSide {
+    fn describe(&self) -> String {
+        self.root.display().to_string()
+    }
+    fn has_marker(&self) -> bool {
+        self.root.join(MARKER).is_file()
+    }
+    fn walk(&self) -> Result<Listing> {
+        walk_local(&self.root)
+    }
+    fn stat(&self, rel: &str) -> Option<Meta> {
+        local_stat(&local_path(&self.root, rel))
+    }
+    fn exists(&self, rel: &str) -> bool {
+        local_path(&self.root, rel).symlink_metadata().is_ok()
+    }
+    fn send(&self, hub_addr: &str, hub: &str, rel: &str) -> Result<()> {
+        let src = local_path(&self.root, rel);
+        let dest = join_hub(hub, rel);
+        if let Some(parent) = dest.rsplit_once('/').map(|(d, _)| d) {
+            fs_ops::fs_mkdir(hub_addr, parent)?;
+        }
+        let cfg = crate::make_transfer_config(hub_addr);
         let job: [u8; 16] = ava1::keys::random_bytes()?;
         ps5upload_ava1::upload::upload_file(&cfg, job, &dest, &src)
             .map_err(|e| anyhow!("upload {rel}: {e:#}"))?;
         Ok(())
     }
-
-    /// Fetches `rel` into this folder. `expect` is what this folder held there when the pass
-    /// planned (None: nothing); a file changed meanwhile is never overwritten.
-    fn download(&self, rel: &str, expect: Option<Meta>) -> Result<()> {
-        let src = join_hub(&self.drive.hub, rel);
+    fn fetch(&self, hub_addr: &str, hub: &str, rel: &str, expect: Option<Meta>) -> Result<()> {
+        let src = join_hub(hub, rel);
         let target = local_path(&self.root, rel);
         let tmp_dir = self.root.join(TMP).join(new_id());
         std::fs::create_dir_all(&tmp_dir)?;
         let job: [u8; 16] = ava1::keys::random_bytes()?;
         let r = ps5upload_ava1::download::to_local(
-            self.addr,
+            hub_addr,
             &src,
             ps5upload_core::download::DownloadKind::File,
             &tmp_dir,
@@ -704,25 +829,17 @@ impl Pass<'_> {
         let _ = std::fs::remove_dir(self.root.join(TMP));
         res
     }
-
-    /// The name this device's copy of a conflicting file moves to, never one already used here.
-    fn conflict_copy(&self, rel: &str, stamp: &str) -> String {
-        free_name(&conflict_name(rel, &self.device_name, stamp), |r| {
-            local_path(&self.root, r).symlink_metadata().is_ok()
-        })
-    }
-
-    /// Whether this folder's file and the hub's hold the same bytes (BLAKE3 on both sides).
-    fn same_bytes(&self, rel: &str) -> Result<bool> {
+    fn hash(&self, rel: &str) -> Result<String> {
         let mut h = blake3::Hasher::new();
         let mut f = std::fs::File::open(local_path(&self.root, rel))?;
         std::io::copy(&mut f, &mut h)?;
-        let local = h.finalize().to_hex().to_string();
-        let hub = fs_ops::fs_hash(self.addr, &join_hub(&self.drive.hub, rel))?;
-        Ok(hub.hash.eq_ignore_ascii_case(&local))
+        Ok(h.finalize().to_hex().to_string())
     }
-
-    fn trash_local(&self, rel: &str, today: &str) -> Result<()> {
+    fn rename(&self, from: &str, to: &str) -> Result<()> {
+        std::fs::rename(local_path(&self.root, from), local_path(&self.root, to))
+            .with_context(|| format!("rename {from}"))
+    }
+    fn trash(&self, rel: &str, today: &str) -> Result<()> {
         let from = local_path(&self.root, rel);
         let day = self.root.join(TRASH).join(today);
         // Deleted twice in a day: the second copy gets a new name, never replaces the first.
@@ -734,6 +851,218 @@ impl Pass<'_> {
             std::fs::create_dir_all(parent)?;
         }
         std::fs::rename(&from, &to).with_context(|| format!("move {rel} to the trash"))
+    }
+    fn empty_trash(&self, cutoff: &str) {
+        if let Ok(rd) = std::fs::read_dir(self.root.join(TRASH)) {
+            for e in rd.flatten() {
+                let n = e.file_name().to_string_lossy().into_owned();
+                if n.len() == 10 && n.as_str() < cutoff {
+                    let _ = std::fs::remove_dir_all(e.path());
+                }
+            }
+        }
+    }
+    fn load_base(&self, drive: &str, member: &str) -> Base {
+        load_base(drive, &self.base_key(member))
+    }
+    fn save_base(&self, drive: &str, member: &str, base: &Base) -> Result<()> {
+        save_base(drive, &self.base_key(member), base)
+    }
+    fn settles(&self) -> bool {
+        true
+    }
+    fn unstorable(&self, rel: &str) -> bool {
+        unstorable(rel)
+    }
+    fn case_insensitive(&self) -> bool {
+        cfg!(windows) || cfg!(target_os = "macos")
+    }
+}
+
+/// A folder on a second console. Bytes go console to console (directly when the consoles can
+/// reach each other, else through this computer); the base lives in the folder itself
+/// (BASE_FILE), so whichever engine runs the next pass starts from the same agreement.
+struct ConsoleSide {
+    addr: String,
+    root: String,
+}
+
+/// A base larger than this is refused (a small-file write on the console holds 16 MiB).
+const CONSOLE_BASE_MAX: usize = 16 * 1024 * 1024;
+
+impl ConsoleSide {
+    fn path(&self, rel: &str) -> String {
+        join_hub(&self.root, rel)
+    }
+}
+
+/// Copies one file between consoles: directly when they can reach each other, else through
+/// this computer.
+fn console_copy(from: &str, src: &str, to: &str, dest: &str) -> Result<()> {
+    if let Some(parent) = dest.rsplit_once('/').map(|(d, _)| d) {
+        fs_ops::fs_mkdir(to, parent)?;
+    }
+    let job: [u8; 16] = ava1::keys::random_bytes()?;
+    ps5upload_ava1::c2c::ps5_to_ps5_routed(
+        from,
+        src,
+        to,
+        dest,
+        job,
+        std::sync::Arc::default(),
+        std::sync::Arc::new(AtomicBool::new(false)),
+        None,
+        &ps5upload_ava1::c2c::RouteOptions::default(),
+        |_| {},
+    )
+    .map(|_| ())
+    .map_err(|e| anyhow!("copy {src}: {e:#}"))
+}
+
+impl Side for ConsoleSide {
+    fn describe(&self) -> String {
+        format!("{} on {}", self.root, self.addr)
+    }
+    fn has_marker(&self) -> bool {
+        hub_stat(&self.addr, &self.path(MARKER)).is_some()
+    }
+    fn walk(&self) -> Result<Listing> {
+        walk_hub(&self.addr, &self.root)
+    }
+    fn stat(&self, rel: &str) -> Option<Meta> {
+        hub_stat(&self.addr, &self.path(rel))
+    }
+    fn exists(&self, rel: &str) -> bool {
+        fs_ops::fs_stat(&self.addr, &self.path(rel)).is_ok()
+    }
+    fn send(&self, hub_addr: &str, hub: &str, rel: &str) -> Result<()> {
+        console_copy(&self.addr, &self.path(rel), hub_addr, &join_hub(hub, rel))
+    }
+    fn fetch(&self, hub_addr: &str, hub: &str, rel: &str, expect: Option<Meta>) -> Result<()> {
+        // Into a temporary name first, then into place once it is known nothing changed here.
+        let tmp = join_hub(&join_hub(&self.root, TMP), &new_id());
+        let target = self.path(rel);
+        let r = console_copy(hub_addr, &join_hub(hub, rel), &self.addr, &tmp).and_then(|_| {
+            if self.stat(rel) != expect {
+                bail!(
+                    "{rel} changed on {} while it was syncing; it is synced next pass",
+                    self.addr
+                );
+            }
+            if let Some(parent) = target.rsplit_once('/').map(|(d, _)| d) {
+                fs_ops::fs_mkdir(&self.addr, parent)?;
+            }
+            if expect.is_some() {
+                fs_ops::fs_delete(&self.addr, &target)?;
+            }
+            fs_ops::fs_move(&self.addr, &tmp, &target)
+        });
+        if r.is_err() {
+            let _ = fs_ops::fs_delete(&self.addr, &tmp);
+        }
+        // The temporary folder goes once empty (one pass runs at a time: the drive's lock).
+        let tmp_dir = join_hub(&self.root, TMP);
+        if fs_ops::list_dir(&self.addr, &tmp_dir, ListDirOptions::default())
+            .is_ok_and(|l| l.entries.iter().all(|e| e.name == "." || e.name == ".."))
+        {
+            let _ = fs_ops::fs_delete(&self.addr, &tmp_dir);
+        }
+        r
+    }
+    fn hash(&self, rel: &str) -> Result<String> {
+        Ok(fs_ops::fs_hash(&self.addr, &self.path(rel))?
+            .hash
+            .to_ascii_lowercase())
+    }
+    fn rename(&self, from: &str, to: &str) -> Result<()> {
+        fs_ops::fs_move(&self.addr, &self.path(from), &self.path(to))
+    }
+    fn trash(&self, rel: &str, today: &str) -> Result<()> {
+        let day = join_hub(&join_hub(&self.root, TRASH), today);
+        let to = join_hub(
+            &day,
+            &free_name(rel, |r| hub_stat(&self.addr, &join_hub(&day, r)).is_some()),
+        );
+        if let Some(parent) = to.rsplit_once('/').map(|(d, _)| d) {
+            fs_ops::fs_mkdir(&self.addr, parent)?;
+        }
+        fs_ops::fs_move(&self.addr, &self.path(rel), &to)
+    }
+    fn empty_trash(&self, cutoff: &str) {
+        empty_console_trash(&self.addr, &self.root, cutoff);
+    }
+    fn load_base(&self, _drive: &str, _member: &str) -> Base {
+        read_console_file(&self.addr, &self.path(BASE_FILE))
+            .and_then(|b| serde_json::from_slice(&b).ok())
+            .unwrap_or_default()
+    }
+    fn save_base(&self, _drive: &str, _member: &str, base: &Base) -> Result<()> {
+        let body = serde_json::to_vec(base)?;
+        if body.len() > CONSOLE_BASE_MAX {
+            bail!("too many files for a drive folder on a second console");
+        }
+        ps5upload_core::diagnostics::fs_write_bytes_large(
+            &self.addr,
+            &self.path(BASE_FILE),
+            &body,
+            false,
+        )?;
+        Ok(())
+    }
+    fn settles(&self) -> bool {
+        false
+    }
+    fn unstorable(&self, _rel: &str) -> bool {
+        false
+    }
+    fn case_insensitive(&self) -> bool {
+        false
+    }
+}
+
+/// A whole small file from a console (chunked reads); None when it is not there.
+fn read_console_file(addr: &str, path: &str) -> Option<Vec<u8>> {
+    let size = fs_ops::fs_stat(addr, path).ok()?.size as usize;
+    if size > CONSOLE_BASE_MAX {
+        return None;
+    }
+    let mut out = Vec::with_capacity(size);
+    while out.len() < size {
+        let chunk =
+            fs_ops::fs_read(addr, path, out.len() as u64, (size - out.len()) as u64).ok()?;
+        if chunk.is_empty() {
+            return None;
+        }
+        out.extend_from_slice(&chunk);
+    }
+    Some(out)
+}
+
+/// Trash folders on a console older than `cutoff` (a day folder name) go. Best effort.
+fn empty_console_trash(addr: &str, root: &str, cutoff: &str) {
+    let trash = join_hub(root, TRASH);
+    if let Ok(l) = fs_ops::list_dir(addr, &trash, ListDirOptions::default()) {
+        for e in l.entries {
+            if e.kind == "dir" && e.name.len() == 10 && e.name.as_str() < cutoff {
+                let _ = fs_ops::fs_delete(addr, &join_hub(&trash, &e.name));
+            }
+        }
+    }
+}
+
+impl Pass<'_> {
+    /// The name this member's copy of a conflicting file moves to, never one already used there.
+    fn conflict_copy(&self, rel: &str, stamp: &str) -> String {
+        free_name(&conflict_name(rel, &self.device_name, stamp), |r| {
+            self.side.exists(r)
+        })
+    }
+
+    /// Whether this member's file and the hub's hold the same bytes (BLAKE3 on both sides).
+    fn same_bytes(&self, rel: &str) -> Result<bool> {
+        let here = self.side.hash(rel)?;
+        let hub = fs_ops::fs_hash(self.addr, &join_hub(&self.drive.hub, rel))?;
+        Ok(hub.hash.eq_ignore_ascii_case(&here))
     }
 
     fn trash_hub(&self, rel: &str, today: &str) -> Result<()> {
@@ -761,19 +1090,19 @@ impl Pass<'_> {
             })
     }
 
-    /// One pass. Returns whether it changed the console's folder.
-    fn run(&self) -> Result<bool> {
-        let member_id = &self.member.member;
+    /// One pass. Returns whether it changed the hub, and whether it changed this member's side.
+    fn run(&self) -> Result<Changed> {
+        let member_id = self.member_id.as_str();
         // Markers: both sides must be there.
-        if !self.root.join(MARKER).is_file() {
+        if !self.side.has_marker() {
             set_status(member_id, |s| {
                 s.state = "offline".into();
                 s.detail = format!(
                     "{} is missing its {MARKER} file (unplugged or moved?)",
-                    self.root.display()
+                    self.side.describe()
                 );
             });
-            return Ok(false);
+            return Ok(Changed::default());
         }
         if hub_stat(self.addr, &join_hub(&self.drive.hub, MARKER)).is_none() {
             set_status(member_id, |s| {
@@ -783,16 +1112,16 @@ impl Pass<'_> {
                     self.drive.hub
                 );
             });
-            return Ok(false);
+            return Ok(Changed::default());
         }
         if self.install_running() {
             set_status(member_id, |s| {
                 s.state = "waiting".into();
                 s.detail = "an install is running on the console".into();
             });
-            return Ok(false);
+            return Ok(Changed::default());
         }
-        let mut member = walk_local(&self.root)?;
+        let mut member = self.side.walk()?;
         // Nothing changed here and nobody changed the console's folder through the drive: skip
         // listing it (the slow half of a pass) until FULL_SCAN says to look anyway.
         let quiet = with_runtime(member_id, |rt| {
@@ -808,26 +1137,31 @@ impl Pass<'_> {
                     s.last_ok = now_ms();
                 }
             });
-            return Ok(false);
+            return Ok(Changed::default());
         }
         set_status(member_id, |s| {
             s.state = "syncing".into();
             s.detail.clear();
         });
         let hub = walk_hub(self.addr, &self.drive.hub)?;
-        let mut base = load_base(&self.drive.id, member_id);
+        let mut base = self.side.load_base(&self.drive.id, member_id);
         let now = now_ms() as i64 / 1000;
         // Still being written: leave it for the next pass (and do not take its absence as a delete).
-        let settling: Vec<String> = member
-            .iter()
-            .filter(|(_, m)| (0..SETTLE_SECS).contains(&(now - m.mtime)))
-            .map(|(p, _)| p.clone())
-            .collect();
+        let settling: Vec<String> = if self.side.settles() {
+            member
+                .iter()
+                .filter(|(_, m)| (0..SETTLE_SECS).contains(&(now - m.mtime)))
+                .map(|(p, _)| p.clone())
+                .collect()
+        } else {
+            Vec::new()
+        };
         let mut ops = plan(&member, &hub, &base);
         ops.retain(|o| safe_rel(o.path()) && !settling.iter().any(|p| p == o.path()));
-        // Left out: what this device cannot name, and what keeps failing (until it has rested).
-        let twins = case_twins(&hub);
-        let clash = case_clashes(&member, &hub);
+        // Left out: what this side cannot name, and what keeps failing (until it has rested).
+        let ci = self.side.case_insensitive();
+        let twins = case_twins(&hub, ci);
+        let clash = case_clashes(&member, &hub, ci);
         let mut skipped: Vec<String> = Vec::new();
         let resting: std::collections::HashSet<String> = with_runtime(member_id, |rt| {
             rt.fails
@@ -843,7 +1177,7 @@ impl Pass<'_> {
             let fetches = matches!(o, Op::Download(_) | Op::Conflict(_) | Op::Compare(_));
             let keep = !(resting.contains(p)
                 || clash.contains(p)
-                || (fetches && (unstorable(p) || twins.contains(p))));
+                || (fetches && (self.side.unstorable(p) || twins.contains(p))));
             if !keep {
                 skipped.push(p.to_string());
             }
@@ -859,15 +1193,28 @@ impl Pass<'_> {
             held = ops.iter().filter(|o| o.is_delete()).count();
             ops.retain(|o| !o.is_delete());
         }
+        if !ops.is_empty() {
+            let shown: Vec<String> = ops.iter().take(12).map(|o| format!("{o:?}")).collect();
+            crate::log_info!(
+                "mesh drive {} ({}): {} change(s): {}",
+                self.drive.name,
+                member_id,
+                ops.len(),
+                shown.join(", ")
+            );
+        }
         let (today, stamp) = date_parts(now);
         let (mut up, mut down, mut del, mut conf) = (0, 0, 0, 0);
         let mut hub_changed = false;
+        let mut side_changed = false;
         let mut first_error: Option<String> = None;
         let todo = ops.len();
         set_status(member_id, |s| {
             s.todo = todo;
             s.done = 0;
         });
+        let hub_addr = self.addr;
+        let hub_root = self.drive.hub.as_str();
         for op in &ops {
             if self.lost.load(Ordering::SeqCst) {
                 first_error.get_or_insert_with(|| {
@@ -878,44 +1225,45 @@ impl Pass<'_> {
             let rel = op.path().to_string();
             set_status(member_id, |s| s.current = rel.clone());
             hub_changed |= matches!(op, Op::Upload(_) | Op::DeleteHub(_));
+            side_changed |= matches!(
+                op,
+                Op::Download(_) | Op::Conflict(_) | Op::DeleteMember(_) | Op::Compare(_)
+            );
             let r: Result<()> = (|| {
                 match op {
                     Op::Upload(_) => {
-                        let before = local_stat(&local_path(&self.root, &rel));
-                        self.upload(&rel)?;
+                        let before = self.side.stat(&rel);
+                        self.side.send(hub_addr, hub_root, &rel)?;
                         up += 1;
                         // Saved again while it went up: the base keeps the old state, so the next
                         // pass sends the new bytes.
-                        let m = local_stat(&local_path(&self.root, &rel))
-                            .filter(|m| Some(*m) == before);
-                        let h = hub_stat(self.addr, &join_hub(&self.drive.hub, &rel));
+                        let m = self.side.stat(&rel).filter(|m| Some(*m) == before);
+                        let h = hub_stat(hub_addr, &join_hub(hub_root, &rel));
                         if let (Some(m), Some(h)) = (m, h) {
                             base.insert(rel.clone(), BaseEntry { m, h });
                         }
                     }
                     Op::Download(_) => {
-                        self.download(&rel, member.get(&rel).copied())?;
+                        self.side
+                            .fetch(hub_addr, hub_root, &rel, member.get(&rel).copied())?;
                         down += 1;
-                        if let (Some(m), Some(h)) =
-                            (local_stat(&local_path(&self.root, &rel)), hub.get(&rel))
-                        {
+                        if let (Some(m), Some(h)) = (self.side.stat(&rel), hub.get(&rel)) {
                             base.insert(rel.clone(), BaseEntry { m, h: *h });
                         }
                     }
                     Op::Conflict(_) => {
                         // Ours keeps a new name (it reaches everyone next pass); theirs comes here.
                         let renamed = self.conflict_copy(&rel, &stamp);
-                        let from = local_path(&self.root, &rel);
-                        std::fs::rename(&from, local_path(&self.root, &renamed))?;
+                        self.side.rename(&rel, &renamed)?;
                         member.remove(&rel);
-                        self.download(&rel, None)?;
+                        self.side.fetch(hub_addr, hub_root, &rel, None)?;
                         conf += 1;
-                        if let (Some(m), Some(h)) = (local_stat(&from), hub.get(&rel)) {
+                        if let (Some(m), Some(h)) = (self.side.stat(&rel), hub.get(&rel)) {
                             base.insert(rel.clone(), BaseEntry { m, h: *h });
                         }
                     }
                     Op::DeleteMember(_) => {
-                        self.trash_local(&rel, &today)?;
+                        self.side.trash(&rel, &today)?;
                         del += 1;
                         base.remove(&rel);
                     }
@@ -931,12 +1279,11 @@ impl Pass<'_> {
                             }
                         } else {
                             let renamed = self.conflict_copy(&rel, &stamp);
-                            let from = local_path(&self.root, &rel);
-                            std::fs::rename(&from, local_path(&self.root, &renamed))?;
+                            self.side.rename(&rel, &renamed)?;
                             member.remove(&rel);
-                            self.download(&rel, None)?;
+                            self.side.fetch(hub_addr, hub_root, &rel, None)?;
                             conf += 1;
-                            if let (Some(m), Some(h)) = (local_stat(&from), hub.get(&rel)) {
+                            if let (Some(m), Some(h)) = (self.side.stat(&rel), hub.get(&rel)) {
                                 base.insert(rel.clone(), BaseEntry { m, h: *h });
                             }
                         }
@@ -967,10 +1314,10 @@ impl Pass<'_> {
             set_status(member_id, |s| s.done += 1);
             // Progress survives an interrupted pass.
             if up + down + del + conf > 0 && (up + down + del + conf) % 20 == 0 {
-                let _ = save_base(&self.drive.id, member_id, &base);
+                let _ = self.side.save_base(&self.drive.id, member_id, &base);
             }
         }
-        save_base(&self.drive.id, member_id, &base)?;
+        self.side.save_base(&self.drive.id, member_id, &base)?;
         let files = base.len();
         let bytes: u64 = base.values().map(|e| e.h.size).sum();
         let changed = up + down + del + conf > 0;
@@ -1006,40 +1353,99 @@ impl Pass<'_> {
                 s.last_ok = now_ms();
             }
         });
-        self.empty_trash(now);
-        Ok(hub_changed)
-    }
-
-    /// Trash folders are named by day; the ones older than TRASH_DAYS go. Best effort.
-    fn empty_trash(&self, now: i64) {
+        // Trash folders are named by day; the ones older than TRASH_DAYS go. Best effort.
         let cutoff = date_parts(now - TRASH_DAYS * 86_400).0;
-        if let Ok(rd) = std::fs::read_dir(self.root.join(TRASH)) {
-            for e in rd.flatten() {
-                let n = e.file_name().to_string_lossy().into_owned();
-                if n.len() == 10 && n < cutoff {
-                    let _ = std::fs::remove_dir_all(e.path());
-                }
-            }
-        }
-        let hub_trash = join_hub(&self.drive.hub, TRASH);
-        if let Ok(l) = fs_ops::list_dir(self.addr, &hub_trash, ListDirOptions::default()) {
-            for e in l.entries {
-                if e.kind == "dir" && e.name.len() == 10 && e.name < cutoff {
-                    let _ = fs_ops::fs_delete(self.addr, &join_hub(&hub_trash, &e.name));
-                }
-            }
-        }
+        self.side.empty_trash(&cutoff);
+        empty_console_trash(self.addr, &self.drive.hub, &cutoff);
+        Ok(Changed {
+            hub: hub_changed,
+            side: side_changed,
+        })
     }
+}
+
+/// Takes `drive:<id>` on `addr` for one pass. False (and a "waiting" status unless it was in
+/// sync) when another engine holds it.
+fn take_drive_lock(addr: &str, drive: &Drive, member_id: &str) -> Result<bool> {
+    let lock_name = format!("drive:{}", drive.id);
+    let label = format!("Syncing Mesh Drive {}", drive.name);
+    let took = crate::mesh_api::call(addr, || {
+        mesh::lock(addr, "take", &lock_name, LOCK_TTL_S, false, &label, "")
+    })?;
+    if took
+        .as_ref()
+        .and_then(|v| v.get("got"))
+        .and_then(Value::as_bool)
+        == Some(true)
+    {
+        return Ok(true);
+    }
+    set_status(member_id, |s| {
+        // In sync and another device is passing through: still in sync, nothing to say.
+        if s.state == "idle" {
+            return;
+        }
+        s.state = "waiting".into();
+        s.detail = took
+            .as_ref()
+            .and_then(|v| v.get("by_name"))
+            .and_then(Value::as_str)
+            .map(|n| format!("{n} is syncing it"))
+            .unwrap_or_default();
+    });
+    Ok(false)
+}
+
+/// One pass of `side` against `drive`'s home on `addr`, under the drive's lock. None when
+/// another engine holds the lock; Some(the pass's result) otherwise (a failed pass already set
+/// its status).
+fn pass_on(
+    addr: &str,
+    drive: &Drive,
+    member_id: &str,
+    side: &dyn Side,
+    device_name: String,
+) -> Result<Option<Result<Changed>>> {
+    if !take_drive_lock(addr, drive, member_id)? {
+        return Ok(None);
+    }
+    let lease = DriveLease::hold(
+        addr,
+        &format!("drive:{}", drive.id),
+        &format!("Syncing Mesh Drive {}", drive.name),
+    );
+    let pass = Pass {
+        addr,
+        drive,
+        member_id: member_id.to_string(),
+        side,
+        device_name,
+        lost: lease.lost.clone(),
+    };
+    let r = pass.run();
+    drop(lease);
+    if let Err(e) = &r {
+        set_status(member_id, |s| {
+            s.state = "error".into();
+            s.detail = format!("{e:#}");
+        });
+    }
+    Ok(Some(r))
 }
 
 fn sync_member(lm: &LocalMember, me: &str) -> Result<()> {
     let addr = lm.console.as_str();
-    let Some((_, doc)) = doc_read(addr)? else {
-        set_status(&lm.member, |s| {
-            s.state = "offline".into();
-            s.detail = "the console's helper is older than 8.0.0".into();
-        });
-        return Ok(());
+    let doc = match doc_read(addr) {
+        Ok(Some((_, doc))) => doc,
+        Ok(None) => {
+            set_status(&lm.member, |s| {
+                s.state = "offline".into();
+                s.detail = "the console's helper is older than 8.0.0".into();
+            });
+            return Ok(());
+        }
+        // Its own console is away: a linked console holds the same drive.
+        Err(e) => return failover(lm, e),
     };
     // The console's list read fine and no longer has this folder (the drive was deleted, or the
     // folder removed, from another device): forget it here too, so the folder can be used again.
@@ -1062,59 +1468,309 @@ fn sync_member(lm: &LocalMember, me: &str) -> Result<()> {
         );
         return forget_local(lm);
     };
+    // Remembered for when this console is away.
+    let links: Vec<String> = drive.links.iter().map(|l| l.console.clone()).collect();
+    if links != lm.links {
+        let _ = edit_config(|c| {
+            for m in c.members.iter_mut().filter(|m| m.member == lm.member) {
+                m.links = links.clone();
+            }
+        });
+    }
     if member.paused {
         set_status(&lm.member, |s| s.state = "paused".into());
         return Ok(());
     }
-    // One engine at a time per drive.
-    let lock_name = format!("drive:{}", drive.id);
-    let label = format!("Syncing Mesh Drive {}", drive.name);
-    let took = crate::mesh_api::call(addr, || {
-        mesh::lock(addr, "take", &lock_name, LOCK_TTL_S, false, &label, "")
-    })?;
-    if took
-        .as_ref()
-        .and_then(|v| v.get("got"))
-        .and_then(Value::as_bool)
-        != Some(true)
-    {
-        set_status(&lm.member, |s| {
-            // In sync and another device is passing through: still in sync, nothing to say.
-            if s.state == "idle" {
-                return;
-            }
-            s.state = "waiting".into();
-            s.detail = took
-                .as_ref()
-                .and_then(|v| v.get("by_name"))
-                .and_then(Value::as_str)
-                .map(|n| format!("{n} is syncing it"))
-                .unwrap_or_default();
-        });
-        return Ok(());
-    }
-    let lease = DriveLease::hold(addr, &lock_name, &label);
-    let pass = Pass {
+    let side = LocalSide {
+        root: PathBuf::from(&lm.path),
+        via: String::new(),
+    };
+    let Some(r) = pass_on(
         addr,
         drive,
-        member: lm,
-        root: PathBuf::from(&lm.path),
-        device_name: crate::mesh_api::device_name(),
-        lost: lease.lost.clone(),
+        &lm.member,
+        &side,
+        crate::mesh_api::device_name(),
+    )?
+    else {
+        return Ok(());
     };
-    let r = pass.run();
-    drop(lease);
-    if let Err(e) = &r {
-        set_status(&lm.member, |s| {
-            s.state = "error".into();
-            s.detail = format!("{e:#}");
-        });
-    }
-    let hub_changed = *r.as_ref().unwrap_or(&false);
+    let hub_changed = r.as_ref().is_ok_and(|c| c.hub);
     if let Err(e) = report(addr, drive, member, &lm.member, hub_changed) {
         crate::log_warn!("mesh drive {}: report: {e:#}", drive.name);
     }
     r.map(|_| ())
+}
+
+/// This folder's own console does not answer: sync through a console the drive is linked to,
+/// with a base kept apart for it (the first such pass only adds and compares, never deletes).
+fn failover(lm: &LocalMember, home_err: anyhow::Error) -> Result<()> {
+    for b in &lm.links {
+        let Ok(Some((_, doc))) = doc_read(b) else {
+            continue;
+        };
+        let Some(drive) = doc.drives.iter().find(|d| d.id == lm.drive) else {
+            continue;
+        };
+        // Still linked from that side too.
+        let Some(back) = drive.links.iter().find(|l| l.console == lm.console) else {
+            continue;
+        };
+        let home_name = if back.console_name.is_empty() {
+            lm.console.clone()
+        } else {
+            back.console_name.clone()
+        };
+        let side = LocalSide {
+            root: PathBuf::from(&lm.path),
+            via: b.clone(),
+        };
+        let Some(r) = pass_on(b, drive, &lm.member, &side, crate::mesh_api::device_name())? else {
+            return Ok(());
+        };
+        if r.as_ref().is_ok_and(|c| c.hub) {
+            let _ = doc_update(b, |d| {
+                if let Some(d) = d.drives.iter_mut().find(|d| d.id == lm.drive) {
+                    d.hub_rev += 1;
+                }
+                Ok(())
+            });
+        }
+        set_status(&lm.member, |s| {
+            if s.state == "idle" {
+                s.detail = format!("{home_name} is away: synced through {b}");
+            }
+        });
+        return r.map(|_| ());
+    }
+    set_status(&lm.member, |s| {
+        s.state = "offline".into();
+        s.detail = format!("the console ({}) does not answer: {home_err:#}", lm.console);
+    });
+    Ok(())
+}
+
+// ---- master links (8.1.0) ----
+
+/// The two ends of a link in a fixed order, so whichever engine carries it, the home side is
+/// the same console and the base sits in the same folder.
+fn link_ends<'a>(a: &'a str, b: &'a str) -> (&'a str, &'a str) {
+    if a <= b {
+        (a, b)
+    } else {
+        (b, a)
+    }
+}
+
+/// Carries every link of every drive this engine is in. A link runs at most once per round,
+/// from whichever of its consoles is read first.
+fn sync_links(me: &str) {
+    if matches!(crate::mesh_api::kind(), "android" | "ios") {
+        return; // a phone is not up long enough to carry a link
+    }
+    let mut consoles: Vec<String> = load_config()
+        .members
+        .iter()
+        .map(|m| m.console.clone())
+        .collect();
+    consoles.sort();
+    consoles.dedup();
+    let mut done = std::collections::HashSet::new();
+    for a in consoles {
+        let Ok(Some((_, doc))) = doc_read(&a) else {
+            continue;
+        };
+        for drive in doc
+            .drives
+            .iter()
+            .filter(|d| d.members.iter().any(|m| m.device == me))
+        {
+            for l in &drive.links {
+                let (lo, hi) = link_ends(&a, &l.console);
+                if !done.insert(format!("{}|{lo}|{hi}", drive.id)) {
+                    continue;
+                }
+                let r = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    run_link(&drive.id, lo, hi)
+                }));
+                match r {
+                    Ok(Err(e)) => crate::log_warn!("mesh drive link {lo}-{hi}: {e:#}"),
+                    Err(_) => crate::log_warn!("mesh drive link {lo}-{hi}: the pass panicked"),
+                    Ok(Ok(())) => {}
+                }
+            }
+        }
+    }
+}
+
+fn link_member_id(drive: &str, hi: &str) -> String {
+    format!("link:{drive}:{hi}")
+}
+
+/// One pass between the drive's home folders on `lo` and `hi`.
+fn run_link(id: &str, lo: &str, hi: &str) -> Result<()> {
+    let member_id = link_member_id(id, hi);
+    let Some((_, dlo)) = doc_read(lo)? else {
+        return Ok(());
+    };
+    let Some(a) = dlo.drives.iter().find(|d| d.id == id) else {
+        return Ok(());
+    };
+    let dhi = match doc_read(hi) {
+        Ok(Some((_, d))) => d,
+        Ok(None) => return Ok(()),
+        Err(e) => {
+            set_link_state(lo, id, hi, "offline", &format!("{e:#}"), false, None);
+            return Ok(());
+        }
+    };
+    let Some(b) = dhi.drives.iter().find(|d| d.id == id) else {
+        // Unlinked from the other side: drop this end too.
+        drop_link(lo, id, hi);
+        return Ok(());
+    };
+    let (Some(to_hi), Some(to_lo)) = (
+        a.links.iter().find(|l| l.console == hi),
+        b.links.iter().find(|l| l.console == lo),
+    ) else {
+        drop_link(lo, id, hi);
+        drop_link(hi, id, lo);
+        return Ok(());
+    };
+    if to_hi.allow_deletes || to_lo.allow_deletes {
+        confirmed()
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .insert(member_id.clone());
+    }
+    // The drive's lock on both consoles: no device pass on either runs meanwhile.
+    if !take_drive_lock(lo, a, &member_id)? {
+        return Ok(());
+    }
+    let lost = std::sync::Arc::new(AtomicBool::new(false));
+    let label = format!("Syncing Mesh Drive {} between consoles", a.name);
+    let lease_lo = DriveLease::hold_with(lo, &format!("drive:{id}"), &label, lost.clone());
+    if !take_drive_lock(hi, b, &member_id)? {
+        drop(lease_lo);
+        return Ok(());
+    }
+    let lease_hi = DriveLease::hold_with(hi, &format!("drive:{id}"), &label, lost.clone());
+    let side = ConsoleSide {
+        addr: hi.to_string(),
+        root: b.hub.clone(),
+    };
+    let hi_name = if to_hi.console_name.is_empty() {
+        hi.to_string()
+    } else {
+        to_hi.console_name.clone()
+    };
+    let pass = Pass {
+        addr: lo,
+        drive: a,
+        member_id: member_id.clone(),
+        side: &side,
+        device_name: hi_name,
+        lost,
+    };
+    let r = pass.run();
+    drop(lease_hi);
+    drop(lease_lo);
+    if let Err(e) = &r {
+        set_status(&member_id, |s| {
+            s.state = "error".into();
+            s.detail = format!("{e:#}");
+        });
+    }
+    let st = statuses()
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .get(&member_id)
+        .cloned()
+        .unwrap_or_default();
+    let state = match st.state.as_str() {
+        "syncing" | "waiting" => "idle",
+        s => s,
+    };
+    let changed = r.as_ref().ok().copied().unwrap_or_default();
+    let consumed = state != "confirm";
+    set_link_state(
+        lo,
+        id,
+        hi,
+        state,
+        if state == "error" { &st.detail } else { "" },
+        changed.hub,
+        Some((b.members.len() as u64, consumed)),
+    );
+    set_link_state(
+        hi,
+        id,
+        lo,
+        state,
+        if state == "error" { &st.detail } else { "" },
+        changed.side,
+        Some((a.members.len() as u64, consumed)),
+    );
+    r.map(|_| ())
+}
+
+/// The link from `at` to `other` reports `state`; `bump` moves `at`'s hub_rev on (its home
+/// folder changed). Written only when something changed or REPORT_EVERY_MS passed.
+fn set_link_state(
+    at: &str,
+    id: &str,
+    other: &str,
+    state: &str,
+    error: &str,
+    bump: bool,
+    circle_and_consumed: Option<(u64, bool)>,
+) {
+    let now = now_ms();
+    let error: String = error.chars().take(300).collect();
+    let r = doc_update(at, |doc| {
+        let Some(d) = doc.drives.iter_mut().find(|d| d.id == id) else {
+            return Ok(false);
+        };
+        if bump {
+            d.hub_rev += 1;
+        }
+        let Some(l) = d.links.iter_mut().find(|l| l.console == other) else {
+            return Ok(bump);
+        };
+        let reported = l.other.get("reported").and_then(Value::as_u64).unwrap_or(0);
+        let mut news = bump || l.state != state || l.error != error;
+        if let Some((circle, consumed)) = circle_and_consumed {
+            news |= l.circle != circle || (consumed && l.allow_deletes);
+            l.circle = circle;
+            if consumed {
+                l.allow_deletes = false;
+            }
+        }
+        if !news && now.saturating_sub(reported) < REPORT_EVERY_MS {
+            return Ok(false);
+        }
+        l.state = state.to_string();
+        l.error = error.clone();
+        if state == "idle" {
+            l.last_sync = now;
+        }
+        l.by_name = crate::mesh_api::device_name();
+        l.other.insert("reported".into(), json!(now));
+        Ok(true)
+    });
+    if let Err(e) = r {
+        crate::log_warn!("mesh drive link {at}->{other}: {e:#}");
+    }
+}
+
+/// Removes the link to `other` from `at`'s copy of the drive. Best effort.
+fn drop_link(at: &str, id: &str, other: &str) {
+    let _ = doc_update(at, |doc| {
+        if let Some(d) = doc.drives.iter_mut().find(|d| d.id == id) {
+            d.links.retain(|l| l.console != other);
+        }
+        Ok(())
+    });
 }
 
 /// This member's state, on the console where every device reads it. Written when something a
@@ -1236,6 +1892,7 @@ pub fn tick() {
             Ok(Ok(())) => {}
         }
     }
+    sync_links(&me);
 }
 
 pub fn spawn() {
@@ -1752,8 +2409,23 @@ fn add_local(addr: &str, drive: &str, member: &str, path: &str, name: &str) -> R
             member: member.to_string(),
             path: path.to_string(),
             name: name.to_string(),
+            links: Vec::new(),
         });
     })
+}
+
+/// Forgets this device's folders of `drive` kept through `console`.
+fn remove_local_at(drive: &str, console: &str) -> Result<()> {
+    let gone: Vec<String> = load_config()
+        .members
+        .iter()
+        .filter(|m| m.drive == drive && m.console == console)
+        .map(|m| m.member.clone())
+        .collect();
+    for m in gone {
+        remove_local(drive, Some(&m))?;
+    }
+    Ok(())
 }
 
 fn remove_local(drive: &str, member: Option<&str>) -> Result<()> {
@@ -1799,6 +2471,13 @@ pub async fn list(Query(q): Query<ListQuery>) -> Response {
         let Some((_, doc)) = doc_read(&addr)? else {
             return Ok(unsupported());
         };
+        // This device's folders of drives here that it keeps through another (linked) console.
+        let elsewhere: Vec<Value> = load_config()
+            .members
+            .iter()
+            .filter(|m| m.console != addr && doc.drives.iter().any(|d| d.id == m.drive))
+            .map(|m| json!({ "drive": m.drive, "console": m.console, "path": m.path }))
+            .collect();
         let mine: Vec<Value> = load_config()
             .members
             .into_iter()
@@ -1821,6 +2500,7 @@ pub async fn list(Query(q): Query<ListQuery>) -> Response {
             .collect();
         Ok(json!({
             "supported": true,
+            "elsewhere": elsewhere,
             "free": free,
             "me": crate::mesh_api::id_hex(),
             "kind": crate::mesh_api::kind(),
@@ -1952,11 +2632,29 @@ pub struct CheckReq {
     path: Option<String>,
     /// Checked for this drive (joining it): its own folders are not "taken".
     drive: Option<String>,
+    /// Check `hub` on this other console instead (linking a drive to it).
+    console: Option<String>,
 }
 
 pub async fn check(Json(req): Json<CheckReq>) -> Response {
     answer(move || {
         let hub = match &req.hub {
+            Some(h) if req.console.is_some() => {
+                let other = crate::console_addr(req.console.as_deref().unwrap_or(""));
+                let Some((_, doc)) = doc_read(&other)? else {
+                    return Ok(unsupported());
+                };
+                if let Some(id) = req.drive.as_deref() {
+                    if doc.drives.iter().any(|d| d.id == id) {
+                        return Ok(json!({
+                            "supported": true,
+                            "hub": fail_check(h, "already_linked", None),
+                            "local": null,
+                        }));
+                    }
+                }
+                Some(check_hub(&other, &doc, h, req.hub_name.as_deref(), None))
+            }
             Some(h) => {
                 let addr = addr_of(req.addr.clone())?;
                 let Some((_, doc)) = doc_read(&addr)? else {
@@ -1994,6 +2692,17 @@ pub async fn join(Json(req): Json<JoinReq>) -> Response {
     answer(move || {
         let addr = addr_of(req.addr)?;
         let me = me_or_err()?;
+        if let Some(m) = load_config()
+            .members
+            .iter()
+            .find(|m| m.drive == req.drive && m.console != addr)
+        {
+            bail!(
+                "kept_elsewhere: this device already keeps this drive (in {}) through {}; it syncs through whichever linked console is up",
+                m.path,
+                m.console
+            );
+        }
         let check = check_local(&req.path, Some(&req.drive));
         refuse_unless_ok(&check, "This device's folder")?;
         let path = check.path.clone();
@@ -2080,12 +2789,343 @@ pub async fn password(Json(req): Json<PasswordReq>) -> Response {
                 bail!("wrong_password: only a device in the drive, or one that knows its password, can change it");
             }
             d.lock = next.clone();
-            Ok(())
+            Ok(d.links.iter().map(|l| l.console.clone()).collect::<Vec<_>>())
         })?;
-        if r.is_none() {
+        let Some(linked) = r else {
             return Ok(unsupported());
+        };
+        // The same password on every linked console (best effort: one that is away keeps the old
+        // one until it is set again).
+        for c in linked {
+            let _ = doc_update(&c, |doc| {
+                if let Some(d) = doc.drives.iter_mut().find(|d| d.id == req.drive) {
+                    d.lock = next.clone();
+                }
+                Ok(())
+            });
         }
         Ok(json!({ "supported": true, "ok": true }))
+    })
+    .await
+}
+
+// ---- linking consoles (8.1.0) ----
+
+#[derive(Deserialize)]
+pub struct LinkReq {
+    addr: Option<String>,
+    drive: String,
+    /// The other console.
+    console: String,
+    /// The drive's home there: a folder, or (with `hub_name`) where a new one is made.
+    hub: String,
+    hub_name: Option<String>,
+    /// What the two consoles are called (shown on each side's card).
+    name: Option<String>,
+    here_name: Option<String>,
+}
+
+/// Links `drive` (here) with another console: that console gets a home folder for it and
+/// becomes the master of its own circle for the drive; an engine in the drive keeps the two
+/// homes the same. A console holds a drive at most once, so links form a tree.
+pub async fn link(Json(req): Json<LinkReq>) -> Response {
+    answer(move || {
+        let addr = addr_of(req.addr)?;
+        let me = me_or_err()?;
+        let other = crate::console_addr(&req.console);
+        if other.is_empty() || other == addr {
+            bail!("choose another console to link with");
+        }
+        let Some((_, here)) = doc_read(&addr)? else {
+            return Ok(unsupported());
+        };
+        let a = here
+            .drives
+            .iter()
+            .find(|d| d.id == req.drive)
+            .ok_or_else(|| anyhow!("that drive is gone"))?
+            .clone();
+        if !a.members.iter().any(|m| m.device == me) && a.by != me {
+            bail!("only a device in this drive can link it to another console");
+        }
+        let there = match doc_read(&other) {
+            Ok(Some((_, d))) => d,
+            Ok(None) => {
+                bail!("{other}'s helper is older than 8.0.0: send it this app's helper first")
+            }
+            Err(e) => bail!("{other} does not answer: {e:#}"),
+        };
+        if there.drives.iter().any(|d| d.id == a.id) {
+            bail!("already_linked: that console already holds this drive");
+        }
+        let check = check_hub(&other, &there, &req.hub, req.hub_name.as_deref(), None);
+        refuse_unless_ok(&check, "The other console's folder")?;
+        let target = check.path.clone();
+        prepare_hub(&other, &target)?;
+        let now = now_ms();
+        let name_there = req.name.clone().unwrap_or_default();
+        let name_here = req.here_name.clone().unwrap_or_default();
+        doc_update(&other, |doc| {
+            if doc.drives.iter().any(|d| d.id == a.id) {
+                bail!("already_linked: that console already holds this drive");
+            }
+            doc.drives.push(Drive {
+                id: a.id.clone(),
+                name: a.name.clone(),
+                hub: target.clone(),
+                created: now,
+                by: me.clone(),
+                lock: a.lock.clone(),
+                links: vec![Link {
+                    console: addr.clone(),
+                    console_name: name_here.clone(),
+                    hub: a.hub.clone(),
+                    created: now,
+                    ..Default::default()
+                }],
+                ..Default::default()
+            });
+            Ok(())
+        })?
+        .ok_or_else(|| anyhow!("{other}'s helper is older than 8.0.0"))?;
+        let linked = doc_update(&addr, |doc| {
+            let d = doc
+                .drives
+                .iter_mut()
+                .find(|d| d.id == a.id)
+                .ok_or_else(|| anyhow!("that drive is gone"))?;
+            d.links.retain(|l| l.console != other);
+            d.links.push(Link {
+                console: other.clone(),
+                console_name: name_there.clone(),
+                hub: target.clone(),
+                created: now,
+                ..Default::default()
+            });
+            Ok(())
+        });
+        if !matches!(linked, Ok(Some(()))) {
+            // Never half-linked: the other console's copy goes again (its folder stays).
+            let _ = doc_update(&other, |doc| {
+                doc.drives.retain(|d| d.id != a.id);
+                Ok(())
+            });
+            linked?;
+            return Ok(unsupported());
+        }
+        kick();
+        Ok(json!({ "supported": true, "ok": true, "hub": target }))
+    })
+    .await
+}
+
+#[derive(Deserialize)]
+pub struct UnlinkReq {
+    addr: Option<String>,
+    drive: String,
+    console: String,
+    /// Let a held-back mass delete through this link run (instead of unlinking).
+    allow_deletes: Option<bool>,
+}
+
+/// Ends a link (both sides keep their copy, each a drive of its own circle), or with
+/// `allow_deletes` lets a held-back mass delete through it.
+pub async fn unlink(Json(req): Json<UnlinkReq>) -> Response {
+    answer(move || {
+        let addr = addr_of(req.addr)?;
+        let other = crate::console_addr(&req.console);
+        if req.allow_deletes == Some(true) {
+            let r = doc_update(&addr, |doc| {
+                if let Some(l) = doc
+                    .drives
+                    .iter_mut()
+                    .find(|d| d.id == req.drive)
+                    .and_then(|d| d.links.iter_mut().find(|l| l.console == other))
+                {
+                    l.allow_deletes = true;
+                }
+                Ok(())
+            })?;
+            if r.is_none() {
+                return Ok(unsupported());
+            }
+            kick();
+            return Ok(json!({ "supported": true, "ok": true }));
+        }
+        drop_link(&addr, &req.drive, &other);
+        drop_link(&other, &req.drive, &addr);
+        // The link's base lives in the second console's folder (link_ends): it means nothing now.
+        if let Ok(Some((_, doc))) = doc_read(link_ends(&addr, &other).1) {
+            if let Some(d) = doc.drives.iter().find(|d| d.id == req.drive) {
+                let _ = fs_ops::fs_delete(link_ends(&addr, &other).1, &join_hub(&d.hub, BASE_FILE));
+            }
+        }
+        Ok(json!({ "supported": true, "ok": true }))
+    })
+    .await
+}
+
+// ---- conflicts (8.1.0) ----
+
+#[derive(Deserialize)]
+pub struct ConflictsQuery {
+    addr: Option<String>,
+    drive: String,
+}
+
+/// The drive's conflict copies, each with the file it is a copy of (read from the console's
+/// home folder, which every device and linked console follows).
+pub async fn conflicts(Query(q): Query<ConflictsQuery>) -> Response {
+    answer(move || {
+        let addr = addr_of(q.addr)?;
+        let Some((_, doc)) = doc_read(&addr)? else {
+            return Ok(unsupported());
+        };
+        let d = doc
+            .drives
+            .iter()
+            .find(|d| d.id == q.drive)
+            .ok_or_else(|| anyhow!("that drive is gone"))?;
+        let hub = walk_hub(&addr, &d.hub)?;
+        let mut out: Vec<Value> = hub
+            .iter()
+            .filter_map(|(path, m)| {
+                let c = parse_conflict(path)?;
+                let orig = hub.get(&c.original);
+                Some(json!({
+                    "copy": path,
+                    "original": c.original,
+                    "device": c.device,
+                    "stamp": c.stamp,
+                    "copy_size": m.size,
+                    "copy_mtime": m.mtime,
+                    "original_size": orig.map(|o| o.size),
+                    "original_mtime": orig.map(|o| o.mtime),
+                }))
+            })
+            .collect();
+        out.sort_by(|a, b| {
+            b["stamp"]
+                .as_str()
+                .cmp(&a["stamp"].as_str())
+                .then(a["copy"].as_str().cmp(&b["copy"].as_str()))
+        });
+        Ok(json!({ "supported": true, "conflicts": out }))
+    })
+    .await
+}
+
+#[derive(Deserialize)]
+pub struct ResolveReq {
+    addr: Option<String>,
+    drive: String,
+    /// The conflict copy's path in the drive.
+    copy: String,
+    /// keep_copy (it replaces the original), keep_original (the copy goes to the trash),
+    /// keep_both (the copy gets a name of its own).
+    action: String,
+    /// keep_both: the copy's new file name (default: "<name> (from <device>)").
+    name: Option<String>,
+}
+
+/// Moves a file in the console's home folder to that folder's trash.
+fn trash_on(addr: &str, root: &str, rel: &str, today: &str) -> Result<()> {
+    let day = join_hub(&join_hub(root, TRASH), today);
+    let to = join_hub(
+        &day,
+        &free_name(rel, |r| hub_stat(addr, &join_hub(&day, r)).is_some()),
+    );
+    if let Some(parent) = to.rsplit_once('/').map(|(d, _)| d) {
+        fs_ops::fs_mkdir(addr, parent)?;
+    }
+    fs_ops::fs_move(addr, &join_hub(root, rel), &to)
+}
+
+/// Settles one conflict on the console's home folder; every device (and linked console) follows
+/// on its next pass. Nothing is deleted outright: what goes, goes to the drive's trash.
+pub async fn resolve(Json(req): Json<ResolveReq>) -> Response {
+    answer(move || {
+        let addr = addr_of(req.addr)?;
+        let Some((_, doc)) = doc_read(&addr)? else {
+            return Ok(unsupported());
+        };
+        let d = doc
+            .drives
+            .iter()
+            .find(|d| d.id == req.drive)
+            .ok_or_else(|| anyhow!("that drive is gone"))?
+            .clone();
+        if !safe_rel(&req.copy) {
+            bail!("that is not a file of the drive");
+        }
+        let c = parse_conflict(&req.copy).ok_or_else(|| anyhow!("that is not a conflict copy"))?;
+        if hub_stat(&addr, &join_hub(&d.hub, &req.copy)).is_none() {
+            bail!("gone: that copy is no longer there (another device settled it)");
+        }
+        // Under the drive's lock, so no pass moves these files meanwhile.
+        let member_id = format!("resolve:{}", d.id);
+        if !take_drive_lock(&addr, &d, &member_id)? {
+            bail!("busy: the drive is syncing right now; try again in a moment");
+        }
+        let lease = DriveLease::hold(&addr, &format!("drive:{}", d.id), "Settling a conflict");
+        let today = date_parts(now_ms() as i64 / 1000).0;
+        let r: Result<String> = (|| match req.action.as_str() {
+            "keep_original" => {
+                trash_on(&addr, &d.hub, &req.copy, &today)?;
+                Ok(c.original.clone())
+            }
+            "keep_copy" => {
+                if hub_stat(&addr, &join_hub(&d.hub, &c.original)).is_some() {
+                    trash_on(&addr, &d.hub, &c.original, &today)?;
+                }
+                fs_ops::fs_move(
+                    &addr,
+                    &join_hub(&d.hub, &req.copy),
+                    &join_hub(&d.hub, &c.original),
+                )?;
+                Ok(c.original.clone())
+            }
+            "keep_both" => {
+                let (dir, file) = c
+                    .original
+                    .rsplit_once('/')
+                    .map_or(("", c.original.as_str()), |(a, b)| (a, b));
+                let wanted = match req.name.as_deref().map(str::trim) {
+                    Some(n) if !n.is_empty() => {
+                        if !valid_name(n) {
+                            bail!("bad_name: that cannot be a file name");
+                        }
+                        n.to_string()
+                    }
+                    _ => {
+                        let (stem, ext) = match file.rfind('.') {
+                            Some(i) if i > 0 => (&file[..i], &file[i..]),
+                            _ => (file, ""),
+                        };
+                        format!("{stem} (from {}){ext}", c.device)
+                    }
+                };
+                let rel = if dir.is_empty() {
+                    wanted
+                } else {
+                    format!("{dir}/{wanted}")
+                };
+                let rel = free_name(&rel, |r| hub_stat(&addr, &join_hub(&d.hub, r)).is_some());
+                fs_ops::fs_move(&addr, &join_hub(&d.hub, &req.copy), &join_hub(&d.hub, &rel))?;
+                Ok(rel)
+            }
+            _ => bail!("choose keep_copy, keep_original or keep_both"),
+        })();
+        drop(lease);
+        let kept = r?;
+        let _ = doc_update(&addr, |doc| {
+            if let Some(d) = doc.drives.iter_mut().find(|x| x.id == d.id) {
+                d.hub_rev += 1;
+            }
+            Ok(())
+        });
+        kick();
+        Ok(json!({ "supported": true, "ok": true, "kept": kept }))
     })
     .await
 }
@@ -2155,10 +3195,20 @@ pub async fn delete(Json(req): Json<MemberReq>) -> Response {
     answer(move || {
         let addr = addr_of(req.addr)?;
         let r = doc_update(&addr, |doc| {
+            let linked: Vec<String> = doc
+                .drives
+                .iter()
+                .filter(|d| d.id == req.drive)
+                .flat_map(|d| d.links.iter().map(|l| l.console.clone()))
+                .collect();
             doc.drives.retain(|d| d.id != req.drive);
-            Ok(())
+            Ok(linked)
         })?;
-        remove_local(&req.drive, None)?;
+        // Linked consoles keep their copy as a drive of their own circle; only the link goes.
+        for c in r.clone().unwrap_or_default() {
+            drop_link(&c, &req.drive, &addr);
+        }
+        remove_local_at(&req.drive, &addr)?;
         if r.is_none() {
             return Ok(unsupported());
         }
@@ -2283,7 +3333,7 @@ mod tests {
         here.insert("same.txt".into(), Meta { size: 1, mtime: 0 });
         there.insert("foo.txt".into(), Meta { size: 2, mtime: 0 });
         there.insert("same.txt".into(), Meta { size: 1, mtime: 0 });
-        let c = case_clashes(&here, &there);
+        let c = case_clashes(&here, &there, cfg!(any(windows, target_os = "macos")));
         if cfg!(any(windows, target_os = "macos")) {
             assert!(c.contains("Foo.txt") && c.contains("foo.txt") && !c.contains("same.txt"));
         } else {
@@ -2297,7 +3347,7 @@ mod tests {
         for k in ["a/Photo.jpg", "a/photo.jpg", "b.txt"] {
             hub.insert(k.into(), Meta { size: 1, mtime: 0 });
         }
-        let t = case_twins(&hub);
+        let t = case_twins(&hub, cfg!(any(windows, target_os = "macos")));
         if cfg!(any(windows, target_os = "macos")) {
             assert_eq!(t.len(), 1);
             assert!(t.contains("a/photo.jpg"));

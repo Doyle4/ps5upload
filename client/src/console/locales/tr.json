@@ -72,6 +72,7 @@
   "cw_cleanup_err_busy": "Bu PS5'te bir kurulum, aktarım veya başka bir temizlik sürüyor. Bitince yeniden deneyin.",
   "cw_cleanup_err_expired": "Bu liste 10 dakikadan eski. Yeniden tarayın.",
   "cw_cleanup_err_install_running": "PS5 bir şey kuruyor. Bitince yeniden deneyin.",
+  "cw_cleanup_err_restarted": "PS5'teki yardımcı yeniden başladı ve bunu kaybetti. Yeniden tarayın.",
   "cw_cleanup_err_unsupported": "Bu PS5'teki yardımcı Temizlik için çok eski. Yardımcıyı güncelleyin.",
   "cw_cleanup_failed": "Temizlik durdu",
   "cw_cleanup_found_so_far": "Şimdiye kadar {count} bulundu",

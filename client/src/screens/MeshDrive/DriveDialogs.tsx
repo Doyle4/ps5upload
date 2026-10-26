@@ -21,7 +21,10 @@ import { useTr } from "../../state/lang";
 import { FolderCheckNote } from "./FolderCheckNote";
 
 /** Debounced engine check of whatever is chosen so far. */
-function useFolderCheck(host: string, q: { hub?: HubChoice; path?: string; drive?: string } | null) {
+export function useFolderCheck(
+  host: string,
+  q: { hub?: HubChoice; path?: string; drive?: string; console?: string } | null,
+) {
   const [result, setResult] = useState<{ hub: FolderCheck | null; local: FolderCheck | null }>({ hub: null, local: null });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -59,7 +62,7 @@ function useFolderCheck(host: string, q: { hub?: HubChoice; path?: string; drive
   return { ...result, busy, error };
 }
 
-function PathPicker({
+export function PathPicker({
   label,
   value,
   placeholder,

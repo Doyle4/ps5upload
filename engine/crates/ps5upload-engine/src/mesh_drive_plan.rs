@@ -132,6 +132,7 @@ pub fn ignored(name: &str) -> bool {
     name == MARKER
         || name == TRASH
         || name == TMP
+        || name == BASE_FILE
         || name == ".DS_Store"
         || name == "Thumbs.db"
         || name == "desktop.ini"
@@ -147,6 +148,9 @@ pub fn ignored(name: &str) -> bool {
 pub const MARKER: &str = ".ps5upload-mesh";
 pub const TRASH: &str = ".ps5upload-trash";
 pub const TMP: &str = ".ps5upload-mesh-tmp";
+/// A console member's base (what its folder and the hub last agreed on), kept in that folder so
+/// any engine can run its pass (8.1.0).
+pub const BASE_FILE: &str = ".ps5upload-mesh-base";
 
 /// "photo (conflict from Pixel 2026-10-25 1405).jpg"
 pub fn conflict_name(path: &str, device: &str, stamp: &str) -> String {
@@ -172,6 +176,49 @@ pub fn conflict_name(path: &str, device: &str, stamp: &str) -> String {
     }
 }
 
+/// A conflict copy's name taken apart: the file it is a copy of, the device that made it, and
+/// when (`YYYY-MM-DD HHMM`). None for any other name.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConflictName {
+    pub original: String,
+    pub device: String,
+    pub stamp: String,
+}
+
+pub fn parse_conflict(path: &str) -> Option<ConflictName> {
+    let (dir, file) = match path.rfind('/') {
+        Some(i) => (&path[..=i], &path[i + 1..]),
+        None => ("", path),
+    };
+    let start = file.rfind(" (conflict from ")?;
+    let inner_from = start + " (conflict from ".len();
+    let close = inner_from + file[inner_from..].find(')')?;
+    let inner = &file[inner_from..close];
+    // "<device> YYYY-MM-DD HHMM"
+    if inner.len() < 16 {
+        return None;
+    }
+    let (device, stamp) = inner.split_at(inner.len() - 15);
+    let device = device.strip_suffix(' ')?;
+    if !stamp.as_bytes()[..4].iter().all(u8::is_ascii_digit) || stamp.as_bytes()[10] != b' ' {
+        return None;
+    }
+    let mut rest = &file[close + 1..];
+    // free_name's " (2)" after a second conflict in the same minute.
+    if let Some(r) = rest.strip_prefix(" (") {
+        if let Some(end) = r.find(')') {
+            if r[..end].bytes().all(|b| b.is_ascii_digit()) && !r[..end].is_empty() {
+                rest = &r[end + 1..];
+            }
+        }
+    }
+    Some(ConflictName {
+        original: format!("{dir}{}{rest}", &file[..start]),
+        device: device.to_string(),
+        stamp: stamp.to_string(),
+    })
+}
+
 /// `YYYY-MM-DD` and `YYYY-MM-DD HHMM` (UTC) for a time in seconds since 1970.
 pub fn date_parts(secs: i64) -> (String, String) {
     let days = secs.div_euclid(86_400);
@@ -194,6 +241,30 @@ pub fn date_parts(secs: i64) -> (String, String) {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn conflict_copies_are_taken_apart() {
+        let made = conflict_name("photos/a.jpg", "Pixel 9", "2026-10-25 2112");
+        assert_eq!(
+            parse_conflict(&made),
+            Some(ConflictName {
+                original: "photos/a.jpg".into(),
+                device: "Pixel 9".into(),
+                stamp: "2026-10-25 2112".into(),
+            })
+        );
+        assert_eq!(
+            parse_conflict("notes (conflict from Mac 2026-10-25 2112) (2)").map(|c| c.original),
+            Some("notes".into())
+        );
+        assert_eq!(
+            parse_conflict("a (conflict from Mac 2026-10-25 2112) (2).txt").map(|c| c.original),
+            Some("a.txt".into())
+        );
+        assert_eq!(parse_conflict("plain.txt"), None);
+        assert_eq!(parse_conflict("x (conflict from soon).txt"), None);
+    }
+
     use super::*;
 
     fn meta(size: u64, mtime: i64) -> Meta {
