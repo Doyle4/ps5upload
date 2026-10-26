@@ -3026,7 +3026,6 @@ export default function FileSystemScreen({ tabs }: { tabs?: React.ReactNode } = 
               onMainClick={() => void addFilesHere()}
               onPick={(p) => void addPicked([p], "file")}
             />
-      {tabs}
             <Button
               variant="secondary"
               size="sm"
@@ -3069,6 +3068,7 @@ export default function FileSystemScreen({ tabs }: { tabs?: React.ReactNode } = 
           </div>
         }
       />
+      {tabs}
 
       <ConnectionGate require="payload">
         {/* An open edit session means the browsed mount is a game image
