@@ -30,6 +30,8 @@ What's new in ps5upload, written for humans.
   console after a pass: its state, how many files and how much it holds, its app version, and when
   it last synced. The drive card lists them all with who is online, so you see who is in the
   drive and how each is doing from any device; a device that is gone can be removed by any other.
+- **Rename a device from the drive's list** (or in Devices): the console keeps the name, so every
+  device shows it at once. Each device has its kind's icon: a phone, Docker or a computer.
 - **What you'd want to know about the folder:** files, total size, conflict copies, free space on
   the console, live progress (file 12 of 40 and its name), and files that were left out and why.
 - **Open folder** opens this device's copy in Finder or Explorer (desktop app); **Open on

@@ -45,7 +45,7 @@ import {
   useMeshStore,
 } from "../../state/mesh";
 
-const KIND_ICONS: Record<string, LucideIcon> = {
+export const KIND_ICONS: Record<string, LucideIcon> = {
   android: Smartphone,
   ios: Smartphone,
   docker: Container,

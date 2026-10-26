@@ -14,6 +14,7 @@ import {
   KeyRound,
   Lock,
   MonitorSmartphone,
+  Pencil,
   Pause,
   Play,
   Plus,
@@ -24,7 +25,8 @@ import {
 } from "lucide-react";
 
 import { Badge, Button, Callout, OverflowMenu, PageHeader, type OverflowMenuItem } from "../../components";
-import { useConfirm } from "../../components/ConfirmDialog";
+import { useConfirm, usePrompt } from "../../components/ConfirmDialog";
+import { meshDevice, setMeshName } from "../../api/mesh";
 import {
   driveApi,
   fetchDrives,
@@ -38,10 +40,10 @@ import { openLocalPath } from "../../lib/openLocalPath";
 import { isMobile } from "../../lib/platform";
 import { useConnectionStore } from "../../state/connection";
 import { engineIsOnThisDevice } from "../../state/engine";
-import { meshFor, useMeshStore } from "../../state/mesh";
+import { deviceName, meshFor, useMeshStore } from "../../state/mesh";
 import { useTr, type Translator } from "../../state/lang";
 import { useToastStore } from "../../state/toasts";
-import { agoText } from "../Devices";
+import { agoText, KIND_ICONS } from "../Devices";
 import { CreateDriveDialog, JoinDriveDialog, PasswordDialog } from "./DriveDialogs";
 
 type Tone = "good" | "warn" | "bad" | "neutral" | "accent";
@@ -134,18 +136,29 @@ function reportedState(tr: Translator, m: DriveMember): { tone: Tone; text: stri
 
 const KIND_LABEL: Record<string, string> = { desktop: "Desktop", android: "Android", ios: "iOS", docker: "Docker" };
 
+/** Phone, Docker or computer, as on the Devices screen. */
+function KindGlyph({ kind }: { kind: string }) {
+  const Icon = KIND_ICONS[kind] ?? MonitorSmartphone;
+  return <Icon size={13} aria-hidden className="shrink-0 text-[var(--color-muted)]" />;
+}
+
 function MemberRow({
   m,
   me,
   online,
   now,
   onRemove,
+  name,
+  onRename,
 }: {
   m: DriveMember;
   me: boolean;
   online: boolean | null;
   now: number;
   onRemove: (() => void) | null;
+  /** The name the console knows the device by (Devices renames it for everyone). */
+  name: string;
+  onRename: () => void;
 }) {
   const tr = useTr();
   const st = reportedState(tr, m);
@@ -167,8 +180,8 @@ function MemberRow({
       />
       <div className="min-w-0 flex-1">
         <p className="flex flex-wrap items-center gap-x-2 text-sm">
-          <MonitorSmartphone size={13} aria-hidden className="shrink-0 text-[var(--color-muted)]" />
-          <span className="truncate font-medium">{m.device_name || tr("mesh_another_device", undefined, "Another device")}</span>
+          <KindGlyph kind={m.kind ?? ""} />
+          <span className="truncate font-medium">{name}</span>
           {me && <span className="text-xs text-[var(--color-accent-bright)]">{tr("drive_you", undefined, "you")}</span>}
           <span className={`text-xs ${TONE_TEXT[st.tone]}`}>{st.text}</span>
         </p>
@@ -188,11 +201,31 @@ function MemberRow({
         </p>
         {m.error && <p className="break-words text-xs text-[var(--color-bad)]">{m.error}</p>}
       </div>
-      {onRemove && (
-        <Button size="sm" variant="ghost" leftIcon={<UserMinus size={13} />} onClick={onRemove}>
-          {tr("drive_member_remove", undefined, "Remove")}
+      <div className="flex shrink-0 items-center justify-end gap-1">
+        {/* On a phone the icons alone, so the device's name keeps the room. */}
+        <Button
+          size="sm"
+          variant="ghost"
+          leftIcon={<Pencil size={13} />}
+          onClick={onRename}
+          title={tr("mesh_rename", undefined, "Rename")}
+          className="max-sm:min-w-9! max-sm:px-0 max-sm:[&>span]:sr-only"
+        >
+          {tr("mesh_rename", undefined, "Rename")}
         </Button>
-      )}
+        {onRemove && (
+          <Button
+            size="sm"
+            variant="ghost"
+            leftIcon={<UserMinus size={13} />}
+            onClick={onRemove}
+            title={tr("drive_member_remove", undefined, "Remove")}
+            className="max-sm:min-w-9! max-sm:px-0 max-sm:[&>span]:sr-only"
+          >
+            {tr("drive_member_remove", undefined, "Remove")}
+          </Button>
+        )}
+      </div>
     </li>
   );
 }
@@ -217,7 +250,26 @@ function DriveCard({
   const tr = useTr();
   const navigate = useNavigate();
   const { confirm, dialog } = useConfirm();
+  const { prompt, dialog: promptDialog } = usePrompt();
   const meshDevices = useMeshStore((s) => meshFor(s, host).state?.devices ?? null);
+  // The console's name for a device wins over the one its engine last reported: a rename in
+  // Devices (or here) reaches every device through the console at once.
+  const nameOf = (m: DriveMember): string => {
+    const dev = meshDevices?.find((x) => x.id === m.device);
+    return dev ? deviceName(dev) : m.device_name || tr("mesh_another_device", undefined, "Another device");
+  };
+  const renameMember = async (m: DriveMember) => {
+    const name = await prompt({
+      title: tr("mesh_rename_title", undefined, "Rename this device"),
+      message: tr("mesh_rename_body", undefined, "Every device that uses this console sees the new name."),
+      defaultValue: nameOf(m),
+    });
+    if (name === null || !name.trim()) return;
+    await run(async () => {
+      if (m.device === data.me) await setMeshName(name.trim());
+      await meshDevice(host, "rename", m.device, name.trim());
+    });
+  };
   const mine = data.local.find((l) => l.drive === d.id);
   const myMember = d.members.find((m) => m.id === mine?.member);
   const iAmIn = d.members.some((m) => m.device === data.me) || d.by === data.me;
@@ -233,8 +285,8 @@ function DriveCard({
     const ok = await confirm({
       title: tr(
         "drive_member_remove_title",
-        { device: m.device_name || "?" },
-        `Remove ${m.device_name || "?"} from this drive?`,
+        { device: nameOf(m) },
+        `Remove ${nameOf(m)} from this drive?`,
       ),
       message: tr(
         "drive_member_remove_body",
@@ -333,6 +385,7 @@ function DriveCard({
   return (
     <article className="rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
       {dialog}
+      {promptDialog}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
         <div className="flex min-w-0 flex-1 items-start gap-3">
           <FolderSync size={22} className="mt-0.5 shrink-0 text-[var(--color-accent-bright)]" aria-hidden />
@@ -438,6 +491,8 @@ function DriveCard({
                 online={onlineOf(m.device)}
                 now={now}
                 onRemove={m.device === data.me ? null : () => void removeMember(m)}
+                name={nameOf(m)}
+                onRename={() => void renameMember(m)}
               />
             ))}
           </ul>
