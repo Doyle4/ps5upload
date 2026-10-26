@@ -2,11 +2,13 @@
 // package is handed to the console queue when it should install. What each game becomes, and
 // what happens after, is the one choice made under ③.
 
-import { ArrowDown, ArrowUp, FolderPlus, ListPlus, X } from "lucide-react";
+import { useState } from "react";
+import { ArrowDown, ArrowUp, FolderPlus, ListPlus, SlidersHorizontal, X } from "lucide-react";
 
 import { Button, Card } from "../../components";
-import { buildExtension, type ConvertItem } from "../../state/convertQueue";
+import { buildExtension, type ConvertItem, type ConvertItemChange } from "../../state/convertQueue";
 import { useTr } from "../../state/lang";
+import { QueueItemOptions } from "./QueueItemOptions";
 
 export interface QueueCardProps {
   items: ConvertItem[];
@@ -20,6 +22,11 @@ export interface QueueCardProps {
   onStart: () => void;
   onStop: () => void;
   onRemove: (id: string) => void;
+  /** Change a waiting game's own choices. */
+  onUpdate: (id: string, change: ConvertItemChange) => void;
+  /** A console answers: installing and uploading can be chosen. */
+  canInstall: boolean;
+  host: string | null;
   onMove: (id: string, delta: -1 | 1) => void;
   onClearFinished: () => void;
 }
@@ -30,6 +37,8 @@ function nameOf(source: string): string {
 
 export function QueueCard(p: QueueCardProps) {
   const tr = useTr();
+  // The waiting game whose choices are open.
+  const [editing, setEditing] = useState<string | null>(null);
   const statusText: Record<ConvertItem["status"], string> = {
     pending: tr("cq_pending", undefined, "Waiting"),
     running: tr("cq_running", undefined, "Converting"),
@@ -68,6 +77,11 @@ export function QueueCard(p: QueueCardProps) {
             "cq_uses_choices",
             undefined,
             "Each game is made, and then kept, installed or uploaded, as chosen under ③.",
+          )}{" "}
+          {tr(
+            "cq_edit_hint",
+            undefined,
+            "Games can be added while the queue runs; change a waiting game's choices with its options button.",
           )}
         </div>
 
@@ -86,7 +100,8 @@ export function QueueCard(p: QueueCardProps) {
         {p.items.length > 0 && (
           <ul className="divide-y divide-[var(--color-border)] rounded-[var(--radius-card)] border border-[var(--glass-edge)]">
             {p.items.map((i, idx) => (
-              <li key={i.id} className="flex items-center gap-2 px-3 py-2 text-sm">
+              <li key={i.id} className="flex flex-col">
+              <div className="flex items-center gap-2 px-3 py-2 text-sm">
                 <div className="min-w-0 flex-1">
                   <div className="flex min-w-0 items-center gap-1.5">
                     <span className="truncate font-medium" title={i.source}>
@@ -108,6 +123,16 @@ export function QueueCard(p: QueueCardProps) {
                 </div>
                 {i.status === "pending" && (
                   <>
+                    <button
+                      type="button"
+                      onClick={() => setEditing(editing === i.id ? null : i.id)}
+                      aria-label={tr("cq_options", undefined, "This game's choices")}
+                      aria-expanded={editing === i.id}
+                      title={tr("cq_options", undefined, "This game's choices")}
+                      className={`rounded-full p-1.5 hover:bg-[var(--color-surface-3)] ${editing === i.id ? "text-[var(--color-accent-bright)]" : "text-[var(--color-muted)]"}`}
+                    >
+                      <SlidersHorizontal size={14} />
+                    </button>
                     <button
                       type="button"
                       disabled={idx === 0}
@@ -138,6 +163,15 @@ export function QueueCard(p: QueueCardProps) {
                     <X size={14} />
                   </button>
                 )}
+              </div>
+              {editing === i.id && i.status === "pending" && (
+                <QueueItemOptions
+                  item={i}
+                  canInstall={p.canInstall}
+                  host={p.host}
+                  onChange={(change) => p.onUpdate(i.id, change)}
+                />
+              )}
               </li>
             ))}
           </ul>

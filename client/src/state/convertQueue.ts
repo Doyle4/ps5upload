@@ -63,6 +63,9 @@ export interface ConvertItem {
 
 export type NewConvertItem = Omit<ConvertItem, "id" | "status" | "packagePath" | "error">;
 
+/** What can change on a game still waiting in the queue. */
+export type ConvertItemChange = Partial<Pick<ConvertItem, "build" | "then" | "host" | "deleteAfterInstall">>;
+
 /** How the queue builds and installs; the app wires the real ones (see convertQueueRunner). */
 export interface ConvertRunner {
   /** `installed`: the build also installed it (a console dump's swap runs inside the build). */
@@ -105,6 +108,9 @@ interface ConvertQueueState {
   /** False (and nothing added) when this source is already waiting or building. */
   add: (item: NewConvertItem) => boolean;
   remove: (id: string) => void;
+  /** Change what a game still waiting becomes or what happens after (#518): queued games stay
+   *  editable while the queue runs. False when it is no longer waiting. */
+  update: (id: string, change: ConvertItemChange) => boolean;
   move: (id: string, delta: -1 | 1) => void;
   /** Run pending items until none are left or Stop. */
   start: () => Promise<void>;
@@ -137,6 +143,11 @@ export const useConvertQueue = create<ConvertQueueState>((set, get) => {
       if (busy) return false;
       set({ items: [...get().items, { ...item, id: `c${Date.now().toString(36)}${++seq}`, status: "pending" }] });
       save();
+      return true;
+    },
+    update: (id, change) => {
+      if (get().items.find((i) => i.id === id)?.status !== "pending") return false;
+      patch(id, change);
       return true;
     },
     remove: (id) => {

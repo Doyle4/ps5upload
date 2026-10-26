@@ -333,6 +333,9 @@ describe("QueueCard adding", () => {
         onStart={noop}
         onStop={noop}
         onRemove={noop}
+        onUpdate={noop}
+        canInstall
+        host="192.168.1.20"
         onMove={noop}
         onClearFinished={noop}
       />,
@@ -371,5 +374,48 @@ describe("QueueCard adding", () => {
     expect(html).toContain(".ffpfsc");
     expect(html).toContain(".exfat");
     expect(html).toMatch(/data-testid="cq-ext"[^>]*>folder</);
+  });
+});
+
+describe("queued game choices (#518)", () => {
+  it("offers what each source can become", async () => {
+    const { kindsFor } = await import("./QueueItemOptions");
+    expect(kindsFor("/games/Astro Bot")).toEqual(["pkg", "image"]);
+    expect(kindsFor("/dl/game.exfat")).toEqual(["pkg", "image", "folder"]);
+    expect(kindsFor("/dl/game.zip")).toEqual(["pkg", "image"]);
+    expect(kindsFor("/dl/notes.txt")).toEqual(["pkg"]);
+  });
+
+  it("keeps an image's format and moves the after-step to what the new kind can do", async () => {
+    const { changeForKind } = await import("./QueueItemOptions");
+    const item = {
+      id: "c1",
+      source: "/games/x",
+      compression: "zlib",
+      build: { kind: "pkg" },
+      then: "stream",
+      host: "10.0.0.2",
+      status: "pending",
+    } as unknown as import("../../state/convertQueue").ConvertItem;
+    expect(changeForKind(item, "image", true, null)).toEqual({
+      build: { kind: "image", format: "exfat", compress: false },
+      then: "upload",
+      host: "10.0.0.2",
+    });
+    expect(changeForKind(item, "folder", true, null)).toEqual({ build: { kind: "folder" }, then: "keep", host: null });
+  });
+});
+
+describe("convert queue update", () => {
+  it("changes a waiting game and leaves a running one alone", async () => {
+    const { useConvertQueue } = await import("../../state/convertQueue");
+    const q = useConvertQueue.getState();
+    q.add({ source: "/games/a", compression: "zlib" as never, build: { kind: "pkg" }, then: "keep", host: null });
+    const all = useConvertQueue.getState().items;
+    const id = all[all.length - 1].id;
+    expect(useConvertQueue.getState().update(id, { then: "stream", host: "h" })).toBe(true);
+    expect(useConvertQueue.getState().items.find((i) => i.id === id)?.then).toBe("stream");
+    useConvertQueue.setState({ items: useConvertQueue.getState().items.map((i) => (i.id === id ? { ...i, status: "running" } : i)) });
+    expect(useConvertQueue.getState().update(id, { then: "keep" })).toBe(false);
   });
 });

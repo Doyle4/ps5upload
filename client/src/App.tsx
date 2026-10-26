@@ -1,11 +1,12 @@
 import { readLastRoute } from "./lib/lastRoute";
-import { Activity, Suspense, useEffect, useState, type ReactNode } from "react";
+import { Activity, Suspense, useEffect, useRef, useState, type ReactNode } from "react";
 import {
   ConnectionScope,
   connectionSnapshotFor,
   useConnectionStore,
 } from "./state/connection";
-import { Navigate, Route, Routes, useLocation, type Location } from "react-router";
+import { Navigate, Route, Routes, useLocation, useNavigate, type Location } from "react-router";
+import { recallRoute, rememberRoute } from "./lib/consoleRoutes";
 import { payloadCardLink } from "./screens/Payloads/payloadTabs";
 
 import { lazyWithReload } from "./lib/lazyWithReload";
@@ -125,6 +126,34 @@ const KEPT_CONSOLES = 3;
 
 const NO_CONSOLE = "no-console";
 
+/** Each console keeps its own screen (#518): the route is remembered for the console it was
+ *  used with, and switching to a console goes back to where it was left (across restarts, for
+ *  any number of consoles). Nothing moves the first time a console is used here, or when its
+ *  screen is the one already shown. Here, above the per-console trees: inside one, the console
+ *  never changes. */
+function useConsoleRouteMemory() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const host = useConnectionStore((s) => s.host);
+  const lastHost = useRef(host);
+  const route = location.pathname + location.search;
+  useEffect(() => {
+    const before = lastHost.current;
+    if (host !== before) {
+      lastHost.current = host;
+      // A switch from one console to another (not the first console set at start).
+      if (before && host) {
+        const back = recallRoute(host);
+        if (back && back !== route) {
+          navigate(back);
+          return; // the new route is remembered when it lands
+        }
+      }
+    }
+    if (host) rememberRoute(host, route);
+  }, [host, route, navigate]);
+}
+
 export default function App() {
   // Screen state is per-console, and nothing from one console should
   // ever be shown against another.
@@ -141,6 +170,7 @@ export default function App() {
   // Transfers and queues are unaffected: they live in stores outside
   // the React tree, not in screen state.
   const host = useConnectionStore((s) => s.host);
+  useConsoleRouteMemory();
   const here = host || NO_CONSOLE;
   const location = useLocation();
   const [kept, setKept] = useState<Array<{ key: string; location: Location }>>([]);

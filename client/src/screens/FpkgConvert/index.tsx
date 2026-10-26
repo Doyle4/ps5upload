@@ -758,6 +758,9 @@ export default function FpkgConvertScreen() {
         onStart={() => void useConvertQueue.getState().start()}
         onStop={() => useConvertQueue.getState().stop()}
         onRemove={(id) => useConvertQueue.getState().remove(id)}
+        onUpdate={(id, change) => void useConvertQueue.getState().update(id, change)}
+        canInstall={canInstall}
+        host={host}
         onMove={(id, d) => useConvertQueue.getState().move(id, d)}
         onClearFinished={() => useConvertQueue.getState().clearFinished()}
       />

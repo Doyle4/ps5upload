@@ -6,6 +6,11 @@ What's new in ps5upload, written for humans.
 
 ## Unreleased
 
+- **Convert queue: add and change games while it runs (#518).** Games can be added at any
+  time, and each waiting game has an options button to change what it becomes (package, game
+  image, folder) and what happens after (keep, install, upload).
+- **Each console remembers its screen (#518).** Switching console tabs goes back to the screen
+  you last used with that console, across restarts.
 - **Installed Apps: a failed uninstall says so.** It showed under "Couldn't read installed apps"
   with advice about installs (Sony's 0x80B2 codes). Uninstall and hide/show failures now have
   their own message, and a refused uninstall says to close the game or remove it from the PS5's
