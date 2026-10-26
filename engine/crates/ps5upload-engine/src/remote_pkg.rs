@@ -2104,12 +2104,12 @@ pub(crate) mod origin_tests {
                             if !saw {
                                 return;
                             }
-                            // The throttle: a slow connection takes 300 ms per
+                            // The throttle: a slow connection takes 1 s per
                             // chunk, a fast one is immediate.
                             let (st, en) = range.unwrap_or((0, data.len() - 1));
                             if slow {
                                 let mib = ((en - st + 1) as u64).div_ceil(1024 * 1024);
-                                std::thread::sleep(Duration::from_millis(300 * mib));
+                                std::thread::sleep(Duration::from_millis(1000 * mib));
                             }
                             let body_ = &data[st..=en];
                             let head = format!(
@@ -2143,10 +2143,12 @@ pub(crate) mod origin_tests {
         assert_eq!(&got[..], &body(total as usize)[..], "wrong bytes");
 
         // The old fixed split gave each of the 8 connections a 4 MiB piece,
-        // so a throttled one took 4 x 300 ms = 1200 ms and set the window's
+        // so a throttled one took 4 x 1 s = 4 s and set the window's
         // duration. The queue lets the fast connection absorb the chunks the
-        // slow ones never get to, so the window must come in well under that.
-        let fixed_piece_bound = Duration::from_millis(1200);
+        // slow ones never get to (about 1-2 s: a slow one finishes the chunk
+        // it took). The bound leaves a busy CI runner seconds, not
+        // milliseconds: at 300 ms a chunk it failed by 27 ms there.
+        let fixed_piece_bound = Duration::from_millis(3000);
         assert!(
             elapsed < fixed_piece_bound,
             "window took {elapsed:?}, no better than the fixed-piece split \
