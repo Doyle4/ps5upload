@@ -472,7 +472,9 @@ function DriveCard({
             variant="ghost"
             onClick={() => navigate(`/files?path=${encodeURIComponent(d.hub)}`)}
             leftIcon={<HardDrive size={14} />}
-            title={d.hub}
+            title={tr("drive_open_on_console", undefined, "Open on console")}
+            // On a phone the icon alone, so it, Sync now and ⋯ fit one line.
+            className="max-sm:min-w-10! max-sm:px-0 max-sm:[&>span]:sr-only"
           >
             {tr("drive_open_on_console", undefined, "Open on console")}
           </Button>
