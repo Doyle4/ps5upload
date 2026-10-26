@@ -27,6 +27,7 @@ import { useRosterStore, type PS5Profile } from "../state/roster";
 import { hostOf } from "./addr";
 import { asMap, Clock, maxHlc, merge, pruneTombstones, sameMap, type Hlc, type LwwMap } from "./meshCrdt";
 import { onStorageWrite, safeGetItem, safeRemoveItem, safeSetItem } from "./safeStorage";
+import { reloadSettings } from "./liveSettings";
 import { backupBeforeChange } from "./settingsBackup";
 import { MESH_KEYS } from "./sharedPrefs";
 
@@ -317,11 +318,10 @@ export async function syncWith(host: string): Promise<string[]> {
 const PULL_MS = 60_000;
 const PUSH_DEBOUNCE_MS = 800;
 
-/** Starts sharing; returns a stop. `onLive` gets the sidebar keys another device changed;
- *  `onSettingsArrived` how many other settings arrived (they apply when the app next starts). */
+/** Starts sharing; returns a stop. `onLive` gets the sidebar keys another device changed (every
+ *  other setting is re-read by its store as it arrives: lib/liveSettings). */
 export function startMeshShare(
   onLive: (keys: string[]) => void,
-  onSettingsArrived: (count: number) => void = () => {},
 ): () => void {
   const warn = (e: unknown) => console.warn("[mesh-share]", e instanceof Error ? e.message : String(e));
   // Duplicates left by 8.0.0 go before anything is shared.
@@ -339,9 +339,12 @@ export function startMeshShare(
           return;
         }
         const written = await syncWith(host);
+        if (!written.length) return;
+        // Every loaded store re-reads what changed, so the app follows at once with nothing to
+        // reload; a store not loaded yet reads the new value when it is.
+        reloadSettings(written);
         const live = written.filter((k) => k.startsWith("ps5upload.desktop-sidebar."));
         if (live.length) onLive(live);
-        if (written.length > live.length) onSettingsArrived(written.length - live.length);
       })
       .catch(warn);
   };

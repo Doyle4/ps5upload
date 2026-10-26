@@ -18,6 +18,7 @@ import { remoteApi } from "../api/remote";
 import { materializeRemote } from "../lib/materialize";
 import { isRemotePath } from "../lib/remotePath";
 import { platformFromTitleId, titleIdFromContentId } from "./pkgLibrary";
+import { registerSettingReload } from "../lib/liveSettings";
 
 /**
  * Detected source kind. Drives which options the Upload screen shows.
@@ -603,3 +604,8 @@ export const useUploadStore = create<UploadState>((set, get) => ({
       excludes: s.excludes.filter((e) => e.pattern !== pattern),
     })),
 }));
+
+// A change synced from another device shows at once (lib/liveSettings).
+registerSettingReload(["ps5upload.register_after_upload"], () =>
+  useUploadStore.setState({ registerAfterUpload: safeGetItem("ps5upload.register_after_upload") !== "false" }),
+);

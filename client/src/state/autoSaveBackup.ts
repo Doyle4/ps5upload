@@ -5,6 +5,7 @@ import { hostOf } from "../lib/addr";
 import { safeGetItem, safeRemoveItem } from "../lib/safeStorage";
 import { log } from "./logs";
 import { useRosterStore } from "./roster";
+import { NOOP_RELOAD, registerSettingReload } from "../lib/liveSettings";
 
 /**
  * Automatic save backups: the engine copies saves that changed since their last backup into a
@@ -111,3 +112,6 @@ export function startSaveBackupSync(): () => void {
   })();
   return useRosterStore.subscribe((s) => push(s.profiles));
 }
+
+// Only a pre-engine leftover: the engine keeps the live setting (lib/liveSettings).
+registerSettingReload([LEGACY_KEY], NOOP_RELOAD);

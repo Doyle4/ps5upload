@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { safeGetItem, safeSetItem } from "../lib/safeStorage";
+import { registerSettingReload } from "../lib/liveSettings";
 
 /**
  * How a link install should fetch its package, remembered per console.
@@ -121,3 +122,8 @@ export const useLinkInstallPrefs = create<LinkInstallPrefsState>((set, get) => (
     set({ insecure });
   },
 }));
+
+// A change synced from another device shows at once (lib/liveSettings).
+registerSettingReload([KEY_MODE, KEY_INSECURE], () =>
+  useLinkInstallPrefs.setState({ modes: loadMap(KEY_MODE, isMode), insecure: loadMap(KEY_INSECURE, isBool) }),
+);

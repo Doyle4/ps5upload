@@ -4,6 +4,39 @@ What's new in ps5upload, written for humans.
 
 ---
 
+## 8.1.1
+
+### Smoother syncing between devices
+
+- **No more "settings arrived — reload" prompts.** A setting changed on another device now
+  applies at once. Before, the running app kept the old value, and on the next start it could
+  write it back and sync it out again, so two devices traded the same setting back and forth
+  (and you saw the prompt again and again). The startup copy from settings.json now only fills in
+  settings the app has never stored.
+- **Sync now no longer fails now and then.** A drive password saved by another version could make
+  the whole drive list unreadable for a moment ("missing field"). Fields this version does not know
+  are now tolerated.
+
+### Mesh Drive
+
+- **No more repeated copies.** After a file synced, the next pass could see it as changed again
+  and copy or compare it once more (a big file twice). The agreed state is now taken from a fresh
+  listing at the end of a pass.
+- **Saving a file while it uploads** no longer turns your newest edit into a conflict copy: it is
+  simply sent again on the next pass.
+- **Linked consoles:** a passing network error reading the link's record stops that pass instead of
+  starting over (which re-hashed everything and could bring deleted files back); the record now
+  lives in the trash folder, where older versions never sync it; nothing is re-listed on either
+  console while nothing changed; one console's lock is no longer left held for 10 minutes when the
+  other console's was lost; "Let the deletes through" is used only by a pass that ran; a console
+  that was unlinked can be linked again (to the copy it kept).
+- **Failover** waits for a second missed reply before syncing through a linked console, and never
+  does so for a paused folder.
+- **Conflicts** from devices whose names have brackets ("Bob (PC)") are listed and settled like
+  any other; odd file names no longer break the list.
+- **Phones:** the ⋯ menu stays on screen (and above the tab bar), and a drive's buttons fit on one
+  line.
+
 ## 8.1.0
 
 ### Mesh Drive across consoles

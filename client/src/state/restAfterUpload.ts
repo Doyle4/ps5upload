@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { safeGetItem, safeSetItem } from "../lib/safeStorage";
+import { registerSettingReload } from "../lib/liveSettings";
 
 /**
  * "Put the PS5 into rest mode after all uploads finish" — an opt-in
@@ -41,3 +42,8 @@ export const useRestAfterUploadStore = create<RestAfterUploadState>((set) => ({
 export function restAfterUploadEnabled(): boolean {
   return useRestAfterUploadStore.getState().enabled;
 }
+
+// A change synced from another device shows at once (lib/liveSettings).
+registerSettingReload(["ps5upload.rest_after_upload"], () =>
+  useRestAfterUploadStore.setState({ enabled: loadPersisted() }),
+);

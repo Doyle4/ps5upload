@@ -34,6 +34,7 @@ import { useTr, type Translator } from "../../state/lang";
 import { formatBytes } from "../../lib/format";
 import { isTauriEnv } from "../../lib/tauriEnv";
 import { fileSystemLinkFor } from "./searchLink";
+import { NOOP_RELOAD, registerSettingReload } from "../../lib/liveSettings";
 
 /** Size filter options. `labelKey` resolves through `tr()` at render
  *  time; `labelFallback` is the English text used when the lang file
@@ -607,3 +608,6 @@ async function exportSearchResults(
     });
   }
 }
+
+// Read when the screen opens: nothing to reload (lib/liveSettings).
+registerSettingReload([SAVED_SEARCHES_KEY], NOOP_RELOAD);

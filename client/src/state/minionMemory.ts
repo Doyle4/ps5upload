@@ -7,6 +7,7 @@ import { minionSet } from "../api/consoleFiles";
 import { hostOf } from "../lib/addr";
 import { safeGetItem, safeSetItem } from "../lib/safeStorage";
 import { log } from "./logs";
+import { NOOP_RELOAD, registerSettingReload } from "../lib/liveSettings";
 
 const KEY = "ps5upload.minionOff";
 
@@ -52,3 +53,6 @@ export async function keepMinionOff(host: string): Promise<void> {
     log.warn("minion", `could not check Minion on ${hostOf(host)}: ${e instanceof Error ? e.message : String(e)}`);
   }
 }
+
+// Read fresh at each use: nothing to reload (lib/liveSettings).
+registerSettingReload([KEY], NOOP_RELOAD);

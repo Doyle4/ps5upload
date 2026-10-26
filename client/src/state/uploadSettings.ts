@@ -5,6 +5,7 @@ import {
   safeSetItem,
   safeRemoveItem,
 } from "../lib/safeStorage";
+import { registerSettingReload } from "../lib/liveSettings";
 
 /**
  * User preferences that govern the upload flow's defaults — what to do
@@ -272,3 +273,19 @@ export const useUploadSettingsStore = create<UploadSettingsState>((set) => ({
     set({ systemFileRead });
   },
 }));
+
+// A change synced from another device shows at once (lib/liveSettings).
+registerSettingReload(
+  [KEY_ALWAYS_OVERWRITE, KEY_SHOW_FILES, KEY_BANDWIDTH_CAP, KEY_AUTO_RESUME, KEY_KEEP_PS5_AWAKE, KEY_AUTO_BRING_UP, KEY_SYSTEM_FILE_READ, KEY_WAKE_FOR_UPLOADS, "ps5upload.keep_ps5_awake_mode"],
+  () =>
+    useUploadSettingsStore.setState({
+      alwaysOverwrite: loadAlwaysOverwrite(),
+      showTransferFiles: loadShowFiles(),
+      bandwidthCapMbps: loadBandwidthCap(),
+      autoResume: loadAutoResume(),
+      wakeForUploads: loadWakeForUploads(),
+      keepPs5AwakeMode: loadKeepPs5AwakeMode(),
+      autoBringUp: loadAutoBringUp(),
+      systemFileRead: loadSystemFileRead(),
+    }),
+);

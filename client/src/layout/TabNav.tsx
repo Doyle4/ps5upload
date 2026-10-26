@@ -141,6 +141,7 @@ export function TabBottomNav() {
   return (
     <>
       <nav
+        data-bottom-nav
         aria-label={tr("v5_tab_primary_nav", undefined, "Primary")}
         // Floats above the gesture bar: the safe area is a margin here, not
         // padding, so the pill keeps its shape on every phone.

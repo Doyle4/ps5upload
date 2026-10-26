@@ -4,6 +4,7 @@ import { appIsForeground, sendOsNotification } from "../lib/osNotify";
 import { nativeJobNotify } from "../lib/bgNotify";
 import { safeGetItem, safeSetItem } from "../lib/safeStorage";
 import { recordAppEvent } from "../lib/appJournal";
+import { NOOP_RELOAD, registerSettingReload } from "../lib/liveSettings";
 
 /**
  * Persistent notification inbox.
@@ -233,3 +234,6 @@ export function runNotificationAutoPrune() {
   if (days <= 0) return;
   useNotificationsStore.getState().pruneOlderThan(days * 86400 * 1000);
 }
+
+// Read fresh at each use (getNotifPruneDays): nothing to reload (lib/liveSettings).
+registerSettingReload([PRUNE_DAYS_KEY], NOOP_RELOAD);

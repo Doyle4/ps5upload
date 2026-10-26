@@ -16,6 +16,7 @@ import { create } from "zustand";
 
 import { cleanPinned, isPinnableNav, MAX_PINNED } from "../layout/navItems";
 import { safeGetItem, safeSetItem } from "../lib/safeStorage";
+import { registerSettingReload } from "../lib/liveSettings";
 
 const HIDDEN_KEY = "ps5upload.desktop-sidebar.hidden.v1";
 const CLOSED_KEY = "ps5upload.desktop-sidebar.closed-sections.v1";
@@ -141,3 +142,6 @@ export const useNavSidebarStore = create<NavSidebarState>((set) => ({
     set({ hidden, closedSections, pinned });
   },
 }));
+
+// A change synced from another device shows at once (lib/liveSettings).
+registerSettingReload([HIDDEN_KEY, CLOSED_KEY, PINNED_KEY], () => useNavSidebarStore.setState(navListsFromStorage()));

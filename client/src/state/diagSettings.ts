@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import type { LogLevel } from "./logs";
 import { safeGetItem, safeRemoveItem, safeSetItem } from "../lib/safeStorage";
+import { registerSettingReload } from "../lib/liveSettings";
 
 /**
  * Diagnostics preferences — currently just the minimum log level that gets
@@ -72,3 +73,6 @@ export const useDiagSettingsStore = create<DiagSettingsState>((set) => ({
 export function currentMinRank(): number {
   return LEVEL_RANK[useDiagSettingsStore.getState().logLevel];
 }
+
+// A change synced from another browser shows at once (lib/liveSettings).
+registerSettingReload([KEY_LOG_LEVEL], () => useDiagSettingsStore.setState({ logLevel: loadLogLevel() }));

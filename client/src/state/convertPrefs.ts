@@ -2,6 +2,7 @@ import { create } from "zustand";
 
 import type { FfpfscLevel, FpkgCompression, ImageFormat } from "../api/fpkg";
 import { safeGetItem, safeSetItem } from "../lib/safeStorage";
+import { registerSettingReload } from "../lib/liveSettings";
 
 /**
  * What Convert remembers between sessions, per viewer: where packages go and how hard to
@@ -121,3 +122,19 @@ export const useConvertPrefs = create<ConvertPrefs>((set) => ({
     set({ fullVerify: full });
   },
 }));
+
+// A change synced from another device shows at once (lib/liveSettings).
+registerSettingReload(
+  [KEY_DIR, KEY_VERIFY_CHUNK, KEY_FULL_VERIFY, KEY_MAKE, KEY_IMAGE_FORMAT, KEY_IMAGE_COMPRESS, KEY_IMAGE_LEVEL, "ps5upload.convert.compression"],
+  () =>
+    useConvertPrefs.setState({
+      outputDir: safeGetItem(KEY_DIR) ?? "",
+      compression: storedLevel(),
+      verifyChunkKib: parseVerifyChunkKib(safeGetItem(KEY_VERIFY_CHUNK)),
+      fullVerify: parseFullVerify(safeGetItem(KEY_FULL_VERIFY)),
+      make: parseMake(safeGetItem(KEY_MAKE)),
+      imageFormat: parseImageFormat(safeGetItem(KEY_IMAGE_FORMAT)),
+      imageCompress: safeGetItem(KEY_IMAGE_COMPRESS) === "1",
+      imageLevel: parseImageLevel(safeGetItem(KEY_IMAGE_LEVEL)),
+    }),
+);

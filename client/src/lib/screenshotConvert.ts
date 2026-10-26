@@ -44,6 +44,7 @@ export function joinDir(dir: string, name: string): string {
 
 import type { ScreenshotPngMode } from "../api/ps5";
 import { safeGetItem, safeSetItem } from "./safeStorage";
+import { NOOP_RELOAD, registerSettingReload } from "./liveSettings";
 
 const MODE_KEY = "ps5upload.screenshots.png_mode";
 const MODES: readonly ScreenshotPngMode[] = ["sdr", "hdr", "hdr_plain"];
@@ -62,3 +63,6 @@ export function storedPngMode(): ScreenshotPngMode {
 export function rememberPngMode(mode: ScreenshotPngMode): void {
   safeSetItem(MODE_KEY, mode);
 }
+
+// Read fresh at each use: nothing to reload (lib/liveSettings).
+registerSettingReload([MODE_KEY], NOOP_RELOAD);

@@ -104,7 +104,6 @@ import { keepMinionOff } from "../state/minionMemory";
 import { startRosterShare } from "../state/rosterShare";
 import { startSharedPrefs } from "../lib/sharedPrefs";
 import { startMeshShare } from "../lib/meshShare";
-import { useToastStore } from "../state/toasts";
 import { useMeshSync } from "./useMeshSync";
 import { compareVersions } from "../lib/semver";
 import { useNavSidebarStore, navListsFromStorage } from "../state/navSidebar";
@@ -1533,20 +1532,8 @@ export default function AppShell() {
       ? () => {}
       : startSharedPrefs(() => useNavSidebarStore.setState(navListsFromStorage()));
     // 8.0.0: every device that uses a console shares the console list and set-up through it.
-    const stopMeshShare = startMeshShare(
-      () => useNavSidebarStore.setState(navListsFromStorage()),
-      (count) =>
-        useToastStore.getState().push({
-          tone: "info",
-          duration: 12_000,
-          message: trRef.current(
-            "mesh_settings_arrived",
-            { count },
-            `${count} setting(s) came from your other devices. They apply when the app reloads.`,
-          ),
-          action: { label: trRef.current("mesh_reload", undefined, "Reload"), onClick: () => window.location.reload() },
-        }),
-    );
+    // A change from another device applies at once (lib/liveSettings): no reload prompt.
+    const stopMeshShare = startMeshShare(() => useNavSidebarStore.setState(navListsFromStorage()));
     // Automatic save backups are run by the engine; it backs up the consoles in this list.
     const stopSaveBackupSync = startSaveBackupSync();
     // Subscribe-once: cross-store accumulator that credits running

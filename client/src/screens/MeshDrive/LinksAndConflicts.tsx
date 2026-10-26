@@ -329,13 +329,16 @@ export function ConflictsDialog({
   const [list, setList] = useState<DriveConflict[] | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // A failed read of the list shows until a read succeeds; a failed choice until the next one.
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [naming, setNaming] = useState<{ copy: string; name: string } | null>(null);
 
   const load = useCallback(async () => {
     try {
       setList(await fetchConflicts(host, drive.id));
+      setLoadError(null);
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setLoadError(e instanceof Error ? e.message : String(e));
     }
   }, [host, drive.id]);
   useEffect(() => {
@@ -391,7 +394,7 @@ export function ConflictsDialog({
             "These files changed in two places before syncing. Both versions were kept. Choose which stays: every device follows. What goes is moved to the drive's trash for 30 days.",
           )}
         </p>
-        {list === null && !error && (
+        {list === null && !error && !loadError && (
           <p className="flex items-center gap-2 text-sm text-[var(--color-muted)]">
             <Loader2 size={14} className="animate-spin" aria-hidden />
             {tr("drive_checking", undefined, "Checking…")}
@@ -477,10 +480,10 @@ export function ConflictsDialog({
             </li>
           ))}
         </ul>
-        {error && (
+        {(error ?? loadError) && (
           <p className="flex items-start gap-1.5 text-sm text-[var(--color-bad)]">
             <AlertTriangle size={14} className="mt-0.5 shrink-0" aria-hidden />
-            {error}
+            {error ?? loadError}
           </p>
         )}
       </div>

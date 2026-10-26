@@ -1,6 +1,7 @@
 import { create } from "zustand";
 
 import { safeGetItem, safeSetItem } from "../lib/safeStorage";
+import { registerSettingReload } from "../lib/liveSettings";
 
 /**
  * How a console-to-console send goes, remembered per pair of consoles (#444): `auto` (straight
@@ -57,3 +58,6 @@ export const useC2cRoutes = create<C2cRoutes>((set, get) => ({
     set({ routes });
   },
 }));
+
+// A change synced from another browser shows at once (lib/liveSettings).
+registerSettingReload([KEY], () => useC2cRoutes.setState({ routes: parseRoutes(safeGetItem(KEY)) }));

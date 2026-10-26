@@ -1,6 +1,7 @@
 import {
   type ReactNode,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
 } from "react";
@@ -93,6 +94,25 @@ export function OverflowMenu({
     maxHeight: number;
   }>({ dropUp: false, maxHeight: 0 });
   const wrapperRef = useRef<HTMLDivElement | null>(null);
+  // Horizontal clamp: anchored to one side of its trigger, a menu near the other edge of a
+  // narrow screen (a phone, a wrapped row) ran off it. Once shown it is measured and slid back
+  // so it sits whole on screen.
+  const [shiftX, setShiftX] = useState(0);
+  // Measured once per opening, before paint, as a margin (the menu's entry animation owns its
+  // transform: a transform shift was undone each frame and re-measured without end).
+  useLayoutEffect(() => {
+    if (!open) {
+      setShiftX(0);
+      return;
+    }
+    const menu = wrapperRef.current?.lastElementChild as HTMLElement | null;
+    if (!menu || menu === wrapperRef.current?.firstElementChild) return;
+    const r = menu.getBoundingClientRect();
+    const margin = 8;
+    const vw = window.innerWidth;
+    const dx = r.left < margin ? margin - r.left : r.right > vw - margin ? vw - margin - r.right : 0;
+    setShiftX(Math.abs(dx) > 0.5 ? dx : 0);
+  }, [open, placement]);
 
   useEffect(() => {
     if (!open || !wrapperRef.current) return;
@@ -101,7 +121,9 @@ export function OverflowMenu({
       if (!el) return;
       const rect = el.getBoundingClientRect();
       const margin = 8;
-      const vh = window.innerHeight;
+      // On a phone the floating tab bar covers the bottom of the screen: room ends above it.
+      const bar = document.querySelector("[data-bottom-nav]")?.getBoundingClientRect();
+      const vh = bar && bar.height > 0 ? Math.min(window.innerHeight, bar.top) : window.innerHeight;
       const below = vh - rect.bottom - margin;
       const above = rect.top - margin;
       // Flip up only when below is genuinely cramped and above has more room.
@@ -176,6 +198,7 @@ export function OverflowMenu({
           onClose={() => setOpen(false)}
           align={align}
           placement={placement}
+          style={shiftX ? { marginLeft: shiftX, marginRight: -shiftX } : undefined}
         />
       )}
     </div>

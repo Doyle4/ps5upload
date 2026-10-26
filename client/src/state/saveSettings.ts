@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { safeGetItem, safeSetItem } from "../lib/safeStorage";
+import { registerSettingReload } from "../lib/liveSettings";
 
 /**
  * Where "Save to USB storage" writes save backups on the PS5 itself —
@@ -47,3 +48,6 @@ export const useSaveSettingsStore = create<SaveSettingsState>((set) => ({
 export function getSavePath(): string {
   return useSaveSettingsStore.getState().savePath;
 }
+
+// A change synced from another browser shows at once (lib/liveSettings).
+registerSettingReload([KEY_SAVE_PATH], () => useSaveSettingsStore.setState({ savePath: loadSavePath() }));

@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { safeGetItem, safeSetItem } from "../lib/safeStorage";
+import { registerSettingReload } from "../lib/liveSettings";
 
 /**
  * User preferences governing the Install Package flow.
@@ -99,3 +100,14 @@ export const useInstallSettingsStore = create<InstallSettingsState>((set) => ({
     set({ autoScanExternal });
   },
 }));
+
+// A change synced from another device shows at once (lib/liveSettings).
+registerSettingReload(
+  ["ps5upload.auto_install_after_upload", "ps5upload.auto_remove_after_install", "ps5upload.auto_scan_external"],
+  () =>
+    useInstallSettingsStore.setState({
+      autoRemoveAfterInstall: loadAutoRemove(),
+      autoInstallAfterUpload: loadAutoInstall(),
+      autoScanExternal: loadAutoScanExternal(),
+    }),
+);

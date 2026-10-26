@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { safeGetItem, safeSetItem } from "../lib/safeStorage";
+import { registerSettingReload } from "../lib/liveSettings";
 
 /**
  * "Beta features" — one switch that reveals features that are still being
@@ -36,3 +37,6 @@ export const useBetaFeaturesStore = create<BetaFeaturesState>((set) => ({
     set({ enabled: on });
   },
 }));
+
+// A change synced from another device shows at once (lib/liveSettings).
+registerSettingReload([STORAGE_KEY], () => useBetaFeaturesStore.setState({ enabled: loadPersisted() }));

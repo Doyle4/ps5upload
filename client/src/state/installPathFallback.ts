@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { safeGetItem, safeSetItem } from "../lib/safeStorage";
+import { registerSettingReload } from "../lib/liveSettings";
 
 /**
  * "Install by file path when the PS5 cannot reach this computer" — a trial switch, off by
@@ -39,3 +40,8 @@ export const useInstallPathFallbackStore = create<InstallPathFallbackState>((set
 export function installPathFallbackOptions(): { console_path_fallback?: true } {
   return useInstallPathFallbackStore.getState().enabled ? { console_path_fallback: true } : {};
 }
+
+// A change synced from another device shows at once (lib/liveSettings).
+registerSettingReload(["ps5upload.install_path_fallback"], () =>
+  useInstallPathFallbackStore.setState({ enabled: loadPersisted() }),
+);

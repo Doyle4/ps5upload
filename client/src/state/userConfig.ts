@@ -12,6 +12,7 @@ import { useAccessibilityStore } from "./accessibility";
 import { useNavSidebarStore } from "./navSidebar";
 import { navListsFromSettings, type NavSettings } from "./navSettings";
 import { useBetaFeaturesStore } from "./betaFeatures";
+import { safeGetItem } from "../lib/safeStorage";
 
 /**
  * Mirror all persisted user settings to `~/.ps5upload/settings.json`.
@@ -250,8 +251,12 @@ export async function hydrateFromUserConfig(): Promise<void> {
   ) {
     await useKeepAwakeStore.getState().setEnabled(data.keep_awake);
   }
+  // Settings shared through the consoles (lib/sharedPrefs MESH_KEYS) are only filled in from the
+  // file when this app has no value yet: the stored one may be newer (synced from another
+  // device), and writing the file's older one back would sync it out as a fresh change.
+  const unset = (key: string) => safeGetItem(key) === null;
   const liveBeta = useBetaFeaturesStore.getState().enabled;
-  if (typeof data.beta_features === "boolean" && data.beta_features !== liveBeta) {
+  if (typeof data.beta_features === "boolean" && data.beta_features !== liveBeta && unset("ps5upload.beta_features")) {
     useBetaFeaturesStore.getState().setEnabled(data.beta_features);
   }
   if (data.upload) {
@@ -259,7 +264,8 @@ export async function hydrateFromUserConfig(): Promise<void> {
     const us = useUploadSettingsStore.getState();
     if (
       typeof u.always_overwrite === "boolean" &&
-      u.always_overwrite !== us.alwaysOverwrite
+      u.always_overwrite !== us.alwaysOverwrite &&
+      unset("ps5upload.always_overwrite")
     ) {
       us.setAlwaysOverwrite(u.always_overwrite);
     }
@@ -269,7 +275,8 @@ export async function hydrateFromUserConfig(): Promise<void> {
     // hand-edited "safe" in settings.json gets ignored.
     if (
       typeof u.show_transfer_files === "boolean" &&
-      u.show_transfer_files !== us.showTransferFiles
+      u.show_transfer_files !== us.showTransferFiles &&
+      unset("ps5upload.show_transfer_files")
     ) {
       us.setShowTransferFiles(u.show_transfer_files);
     }
@@ -287,7 +294,8 @@ export async function hydrateFromUserConfig(): Promise<void> {
   // converges to the authoritative (merged) snapshot without waiting
   // for the debounce window.
   const nav = navListsFromSettings(data.nav);
-  if (nav) {
+  // Shared through the consoles too: the file fills in a sidebar this app has never stored.
+  if (nav && unset("ps5upload.desktop-sidebar.pinned.v1") && unset("ps5upload.desktop-sidebar.hidden.v1")) {
     const ns = useNavSidebarStore.getState();
     // Compare by content, not identity — a no-op hydrate would re-fire the
     // mirror write on every launch.

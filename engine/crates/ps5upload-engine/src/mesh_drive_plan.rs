@@ -161,7 +161,8 @@ pub fn conflict_name(path: &str, device: &str, stamp: &str) -> String {
     let device: String = device
         .chars()
         .map(|c| {
-            if c == '/' || c == '\\' || c.is_control() {
+            // Brackets too: the name is taken apart again by the bracket that closes the tag.
+            if c == '/' || c == '\\' || c == '(' || c == ')' || c.is_control() {
                 '-'
             } else {
                 c
@@ -190,24 +191,26 @@ pub fn parse_conflict(path: &str) -> Option<ConflictName> {
         Some(i) => (&path[..=i], &path[i + 1..]),
         None => ("", path),
     };
-    let start = file.rfind(" (conflict from ")?;
-    let inner_from = start + " (conflict from ".len();
-    let close = inner_from + file[inner_from..].find(')')?;
-    let inner = &file[inner_from..close];
-    // "<device> YYYY-MM-DD HHMM"
-    if inner.len() < 16 {
+    const TAG: &str = " (conflict from ";
+    let start = file.rfind(TAG)?;
+    let inner_from = start + TAG.len();
+    // The tag closes at the first ")" right after a "YYYY-MM-DD HHMM" stamp (a device name from
+    // before 8.1.1 may hold brackets of its own).
+    let close = file[inner_from..]
+        .char_indices()
+        .filter(|(_, c)| *c == ')')
+        .map(|(i, _)| inner_from + i)
+        .find(|&i| i >= inner_from + 17 && is_stamp(file.get(i - 15..i).unwrap_or("")))?;
+    let device = file.get(inner_from..close - 16)?;
+    if device.is_empty() || file.as_bytes()[close - 16] != b' ' {
         return None;
     }
-    let (device, stamp) = inner.split_at(inner.len() - 15);
-    let device = device.strip_suffix(' ')?;
-    if !stamp.as_bytes()[..4].iter().all(u8::is_ascii_digit) || stamp.as_bytes()[10] != b' ' {
-        return None;
-    }
+    let stamp = &file[close - 15..close];
     let mut rest = &file[close + 1..];
     // free_name's " (2)" after a second conflict in the same minute.
     if let Some(r) = rest.strip_prefix(" (") {
         if let Some(end) = r.find(')') {
-            if r[..end].bytes().all(|b| b.is_ascii_digit()) && !r[..end].is_empty() {
+            if !r[..end].is_empty() && r[..end].bytes().all(|b| b.is_ascii_digit()) {
                 rest = &r[end + 1..];
             }
         }
@@ -217,6 +220,17 @@ pub fn parse_conflict(path: &str) -> Option<ConflictName> {
         device: device.to_string(),
         stamp: stamp.to_string(),
     })
+}
+
+/// "YYYY-MM-DD HHMM".
+fn is_stamp(s: &str) -> bool {
+    let b = s.as_bytes();
+    b.len() == 15
+        && b.iter().enumerate().all(|(i, c)| match i {
+            4 | 7 => *c == b'-',
+            10 => *c == b' ',
+            _ => c.is_ascii_digit(),
+        })
 }
 
 /// `YYYY-MM-DD` and `YYYY-MM-DD HHMM` (UTC) for a time in seconds since 1970.
@@ -262,6 +276,22 @@ mod tests {
             Some("a.txt".into())
         );
         assert_eq!(parse_conflict("plain.txt"), None);
+        // A device name with brackets (named before 8.1.1) still parses.
+        assert_eq!(
+            parse_conflict("a (conflict from Bob (PC) 2026-10-25 2112).txt")
+                .map(|c| (c.original, c.device)),
+            Some(("a.txt".into(), "Bob (PC)".into()))
+        );
+        // Brackets are no longer written into the name.
+        assert!(!conflict_name("a.txt", "Bob (PC)", "2026-10-25 2112").contains("(PC)"));
+        // Never a panic on names that only look like a tag.
+        for odd in [
+            "x (conflict from café au lait delight)",
+            "x (conflict from é)",
+            "(conflict from )",
+        ] {
+            let _ = parse_conflict(odd);
+        }
         assert_eq!(parse_conflict("x (conflict from soon).txt"), None);
     }
 

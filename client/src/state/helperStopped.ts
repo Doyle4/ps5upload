@@ -2,6 +2,7 @@ import { create } from "zustand";
 
 import { hostOf } from "../lib/addr";
 import { safeGetItem, safeSetItem } from "../lib/safeStorage";
+import { registerSettingReload } from "../lib/liveSettings";
 
 /**
  * Consoles whose helper the user stopped ("stopped by you", #471).
@@ -96,3 +97,6 @@ export function noteHelperAnswering(host: string, now = Date.now()): boolean {
 export function resetHelperStopped(): void {
   write({});
 }
+
+// A change synced from another device shows at once (lib/liveSettings).
+registerSettingReload(["ps5upload.helperStopped"], () => useHelperStoppedStore.setState({ stoppedAt: load() }));

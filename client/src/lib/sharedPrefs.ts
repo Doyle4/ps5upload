@@ -20,6 +20,7 @@
  * Desktop and mobile apps keep their settings themselves: their engine is theirs alone.
  */
 import { onStorageWrite, safeGetItem, safeRemoveItem, safeSetItem } from "./safeStorage";
+import { reloadSettings } from "./liveSettings";
 
 /** The keys every browser shares. A key not here never leaves this browser. */
 export const SHARED_KEYS: readonly string[] = [
@@ -333,6 +334,8 @@ export function startSharedPrefs(
     running = running
       .then(() => syncOnce(api, undefined, ch))
       .then((written) => {
+        // Every store re-reads what changed (lib/liveSettings): no reload needed.
+        reloadSettings(written);
         const live = written.filter((k) => LIVE_KEYS.has(k));
         if (live.length) onLive(live);
       })
