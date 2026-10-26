@@ -27,6 +27,7 @@ import { useRosterStore, type PS5Profile } from "../state/roster";
 import { hostOf } from "./addr";
 import { asMap, Clock, maxHlc, merge, pruneTombstones, sameMap, type Hlc, type LwwMap } from "./meshCrdt";
 import { onStorageWrite, safeGetItem, safeRemoveItem, safeSetItem } from "./safeStorage";
+import { backupBeforeChange } from "./settingsBackup";
 import { MESH_KEYS } from "./sharedPrefs";
 
 const STATE_KEY = "ps5upload.mesh_state.v2";
@@ -251,6 +252,10 @@ export async function syncWith(host: string): Promise<string[]> {
     // Apply to this device what the merge changed.
     const profiles = useRosterStore.getState().profiles;
     const todo = plan(merged, localView(profiles, safeGetItem), profiles);
+    // Several settings about to change at once: keep a copy of how they were first.
+    if (todo.settings.length >= 3 || (todo.roster && todo.settings.length > 0)) {
+      void backupBeforeChange("before-sync", useMeshStore.getState().me?.name ?? "");
+    }
     applying = true;
     try {
       for (const [k, v] of todo.settings) {

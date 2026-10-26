@@ -4,10 +4,18 @@
 // button stays off until both are usable.
 
 import { useEffect, useRef, useState } from "react";
-import { FolderOpen, FolderPlus, FolderSync, HardDrive, Monitor } from "lucide-react";
+import { FolderOpen, FolderPlus, FolderSync, HardDrive, KeyRound, Monitor } from "lucide-react";
 
 import { Button, Input, Modal, SegmentedControl } from "../../components";
-import { checkFolders, consolePathOf, driveApi, type Drive, type FolderCheck, type HubChoice } from "../../api/meshDrive";
+import {
+  checkFolders,
+  consolePathOf,
+  driveApi,
+  refusalCode,
+  type Drive,
+  type FolderCheck,
+  type HubChoice,
+} from "../../api/meshDrive";
 import { pickPath } from "../../lib/pickPath";
 import { useTr } from "../../state/lang";
 import { FolderCheckNote } from "./FolderCheckNote";
@@ -112,6 +120,7 @@ export function CreateDriveDialog({
   const [folderNameTouched, setFolderNameTouched] = useState(false);
   const [existing, setExisting] = useState("");
   const local = useLocalPick();
+  const [password, setPassword] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -145,7 +154,7 @@ export function CreateDriveDialog({
     setSaving(true);
     setError(null);
     try {
-      await driveApi.create(host, name.trim(), hub, local.path);
+      await driveApi.create(host, name.trim(), hub, local.path, password.trim());
       onDone();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -250,6 +259,25 @@ export function CreateDriveDialog({
           <FolderCheckNote check={local.path ? checks.local : null} busy={!!local.path && checks.busy} where="local" />
         </section>
 
+        <section className="space-y-1">
+          <Input
+            type="password"
+            autoComplete="new-password"
+            label={tr("drive_step_password", undefined, "4. Password (optional)")}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder={tr("drive_password_placeholder", undefined, "Leave empty: any device on your network can join")}
+            maxLength={200}
+          />
+          <p className="text-xs text-[var(--color-muted)]">
+            {tr(
+              "drive_password_hint",
+              undefined,
+              "Other devices type it once to join. Any device in the drive can change or remove it later.",
+            )}
+          </p>
+        </section>
+
         {(error || checks.error) && <p className="text-sm text-[var(--color-bad)]">{error ?? checks.error}</p>}
       </div>
     </Modal>
@@ -267,24 +295,36 @@ export function JoinDriveDialog({
   drive: Drive | null;
   open: boolean;
   onClose: () => void;
-  onDone: (approved: boolean) => void;
+  onDone: () => void;
 }) {
   const tr = useTr();
   const local = useLocalPick();
+  const [password, setPassword] = useState("");
+  const locked = !!drive?.lock;
   const checks = useFolderCheck(host, open && drive && local.path ? { path: local.path, drive: drive.id } : null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const ready = !!drive && !!local.path && !!checks.local?.ok && !checks.busy && !saving;
+  const ready =
+    !!drive && !!local.path && !!checks.local?.ok && !checks.busy && !saving && (!locked || !!password);
 
   const join = async () => {
     if (!drive) return;
     setSaving(true);
     setError(null);
     try {
-      const r = await driveApi.join(host, drive.id, local.path);
-      onDone(r.approved === true);
+      await driveApi.join(host, drive.id, local.path, locked ? password : undefined);
+      onDone();
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      const code = refusalCode(e);
+      setError(
+        code === "wrong_password"
+          ? tr("drive_wrong_password", undefined, "That is not the drive's password.")
+          : code === "password_needed"
+            ? tr("drive_password_needed", undefined, "This drive asks for a password now. Type it above.")
+            : e instanceof Error
+              ? e.message
+              : String(e),
+      );
     } finally {
       setSaving(false);
     }
@@ -313,7 +353,7 @@ export function JoinDriveDialog({
           {tr(
             "drive_join_body",
             undefined,
-            "Pick the folder on this device that keeps the drive. A device already in the drive lets this one in from its Files › Mesh Drive tab.",
+            "Pick the folder on this device that keeps the drive. Files already in it join the drive; the drive's files come here.",
           )}
         </p>
         <PathPicker
@@ -324,7 +364,132 @@ export function JoinDriveDialog({
           icon={<Monitor size={14} />}
         />
         <FolderCheckNote check={local.path ? checks.local : null} busy={!!local.path && checks.busy} where="local" />
+        {locked && (
+          <Input
+            type="password"
+            autoComplete="current-password"
+            label={tr("drive_password", undefined, "The drive's password")}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            maxLength={200}
+          />
+        )}
         {(error || checks.error) && <p className="text-sm text-[var(--color-bad)]">{error ?? checks.error}</p>}
+      </div>
+    </Modal>
+  );
+}
+
+/** Sets, changes or removes a drive's password. A device not in the drive types the current one. */
+export function PasswordDialog({
+  host,
+  drive,
+  inDrive,
+  open,
+  onClose,
+  onDone,
+}: {
+  host: string;
+  drive: Drive | null;
+  inDrive: boolean;
+  open: boolean;
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const tr = useTr();
+  const [next, setNext] = useState("");
+  const [current, setCurrent] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const locked = !!drive?.lock;
+  const needCurrent = locked && !inDrive;
+
+  const save = async (value: string) => {
+    if (!drive) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await driveApi.setPassword(host, drive.id, value, needCurrent ? current : undefined);
+      setNext("");
+      setCurrent("");
+      onDone();
+    } catch (e) {
+      setError(
+        refusalCode(e) === "wrong_password"
+          ? tr("drive_wrong_password", undefined, "That is not the drive's password.")
+          : e instanceof Error
+            ? e.message
+            : String(e),
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title={tr("drive_password_title", { name: drive?.name ?? "" }, `Password for ${drive?.name ?? ""}`)}
+      titleIcon={<KeyRound size={18} />}
+      footer={
+        <div className="flex flex-wrap justify-end gap-2 px-5 py-3">
+          {locked && (
+            <Button
+              variant="ghost"
+              disabled={saving || (needCurrent && !current)}
+              onClick={() => void save("")}
+            >
+              {tr("drive_password_remove", undefined, "Remove password")}
+            </Button>
+          )}
+          <Button variant="ghost" onClick={onClose}>
+            {tr("cancel", undefined, "Cancel")}
+          </Button>
+          <Button
+            variant="primary"
+            disabled={!next.trim() || saving || (needCurrent && !current)}
+            loading={saving}
+            onClick={() => void save(next.trim())}
+          >
+            {tr("save", undefined, "Save")}
+          </Button>
+        </div>
+      }
+    >
+      <div className="space-y-3 px-5 py-4">
+        <p className="text-sm text-[var(--color-muted)]">
+          {locked
+            ? tr(
+                "drive_password_body_locked",
+                undefined,
+                "Devices already in the drive keep syncing whatever you choose; the password is asked only when a device joins.",
+              )
+            : tr(
+                "drive_password_body_open",
+                undefined,
+                "Right now any device on your network can join. With a password, a device joining types it once. The console keeps only a hash of it.",
+              )}
+        </p>
+        {needCurrent && (
+          <Input
+            type="password"
+            autoComplete="current-password"
+            label={tr("drive_password_current", undefined, "Current password")}
+            value={current}
+            onChange={(e) => setCurrent(e.target.value)}
+            maxLength={200}
+          />
+        )}
+        <Input
+          type="password"
+          autoComplete="new-password"
+          label={tr("drive_password_new", undefined, "New password")}
+          value={next}
+          onChange={(e) => setNext(e.target.value)}
+          maxLength={200}
+        />
+        {error && <p className="text-sm text-[var(--color-bad)]">{error}</p>}
       </div>
     </Modal>
   );

@@ -52,7 +52,6 @@ import { Button, ErrorCard } from "../../components";
 import { invoke } from "../../lib/invokeLogged";
 import { formatBytes } from "../../lib/format";
 import { clearIconMemoryCache } from "../../lib/iconMemoryCache";
-import { safeGetItem, safeRemoveItem, safeSetItem } from "../../lib/safeStorage";
 import { useConfirm } from "../../components/ConfirmDialog";
 
 import { useKeepAwakeStore } from "../../state/keepAwake";
@@ -84,6 +83,8 @@ import {
   setNotifPruneDays,
 } from "../../state/notifications";
 import { formatDate } from "../../lib/formatDate";
+import { applyBundle, backupBeforeChange, buildBundle } from "../../lib/settingsBackup";
+import { SettingsBackups } from "./SettingsBackups";
 // useAuditLogStore + AuditEntry moved to screens/AuditLog/index.tsx
 // (2.12.0 — promoted out of Settings junk drawer).
 
@@ -1269,16 +1270,8 @@ function BackupRestorePanel() {
   const [info, setInfo] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Backup captures EVERY persisted key in the app's `ps5upload.` namespace via
-  // a prefix scan, rather than a hand-maintained allowlist. The old allowlist
-  // had drifted: it referenced "ps5upload.play_time.v1" while the store had
-  // moved to ".v2" (playtime silently lost on migration), omitted actively
-  // persisted keys (log_level, osNotify, install prefs, keep-awake mode,
-  // register-after-upload, …), and listed phantom keys no store writes. A
-  // prefix scan is immune to that whole class of drift — any new store backed by
-  // a `ps5upload.`-prefixed key is captured automatically.
-  const NS_PREFIX = "ps5upload.";
-
+  // The bundle is every `ps5upload.` key (lib/settingsBackup): a prefix scan, so a new store is
+  // captured without a list to keep up to date.
   const restoredMessage = (count: number) =>
     tr(
       "settings_backup_restored",
@@ -1291,20 +1284,7 @@ function BackupRestorePanel() {
     setError(null);
     setInfo(null);
     try {
-      const bundle: Record<string, unknown> = {
-        meta: {
-          generated_at_ms: Date.now(),
-          schema: 1,
-        },
-        local_storage: {} as Record<string, string | null>,
-      };
-      const ls = bundle.local_storage as Record<string, string | null>;
-      for (let i = 0; i < window.localStorage.length; i++) {
-        const k = window.localStorage.key(i);
-        if (k && k.startsWith(NS_PREFIX)) {
-          ls[k] = safeGetItem(k);
-        }
-      }
+      const bundle = buildBundle("manual");
       const fileName = `ps5upload-settings-${Date.now()}.json`;
       const json = JSON.stringify(bundle, null, 2);
       if (!isTauriEnv()) {
@@ -1331,38 +1311,12 @@ function BackupRestorePanel() {
     }
   }
 
-  /** Shared validate-and-apply step for an import bundle's raw JSON text —
-   *  used by both the native (file-path) and browser (`<input type=file>`)
-   *  read paths below. */
-  function applyBundleText(text: string): number {
-    const parsed = JSON.parse(text);
-    if (
-      !parsed ||
-      typeof parsed !== "object" ||
-      typeof parsed.local_storage !== "object"
-    ) {
-      throw new Error("file is not a ps5upload settings bundle");
-    }
-    const ls = parsed.local_storage as Record<string, unknown>;
-    const actions: Array<{ key: string; value: string | null }> = [];
-    for (const k of Object.keys(ls)) {
-      // Safety: only ever touch our own namespace, so a hand-edited or
-      // malicious bundle can't write arbitrary localStorage keys.
-      if (!k.startsWith(NS_PREFIX)) continue;
-      const v = ls[k];
-      if (typeof v === "string") {
-        actions.push({ key: k, value: v });
-      } else if (v === null) {
-        actions.push({ key: k, value: null });
-      } else if (v !== undefined) {
-        throw new Error(`invalid value for ${k}`);
-      }
-    }
-    for (const { key, value } of actions) {
-      if (value === null) safeRemoveItem(key);
-      else safeSetItem(key, value);
-    }
-    return actions.length;
+  /** Validate-and-apply for an import's raw JSON text (native and browser read paths). A copy
+   *  of the current settings is kept first, so an import can be undone from the list below. */
+  async function applyBundleText(text: string): Promise<number> {
+    const parsed: unknown = JSON.parse(text);
+    await backupBeforeChange("before-restore");
+    return applyBundle(parsed);
   }
 
   async function importBundle() {
@@ -1382,7 +1336,7 @@ function BackupRestorePanel() {
       });
       if (!src || typeof src !== "string") return;
       const text = await readTextFileFromPath(src);
-      const restored = applyBundleText(text);
+      const restored = await applyBundleText(text);
       setInfo(restoredMessage(restored));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -1402,7 +1356,7 @@ function BackupRestorePanel() {
     setInfo(null);
     try {
       const text = await file.text();
-      const restored = applyBundleText(text);
+      const restored = await applyBundleText(text);
       setInfo(restoredMessage(restored));
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -1456,6 +1410,9 @@ function BackupRestorePanel() {
           {error}
         </div>
       )}
+      <div className="border-t border-[var(--color-border)] pt-3">
+        <SettingsBackups />
+      </div>
     </div>
   );
 }

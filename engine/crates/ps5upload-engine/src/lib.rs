@@ -87,6 +87,7 @@ mod remote;
 mod remote_download;
 mod remote_pkg;
 mod save_backup;
+mod settings_backup;
 mod shared_state;
 mod state_io;
 mod telemetry;
@@ -11041,6 +11042,12 @@ async fn run(cfg: EngineConfig) -> anyhow::Result<()> {
         .route("/api/drive/check", post(mesh_drive::check))
         .route("/api/drive/join", post(mesh_drive::join))
         .route("/api/drive/approve", post(mesh_drive::approve))
+        .route("/api/drive/password", post(mesh_drive::password))
+        .route(
+            "/api/settings-backup",
+            get(settings_backup::list).post(settings_backup::save),
+        )
+        .route("/api/settings-backup/get", get(settings_backup::get))
         .route("/api/drive/leave", post(mesh_drive::leave))
         .route("/api/drive/delete", post(mesh_drive::delete))
         .route("/api/drive/pause", post(mesh_drive::pause))

@@ -1,12 +1,27 @@
 // Mesh Drive, a tab of Files (8.0.1): folders kept the same on every device that joins them, at
 // home on the console. The tab lists the drives on this console: whether this device keeps each
-// one and how it is doing, who else keeps it, and devices waiting to be let in. Making a drive and
-// joining one are guided dialogs (DriveDialogs.tsx) where every folder is the user's choice and is
-// checked before anything is made.
+// one and how it is doing, and every device in it as that device last reported to the console (the
+// console is the one source all of them read). Joining needs no other device: a drive is open, or
+// asks for the password it was given. Making, joining and the password are guided dialogs
+// (DriveDialogs.tsx) where every folder is the user's choice and is checked before anything is made.
 
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router";
-import { Check, FolderSync, MonitorSmartphone, Pause, Play, Plus, RefreshCw, Trash2, UserPlus, X } from "lucide-react";
+import {
+  FolderOpen,
+  FolderSync,
+  HardDrive,
+  KeyRound,
+  Lock,
+  MonitorSmartphone,
+  Pause,
+  Play,
+  Plus,
+  RefreshCw,
+  Trash2,
+  UserMinus,
+  X,
+} from "lucide-react";
 
 import { Badge, Button, Callout, OverflowMenu, PageHeader, type OverflowMenuItem } from "../../components";
 import { useConfirm } from "../../components/ConfirmDialog";
@@ -18,11 +33,16 @@ import {
   type DrivesAnswer,
   type LocalDriveMember,
 } from "../../api/meshDrive";
+import { formatBytes } from "../../lib/format";
+import { openLocalPath } from "../../lib/openLocalPath";
+import { isMobile } from "../../lib/platform";
 import { useConnectionStore } from "../../state/connection";
+import { engineIsOnThisDevice } from "../../state/engine";
+import { meshFor, useMeshStore } from "../../state/mesh";
 import { useTr, type Translator } from "../../state/lang";
 import { useToastStore } from "../../state/toasts";
 import { agoText } from "../Devices";
-import { CreateDriveDialog, JoinDriveDialog } from "./DriveDialogs";
+import { CreateDriveDialog, JoinDriveDialog, PasswordDialog } from "./DriveDialogs";
 
 type Tone = "good" | "warn" | "bad" | "neutral" | "accent";
 
@@ -47,18 +67,22 @@ function statusOf(tr: Translator, l: LocalDriveMember, now: number): { tone: Ton
         long: tr("drive_synced", { count: s.files, ago }, `In sync · ${s.files} files · ${ago}`),
       };
     case "syncing":
-      return { tone: "accent", short: tr("drive_syncing", undefined, "Syncing…"), long: "" };
+      return {
+        tone: "accent",
+        short: tr("drive_syncing", undefined, "Syncing…"),
+        long: s.todo
+          ? tr(
+              "drive_progress",
+              { done: s.done ?? 0, todo: s.todo, file: s.current ?? "" },
+              `${s.done ?? 0} of ${s.todo} · ${s.current ?? ""}`,
+            )
+          : "",
+      };
     case "waiting":
       return {
         tone: "neutral",
         short: tr("drive_badge_waiting", undefined, "Waiting"),
         long: s.detail || tr("drive_waiting", undefined, "Another device is syncing it"),
-      };
-    case "pending":
-      return {
-        tone: "warn",
-        short: tr("drive_badge_pending", undefined, "Asked to join"),
-        long: tr("drive_pending", undefined, "Waiting for a device in this drive to let this one in"),
       };
     case "paused":
       return { tone: "neutral", short: tr("drive_paused", undefined, "Paused"), long: "" };
@@ -87,22 +111,86 @@ function statusOf(tr: Translator, l: LocalDriveMember, now: number): { tone: Ton
   }
 }
 
-function MemberChip({ m, me, local, now }: { m: DriveMember; me: boolean; local?: LocalDriveMember; now: number }) {
+/** What a member last told the console, in a few words (for any device, this one included). */
+function reportedState(tr: Translator, m: DriveMember): { tone: Tone; text: string } {
+  if (m.paused) return { tone: "neutral", text: tr("drive_paused", undefined, "Paused") };
+  switch (m.state) {
+    case "idle":
+      return { tone: "good", text: tr("drive_badge_synced", undefined, "In sync") };
+    case "error":
+      return { tone: "bad", text: tr("drive_badge_error", undefined, "Problem") };
+    case "offline":
+      return { tone: "warn", text: tr("drive_offline", undefined, "Folder offline") };
+    case "confirm":
+      return { tone: "warn", text: tr("drive_badge_confirm", undefined, "Needs you") };
+    case "removed":
+      return { tone: "neutral", text: tr("drive_removed", undefined, "No longer in this drive") };
+    default:
+      return { tone: "neutral", text: tr("drive_not_reported", undefined, "Not reported yet") };
+  }
+}
+
+const KIND_LABEL: Record<string, string> = { desktop: "Desktop", android: "Android", ios: "iOS", docker: "Docker" };
+
+function MemberRow({
+  m,
+  me,
+  online,
+  now,
+  onRemove,
+}: {
+  m: DriveMember;
+  me: boolean;
+  online: boolean | null;
+  now: number;
+  onRemove: (() => void) | null;
+}) {
   const tr = useTr();
-  const st = local ? statusOf(tr, local, now) : null;
+  const st = reportedState(tr, m);
+  const kind = [KIND_LABEL[m.kind ?? ""] ?? m.kind, m.os && m.kind !== m.os ? m.os : "", m.app ? `v${m.app}` : ""]
+    .filter(Boolean)
+    .join(" · ");
   return (
-    <li
-      className="flex min-w-0 items-center gap-2 rounded-full border border-[var(--color-border)] px-2.5 py-1 text-xs"
-      title={m.path}
-    >
-      <MonitorSmartphone size={12} aria-hidden className="shrink-0 text-[var(--color-muted)]" />
-      <span className="truncate">{m.device_name || tr("mesh_another_device", undefined, "Another device")}</span>
-      {me && <span className="text-[var(--color-accent-bright)]">{tr("drive_you", undefined, "you")}</span>}
-      {!m.approved && (
-        <span className="text-[var(--color-warn)]">{tr("drive_asks_to_join", undefined, "Asks to join")}</span>
+    <li className="flex min-w-0 items-start gap-3 py-2">
+      <span
+        className={`mt-1.5 size-2 shrink-0 rounded-full ${online ? "bg-[var(--color-good)]" : "bg-[var(--color-border)]"}`}
+        title={
+          online === null
+            ? undefined
+            : online
+              ? tr("mesh_online", undefined, "Online")
+              : tr("mesh_offline", undefined, "Offline")
+        }
+        aria-hidden
+      />
+      <div className="min-w-0 flex-1">
+        <p className="flex flex-wrap items-center gap-x-2 text-sm">
+          <MonitorSmartphone size={13} aria-hidden className="shrink-0 text-[var(--color-muted)]" />
+          <span className="truncate font-medium">{m.device_name || tr("mesh_another_device", undefined, "Another device")}</span>
+          {me && <span className="text-xs text-[var(--color-accent-bright)]">{tr("drive_you", undefined, "you")}</span>}
+          <span className={`text-xs ${TONE_TEXT[st.tone]}`}>{st.text}</span>
+        </p>
+        <p className="truncate text-xs text-[var(--color-muted)]" title={m.path}>
+          {[kind, m.path].filter(Boolean).join(" · ")}
+        </p>
+        <p className="text-xs text-[var(--color-muted)]">
+          {m.reported
+            ? [
+                tr("drive_member_files", { count: m.files ?? 0 }, `${m.files ?? 0} files`),
+                formatBytes(m.bytes ?? 0),
+                m.last_sync
+                  ? tr("drive_member_synced", { ago: agoText(tr, now - m.last_sync) }, `synced ${agoText(tr, now - m.last_sync)}`)
+                  : tr("drive_member_never", undefined, "not synced yet"),
+              ].join(" · ")
+            : tr("drive_member_joined", { ago: agoText(tr, now - m.joined) }, `joined ${agoText(tr, now - m.joined)}`)}
+        </p>
+        {m.error && <p className="break-words text-xs text-[var(--color-bad)]">{m.error}</p>}
+      </div>
+      {onRemove && (
+        <Button size="sm" variant="ghost" leftIcon={<UserMinus size={13} />} onClick={onRemove}>
+          {tr("drive_member_remove", undefined, "Remove")}
+        </Button>
       )}
-      {m.paused && <span className="text-[var(--color-muted)]">{tr("drive_paused", undefined, "Paused")}</span>}
-      {st && !m.paused && m.approved && <span className={TONE_TEXT[st.tone]}>{st.short}</span>}
     </li>
   );
 }
@@ -114,6 +202,7 @@ function DriveCard({
   now,
   run,
   onJoin,
+  onPassword,
 }: {
   d: Drive;
   data: Loaded;
@@ -121,14 +210,45 @@ function DriveCard({
   now: number;
   run: (f: () => Promise<unknown>) => Promise<void>;
   onJoin: (d: Drive) => void;
+  onPassword: (d: Drive) => void;
 }) {
   const tr = useTr();
+  const navigate = useNavigate();
   const { confirm, dialog } = useConfirm();
+  const meshDevices = useMeshStore((s) => meshFor(s, host).state?.devices ?? null);
   const mine = data.local.find((l) => l.drive === d.id);
   const myMember = d.members.find((m) => m.id === mine?.member);
-  const iAmIn = d.members.some((m) => m.device === data.me && m.approved) || d.by === data.me;
+  const iAmIn = d.members.some((m) => m.device === data.me) || d.by === data.me;
   const st = mine ? statusOf(tr, mine, now) : null;
-  const devices = new Set(d.members.filter((m) => m.approved).map((m) => m.device)).size;
+  const devices = new Set(d.members.map((m) => m.device)).size;
+  const free = data.free[d.id];
+  // A folder of this device opens in Finder / Explorer; a phone or a Docker engine has none to show.
+  const canOpen = !!mine && engineIsOnThisDevice() && !isMobile();
+  const onlineOf = (device: string): boolean | null =>
+    device === data.me ? true : meshDevices ? meshDevices.some((x) => x.id === device && x.online) : null;
+
+  const removeMember = async (m: DriveMember) => {
+    const ok = await confirm({
+      title: tr(
+        "drive_member_remove_title",
+        { device: m.device_name || "?" },
+        `Remove ${m.device_name || "?"} from this drive?`,
+      ),
+      message: tr(
+        "drive_member_remove_body",
+        undefined,
+        "For a device that is gone. Its files stay where they are; it stops syncing. It can join again.",
+      ),
+      confirmLabel: tr("drive_member_remove", undefined, "Remove"),
+      destructive: true,
+    });
+    if (ok) await run(() => driveApi.leave(host, d.id, m.id));
+  };
+
+  const openHere = async () => {
+    if (!mine) return;
+    if (!(await openLocalPath(mine.path))) throw new Error(tr("drive_open_failed", { path: mine.path }, `Could not open ${mine.path}`));
+  };
 
   const leave = async () => {
     if (!mine) return;
@@ -189,6 +309,18 @@ function DriveCard({
           { label: tr("drive_leave", undefined, "Leave"), icon: <X size={12} />, onSelect: () => void leave() },
         ]
       : []),
+    {
+      label: tr("drive_show_on_console", undefined, "Show on the console"),
+      icon: <HardDrive size={12} />,
+      onSelect: () => navigate(`/files?path=${encodeURIComponent(d.hub)}`),
+    },
+    {
+      label: d.lock
+        ? tr("drive_password_change", undefined, "Change or remove password…")
+        : tr("drive_password_set", undefined, "Set a password…"),
+      icon: <KeyRound size={12} />,
+      onSelect: () => onPassword(d),
+    },
     ...(iAmIn
       ? [
           {
@@ -210,6 +342,11 @@ function DriveCard({
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
               <h3 className="truncate text-base font-semibold">{d.name}</h3>
+              {d.lock && (
+                <span title={tr("drive_locked_hint", undefined, "Joining asks for a password")}>
+                  <Lock size={13} className="text-[var(--color-muted)]" aria-label={tr("drive_locked", undefined, "Password")} />
+                </span>
+              )}
               {st ? (
                 <Badge tone={st.tone} dot>
                   {st.short}
@@ -220,18 +357,43 @@ function DriveCard({
             </div>
             <p className="truncate text-xs text-[var(--color-muted)]" title={d.hub}>
               {tr("drive_home", { path: d.hub }, `Home on the console: ${d.hub}`)}
-              {" · "}
-              {tr("drive_device_count", { count: devices }, `Devices: ${devices}`)}
+            </p>
+            <p className="text-xs text-[var(--color-muted)]">
+              {[
+                tr("drive_device_count", { count: devices }, `Devices: ${devices}`),
+                d.stats ? tr("drive_member_files", { count: d.stats.files }, `${d.stats.files} files`) : null,
+                d.stats ? formatBytes(d.stats.bytes) : null,
+                d.stats?.conflicts
+                  ? tr("drive_conflict_count", { count: d.stats.conflicts }, `${d.stats.conflicts} conflict copies`)
+                  : null,
+                free !== undefined ? tr("drive_free", { size: formatBytes(free) }, `${formatBytes(free)} free on the console`) : null,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
             </p>
             {mine && (
               <p className="truncate text-xs text-[var(--color-muted)]" title={mine.path}>
                 {tr("drive_here_at", { path: mine.path }, `Here: ${mine.path}`)}
               </p>
             )}
-            {st?.long && <p className={`mt-1 text-xs ${TONE_TEXT[st.tone]}`}>{st.long}</p>}
+            {st?.long && <p className={`mt-1 truncate text-xs ${TONE_TEXT[st.tone]}`}>{st.long}</p>}
+            {!!mine?.status.skipped?.length && (
+              <p className="mt-1 text-xs text-[var(--color-warn)]" title={mine.status.skipped.join("\n")}>
+                {tr(
+                  "drive_skipped",
+                  { count: mine.status.skipped.length },
+                  `${mine.status.skipped.length} files left out: they keep failing, or this device cannot hold their names. Hover to see them.`,
+                )}
+              </p>
+            )}
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
+          {canOpen && (
+            <Button size="sm" variant="ghost" onClick={() => void run(openHere)} leftIcon={<FolderOpen size={14} />}>
+              {tr("drive_open_folder", undefined, "Open folder")}
+            </Button>
+          )}
           {mine ? (
             <Button
               size="sm"
@@ -257,56 +419,25 @@ function DriveCard({
         </div>
       )}
       {d.members.length > 0 && (
-        <ul className="mt-3 flex flex-wrap gap-1.5">
-          {d.members.map((m) => (
-            <MemberChip
-              key={m.id}
-              m={m}
-              me={m.device === data.me}
-              local={data.local.find((l) => l.member === m.id)}
-              now={now}
-            />
-          ))}
-        </ul>
+        <details className="mt-3 border-t border-[var(--color-border)] pt-2" open={d.members.length <= 4}>
+          <summary className="cursor-pointer text-xs font-medium text-[var(--color-muted)]">
+            {tr("drive_members", { count: d.members.length }, `Devices in this drive (${d.members.length})`)}
+          </summary>
+          <ul className="divide-y divide-[var(--color-border)]">
+            {d.members.map((m) => (
+              <MemberRow
+                key={m.id}
+                m={m}
+                me={m.device === data.me}
+                online={onlineOf(m.device)}
+                now={now}
+                onRemove={m.device === data.me ? null : () => void removeMember(m)}
+              />
+            ))}
+          </ul>
+        </details>
       )}
     </article>
-  );
-}
-
-/** Devices waiting to be let into a drive this device is in. */
-function Requests({ data, host, run }: { data: Loaded; host: string; run: (f: () => Promise<unknown>) => Promise<void> }) {
-  const tr = useTr();
-  const waiting = data.drives.flatMap((d) => {
-    const iAmIn = d.members.some((m) => m.device === data.me && m.approved) || d.by === data.me;
-    return iAmIn ? d.members.filter((m) => !m.approved).map((m) => ({ d, m })) : [];
-  });
-  if (!waiting.length) return null;
-  return (
-    <div className="space-y-2 rounded-[var(--radius-card)] border border-[color-mix(in_srgb,var(--color-warn)_35%,transparent)] bg-[var(--color-warn-soft)] p-3">
-      {waiting.map(({ d, m }) => (
-        <div key={m.id} className="flex flex-wrap items-center gap-2 text-sm">
-          <UserPlus size={16} className="shrink-0 text-[var(--color-warn)]" aria-hidden />
-          <span className="min-w-0 flex-1">
-            {tr(
-              "drive_request",
-              { device: m.device_name || "?", drive: d.name },
-              `${m.device_name || "?"} wants to keep ${d.name} on that device.`,
-            )}
-          </span>
-          <Button
-            size="sm"
-            variant="primary"
-            leftIcon={<Check size={14} />}
-            onClick={() => void run(() => driveApi.approve(host, d.id, m.id, true))}
-          >
-            {tr("drive_let_in", undefined, "Let in")}
-          </Button>
-          <Button size="sm" variant="ghost" onClick={() => void run(() => driveApi.approve(host, d.id, m.id, false))}>
-            {tr("drive_decline", undefined, "Decline")}
-          </Button>
-        </div>
-      ))}
-    </div>
   );
 }
 
@@ -320,6 +451,7 @@ export default function MeshDriveTab({ tabs }: { tabs?: React.ReactNode }) {
   const [now, setNow] = useState(() => Date.now());
   const [creating, setCreating] = useState(false);
   const [joining, setJoining] = useState<Drive | null>(null);
+  const [locking, setLocking] = useState<Drive | null>(null);
 
   const load = useCallback(async () => {
     if (!host || !up) return;
@@ -412,7 +544,6 @@ export default function MeshDriveTab({ tabs }: { tabs?: React.ReactNode }) {
           {error}
         </Callout>
       )}
-      {data?.supported && <Requests data={data} host={host} run={run} />}
       {data?.supported && data.drives.length === 0 && (
         <div className="rounded-[var(--radius-card)] border border-dashed border-[var(--color-border)] p-6 text-center">
           <FolderSync size={32} className="mx-auto mb-2 text-[var(--color-accent-bright)]" aria-hidden />
@@ -431,7 +562,16 @@ export default function MeshDriveTab({ tabs }: { tabs?: React.ReactNode }) {
       )}
       {data?.supported &&
         data.drives.map((d) => (
-          <DriveCard key={d.id} d={d} data={data} host={host} now={now} run={run} onJoin={setJoining} />
+          <DriveCard
+            key={d.id}
+            d={d}
+            data={data}
+            host={host}
+            now={now}
+            run={run}
+            onJoin={setJoining}
+            onPassword={setLocking}
+          />
         ))}
       {data?.supported && data.drives.length > 0 && (
         <details className="rounded-[var(--radius-card)] border border-[var(--color-border)] p-3 text-sm">
@@ -442,6 +582,13 @@ export default function MeshDriveTab({ tabs }: { tabs?: React.ReactNode }) {
                 "drive_how_1",
                 undefined,
                 "Every device in the drive syncs with its home folder on the console every half minute while the console's helper runs. Docker keeps going with no app open.",
+              )}
+            </li>
+            <li>
+              {tr(
+                "drive_how_5",
+                undefined,
+                "Any device can join from this tab. To keep others out, give the drive a password; only its hash is kept on the console.",
               )}
             </li>
             <li>
@@ -482,15 +629,24 @@ export default function MeshDriveTab({ tabs }: { tabs?: React.ReactNode }) {
         drive={joining}
         open={!!joining}
         onClose={() => setJoining(null)}
-        onDone={(approved) => {
+        onDone={() => {
           const name = joining?.name ?? "";
           setJoining(null);
           useToastStore.getState().push({
-            tone: approved ? "success" : "info",
-            message: approved
-              ? tr("drive_joined", { name }, `${name} is now kept on this device.`)
-              : tr("drive_join_asked", { name }, `Asked to join ${name}. A device already in it lets this one in.`),
+            tone: "success",
+            message: tr("drive_joined", { name }, `${name} is now kept on this device.`),
           });
+          void load();
+        }}
+      />
+      <PasswordDialog
+        host={host}
+        drive={locking}
+        inDrive={!!locking && !!data?.supported && locking.members.some((m) => m.device === data.me)}
+        open={!!locking}
+        onClose={() => setLocking(null)}
+        onDone={() => {
+          setLocking(null);
           void load();
         }}
       />

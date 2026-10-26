@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 
 import { hostOf } from "../lib/addr";
+import { dailyBackup } from "../lib/settingsBackup";
 import { useConnectionStore } from "../state/connection";
 import { useTr } from "../state/lang";
 import {
@@ -10,6 +11,7 @@ import {
   pollMesh,
   presenceItems,
   publishPresence,
+  useMeshStore,
 } from "../state/mesh";
 import { useTaskStore } from "../state/tasks";
 import { useToastStore } from "../state/toasts";
@@ -18,6 +20,8 @@ import { useToastStore } from "../state/toasts";
 export const MESH_POLL_MS = 4_000;
 /** How often this window's presence is checked (it is sent only when it changed, or every 8 s). */
 export const PRESENCE_MS = 3_000;
+/** The daily settings backup is looked at this often (it runs once a day; lib/settingsBackup). */
+const BACKUP_CHECK_MS = 60 * 60 * 1000;
 
 /**
  * The multi-device mesh, app-wide (8.0.0):
@@ -34,6 +38,24 @@ export function useMeshSync() {
 
   useEffect(() => {
     void loadMeshMe();
+  }, []);
+
+  // The daily settings backup: to the engine, and to the connected console (8.0.1). The first look
+  // waits a minute, so a start-up is not slowed and the device knows its id by then.
+  useEffect(() => {
+    const run = () => {
+      const conn = useConnectionStore.getState();
+      const mesh = useMeshStore.getState();
+      const key = hostOf(conn.host);
+      const supported = !!key && conn.payloadStatus === "up" && mesh.byHost[key]?.supported === true;
+      void dailyBackup(supported ? key : null, mesh.me?.id ?? null, mesh.me?.name ?? "");
+    };
+    const first = window.setTimeout(run, 60_000);
+    const id = window.setInterval(run, BACKUP_CHECK_MS);
+    return () => {
+      window.clearTimeout(first);
+      window.clearInterval(id);
+    };
   }, []);
 
   // Read the selected console.

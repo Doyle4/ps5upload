@@ -10,9 +10,27 @@ export interface DriveMember {
   device: string;
   device_name: string;
   path: string;
+  /** Always true since 8.0.1 (joins need no approval); kept for older documents. */
   approved: boolean;
   paused: boolean;
   joined: number;
+  // What that device's engine last reported to the console (0 / "" from an 8.0.0 engine).
+  kind?: string;
+  os?: string;
+  app?: string;
+  state?: string;
+  error?: string;
+  files?: number;
+  bytes?: number;
+  last_sync?: number;
+  reported?: number;
+}
+
+export interface DriveStats {
+  files: number;
+  bytes: number;
+  conflicts: number;
+  updated: number;
 }
 
 export interface Drive {
@@ -22,6 +40,9 @@ export interface Drive {
   created: number;
   by: string;
   members: DriveMember[];
+  /** Present when joining asks for a password (only its PBKDF2 hash is kept). */
+  lock?: { iter: number } | null;
+  stats?: DriveStats | null;
 }
 
 export interface DriveStatus {
@@ -34,6 +55,11 @@ export interface DriveStatus {
   deleted: number;
   conflicts: number;
   held_deletes: number;
+  bytes?: number;
+  todo?: number;
+  done?: number;
+  current?: string;
+  skipped?: string[];
 }
 
 export interface LocalDriveMember {
@@ -45,7 +71,16 @@ export interface LocalDriveMember {
 
 export type DrivesAnswer =
   | { supported: false; engineOld?: boolean }
-  | { supported: true; me: string | null; kind: string; suggest: string | null; drives: Drive[]; local: LocalDriveMember[] };
+  | {
+      supported: true;
+      me: string | null;
+      kind: string;
+      suggest: string | null;
+      drives: Drive[];
+      local: LocalDriveMember[];
+      /** Usable bytes where each drive's home is, by drive id. */
+      free: Record<string, number>;
+    };
 
 async function engineJson(route: string, init?: RequestInit): Promise<Record<string, unknown>> {
   const res = await fetch(`${getEngineUrl()}${route}`, { ...init, signal: AbortSignal.timeout(60_000) });
@@ -76,6 +111,7 @@ export async function fetchDrives(host: string): Promise<DrivesAnswer> {
     suggest: typeof b.suggest === "string" ? b.suggest : null,
     drives: Array.isArray(b.drives) ? (b.drives as Drive[]) : [],
     local: Array.isArray(b.local) ? (b.local as LocalDriveMember[]) : [],
+    free: b.free && typeof b.free === "object" ? (b.free as Record<string, number>) : {},
   };
 }
 
@@ -121,11 +157,13 @@ export async function checkFolders(
 }
 
 export const driveApi = {
-  create: (host: string, name: string, hub: HubChoice, path: string) =>
-    call("/api/drive/create")(host, { name, hub: hub.path, hub_name: hub.name, path }),
-  join: (host: string, drive: string, path: string) => call("/api/drive/join")(host, { drive, path }),
-  approve: (host: string, drive: string, member: string, approve: boolean) =>
-    call("/api/drive/approve")(host, { drive, member, approve }),
+  create: (host: string, name: string, hub: HubChoice, path: string, password?: string) =>
+    call("/api/drive/create")(host, { name, hub: hub.path, hub_name: hub.name, path, password: password || undefined }),
+  join: (host: string, drive: string, path: string, password?: string) =>
+    call("/api/drive/join")(host, { drive, path, password: password || undefined }),
+  /** Sets, changes or (empty) removes the password. `current` for a device not in the drive. */
+  setPassword: (host: string, drive: string, password: string, current?: string) =>
+    call("/api/drive/password")(host, { drive, password, current: current || undefined }),
   leave: (host: string, drive: string, member: string) => call("/api/drive/leave")(host, { drive, member }),
   remove: (host: string, drive: string) => call("/api/drive/delete")(host, { drive }),
   pause: (host: string, drive: string, member: string, paused: boolean) =>
@@ -140,4 +178,10 @@ export function consolePathOf(picked: string): string {
   const rest = picked.slice("ps5://".length);
   const i = rest.indexOf("/");
   return i < 0 ? "/" : rest.slice(i);
+}
+
+/** The engine's refusal code ("wrong_password: ...") of a failed call, if any. */
+export function refusalCode(e: unknown): string | null {
+  const m = e instanceof Error ? /^(\w+):/.exec(e.message) : null;
+  return m ? m[1] : null;
 }

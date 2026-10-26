@@ -4,8 +4,9 @@
 //! with the hub, so a file added anywhere reaches everyone.
 //!
 //! Where things live:
-//! * the console's "drives" document (mesh doc): every drive, its hub folder and its members, and
-//!   who asked to join (a device joins when a member lets it in);
+//! * the console's "drives" document (mesh doc): every drive, its hub folder, its optional password
+//!   (PBKDF2 only), and its members with what each last reported (state, files, size, last sync):
+//!   the one place every device reads who is in and how they are doing;
 //! * this engine's `mesh-drive/config.json`: which of those members are folders on this device;
 //! * `mesh-drive/<drive>-<member>.json`: what this folder and the hub last agreed on (the base the
 //!   planner compares against, `mesh_drive_plan`).
@@ -16,10 +17,11 @@
 //!
 //! Routes (each answers `supported:false` against a helper from before 8.0.0):
 //! * `GET  /api/drive?addr=`                                   -> drives, this device's folders
-//! * `POST /api/drive/create`  `{addr,name,hub,path?}`
-//! * `POST /api/drive/join`    `{addr,drive,path}`
-//! * `POST /api/drive/approve` `{addr,drive,member,approve}`
-//! * `POST /api/drive/leave`   `{addr,drive,member}`
+//! * `POST /api/drive/create`  `{addr,name,hub,hub_name?,path,password?}`
+//! * `POST /api/drive/join`    `{addr,drive,path,password?}`  (no approval step: the password, if set)
+//! * `POST /api/drive/password` `{addr,drive,password?,current?}`
+//! * `POST /api/drive/approve` `{addr,drive,member,approve}`  (kept for 8.0.0 apps)
+//! * `POST /api/drive/leave`   `{addr,drive,member}`          (any member, e.g. a device long gone)
 //! * `POST /api/drive/delete`  `{addr,drive}`                   (the drive goes; files stay)
 //! * `POST /api/drive/pause`   `{addr,drive,member,paused}`
 //! * `POST /api/drive/sync`    `{addr,drive}`                   (a pass now)
@@ -69,7 +71,7 @@ pub struct DriveDoc {
     pub other: serde_json::Map<String, Value>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
 pub struct Drive {
     pub id: String,
     pub name: String,
@@ -82,11 +84,38 @@ pub struct Drive {
     pub by: String,
     #[serde(default)]
     pub members: Vec<Member>,
+    /// Set when the drive asks a password of a device joining it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub lock: Option<DriveLock>,
+    /// Bumped by a pass that changed the home folder: the others list it again only then (or
+    /// every FULL_SCAN), instead of on every pass.
+    #[serde(default)]
+    pub hub_rev: u64,
+    /// The home folder, as the last pass that listed it saw it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stats: Option<DriveStats>,
     #[serde(flatten)]
     pub other: serde_json::Map<String, Value>,
 }
 
+/// A drive's password, kept only as PBKDF2-HMAC-SHA256 (hex).
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct DriveLock {
+    pub salt: String,
+    pub hash: String,
+    pub iter: u32,
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
+pub struct DriveStats {
+    pub files: u64,
+    pub bytes: u64,
+    /// Copies named "(conflict from ...)".
+    pub conflicts: u64,
+    pub updated: u64,
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
 pub struct Member {
     pub id: String,
     /// The device whose engine syncs this folder (key hex).
@@ -102,6 +131,26 @@ pub struct Member {
     pub paused: bool,
     #[serde(default)]
     pub joined: u64,
+    // What that device last reported (its engine writes it after a pass, when it changed): the
+    // console is the one place every device reads how the others are doing.
+    #[serde(default)]
+    pub kind: String,
+    #[serde(default)]
+    pub os: String,
+    #[serde(default)]
+    pub app: String,
+    #[serde(default)]
+    pub state: String,
+    #[serde(default)]
+    pub error: String,
+    #[serde(default)]
+    pub files: u64,
+    #[serde(default)]
+    pub bytes: u64,
+    #[serde(default)]
+    pub last_sync: u64,
+    #[serde(default)]
+    pub reported: u64,
     #[serde(flatten)]
     pub other: serde_json::Map<String, Value>,
 }
@@ -246,6 +295,83 @@ pub struct Status {
     pub conflicts: usize,
     /// Deletes held back for confirmation.
     pub held_deletes: usize,
+    /// The drive's size, as this folder and the console last agreed on it.
+    pub bytes: u64,
+    /// The pass running now: how many changes, how many done, the file at hand.
+    pub todo: usize,
+    pub done: usize,
+    pub current: String,
+    /// Files left out: they kept failing (tried again later), or this device cannot hold their name.
+    pub skipped: Vec<String>,
+}
+
+/// What a member's engine remembers between passes (not saved: a restart lists everything again).
+#[derive(Default)]
+struct Runtime {
+    /// This folder as the last pass that changed nothing saw it.
+    quiet_local: Option<Listing>,
+    hub_rev: u64,
+    last_full: Option<std::time::Instant>,
+    /// Per file: failures in a row, and when to try again.
+    fails: HashMap<String, (u32, std::time::Instant)>,
+}
+
+fn runtimes() -> &'static Mutex<HashMap<String, Runtime>> {
+    static R: OnceLock<Mutex<HashMap<String, Runtime>>> = OnceLock::new();
+    R.get_or_init(Default::default)
+}
+
+fn with_runtime<T>(member: &str, f: impl FnOnce(&mut Runtime) -> T) -> T {
+    let mut m = runtimes().lock().unwrap_or_else(|e| e.into_inner());
+    f(m.entry(member.to_string()).or_default())
+}
+
+/// Without a change here or a newer hub_rev, the console's folder is listed again this often
+/// anyway (a file put there with Files, not through the drive, shows up by then).
+const FULL_SCAN: Duration = Duration::from_secs(120);
+/// A file that failed this many times in a row rests this long.
+const FAIL_LIMIT: u32 = 3;
+const FAIL_REST: Duration = Duration::from_secs(600);
+/// A member's report on the console is written again at least this often.
+const REPORT_EVERY_MS: u64 = 10 * 60 * 1000;
+
+/// A name this device's file system cannot hold (only Windows refuses names the console takes).
+fn unstorable(rel: &str) -> bool {
+    if !cfg!(windows) {
+        return false;
+    }
+    rel.split('/').any(|c| {
+        let stem = c.split('.').next().unwrap_or("").to_ascii_uppercase();
+        c.ends_with('.')
+            || c.ends_with(' ')
+            || c.chars()
+                .any(|ch| "<>:\"|?*".contains(ch) || (ch as u32) < 32)
+            || matches!(stem.as_str(), "CON" | "PRN" | "AUX" | "NUL")
+            || ((stem.starts_with("COM") || stem.starts_with("LPT"))
+                && stem.len() == 4
+                && stem.as_bytes()[3].is_ascii_digit())
+    })
+}
+
+/// Paths of the console's folder that differ only in case from an earlier one: on a device whose
+/// folders ignore case they would land on the same file.
+fn case_twins(hub: &Listing) -> std::collections::HashSet<String> {
+    let mut out = std::collections::HashSet::new();
+    if !(cfg!(windows) || cfg!(target_os = "macos")) {
+        return out;
+    }
+    let mut seen: HashMap<String, &str> = HashMap::new();
+    let mut keys: Vec<&String> = hub.keys().collect();
+    keys.sort();
+    for k in keys {
+        let low = k.to_lowercase();
+        if let std::collections::hash_map::Entry::Vacant(e) = seen.entry(low) {
+            e.insert(k);
+        } else {
+            out.insert(k.clone());
+        }
+    }
+    out
 }
 
 fn statuses() -> &'static Mutex<HashMap<String, Status>> {
@@ -482,7 +608,20 @@ impl Pass<'_> {
         fs_ops::fs_move(self.addr, &from, &to)
     }
 
-    fn run(&self) -> Result<()> {
+    /// Whether a console install is running (installs read the disk hard: syncing waits).
+    fn install_running(&self) -> bool {
+        crate::mesh_api::call(self.addr, || mesh::state(self.addr, 0, 0))
+            .ok()
+            .flatten()
+            .and_then(|v| v.get("locks").and_then(Value::as_array).cloned())
+            .is_some_and(|l| {
+                l.iter()
+                    .any(|x| x.get("name").and_then(Value::as_str) == Some("install"))
+            })
+    }
+
+    /// One pass. Returns whether it changed the console's folder.
+    fn run(&self) -> Result<bool> {
         let member_id = &self.member.member;
         // Markers: both sides must be there.
         if !self.root.join(MARKER).is_file() {
@@ -493,7 +632,7 @@ impl Pass<'_> {
                     self.root.display()
                 );
             });
-            return Ok(());
+            return Ok(false);
         }
         if hub_stat(self.addr, &join_hub(&self.drive.hub, MARKER)).is_none() {
             set_status(member_id, |s| {
@@ -503,13 +642,37 @@ impl Pass<'_> {
                     self.drive.hub
                 );
             });
-            return Ok(());
+            return Ok(false);
+        }
+        if self.install_running() {
+            set_status(member_id, |s| {
+                s.state = "waiting".into();
+                s.detail = "an install is running on the console".into();
+            });
+            return Ok(false);
+        }
+        let mut member = walk_local(&self.root)?;
+        // Nothing changed here and nobody changed the console's folder through the drive: skip
+        // listing it (the slow half of a pass) until FULL_SCAN says to look anyway.
+        let quiet = with_runtime(member_id, |rt| {
+            rt.quiet_local.as_ref() == Some(&member)
+                && rt.hub_rev == self.drive.hub_rev
+                && rt.last_full.is_some_and(|t| t.elapsed() < FULL_SCAN)
+        });
+        if quiet {
+            set_status(member_id, |s| {
+                if s.state != "error" && s.state != "confirm" {
+                    s.state = "idle".into();
+                    s.detail.clear();
+                    s.last_ok = now_ms();
+                }
+            });
+            return Ok(false);
         }
         set_status(member_id, |s| {
             s.state = "syncing".into();
             s.detail.clear();
         });
-        let mut member = walk_local(&self.root)?;
         let hub = walk_hub(self.addr, &self.drive.hub)?;
         let mut base = load_base(&self.drive.id, member_id);
         let now = now_ms() as i64 / 1000;
@@ -521,6 +684,27 @@ impl Pass<'_> {
             .collect();
         let mut ops = plan(&member, &hub, &base);
         ops.retain(|o| safe_rel(o.path()) && !settling.iter().any(|p| p == o.path()));
+        // Left out: what this device cannot name, and what keeps failing (until it has rested).
+        let twins = case_twins(&hub);
+        let mut skipped: Vec<String> = Vec::new();
+        let resting: std::collections::HashSet<String> = with_runtime(member_id, |rt| {
+            rt.fails
+                .retain(|_, (n, at)| *n < FAIL_LIMIT || at.elapsed() < FAIL_REST);
+            rt.fails
+                .iter()
+                .filter(|(_, (n, _))| *n >= FAIL_LIMIT)
+                .map(|(k, _)| k.clone())
+                .collect()
+        });
+        ops.retain(|o| {
+            let p = o.path();
+            let fetches = matches!(o, Op::Download(_) | Op::Conflict(_) | Op::Compare(_));
+            let keep = !(resting.contains(p) || (fetches && (unstorable(p) || twins.contains(p))));
+            if !keep {
+                skipped.push(p.to_string());
+            }
+            keep
+        });
         let mut held = 0;
         if too_many_deletes(&ops, base.len())
             && !confirmed()
@@ -533,7 +717,13 @@ impl Pass<'_> {
         }
         let (today, stamp) = date_parts(now);
         let (mut up, mut down, mut del, mut conf) = (0, 0, 0, 0);
+        let mut hub_changed = false;
         let mut first_error: Option<String> = None;
+        let todo = ops.len();
+        set_status(member_id, |s| {
+            s.todo = todo;
+            s.done = 0;
+        });
         let mut renewed = std::time::Instant::now();
         for op in &ops {
             if renewed.elapsed() >= LOCK_RENEW {
@@ -551,6 +741,8 @@ impl Pass<'_> {
                 });
             }
             let rel = op.path().to_string();
+            set_status(member_id, |s| s.current = rel.clone());
+            hub_changed |= matches!(op, Op::Upload(_) | Op::DeleteHub(_));
             let r: Result<()> = (|| {
                 match op {
                     Op::Upload(_) => {
@@ -616,10 +808,24 @@ impl Pass<'_> {
                 }
                 Ok(())
             })();
-            if let Err(e) = r {
-                crate::log_warn!("mesh drive {}: {e:#}", self.drive.name);
-                first_error.get_or_insert_with(|| format!("{e:#}"));
+            match r {
+                Ok(()) => with_runtime(member_id, |rt| {
+                    rt.fails.remove(&rel);
+                }),
+                Err(e) => {
+                    crate::log_warn!("mesh drive {}: {e:#}", self.drive.name);
+                    first_error.get_or_insert_with(|| format!("{e:#}"));
+                    with_runtime(member_id, |rt| {
+                        let f = rt
+                            .fails
+                            .entry(rel.clone())
+                            .or_insert((0, std::time::Instant::now()));
+                        f.0 += 1;
+                        f.1 = std::time::Instant::now();
+                    });
+                }
             }
+            set_status(member_id, |s| s.done += 1);
             // Progress survives an interrupted pass.
             if up + down + del + conf > 0 && (up + down + del + conf) % 20 == 0 {
                 let _ = save_base(&self.drive.id, member_id, &base);
@@ -627,8 +833,23 @@ impl Pass<'_> {
         }
         save_base(&self.drive.id, member_id, &base)?;
         let files = base.len();
+        let bytes: u64 = base.values().map(|e| e.h.size).sum();
+        let changed = up + down + del + conf > 0;
+        with_runtime(member_id, |rt| {
+            rt.last_full = Some(std::time::Instant::now());
+            rt.hub_rev = self.drive.hub_rev;
+            // Only a pass that changed nothing vouches for this listing; otherwise list again.
+            rt.quiet_local =
+                (!changed && first_error.is_none() && settling.is_empty()).then_some(member);
+        });
+        skipped.sort();
         set_status(member_id, |s| {
             s.files = files;
+            s.bytes = bytes;
+            s.todo = 0;
+            s.done = 0;
+            s.current.clear();
+            s.skipped = skipped;
             s.uploaded = up;
             s.downloaded = down;
             s.deleted = del;
@@ -647,7 +868,7 @@ impl Pass<'_> {
             }
         });
         self.empty_trash(now);
-        Ok(())
+        Ok(hub_changed)
     }
 
     /// Trash folders are named by day; the ones older than TRASH_DAYS go. Best effort.
@@ -693,10 +914,6 @@ fn sync_member(lm: &LocalMember, me: &str) -> Result<()> {
         set_status(&lm.member, |s| s.state = "removed".into());
         return Ok(());
     };
-    if !member.approved {
-        set_status(&lm.member, |s| s.state = "pending".into());
-        return Ok(());
-    }
     if member.paused {
         set_status(&lm.member, |s| s.state = "paused".into());
         return Ok(());
@@ -743,7 +960,87 @@ fn sync_member(lm: &LocalMember, me: &str) -> Result<()> {
             s.detail = format!("{e:#}");
         });
     }
-    r
+    let hub_changed = *r.as_ref().unwrap_or(&false);
+    if let Err(e) = report(addr, drive, member, &lm.member, hub_changed) {
+        crate::log_warn!("mesh drive {}: report: {e:#}", drive.name);
+    }
+    r.map(|_| ())
+}
+
+/// This member's state, on the console where every device reads it. Written when something a
+/// person would see changed, the home folder changed (hub_rev, so the others look), or every
+/// REPORT_EVERY_MS so a stale report stands out.
+fn report(
+    addr: &str,
+    drive: &Drive,
+    seen: &Member,
+    member_id: &str,
+    hub_changed: bool,
+) -> Result<()> {
+    let st = statuses()
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .get(member_id)
+        .cloned()
+        .unwrap_or_default();
+    // Passing states are not news.
+    let state = match st.state.as_str() {
+        "syncing" | "waiting" => "idle",
+        s => s,
+    }
+    .to_string();
+    let error = if state == "error" {
+        st.detail.chars().take(300).collect()
+    } else {
+        String::new()
+    };
+    let now = now_ms();
+    let news = seen.state != state
+        || seen.error != error
+        || seen.files != st.files as u64
+        || seen.bytes != st.bytes
+        || seen.app != env!("CARGO_PKG_VERSION")
+        || seen.device_name != crate::mesh_api::device_name();
+    if !hub_changed && !news && now.saturating_sub(seen.reported) < REPORT_EVERY_MS {
+        return Ok(());
+    }
+    let base = load_base(&drive.id, member_id);
+    let stats = DriveStats {
+        files: base.len() as u64,
+        bytes: base.values().map(|e| e.h.size).sum(),
+        conflicts: base
+            .keys()
+            .filter(|k| k.contains("(conflict from "))
+            .count() as u64,
+        updated: now,
+    };
+    doc_update(addr, |doc| {
+        let Some(d) = doc.drives.iter_mut().find(|d| d.id == drive.id) else {
+            return Ok(());
+        };
+        if hub_changed {
+            d.hub_rev += 1;
+        }
+        if st.state != "error" && st.state != "offline" {
+            d.stats = Some(stats.clone());
+        }
+        if let Some(m) = d.members.iter_mut().find(|m| m.id == member_id) {
+            m.state = state.clone();
+            m.error = error.clone();
+            m.files = st.files as u64;
+            m.bytes = st.bytes;
+            m.app = env!("CARGO_PKG_VERSION").to_string();
+            m.kind = crate::mesh_api::kind().to_string();
+            m.os = std::env::consts::OS.to_string();
+            m.device_name = crate::mesh_api::device_name();
+            if st.last_ok > m.last_sync {
+                m.last_sync = st.last_ok;
+            }
+            m.reported = now;
+        }
+        Ok(())
+    })?;
+    Ok(())
 }
 
 static RUNNING: AtomicBool = AtomicBool::new(false);
@@ -753,13 +1050,29 @@ pub fn tick() {
     if RUNNING.swap(true, Ordering::SeqCst) {
         return;
     }
-    let me = crate::mesh_api::id_hex().unwrap_or_default();
-    for lm in load_config().members {
-        if let Err(e) = sync_member(&lm, &me) {
-            crate::log_warn!("mesh drive {}: {e:#}", lm.drive);
+    // Cleared however the round ends, a panic included: a stuck flag would stop every drive.
+    struct Done;
+    impl Drop for Done {
+        fn drop(&mut self) {
+            RUNNING.store(false, Ordering::SeqCst);
         }
     }
-    RUNNING.store(false, Ordering::SeqCst);
+    let _done = Done;
+    let me = crate::mesh_api::id_hex().unwrap_or_default();
+    for lm in load_config().members {
+        let r = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| sync_member(&lm, &me)));
+        match r {
+            Ok(Err(e)) => crate::log_warn!("mesh drive {}: {e:#}", lm.drive),
+            Err(_) => {
+                crate::log_warn!("mesh drive {}: the pass panicked", lm.drive);
+                set_status(&lm.member, |s| {
+                    s.state = "error".into();
+                    s.detail = "the last pass stopped unexpectedly; it is tried again".into();
+                });
+            }
+            Ok(Ok(())) => {}
+        }
+    }
 }
 
 pub fn spawn() {
@@ -1110,6 +1423,98 @@ fn refuse_unless_ok(c: &FolderCheck, what: &str) -> Result<()> {
     bail!("{what} {}: {why}", c.path)
 }
 
+/// This device as a new member of a drive.
+fn new_member(id: &str, device: &str, path: &str) -> Member {
+    Member {
+        id: id.to_string(),
+        device: device.to_string(),
+        device_name: crate::mesh_api::device_name(),
+        path: path.to_string(),
+        approved: true,
+        joined: now_ms(),
+        kind: crate::mesh_api::kind().to_string(),
+        os: std::env::consts::OS.to_string(),
+        app: env!("CARGO_PKG_VERSION").to_string(),
+        state: "starting".into(),
+        ..Default::default()
+    }
+}
+
+// ---- a drive's password ----
+
+fn hmac_sha256(key: &[u8], msg: &[u8]) -> [u8; 32] {
+    use sha2::{Digest, Sha256};
+    let mut k = [0u8; 64];
+    if key.len() > 64 {
+        k[..32].copy_from_slice(&Sha256::digest(key));
+    } else {
+        k[..key.len()].copy_from_slice(key);
+    }
+    let mut ipad = [0x36u8; 64];
+    let mut opad = [0x5cu8; 64];
+    for i in 0..64 {
+        ipad[i] ^= k[i];
+        opad[i] ^= k[i];
+    }
+    let inner = Sha256::new()
+        .chain_update(ipad)
+        .chain_update(msg)
+        .finalize();
+    let outer = Sha256::new()
+        .chain_update(opad)
+        .chain_update(inner)
+        .finalize();
+    outer.into()
+}
+
+/// PBKDF2-HMAC-SHA256, one 32-byte block.
+fn pbkdf2(password: &[u8], salt: &[u8], iter: u32) -> [u8; 32] {
+    let mut msg = salt.to_vec();
+    msg.extend_from_slice(&1u32.to_be_bytes());
+    let mut u = hmac_sha256(password, &msg);
+    let mut out = u;
+    for _ in 1..iter {
+        u = hmac_sha256(password, &u);
+        for (o, x) in out.iter_mut().zip(u.iter()) {
+            *o ^= x;
+        }
+    }
+    out
+}
+
+fn hex(b: &[u8]) -> String {
+    b.iter().map(|x| format!("{x:02x}")).collect()
+}
+
+const LOCK_ITER: u32 = 120_000;
+
+fn make_lock(password: &str) -> Result<DriveLock> {
+    let salt: [u8; 16] = ava1::keys::random_bytes()?;
+    Ok(DriveLock {
+        salt: hex(&salt),
+        hash: hex(&pbkdf2(password.as_bytes(), &salt, LOCK_ITER)),
+        iter: LOCK_ITER,
+    })
+}
+
+fn lock_opens(lock: &DriveLock, password: &str) -> bool {
+    let salt: Vec<u8> = (0..lock.salt.len() / 2)
+        .filter_map(|i| u8::from_str_radix(lock.salt.get(2 * i..2 * i + 2)?, 16).ok())
+        .collect();
+    let got = hex(&pbkdf2(
+        password.as_bytes(),
+        &salt,
+        lock.iter.clamp(1, 1_000_000),
+    ));
+    // Constant-time compare.
+    got.len() == lock.hash.len()
+        && got
+            .bytes()
+            .zip(lock.hash.bytes())
+            .fold(0u8, |a, (x, y)| a | (x ^ y))
+            == 0
+}
+
 fn me_or_err() -> Result<String> {
     crate::mesh_api::id_hex().ok_or_else(|| anyhow!("this engine has no identity"))
 }
@@ -1195,8 +1600,15 @@ pub async fn list(Query(q): Query<ListQuery>) -> Response {
                 json!({ "drive": m.drive, "member": m.member, "path": m.path, "status": st })
             })
             .collect();
+        // Room left where each drive's home is (cached: list is polled).
+        let free: serde_json::Map<String, Value> = doc
+            .drives
+            .iter()
+            .filter_map(|d| Some((d.id.clone(), json!(hub_free(&addr, &d.hub)?))))
+            .collect();
         Ok(json!({
             "supported": true,
+            "free": free,
             "me": crate::mesh_api::id_hex(),
             "kind": crate::mesh_api::kind(),
             "suggest": suggested_folder(),
@@ -1205,6 +1617,26 @@ pub async fn list(Query(q): Query<ListQuery>) -> Response {
         }))
     })
     .await
+}
+
+/// Usable bytes on the console drive holding `hub`, at most a half-minute old.
+fn hub_free(addr: &str, hub: &str) -> Option<u64> {
+    type Cache = Mutex<HashMap<String, (std::time::Instant, Option<u64>)>>;
+    static C: OnceLock<Cache> = OnceLock::new();
+    let key = format!("{addr}|{hub}");
+    let c = C.get_or_init(Default::default);
+    if let Some((at, v)) = c.lock().unwrap_or_else(|e| e.into_inner()).get(&key) {
+        if at.elapsed() < Duration::from_secs(30) {
+            return *v;
+        }
+    }
+    let v = ps5upload_core::volumes::free_space(addr, hub)
+        .ok()
+        .map(|f| f.usable_bytes);
+    c.lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .insert(key, (std::time::Instant::now(), v));
+    v
 }
 
 #[derive(Deserialize)]
@@ -1217,6 +1649,8 @@ pub struct CreateReq {
     hub_name: Option<String>,
     /// This device's folder: required, the user chooses it.
     path: String,
+    /// A password other devices type to join (none: anyone on the network joins).
+    password: Option<String>,
 }
 
 pub async fn create(Json(req): Json<CreateReq>) -> Response {
@@ -1264,20 +1698,15 @@ pub async fn create(Json(req): Json<CreateReq>) -> Response {
                 hub: hub.clone(),
                 created: now_ms(),
                 by: me.clone(),
-                other: Default::default(),
                 members: local
                     .iter()
-                    .map(|p| Member {
-                        id: member_id.clone(),
-                        device: me.clone(),
-                        device_name: crate::mesh_api::device_name(),
-                        path: p.clone(),
-                        approved: true,
-                        paused: false,
-                        joined: now_ms(),
-                        other: Default::default(),
-                    })
+                    .map(|p| new_member(&member_id, &me, p))
                     .collect(),
+                lock: match req.password.as_deref().map(str::trim) {
+                    Some(pw) if !pw.is_empty() => Some(make_lock(pw)?),
+                    _ => None,
+                },
+                ..Default::default()
             });
             Ok(())
         })?;
@@ -1337,6 +1766,8 @@ pub struct JoinReq {
     addr: Option<String>,
     drive: String,
     path: String,
+    /// The drive's password, when it has one.
+    password: Option<String>,
 }
 
 pub async fn join(Json(req): Json<JoinReq>) -> Response {
@@ -1346,41 +1777,87 @@ pub async fn join(Json(req): Json<JoinReq>) -> Response {
         let check = check_local(&req.path, Some(&req.drive));
         refuse_unless_ok(&check, "This device's folder")?;
         let path = check.path.clone();
+        // The password before anything is made here.
+        let Some((_, current)) = doc_read(&addr)? else {
+            return Ok(unsupported());
+        };
+        let d = current
+            .drives
+            .iter()
+            .find(|d| d.id == req.drive)
+            .ok_or_else(|| anyhow!("that drive is gone"))?;
+        if let Some(lock) = &d.lock {
+            match req.password.as_deref() {
+                Some(pw) if lock_opens(lock, pw) => {}
+                Some(_) => bail!("wrong_password: that is not the drive's password"),
+                None => bail!("password_needed: this drive asks for a password"),
+            }
+        }
         prepare_local(&path)?;
         let member_id = new_id();
-        let approved = doc_update(&addr, |doc| {
+        let joined = doc_update(&addr, |doc| {
             let d = doc
                 .drives
                 .iter_mut()
                 .find(|d| d.id == req.drive)
                 .ok_or_else(|| anyhow!("that drive is gone"))?;
-            // This device joining again with the same folder replaces its old entry, and keeps its
-            // place: a device already let in stays in.
-            let was_in = d
-                .members
-                .iter()
-                .any(|m| m.device == me && m.path == path && m.approved);
+            // This device joining again with the same folder replaces its old entry.
             d.members.retain(|m| !(m.device == me && m.path == path));
-            // A drive nobody syncs yet (made from the console side only) lets the first device in.
-            let approved = was_in || !d.members.iter().any(|m| m.approved);
-            d.members.push(Member {
-                id: member_id.clone(),
-                device: me.clone(),
-                device_name: crate::mesh_api::device_name(),
-                path: path.clone(),
-                approved,
-                paused: false,
-                joined: now_ms(),
-                other: Default::default(),
-            });
-            Ok((approved, d.name.clone()))
+            d.members.push(new_member(&member_id, &me, &path));
+            Ok(d.name.clone())
         })?;
-        let Some((approved, drive_name)) = approved else {
+        let Some(drive_name) = joined else {
             return Ok(unsupported());
         };
         add_local(&addr, &req.drive, &member_id, &path, &drive_name)?;
         kick();
-        Ok(json!({ "supported": true, "ok": true, "member": member_id, "approved": approved }))
+        Ok(json!({ "supported": true, "ok": true, "member": member_id, "approved": true }))
+    })
+    .await
+}
+
+#[derive(Deserialize)]
+pub struct PasswordReq {
+    addr: Option<String>,
+    drive: String,
+    /// The new password; empty or absent removes it.
+    password: Option<String>,
+    /// The current one, for a device that is not in the drive.
+    current: Option<String>,
+}
+
+/// Sets, changes or removes a drive's password. Allowed to a device keeping the drive, or to
+/// anyone who knows the current password (the device that set it may be long gone).
+pub async fn password(Json(req): Json<PasswordReq>) -> Response {
+    answer(move || {
+        let addr = addr_of(req.addr)?;
+        let me = me_or_err()?;
+        let next = match req.password.as_deref().map(str::trim) {
+            Some(pw) if !pw.is_empty() => Some(make_lock(pw)?),
+            _ => None,
+        };
+        let r = doc_update(&addr, |doc| {
+            let d = doc
+                .drives
+                .iter_mut()
+                .find(|d| d.id == req.drive)
+                .ok_or_else(|| anyhow!("that drive is gone"))?;
+            let member = d.members.iter().any(|m| m.device == me);
+            let knows = match (&d.lock, req.current.as_deref()) {
+                (None, _) => true,
+                (Some(l), Some(pw)) => lock_opens(l, pw),
+                (Some(_), None) => false,
+            };
+            if !member && !knows {
+                bail!("wrong_password: only a device in the drive, or one that knows its password, can change it");
+            }
+            d.lock = next.clone();
+            Ok(())
+        })?;
+        if r.is_none() {
+            return Ok(unsupported());
+        }
+        Ok(json!({ "supported": true, "ok": true }))
     })
     .await
 }
@@ -1506,6 +1983,45 @@ pub async fn confirm(Json(req): Json<MemberReq>) -> Response {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn pbkdf2_matches_rfc7914_vectors() {
+        assert_eq!(
+            hex(&pbkdf2(b"password", b"salt", 1)),
+            "120fb6cffcf8b32c43e7225256c4f837a86548c92ccc35480805987cb70be17b"
+        );
+        assert_eq!(
+            hex(&pbkdf2(b"password", b"salt", 2)),
+            "ae4d0c95af6b46d32d0adff928f06dd02a303f8ef3c251dfd6e2d85a95474c43"
+        );
+    }
+
+    #[test]
+    fn a_drive_password_opens_only_itself() {
+        let l = DriveLock {
+            salt: hex(b"0123456789abcdef"),
+            hash: hex(&pbkdf2(b"open sesame", b"0123456789abcdef", 1000)),
+            iter: 1000,
+        };
+        assert!(lock_opens(&l, "open sesame"));
+        assert!(!lock_opens(&l, "open sesame "));
+        assert!(!lock_opens(&l, ""));
+    }
+
+    #[test]
+    fn case_twins_only_where_case_is_ignored() {
+        let mut hub = Listing::new();
+        for k in ["a/Photo.jpg", "a/photo.jpg", "b.txt"] {
+            hub.insert(k.into(), Meta { size: 1, mtime: 0 });
+        }
+        let t = case_twins(&hub);
+        if cfg!(any(windows, target_os = "macos")) {
+            assert_eq!(t.len(), 1);
+            assert!(t.contains("a/photo.jpg"));
+        } else {
+            assert!(t.is_empty());
+        }
+    }
 
     #[test]
     fn folder_names_and_nesting() {
