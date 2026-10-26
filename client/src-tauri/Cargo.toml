@@ -17,7 +17,7 @@ ava1 = { path = "../../engine/crates/ava1" }
 # Tauri core + the native file dialogs. File reads/writes go through our
 # own commands (see commands/save_text_file.rs), and links open through
 # tauri-plugin-opener below.
-tauri = { version = "2", features = ["protocol-asset"] }
+tauri = { version = "2", features = ["protocol-asset", "tray-icon"] }
 tauri-plugin-dialog = "2"
 # Native OS notifications (system tray/center) — mirrors the in-app
 # notification inbox to the desktop notification center and the Android

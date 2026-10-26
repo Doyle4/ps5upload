@@ -4,6 +4,33 @@ What's new in ps5upload, written for humans.
 
 ---
 
+## 8.3.0
+
+### Updates install and restart, every time
+
+- **"Install and restart" no longer freezes the app (macOS, and the same code on Windows and
+  Linux).** Quitting waited on its clean-up with no limit; when that clean-up could not finish,
+  the app sat "not responding" and the update waited for it. Quitting now gives the clean-up a
+  few seconds, then stops the engine itself and exits. The update also closes an app that still
+  has not quit after 30 seconds, instead of opening the old one again.
+- **"Downloading…" no longer sticks after the download finished.** The app waited for Finder to
+  show the Downloads folder before it said the download was done, and Finder can take as long as
+  it likes (half an hour with the screen locked, measured). A copy that installs updates itself
+  no longer opens the folder at all, and on Windows no longer starts the setup on its own next
+  to **Install and restart**.
+
+### Keep running in the system tray (#516)
+
+- **Settings → Window → System tray**: close or minimize to the tray on Windows and Linux; on
+  macOS, keep running in the menu bar when the window is closed (the Dock icon hides too). The
+  tray icon brings the window back and has **Quit**. Transfers and Mesh Drive keep going.
+
+### Pop-ups on iPhone and Android (#517)
+
+- Menus that open near the bottom of a short screen (a phone held sideways) now fit the room
+  there is and scroll, instead of keeping a minimum height that ran past the edge. Checked on
+  every page in the browser engine iOS uses, upright and sideways.
+
 ## 8.2.0
 
 ### Mesh Drive when a console sleeps or is off

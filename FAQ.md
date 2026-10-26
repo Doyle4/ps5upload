@@ -2216,9 +2216,29 @@ single vendor's flag is a false positive; please report it to that vendor (and t
 
 **Q: How do updates work?**
 The app checks GitHub once per launch and shows a dot on the Settings entry when a newer version
-exists. **Settings → Updates → Download** saves the archive for your platform to your Downloads
-folder (the Windows installer updates itself). Quit, replace the old app, relaunch, then use
-**Update helper** if the app asks. Remember to update the app and the helper together.
+exists. **Settings → Updates → Download** saves it to your Downloads folder. Where the app can
+replace itself (Windows, macOS when the app's folder is writable, a Linux AppImage) the button
+becomes **Install and restart**: the app quits, the new version takes its place and opens. A
+`.deb` / `.rpm` shows the command to run instead. Then use **Update helper** if the app asks.
+
+**Q: "Install and restart" froze the app on my Mac.**
+Fixed in 8.3.0. Quitting could wait forever on its clean-up, so the old app sat "not responding"
+and the update waited for it. Quitting now finishes within a few seconds whatever happens, and
+the update closes an app that still has not quit after 30 seconds. On the version that froze,
+force-quit the app (Option-Command-Esc): the update then finishes by itself and opens the new
+version.
+
+**Q: Can the app keep running in the system tray?**
+Yes (8.3.0, desktop). **Settings → Window → System tray**:
+
+- **Windows and Linux**: **Close to the system tray** and **Minimize to the system tray**. Click
+  the tray icon to bring the window back; right-click it for **Quit PS5Upload**.
+- **macOS**: **Keep running in the menu bar when the window is closed**. Closing hides the
+  window and its Dock icon; the menu bar icon has **Show PS5Upload** and **Quit PS5Upload**.
+
+Transfers, Mesh Drive and the engine keep going while the window is hidden. On Linux the tray
+needs `libayatana-appindicator3` (most desktops have it); without it the switches stay off and
+the window closes as usual.
 
 # Help
 

@@ -98,9 +98,14 @@ pid={pid}
 dmg={dmg}
 app={app}
 n=0
-while kill -0 "$pid" 2>/dev/null && [ "$n" -lt 120 ]; do sleep 0.5; n=$((n+1)); done
+while kill -0 "$pid" 2>/dev/null && [ "$n" -lt 60 ]; do sleep 0.5; n=$((n+1)); done
+# Still running after 30 s: it hung on the way out. Replacing a running app and opening it
+# would only bring the old one forward.
+if kill -0 "$pid" 2>/dev/null; then kill -9 "$pid"; sleep 1; fi
 mnt=$(mktemp -d /tmp/ps5upload-update.XXXXXX)
-if hdiutil attach -nobrowse -readonly -noautoopen -mountpoint "$mnt" "$dmg" >/dev/null; then
+# hdiutil attach is deprecated from macOS 27 (still works); diskutil image is its successor.
+if hdiutil attach -nobrowse -readonly -noautoopen -mountpoint "$mnt" "$dmg" >/dev/null 2>&1 \
+  || diskutil image attach --mountOptions nobrowse --readOnly --mountPoint "$mnt" "$dmg" >/dev/null 2>&1; then
   src=$(ls -d "$mnt"/*.app 2>/dev/null | head -n 1)
   new="$app.new.$$"
   old="$app.old.$$"
@@ -129,7 +134,9 @@ pid={pid}
 zip={zip}
 target={target}
 n=0
-while kill -0 "$pid" 2>/dev/null && [ "$n" -lt 120 ]; do sleep 0.5; n=$((n+1)); done
+while kill -0 "$pid" 2>/dev/null && [ "$n" -lt 60 ]; do sleep 0.5; n=$((n+1)); done
+# Still running after 30 s: it hung on the way out.
+if kill -0 "$pid" 2>/dev/null; then kill -9 "$pid"; sleep 1; fi
 dir=$(mktemp -d /tmp/ps5upload-update.XXXXXX)
 if unzip -oq "$zip" -d "$dir" 2>/dev/null || python3 -c 'import sys,zipfile; zipfile.ZipFile(sys.argv[1]).extractall(sys.argv[2])' "$zip" "$dir"; then
   if [ -f "$dir/PS5Upload.AppImage" ]; then
@@ -154,7 +161,9 @@ nohup "$target" >/dev/null 2>&1 &
 $ErrorActionPreference = 'Continue'
 $installer = {installer}
 $exe = {exe}
-Wait-Process -Id {pid} -Timeout 60 -ErrorAction SilentlyContinue
+Wait-Process -Id {pid} -Timeout 30 -ErrorAction SilentlyContinue
+# Still running after 30 s: it hung on the way out.
+Get-Process -Id {pid} -ErrorAction SilentlyContinue | Where-Object {{ $_.Path -eq $exe }} | Stop-Process -Force -ErrorAction SilentlyContinue
 # The engine beside the app holds its .exe open; the installer cannot replace it while it runs.
 $dir = Split-Path -Parent $exe
 Get-Process -ErrorAction SilentlyContinue | Where-Object {{ $_.Path -and $_.Path.StartsWith($dir, [System.StringComparison]::OrdinalIgnoreCase) }} | Stop-Process -Force -ErrorAction SilentlyContinue
@@ -171,7 +180,10 @@ Start-Process -FilePath $exe
 $ErrorActionPreference = 'Continue'
 $zip = {zip}
 $exe = {exe}
-Wait-Process -Id {pid} -Timeout 60 -ErrorAction SilentlyContinue
+Wait-Process -Id {pid} -Timeout 30 -ErrorAction SilentlyContinue
+# Still running after 30 s: it hung on the way out.
+Get-Process -Id {pid} -ErrorAction SilentlyContinue | Where-Object {{ $_.Path -eq $exe }} | Stop-Process -Force -ErrorAction SilentlyContinue
+Start-Sleep -Milliseconds 500
 $tmp = Join-Path ([System.IO.Path]::GetTempPath()) ("ps5upload-update-" + [guid]::NewGuid())
 try {{
   Expand-Archive -LiteralPath $zip -DestinationPath $tmp -Force
@@ -284,6 +296,14 @@ pub async fn update_install(app: AppHandle, path: String) -> Result<(), String> 
     spawn_detached(&plan, &script_for(&plan, std::process::id()))?;
     // Let the reply reach the window before the app goes.
     tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+    // The update waits for this process to end: it must end. The orderly exit is bounded
+    // (exit_guard.rs); this ends the process even if the event loop never gets to it.
+    #[cfg(desktop)]
+    std::thread::spawn(|| {
+        std::thread::sleep(std::time::Duration::from_secs(15));
+        crate::exit_guard::kill_all();
+        std::process::exit(0);
+    });
     app.exit(0);
     Ok(())
 }
@@ -410,6 +430,8 @@ mod tests {
         };
         let s = script_for(&plan, 42);
         assert!(s.contains("pid=42"));
+        // An app that hangs on the way out is ended, not waited on forever.
+        assert!(s.contains(r#"then kill -9 "$pid""#));
         assert!(s.contains(r"dmg='/Users/o'\''neil/Downloads/PS5Upload.dmg'"));
         assert!(s.trim_end().ends_with(r#"open "$app""#));
 
@@ -420,6 +442,7 @@ mod tests {
         let s = script_for(&plan, 7);
         assert!(s.contains(r"$zip = 'C:\Users\o''neil\Downloads\PS5Upload.zip'"));
         assert!(s.contains("Wait-Process -Id 7"));
+        assert!(s.contains("Get-Process -Id 7 -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $exe } | Stop-Process -Force"));
         assert!(s.trim_end().ends_with("Start-Process -FilePath $exe"));
 
         let plan = Plan::WindowsSetup {
@@ -437,5 +460,32 @@ mod tests {
         assert!(script_for(&plan, 9)
             .trim_end()
             .ends_with(r#"nohup "$target" >/dev/null 2>&1 &"#));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn the_shell_scripts_parse() {
+        for plan in [
+            Plan::MacDmg {
+                dmg: PathBuf::from("/Users/o'neil/Downloads/PS5Upload 8.dmg"),
+                bundle: PathBuf::from("/Applications/PS5Upload.app"),
+            },
+            Plan::LinuxAppImage {
+                zip: PathBuf::from("/home/o'neil/PS5Upload.zip"),
+                appimage: PathBuf::from("/home/o'neil/Apps/PS5Upload.AppImage"),
+            },
+        ] {
+            let out = std::process::Command::new("/bin/sh")
+                .arg("-n")
+                .arg("-c")
+                .arg(script_for(&plan, 42))
+                .output()
+                .unwrap();
+            assert!(
+                out.status.success(),
+                "{plan:?}: {}",
+                String::from_utf8_lossy(&out.stderr)
+            );
+        }
     }
 }

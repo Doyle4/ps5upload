@@ -50,6 +50,24 @@ mod bg_activity;
 // The JavaVM / Application context every Android JNI caller shares.
 #[cfg(target_os = "android")]
 mod android_jni;
+// Quitting never hangs: the exit clean-up is time-boxed, children killed past it.
+#[cfg(desktop)]
+mod exit_guard;
+// Minimize / close to the system tray (#516); desktop only.
+#[cfg(desktop)]
+mod tray;
+#[cfg(mobile)]
+mod tray {
+    /// No tray on a phone.
+    #[tauri::command]
+    pub fn tray_configure(
+        _minimize: bool,
+        _close: bool,
+        _labels: serde_json::Value,
+    ) -> serde_json::Value {
+        serde_json::json!({ "available": false, "active": false })
+    }
+}
 // "Open with PS5Upload" for .pkg files: paths from the launch, a second launch, or macOS.
 mod opened_files;
 
@@ -154,12 +172,8 @@ pub fn run() {
         // happen rather than a silent no-op when they re-launch.
         // `get_webview_window("main")` matches the window label
         // declared in tauri.conf.json.
-        use tauri::Manager;
-        if let Some(window) = app.get_webview_window("main") {
-            let _ = window.unminimize();
-            let _ = window.show();
-            let _ = window.set_focus();
-        }
+        // (From the tray too: its Dock icon comes back on macOS.)
+        tray::show_main(app);
     }));
     // Drag a file from Files onto the desktop (desktop only; the renderer
     // stages the download first, see commands/dragout.rs).
@@ -240,6 +254,10 @@ pub fn run() {
                 }
             });
             Ok(())
+        })
+        .on_window_event(|_window, _event| {
+            #[cfg(desktop)]
+            tray::on_window_event(_window, _event);
         })
         .invoke_handler(tauri::generate_handler![
             // ── Engine proxies ──────────────────────────────────────
@@ -582,6 +600,7 @@ pub fn run() {
             commands::update_check,
             commands::update_download,
             commands::update_install,
+            tray::tray_configure,
             // ── Title metadata fetch (cover art + display title) ────
             // Server-side fetch (Rust/reqwest) of the public PS5
             // title-info site, bypassing renderer CSP/CORS. Hostname
@@ -631,13 +650,15 @@ pub fn run() {
                 }
             }
         }
+        // The Dock icon clicked (or the app opened again) while the window is in the menu bar.
+        #[cfg(target_os = "macos")]
+        if let tauri::RunEvent::Reopen { .. } = &event {
+            tray::show_main(_handle);
+        }
         if let tauri::RunEvent::Exit = event {
-            // block_on is fine here: we're on the main thread, the
-            // tauri runtime has already finished its event loop, and
-            // the kill is a couple of syscalls + a short wait. The
-            // tokio runtime stays alive until we return from this
-            // closure, so the async kill path completes.
-            tauri::async_runtime::block_on(async {
+            // The main thread, after the event loop ended: the clean-up runs on the async
+            // runtime, which stays alive until this closure returns.
+            let cleanup = async {
                 // Release the keep-awake inhibitor first. Its handle lives
                 // in a `static` that isn't dropped at process exit, so an
                 // enabled caffeinate/systemd-inhibit child would otherwise
@@ -645,7 +666,13 @@ pub fn run() {
                 // until reboot.
                 commands::keep_awake_release_on_exit().await;
                 engine::stop().await;
-            });
+            };
+            // Desktop: never wait on it without a limit (exit_guard.rs: an 8.1.1 Mac froze
+            // here after "Install and restart"). Past the limit the children are killed.
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
+            exit_guard::run_bounded(exit_guard::CLEANUP_LIMIT, cleanup);
+            #[cfg(any(target_os = "android", target_os = "ios"))]
+            tauri::async_runtime::block_on(cleanup);
         }
     });
 }

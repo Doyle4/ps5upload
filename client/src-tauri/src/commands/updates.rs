@@ -741,13 +741,14 @@ pub async fn update_download(
             // to open the OS file manager must not be reported back to the
             // renderer as a download failure (a user re-clicking "Download"
             // would otherwise see a spurious error).
-            if let Err(e) = reveal(&app, &target).await {
-                eprintln!("[updates] cached bundle at {target:?} but reveal failed: {e}");
-            }
             let path = target.to_string_lossy().into_owned();
+            let can_install = super::self_install::can_install(&path);
+            if !can_install {
+                reveal(&target);
+            }
             return Ok(UpdateDownload {
                 install_command: install_command(&path),
-                can_install: super::self_install::can_install(&path),
+                can_install,
                 path,
                 bytes: meta.len(),
             });
@@ -806,40 +807,46 @@ pub async fn update_download(
     // (sandboxed session, display server unavailable, exotic DE), the
     // download itself succeeded — we shouldn't convert that into a
     // download-failed error for the user. Log + continue.
-    if let Err(e) = reveal(&app, &target).await {
-        eprintln!("[updates] download saved to {target:?} but reveal failed: {e}");
-    }
-
     let path = target.to_string_lossy().into_owned();
+    let can_install = super::self_install::can_install(&path);
+    // A copy that installs it itself shows "Install and restart": opening the folder (or, on
+    // Windows, starting the setup, which then asks to close the running app) only gets in
+    // the way.
+    if !can_install {
+        reveal(&target);
+    }
     Ok(UpdateDownload {
         install_command: install_command(&path),
-        can_install: super::self_install::can_install(&path),
+        can_install,
         path,
         bytes: total,
     })
 }
 
-/// Open the containing folder in the OS file manager. On macOS we can
-/// open the .dmg directly (user double-clicks to mount), but on
-/// Windows/Linux we just reveal the folder since zip-extraction is a
-/// conscious user step.
-async fn reveal(_app: &AppHandle, path: &std::path::Path) -> Result<(), String> {
-    // Prefer opening the parent directory — works on all three OSes
-    // and avoids auto-launching a .dmg, which we want the user to
-    // decide to do.
-    // The Windows installer updates PS5Upload in place, so start it rather
-    // than leave the user to find it. (It asks to close the running app.)
-    if path
+/// Shows the download where the person installs it by hand: the Windows setup is started, else
+/// the folder opens in the file manager. Best effort, and never waited on: on macOS the `open`
+/// crate waits for `/usr/bin/open`, which can sit for as long as Finder does (33 min with the
+/// screen locked, measured) — awaited here it held the download, so the app showed
+/// "Downloading…" with the file long saved.
+fn reveal(path: &std::path::Path) {
+    let setup = path
         .file_name()
         .and_then(|n| n.to_str())
-        .is_some_and(|n| n.to_ascii_lowercase().ends_with("-setup.exe"))
-    {
-        return open::that_detached(path).map_err(|e| format!("start installer: {e}"));
-    }
-    let parent = path
-        .parent()
-        .ok_or_else(|| "downloaded path has no parent dir".to_string())?;
-    open::that_detached(parent).map_err(|e| format!("open downloads folder: {e}"))
+        .is_some_and(|n| n.to_ascii_lowercase().ends_with("-setup.exe"));
+    let Some(target) = (if setup { Some(path) } else { path.parent() }) else {
+        return;
+    };
+    let target = target.to_path_buf();
+    let _ = std::thread::Builder::new()
+        .name("reveal-download".into())
+        .spawn(move || {
+            if let Err(e) = open::that_detached(&target) {
+                let _ = std::io::Write::write_fmt(
+                    &mut std::io::stderr(),
+                    format_args!("[updates] could not show {target:?}: {e}\n"),
+                );
+            }
+        });
 }
 
 /// Hosts allowed for production-grade update HTTPS URLs. We pin to

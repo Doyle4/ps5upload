@@ -750,6 +750,9 @@ pub async fn start(app: &AppHandle) -> Result<String> {
     let generation;
     {
         let mut guard = child_lock().await.lock().await;
+        if let Some(pid) = child.id() {
+            crate::exit_guard::register("engine", pid);
+        }
         *guard = Some(child);
         generation = SPAWN_GENERATION.fetch_add(1, Ordering::SeqCst) + 1;
         LOCAL_CHILD_RUNNING.store(true, Ordering::SeqCst);
@@ -787,7 +790,12 @@ pub async fn start(app: &AppHandle) -> Result<String> {
                         guard.take()
                     };
                     let code = if let Some(mut c) = child_opt {
-                        c.wait().await.ok().and_then(|s| s.code())
+                        let pid = c.id();
+                        let code = c.wait().await.ok().and_then(|s| s.code());
+                        if let Some(pid) = pid {
+                            crate::exit_guard::unregister(pid);
+                        }
+                        code
                     } else {
                         None
                     };
@@ -896,6 +904,7 @@ pub async fn stop() {
     // is SIGKILL on unix and TerminateProcess on Windows: the backstop, and
     // the whole stop is time-boxed in case the child ignores both.
     drop(child.stdin.take());
+    let pid = child.id();
     let _ = tokio::time::timeout(SHUTDOWN_GRACE, async {
         if tokio::time::timeout(SHUTDOWN_EOF_GRACE, child.wait())
             .await
@@ -906,6 +915,9 @@ pub async fn stop() {
         }
     })
     .await;
+    if let Some(pid) = pid {
+        crate::exit_guard::unregister(pid);
+    }
 }
 
 /// What the shell can see about the engine when the app cannot reach it. Every field is

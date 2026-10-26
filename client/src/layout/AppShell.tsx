@@ -78,6 +78,7 @@ import { CommandPalette, openCommandPalette } from "../components/CommandPalette
 import { AppLogo } from "../components/AppLogo";
 import { CaptureViewer } from "../components/CaptureViewer";
 import NotificationInbox from "./NotificationInbox";
+import { useTrayApply } from "../screens/Settings/TraySettings";
 import { isDarkTheme, useThemeStore } from "../state/theme";
 import { ShortcutsOverlay } from "../components/ShortcutsOverlay";
 import { LocalPathPicker } from "../components/LocalPathPicker";
@@ -1498,6 +1499,7 @@ export default function AppShell() {
   useStatusPolling();
   useConsoleHandoff();
   useMeshSync();
+  useTrayApply();
   useAutoRedeployDownHelpers();
   useMovedConsoleWatch();
   useUpdateCheckOnMount();

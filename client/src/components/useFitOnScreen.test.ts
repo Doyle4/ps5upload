@@ -45,7 +45,8 @@ describe("fitOnScreen", () => {
     expect(fitOnScreen(box(150, 100, 224, 700), screen(393, 760), box(150, 60, 200, 40)).up).toBe(false);
   });
 
-  it("never caps below a usable height", () => {
-    expect(fitOnScreen(box(10, 380, 300, 200), screen(852, 393)).maxHeight).toBe(120);
+  it("fits the room there is on a short screen, down to a row or two", () => {
+    expect(fitOnScreen(box(10, 290, 300, 200), screen(852, 393)).maxHeight).toBe(95);
+    expect(fitOnScreen(box(10, 380, 300, 200), screen(852, 393)).maxHeight).toBe(64);
   });
 });

@@ -85,6 +85,8 @@ import {
 import { formatDate } from "../../lib/formatDate";
 import { applyBundle, backupBeforeChange, buildBundle } from "../../lib/settingsBackup";
 import { SettingsBackups } from "./SettingsBackups";
+import { TraySettings } from "./TraySettings";
+import { trayPossible } from "../../state/tray";
 // useAuditLogStore + AuditEntry moved to screens/AuditLog/index.tsx
 // (2.12.0 — promoted out of Settings junk drawer).
 
@@ -954,6 +956,15 @@ export default function SettingsScreen() {
           )}
           <NotifPrunePanel />
         </Section>
+
+        {trayPossible() && (
+          <>
+            <GroupHeading>{tr("settings_group_window", undefined, "Window")}</GroupHeading>
+            <Section title={tr("settings_card_tray", undefined, "System tray")} full>
+              <TraySettings />
+            </Section>
+          </>
+        )}
 
         <GroupHeading>
           {tr("settings_group_updates", undefined, "Updates")}

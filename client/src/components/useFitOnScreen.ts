@@ -3,6 +3,8 @@ import { useLayoutEffect, useState, type CSSProperties, type RefObject } from "r
 const MARGIN = 8;
 /** Space between a pop-up opened upwards and its button. */
 const GAP = 4;
+/** The least a capped pop-up keeps: a row or two, scrolled. */
+const MIN_HEIGHT = 64;
 
 export interface Bounds {
   left: number;
@@ -33,7 +35,9 @@ export function fitOnScreen(r: Bounds, area: Bounds, anchor?: Bounds): Fit {
   } else if (r.top < area.top + MARGIN) maxHeight = r.bottom - area.top - MARGIN;
   return {
     dx: Math.abs(dx) > 0.5 ? dx : 0,
-    maxHeight: maxHeight === null ? null : Math.max(up ? 0 : 120, Math.floor(maxHeight)),
+    // Whatever room there is (a landscape phone has little): a pop-up that scrolls inside the
+    // screen beats one cut off by it. Never below a row or two.
+    maxHeight: maxHeight === null ? null : Math.max(MIN_HEIGHT, Math.floor(maxHeight)),
     up,
   };
 }

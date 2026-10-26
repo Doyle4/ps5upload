@@ -225,8 +225,12 @@ async fn release_inhibitor(handle: Handle) {
     match handle {
         #[cfg(any(target_os = "macos", target_os = "linux"))]
         Handle::Process(mut child) => {
+            let pid = child.id();
             let _ = child.kill().await;
             let _ = child.wait().await;
+            if let Some(pid) = pid {
+                crate::exit_guard::unregister(pid);
+            }
         }
         #[cfg(target_os = "windows")]
         Handle::WinPowerRequest(request) => {
@@ -257,6 +261,9 @@ fn acquire_inhibitor() -> Result<Option<Handle>, String> {
         .kill_on_drop(true)
         .spawn()
         .map_err(|e| format!("spawn caffeinate: {e}"))?;
+    if let Some(pid) = child.id() {
+        crate::exit_guard::register("caffeinate", pid);
+    }
     Ok(Some(Handle::Process(child)))
 }
 
@@ -290,6 +297,9 @@ fn acquire_inhibitor() -> Result<Option<Handle>, String> {
         .kill_on_drop(true)
         .spawn()
         .map_err(|e| format!("spawn systemd-inhibit: {e}"))?;
+    if let Some(pid) = child.id() {
+        crate::exit_guard::register("systemd-inhibit", pid);
+    }
     Ok(Some(Handle::Process(child)))
 }
 
