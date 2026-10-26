@@ -11038,6 +11038,7 @@ async fn run(cfg: EngineConfig) -> anyhow::Result<()> {
         // 8.0.0 Mesh Drive (mesh_drive.rs).
         .route("/api/drive", get(mesh_drive::list))
         .route("/api/drive/create", post(mesh_drive::create))
+        .route("/api/drive/check", post(mesh_drive::check))
         .route("/api/drive/join", post(mesh_drive::join))
         .route("/api/drive/approve", post(mesh_drive::approve))
         .route("/api/drive/leave", post(mesh_drive::leave))

@@ -35,7 +35,6 @@ import HomeScreen from "./screens/Home";
 // before the first paint of Home.
 const ConnectionScreen = lazyWithReload(() => import("./screens/Connection"));
 const DevicesScreen = lazyWithReload(() => import("./screens/Devices"));
-const MeshDriveScreen = lazyWithReload(() => import("./screens/MeshDrive"));
 const SettingsScreen = lazyWithReload(() => import("./screens/Settings"));
 
 const MoreScreen = lazyWithReload(() => import("./screens/More"));
@@ -46,7 +45,7 @@ const GamesScreen = lazyWithReload(() => import("./screens/Games"));
 const CollectionScreen = lazyWithReload(() => import("./screens/Collection"));
 const SearchScreen = lazyWithReload(() => import("./screens/Search"));
 const VolumesScreen = lazyWithReload(() => import("./screens/Volumes"));
-const FileSystemScreen = lazyWithReload(() => import("./screens/FileSystem"));
+const FilesScreen = lazyWithReload(() => import("./screens/Files"));
 const HardwareScreen = lazyWithReload(() => import("./screens/Hardware"));
 const ProfileScreen = lazyWithReload(() => import("./screens/Profile"));
 const BackupScreen = lazyWithReload(() => import("./screens/Backup"));
@@ -201,14 +200,7 @@ function AppRoutes({ location }: { location: Location }) {
             </Suspense>
           }
         />
-        <Route
-          path="/mesh-drive"
-          element={
-            <Suspense fallback={<ScreenLoader />}>
-              <MeshDriveScreen />
-            </Suspense>
-          }
-        />
+        <Route path="/mesh-drive" element={<Navigate to="/files?tab=mesh" replace />} />
         {/* v5: mobile "everything else" hub. A real route (not a sheet)
              so the Android hardware back button and router history treat
              it like any other screen. */}
@@ -295,7 +287,7 @@ function AppRoutes({ location }: { location: Location }) {
           path="/files"
           element={
             <Suspense fallback={<ScreenLoader />}>
-              <FileSystemScreen />
+              <FilesScreen />
             </Suspense>
           }
         />

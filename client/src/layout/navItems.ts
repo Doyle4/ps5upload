@@ -51,7 +51,6 @@ import {
   FilePen,
   Eraser,
   MonitorSmartphone,
-  FolderSync,
 } from "lucide-react";
 
 export interface NavItem {
@@ -123,8 +122,6 @@ export const NAV_ITEMS: NavItem[] = [
     fallback: "File System",
     icon: FolderTree,
   },
-  // 8.0.0: a folder kept the same on every device, at home on the console.
-  { to: "/mesh-drive", key: "drive_title", fallback: "Mesh Drive", icon: FolderSync },
   { to: "/search", key: "search", fallback: "Search", icon: Search },
   { to: "/volumes", key: "volumes", fallback: "Volumes", icon: HardDrive },
   {

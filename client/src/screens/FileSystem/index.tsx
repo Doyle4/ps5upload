@@ -377,7 +377,7 @@ function crumbs(p: string): { label: string; path: string }[] {
   return out;
 }
 
-export default function FileSystemScreen() {
+export default function FileSystemScreen({ tabs }: { tabs?: React.ReactNode } = {}) {
   const tr = useTr();
   const host = useConnectionStore((s) => s.host);
   const guard = useStaleHostGuard();
@@ -3026,6 +3026,7 @@ export default function FileSystemScreen() {
               onMainClick={() => void addFilesHere()}
               onPick={(p) => void addPicked([p], "file")}
             />
+      {tabs}
             <Button
               variant="secondary"
               size="sm"

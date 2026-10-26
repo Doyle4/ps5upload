@@ -85,9 +85,44 @@ const call = (route: string) => async (host: string, body: object) => {
   return b;
 };
 
+/** What a folder choice would mean (engine `POST /api/drive/check`). */
+export interface FolderCheck {
+  path: string;
+  ok: boolean;
+  exists: boolean;
+  will_create: boolean;
+  files: number;
+  more: boolean;
+  marker: boolean;
+  /** bad_name, not_absolute, no_parent, not_folder, exists, taken, inside, holds, app_data,
+   *  not_writable, unreadable. */
+  problem: string | null;
+  detail: string | null;
+}
+
+export interface HubChoice {
+  /** The folder itself, or (with `name`) the folder a new one is made in. */
+  path: string;
+  name?: string;
+}
+
+export async function checkFolders(
+  host: string,
+  q: { hub?: HubChoice; path?: string; drive?: string },
+): Promise<{ hub: FolderCheck | null; local: FolderCheck | null }> {
+  const b = await post("/api/drive/check", {
+    addr: consoleAddr(host),
+    hub: q.hub?.path,
+    hub_name: q.hub?.name,
+    path: q.path,
+    drive: q.drive,
+  });
+  return { hub: (b.hub as FolderCheck | null) ?? null, local: (b.local as FolderCheck | null) ?? null };
+}
+
 export const driveApi = {
-  create: (host: string, name: string, hub: string, path: string | null) =>
-    call("/api/drive/create")(host, { name, hub, path }),
+  create: (host: string, name: string, hub: HubChoice, path: string) =>
+    call("/api/drive/create")(host, { name, hub: hub.path, hub_name: hub.name, path }),
   join: (host: string, drive: string, path: string) => call("/api/drive/join")(host, { drive, path }),
   approve: (host: string, drive: string, member: string, approve: boolean) =>
     call("/api/drive/approve")(host, { drive, member, approve }),

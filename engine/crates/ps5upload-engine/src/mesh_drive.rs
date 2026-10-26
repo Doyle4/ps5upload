@@ -167,6 +167,9 @@ struct LocalMember {
     drive: String,
     member: String,
     path: String,
+    /// The drive's name when this folder joined it (for messages; the console has the current one).
+    #[serde(default)]
+    name: String,
 }
 
 fn state_dir() -> Option<PathBuf> {
@@ -816,11 +819,302 @@ fn suggested_folder() -> Option<String> {
     Some(p.to_string_lossy().into_owned())
 }
 
+// ---- checking a folder before it is used ----
+
+/// What a folder choice would mean, for the app to show before anything is made.
+#[derive(Clone, Debug, Default, Serialize, PartialEq)]
+pub struct FolderCheck {
+    pub path: String,
+    /// It can be used as chosen.
+    pub ok: bool,
+    pub exists: bool,
+    /// It does not exist yet and will be made.
+    pub will_create: bool,
+    /// Files already in it (they join the drive), counted up to COUNT_LIMIT.
+    pub files: usize,
+    pub more: bool,
+    /// It already holds a Mesh Drive marker (a drive's folder before, or this drive's).
+    pub marker: bool,
+    /// Why it cannot be used: bad_name, not_absolute, no_parent, not_folder, exists (a new
+    /// folder's name is taken), taken (another drive's folder), inside / holds (inside, or holding,
+    /// another drive's folder), app_data, not_writable, unreadable.
+    pub problem: Option<String>,
+    /// The other drive's name, or the system's words.
+    pub detail: Option<String>,
+}
+
+const COUNT_LIMIT: usize = 10_000;
+
+/// A folder name the user typed: something every filesystem here takes.
+fn valid_name(name: &str) -> bool {
+    let n = name.trim();
+    !n.is_empty()
+        && n == name
+        && n.len() <= 200
+        && n != "."
+        && n != ".."
+        && !n.chars().any(|c| {
+            c.is_control() || matches!(c, '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|')
+        })
+}
+
+fn inside(a: &str, b: &str) -> bool {
+    let (a, b) = (a.trim_end_matches('/'), b.trim_end_matches('/'));
+    a == b || a.starts_with(&format!("{b}/"))
+}
+
+fn fail_check(path: &str, problem: &str, detail: Option<String>) -> FolderCheck {
+    FolderCheck {
+        path: path.to_string(),
+        problem: Some(problem.to_string()),
+        detail,
+        ..Default::default()
+    }
+}
+
+/// Files under a console folder, counted up to COUNT_LIMIT (markers and trash not counted).
+fn count_hub(addr: &str, root: &str) -> Result<(usize, bool)> {
+    let mut n = 0usize;
+    let mut stack = vec![root.trim_end_matches('/').to_string()];
+    while let Some(dir) = stack.pop() {
+        let mut offset = 0u64;
+        loop {
+            let l = fs_ops::list_dir(addr, &dir, ListDirOptions { offset, limit: 256 })?;
+            let got = l.entries.len() as u64;
+            for e in l.entries {
+                if ignored(&e.name) || e.name == "." || e.name == ".." {
+                    continue;
+                }
+                match e.kind.as_str() {
+                    "dir" => stack.push(format!("{dir}/{}", e.name)),
+                    "file" => n += 1,
+                    _ => {}
+                }
+                if n >= COUNT_LIMIT {
+                    return Ok((n, true));
+                }
+            }
+            if got == 0 || (got < 256 && !l.truncated) {
+                break;
+            }
+            offset += got;
+        }
+    }
+    Ok((n, false))
+}
+
+fn count_local(root: &Path) -> (usize, bool) {
+    let mut n = 0usize;
+    let mut stack = vec![root.to_path_buf()];
+    while let Some(dir) = stack.pop() {
+        let Ok(rd) = std::fs::read_dir(&dir) else {
+            continue;
+        };
+        for e in rd.flatten() {
+            let name = e.file_name().to_string_lossy().into_owned();
+            if ignored(&name) {
+                continue;
+            }
+            match e.file_type() {
+                Ok(t) if t.is_dir() => stack.push(e.path()),
+                Ok(t) if t.is_file() => n += 1,
+                _ => {}
+            }
+            if n >= COUNT_LIMIT {
+                return (n, true);
+            }
+        }
+    }
+    (n, false)
+}
+
+/// The drive's home on the console. `new_name`: a folder to make under `path` (then `path` is its
+/// parent); otherwise `path` itself is the folder. `drive`: the drive it is checked for (its own
+/// folder is not "taken").
+pub fn check_hub(
+    addr: &str,
+    doc: &DriveDoc,
+    path: &str,
+    new_name: Option<&str>,
+    drive: Option<&str>,
+) -> FolderCheck {
+    let parent = path.trim().trim_end_matches('/');
+    if !parent.starts_with('/') || parent.split('/').any(|c| c == "..") {
+        return fail_check(path, "not_absolute", None);
+    }
+    let target = match new_name {
+        Some(n) if !valid_name(n) => return fail_check(path, "bad_name", None),
+        Some(n) => format!("{}/{n}", if parent.is_empty() { "" } else { parent }),
+        None => parent.to_string(),
+    };
+    for d in doc.drives.iter().filter(|d| Some(d.id.as_str()) != drive) {
+        let problem = if inside(&target, &d.hub) && inside(&d.hub, &target) {
+            "taken"
+        } else if inside(&target, &d.hub) {
+            "inside"
+        } else if inside(&d.hub, &target) {
+            "holds"
+        } else {
+            continue;
+        };
+        return fail_check(&target, problem, Some(d.name.clone()));
+    }
+    if new_name.is_some() {
+        match fs_ops::fs_stat(addr, parent) {
+            Ok(st) if st.kind == "dir" => {}
+            Ok(_) => return fail_check(&target, "not_folder", None),
+            Err(e) if fs_ops::is_not_found(&format!("{e:#}")) => {
+                return fail_check(&target, "no_parent", None)
+            }
+            Err(e) => return fail_check(&target, "unreadable", Some(format!("{e:#}"))),
+        }
+    }
+    match fs_ops::fs_stat(addr, &target) {
+        Ok(st) if st.kind == "dir" => {
+            if new_name.is_some() {
+                // Taken: the app offers to use the folder that is there instead.
+                let mut c = fail_check(&target, "exists", None);
+                c.exists = true;
+                return c;
+            }
+            let (files, more) = match count_hub(addr, &target) {
+                Ok(c) => c,
+                Err(e) => return fail_check(&target, "unreadable", Some(format!("{e:#}"))),
+            };
+            FolderCheck {
+                path: target.clone(),
+                ok: true,
+                exists: true,
+                files,
+                more,
+                marker: fs_ops::fs_stat(addr, &join_hub(&target, MARKER)).is_ok(),
+                ..Default::default()
+            }
+        }
+        Ok(_) => fail_check(&target, "not_folder", None),
+        Err(e) if fs_ops::is_not_found(&format!("{e:#}")) => {
+            if new_name.is_none() {
+                return fail_check(&target, "no_parent", None);
+            }
+            FolderCheck {
+                path: target,
+                ok: true,
+                will_create: true,
+                ..Default::default()
+            }
+        }
+        Err(e) => fail_check(&target, "unreadable", Some(format!("{e:#}"))),
+    }
+}
+
+/// This device's folder for a drive. `drive`: the drive it is for (its own entry here is not an
+/// overlap).
+pub fn check_local(path: &str, drive: Option<&str>) -> FolderCheck {
+    let p = Path::new(path.trim());
+    let shown = p.to_string_lossy().into_owned();
+    if !p.is_absolute() {
+        return fail_check(&shown, "not_absolute", None);
+    }
+    if let Some(data) = crate::remote::store::data_dir() {
+        let (a, b) = (p.to_string_lossy(), data.to_string_lossy());
+        if inside(&a, &b) || inside(&b, &a) {
+            return fail_check(&shown, "app_data", None);
+        }
+    }
+    for m in load_config()
+        .members
+        .iter()
+        .filter(|m| Some(m.drive.as_str()) != drive)
+    {
+        let (a, b) = (shown.as_str(), m.path.as_str());
+        let problem = if inside(a, b) && inside(b, a) {
+            "taken"
+        } else if inside(a, b) {
+            "inside"
+        } else if inside(b, a) {
+            "holds"
+        } else {
+            continue;
+        };
+        let other = if m.name.is_empty() {
+            m.drive.clone()
+        } else {
+            m.name.clone()
+        };
+        return fail_check(&shown, problem, Some(other));
+    }
+    match std::fs::metadata(p) {
+        Ok(md) if md.is_dir() => {
+            // Writable: a probe file in, then out.
+            let probe = p.join(".ps5upload-check");
+            if let Err(e) = std::fs::write(&probe, b"") {
+                return fail_check(&shown, "not_writable", Some(e.to_string()));
+            }
+            let _ = std::fs::remove_file(&probe);
+            let (files, more) = count_local(p);
+            FolderCheck {
+                path: shown,
+                ok: true,
+                exists: true,
+                files,
+                more,
+                marker: p.join(MARKER).is_file(),
+                ..Default::default()
+            }
+        }
+        Ok(_) => fail_check(&shown, "not_folder", None),
+        Err(_) => match p.parent() {
+            Some(parent) if parent.is_dir() => FolderCheck {
+                path: shown,
+                ok: true,
+                will_create: true,
+                ..Default::default()
+            },
+            _ => fail_check(&shown, "no_parent", None),
+        },
+    }
+}
+
+fn refuse_unless_ok(c: &FolderCheck, what: &str) -> Result<()> {
+    if c.ok {
+        return Ok(());
+    }
+    let why = match c.problem.as_deref() {
+        Some("bad_name") => "that name cannot be a folder name".to_string(),
+        Some("not_absolute") => "choose a full folder path".to_string(),
+        Some("no_parent") => "the folder it would go in does not exist".to_string(),
+        Some("not_folder") => "that is a file, not a folder".to_string(),
+        Some("exists") => "a folder with that name is already there".to_string(),
+        Some("taken") => format!(
+            "it is already the folder of {}",
+            c.detail.clone().unwrap_or_default()
+        ),
+        Some("inside") => format!(
+            "it is inside the folder of {}",
+            c.detail.clone().unwrap_or_default()
+        ),
+        Some("holds") => format!(
+            "it holds the folder of {}",
+            c.detail.clone().unwrap_or_default()
+        ),
+        Some("app_data") => "it is the app's own data folder".to_string(),
+        Some("not_writable") => format!(
+            "it cannot be written ({})",
+            c.detail.clone().unwrap_or_default()
+        ),
+        _ => c
+            .detail
+            .clone()
+            .unwrap_or_else(|| "it cannot be read".into()),
+    };
+    bail!("{what} {}: {why}", c.path)
+}
+
 fn me_or_err() -> Result<String> {
     crate::mesh_api::id_hex().ok_or_else(|| anyhow!("this engine has no identity"))
 }
 
-fn add_local(addr: &str, drive: &str, member: &str, path: &str) -> Result<()> {
+fn add_local(addr: &str, drive: &str, member: &str, path: &str, name: &str) -> Result<()> {
     edit_config(|c| {
         // The same folder joined again: its old entry (and what it agreed on) goes.
         for old in c
@@ -839,6 +1133,7 @@ fn add_local(addr: &str, drive: &str, member: &str, path: &str) -> Result<()> {
             drive: drive.to_string(),
             member: member.to_string(),
             path: path.to_string(),
+            name: name.to_string(),
         });
     })
 }
@@ -916,8 +1211,12 @@ pub async fn list(Query(q): Query<ListQuery>) -> Response {
 pub struct CreateReq {
     addr: Option<String>,
     name: String,
+    /// The home folder on the console, or (with `hub_name`) the folder to make it in.
     hub: String,
-    path: Option<String>,
+    /// Make a new folder of this name inside `hub`.
+    hub_name: Option<String>,
+    /// This device's folder: required, the user chooses it.
+    path: String,
 }
 
 pub async fn create(Json(req): Json<CreateReq>) -> Response {
@@ -928,12 +1227,17 @@ pub async fn create(Json(req): Json<CreateReq>) -> Response {
         if name.is_empty() {
             bail!("give the drive a name");
         }
-        let hub = req.hub.trim().trim_end_matches('/').to_string();
+        // Checked before anything is made: a refusal leaves no folder behind.
+        let Some((_, current)) = doc_read(&addr)? else {
+            return Ok(unsupported());
+        };
+        let hub_check = check_hub(&addr, &current, &req.hub, req.hub_name.as_deref(), None);
+        refuse_unless_ok(&hub_check, "The console folder")?;
+        let local_check = check_local(&req.path, None);
+        refuse_unless_ok(&local_check, "This device's folder")?;
+        let hub = hub_check.path.clone();
+        let local = Some(local_check.path.clone());
         prepare_hub(&addr, &hub)?;
-        let local = req
-            .path
-            .map(|p| p.trim().to_string())
-            .filter(|p| !p.is_empty());
         if let Some(p) = &local {
             prepare_local(p)?;
         }
@@ -981,10 +1285,49 @@ pub async fn create(Json(req): Json<CreateReq>) -> Response {
             return Ok(unsupported());
         }
         if let Some(p) = &local {
-            add_local(&addr, &id, &member_id, p)?;
+            add_local(&addr, &id, &member_id, p, &name)?;
             kick();
         }
         Ok(json!({ "supported": true, "ok": true, "drive": id }))
+    })
+    .await
+}
+
+#[derive(Deserialize)]
+pub struct CheckReq {
+    addr: Option<String>,
+    /// The console folder (or the folder a new one goes in, with `hub_name`).
+    hub: Option<String>,
+    hub_name: Option<String>,
+    /// This device's folder.
+    path: Option<String>,
+    /// Checked for this drive (joining it): its own folders are not "taken".
+    drive: Option<String>,
+}
+
+pub async fn check(Json(req): Json<CheckReq>) -> Response {
+    answer(move || {
+        let hub = match &req.hub {
+            Some(h) => {
+                let addr = addr_of(req.addr.clone())?;
+                let Some((_, doc)) = doc_read(&addr)? else {
+                    return Ok(unsupported());
+                };
+                Some(check_hub(
+                    &addr,
+                    &doc,
+                    h,
+                    req.hub_name.as_deref(),
+                    req.drive.as_deref(),
+                ))
+            }
+            None => None,
+        };
+        let local = req
+            .path
+            .as_deref()
+            .map(|p| check_local(p, req.drive.as_deref()));
+        Ok(json!({ "supported": true, "hub": hub, "local": local }))
     })
     .await
 }
@@ -1000,7 +1343,9 @@ pub async fn join(Json(req): Json<JoinReq>) -> Response {
     answer(move || {
         let addr = addr_of(req.addr)?;
         let me = me_or_err()?;
-        let path = req.path.trim().to_string();
+        let check = check_local(&req.path, Some(&req.drive));
+        refuse_unless_ok(&check, "This device's folder")?;
+        let path = check.path.clone();
         prepare_local(&path)?;
         let member_id = new_id();
         let approved = doc_update(&addr, |doc| {
@@ -1028,12 +1373,12 @@ pub async fn join(Json(req): Json<JoinReq>) -> Response {
                 joined: now_ms(),
                 other: Default::default(),
             });
-            Ok(approved)
+            Ok((approved, d.name.clone()))
         })?;
-        let Some(approved) = approved else {
+        let Some((approved, drive_name)) = approved else {
             return Ok(unsupported());
         };
-        add_local(&addr, &req.drive, &member_id, &path)?;
+        add_local(&addr, &req.drive, &member_id, &path, &drive_name)?;
         kick();
         Ok(json!({ "supported": true, "ok": true, "member": member_id, "approved": approved }))
     })
@@ -1161,6 +1506,54 @@ pub async fn confirm(Json(req): Json<MemberReq>) -> Response {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn folder_names_and_nesting() {
+        for ok in ["Shared", "PS5 saves", "a.b", "Ünïcode 日本"] {
+            assert!(valid_name(ok), "{ok}");
+        }
+        for bad in [
+            "",
+            " lead",
+            "trail ",
+            ".",
+            "..",
+            "a/b",
+            "a\\b",
+            "c:d",
+            "x?y",
+            "tab\there",
+        ] {
+            assert!(!valid_name(bad), "{bad:?}");
+        }
+        assert!(inside("/data/A/B", "/data/A"));
+        assert!(inside("/data/A", "/data/A/"));
+        assert!(!inside("/data/AB", "/data/A"));
+    }
+
+    #[test]
+    fn a_local_folder_is_checked_before_use() {
+        let root = std::env::temp_dir().join(format!("mesh-check-{}", new_id()));
+        std::fs::create_dir_all(root.join("has")).unwrap();
+        std::fs::write(root.join("has").join("one.txt"), b"1").unwrap();
+        std::fs::write(root.join("file.txt"), b"x").unwrap();
+        let s = |p: &Path| p.to_string_lossy().into_owned();
+
+        let c = check_local(&s(&root.join("has")), None);
+        assert!(c.ok && c.exists && !c.will_create && c.files == 1, "{c:?}");
+        let c = check_local(&s(&root.join("new")), None);
+        assert!(c.ok && c.will_create, "{c:?}");
+        let c = check_local(&s(&root.join("missing").join("deeper")), None);
+        assert_eq!(c.problem.as_deref(), Some("no_parent"));
+        let c = check_local(&s(&root.join("file.txt")), None);
+        assert_eq!(c.problem.as_deref(), Some("not_folder"));
+        assert_eq!(
+            check_local("relative/path", None).problem.as_deref(),
+            Some("not_absolute")
+        );
+        assert!(refuse_unless_ok(&check_local("relative", None), "x").is_err());
+        std::fs::remove_dir_all(&root).unwrap();
+    }
 
     #[test]
     fn paths_from_a_listing_never_leave_the_folder() {
