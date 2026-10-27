@@ -379,6 +379,7 @@ pub struct StreamReport {
 }
 
 /// Open a stream and hand every Annex-B video access unit to `on_video`
+/// (with `true` for a codec header, `false` for a frame)
 /// (the codec header first, then frames) until it returns false, `max` time
 /// passes, or the console disconnects.
 pub fn run_stream(
@@ -387,7 +388,7 @@ pub fn run_stream(
     cfg: StreamConfig,
     max: Duration,
     mut on_progress: impl FnMut(Progress),
-    mut on_video: impl FnMut(&[u8]) -> bool,
+    mut on_video: impl FnMut(&[u8], bool) -> bool,
 ) -> Result<StreamReport> {
     let nonce = session_init(host, &creds.regist_key)?;
     on_progress(Progress::Nonce);
@@ -503,7 +504,7 @@ pub fn run_stream(
                         continue;
                     };
                     profile = Some(p.adaptive_stream_index);
-                    if !on_video(&r.video_header) {
+                    if !on_video(&r.video_header, true) {
                         break Ok(());
                     }
                 }
@@ -513,7 +514,7 @@ pub fn run_stream(
                         first_frame = false;
                         on_progress(Progress::FirstFrame(frame.len()));
                     }
-                    if !on_video(&frame) {
+                    if !on_video(&frame, false) {
                         stop = true;
                         break;
                     }

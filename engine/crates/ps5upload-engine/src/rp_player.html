@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Remote Play (spike)</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; background: #0b0b0d; color: #ddd; font: 13px system-ui, sans-serif; }
+  form { display: flex; flex-wrap: wrap; gap: 8px; padding: 10px; align-items: center; }
+  input, select, button { background: #1b1b20; color: #eee; border: 1px solid #333; border-radius: 6px; padding: 6px 8px; }
+  canvas { display: block; width: 100%; max-height: calc(100vh - 90px); object-fit: contain; background: #000; }
+  #stats { padding: 4px 10px; font-family: ui-monospace, monospace; color: #8c8; white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<form id="f">
+  <input id="host" placeholder="PS5 address" size="14">
+  <input id="regist" type="password" placeholder="regist key (hex)" size="20">
+  <input id="rp" type="password" placeholder="RP key (hex)" size="20">
+  <select id="res"><option value="1280x720">720p</option><option value="1920x1080">1080p</option></select>
+  <button id="go" type="submit">Start</button>
+  <button id="stop" type="button">Stop</button>
+</form>
+<div id="stats">idle</div>
+<canvas id="c" width="1280" height="720"></canvas>
+<script>
+const $ = (id) => document.getElementById(id);
+const canvas = $("c"), ctx = canvas.getContext("2d");
+let abort = null;
+const st = { stage: "idle", frames: 0, decoded: 0, bytes: 0, t0: 0, first: 0, lastDecodeMs: 0, fps: 0, err: "" };
+function show() {
+  $("stats").textContent =
+    `stage ${st.stage}  frames ${st.frames}  decoded ${st.decoded}  ${st.fps} fps  ` +
+    `${(st.bytes / 1e6).toFixed(1)} MB  first frame ${st.first ? st.first + " ms" : "-"}  ` +
+    `decode ${st.lastDecodeMs.toFixed(1)} ms ${st.err ? " error: " + st.err : ""}`;
+}
+setInterval(() => { st.fps = st.decoded - (st._lastDecoded || 0); st._lastDecoded = st.decoded; show(); }, 1000);
+
+// avc1.PPCCLL from the SPS (NAL type 7) in an Annex-B header.
+function avcCodec(header) {
+  for (let i = 0; i + 4 < header.length; i++) {
+    if (header[i] === 0 && header[i + 1] === 0 && header[i + 2] === 1 && (header[i + 3] & 0x1f) === 7) {
+      const h = (b) => b.toString(16).padStart(2, "0");
+      return "avc1." + h(header[i + 4]) + h(header[i + 5]) + h(header[i + 6]);
+    }
+  }
+  return "avc1.4d4028";
+}
+function isKey(au) {
+  for (let i = 0; i + 3 < au.length; i++) {
+    if (au[i] === 0 && au[i + 1] === 0 && au[i + 2] === 1) {
+      const t = au[i + 3] & 0x1f;
+      if (t === 5) return true;
+      if (t === 1) return false;
+    }
+  }
+  return false;
+}
+
+async function start(e) {
+  e.preventDefault();
+  stop();
+  Object.assign(st, { stage: "connecting", frames: 0, decoded: 0, bytes: 0, first: 0, err: "" });
+  const [w, h] = $("res").value.split("x").map(Number);
+  canvas.width = w; canvas.height = h;
+  st.t0 = performance.now();
+  abort = new AbortController();
+  const sentAt = new Map();
+  let decoder = null, header = null, ts = 0, sawKey = false;
+  const resp = await fetch("/api/ps5/rp/stream", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ host: $("host").value, regist_key: $("regist").value, rp_key: $("rp").value, width: w, height: h }),
+    signal: abort.signal,
+  });
+  if (!resp.ok) { st.err = await resp.text(); st.stage = "refused"; show(); return; }
+  const reader = resp.body.getReader();
+  let buf = new Uint8Array(0);
+  try {
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      const nb = new Uint8Array(buf.length + value.length); nb.set(buf); nb.set(value, buf.length); buf = nb;
+      while (buf.length >= 4) {
+        const len = new DataView(buf.buffer, buf.byteOffset).getUint32(0);
+        if (buf.length < 4 + len) break;
+        const kind = buf[4], payload = buf.slice(5, 4 + len);
+        buf = buf.slice(4 + len);
+        if (kind === 2) {
+          const s = JSON.parse(new TextDecoder().decode(payload));
+          st.stage = s.stage; if (s.error) st.err = s.error; show();
+          continue;
+        }
+        if (kind === 0) {
+          header = payload;
+          if (!decoder) {
+            decoder = new VideoDecoder({
+              output: (frame) => {
+                const t = sentAt.get(frame.timestamp);
+                if (t !== undefined) { st.lastDecodeMs = performance.now() - t; sentAt.delete(frame.timestamp); }
+                if (!st.first) st.first = Math.round(performance.now() - st.t0);
+                ctx.drawImage(frame, 0, 0, canvas.width, canvas.height);
+                frame.close();
+                st.decoded++;
+              },
+              error: (err) => { st.err = String(err); show(); },
+            });
+            decoder.configure({ codec: avcCodec(header), optimizeForLatency: true, hardwareAcceleration: "prefer-hardware" });
+          }
+          continue;
+        }
+        st.frames++; st.bytes += payload.length;
+        const key = isKey(payload);
+        if (!sawKey && !key) continue;
+        let data = payload;
+        if (key && header) { data = new Uint8Array(header.length + payload.length); data.set(header); data.set(payload, header.length); }
+        sawKey = true;
+        ts += 16667;
+        sentAt.set(ts, performance.now());
+        decoder.decode(new EncodedVideoChunk({ type: key ? "key" : "delta", timestamp: ts, data }));
+      }
+    }
+  } catch (err) {
+    if (err.name !== "AbortError") { st.err = String(err); }
+  }
+  if (st.stage !== "error") st.stage = "ended";
+  show();
+}
+function stop() { if (abort) { abort.abort(); abort = null; } }
+$("f").addEventListener("submit", start);
+$("stop").addEventListener("click", stop);
+</script>
+</body>
+</html>

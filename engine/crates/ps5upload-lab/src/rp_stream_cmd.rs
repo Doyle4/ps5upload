@@ -50,7 +50,7 @@ pub fn run(host: &str, args: &[String]) -> Result<()> {
                 Progress::FirstFrame(n) => eprintln!("[{ms:>6} ms] video: first frame ({n} bytes)"),
             }
         },
-        |au| {
+        |au, _header| {
             units += 1;
             out.write_all(au).is_ok()
         },
