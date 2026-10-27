@@ -107,6 +107,11 @@ pub struct Takion {
     pub bytes_received: u64,
     last_congestion: Instant,
     congestion_received: u16,
+    /// Test knob: drop this share (0-100) of received video packets
+    /// (`PS5UPLOAD_RP_DROP_PCT`), to exercise FEC and loss recovery.
+    drop_pct: u32,
+    rng: u64,
+    pub av_dropped_on_purpose: u64,
 }
 
 impl Takion {
@@ -142,6 +147,13 @@ impl Takion {
             bytes_received: 0,
             last_congestion: Instant::now(),
             congestion_received: 0,
+            drop_pct: std::env::var("PS5UPLOAD_RP_DROP_PCT")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(0)
+                .min(100),
+            rng: tag_local as u64 | 1,
+            av_dropped_on_purpose: 0,
         };
         t.handshake()?;
         Ok(t)
@@ -470,6 +482,15 @@ impl Takion {
             return Ok(None);
         }
         let kind = pkt[0] & 0xf;
+        if kind == PACKET_VIDEO && self.drop_pct > 0 && self.gk_remote.is_some() {
+            self.rng ^= self.rng << 13;
+            self.rng ^= self.rng >> 7;
+            self.rng ^= self.rng << 17;
+            if (self.rng % 100) < self.drop_pct as u64 {
+                self.av_dropped_on_purpose += 1;
+                return Ok(None);
+            }
+        }
         if (kind == PACKET_VIDEO || kind == PACKET_AUDIO) && self.gk_remote.is_none() {
             if self.postponed.len() < 256 {
                 self.postponed.push(std::mem::take(pkt));

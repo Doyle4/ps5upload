@@ -22,6 +22,7 @@
 
 pub mod audio;
 pub mod crypto;
+pub mod fec;
 pub mod feedback;
 pub mod proto;
 pub mod takion;
@@ -220,43 +221,22 @@ fn ctrl_open(
                 let mut payload = Vec::new();
                 if !raw_payload.is_empty() {
                     payload = auth_decrypt(&brt, &amb, remote_counter, &raw_payload);
-                    // The session id has a known shape; if the counter we assumed
-                    // does not produce it, find the one that does.
-                    if kind == CTRL_SESSION_ID && !session_id_ok(&payload) {
-                        for c in 0..8u64 {
-                            let p = auth_decrypt(&brt, &amb, c, &raw_payload);
-                            if session_id_ok(&p) {
-                                eprintln!("rp_stream: ctrl counter was {c}, not {remote_counter}");
-                                remote_counter = c;
-                                payload = p;
-                                break;
-                            }
-                        }
-                    }
                     remote_counter += 1;
                 }
-                eprintln!(
-                    "rp_stream: ctrl message {kind:#06x}, {} bytes",
-                    raw_payload.len()
-                );
                 match kind {
                     CTRL_HEARTBEAT_REQ => s.write_all(&ctrl_msg(CTRL_HEARTBEAT_REP))?,
                     CTRL_LOGIN_PIN_REQ => bail!(
                         "the console asks for a login passcode, which streaming cannot supply"
                     ),
                     CTRL_SESSION_ID => {
-                        // chiaki takes the console's id only when it is a long
-                        // alphanumeric string, and otherwise makes one up (the
-                        // console accepts that). FW 13.60 sends 16 characters.
+                        // A length byte, then the id. chiaki takes the console's
+                        // id only when it is 24+ alphanumeric characters and
+                        // otherwise makes one up, which the console accepts:
+                        // FW 13.60 sends 16 characters, so the fallback is the
+                        // path that runs there (measured).
                         if session_id_ok(&payload) {
                             break String::from_utf8_lossy(&payload[1..]).into_owned();
                         }
-                        eprintln!(
-                            "rp_stream: session id not usable (first byte {:#04x}, {} bytes, alnum {}); using a fallback",
-                            payload.first().copied().unwrap_or(0),
-                            payload.len(),
-                            payload.iter().skip(1).all(|c| c.is_ascii_alphanumeric())
-                        );
                         break fallback_session_id()?;
                     }
                     _ => {}
@@ -334,8 +314,11 @@ fn fallback_session_id() -> Result<String> {
     Ok(format!("{secs}{}", b64(&r)))
 }
 
+/// `[len][len alphanumeric bytes]` with at least 24 characters, as chiaki accepts.
 fn session_id_ok(p: &[u8]) -> bool {
-    p.len() >= 25 && p[0] == 0x4a && p[1..].iter().all(|c| c.is_ascii_alphanumeric())
+    p.len() >= 25
+        && p[0] as usize == p.len() - 1
+        && p[1..].iter().all(|c| c.is_ascii_alphanumeric())
 }
 
 /// An empty ctrl message: just the 8-byte header.
@@ -392,6 +375,61 @@ pub trait StreamSink {
     }
 }
 
+/// Puts video packets back in order (chiaki-ng's video reorder queue): a
+/// missing packet is waited for up to 16 ms (about a frame), then skipped.
+#[derive(Default)]
+struct VideoReorder {
+    next: Option<u16>,
+    waiting_since: Option<Instant>,
+    buf: std::collections::HashMap<u16, takion::AvPacket>,
+}
+
+impl VideoReorder {
+    const TIMEOUT: Duration = Duration::from_millis(16);
+    const CAPACITY: usize = 64;
+
+    fn push(&mut self, p: takion::AvPacket) {
+        let next = *self
+            .next
+            .get_or_insert(p.packet_index.wrapping_sub(p.unit_index));
+        if (p.packet_index.wrapping_sub(next) as i16) < 0 {
+            return; // older than what was already handed on
+        }
+        self.buf.insert(p.packet_index, p);
+    }
+
+    fn pull(&mut self, now: Instant) -> Vec<takion::AvPacket> {
+        let mut out = Vec::new();
+        let Some(mut next) = self.next else {
+            return out;
+        };
+        loop {
+            if let Some(p) = self.buf.remove(&next) {
+                out.push(p);
+                next = next.wrapping_add(1);
+                self.waiting_since = None;
+                continue;
+            }
+            if self.buf.is_empty() {
+                break;
+            }
+            let since = *self.waiting_since.get_or_insert(now);
+            if now.duration_since(since) < Self::TIMEOUT && self.buf.len() < Self::CAPACITY {
+                break;
+            }
+            // Give up on the gap: jump to the oldest packet we hold.
+            next = *self
+                .buf
+                .keys()
+                .min_by_key(|k| k.wrapping_sub(next))
+                .expect("not empty");
+            self.waiting_since = None;
+        }
+        self.next = Some(next);
+        out
+    }
+}
+
 /// What a finished stream run saw.
 #[derive(Debug, Default, Clone)]
 pub struct StreamReport {
@@ -400,14 +438,13 @@ pub struct StreamReport {
     pub av_packets: u64,
     pub av_bad_mac: u64,
     pub audio_frames: u64,
+    pub av_dropped_on_purpose: u64,
     pub bytes_received: u64,
     pub disconnect_reason: Option<String>,
 }
 
-/// Open a stream and hand every Annex-B video access unit to `on_video`
-/// (with `true` for a codec header, `false` for a frame)
-/// (the codec header first, then frames) until it returns false, `max` time
-/// passes, or the console disconnects.
+/// Open a stream and run it into `sink` (video, audio, status; pad input back)
+/// until the sink stops, `max` time passes, or the console disconnects.
 pub fn run_stream(
     host: &str,
     creds: &SessionCreds,
@@ -507,6 +544,8 @@ pub fn run_stream(
     let started = Instant::now();
     let mut last_heartbeat = Instant::now();
     let mut feedback = FeedbackSender::new();
+    let mut reorder = VideoReorder::default();
+    let mut last_idr: Option<Instant> = None;
     let (mut state_seq, mut history_seq) = (0u16, 0u16);
     let result = loop {
         if started.elapsed() > max || sink.stopped() {
@@ -530,6 +569,37 @@ pub fn run_stream(
                     history_seq = history_seq.wrapping_add(1);
                 }
             }
+        }
+        // Video packets in order (late ones waited for briefly) into frames.
+        let mut stop = false;
+        for p in reorder.pull(Instant::now()) {
+            for out in assembler.push(&p) {
+                match out {
+                    video::Output::Frame(frame) => {
+                        if first_frame {
+                            first_frame = false;
+                            sink.progress(Progress::FirstFrame(frame.len()));
+                        }
+                        if !sink.video(&frame, false) {
+                            stop = true;
+                        }
+                    }
+                    video::Output::Lost { from, to } => {
+                        // Tell the console which frames are gone, and ask for a
+                        // keyframe so the picture repairs itself quickly.
+                        takion.send_message(2, &proto::corrupt_frame(from, to))?;
+                        if last_idr
+                            .is_none_or(|t: Instant| t.elapsed() > Duration::from_millis(500))
+                        {
+                            last_idr = Some(Instant::now());
+                            takion.send_message(2, &proto::bare(proto::kind::IDRREQUEST))?;
+                        }
+                    }
+                }
+            }
+        }
+        if stop {
+            break Ok(());
         }
         // Short waits: input is polled between packets, and video packets
         // arrive every few milliseconds anyway.
@@ -556,20 +626,7 @@ pub fn run_stream(
                         break Ok(());
                     }
                 }
-                let mut stop = false;
-                for frame in assembler.push(&p) {
-                    if first_frame {
-                        first_frame = false;
-                        sink.progress(Progress::FirstFrame(frame.len()));
-                    }
-                    if !sink.video(&frame, false) {
-                        stop = true;
-                        break;
-                    }
-                }
-                if stop {
-                    break Ok(());
-                }
+                reorder.push(p);
             }
             Event::Av(p) => {
                 for (idx, frame) in audio.push(&p) {
@@ -589,6 +646,7 @@ pub fn run_stream(
     report.av_packets = takion.av_received;
     report.av_bad_mac = takion.av_bad_mac;
     report.audio_frames = audio.frames;
+    report.av_dropped_on_purpose = takion.av_dropped_on_purpose;
     report.bytes_received = takion.bytes_received;
     result.map(|_| report)
 }

@@ -86,14 +86,16 @@ pub fn run(host: &str, args: &[String]) -> Result<()> {
     let report = run_stream(host, &creds, cfg, Duration::from_secs(secs), &mut sink)?;
     let secs_f = sink.t0.elapsed().as_secs_f64();
     eprintln!(
-        "done in {secs_f:.1}s: {} frames ({} dropped), {:.1} MB video, {} audio frames, {} AV packets ({} bad MAC), \
-         {:.1} Mbit/s on the wire, disconnect: {:?}",
+        "done in {secs_f:.1}s: {} frames ({} rebuilt by FEC, {} lost), {:.1} MB video, {} audio frames, \
+         {} AV packets ({} bad MAC, {} dropped on purpose), {:.1} Mbit/s on the wire, disconnect: {:?}",
         report.video.frames,
+        report.video.frames_recovered,
         report.video.frames_dropped,
         report.video.bytes as f64 / 1e6,
         sink.audio_frames,
         report.av_packets,
         report.av_bad_mac,
+        report.av_dropped_on_purpose,
         report.bytes_received as f64 * 8.0 / 1e6 / secs_f,
         report.disconnect_reason
     );

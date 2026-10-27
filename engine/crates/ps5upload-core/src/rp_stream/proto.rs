@@ -9,6 +9,7 @@ pub mod kind {
     pub const BIG: u64 = 0;
     pub const BANG: u64 = 1;
     pub const HEARTBEAT: u64 = 3;
+    pub const CORRUPTFRAME: u64 = 5;
     pub const DISCONNECT: u64 = 8;
     pub const STREAMINFO: u64 = 13;
     pub const STREAMINFOACK: u64 = 14;
@@ -81,6 +82,17 @@ pub fn controller_connection() -> Vec<u8> {
     let mut out = Vec::new();
     put_u(&mut out, 1, kind::CONTROLLERCONNECTION);
     put_bytes(&mut out, 22, &p);
+    out
+}
+
+/// Frames `start..=end` were lost (chiaki `stream_connection_send_corrupt_frame`).
+pub fn corrupt_frame(start: u16, end: u16) -> Vec<u8> {
+    let mut p = Vec::new();
+    put_u(&mut p, 1, start as u64);
+    put_u(&mut p, 2, end as u64);
+    let mut out = Vec::new();
+    put_u(&mut out, 1, kind::CORRUPTFRAME);
+    put_bytes(&mut out, 6, &p);
     out
 }
 
