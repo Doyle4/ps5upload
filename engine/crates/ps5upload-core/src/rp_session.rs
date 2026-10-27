@@ -58,9 +58,9 @@ type Aes128CfbEnc = cfb_mode::Encryptor<aes::Aes128>;
 type Aes128CfbDec = cfb_mode::Decryptor<aes::Aes128>;
 
 /// Session and ctrl share the registration port.
-const SESSION_PORT: u16 = 9295;
-const KEY_SIZE: usize = 16;
-const RP_VERSION: &str = "1.0";
+pub(crate) const SESSION_PORT: u16 = 9295;
+pub(crate) const KEY_SIZE: usize = 16;
+pub(crate) const RP_VERSION: &str = "1.0";
 
 /// The two secrets a pairing produces, both needed to open a session.
 #[derive(Clone)]
@@ -98,7 +98,7 @@ fn hex16(s: &str) -> Result<[u8; KEY_SIZE]> {
 /// PS5 form: each byte has 0x2d and its index subtracted, then is XORed with
 /// a table entry chosen by the nonce's first byte. Mirrors playactor's
 /// `transformServerNonceForAuth`.
-fn ambassador(nonce: &[u8; KEY_SIZE]) -> [u8; KEY_SIZE] {
+pub(crate) fn ambassador(nonce: &[u8; KEY_SIZE]) -> [u8; KEY_SIZE] {
     let off = (nonce[0] >> 3) as usize * 0x70;
     let mut out = [0u8; KEY_SIZE];
     for (i, o) in out.iter_mut().enumerate() {
@@ -111,7 +111,7 @@ fn ambassador(nonce: &[u8; KEY_SIZE]) -> [u8; KEY_SIZE] {
 /// The "bright" — the AES key for the ctrl cipher, mixed from the RP-Key,
 /// the nonce, and a second table chosen by the nonce's last byte. Mirrors
 /// playactor's `generateAuthSeed` (PS5 branch).
-fn bright(nonce: &[u8; KEY_SIZE], morning: &[u8; KEY_SIZE]) -> [u8; KEY_SIZE] {
+pub(crate) fn bright(nonce: &[u8; KEY_SIZE], morning: &[u8; KEY_SIZE]) -> [u8; KEY_SIZE] {
     let off = (nonce[7] >> 3) as usize * 0x70;
     let mut out = [0u8; KEY_SIZE];
     for (i, o) in out.iter_mut().enumerate() {
@@ -124,20 +124,25 @@ fn bright(nonce: &[u8; KEY_SIZE], morning: &[u8; KEY_SIZE]) -> [u8; KEY_SIZE] {
 /// One field of the ctrl request: AES-128-CFB with the bright key and an IV
 /// derived from the ambassador and this field's counter. Each field uses the
 /// next counter, so the console can reproduce each IV in turn.
-fn auth_encrypt(bright: &[u8; 16], ambassador: &[u8; 16], counter: u64, data: &[u8]) -> Vec<u8> {
+pub(crate) fn auth_encrypt(
+    bright: &[u8; 16],
+    ambassador: &[u8; 16],
+    counter: u64,
+    data: &[u8],
+) -> Vec<u8> {
     let iv = generate_iv(ambassador, counter);
     let mut buf = data.to_vec();
     Aes128CfbEnc::new(bright.into(), &iv.into()).encrypt(&mut buf);
     buf
 }
 
-fn b64(data: &[u8]) -> String {
+pub(crate) fn b64(data: &[u8]) -> String {
     base64::engine::general_purpose::STANDARD.encode(data)
 }
 
 /// A 32-byte device id: a fixed prefix and suffix around random bytes. The
 /// console does not check the random part; the shape is what matters.
-fn make_did(regist_key: &[u8; KEY_SIZE]) -> [u8; 32] {
+pub(crate) fn make_did(regist_key: &[u8; KEY_SIZE]) -> [u8; 32] {
     let mut did = [0u8; 32];
     did[..10].copy_from_slice(&[0x00, 0x18, 0x00, 0x00, 0x00, 0x07, 0x00, 0x40, 0x00, 0x80]);
     // The middle 16 bytes identify THIS client to the console, and they must be
@@ -157,7 +162,7 @@ fn make_did(regist_key: &[u8; KEY_SIZE]) -> [u8; 32] {
 }
 
 /// Stage 1: the unencrypted session request. Returns the 16-byte nonce.
-fn session_init(host: &str, regist_key: &[u8; KEY_SIZE]) -> Result<[u8; KEY_SIZE]> {
+pub(crate) fn session_init(host: &str, regist_key: &[u8; KEY_SIZE]) -> Result<[u8; KEY_SIZE]> {
     // Registration keys are hex-encoded over their significant bytes — the
     // field is NUL-padded and the console wants only the text before the pad.
     let end = regist_key.iter().position(|b| *b == 0).unwrap_or(KEY_SIZE);
@@ -356,7 +361,12 @@ const CTRL_LOGIN_STATE_SUCCESS: u8 = 0x00;
 /// Decrypt a received ctrl payload. The console encrypts with the same key
 /// and IV scheme as our request fields, on its own counter that advances once
 /// per payload-bearing message it sends, starting at zero.
-fn auth_decrypt(bright: &[u8; 16], ambassador: &[u8; 16], counter: u64, data: &[u8]) -> Vec<u8> {
+pub(crate) fn auth_decrypt(
+    bright: &[u8; 16],
+    ambassador: &[u8; 16],
+    counter: u64,
+    data: &[u8],
+) -> Vec<u8> {
     let iv = generate_iv(ambassador, counter);
     let mut buf = data.to_vec();
     Aes128CfbDec::new(bright.into(), &iv.into()).decrypt(&mut buf);

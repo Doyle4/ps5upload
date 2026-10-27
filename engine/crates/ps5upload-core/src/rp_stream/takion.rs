@@ -1,0 +1,579 @@
+//! Takion: Remote Play's SCTP-like transport over UDP 9296.
+//!
+//! Ported from chiaki-ng (AGPL-3.0, `lib/src/takion.c`). Every datagram's low
+//! nibble is its kind: control (an SCTP-style chunk: INIT, COOKIE, DATA,
+//! DATA_ACK), video, audio, congestion report, controller feedback. Until the
+//! stream's key exchange completes nothing is authenticated; afterwards each
+//! packet carries a 4-byte GMAC and a key position, and audio/video payloads
+//! are encrypted with the console's GKCrypt.
+//!
+//! This is the spike version: one thread, blocking reads with a timeout, data
+//! messages delivered in order, video delivered as it arrives (the frame
+//! assembler orders units itself).
+
+use std::collections::BTreeMap;
+use std::net::{SocketAddr, UdpSocket};
+use std::time::{Duration, Instant};
+
+use anyhow::{anyhow, bail, Context, Result};
+
+use super::crypto::{GkCrypt, KeyState, BLOCK, GMAC_SIZE};
+
+const A_RWND: u32 = 0x19000;
+const STREAMS: u16 = 0x64;
+const HEADER: usize = 0x10;
+const COOKIE: usize = 0x20;
+
+pub const PACKET_CONTROL: u8 = 0;
+pub const PACKET_VIDEO: u8 = 2;
+pub const PACKET_AUDIO: u8 = 3;
+pub const PACKET_CONGESTION: u8 = 5;
+
+const CHUNK_DATA: u8 = 0;
+const CHUNK_INIT: u8 = 1;
+const CHUNK_INIT_ACK: u8 = 2;
+const CHUNK_DATA_ACK: u8 = 3;
+const CHUNK_COOKIE: u8 = 0xa;
+const CHUNK_COOKIE_ACK: u8 = 0xb;
+
+pub const DATA_TYPE_PROTOBUF: u8 = 0;
+
+fn mac_offset(kind: u8) -> Option<usize> {
+    match kind {
+        PACKET_CONTROL => Some(5),
+        PACKET_VIDEO | PACKET_AUDIO => Some(0xa),
+        PACKET_CONGESTION => Some(7),
+        _ => None,
+    }
+}
+
+fn key_pos_offset(kind: u8) -> Option<usize> {
+    match kind {
+        PACKET_CONTROL => Some(9),
+        PACKET_VIDEO | PACKET_AUDIO => Some(0xe),
+        PACKET_CONGESTION => Some(0xb),
+        _ => None,
+    }
+}
+
+fn be16(b: &[u8]) -> u16 {
+    u16::from_be_bytes([b[0], b[1]])
+}
+fn be32(b: &[u8]) -> u32 {
+    u32::from_be_bytes([b[0], b[1], b[2], b[3]])
+}
+
+fn seq32_lt(a: u32, b: u32) -> bool {
+    a != b && (a.wrapping_sub(b) as i32) < 0
+}
+
+/// One video or audio packet, payload decrypted.
+#[derive(Debug, Clone)]
+pub struct AvPacket {
+    pub is_video: bool,
+    pub packet_index: u16,
+    pub frame_index: u16,
+    pub unit_index: u16,
+    pub units_in_frame_total: u16,
+    pub units_in_frame_fec: u16,
+    pub codec: u8,
+    pub adaptive_stream_index: u8,
+    pub key_pos: u64,
+    pub data: Vec<u8>,
+}
+
+pub enum Event {
+    /// A protobuf `TakionMessage` from the console, in order.
+    Data(Vec<u8>),
+    Av(AvPacket),
+}
+
+pub struct Takion {
+    sock: UdpSocket,
+    tag_local: u32,
+    tag_remote: u32,
+    seq_local: u32,
+    key_pos_local: u64,
+    pub gk_local: Option<GkCrypt>,
+    pub gk_remote: Option<GkCrypt>,
+    key_state: KeyState,
+    /// Next DATA sequence number we owe the application, and early arrivals.
+    seq_remote_next: u32,
+    data_early: BTreeMap<u32, Vec<u8>>,
+    /// AV packets that arrived before the console's crypt was ready.
+    postponed: Vec<Vec<u8>>,
+    pub av_received: u64,
+    pub av_bad_mac: u64,
+    pub bytes_received: u64,
+    last_congestion: Instant,
+    congestion_received: u16,
+}
+
+impl Takion {
+    /// Connect and run the INIT / COOKIE handshake.
+    pub fn connect(addr: SocketAddr) -> Result<Self> {
+        let bind: SocketAddr = if addr.is_ipv4() {
+            "0.0.0.0:0"
+        } else {
+            "[::]:0"
+        }
+        .parse()
+        .unwrap();
+        let sock = UdpSocket::bind(bind).context("binding the stream socket")?;
+        set_recv_buffer(&sock, 4 << 20);
+        sock.connect(addr).context("connecting the stream socket")?;
+        let mut tag = [0u8; 4];
+        getrandom::fill(&mut tag).map_err(|e| anyhow!("random: {e}"))?;
+        let tag_local = u32::from_le_bytes(tag) | 1;
+        let mut t = Self {
+            sock,
+            tag_local,
+            tag_remote: 0,
+            seq_local: tag_local,
+            key_pos_local: 0,
+            gk_local: None,
+            gk_remote: None,
+            key_state: KeyState::default(),
+            seq_remote_next: 0,
+            data_early: BTreeMap::new(),
+            postponed: Vec::new(),
+            av_received: 0,
+            av_bad_mac: 0,
+            bytes_received: 0,
+            last_congestion: Instant::now(),
+            congestion_received: 0,
+        };
+        t.handshake()?;
+        Ok(t)
+    }
+
+    fn header(
+        &self,
+        tag: u32,
+        key_pos: u64,
+        chunk: u8,
+        flags: u8,
+        data_len: usize,
+    ) -> [u8; HEADER] {
+        let mut h = [0u8; HEADER];
+        h[0..4].copy_from_slice(&tag.to_be_bytes());
+        // 4..8: GMAC, filled in at send.
+        h[8..12].copy_from_slice(&(key_pos as u32).to_be_bytes());
+        h[0xc] = chunk;
+        h[0xd] = flags;
+        h[0xe..0x10].copy_from_slice(&((data_len + 4) as u16).to_be_bytes());
+        h
+    }
+
+    fn recv_raw(&self, buf: &mut [u8], timeout: Duration) -> Result<Option<usize>> {
+        self.sock
+            .set_read_timeout(Some(timeout.max(Duration::from_millis(1))))?;
+        match self.sock.recv(buf) {
+            Ok(n) => Ok(Some(n)),
+            Err(e)
+                if matches!(
+                    e.kind(),
+                    std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut
+                ) =>
+            {
+                Ok(None)
+            }
+            Err(e) => Err(anyhow!("receiving from the console: {e}")),
+        }
+    }
+
+    fn handshake(&mut self) -> Result<()> {
+        // INIT ->
+        let mut init = vec![PACKET_CONTROL];
+        init.extend_from_slice(&self.header(0, 0, CHUNK_INIT, 0, 0x10));
+        init.extend_from_slice(&self.tag_local.to_be_bytes());
+        init.extend_from_slice(&A_RWND.to_be_bytes());
+        init.extend_from_slice(&STREAMS.to_be_bytes());
+        init.extend_from_slice(&STREAMS.to_be_bytes());
+        init.extend_from_slice(&self.seq_local.to_be_bytes());
+
+        let mut buf = [0u8; 1500];
+        let mut cookie = None;
+        for _ in 0..3 {
+            self.sock.send(&init)?;
+            if let Some(n) = self.recv_raw(&mut buf, Duration::from_secs(5))? {
+                let pkt = &buf[..n];
+                if n < 1 + HEADER + 0x10 + COOKIE || pkt[0] != PACKET_CONTROL {
+                    bail!("expected INIT_ACK, got {n} bytes of kind {:#x}", pkt[0]);
+                }
+                let (chunk, payload) = self.parse_control(pkt)?;
+                if chunk != CHUNK_INIT_ACK {
+                    bail!("expected INIT_ACK, got chunk {chunk:#x}");
+                }
+                self.tag_remote = be32(&payload[0..4]);
+                if self.tag_remote == 0 {
+                    bail!("the console's INIT_ACK carried tag 0");
+                }
+                let mut c = [0u8; COOKIE];
+                c.copy_from_slice(&payload[0x10..0x10 + COOKIE]);
+                cookie = Some(c);
+                break;
+            }
+        }
+        let cookie = cookie
+            .ok_or_else(|| anyhow!("the console did not answer the stream INIT (UDP 9296)"))?;
+        // chiaki uses the console's tag as its initial DATA sequence number.
+        self.seq_remote_next = self.tag_remote;
+
+        // COOKIE ->
+        let mut msg = vec![PACKET_CONTROL];
+        msg.extend_from_slice(&self.header(self.tag_remote, 0, CHUNK_COOKIE, 0, COOKIE));
+        msg.extend_from_slice(&cookie);
+        for _ in 0..3 {
+            self.sock.send(&msg)?;
+            let deadline = Instant::now() + Duration::from_secs(5);
+            while let Some(n) =
+                self.recv_raw(&mut buf, deadline.saturating_duration_since(Instant::now()))?
+            {
+                let pkt = &buf[..n];
+                if pkt[0] != PACKET_CONTROL {
+                    continue;
+                }
+                match self.parse_control(pkt) {
+                    Ok((CHUNK_COOKIE_ACK, _)) => return Ok(()),
+                    Ok((CHUNK_INIT_ACK, _)) => continue, // a resent INIT_ACK
+                    Ok((c, _)) => bail!("expected COOKIE_ACK, got chunk {c:#x}"),
+                    Err(e) => return Err(e),
+                }
+            }
+        }
+        bail!("the console did not acknowledge the stream cookie")
+    }
+
+    /// Chunk kind and payload of a control packet (tag checked).
+    fn parse_control<'a>(&mut self, pkt: &'a [u8]) -> Result<(u8, &'a [u8])> {
+        let m = &pkt[1..];
+        if m.len() < HEADER {
+            bail!("control message too short");
+        }
+        if be32(&m[0..4]) != self.tag_local {
+            bail!("control message for another session (tag mismatch)");
+        }
+        let low = be32(&m[8..12]);
+        self.key_state.request_pos(low, true);
+        let size = be16(&m[0xe..0x10]) as usize;
+        if m.len() != size + 0xc {
+            bail!(
+                "control message size mismatch ({} vs {})",
+                m.len(),
+                size + 0xc
+            );
+        }
+        Ok((m[0xc], &m[HEADER..]))
+    }
+
+    fn advance_key_pos(&mut self, mut len: usize) -> u64 {
+        if self.gk_local.is_none() {
+            return 0;
+        }
+        // chiaki rounds this way (adds len % 16, not up to a multiple). Kept as is.
+        len += len % BLOCK;
+        let cur = self.key_pos_local;
+        self.key_pos_local += len as u64;
+        cur
+    }
+
+    /// MAC `pkt` in place (if crypt is up) and send it.
+    fn send_maced(&mut self, pkt: &mut [u8], key_pos: u64) -> Result<()> {
+        let kind = pkt[0] & 0xf;
+        let mo = mac_offset(kind).unwrap();
+        let ko = key_pos_offset(kind).unwrap();
+        pkt[mo..mo + GMAC_SIZE].fill(0);
+        if let Some(gk) = self.gk_local.as_mut() {
+            let saved: [u8; 4] = pkt[ko..ko + 4].try_into().unwrap();
+            if kind == PACKET_CONTROL || kind == PACKET_CONGESTION {
+                pkt[ko..ko + 4].fill(0);
+            }
+            let mac = gk.gmac(key_pos, pkt);
+            pkt[mo..mo + GMAC_SIZE].copy_from_slice(&mac);
+            pkt[ko..ko + 4].copy_from_slice(&saved);
+        }
+        self.sock.send(pkt)?;
+        Ok(())
+    }
+
+    /// Send one DATA chunk. `first` chunks carry a data-type byte; `flags` 1
+    /// marks the last chunk of a message.
+    pub fn send_data(&mut self, flags: u8, channel: u16, data: &[u8], first: bool) -> Result<()> {
+        let key_pos = self.advance_key_pos(data.len());
+        let head = if first { 9 } else { 8 };
+        let mut pkt = vec![PACKET_CONTROL];
+        let tag_remote = self.tag_remote;
+        pkt.extend_from_slice(&self.header(
+            tag_remote,
+            key_pos,
+            CHUNK_DATA,
+            flags,
+            head + data.len(),
+        ));
+        let seq = self.seq_local;
+        self.seq_local = self.seq_local.wrapping_add(1);
+        pkt.extend_from_slice(&seq.to_be_bytes());
+        pkt.extend_from_slice(&channel.to_be_bytes());
+        pkt.extend_from_slice(&[0, 0]);
+        if first {
+            pkt.push(0);
+        }
+        pkt.extend_from_slice(data);
+        self.send_maced(&mut pkt, key_pos)
+    }
+
+    /// A protobuf message, split across DATA chunks the way chiaki splits BIG.
+    pub fn send_message(&mut self, channel: u16, msg: &[u8]) -> Result<()> {
+        const MTU: usize = 1454 - 50;
+        if msg.len() + 26 <= MTU {
+            return self.send_data(1, channel, msg, true);
+        }
+        let mut pos = 0;
+        let mut first = true;
+        loop {
+            let room = if first { MTU - 26 } else { MTU - 25 };
+            let rest = msg.len() - pos;
+            if rest <= room {
+                return self.send_data(1, channel, &msg[pos..], first);
+            }
+            self.send_data(0, channel, &msg[pos..pos + room], first)?;
+            pos += room;
+            first = false;
+        }
+    }
+
+    fn send_data_ack(&mut self, seq: u32) -> Result<()> {
+        let key_pos = self.advance_key_pos(1 + HEADER + 0xc);
+        let mut pkt = vec![PACKET_CONTROL];
+        let tag_remote = self.tag_remote;
+        pkt.extend_from_slice(&self.header(tag_remote, key_pos, CHUNK_DATA_ACK, 0, 0xc));
+        pkt.extend_from_slice(&seq.to_be_bytes());
+        pkt.extend_from_slice(&A_RWND.to_be_bytes());
+        pkt.extend_from_slice(&[0, 0, 0, 0]);
+        self.send_maced(&mut pkt, key_pos)
+    }
+
+    /// The periodic "received n, lost m" report chiaki sends every 200 ms.
+    fn send_congestion(&mut self) -> Result<()> {
+        let key_pos = self.advance_key_pos(0xf);
+        let mut pkt = [0u8; 0xf];
+        pkt[0] = PACKET_CONGESTION;
+        pkt[3..5].copy_from_slice(&self.congestion_received.to_be_bytes());
+        pkt[0xb..0xf].copy_from_slice(&(key_pos as u32).to_be_bytes());
+        self.congestion_received = 0;
+        self.send_maced(&mut pkt, key_pos)
+    }
+
+    /// Check a received packet's MAC (once the console's crypt is known).
+    fn verify(&mut self, pkt: &mut [u8]) -> bool {
+        let kind = pkt[0] & 0xf;
+        let (Some(mo), Some(ko)) = (mac_offset(kind), key_pos_offset(kind)) else {
+            return true;
+        };
+        let Some(gk) = self.gk_remote.as_mut() else {
+            return true;
+        };
+        if pkt.len() < mo + GMAC_SIZE || pkt.len() < ko + 4 {
+            return false;
+        }
+        let key_pos = self.key_state.request_pos(be32(&pkt[ko..ko + 4]), false);
+        let got: [u8; 4] = pkt[mo..mo + GMAC_SIZE].try_into().unwrap();
+        pkt[mo..mo + GMAC_SIZE].fill(0);
+        let saved: [u8; 4] = pkt[ko..ko + 4].try_into().unwrap();
+        if kind == PACKET_CONTROL || kind == PACKET_CONGESTION {
+            pkt[ko..ko + 4].fill(0);
+        }
+        let want = gk.gmac(key_pos, pkt);
+        pkt[ko..ko + 4].copy_from_slice(&saved);
+        pkt[mo..mo + GMAC_SIZE].copy_from_slice(&got);
+        if want != got {
+            return false;
+        }
+        self.key_state.commit(key_pos);
+        true
+    }
+
+    /// Wait up to `timeout` for the next event. Sends DATA acks and periodic
+    /// congestion reports as a side effect.
+    pub fn poll(&mut self, timeout: Duration) -> Result<Option<Event>> {
+        if self.gk_local.is_some() && self.last_congestion.elapsed() >= Duration::from_millis(200) {
+            self.last_congestion = Instant::now();
+            self.send_congestion()?;
+        }
+        // Packets parked before the crypt was up go first.
+        if self.gk_remote.is_some() && !self.postponed.is_empty() {
+            let mut pkt = self.postponed.remove(0);
+            if let Some(ev) = self.handle(&mut pkt)? {
+                return Ok(Some(ev));
+            }
+        }
+        if let Some(d) = self.pop_data()? {
+            return Ok(Some(Event::Data(d)));
+        }
+        let mut buf = vec![0u8; 2048];
+        let deadline = Instant::now() + timeout;
+        loop {
+            let left = deadline.saturating_duration_since(Instant::now());
+            let Some(n) = self.recv_raw(&mut buf, left)? else {
+                return Ok(None);
+            };
+            self.bytes_received += n as u64;
+            let mut pkt = buf[..n].to_vec();
+            if let Some(ev) = self.handle(&mut pkt)? {
+                return Ok(Some(ev));
+            }
+            if let Some(d) = self.pop_data()? {
+                return Ok(Some(Event::Data(d)));
+            }
+            if left.is_zero() {
+                return Ok(None);
+            }
+        }
+    }
+
+    fn pop_data(&mut self) -> Result<Option<Vec<u8>>> {
+        let next = self.seq_remote_next;
+        if let Some(d) = self.data_early.remove(&next) {
+            self.seq_remote_next = next.wrapping_add(1);
+            self.send_data_ack(next)?;
+            return Ok(Some(d));
+        }
+        Ok(None)
+    }
+
+    fn handle(&mut self, pkt: &mut Vec<u8>) -> Result<Option<Event>> {
+        if pkt.is_empty() {
+            return Ok(None);
+        }
+        let kind = pkt[0] & 0xf;
+        if (kind == PACKET_VIDEO || kind == PACKET_AUDIO) && self.gk_remote.is_none() {
+            if self.postponed.len() < 256 {
+                self.postponed.push(std::mem::take(pkt));
+            }
+            return Ok(None);
+        }
+        if !self.verify(pkt) {
+            if kind == PACKET_VIDEO || kind == PACKET_AUDIO {
+                self.av_bad_mac += 1;
+            }
+            return Ok(None);
+        }
+        match kind {
+            PACKET_CONTROL => {
+                let Ok((chunk, payload)) = self.parse_control(pkt) else {
+                    return Ok(None);
+                };
+                if chunk == CHUNK_DATA && payload.len() >= 9 {
+                    let seq = be32(&payload[0..4]);
+                    let data_type = payload[8];
+                    if seq32_lt(seq, self.seq_remote_next) {
+                        // A resend of something already delivered: ack again.
+                        self.send_data_ack(self.seq_remote_next.wrapping_sub(1))?;
+                        return Ok(None);
+                    }
+                    let body = if data_type == DATA_TYPE_PROTOBUF {
+                        payload[9..].to_vec()
+                    } else {
+                        Vec::new()
+                    };
+                    self.data_early.insert(seq, body);
+                }
+                Ok(None)
+            }
+            PACKET_VIDEO | PACKET_AUDIO => {
+                let Some(mut av) = parse_av_v12(pkt, &mut self.key_state) else {
+                    return Ok(None);
+                };
+                if let Some(gk) = self.gk_remote.as_ref() {
+                    gk.apply(av.key_pos + BLOCK as u64, &mut av.data);
+                }
+                self.av_received += 1;
+                self.congestion_received = self.congestion_received.wrapping_add(1);
+                Ok(Some(Event::Av(av)))
+            }
+            _ => Ok(None),
+        }
+    }
+
+    pub fn close(&mut self) {
+        // Best effort, like chiaki's disconnect on the way out.
+        let _ = self.send_message(1, &super::proto::disconnect("Client Disconnecting"));
+    }
+}
+
+/// Parse a v12 (PS5) AV packet header; the data stays encrypted.
+fn parse_av_v12(buf: &[u8], key_state: &mut KeyState) -> Option<AvPacket> {
+    let is_video = buf[0] & 0xf == PACKET_VIDEO;
+    let nalu_info = (buf[0] >> 4) & 1 != 0;
+    let av = &buf[1..];
+    let header = if is_video { 0x17 } else { 0x13 };
+    if av.len() < header + 1 {
+        return None;
+    }
+    let packet_index = be16(&av[0..2]);
+    let frame_index = be16(&av[2..4]);
+    let dword2 = be32(&av[4..8]);
+    let (unit_index, units_in_frame_total, units_in_frame_fec) = if is_video {
+        (
+            ((dword2 >> 0x15) & 0x7ff) as u16,
+            (((dword2 >> 0xa) & 0x7ff) + 1) as u16,
+            (dword2 & 0x3ff) as u16,
+        )
+    } else {
+        (
+            ((dword2 >> 0x18) & 0xff) as u16,
+            (((dword2 >> 0x10) & 0xff) + 1) as u16,
+            (dword2 & 0xffff) as u16,
+        )
+    };
+    let codec = av[8];
+    let key_pos = key_state.request_pos(be32(&av[0xd..0x11]), true);
+    let mut p = 0x11;
+    let mut adaptive_stream_index = 0;
+    if is_video {
+        adaptive_stream_index = av[p + 2] >> 5;
+        p += 3;
+    } else {
+        p += 1;
+    }
+    if nalu_info {
+        p += 3;
+    }
+    if !is_video {
+        p += 1; // haptics flag (v12)
+    }
+    if p > av.len() {
+        return None;
+    }
+    Some(AvPacket {
+        is_video,
+        packet_index,
+        frame_index,
+        unit_index,
+        units_in_frame_total,
+        units_in_frame_fec,
+        codec,
+        adaptive_stream_index,
+        key_pos,
+        data: av[p..].to_vec(),
+    })
+}
+
+#[cfg(unix)]
+fn set_recv_buffer(sock: &UdpSocket, bytes: i32) {
+    use std::os::fd::AsRawFd;
+    // SAFETY: a valid socket fd and a properly sized int option.
+    unsafe {
+        libc::setsockopt(
+            sock.as_raw_fd(),
+            libc::SOL_SOCKET,
+            libc::SO_RCVBUF,
+            &bytes as *const i32 as *const libc::c_void,
+            std::mem::size_of::<i32>() as libc::socklen_t,
+        );
+    }
+}
+
+#[cfg(not(unix))]
+fn set_recv_buffer(_sock: &UdpSocket, _bytes: i32) {}
