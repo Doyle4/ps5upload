@@ -843,7 +843,7 @@
   "cw_procs_err_protected": "এই প্রসেস এখান থেকে থামানো যায় না।",
   "cw_procs_intro": "এখন PS5-এ যা চলছে। আপনি একটি গেম বা payload থামাতে পারেন; সিস্টেম প্রসেস তালিকায় থাকে কিন্তু এখান থেকে কখনও থামানো হয় না।",
   "cw_procs_kind_game": "গেম",
-  "cw_procs_kind_payload": "Payload",
+  "cw_procs_kind_payload": "পেলোড",
   "cw_procs_kind_system": "সিস্টেম",
   "cw_procs_mb": "{mb} MB",
   "cw_procs_pid": "PID {pid}",

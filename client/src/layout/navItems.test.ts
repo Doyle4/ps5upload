@@ -79,18 +79,18 @@ describe("the sidebar's sections", () => {
   });
 
   it("keeps a section whose first screen is hidden, with the rest in it", () => {
-    // Upload opens Files & storage: hiding it must not merge the rest into Setup.
+    // Upload opens Files & storage: hiding it must not merge the rest into Games & content.
     const groups = sidebarGroups(["/upload"], false, false);
     const files = groups.find((g) => g.section.key === "nav_section_files");
     expect(files?.items.map((i) => i.to)).toContain("/files");
-    const setup = groups.find((g) => g.section.key === "nav_section_setup");
-    expect(setup?.items.map((i) => i.to)).not.toContain("/files");
+    const games = groups.find((g) => g.section.key === "nav_section_games_mods");
+    expect(games?.items.map((i) => i.to)).not.toContain("/files");
   });
 
   it("drops a section once every screen in it is hidden", () => {
-    const help = groupNavItems(NAV_ITEMS).find((g) => g.section.key === "nav_section_help")!;
-    const groups = sidebarGroups(help.items.map((i) => i.to), false, false);
-    expect(sections(groups)).not.toContain("nav_section_help");
+    const app = groupNavItems(NAV_ITEMS).find((g) => g.section.key === "nav_section_app")!;
+    const groups = sidebarGroups(app.items.map((i) => i.to), false, false);
+    expect(sections(groups)).not.toContain("nav_section_app");
   });
 
   it("names every screen and section with a key the English catalogue has", () => {

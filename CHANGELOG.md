@@ -4,12 +4,20 @@ What's new in ps5upload, written for humans.
 
 ---
 
-## Unreleased
+## 8.5.1
 
-- **Packages with Windows bookkeeping folders convert to game images again.** An empty
-  `System Volume Information` folder made the read-back check fail after compression. Package
-  sources now omit the same OS junk as game folders and image readers, while keeping real
-  empty game folders and the original package's file offsets.
+- **Packages with Windows bookkeeping folders convert to game images again (#523, thanks
+  frzzyone).** An empty `System Volume Information` folder made the read-back check fail after
+  compression. Package sources now omit the same OS junk as game folders and image readers,
+  while keeping real empty game folders and the original package's file offsets.
+- **Sidebar sections make more sense.** Games & content comes first, then Files & storage;
+  **Console** holds the console, its payloads and processes, its profile and Remote Play;
+  **Connect** holds Connection, Devices and the Health Check; **Diagnostics** holds Activity &
+  logs, Notifications and Shell; **App** holds Settings and Help. "Edit image on this computer"
+  is now **Game images**.
+- **Hundreds of untranslated labels translated** in every language, Mesh Drive among them, and
+  a few wrong ones fixed (Chinese "running" read as jogging). Persian is now checked like the
+  other languages.
 
 ## 8.5.0
 

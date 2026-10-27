@@ -843,7 +843,7 @@
   "cw_procs_err_protected": "หยุดโปรเซสนั้นจากที่นี่ไม่ได้",
   "cw_procs_intro": "สิ่งที่ทำงานอยู่บน PS5 ตอนนี้ คุณหยุดเกมหรือ payload ได้ ส่วนโปรเซสของระบบจะแสดงไว้แต่จะไม่ถูกหยุดจากที่นี่",
   "cw_procs_kind_game": "เกม",
-  "cw_procs_kind_payload": "Payload",
+  "cw_procs_kind_payload": "เพย์โหลด",
   "cw_procs_kind_system": "ระบบ",
   "cw_procs_mb": "{mb} MB",
   "cw_procs_pid": "PID {pid}",

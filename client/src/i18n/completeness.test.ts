@@ -5,6 +5,7 @@ import ar from "./locales/ar";
 import bn from "./locales/bn";
 import de from "./locales/de";
 import es from "./locales/es";
+import fa from "./locales/fa";
 import fr from "./locales/fr";
 import hi from "./locales/hi";
 import hu from "./locales/hu";
@@ -29,6 +30,7 @@ const NON_EN: ReadonlyArray<readonly [string, Translations]> = [
   ["bn", bn],
   ["de", de],
   ["es", es],
+  ["fa", fa],
   ["fr", fr],
   ["hi", hi],
   ["hu", hu],

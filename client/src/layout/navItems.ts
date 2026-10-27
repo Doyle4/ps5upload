@@ -80,55 +80,7 @@ export type TrFn = (
 // More-menu information architecture. Group by the job a user is trying to
 // complete, not by which protocol or implementation owns the screen.
 export const NAV_ITEMS: NavItem[] = [
-  {
-    to: "/connection",
-    key: "connect",
-    fallback: "Connection",
-    icon: Cable,
-    section: { key: "nav_section_setup", fallback: "Setup" },
-  },
-  // 8.0.0: the phones, computers and Docker setups that use the console.
-  { to: "/devices", key: "mesh_devices", fallback: "Devices", icon: MonitorSmartphone },
-  // What gets loaded onto the console, and what runs there (processes and their ports), sits
-  // with connecting to it.
-  {
-    to: "/payloads",
-    key: "payloads_and_processes",
-    fallback: "Payloads & processes",
-    icon: Boxes,
-  },
-
-  // Move data and inspect storage.
-  {
-    to: "/upload",
-    key: "upload",
-    fallback: "Upload",
-    icon: Upload,
-    section: { key: "nav_section_files", fallback: "Files & storage" },
-  },
-  {
-    to: "/files",
-    key: "v5_tab_files",
-    fallback: "File System",
-    icon: FolderTree,
-  },
-  // 8.0.0: a folder kept the same on every device, at home on the console.
-  { to: "/mesh-drive", key: "drive_title", fallback: "Mesh Drive", icon: FolderSync },
-  { to: "/volumes", key: "volumes", fallback: "Volumes", icon: HardDrive },
-  {
-    to: "/cleanup",
-    key: "cleanup_nav",
-    fallback: "Clean up",
-    icon: Eraser,
-  },
-  {
-    to: "/connections",
-    key: "network_shares",
-    fallback: "Network shares",
-    icon: Network,
-  },
-
-  // Play, install, and manage game-related content.
+  // Play, install and manage games: the most used screens first.
   {
     to: "/games",
     key: "v5_tab_games",
@@ -148,7 +100,22 @@ export const NAV_ITEMS: NavItem[] = [
     fallback: "Convert Games",
     icon: PackagePlus,
   },
+  {
+    to: "/local-image",
+    key: "local_image_nav",
+    fallback: "Game images",
+    icon: FilePen,
+    // Offered everywhere: looking inside an image goes through the engine.
+    // Only the screen's mount ("Open an image") needs a macOS or Linux
+    // desktop, and the screen hides that part by itself (#479).
+  },
   { to: "/saves", key: "saves", fallback: "Save data", icon: Save },
+  {
+    to: "/cheats",
+    key: "cheats_title",
+    fallback: "Cheats",
+    icon: WandSparkles,
+  },
   // Screenshots and video clips: one screen, a tab each.
   {
     to: "/captures",
@@ -156,28 +123,51 @@ export const NAV_ITEMS: NavItem[] = [
     fallback: "Screenshots & clips",
     icon: ImageIcon,
   },
+
+  // Move files and look after the drives.
   {
-    to: "/local-image",
-    key: "local_image",
-    fallback: "Edit image on this computer",
-    icon: FilePen,
-    // Offered everywhere: looking inside an image goes through the engine.
-    // Only the screen's mount ("Open an image") needs a macOS or Linux
-    // desktop, and the screen hides that part by itself (#479).
+    to: "/upload",
+    key: "upload",
+    fallback: "Upload",
+    icon: Upload,
+    section: { key: "nav_section_files", fallback: "Files & storage" },
   },
   {
-    to: "/cheats",
-    key: "cheats_title",
-    fallback: "Cheats",
-    icon: WandSparkles,
+    to: "/files",
+    key: "v5_tab_files",
+    fallback: "File System",
+    icon: FolderTree,
   },
-  // Observe and manage the selected console.
+  // 8.0.0: a folder kept the same on every device, at home on the console.
+  { to: "/mesh-drive", key: "drive_title", fallback: "Mesh Drive", icon: FolderSync },
+  {
+    to: "/connections",
+    key: "network_shares",
+    fallback: "Network shares",
+    icon: Network,
+  },
+  { to: "/volumes", key: "volumes", fallback: "Volumes", icon: HardDrive },
+  {
+    to: "/cleanup",
+    key: "cleanup_nav",
+    fallback: "Clean up",
+    icon: Eraser,
+  },
+
+  // The console itself: its hardware, what runs on it, who is signed in, playing it remotely.
   {
     to: "/console",
     key: "v5_tab_console",
     fallback: "Console",
     icon: Cpu,
     section: { key: "nav_section_console", fallback: "Console" },
+  },
+  // What gets loaded onto the console, and what runs there (processes and their ports).
+  {
+    to: "/payloads",
+    key: "payloads_and_processes",
+    fallback: "Payloads & processes",
+    icon: Boxes,
   },
   {
     to: "/profile",
@@ -186,32 +176,42 @@ export const NAV_ITEMS: NavItem[] = [
     icon: CircleUserRound,
   },
   {
-    to: "/health",
-    key: "health",
-    fallback: "Health Check",
-    icon: Stethoscope,
-  },
-  {
     to: "/remote-play",
     key: "remote_play",
     fallback: "Remote Play",
     icon: MonitorPlay,
   },
+
+  // Reaching the console: connecting, the devices that use it, and checking the link.
   {
-    to: "/notifications",
-    key: "notifications_screen",
-    fallback: "Notifications",
-    icon: Bell,
+    to: "/connection",
+    key: "connect",
+    fallback: "Connection",
+    icon: Cable,
+    section: { key: "nav_section_connect", fallback: "Connect" },
+  },
+  // 8.0.0: the phones, computers and Docker setups that use the console.
+  { to: "/devices", key: "mesh_devices", fallback: "Devices", icon: MonitorSmartphone },
+  {
+    to: "/health",
+    key: "health",
+    fallback: "Health Check",
+    icon: Stethoscope,
   },
 
-
-  // ─ Diagnostics: history, logs, debugging ─
+  // What happened: history, logs, notifications, debugging.
   {
     to: "/tasks",
     key: "activity_logs_title",
     fallback: "Activity & logs",
     icon: ActivityIcon,
     section: { key: "nav_section_diagnostics", fallback: "Diagnostics" },
+  },
+  {
+    to: "/notifications",
+    key: "notifications_screen",
+    fallback: "Notifications",
+    icon: Bell,
   },
   // A console shell is for debugging: it sits with the other diagnostics.
   {
@@ -222,19 +222,19 @@ export const NAV_ITEMS: NavItem[] = [
     hideInBrowser: true,
   },
 
-  // ─ Help ─
-  {
-    to: "/faq",
-    key: "help_title",
-    fallback: "Help",
-    icon: HelpCircle,
-    section: { key: "nav_section_help", fallback: "Help" },
-  },
+  // The app itself.
   {
     to: "/settings",
     key: "settings",
     fallback: "Settings",
     icon: SettingsIcon,
+    section: { key: "nav_section_app", fallback: "App" },
+  },
+  {
+    to: "/faq",
+    key: "help_title",
+    fallback: "Help",
+    icon: HelpCircle,
   },
 ];
 
