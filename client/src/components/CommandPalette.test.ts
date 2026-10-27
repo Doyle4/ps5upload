@@ -20,8 +20,8 @@ describe("the palette's screens", () => {
   const where = { betaEnabled: false, inBrowser: false, macOrLinux: true };
 
   it("lists Home and Bug report, then pinned screens in pin order, then the rest", () => {
-    const order = paletteScreens(["/processes", "/files"], where).map((i) => i.to);
-    expect(order.slice(0, 4)).toEqual(["/home", "/bug-report", "/processes", "/files"]);
+    const order = paletteScreens(["/payloads", "/files"], where).map((i) => i.to);
+    expect(order.slice(0, 4)).toEqual(["/home", "/bug-report", "/payloads", "/files"]);
     // Each screen once.
     expect(new Set(order).size).toBe(order.length);
     const plain = paletteScreens([], where).map((i) => i.to);

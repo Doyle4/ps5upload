@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 
-import { playFor, trackedPlayMap } from "./trackedPlay";
+import { consolePlayMap, playFor, trackedPlayMap } from "./trackedPlay";
 
 const entry = (title_id: string, total_seconds: number, last_seen_ts: number, last_launch_ts = 0) => ({
   title_id,
@@ -35,5 +35,14 @@ describe("tracked play time", () => {
 
   it("falls back to the app's own count when the helper has no tracker", () => {
     expect(playFor(null, local, "192.168.1.100", "PPSA00001")).toEqual({ seconds: 50, lastSeenMs: 1_000 });
+  });
+
+  it("keeps the console's own Play Time rows that carry a total", () => {
+    const m = consolePlayMap([
+      { title_id: "PPSA00001", total_seconds: 7200 },
+      { title_id: "PPSA00002" },
+      { title_id: "PPSA00003", total_seconds: 0 },
+    ]);
+    expect([...m]).toEqual([["PPSA00001", 7200]]);
   });
 });

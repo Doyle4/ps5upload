@@ -7,8 +7,8 @@ import { useTr } from "../state/lang";
 import { makeTabKeyHandler } from "../lib/tabKeyboardNav";
 
 /**
- * Generic URL-routed tab shell used by /logs and /payloads (and any
- * future merged-screen pair). Owns:
+ * Generic URL-routed tab shell used by /payloads, Activity & logs (/tasks)
+ * and Help (/faq) (and any future merged-screen set). Owns:
  *
  *   - the `?tab=<id>` URL contract (single source of truth so deep
  *     links + page refresh preserve selection)

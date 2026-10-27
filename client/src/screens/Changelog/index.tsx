@@ -20,8 +20,11 @@ const GITHUB_RELEASES_URL =
  * Changelog screen ("What's new"). Renders the whole CHANGELOG.md the app
  * was built with, plus a link to the GitHub releases page (release
  * downloads, and notes for versions newer than this build).
+ *
+ * `embedded`: shown as the What's new tab of Help, under that screen's own
+ * header; the GitHub link then sits above the notes.
  */
-export default function ChangelogScreen() {
+export default function ChangelogScreen({ embedded = false }: { embedded?: boolean } = {}) {
   const tr = useTr();
   const [raw, setRaw] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -39,27 +42,33 @@ export default function ChangelogScreen() {
     })();
   }, []);
 
+  const fullHistory = (
+    <Button
+      variant="secondary"
+      size="sm"
+      rightIcon={<ExternalLink size={12} />}
+      onClick={() => openExternal(GITHUB_RELEASES_URL)}
+    >
+      {tr("changelog_full_history", undefined, "Full history")}
+    </Button>
+  );
+
   return (
-    <div className="app-page">
-      <PageHeader
-        icon={Sparkles}
-        title={tr("whats_new", undefined, "What's new")}
-        description={tr(
-          "changelog_description_v2",
-          undefined,
-          "Release notes for every ps5upload version up to this one, bundled with the app. Newer releases and their downloads are on GitHub.",
-        )}
-        right={
-          <Button
-            variant="secondary"
-            size="sm"
-            rightIcon={<ExternalLink size={12} />}
-            onClick={() => openExternal(GITHUB_RELEASES_URL)}
-          >
-            {tr("changelog_full_history", undefined, "Full history")}
-          </Button>
-        }
-      />
+    <div className={embedded ? "" : "app-page"}>
+      {embedded ? (
+        <div className="mb-4">{fullHistory}</div>
+      ) : (
+        <PageHeader
+          icon={Sparkles}
+          title={tr("whats_new", undefined, "What's new")}
+          description={tr(
+            "changelog_description_v2",
+            undefined,
+            "Release notes for every ps5upload version up to this one, bundled with the app. Newer releases and their downloads are on GitHub.",
+          )}
+          right={fullHistory}
+        />
+      )}
 
       <div className="max-w-4xl">
         {error && (

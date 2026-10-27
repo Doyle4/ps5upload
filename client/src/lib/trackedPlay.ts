@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
+import { create } from "zustand";
 
-import { activityGet, type ActivityEntry } from "../api/ps5";
+import { activityDbQuery, activityGet, type ActivityDbRow, type ActivityEntry } from "../api/ps5";
 import { transferAddr } from "./addr";
 import { useConnectionStore } from "../state/connection";
 import { lastSeenPlayingFor, playSecondsFor } from "../state/playTime";
@@ -49,6 +50,14 @@ export function playFor(
   };
 }
 
+/** Bumped to make every `useTrackedPlay` read again (after Reset play time clears the table). */
+const useTrackedPlayEpoch = create<{ n: number }>(() => ({ n: 0 }));
+
+/** Read the helper's play time again in every view showing it. */
+export function refreshTrackedPlay(): void {
+  useTrackedPlayEpoch.setState((s) => ({ n: s.n + 1 }));
+}
+
 /**
  * The connected console's play time from the helper, which watches processes on
  * the console itself and so counts play while this app is closed. null while it
@@ -61,6 +70,7 @@ export function playFor(
 export function useTrackedPlay(host: string | null | undefined): Map<string, TrackedPlay> | null {
   const up = useConnectionStore((s) => s.payloadStatus === "up");
   const runningKey = useRunningAppsStore((s) => Array.from(runningOn(s, host)).sort().join(","));
+  const epoch = useTrackedPlayEpoch((s) => s.n);
   const [data, setData] = useState<{ host: string; map: Map<string, TrackedPlay> } | null>(null);
   const h = host?.trim() ?? "";
 
@@ -77,8 +87,44 @@ export function useTrackedPlay(host: string | null | undefined): Map<string, Tra
     return () => {
       cancelled = true;
     };
-  }, [h, up, runningKey]);
+  }, [h, up, runningKey, epoch]);
 
   // Never another console's numbers while a switch is in flight.
+  return data && data.host === h ? data.map : null;
+}
+
+/** title_id → seconds from the console's own Play Time records (app.db); rows without a total are left out. */
+export function consolePlayMap(rows: readonly ActivityDbRow[]): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const r of rows) {
+    if (r.title_id && r.total_seconds != null && r.total_seconds > 0) out.set(r.title_id, r.total_seconds);
+  }
+  return out;
+}
+
+/**
+ * The console's own play time (what Game Activity's Console Play Time tab showed), read once
+ * per console. null while unanswered, or when this firmware's database could not be read.
+ */
+export function useConsolePlayTime(host: string | null | undefined): Map<string, number> | null {
+  const up = useConnectionStore((s) => s.payloadStatus === "up");
+  const [data, setData] = useState<{ host: string; map: Map<string, number> } | null>(null);
+  const h = host?.trim() ?? "";
+
+  useEffect(() => {
+    if (!h || !up) return;
+    let cancelled = false;
+    activityDbQuery("play_time", transferAddr(h))
+      .then((r) => {
+        if (!cancelled) setData({ host: h, map: consolePlayMap(r.rows ?? []) });
+      })
+      .catch(() => {
+        if (!cancelled) setData(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [h, up]);
+
   return data && data.host === h ? data.map : null;
 }

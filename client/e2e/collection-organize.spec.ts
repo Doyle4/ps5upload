@@ -24,7 +24,7 @@ for (const hasMoves of [true, false]) {
       };
       await route.fulfill({ contentType: "application/json", body: JSON.stringify(body) });
     });
-    await page.goto("/collection", { waitUntil: "domcontentloaded" });
+    await page.goto("/games?tab=all", { waitUntil: "domcontentloaded" });
     await page.getByRole("button", { name: "More actions", exact: true }).click();
     await page.getByRole("menuitem", { name: /Organize/ }).click();
     const dialog = page.getByRole("dialog");

@@ -251,6 +251,53 @@ describe("menuPlacement", () => {
   });
 });
 
+describe("Files row: snapshot and what takes space (menu only)", () => {
+  const tr = ((key: string, _vars?: unknown, fallback?: string) =>
+    fallback ?? key) as unknown as RowActionsContext["tr"];
+  const ctx = (): RowActionsContext => ({
+    tr,
+    desktopApp: false,
+    hasHost: true,
+    downloadActive: false,
+    downloadingName: null,
+    entryBusy: false,
+    pkgInstalling: false,
+    installingPkgName: null,
+    viewable: () => false,
+    download: vi.fn(),
+    rename: vi.fn(),
+    replace: vi.fn(),
+    view: vi.fn(),
+    preview: vi.fn(),
+    crc32: vi.fn(),
+    verify: vi.fn(),
+    install: vi.fn(),
+    remove: vi.fn(),
+    snapshot: vi.fn(),
+    space: vi.fn(),
+  });
+
+  it("a folder offers both in the ⋮ menu, before Delete, and draws neither as a row button", () => {
+    const c = ctx();
+    const dir = { name: "homebrew", kind: "dir", size: 0 };
+    const actions = buildRowActions(dir, c);
+    expect(actions.map((a) => a.id).slice(-3)).toEqual(["space", "snapshot", "delete"]);
+    actions.find((a) => a.id === "snapshot")?.run();
+    expect(c.snapshot).toHaveBeenCalledWith(dir);
+    actions.find((a) => a.id === "space")?.run();
+    expect(c.space).toHaveBeenCalledWith(dir);
+    const html = renderToStaticMarkup(<RowActionButtonList actions={actions} />);
+    expect(html).not.toContain("Snapshot");
+    expect(html).not.toContain("What takes space?");
+  });
+
+  it("a file can be snapshotted but has no space map", () => {
+    const ids = buildRowActions({ name: "a.txt", kind: "file", size: 3 }, ctx()).map((a) => a.id);
+    expect(ids).toContain("snapshot");
+    expect(ids).not.toContain("space");
+  });
+});
+
 describe("Files selection bar", () => {
   it("keeps the count on one line and scrolls the actions on a phone", () => {
     const action = "Set permissions (777)";

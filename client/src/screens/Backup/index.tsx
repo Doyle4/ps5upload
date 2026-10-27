@@ -9,11 +9,10 @@ import {
   Clock,
   HardDrive,
 } from "lucide-react";
+import { Navigate } from "react-router";
 import {
-  PageHeader,
   Button,
   ErrorCard,
-  ConnectionGate,
   EmptyState,
   Card,
   Spinner,
@@ -35,6 +34,12 @@ import { trackTask } from "../../state/trackTask";
 import { humanizePs5Error } from "../../lib/humanizeError";
 import { SNAPSHOT_MAX_DEPTH, SNAPSHOTS_KEPT_PER_NAME } from "./snapshotLimits";
 import { formatDate } from "../../lib/formatDate";
+import { filesViewLink } from "../FileSystem/filesViews";
+
+/** Console snapshots live in Files now (`SnapshotsPanel`); the old route lands there. */
+export default function BackupScreen() {
+  return <Navigate to={filesViewLink("snapshots")} replace />;
+}
 
 function formatTimestamp(ts: number): string {
   return formatDate(ts * 1000);
@@ -74,7 +79,19 @@ function defaultTagFor(p: string): string {
   return `${leaf}-${stamp}`.slice(0, 32);
 }
 
-export default function BackupScreen() {
+/** What Files asked to snapshot ("Snapshot this folder", a row, a selection). A new `n`
+ *  fills the form again. */
+export interface SnapshotPrefill {
+  n: number;
+  paths: string[];
+}
+
+/**
+ * Console snapshots: copy files and folders into a snapshot kept on the PS5 itself, and
+ * put them back later. Shown in Files; `prefill` fills "What to copy" with the folder or
+ * items it was opened for (several items make one snapshot each).
+ */
+export function SnapshotsPanel({ prefill }: { prefill?: SnapshotPrefill | null }) {
   const tr = useTr();
   const host = useConnectionStore((s) => s.host);
   const payloadStatus = useConnectionStore((s) => s.payloadStatus);
@@ -85,10 +102,12 @@ export default function BackupScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const [tag, setTag] = useState("");
+  const [tag, setTag] = useState(() => (prefill?.paths.length === 1 ? defaultTagFor(prefill.paths[0]) : ""));
   /* Once the user names a snapshot themselves, stop rewriting it. */
   const [tagTouched, setTagTouched] = useState(false);
-  const [path, setPath] = useState("");
+  const [path, setPath] = useState(() => prefill?.paths[0] ?? "");
+  // Several items picked in Files: one snapshot each, named after each item.
+  const [batch, setBatch] = useState<string[]>(() => (prefill && prefill.paths.length > 1 ? prefill.paths : []));
   const [busy, setBusy] = useState(false);
   const [actionMsg, setActionMsg] = useState<string | null>(null);
 
@@ -122,6 +141,62 @@ export default function BackupScreen() {
   useEffect(() => {
     refresh();
   }, [refresh]);
+
+  // A new request from Files refills the form (a snapshot being made keeps going).
+  const prefillRef = useRef(prefill?.n);
+  useEffect(() => {
+    if (!prefill || prefillRef.current === prefill.n) return;
+    prefillRef.current = prefill.n;
+    setTagTouched(false);
+    setActionMsg(null);
+    if (prefill.paths.length > 1) {
+      setBatch(prefill.paths);
+      setPath("");
+      setTag("");
+    } else {
+      setBatch([]);
+      setPath(prefill.paths[0] ?? "");
+      setTag(prefill.paths[0] ? defaultTagFor(prefill.paths[0]) : "");
+    }
+  }, [prefill]);
+
+  const handleBatch = useCallback(async () => {
+    if (!addr || batch.length === 0) return;
+    setBusy(true);
+    setActionMsg(null);
+    setError(null);
+    let files = 0;
+    let bytes = 0;
+    let done = 0;
+    try {
+      for (const p of batch) {
+        const t = defaultTagFor(p);
+        const result = await trackTask(
+          { kind: "backup-snapshot", origin: "backup", label: `Backup ${t}`, consoleId: addr },
+          () => backupSnapshot(t, p, addr),
+        );
+        files += result.files;
+        bytes += result.bytes;
+        done += 1;
+      }
+      setBatch([]);
+    } catch (e) {
+      // The ones already made drop off the list, so a retry makes only the rest.
+      setBatch(batch.slice(done));
+      setError(humanizePs5Error(String(e)));
+    } finally {
+      if (done > 0)
+        setActionMsg(
+          tr(
+            "fs_snapshot_batch_ok",
+            { count: done, files, bytes: formatBytes(bytes) },
+            `Made ${done} snapshots: ${files} files (${formatBytes(bytes)})`,
+          ),
+        );
+      setBusy(false);
+      if (done > 0) refresh();
+    }
+  }, [addr, batch, tr, refresh]);
 
   const handleSnapshot = useCallback(async () => {
     if (!addr || !tag.trim() || !path.trim()) return;
@@ -219,232 +294,243 @@ export default function BackupScreen() {
   );
 
   return (
-    <div className="app-page">
-      <div className="space-y-4">
-        <PageHeader
-          icon={Archive}
-          title={tr("console_snapshots", undefined, "Console snapshots")}
-          description={tr(
-            "backup_subtitle_v3",
+    <div className="min-w-0 space-y-4">
+      {error && <div className="mb-4"><ErrorCard title={error} onRetry={() => void refresh()} onDismiss={() => setError(null)} /></div>}
+
+      {actionMsg && (
+        <div className="rounded-[var(--radius-card)] border border-[var(--color-good)]/30 bg-[var(--color-good)]/10 px-4 py-3 text-sm text-[var(--color-good)]">
+          {actionMsg}
+        </div>
+      )}
+
+      <Card className="space-y-4">
+        <h3 className="flex items-center gap-2 text-sm font-medium">
+          <Plus size={16} />
+          {tr("backup_new_snapshot", undefined, "New snapshot")}
+        </h3>
+
+        {/* Say what this is for. The screen used to open with two empty
+            boxes labelled "Tag" and "PS5 path", which assumes the reader
+            already knows both what to copy and what to call it. */}
+        <p className="text-sm text-[var(--color-muted)]">
+          {tr(
+            "backup_explain_v2",
             undefined,
-            "Copy files and folders into a snapshot kept on the PS5 itself, and put them back later. Nothing is copied to this computer. For game saves, use Save data.",
+            "Copies files to a snapshot on the console's own storage so you can put them back later. Pick something common below, or type your own path.",
           )}
-          right={
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={refresh}
-              disabled={loading || busy}
+        </p>
+
+        {/* Common targets, so the first action is a click and not a
+            guess. Choosing one fills in a sensible tag too. */}
+        <div className="flex flex-wrap gap-2">
+          {BACKUP_PRESETS.map((preset) => (
+            <button
+              key={preset.path}
+              type="button"
+              onClick={() => {
+                setPath(preset.path);
+                setTag(defaultTagFor(preset.path));
+              }}
+              title={preset.path}
+              aria-pressed={path === preset.path}
+              className="chip min-h-8 px-3.5 text-xs max-md:min-h-11"
             >
-              {loading ? (
-                <Spinner size={16} tone="inherit" />
-              ) : (
-                <RefreshCw size={16} />
-              )}
-            </Button>
-          }
-        />
+              {tr(preset.labelKey, undefined, preset.label)}
+            </button>
+          ))}
+        </div>
 
-        <ConnectionGate>
-          {error && <div className="mb-4"><ErrorCard title={error} onRetry={() => void refresh()} onDismiss={() => setError(null)} /></div>}
-
-          {actionMsg && (
-            <div className="rounded-[var(--radius-card)] border border-[var(--color-good)]/30 bg-[var(--color-good)]/10 px-4 py-3 text-sm text-[var(--color-good)]">
-              {actionMsg}
-            </div>
-          )}
-
-          <Card className="space-y-4">
-            <h3 className="flex items-center gap-2 text-sm font-medium">
-              <Plus size={16} />
-              {tr("backup_new_snapshot", undefined, "New snapshot")}
-            </h3>
-
-            {/* Say what this is for. The screen used to open with two empty
-                boxes labelled "Tag" and "PS5 path", which assumes the reader
-                already knows both what to copy and what to call it. */}
-            <p className="text-sm text-[var(--color-muted)]">
+        {batch.length > 0 ? (
+          <div className="space-y-3" data-testid="snapshot-batch">
+            <p className="text-sm">
               {tr(
-                "backup_explain_v2",
-                undefined,
-                "Copies files to a snapshot on the console's own storage so you can put them back later. Pick something common below, or type your own path.",
+                "fs_snapshot_batch",
+                { count: batch.length },
+                `${batch.length} items, one snapshot each, named after the item and today's date:`,
               )}
             </p>
-
-            {/* Common targets, so the first action is a click and not a
-                guess. Choosing one fills in a sensible tag too. */}
-            <div className="flex flex-wrap gap-2">
-              {BACKUP_PRESETS.map((preset) => (
-                <button
-                  key={preset.path}
-                  type="button"
-                  onClick={() => {
-                    setPath(preset.path);
-                    setTag(defaultTagFor(preset.path));
-                  }}
-                  title={preset.path}
-                  aria-pressed={path === preset.path}
-                  className="chip min-h-8 px-3.5 text-xs max-md:min-h-11"
-                >
-                  {tr(preset.labelKey, undefined, preset.label)}
-                </button>
+            <ul className="max-h-40 space-y-0.5 overflow-y-auto font-mono text-xs text-[var(--color-muted)]">
+              {batch.map((p) => (
+                <li key={p} className="truncate" title={p}>
+                  {p}
+                </li>
               ))}
-            </div>
-
-            <div className="space-y-3">
-              <Input
-                label={tr("backup_path_label", undefined, "What to copy")}
-                type="text"
-                value={path}
-                onChange={(e) => {
-                  setPath(e.target.value);
-                  /* Keep the tag in step while it is still auto-derived, so
-                     the common case needs no thought — but never clobber a
-                     name the user typed themselves. */
-                  if (!tagTouched) setTag(defaultTagFor(e.target.value));
-                }}
-                placeholder="/data/homebrew"
-                className="font-mono"
-              />
-              <Input
-                label={tr("backup_tag_label", undefined, "Name for this snapshot")}
-                type="text"
-                value={tag}
-                onChange={(e) => {
-                  setTagTouched(true);
-                  setTag(e.target.value);
-                }}
-                maxLength={32}
-                placeholder={tr("backup_tag_placeholder", undefined, "homebrew-2026-08-20")}
-              />
-              <Button
-                onClick={handleSnapshot}
-                disabled={busy || !tag.trim() || !path.trim()}
-                size="sm"
-              >
-                {busy ? (
-                  <Spinner size={16} tone="inherit" />
-                ) : (
-                  <Archive size={16} />
-                )}
-                {tr("backup_create", undefined, "Create snapshot")}
+            </ul>
+            <div className="flex flex-wrap gap-2">
+              <Button onClick={() => void handleBatch()} disabled={busy} size="sm">
+                {busy ? <Spinner size={16} tone="inherit" /> : <Archive size={16} />}
+                {tr("fs_snapshot_batch_create", { count: batch.length }, `Create ${batch.length} snapshots`)}
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => setBatch([])} disabled={busy}>
+                {tr("cancel", undefined, "Cancel")}
               </Button>
             </div>
-          </Card>
-
-          <Card className="space-y-3">
-            <h3 className="flex items-center gap-2 text-sm font-medium">
-              <Clock size={16} />
-              {tr("backup_snapshots", undefined, "Snapshots")}
-            </h3>
-
-            {entries.length === 0 && !loading ? (
-              <EmptyState
-                icon={Archive}
-                title={tr("backup_empty", undefined, "No snapshots yet")}
-                message={tr(
-                  "backup_empty_hint",
-                  undefined,
-                  "Create a snapshot above to get started",
-                )}
-              />
-            ) : (
-              <div className="space-y-2">
-                {entries.map((entry) => (
-                  <div
-                    key={`${entry.tag}-${entry.timestamp}`}
-                    className="flex items-center justify-between rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-surface-2)] px-3 py-2.5"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="badge badge-sm">
-                          {entry.tag}
-                        </span>
-                        <span className="text-xs text-[var(--color-muted)]">
-                          {formatTimestamp(entry.timestamp)}
-                        </span>
-                      </div>
-                      <div className="mt-1 flex items-center gap-3 text-xs text-[var(--color-muted)]">
-                        <span className="flex items-center gap-1">
-                          <HardDrive size={12} />
-                          {entry.files} {tr("backup_files_unit", undefined, "files")}
-                        </span>
-                        <span>{formatBytes(entry.bytes)}</span>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleRestore(entry)}
-                        disabled={busy}
-                        title={tr("backup_restore", undefined, "Restore")}
-                      >
-                        <RotateCcw size={14} />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleDelete(entry)}
-                        disabled={busy}
-                        title={tr("backup_delete", undefined, "Delete")}
-                        className="text-[var(--color-bad)] hover:text-[var(--color-bad)]"
-                      >
-                        <Trash2 size={14} />
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </Card>
-
-          {busy && (
-            <div className="flex items-center justify-center gap-2 py-4 text-sm text-[var(--color-muted)]">
-              <Spinner size={16} />
-              {tr("backup_working", undefined, "Working...")}
-            </div>
-          )}
-
-          <div className="flex items-start gap-2 rounded-[var(--radius-card)] border border-[var(--color-warn)]/20 bg-[var(--color-warn)]/5 px-4 py-3 text-xs text-[var(--color-warn)]">
-            <AlertTriangle size={14} className="mt-0.5 shrink-0" />
-            <div className="space-y-1">
-              <p>
-                {tr(
-                  "backup_warning",
-                  undefined,
-                  "Snapshots are stored on the PS5 at /data/ps5upload/backups/. Restore overwrites existing files at their original paths.",
-                )}
-              </p>
-              {/* What payload/src/backup.c actually does, so nobody finds out on restore. */}
-              <ul className="list-disc space-y-0.5 pl-4" data-testid="backup-limits">
-                <li>
-                  {tr(
-                    "backup_limit_keep",
-                    { n: SNAPSHOTS_KEPT_PER_NAME },
-                    `Only the newest ${SNAPSHOTS_KEPT_PER_NAME} snapshots of each name are kept; making another deletes the oldest.`,
-                  )}
-                </li>
-                <li>
-                  {tr(
-                    "backup_limit_depth",
-                    { n: SNAPSHOT_MAX_DEPTH },
-                    `Folders more than ${SNAPSHOT_MAX_DEPTH} levels below the one you pick are skipped.`,
-                  )}
-                </li>
-                <li>
-                  {tr(
-                    "backup_limit_flatten",
-                    undefined,
-                    "Files are stored under their path with every / turned into _, so two different paths can end up with the same name (a/b_c and a_b/c) and only one of them is kept.",
-                  )}
-                </li>
-              </ul>
-            </div>
           </div>
-        </ConnectionGate>
-        {confirmDialog}
+        ) : (
+          <div className="space-y-3">
+            <Input
+              label={tr("backup_path_label", undefined, "What to copy")}
+              type="text"
+              value={path}
+              onChange={(e) => {
+                setPath(e.target.value);
+                /* Keep the tag in step while it is still auto-derived, so
+                   the common case needs no thought — but never clobber a
+                   name the user typed themselves. */
+                if (!tagTouched) setTag(defaultTagFor(e.target.value));
+              }}
+              placeholder="/data/homebrew"
+              className="font-mono"
+            />
+            <Input
+              label={tr("backup_tag_label", undefined, "Name for this snapshot")}
+              type="text"
+              value={tag}
+              onChange={(e) => {
+                setTagTouched(true);
+                setTag(e.target.value);
+              }}
+              maxLength={32}
+              placeholder={tr("backup_tag_placeholder", undefined, "homebrew-2026-08-20")}
+            />
+            <Button
+              onClick={handleSnapshot}
+              disabled={busy || !tag.trim() || !path.trim()}
+              size="sm"
+            >
+              {busy ? (
+                <Spinner size={16} tone="inherit" />
+              ) : (
+                <Archive size={16} />
+              )}
+              {tr("backup_create", undefined, "Create snapshot")}
+            </Button>
+          </div>
+        )}
+      </Card>
+
+      <Card className="space-y-3">
+        <h3 className="flex items-center gap-2 text-sm font-medium">
+          <Clock size={16} />
+          {tr("backup_snapshots", undefined, "Snapshots")}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={refresh}
+            disabled={loading || busy}
+            className="ms-auto"
+            aria-label={tr("refresh", undefined, "Refresh")}
+            title={tr("refresh", undefined, "Refresh")}
+          >
+            {loading ? <Spinner size={16} tone="inherit" /> : <RefreshCw size={16} />}
+          </Button>
+        </h3>
+
+        {entries.length === 0 && !loading ? (
+          <EmptyState
+            icon={Archive}
+            title={tr("backup_empty", undefined, "No snapshots yet")}
+            message={tr(
+              "backup_empty_hint",
+              undefined,
+              "Create a snapshot above to get started",
+            )}
+          />
+        ) : (
+          <div className="space-y-2">
+            {entries.map((entry) => (
+              <div
+                key={`${entry.tag}-${entry.timestamp}`}
+                className="flex items-center justify-between rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-surface-2)] px-3 py-2.5"
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="badge badge-sm">
+                      {entry.tag}
+                    </span>
+                    <span className="text-xs text-[var(--color-muted)]">
+                      {formatTimestamp(entry.timestamp)}
+                    </span>
+                  </div>
+                  <div className="mt-1 flex items-center gap-3 text-xs text-[var(--color-muted)]">
+                    <span className="flex items-center gap-1">
+                      <HardDrive size={12} />
+                      {entry.files} {tr("backup_files_unit", undefined, "files")}
+                    </span>
+                    <span>{formatBytes(entry.bytes)}</span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleRestore(entry)}
+                    disabled={busy}
+                    title={tr("backup_restore", undefined, "Restore")}
+                  >
+                    <RotateCcw size={14} />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleDelete(entry)}
+                    disabled={busy}
+                    title={tr("backup_delete", undefined, "Delete")}
+                    className="text-[var(--color-bad)] hover:text-[var(--color-bad)]"
+                  >
+                    <Trash2 size={14} />
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+
+      {busy && (
+        <div className="flex items-center justify-center gap-2 py-4 text-sm text-[var(--color-muted)]">
+          <Spinner size={16} />
+          {tr("backup_working", undefined, "Working...")}
+        </div>
+      )}
+
+      <div className="flex items-start gap-2 rounded-[var(--radius-card)] border border-[var(--color-warn)]/20 bg-[var(--color-warn)]/5 px-4 py-3 text-xs text-[var(--color-warn)]">
+        <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+        <div className="space-y-1">
+          <p>
+            {tr(
+              "backup_warning",
+              undefined,
+              "Snapshots are stored on the PS5 at /data/ps5upload/backups/. Restore overwrites existing files at their original paths.",
+            )}
+          </p>
+          {/* What payload/src/backup.c actually does, so nobody finds out on restore. */}
+          <ul className="list-disc space-y-0.5 pl-4" data-testid="backup-limits">
+            <li>
+              {tr(
+                "backup_limit_keep",
+                { n: SNAPSHOTS_KEPT_PER_NAME },
+                `Only the newest ${SNAPSHOTS_KEPT_PER_NAME} snapshots of each name are kept; making another deletes the oldest.`,
+              )}
+            </li>
+            <li>
+              {tr(
+                "backup_limit_depth",
+                { n: SNAPSHOT_MAX_DEPTH },
+                `Folders more than ${SNAPSHOT_MAX_DEPTH} levels below the one you pick are skipped.`,
+              )}
+            </li>
+            <li>
+              {tr(
+                "backup_limit_flatten",
+                undefined,
+                "Files are stored under their path with every / turned into _, so two different paths can end up with the same name (a/b_c and a_b/c) and only one of them is kept.",
+              )}
+            </li>
+          </ul>
+        </div>
       </div>
+      {confirmDialog}
     </div>
   );
 }

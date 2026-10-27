@@ -318,8 +318,8 @@ describe("pinned screens", () => {
   });
 
   it("resolves pins in pin order, ignoring hidden, but not beta or platform rules", () => {
-    expect(pinnedNavItems(["/processes", "/files"], false, false).map((i) => i.to)).toEqual([
-      "/processes",
+    expect(pinnedNavItems(["/cheats", "/files"], false, false).map((i) => i.to)).toEqual([
+      "/cheats",
       "/files",
     ]);
     expect(pinnedNavItems(["/shell", "/files"], false, true).map((i) => i.to)).toEqual(["/files"]);

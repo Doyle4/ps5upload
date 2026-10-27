@@ -2730,7 +2730,7 @@ function LibraryRowImpl({
                         undefined,
                         "Add a folder on this computer to the Collection first.",
                       ),
-                      { link: "/collection" },
+                      { link: "/games?tab=all" },
                     );
                 }),
             });

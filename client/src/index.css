@@ -850,9 +850,42 @@ body {
   box-shadow: var(--edge-highlight), var(--shadow-3);
 }
 
+/* The support button (components/SupportButton): warm, with a heart that beats now and then.
+ * Fixed colours on purpose: it should look the same, and as inviting, in every theme. */
+.support-button {
+  color: #fff;
+  background-image: linear-gradient(135deg, #ff3d6e 0%, #ff6a4d 55%, #ff9a3c 100%);
+  box-shadow: 0 6px 18px -6px rgb(255 61 110 / 0.65), inset 0 1px 0 rgb(255 255 255 / 0.25);
+  transition: transform 160ms cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 160ms, filter 160ms;
+}
+.support-button:hover {
+  filter: brightness(1.06);
+  transform: translateY(-1px);
+  box-shadow: 0 10px 24px -8px rgb(255 61 110 / 0.75), inset 0 1px 0 rgb(255 255 255 / 0.25);
+}
+.support-button:active {
+  transform: translateY(0);
+}
+.support-button:focus-visible {
+  outline: 2px solid #ff3d6e;
+  outline-offset: 2px;
+}
+.support-heart {
+  animation: support-beat 2.8s ease-in-out infinite;
+  transform-origin: center;
+}
+@keyframes support-beat {
+  0%, 70%, 100% { transform: scale(1); }
+  76% { transform: scale(1.22); }
+  82% { transform: scale(1); }
+  88% { transform: scale(1.14); }
+}
+:root[data-motion="none"] .support-heart { animation: none; }
+
 @media (prefers-reduced-motion: reduce) {
   .anim-scrim,
   .anim-pop,
+  .support-heart,
   .anim-rise,
   .anim-screen,
   .anim-drawer,

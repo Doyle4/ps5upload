@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { fileSystemLinkFor } from "./searchLink";
+import { fileSystemLinkFor, fileSystemTargetFor } from "./searchLink";
 
 const open = (link: string) => decodeURIComponent(link.replace("/files?path=", ""));
 
@@ -25,5 +25,18 @@ describe("fileSystemLinkFor", () => {
     expect(fileSystemLinkFor({ path: "/data/a b&c", kind: "dir" })).toBe(
       "/files?path=%2Fdata%2Fa%20b%26c",
     );
+  });
+});
+
+describe("fileSystemTargetFor", () => {
+  it("selects a file hit inside its folder", () => {
+    expect(fileSystemTargetFor({ path: "/data/pkgs/a.pkg", kind: "file" })).toEqual({
+      dir: "/data/pkgs",
+      select: "a.pkg",
+    });
+  });
+
+  it("opens a folder hit itself, with nothing selected", () => {
+    expect(fileSystemTargetFor({ path: "/data/pkgs/", kind: "dir" })).toEqual({ dir: "/data/pkgs" });
   });
 });

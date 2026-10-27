@@ -94,6 +94,7 @@ import { transferScreenBusy } from "../../lib/ps5Transfers";
 import { useStaleHostGuard } from "../../lib/staleHostGuard";
 import { isBackportEligible } from "../../lib/backport";
 import { BackportPanel } from "./BackportPanel";
+import { recentlyPlayed, RecentlyPlayedStrip } from "./RecentlyPlayed";
 import {
   CollectionTag,
   useCollectionForConsole,
@@ -827,7 +828,8 @@ export default function InstalledAppsScreen() {
   // optionally, show ONLY titles ps5upload has never observed running — the
   // "find games to remove" surface. Off by default so the default view is
   // unchanged (name order, everything shown).
-  const [sortByPlaytime, setSortByPlaytime] = useState(false);
+  // "least": least-played first (#116); "recent": last played first, as Game Activity listed them.
+  const [playSort, setPlaySort] = useState<"none" | "least" | "recent">("none");
   // Clean up's "Not played" card links here with `unplayed=1` to open on that list.
   const [onlyUnplayed, setOnlyUnplayed] = useState(
     () => new URLSearchParams(location.search).get("unplayed") === "1",
@@ -843,7 +845,7 @@ export default function InstalledAppsScreen() {
   // Per-title play stats for THIS console (cumulative seconds + last-seen ms).
   const playByHost = usePlayTimeStore((s) => s.byHost);
   const lastSeenByHost = usePlayTimeStore((s) => s.lastSeenByHost);
-  // The helper's tracked play (what Game Activity shows), or the app's own
+  // The helper's tracked play (what Game Activity showed), or the app's own
   // count when the helper has no tracker.
   const tracked = useTrackedPlay(host);
   const playOf = useCallback(
@@ -1482,13 +1484,18 @@ export default function InstalledAppsScreen() {
     if (onlyUnplayed) {
       rows = rows.filter((t) => secs(t) === 0);
     }
-    if (sortByPlaytime) {
+    if (playSort === "least") {
       rows = [...rows].sort((a, b) => secs(a) - secs(b));
+    } else if (playSort === "recent") {
+      // Never seen played sorts last, keeping name order.
+      rows = [...rows].sort((a, b) => (playOf(b.titleId).lastSeenMs ?? 0) - (playOf(a.titleId).lastSeenMs ?? 0));
     }
     // Running titles to the front, after every other ordering. See
     // sortRunningFirst for why this is applied last.
     return sortRunningFirst(rows, running);
-  }, [installed, onlyUnplayed, sortByPlaytime, playOf, running]);
+  }, [installed, onlyUnplayed, playSort, playOf, running]);
+  // The strip reads every title, not the search's matches: it is not part of the search.
+  const recent = useMemo(() => recentlyPlayed(titles ?? [], playOf, running), [titles, playOf, running]);
 
   return (
     <div className="flex flex-col gap-6">
@@ -1546,6 +1553,7 @@ export default function InstalledAppsScreen() {
           playSecondsOf={(id) => playOf(id).seconds}
           onStop={handleStop}
         />
+        <RecentlyPlayedStrip host={host} items={recent} canReset={tracked !== null} />
 
         {/* kstuff status — games can't install or launch without kernel R/W.
           The gate guarantees a connected console here, so we key off the
@@ -1801,8 +1809,16 @@ export default function InstalledAppsScreen() {
                   <div className="flex flex-wrap items-center gap-2">
                     <button
                       type="button"
-                      aria-pressed={sortByPlaytime}
-                      onClick={() => setSortByPlaytime(!sortByPlaytime)}
+                      aria-pressed={playSort === "recent"}
+                      onClick={() => setPlaySort(playSort === "recent" ? "none" : "recent")}
+                      className="chip min-h-9 px-4 text-xs font-medium"
+                    >
+                      {tr("games_sort_recent", undefined, "Recently played")}
+                    </button>
+                    <button
+                      type="button"
+                      aria-pressed={playSort === "least"}
+                      onClick={() => setPlaySort(playSort === "least" ? "none" : "least")}
                       className="chip min-h-9 px-4 text-xs font-medium"
                     >
                       {tr("installed_sort_playtime", undefined, "Sort by play time")}

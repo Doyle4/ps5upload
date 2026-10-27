@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import {
   Heart,
-  Coffee,
   Globe,
   Mail,
   Sparkles,
@@ -10,6 +9,7 @@ import {
 import type { LucideIcon } from "lucide-react";
 import { openExternalUrl as openExternal } from "../../lib/openExternalUrl";
 import { COFFEE_URL } from "../../lib/supportLinks";
+import { SupportButton } from "../../components/SupportButton";
 import { getAppVersion } from "../../lib/appVersion";
 import { isTauriEnv } from "../../lib/tauriEnv";
 import { visibleFeatures } from "./features";
@@ -34,7 +34,8 @@ const URLS = {
   email: `mailto:${AUTHOR_EMAIL}`,
 };
 
-export default function AboutScreen() {
+/** `embedded`: shown as the About tab of Help, under that screen's own header. */
+export default function AboutScreen({ embedded = false }: { embedded?: boolean } = {}) {
   const tr = useTr();
   const [version, setVersion] = useState<string>("");
 
@@ -45,7 +46,7 @@ export default function AboutScreen() {
   }, []);
 
   return (
-    <div className="app-page">
+    <div className={embedded ? "" : "app-page"}>
       {/* Hero — large logo, big type, version pill, one-line pitch,
           three primary links. All centered on narrow screens; the
           desktop two-column treatment lives below. */}
@@ -94,12 +95,7 @@ export default function AboutScreen() {
             label="Discord"
             onClick={() => openExternal(URLS.discord)}
           />
-          <PrimaryLink
-            icon={<Coffee size={14} />}
-            label={tr("buy_coffee")}
-            accent
-            onClick={() => openExternal(URLS.coffee)}
-          />
+          <SupportButton className="min-h-10 px-5 text-sm" />
         </div>
       </header>
 

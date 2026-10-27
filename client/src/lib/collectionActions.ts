@@ -181,7 +181,7 @@ export async function copyToCollection(opts: {
         if (job.phase === "done") {
           pushNotification("info", opts.doneTitle, {
             body: dest,
-            link: "/collection",
+            link: "/games?tab=all",
           });
           void startCollectionScan(false);
         } else if (job.phase === "failed") {

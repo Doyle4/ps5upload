@@ -15,11 +15,9 @@
 import type { LucideIcon } from "lucide-react";
 import {
   Cable,
-  Library,
   Upload,
   PackageOpen,
   Gamepad2,
-  Search,
   FolderTree,
   Cpu,
   CircleUserRound,
@@ -27,26 +25,17 @@ import {
   Save,
   Image as ImageIcon,
   Settings as SettingsIcon,
-  Info,
-  Sparkles,
   HelpCircle,
-  ScrollText,
   Activity as ActivityIcon,
   TerminalSquare,
-  PieChart,
   LayoutDashboard,
-  ShieldCheck,
   Bug,
-  Archive,
   MonitorPlay,
   Bell,
-  Clock,
-  ShieldAlert,
   Network,
   Stethoscope,
   HardDrive,
   PackagePlus,
-  Layers,
   WandSparkles,
   FilePen,
   Eraser,
@@ -92,20 +81,20 @@ export type TrFn = (
 // complete, not by which protocol or implementation owns the screen.
 export const NAV_ITEMS: NavItem[] = [
   {
-    to: "/whats-new",
-    key: "whats_new",
-    fallback: "What's new",
-    icon: Sparkles,
+    to: "/connection",
+    key: "connect",
+    fallback: "Connection",
+    icon: Cable,
     section: { key: "nav_section_setup", fallback: "Setup" },
   },
-  { to: "/connection", key: "connect", fallback: "Connection", icon: Cable },
   // 8.0.0: the phones, computers and Docker setups that use the console.
   { to: "/devices", key: "mesh_devices", fallback: "Devices", icon: MonitorSmartphone },
-  // What gets loaded onto the console sits with connecting to it.
+  // What gets loaded onto the console, and what runs there (processes and their ports), sits
+  // with connecting to it.
   {
     to: "/payloads",
-    key: "payloads",
-    fallback: "Payloads",
+    key: "payloads_and_processes",
+    fallback: "Payloads & processes",
     icon: Boxes,
   },
 
@@ -125,14 +114,7 @@ export const NAV_ITEMS: NavItem[] = [
   },
   // 8.0.0: a folder kept the same on every device, at home on the console.
   { to: "/mesh-drive", key: "drive_title", fallback: "Mesh Drive", icon: FolderSync },
-  { to: "/search", key: "search", fallback: "Search", icon: Search },
   { to: "/volumes", key: "volumes", fallback: "Volumes", icon: HardDrive },
-  {
-    to: "/disk-usage",
-    key: "disk_usage",
-    fallback: "Disk usage",
-    icon: PieChart,
-  },
   {
     to: "/cleanup",
     key: "cleanup_nav",
@@ -141,15 +123,9 @@ export const NAV_ITEMS: NavItem[] = [
   },
   {
     to: "/connections",
-    key: "v5_home_servers",
-    fallback: "Servers",
+    key: "network_shares",
+    fallback: "Network shares",
     icon: Network,
-  },
-  {
-    to: "/backup",
-    key: "console_snapshots",
-    fallback: "Console snapshots",
-    icon: Archive,
   },
 
   // Play, install, and manage game-related content.
@@ -159,12 +135,6 @@ export const NAV_ITEMS: NavItem[] = [
     fallback: "Games",
     icon: Gamepad2,
     section: { key: "nav_section_games_mods", fallback: "Games & content" },
-  },
-  {
-    to: "/collection",
-    key: "collection_nav",
-    fallback: "Collection",
-    icon: Library,
   },
   {
     to: "/install-package",
@@ -196,12 +166,6 @@ export const NAV_ITEMS: NavItem[] = [
     // desktop, and the screen hides that part by itself (#479).
   },
   {
-    to: "/game-activity",
-    key: "game_activity_title",
-    fallback: "Game Activity",
-    icon: Clock,
-  },
-  {
     to: "/cheats",
     key: "cheats_title",
     fallback: "Cheats",
@@ -214,12 +178,6 @@ export const NAV_ITEMS: NavItem[] = [
     fallback: "Console",
     icon: Cpu,
     section: { key: "nav_section_console", fallback: "Console" },
-  },
-  {
-    to: "/processes",
-    key: "processes_and_ports",
-    fallback: "Processes & ports",
-    icon: Layers,
   },
   {
     to: "/profile",
@@ -246,14 +204,16 @@ export const NAV_ITEMS: NavItem[] = [
     icon: Bell,
   },
 
-  // Expert-only controls.
+
+  // ─ Diagnostics: history, logs, debugging ─
   {
-    to: "/fw-spoof",
-    key: "fw_spoof_title_v2",
-    fallback: "Firmware spoof check",
-    icon: ShieldAlert,
-    section: { key: "nav_section_advanced", fallback: "Advanced" },
+    to: "/tasks",
+    key: "activity_logs_title",
+    fallback: "Activity & logs",
+    icon: ActivityIcon,
+    section: { key: "nav_section_diagnostics", fallback: "Diagnostics" },
   },
+  // A console shell is for debugging: it sits with the other diagnostics.
   {
     to: "/shell",
     key: "shell",
@@ -262,27 +222,11 @@ export const NAV_ITEMS: NavItem[] = [
     hideInBrowser: true,
   },
 
-  // ─ Diagnostics: history, logs, debugging ─
-  {
-    to: "/tasks",
-    key: "v5_tab_tasks",
-    fallback: "Tasks",
-    icon: ActivityIcon,
-    section: { key: "nav_section_diagnostics", fallback: "Diagnostics" },
-  },
-  { to: "/logs", key: "logs", fallback: "Logs", icon: ScrollText },
-  {
-    to: "/audit-log",
-    key: "audit_log",
-    fallback: "Audit log",
-    icon: ShieldCheck,
-  },
-
   // ─ Help ─
   {
     to: "/faq",
-    key: "faq",
-    fallback: "FAQ",
+    key: "help_title",
+    fallback: "Help",
     icon: HelpCircle,
     section: { key: "nav_section_help", fallback: "Help" },
   },
@@ -292,7 +236,6 @@ export const NAV_ITEMS: NavItem[] = [
     fallback: "Settings",
     icon: SettingsIcon,
   },
-  { to: "/about", key: "about", fallback: "About", icon: Info },
 ];
 
 /** Home: always first in the sidebar, above the sections, and never hidden — there is always

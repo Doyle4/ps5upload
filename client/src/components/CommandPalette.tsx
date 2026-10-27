@@ -49,8 +49,20 @@ const NAV_KEYWORDS: Record<string, string[]> = {
   "/volumes": ["disk", "drives"],
   "/files": ["browse", "file system"],
   "/console": ["hardware", "temps", "power"],
-  "/payloads": ["homebrew catalog", "payload library", "kstuff", "shadowmount", "etahen", "nanodns", "hearbridge", "payload manager"],
-  "/processes": ["ports", "task manager", "kill"],
+  "/payloads": [
+    "homebrew catalog",
+    "payload library",
+    "kstuff",
+    "shadowmount",
+    "etahen",
+    "nanodns",
+    "hearbridge",
+    "payload manager",
+    "processes",
+    "ports",
+    "task manager",
+    "kill",
+  ],
   "/tasks": ["transfer log", "jobs"],
   "/bug-report": ["report", "problem", "issue", "discord", "github"],
   "/shell": ["terminal"],
@@ -202,7 +214,12 @@ function useCommands(close: () => void, open: boolean): Command[] {
       ...(isTauriEnv()
         ? [nav("/payloads?tab=send", "payloads_tab_send", "Send payload", ["send payload"])]
         : []),
-      nav("/logs?tab=kernel", "logs_tab_kernel", "Kernel log", ["dmesg", "klog"]),
+      // Logs and Audit log are tabs of Activity & logs; About and What's new tabs of Help.
+      nav("/tasks?tab=logs", "logs", "Logs", ["errors", "app log"]),
+      nav("/tasks?tab=logs&log=kernel", "logs_tab_kernel", "Kernel log", ["dmesg", "klog"]),
+      nav("/tasks?tab=audit", "audit_log_title", "Audit log", ["deleted", "power actions"]),
+      nav("/faq?tab=about", "about", "About", ["version", "license", "credits"]),
+      nav("/faq?tab=whats-new", "whats_new", "What's new", ["changelog", "release notes"]),
       // Desktop and mobile only: the web page updates with the engine that serves it.
       ...(isTauriEnv()
         ? [

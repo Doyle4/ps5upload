@@ -10,6 +10,15 @@ finds a word or an error code (for example `0x80B2116F`) in any answer.
 
 ## What ps5upload does (and doesn't)
 
+**Q: Where did a screen go? (8.5.0)**
+The sidebar is shorter; old links still land. **Collection** is **Games → Everything**, Game
+Activity's play time is in **Games**, **Search**, **Disk usage** ("What takes space?") and
+**Console snapshots** are in **Files**, **Processes & ports** joined **Payloads & processes**,
+the **Firmware spoof check** is a card in **Console**, **Shell** is under Diagnostics,
+**Servers** is **Network shares**, **Tasks**, **Logs** and the **Audit log** are **Activity &
+logs**, and **FAQ**, **About** and **What's new** are **Help**. A pinned screen shows only under
+Pinned.
+
 **Q: What is ps5upload?**
 An app (desktop, Android, or a self-hosted web UI) for moving games, apps and homebrew to a
 jailbroken PS5 and managing the console. A small payload on the PS5, the **helper**, talks to
@@ -149,8 +158,8 @@ straight to the console is a Public network.
 | 19113 TCP | this computer | The engine: the PS5 fetches packages from it during Stream & install |
 | 9295, 9302 | PS5 | Remote Play pairing and wake |
 
-To see every port in use on your PS5, and which payload usually sits on it, open **Processes &
-ports → Ports**.
+To see every port in use on your PS5, and which payload usually sits on it, open **Payloads &
+processes → Ports**.
 
 Every connection is encrypted, and the console remembers each device the first time it
 connects. A 6-digit code only appears when **Ask before a new device can connect** is on in
@@ -1157,8 +1166,8 @@ Yes, per console. The PS5 IP is remembered too.
 The strip at the bottom of the window shows every in-flight operation (uploads, downloads, copy,
 paste, delete, game actions) with elapsed time, progress and speed. Copy and paste, Add files
 and "Finishing on the console" show progress and an ETA, and **Cancel copy** stops a console copy
-and cleans up only what it created. Click the strip for the full **Tasks** screen; its **History**
-and **Stats** tabs cover the last 100 operations.
+and cleans up only what it created. Click the strip for **Activity & logs → Tasks**; its **History**
+and **Stats** views cover the last 100 operations.
 
 **Q: My big upload stopped partway through. What now?**
 A dropped connection, a helper restart or rest mode no longer ends the job: the app waits for the
@@ -1364,7 +1373,7 @@ refuses to start the title. Check these in order.
 ## Collection
 
 **Q: What is the Collection?**
-Every game you keep on this computer's drives, grouped by game: its full copies, its updates and
+It is the **Everything** tab of **Games**. Every game you keep on this computer's drives, grouped by game: its full copies, its updates and
 DLC, the duplicates and the space they take. Add the folder (or folders) that holds your games
 under **Collection → Folders**; anything inside, up to six folders deep, is found by what it is
 (packages, game folders, `.exfat` / `.ffpkg` / `.ffpfs` / `.ffpfsc` images, `.zip` / `.7z` /
@@ -1374,7 +1383,7 @@ is PS Game Library, built into ps5upload: if you used it, **Import from PS Game 
 **⋯** menu brings its index over.
 
 **Q: Can the Collection read my NAS without mounting it?**
-Yes. Save the server under **Servers** (SMB, FTP, FTPS, SFTP or WebDAV), then in **Collection →
+Yes. Save the server under **Network shares** (SMB, FTP, FTPS, SFTP or WebDAV), then in **Collection →
 Folders** press **Add a folder on <server>** and pick the folder. It is scanned where it is:
 packages, game folders and covers are read over the network, and nothing is copied to this
 computer. Its games install straight from the server, and **Convert…** reads them in place.
@@ -1829,8 +1838,9 @@ In **Screenshots & clips**: one screen with a tab for each. Preview and download
 computer, and sort either tab by date (newest or oldest first) or by size; to delete one, use
 **Files**.
 
-**Q: What does the Game Activity Tracker actually track?**
-Any game you launch, however you launch it — with your controller, from
+**Q: What does the play time in Games actually track?**
+Games → On this PS5 can sort by **Recently played**, and each game's page says how long it was
+played. That counts any game you launch, however you launch it — with your controller, from
 the PS5 dashboard, or from this app. It works by watching the console's
 process list, so it has no idea *how* a game was started.
 
@@ -1884,9 +1894,9 @@ rules, comments and custom resolvers rather than rewriting the file.
 
 Point the console's DNS at it once it's running.
 
-**Q: What is the Console snapshots screen?**
-It snapshots console-side files to a tagged copy on the PS5 and restores
-them later. It is meant for the small, breakable things — app database
+**Q: Where are console snapshots?**
+In **Files**: **Snapshot…** on a file or folder (or several selected) copies it to a tagged copy
+on the PS5, and **More → Snapshots** lists them to restore later. It is meant for the small, breakable things — app database
 state and configuration — before a bulk operation, not as a game backup.
 For save data specifically, use the Save data screen.
 
@@ -1976,13 +1986,13 @@ Minion, and shows the address to open.
 
 **Q: Which network shares does the Library see, and where do I set them up?**
 The SMB shares kept on the PS5: add them in Minion's **Files → Network shares**, or from the
-PC in **Servers → Shares on the PS5**, which adds, edits and removes them and can copy a server
+PC in **Network shares → Shares on the PS5**, which adds, edits and removes them and can copy a server
 you already saved (type the password again: the PS5 keeps its own encrypted copy). Minion
 browses them in Files and its Library shows the games on them.
 
 ---
 
-## Servers, safe moves, and backport helpers
+## Network shares, safe moves, and backport helpers
 
 **Q: Why can't I rename a file from one PS5 drive to another?**
 
@@ -1997,7 +2007,7 @@ screens copies the file to the other drive, checks the copy is whole, then
 deletes the original; `mv` in the Shell screen refuses a cross-drive rename.
 Renaming *within* one drive works normally.
 
-**Q: What is the Servers screen for?**
+**Q: What is the Network shares screen for?**
 It keeps your **NAS and servers** (SMB, FTP, FTPS, SFTP, WebDAV) in one place. Anywhere you
 browse for a game or file, pick from them with the ▾ next to **Browse**: upload a file or folder
 from a share straight to the PS5, or install a package from it, without copying it to this
@@ -2169,7 +2179,7 @@ They stop syncing it on their next pass and free their folder for another drive.
 deleted anywhere.
 
 **Q: Can I download from the PS5 straight to my NAS?**
-Yes (8.0.0). Save the NAS under **Servers** (SMB, FTP, FTPS, SFTP or WebDAV). Then, in **Files**,
+Yes (8.0.0). Save the NAS under **Network shares** (SMB, FTP, FTPS, SFTP or WebDAV). Then, in **Files**,
 open a file or folder's menu and choose **Download to <your NAS>**, and pick the folder on it.
 The bytes pass through the engine on the way (the Docker container, if you use the web UI on the
 NAS), one file at a time, so it only needs room for the largest single file. If the NAS folder
@@ -2305,7 +2315,7 @@ Launch starts the game; the first start can take a while. If it never appears, c
 PS5 and start it there. See "My uploaded game won't launch".
 
 **Q: I see errors in the status bar but don't know what happened.**
-Open the **Logs** tab. Every runtime error, failed API call, and
+Open **Activity & logs → Logs**. Every runtime error, failed API call, and
 console warning ends up there with timestamps and expandable
 detail. Click **Copy** or **Download** to grab a plain-text dump
 for a bug report.

@@ -82,13 +82,13 @@ describe("the sidebar's pinned screens", () => {
     const store = await freshStore();
     store.getState().togglePinned("/files");
     store.getState().togglePinned("/upload");
-    store.getState().togglePinned("/processes");
-    expect(store.getState().pinned).toEqual(["/files", "/upload", "/processes"]);
-    expect(JSON.parse(storage.get(PINNED_KEY)!)).toEqual(["/files", "/upload", "/processes"]);
+    store.getState().togglePinned("/payloads");
+    expect(store.getState().pinned).toEqual(["/files", "/upload", "/payloads"]);
+    expect(JSON.parse(storage.get(PINNED_KEY)!)).toEqual(["/files", "/upload", "/payloads"]);
     store.getState().togglePinned("/upload");
-    expect(store.getState().pinned).toEqual(["/files", "/processes"]);
+    expect(store.getState().pinned).toEqual(["/files", "/payloads"]);
     const again = await freshStore();
-    expect(again.getState().pinned).toEqual(["/files", "/processes"]);
+    expect(again.getState().pinned).toEqual(["/files", "/payloads"]);
   });
 
   it("moves a pin up and down, and by drag to a place, never past the ends", async () => {

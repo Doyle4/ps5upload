@@ -1,15 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { PieChart, RefreshCw, ChevronUp, Square, Eraser } from "lucide-react";
-import { useNavigate } from "react-router";
+import { PieChart, RefreshCw, ChevronUp, Square, Eraser, FolderOpen } from "lucide-react";
+import { Navigate, useNavigate } from "react-router";
 import { useConnectionStore } from "../../state/connection";
-import {
-  PageHeader,
-  Button,
-  EmptyState,
-  ErrorCard,
-  ConnectionGate,
-  Spinner,
-} from "../../components";
+import { Button, EmptyState, ErrorCard, Spinner } from "../../components";
 import { humanizePs5Error } from "../../lib/humanizeError";
 import { useTr } from "../../state/lang";
 import { formatBytes } from "../../lib/format";
@@ -24,6 +17,13 @@ import {
   type DuDir,
   type DuStatus,
 } from "./duTree";
+import { filesViewLink } from "../FileSystem/filesViews";
+
+/** Disk usage lives in Files now ("What takes space?", `DiskUsagePanel`); the old route
+ *  lands there. */
+export default function DiskUsageScreen() {
+  return <Navigate to={filesViewLink("space", { path: "/user" })} replace />;
+}
 
 /**
  * Disk usage treemap viewer.
@@ -33,15 +33,24 @@ import {
  * a "squarified treemap" — each rectangle's area proportional to size. Click
  * a folder to drill in: the walk of its parent already holds that folder's
  * tree (kept per console for the session in `duTree`), so drilling in does
- * not walk again. Refresh walks again; leaving the screen or the folder
+ * not walk again. Refresh walks again; leaving the view or the folder
  * cancels a walk that is still going.
+ *
+ * Shown in Files as "What takes space?", starting at `initialPath` (the folder or
+ * drive it was opened from); `onOpenFolder` shows the folder it is on in Files.
  */
-export default function DiskUsageScreen() {
+export function DiskUsagePanel({
+  initialPath,
+  onOpenFolder,
+}: {
+  initialPath: string;
+  onOpenFolder?: (path: string) => void;
+}) {
   const tr = useTr();
   const navigate = useNavigate();
   const host = useConnectionStore((s) => s.host);
   const payloadStatus = useConnectionStore((s) => s.payloadStatus);
-  const [path, setPath] = useState("/user");
+  const [path, setPath] = useState(initialPath);
   const [dir, setDir] = useState<DuDir | null>(null);
   const [partial, setPartial] = useState<DuStatus["partial"]>(undefined);
   const [progress, setProgress] = useState<DuStatus | null>(null);
@@ -52,13 +61,18 @@ export default function DiskUsageScreen() {
   const [reload, setReload] = useState(0);
   const walkRef = useRef<AbortController | null>(null);
 
-  // Reset to the volume root and drop the previous console's tree the instant
+  // Reset to the starting folder and drop the previous console's tree the instant
   // the active console changes, so a switch never momentarily shows console
-  // A's directories under console B's header.
+  // A's directories under console B's header. Not on mount: the walk below starts there.
+  const shownHostRef = useRef(host);
   useEffect(() => {
-    setPath("/user");
+    if (shownHostRef.current === host) return;
+    shownHostRef.current = host;
+    setPath(initialPath);
     setDir(null);
     setError(null);
+    // Only a console switch resets; a new start folder remounts the panel (Files keys it).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [host]);
 
   useEffect(() => {
@@ -145,157 +159,153 @@ export default function DiskUsageScreen() {
   const PRESET_PATHS = ["/user", "/data", "/system_data", "/system_ex", "/mnt"];
 
   return (
-    <div className="app-page">
-      <PageHeader
-        icon={PieChart}
-        title={tr("disk_usage_title", undefined, "Disk usage")}
-        description={tr(
-          "disk_usage_description_v3",
-          undefined,
-          "See what is taking up space on the PS5. Each block is a file or a folder, and a folder counts everything inside it, subfolders included. Click a folder to look inside.",
+    <div className="min-w-0 space-y-3">
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        {onOpenFolder && (
+          <Button
+            variant="ghost"
+            size="sm"
+            leftIcon={<FolderOpen size={12} />}
+            onClick={() => onOpenFolder(path)}
+            title={path}
+          >
+            {tr("fs_space_open_folder", undefined, "Open this folder")}
+          </Button>
         )}
-        right={
-          <div className="flex gap-2">
-            <Button variant="ghost" size="sm" leftIcon={<Eraser size={12} />} onClick={() => navigate("/cleanup")}>
-              {tr("cleanup_open", undefined, "Clean up…")}
+        <Button variant="ghost" size="sm" leftIcon={<Eraser size={12} />} onClick={() => navigate("/cleanup")}>
+          {tr("cleanup_open", undefined, "Clean up…")}
+        </Button>
+        <Button
+          variant="secondary"
+          size="sm"
+          leftIcon={<RefreshCw size={12} />}
+          onClick={refresh}
+          disabled={scanning || !host?.trim() || payloadStatus !== "up"}
+        >
+          {tr("refresh", undefined, "Refresh")}
+        </Button>
+      </div>
+      {/* Breadcrumb row: Up button + truncated path + total. The path
+       * uses min-w-0 + truncate so a deep path can't push the right
+       * edge past the viewport. Presets moved to their own row below
+       * so they always fit regardless of path length. */}
+      <div className="flex items-center gap-2 text-xs">
+        <Button
+          variant="ghost"
+          size="sm"
+          leftIcon={<ChevronUp size={11} />}
+          onClick={up}
+          disabled={path === "/" || path === ""}
+        >
+          {tr("disk_usage_up", undefined, "Up")}
+        </Button>
+        <span
+          className="min-w-0 flex-1 truncate font-mono text-[var(--color-muted)]"
+          title={path}
+        >
+          {path}
+        </span>
+        <span className="shrink-0 tabular-nums">
+          {formatBytes(totalBytes)}
+        </span>
+      </div>
+      <div className="flex flex-wrap gap-1">
+        {PRESET_PATHS.map((p) => (
+          <button
+            key={p}
+            type="button"
+            onClick={() => setPath(p)}
+            aria-pressed={path === p}
+            className="chip px-3 py-1 font-mono text-xs"
+          >
+            {p}
+          </button>
+        ))}
+      </div>
+
+      {error && (
+        <ErrorCard
+          title={tr("disk_usage_failed", undefined, "Couldn't read this folder")}
+          detail={humanizePs5Error(error) || error}
+          action={
+            <Button variant="secondary" size="sm" onClick={refresh}>
+              {tr("disk_usage_retry", undefined, "Retry")}
             </Button>
-            <Button
-              variant="secondary"
-              size="sm"
-              leftIcon={<RefreshCw size={12} />}
-              onClick={refresh}
-              disabled={scanning || !host?.trim() || payloadStatus !== "up"}
-            >
-              {tr("refresh", undefined, "Refresh")}
-            </Button>
-          </div>
-        }
-      />
-      <ConnectionGate require="payload">
-        <div className="min-w-0 space-y-3">
-          {/* Breadcrumb row: Up button + truncated path + total. The path
-           * uses min-w-0 + truncate so a deep path can't push the right
-           * edge past the viewport. Presets moved to their own row below
-           * so they always fit regardless of path length. */}
-          <div className="flex items-center gap-2 text-xs">
-            <Button
-              variant="ghost"
-              size="sm"
-              leftIcon={<ChevronUp size={11} />}
-              onClick={up}
-              disabled={path === "/" || path === ""}
-            >
-              {tr("disk_usage_up", undefined, "Up")}
-            </Button>
-            <span
-              className="min-w-0 flex-1 truncate font-mono text-[var(--color-muted)]"
-              title={path}
-            >
-              {path}
-            </span>
-            <span className="shrink-0 tabular-nums">
-              {formatBytes(totalBytes)}
-            </span>
-          </div>
-          <div className="flex flex-wrap gap-1">
-            {PRESET_PATHS.map((p) => (
-              <button
-                key={p}
-                type="button"
-                onClick={() => setPath(p)}
-                aria-pressed={path === p}
-                className="chip px-3 py-1 font-mono text-xs"
-              >
-                {p}
-              </button>
-            ))}
-          </div>
+          }
+        />
+      )}
 
-          {error && (
-            <ErrorCard
-              title={tr("disk_usage_failed", undefined, "Couldn't read this folder")}
-              detail={humanizePs5Error(error) || error}
-              action={
-                <Button variant="secondary" size="sm" onClick={refresh}>
-                  {tr("disk_usage_retry", undefined, "Retry")}
-                </Button>
-              }
-            />
-          )}
-
-          {scanning && (
-            <div
-              className="flex flex-wrap items-center justify-center gap-2 text-xs text-[var(--color-muted)]"
-              data-testid="disk-usage-progress"
-            >
-              <Spinner size={12} />
-              <span className="tabular-nums">
-                {tr(
-                  "disk_usage_scanning",
-                  {
-                    dirs: progress?.dirs_scanned ?? 0,
-                    size: formatBytes(progress?.bytes ?? 0),
-                  },
-                  `Counting… ${progress?.dirs_scanned ?? 0} folders, ${formatBytes(progress?.bytes ?? 0)} so far`,
-                )}
-              </span>
-              <Button variant="ghost" size="sm" leftIcon={<Square size={10} />} onClick={stop}>
-                {tr("stop", undefined, "Stop")}
-              </Button>
-            </div>
-          )}
-
-          {stopped && !scanning && !dir && (
-            <EmptyState
-              icon={PieChart}
-              message={tr("disk_usage_stopped", undefined, "Counting stopped.")}
-              action={
-                <Button variant="secondary" size="sm" onClick={refresh}>
-                  {tr("disk_usage_retry", undefined, "Retry")}
-                </Button>
-              }
-            />
-          )}
-
-          {dir && <DiskUsageNotes dir={dir} partial={partial} />}
-
-          {blocks && blocks.length === 0 && !scanning && (
-            <EmptyState
-              icon={PieChart}
-              message={tr("disk_usage_empty", undefined, "Folder is empty.")}
-            />
-          )}
-
-          {blocks && blocks.length > 0 && totalBytes > 0 && (
-            <Treemap nodes={blocks} totalBytes={totalBytes} onDrill={drill} />
-          )}
-
-          {/* Nothing here takes any space (only empty folders or empty files), so the
-              treemap has no area to share out. A drillable list instead of a blank panel. */}
-          {blocks && blocks.length > 0 && totalBytes === 0 && !scanning && (
-            <ul className="divide-y divide-[var(--color-border)] rounded-[var(--radius-card)] border border-[var(--glass-edge)]">
-              {blocks.map((n) => (
-                <li key={n.name}>
-                  <button
-                    type="button"
-                    onClick={() => drill(n.name, n.isDir)}
-                    disabled={!n.isDir}
-                    className="flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-[var(--color-surface-3)] disabled:cursor-default disabled:hover:bg-transparent"
-                  >
-                    <span className="truncate">
-                      {n.isDir ? "📁 " : "📄 "}
-                      {n.name}
-                    </span>
-                    <span className="ml-3 shrink-0 text-xs text-[var(--color-muted)]">
-                      {formatBytes(n.totalSize)}
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
+      {scanning && (
+        <div
+          className="flex flex-wrap items-center justify-center gap-2 text-xs text-[var(--color-muted)]"
+          data-testid="disk-usage-progress"
+        >
+          <Spinner size={12} />
+          <span className="tabular-nums">
+            {tr(
+              "disk_usage_scanning",
+              {
+                dirs: progress?.dirs_scanned ?? 0,
+                size: formatBytes(progress?.bytes ?? 0),
+              },
+              `Counting… ${progress?.dirs_scanned ?? 0} folders, ${formatBytes(progress?.bytes ?? 0)} so far`,
+            )}
+          </span>
+          <Button variant="ghost" size="sm" leftIcon={<Square size={10} />} onClick={stop}>
+            {tr("stop", undefined, "Stop")}
+          </Button>
         </div>
-      </ConnectionGate>
+      )}
+
+      {stopped && !scanning && !dir && (
+        <EmptyState
+          icon={PieChart}
+          message={tr("disk_usage_stopped", undefined, "Counting stopped.")}
+          action={
+            <Button variant="secondary" size="sm" onClick={refresh}>
+              {tr("disk_usage_retry", undefined, "Retry")}
+            </Button>
+          }
+        />
+      )}
+
+      {dir && <DiskUsageNotes dir={dir} partial={partial} />}
+
+      {blocks && blocks.length === 0 && !scanning && (
+        <EmptyState
+          icon={PieChart}
+          message={tr("disk_usage_empty", undefined, "Folder is empty.")}
+        />
+      )}
+
+      {blocks && blocks.length > 0 && totalBytes > 0 && (
+        <Treemap nodes={blocks} totalBytes={totalBytes} onDrill={drill} />
+      )}
+
+      {/* Nothing here takes any space (only empty folders or empty files), so the
+          treemap has no area to share out. A drillable list instead of a blank panel. */}
+      {blocks && blocks.length > 0 && totalBytes === 0 && !scanning && (
+        <ul className="divide-y divide-[var(--color-border)] rounded-[var(--radius-card)] border border-[var(--glass-edge)]">
+          {blocks.map((n) => (
+            <li key={n.name}>
+              <button
+                type="button"
+                onClick={() => drill(n.name, n.isDir)}
+                disabled={!n.isDir}
+                className="flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-[var(--color-surface-3)] disabled:cursor-default disabled:hover:bg-transparent"
+              >
+                <span className="truncate">
+                  {n.isDir ? "📁 " : "📄 "}
+                  {n.name}
+                </span>
+                <span className="ml-3 shrink-0 text-xs text-[var(--color-muted)]">
+                  {formatBytes(n.totalSize)}
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

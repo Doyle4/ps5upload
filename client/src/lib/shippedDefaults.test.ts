@@ -50,7 +50,7 @@ describe("shipped defaults are usable as-is", () => {
     // A relative default would resolve against whatever the payload's
     // cwd happens to be, which is not a thing a user can reason about.
     for (const [file, re] of [
-      ["DiskUsage/index.tsx", /const \[path, setPath\] = useState\("(.*?)"\)/],
+      ["DiskUsage/index.tsx", /filesViewLink\("space", \{ path: "(.*?)" \}\)/],
       ["Shell/index.tsx", /const \[cwd, setCwd\] = useState\("(.*?)"\)/],
     ] as const) {
       const m = re.exec(read(file));

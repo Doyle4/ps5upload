@@ -7,7 +7,6 @@ import {
   ChevronRight,
   Bell,
   Cable,
-  Coffee,
   CheckCircle2,
   FolderTree,
   Gamepad2,
@@ -28,13 +27,15 @@ import { useRunningTitleIds } from "../../state/runningApps";
 import { useSensors } from "../../state/sensors";
 import { Badge, Card, ConsoleChip, Sparkline, Spinner } from "../../components";
 import { useTr } from "../../state/lang";
-import { openExternalUrl } from "../../lib/openExternalUrl";
-import { COFFEE_URL } from "../../lib/supportLinks";
+import { SupportButton } from "../../components/SupportButton";
 import { ServersCard } from "./ServersCard";
 import { HealthCard } from "./HealthCard";
 import { LowSpaceCard } from "./LowSpaceCard";
+import { WhatsNewCard } from "./WhatsNewCard";
 import { RecentGames } from "./RecentGames";
 import { greetingPart } from "./greeting";
+import { initials, useGreetedUser } from "./consoleUser";
+import { mgmtAddr } from "../../lib/addr";
 import {
   evaluateOperationReadiness,
   HELPER_NOT_CONNECTED,
@@ -109,9 +110,18 @@ export default function HomeScreen() {
     return { ...r, blockers: r.blockers.map((b) => (b === HELPER_NOT_CONNECTED ? rest : b)) };
   };
 
+  // The user at the selected console, greeted by name with their avatar; read in the background
+  // and cached per console (consoleUser.ts), and nobody while no console is connected.
+  const greeted = useGreetedUser(connected && host ? mgmtAddr(host) : "");
   const part = greetingPart(new Date().getHours());
-  const greeting =
-    part === "morning"
+  const name = greeted?.name ?? "";
+  const greeting = greeted
+    ? part === "morning"
+      ? tr("v5_home_greeting_morning_name", { name }, `Good morning, ${name}`)
+      : part === "afternoon"
+        ? tr("v5_home_greeting_afternoon_name", { name }, `Good afternoon, ${name}`)
+        : tr("v5_home_greeting_evening_name", { name }, `Good evening, ${name}`)
+    : part === "morning"
       ? tr("v5_home_greeting_morning", "Good morning")
       : part === "afternoon"
         ? tr("v5_home_greeting_afternoon", "Good afternoon")
@@ -127,9 +137,12 @@ export default function HomeScreen() {
     <div className="app-page">
       <header className="mb-7 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
-          <p className="mb-1 text-sm font-medium text-[var(--color-muted)]">
-            {greeting}
-          </p>
+          <div className="mb-1 flex min-w-0 items-center gap-2.5" data-testid="home-greeting">
+            {greeted && <UserAvatar name={greeted.name} src={greeted.avatar} />}
+            <p className="min-w-0 truncate text-sm font-medium text-[var(--color-muted)]">
+              {greeting}
+            </p>
+          </div>
           <h1 className="text-[2.25rem] leading-[1.05] font-bold tracking-[-0.035em] sm:text-[3rem]">
             {tr("v5_home_title", "Home")}
           </h1>
@@ -152,18 +165,7 @@ export default function HomeScreen() {
                   : tr("v5_home_setup_required", "Setup required")}
             </Badge>
           </span>
-          <button
-            type="button"
-            onClick={() => void openExternalUrl(COFFEE_URL)}
-            className="inline-flex min-h-9 items-center gap-1.5 whitespace-nowrap rounded-full border border-[var(--color-border-strong)] px-4 text-xs font-medium text-[var(--color-text)] transition-colors hover:bg-[var(--color-surface)]"
-          >
-            <Coffee
-              size={13}
-              aria-hidden
-              className="text-[var(--color-accent-bright)]"
-            />
-            {tr("buy_coffee", "Coffee or tokens")}
-          </button>
+          <SupportButton />
         </div>
       </header>
 
@@ -235,6 +237,7 @@ export default function HomeScreen() {
             {/* What needs attention, before what just happened: a blocked port or a full drive
               is the reason the next action would fail. Only once the helper answers; without it
               the console panel already says what is wrong. */}
+            <WhatsNewCard />
             {host && connected ? <LowSpaceCard host={host} /> : null}
             {host && connected ? <HealthCard host={host} /> : null}
 
@@ -567,6 +570,22 @@ export default function HomeScreen() {
         </div>
       </div>
     </div>
+  );
+}
+
+/** The greeted user's current avatar, or their initials on the accent disc when the console has no
+ *  readable picture (a stock PSN avatar). Decorative: the name is in the greeting beside it. */
+function UserAvatar({ name, src }: { name: string; src: string | null }) {
+  const box = "h-9 w-9 shrink-0 rounded-full ring-1 ring-[var(--color-border)]";
+  return src ? (
+    <img src={src} alt="" aria-hidden className={`${box} object-cover`} draggable={false} />
+  ) : (
+    <span
+      aria-hidden
+      className={`${box} grid place-items-center bg-[var(--color-accent-soft)] text-xs font-semibold text-[var(--color-accent-bright)]`}
+    >
+      {initials(name)}
+    </span>
   );
 }
 

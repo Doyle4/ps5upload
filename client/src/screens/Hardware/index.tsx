@@ -31,6 +31,7 @@ import { useConfirm } from "../../components/ConfirmDialog";
 import PowerTelemetryPanel from "./PowerTelemetryPanel";
 import NetworkPanel from "./NetworkPanel";
 import PeripheralPanel from "./PeripheralPanel";
+import { FwSpoofCard } from "./FwSpoofCard";
 import { fanPresetsFor, fanTargetCeiling } from "../../lib/fanTargets";
 import { usePoll } from "../../lib/usePoll";
 import { mgmtAddr, transferAddr } from "../../lib/addr";
@@ -636,6 +637,10 @@ export default function HardwareScreen() {
             )}
           </SensorCard>
 
+          {/* Right under System: it answers whether the firmware shown there is the real one.
+              Prefixed key — see the note on FanThresholdCard below. */}
+          <FwSpoofCard key={`fwspoof-${host ?? ""}`} host={host ?? ""} payloadUp={payloadStatus === "up"} />
+
           {storage && (
             <SensorCard
               icon={<HardDrive size={14} />}
@@ -759,7 +764,7 @@ export default function HardwareScreen() {
       {/* The kernel log has its own tab under Logs. */}
       <p className="mt-6 text-sm text-[var(--color-muted)]">
         <Link
-          to="/logs?tab=kernel"
+          to="/tasks?tab=logs&log=kernel"
           className="inline-flex items-center gap-1 text-[var(--color-accent)] hover:underline"
         >
           <ScrollText size={13} />

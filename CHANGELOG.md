@@ -6,6 +6,25 @@ What's new in ps5upload, written for humans.
 
 ## Unreleased
 
+- **A shorter sidebar.** Screens that belong together now live together; every old link still
+  opens the right place.
+  - **Games** has three tabs: On this PS5, Everything (the former Collection: every game on
+    your drives, NAS and consoles) and Files. Game Activity's play time moved into Games: a
+    "Recently played" sort, and each game's page says how long it was played.
+  - **Payloads & processes** holds the payload catalogue and sender, what runs on the PS5 and
+    which ports are open (the former Processes & ports).
+  - **Files** takes in Search (a search box over all drives), Disk usage ("What takes space?"
+    on any folder or drive) and Console snapshots ("Snapshot…" on any file or folder, several
+    at once too).
+  - **Console** checks for firmware spoofing on its own card, in plain words: spoofed, not
+    spoofed or can't tell, and what to do.
+  - **Shell** moved to Diagnostics. **Servers** is now **Network shares**.
+  - **Activity & logs** holds Tasks, Logs and the Audit log; **Help** holds the FAQ, About and
+    What's new. After an update Home says so for a few days, with a link to what's new.
+- **A pinned screen shows once.** Pinning a screen moves it to Pinned instead of listing it
+  twice.
+- **Home greets the console's signed-in user** by name, with their picture.
+- **Coffee or tokens** got a warmer button.
 - **The fan target shows what the console keeps (#522).** Opening Console › Hardware again put
   the slider back at 65 °C, which looked like the setting had been lost (the console kept it).
   It now starts at the target the console holds; a target changed from another device or the

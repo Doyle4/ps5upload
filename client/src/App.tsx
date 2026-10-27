@@ -19,7 +19,6 @@ import { isTauriEnv } from "./lib/tauriEnv";
  *
  * Eagerly imported (always-on, small):
  *   - HomeScreen — where returning users land
- *   - ChangelogScreen — small; the CHANGELOG text itself loads on demand
  *
  * Lazy-loaded via React.lazy (heavy or rarely-used):
  *   - everything else, especially Library (2.2k LOC), Upload, FileSystem
@@ -29,7 +28,6 @@ import { isTauriEnv } from "./lib/tauriEnv";
  * library.chunk.js (~150 KB) instead of forcing every user to
  * download all 11 screens upfront.
  */
-import ChangelogScreen from "./screens/Changelog";
 import HomeScreen from "./screens/Home";
 
 // Settings (2k lines) and Connection pull in a lot; nobody needs them
@@ -44,21 +42,16 @@ const UploadScreen = lazyWithReload(() => import("./screens/Upload"));
 const InstallPackageScreen = lazyWithReload(() => import("./screens/InstallPackage"));
 const ConvertScreen = lazyWithReload(() => import("./screens/FpkgConvert"));
 const GamesScreen = lazyWithReload(() => import("./screens/Games"));
-const CollectionScreen = lazyWithReload(() => import("./screens/Collection"));
-const SearchScreen = lazyWithReload(() => import("./screens/Search"));
 const VolumesScreen = lazyWithReload(() => import("./screens/Volumes"));
 const FileSystemScreen = lazyWithReload(() => import("./screens/FileSystem"));
 const HardwareScreen = lazyWithReload(() => import("./screens/Hardware"));
 const ProfileScreen = lazyWithReload(() => import("./screens/Profile"));
-const BackupScreen = lazyWithReload(() => import("./screens/Backup"));
 const LocalImageScreen = lazyWithReload(() => import("./screens/LocalImage"));
 const HealthScreen = lazyWithReload(() => import("./screens/Health"));
 const RemotePlayScreen = lazyWithReload(() => import("./screens/RemotePlay"));
 const NotificationsScreen = lazyWithReload(() => import("./screens/Notifications"));
 const CheatsScreen = lazyWithReload(() => import("./screens/Cheats"));
-const GameActivityScreen = lazyWithReload(() => import("./screens/GameActivity"));
 const GameHubScreen = lazyWithReload(() => import("./screens/GameHub"));
-const FwSpoofScreen = lazyWithReload(() => import("./screens/FwSpoof"));
 const ConnectionsScreen = lazyWithReload(() => import("./screens/Connections"));
 const PayloadsScreen = lazyWithReload(() => import("./screens/Payloads"));
 const FirstRunScreen = lazyWithReload(() => import("./screens/FirstRun"));
@@ -66,13 +59,9 @@ const SavesScreen = lazyWithReload(() => import("./screens/Saves"));
 const ProcessesScreen = lazyWithReload(() => import("./screens/Processes"));
 const CapturesScreen = lazyWithReload(() => import("./screens/Captures"));
 const ShellScreen = lazyWithReload(() => import("./screens/Shell"));
-const DiskUsageScreen = lazyWithReload(() => import("./screens/DiskUsage"));
 const CleanupScreen = lazyWithReload(() => import("./screens/Cleanup"));
-const AboutScreen = lazyWithReload(() => import("./screens/About"));
-const FAQScreen = lazyWithReload(() => import("./screens/FAQ"));
-const LogsScreen = lazyWithReload(() => import("./screens/Logs"));
-const ActivityScreen = lazyWithReload(() => import("./screens/Activity"));
-const AuditLogScreen = lazyWithReload(() => import("./screens/AuditLog"));
+const HelpScreen = lazyWithReload(() => import("./screens/Help"));
+const ActivityLogsScreen = lazyWithReload(() => import("./screens/ActivityLogs"));
 const BugReportScreen = lazyWithReload(() => import("./screens/BugReport"));
 
 /**
@@ -103,6 +92,13 @@ function LandingRedirect() {
 function ActivityToTasks() {
   const { search, hash } = useLocation();
   return <Navigate to={{ pathname: "/tasks", search, hash }} replace />;
+}
+
+/** Logs is a tab of Activity & logs; its old `?tab=kernel` is that tab's `log=kernel`. */
+function LogsToTasks() {
+  const { search } = useLocation();
+  const kernel = new URLSearchParams(search).get("tab") === "kernel";
+  return <Navigate to={kernel ? "/tasks?tab=logs&log=kernel" : "/tasks?tab=logs"} replace />;
 }
 
 /** Guards a route whose screen has NO browser-functional path at all (see
@@ -214,7 +210,7 @@ function AppRoutes({ location }: { location: Location }) {
          * them back to their last screen. */}
         <Route index element={<LandingRedirect />} />
         <Route path="/home" element={<HomeScreen />} />
-        <Route path="/whats-new" element={<ChangelogScreen />} />
+        <Route path="/whats-new" element={<Navigate to="/faq?tab=whats-new" replace />} />
         <Route
           path="/connection"
           element={
@@ -282,14 +278,8 @@ function AppRoutes({ location }: { location: Location }) {
             </Suspense>
           }
         />
-        <Route
-          path="/collection"
-          element={
-            <Suspense fallback={<ScreenLoader />}>
-              <CollectionScreen />
-            </Suspense>
-          }
-        />
+        {/* The whole library is the Games screen's Everything view now. */}
+        <Route path="/collection" element={<Navigate to="/games?tab=all" replace />} />
         {/* v5 Game Hub: everything about one game behind one URL. */}
         <Route
           path="/games/:title_id"
@@ -303,14 +293,8 @@ function AppRoutes({ location }: { location: Location }) {
              for backward compatibility with deep links and bookmarks. */}
         <Route path="/library" element={<Navigate to="/games?tab=files" replace />} />
         <Route path="/installed" element={<Navigate to="/games?tab=ready" replace />} />
-        <Route
-          path="/search"
-          element={
-            <Suspense fallback={<ScreenLoader />}>
-              <SearchScreen />
-            </Suspense>
-          }
-        />
+        {/* Search, What takes space? and Snapshots are views of Files now. */}
+        <Route path="/search" element={<Navigate to="/files?view=search" replace />} />
         <Route
           path="/volumes"
           element={
@@ -355,14 +339,7 @@ function AppRoutes({ location }: { location: Location }) {
             </Suspense>
           }
         />
-        <Route
-          path="/backup"
-          element={
-            <Suspense fallback={<ScreenLoader />}>
-              <BackupScreen />
-            </Suspense>
-          }
-        />
+        <Route path="/backup" element={<Navigate to="/files?view=snapshots" replace />} />
         <Route
           path="/local-image"
           element={
@@ -408,22 +385,10 @@ function AppRoutes({ location }: { location: Location }) {
             </Suspense>
           }
         />
-        <Route
-          path="/game-activity"
-          element={
-            <Suspense fallback={<ScreenLoader />}>
-              <GameActivityScreen />
-            </Suspense>
-          }
-        />
-        <Route
-          path="/fw-spoof"
-          element={
-            <Suspense fallback={<ScreenLoader />}>
-              <FwSpoofScreen />
-            </Suspense>
-          }
-        />
+        {/* Play time is on Games (Recently played) and each game's page now. */}
+        <Route path="/game-activity" element={<Navigate to="/games" replace />} />
+        {/* The firmware spoof check is a card on Console now. */}
+        <Route path="/fw-spoof" element={<Navigate to="/console#fw-spoof" replace />} />
         {/* SMB Browser and FTP Server were replaced by Connections; old links land there. */}
         <Route path="/ftp-server" element={<Navigate to="/connections" replace />} />
         <Route
@@ -453,7 +418,8 @@ function AppRoutes({ location }: { location: Location }) {
           }
         />
         {/* Integrations were tabs (and before that screens); they are cards on "On your
-            PS5" now, and Ports sits with Processes. Old links open the card. */}
+            PS5" now, and Processes and Ports are tabs of Payloads & processes. Old links open the card
+            or the tab. */}
         <Route path="/nanodns" element={<Navigate to={payloadCardLink("nanodns")} replace />} />
         <Route path="/nano-dns" element={<Navigate to={payloadCardLink("nanodns")} replace />} />
         <Route path="/shadowmount" element={<Navigate to={payloadCardLink("shadowmountplus")} replace />} />
@@ -462,8 +428,8 @@ function AppRoutes({ location }: { location: Location }) {
         <Route path="/payloads/shadowmount" element={<Navigate to={payloadCardLink("shadowmountplus")} replace />} />
         <Route path="/payloads/nanodns" element={<Navigate to={payloadCardLink("nanodns")} replace />} />
         <Route path="/payloads/hearbridge" element={<Navigate to={payloadCardLink("hearbridge")} replace />} />
-        <Route path="/payloads/ports" element={<Navigate to="/processes?tab=ports" replace />} />
-        <Route path="/ports" element={<Navigate to="/processes?tab=ports" replace />} />
+        <Route path="/payloads/ports" element={<Navigate to="/payloads?tab=ports" replace />} />
+        <Route path="/ports" element={<Navigate to="/payloads?tab=ports" replace />} />
         {/* The wizard's whole point is step 2: download the payload ELFs to
             this machine and send them to the console over a raw socket.
             Neither is possible from a browser (the Payloads screen there has
@@ -506,12 +472,12 @@ function AppRoutes({ location }: { location: Location }) {
         {/* Screenshots and Video clips were two screens; old links and bookmarks still land. */}
         <Route path="/screenshots" element={<Navigate to="/captures" replace />} />
         <Route path="/videos" element={<Navigate to="/captures?tab=videos" replace />} />
-        {/* v5: /tasks is the canonical tasks/activity route. */}
+        {/* Activity & logs: Tasks, Logs and the Audit log as tabs. */}
         <Route
           path="/tasks"
           element={
             <Suspense fallback={<ScreenLoader />}>
-              <ActivityScreen />
+              <ActivityLogsScreen />
             </Suspense>
           }
         />
@@ -519,13 +485,8 @@ function AppRoutes({ location }: { location: Location }) {
         <Route path="/activity" element={<ActivityToTasks />} />
         {/* Stats is a tab of Tasks now. */}
         <Route path="/stats" element={<Navigate to="/tasks?tab=stats" replace />} />
-        {/* Legacy deep link / bookmark support for pre-2.12 installs.
-            Kernel logs now live under the Logs tab ?tab=kernel.
-            Keep the redirect indefinitely for any external bookmarks. */}
-        <Route
-          path="/kernel-log"
-          element={<Navigate to="/logs?tab=kernel" replace />}
-        />
+        {/* Pre-2.12 bookmarks: kernel logs are Activity & logs › Logs › Kernel. */}
+        <Route path="/kernel-log" element={<Navigate to="/tasks?tab=logs&log=kernel" replace />} />
         <Route
           path="/shell"
           element={
@@ -536,14 +497,7 @@ function AppRoutes({ location }: { location: Location }) {
             </NativeOnlyRoute>
           }
         />
-        <Route
-          path="/disk-usage"
-          element={
-            <Suspense fallback={<ScreenLoader />}>
-              <DiskUsageScreen />
-            </Suspense>
-          }
-        />
+        <Route path="/disk-usage" element={<Navigate to="/files?view=space&path=/user" replace />} />
         <Route
           path="/cleanup"
           element={
@@ -558,26 +512,14 @@ function AppRoutes({ location }: { location: Location }) {
           path="/faq"
           element={
             <Suspense fallback={<ScreenLoader />}>
-              <FAQScreen />
+              <HelpScreen />
             </Suspense>
           }
         />
-        <Route
-          path="/logs"
-          element={
-            <Suspense fallback={<ScreenLoader />}>
-              <LogsScreen />
-            </Suspense>
-          }
-        />
-        <Route
-          path="/audit-log"
-          element={
-            <Suspense fallback={<ScreenLoader />}>
-              <AuditLogScreen />
-            </Suspense>
-          }
-        />
+        {/* Logs and the Audit log are tabs of Activity & logs; FAQ, About and What's new of Help. */}
+        <Route path="/logs" element={<LogsToTasks />} />
+        <Route path="/audit-log" element={<Navigate to="/tasks?tab=audit" replace />} />
+        <Route path="/about" element={<Navigate to="/faq?tab=about" replace />} />
         <Route
           path="/bug-report"
           element={
@@ -591,14 +533,6 @@ function AppRoutes({ location }: { location: Location }) {
           element={
             <Suspense fallback={<ScreenLoader />}>
               <SettingsScreen />
-            </Suspense>
-          }
-        />
-        <Route
-          path="/about"
-          element={
-            <Suspense fallback={<ScreenLoader />}>
-              <AboutScreen />
             </Suspense>
           }
         />

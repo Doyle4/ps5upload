@@ -53,8 +53,12 @@ import { formatDate } from "../../lib/formatDate";
  *  - stats: aggregates of that same history.
  * History and stats show the selected console's entries plus local-only work;
  * Clear acts on exactly what is shown.
+ *
+ * `embedded`: shown as the Tasks tab of Activity & logs, under that screen's own
+ * header. `?tab=` is then the outer tab, so the view moves to `?view=` (an old
+ * `?tab=history|stats` link still opens its view).
  */
-export default function ActivityScreen() {
+export default function ActivityScreen({ embedded = false }: { embedded?: boolean } = {}) {
   const tr = useTr();
   const allEntries = useActivityHistoryStore((s) => s.entries);
   // The selected console's activity only (a PS5 tab is that console's workspace); entries
@@ -63,13 +67,16 @@ export default function ActivityScreen() {
   // `?console=<ip>`: another console's activity, opened from a job running there.
   const [params, setParams] = useSearchParams();
   const otherConsole = params.get("console");
-  const view = parseActivityTab(params.get("tab"));
+  const viewParam = embedded ? "view" : "tab";
+  const view = parseActivityTab(params.get(viewParam) ?? params.get("tab"));
   const setView = (tab: ActivityTab) =>
     setParams(
       (prev) => {
         const next = new URLSearchParams(prev);
-        if (tab === "tasks") next.delete("tab");
-        else next.set("tab", tab);
+        // An old `?tab=history|stats` would otherwise outlive the view it named.
+        if (embedded && next.get("tab") !== "tasks") next.delete("tab");
+        if (tab === "tasks") next.delete(viewParam);
+        else next.set(viewParam, tab);
         return next;
       },
       { replace: true },
@@ -105,43 +112,53 @@ export default function ActivityScreen() {
     if (ok) clear(scopeHost);
   };
 
-  return (
-    <div className="app-page">
-      <PageHeader
-        icon={ActivityIcon}
-        title={tr("v5_tab_tasks", undefined, "Tasks")}
-        description={tr(
-          "activity_description_v2",
-          undefined,
-          "Everything the app is doing and has done on your consoles: uploads, downloads, installs and file operations. Stop or retry one from here. The last 100 are kept, also after a restart.",
-        )}
-        right={
-          <div className="flex flex-wrap items-center gap-2">
-            <Tabs
-              variant="segmented"
-              size="sm"
-              ariaLabel={tr("activity_view_toggle", undefined, "View")}
-              value={view}
-              onChange={(id) => setView(id as ActivityTab)}
-              tabs={[
-                { id: "tasks", label: tr("v5_tab_tasks", undefined, "Tasks") },
-                { id: "history", label: tr("activity_view_history", undefined, "History") },
-                { id: "stats", label: tr("stats", undefined, "Stats") },
-              ]}
-            />
-            {view === "history" && entries.length > 0 ? (
-              <Button
-                variant="ghost"
-                size="sm"
-                leftIcon={<Trash2 size={12} />}
-                onClick={() => void onClearAll()}
-              >
-                {tr("activity_clear", undefined, "Clear history")}
-              </Button>
-            ) : null}
-          </div>
-        }
+  const controls = (
+    <div className="flex flex-wrap items-center gap-2">
+      <Tabs
+        variant="segmented"
+        size="sm"
+        ariaLabel={tr("activity_view_toggle", undefined, "View")}
+        value={view}
+        onChange={(id) => setView(id as ActivityTab)}
+        tabs={[
+          // Inside Activity & logs the outer tab already says Tasks: "Now" here, not Tasks twice.
+          {
+            id: "tasks",
+            label: embedded ? tr("queue_section_now", undefined, "Now") : tr("v5_tab_tasks", undefined, "Tasks"),
+          },
+          { id: "history", label: tr("activity_view_history", undefined, "History") },
+          { id: "stats", label: tr("stats", undefined, "Stats") },
+        ]}
       />
+      {view === "history" && entries.length > 0 ? (
+        <Button
+          variant="ghost"
+          size="sm"
+          leftIcon={<Trash2 size={12} />}
+          onClick={() => void onClearAll()}
+        >
+          {tr("activity_clear", undefined, "Clear history")}
+        </Button>
+      ) : null}
+    </div>
+  );
+
+  return (
+    <div className={embedded ? "" : "app-page"}>
+      {embedded ? (
+        <div className="mb-4">{controls}</div>
+      ) : (
+        <PageHeader
+          icon={ActivityIcon}
+          title={tr("v5_tab_tasks", undefined, "Tasks")}
+          description={tr(
+            "activity_description_v2",
+            undefined,
+            "Everything the app is doing and has done on your consoles: uploads, downloads, installs and file operations. Stop or retry one from here. The last 100 are kept, also after a restart.",
+          )}
+          right={controls}
+        />
+      )}
 
       {otherConsole && hostOf(otherConsole) !== hostOf(activeHost ?? "") && (
         <div

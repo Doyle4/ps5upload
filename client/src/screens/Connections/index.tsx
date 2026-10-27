@@ -213,8 +213,9 @@ export default function ConnectionsScreen() {
       {dialog}
       <PageHeader
         icon={Network}
-        // "Servers", not "Connections": that read as the PS5's Connection screen.
-        title={tr("v5_home_servers", undefined, "Servers")}
+        // "Network shares", not "Connections" (read as the PS5's Connection screen) nor "Servers"
+        // (people did not know which servers): a NAS or a shared folder, over SMB, FTP, SFTP or WebDAV.
+        title={tr("network_shares", undefined, "Network shares")}
         description={tr(
           "servers_subtitle",
           undefined,

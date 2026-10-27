@@ -122,7 +122,7 @@ test("Send to PS5 queues a game folder from the Collection and shows its progres
     },
   );
 
-  await page.goto("/collection", { waitUntil: "domcontentloaded" });
+  await page.goto("/games?tab=all", { waitUntil: "domcontentloaded" });
   await page.getByTestId("collection-card").first().click();
   await expect(page).toHaveURL(/\/games\/PPSA11386$/);
   const row = page.getByTestId(`game-console-${HOST}`);

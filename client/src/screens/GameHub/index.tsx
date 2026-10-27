@@ -23,7 +23,6 @@ import {
   Package,
   Download,
   Shield,
-  Clock,
   CircleDot,
 } from "lucide-react";
 
@@ -72,13 +71,14 @@ import { TraceCard } from "./TraceCard";
 import { fetchRunningGames } from "../../lib/runningGames";
 import { killGame } from "../../lib/killGame";
 import { humanizePs5Error } from "../../lib/humanizeError";
-import { playFor, useTrackedPlay } from "../../lib/trackedPlay";
+import { playFor, useConsolePlayTime, useTrackedPlay } from "../../lib/trackedPlay";
+import { PlayedLine } from "./PlayedLine";
 import { runningAfterClose, runningOn, useRunningAppsStore } from "../../state/runningApps";
 // Direct import to avoid the barrel's circular-dep warning at build.
 import { useConfirm } from "../../components/ConfirmDialog";
 import { SaveBackupsList } from "./SaveBackupsList";
 import { useStaleHostGuard } from "../../lib/staleHostGuard";
-import { formatBytes, formatDuration } from "../../lib/format";
+import { formatBytes } from "../../lib/format";
 
 /** How long to keep Play disabled while waiting for the title to appear in
  *  the process list, and how often to re-check. Mirrors the Installed Apps
@@ -181,10 +181,11 @@ export default function GameHubScreen() {
     return null;
   }, [title_id, entries, mountMap, installedTitles, gv.view]);
 
-  // Same numbers as Game Activity's Tracked tab; the app's own count only when
-  // the helper has no tracker to ask.
+  // The helper's tracked play time; the app's own count only when the helper has
+  // no tracker to ask. The console's own Play Time record backs it up.
   const tracked = useTrackedPlay(host);
   const { seconds: playSeconds, lastSeenMs } = playFor(tracked, playTimeState, host, title_id);
+  const consolePlay = useConsolePlayTime(host);
 
   const tabs = useMemo(
     () =>
@@ -443,14 +444,6 @@ export default function GameHubScreen() {
             <div className="mt-4 flex flex-wrap items-center gap-2">
               <FactChip mono>{game.titleId}</FactChip>
               {game.size > 0 && <FactChip>{formatBytes(game.size)}</FactChip>}
-              {playSeconds !== undefined && playSeconds > 0 && (
-                <FactChip icon={<Clock size={12} aria-hidden />}>{formatDuration(playSeconds)}</FactChip>
-              )}
-              {lastSeenMs ? (
-                <FactChip>
-                  {tr("game_hub_last_played_on", { date: formatDate(new Date(lastSeenMs), "date") }, "Last played {date}")}
-                </FactChip>
-              ) : null}
               {running && (
                 <FactChip tone="good" icon={<CircleDot size={12} className="animate-pulse" aria-hidden />}>
                   {tr("installed_badge_playing", undefined, "Playing")}
@@ -466,6 +459,7 @@ export default function GameHubScreen() {
                 {tr("captures", undefined, "Screenshots & clips")}
               </button>
             </div>
+            <PlayedLine seconds={playSeconds} lastSeenMs={lastSeenMs} consoleSeconds={consolePlay?.get(game.titleId)} />
             {gv.view && (gv.view.consoles.length > 0 || gv.view.copies.length > 0) && (
               <p className="mt-3 text-sm text-[var(--color-muted)]" data-testid="game-summary">
                 {summaryLine(rosterOnly(gv.view, Object.keys(names)), names, tr)}

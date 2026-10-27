@@ -25,8 +25,11 @@ import { formatDate } from "../../lib/formatDate";
  * The screen is a thin wrapper: it composes the same read-only
  * table the old Settings card used (no logic moved or changed),
  * just rehoused under its own route + sidebar entry.
+ *
+ * `embedded`: shown as the Audit log tab of Activity & logs, under that
+ * screen's own header (which carries this screen's description).
  */
-export default function AuditLogScreen() {
+export default function AuditLogScreen({ embedded = false }: { embedded?: boolean } = {}) {
   const tr = useTr();
   const rawEntries = useAuditLogStore((s) => s.entries);
   const entries: AuditEntry[] = useMemo(
@@ -35,16 +38,18 @@ export default function AuditLogScreen() {
   );
 
   return (
-    <div className="app-page">
-      <PageHeader
-        icon={ShieldCheck}
-        title={tr("audit_log_title", undefined, "Audit log")}
-        description={tr(
-          "audit_log_description_v3",
-          undefined,
-          "A record, kept in this app on this computer, of power actions, deletes, unregisters, uninstalls and installs. The newest 256 are kept and older ones roll off; there is no clear button, but clearing the app's data or browser storage erases it. The last 100 are shown.",
-        )}
-      />
+    <div className={embedded ? "" : "app-page"}>
+      {!embedded && (
+        <PageHeader
+          icon={ShieldCheck}
+          title={tr("audit_log_title", undefined, "Audit log")}
+          description={tr(
+            "audit_log_description_v3",
+            undefined,
+            "A record, kept in this app on this computer, of power actions, deletes, unregisters, uninstalls and installs. The newest 256 are kept and older ones roll off; there is no clear button, but clearing the app's data or browser storage erases it. The last 100 are shown.",
+          )}
+        />
+      )}
       {entries.length === 0 ? (
         <EmptyState
           icon={ShieldCheck}

@@ -37,9 +37,10 @@ test("guides a disconnected user through primary navigation and recovery", async
   // Wait for More itself: Home also has a "Tasks" link, and Home stays in the page (hidden)
   // after the switch, so a click aimed at it would wait on a link that never shows again.
   await expect(page.getByRole("heading", { name: "More" })).toBeVisible();
-  await body.getByRole("link", { name: "Tasks", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Tasks" })).toBeVisible();
+  await body.getByRole("link", { name: "Activity & logs", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Activity & logs" })).toBeVisible();
   await expect(page.getByRole("tab", { name: "Tasks", selected: true })).toBeVisible();
+  await expect(page.getByRole("tab", { name: "Now", selected: true })).toBeVisible();
   await expect(page.getByRole("tab", { name: /history/i })).toBeVisible();
   await expect(page.getByText("No activity yet")).toBeVisible();
 

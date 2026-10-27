@@ -32,6 +32,7 @@ import { useTr } from "../../state/lang";
  *  - Search returns questions (best match first, with an excerpt), not whole sections.
  *  - `?q=` opens it searching (error messages link here, see lib/installErrorDoc), and
  *    `?topic=` / `?item=` open one topic or one question, so an answer can be linked to.
+ *  - `embedded`: shown as the FAQ tab of Help, under that screen's own header.
  */
 
 /** Wraps each query word found in `text` in <mark>. */
@@ -129,7 +130,7 @@ function Question({
 /** The group a topic is shown under: its own, or one tab for a document with none. */
 const groupOf = (t: FaqTopic) => t.group || "FAQ";
 
-export default function FAQScreen() {
+export default function FAQScreen({ embedded = false }: { embedded?: boolean } = {}) {
   const tr = useTr();
   const [raw, setRaw] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -225,16 +226,18 @@ export default function FAQScreen() {
     });
 
   return (
-    <div className="app-page">
-      <PageHeader
-        icon={HelpCircle}
-        title={tr("faq", undefined, "FAQ")}
-        description={tr(
-          "faq_description_v2",
-          undefined,
-          "How to set up, transfer, install and fix things. Search for a word or an error code, or pick a section.",
-        )}
-      />
+    <div className={embedded ? "" : "app-page"}>
+      {!embedded && (
+        <PageHeader
+          icon={HelpCircle}
+          title={tr("faq", undefined, "FAQ")}
+          description={tr(
+            "faq_description_v2",
+            undefined,
+            "How to set up, transfer, install and fix things. Search for a word or an error code, or pick a section.",
+          )}
+        />
+      )}
 
       <div>
         <div className="mb-4 flex items-center gap-2 rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-surface-2)] px-3 py-2">

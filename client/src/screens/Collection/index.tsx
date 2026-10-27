@@ -70,19 +70,18 @@ import { useActiveCopies } from "../../state/copyActivity";
 import { useShallow } from "zustand/react/shallow";
 import { useCheatTitleIds } from "../../lib/cheatIndex";
 import { parsePS5Firmware } from "../../lib/ps5Firmware";
-import {
-  lastSeenPlayingFor,
-  playSecondsFor,
-  usePlayTimeStore,
-} from "../../state/playTime";
+import { usePlayTimeStore } from "../../state/playTime";
+import { playFor, useTrackedPlay } from "../../lib/trackedPlay";
 import { openInConvert } from "../../lib/collectionActions";
 import { bestConvertible } from "../../lib/collectionConvert";
 import { shrinkCandidate } from "../../lib/collectionInsights";
 import { startCopyChecks } from "../../state/copyChecks";
 import { SendManyModal } from "./SendManyModal";
 
-/** The games kept on this computer's drives: PS Game Library, inside ps5upload. */
-export default function CollectionScreen() {
+/** The games kept on this computer's drives: PS Game Library, inside ps5upload.
+ *  `embedded`: shown as the Games screen's Everything view, under that screen's own
+ *  header, so only the actions are drawn here (no page title or page padding). */
+export default function CollectionScreen({ embedded = false }: { embedded?: boolean } = {}) {
   const tr = useTr();
   // Everything but the scan's progress counters: those change every second
   // while a scan runs, and only the progress line (ScanProgress) needs them.
@@ -152,13 +151,16 @@ export default function CollectionScreen() {
   const kernel = useConnectionStore((c) => c.ps5Kernel);
   const consoleFw = helperUp ? parsePS5Firmware(kernel) : null;
   const cheatIds = useCheatTitleIds();
+  // The helper's tracked play time (what Game Activity listed), the app's own count without it.
   const playByHost = usePlayTimeStore((p) => p.byHost);
   const seenByHost = usePlayTimeStore((p) => p.lastSeenByHost);
-  const lastPlayed = useCallback(
+  const tracked = useTrackedPlay(helperUp ? host : null);
+  const playOf = useCallback(
     (id: string) =>
-      lastSeenPlayingFor({ lastSeenByHost: seenByHost }, host, id),
-    [seenByHost, host],
+      playFor(tracked, { byHost: playByHost, lastSeenByHost: seenByHost }, host, id),
+    [tracked, playByHost, seenByHost, host],
   );
+  const lastPlayed = useCallback((id: string) => playOf(id).lastSeenMs, [playOf]);
   const games = useMemo(() => collectionGames(s.library), [s.library]);
   const shown = useMemo(
     () =>
@@ -358,7 +360,126 @@ export default function CollectionScreen() {
     ),
   };
 
-  const header = (
+  const actions =
+    roots.length > 0 ? (
+      <div className="flex flex-wrap items-center gap-2">
+        <ServingLinks />
+        {scanning ? (
+          <Button
+            size="sm"
+            variant="secondary"
+            leftIcon={<Square size={12} />}
+            onClick={() => void cancelCollectionScan()}
+          >
+            {tr("collection.stop_scan", undefined, "Stop scan")}
+          </Button>
+        ) : (
+          <Button
+            size="sm"
+            variant="primary"
+            leftIcon={<RefreshCw size={12} />}
+            onClick={() => void startCollectionScan(false)}
+          >
+            {tr("collection.scan", undefined, "Scan")}
+          </Button>
+        )}
+        {/* On a phone three buttons fill the row and the "…" menu was left
+            alone on a line of its own: Folders goes into the menu there. */}
+        {!phone && (
+          <Button
+            size="sm"
+            variant="secondary"
+            leftIcon={<FolderSearch size={12} />}
+            onClick={() => setFoldersOpen(true)}
+          >
+            {tr("collection.folders", undefined, "Folders")}
+          </Button>
+        )}
+        <OverflowMenu
+          items={[
+            ...(phone
+              ? [
+                  {
+                    label: tr("collection.folders", undefined, "Folders"),
+                    icon: <FolderSearch size={12} />,
+                    onSelect: () => setFoldersOpen(true),
+                  },
+                ]
+              : []),
+            {
+              label: tr(
+                "collection.rescan_all",
+                undefined,
+                "Rescan everything",
+              ),
+              title: tr(
+                "collection.rescan_all_hint",
+                undefined,
+                "Read every folder size and every item again, ignoring what was cached.",
+              ),
+              disabled: scanning,
+              onSelect: () => void startCollectionScan(true),
+            },
+            {
+              label: tr(
+                "collection.org_menu",
+                undefined,
+                "Organize collection\u2026",
+              ),
+              disabled: scanning,
+              onSelect: () => setOrganizeOpen(true),
+            },
+            {
+              label: tr(
+                "collection.junk_menu",
+                undefined,
+                "Clean up junk files…",
+              ),
+              onSelect: () => setCleanupOpen(true),
+            },
+            {
+              label: tr(
+                "collection.export_csv",
+                undefined,
+                "Export as CSV",
+              ),
+              onSelect: () => void exportCollection("csv"),
+            },
+            {
+              label: tr(
+                "collection.export_md",
+                undefined,
+                "Export as Markdown",
+              ),
+              onSelect: () => void exportCollection("md"),
+            },
+            {
+              label: tr(
+                "collection.export_json",
+                undefined,
+                "Export as JSON",
+              ),
+              onSelect: () => void exportCollection("json"),
+            },
+            ...(consoleStates && cCounts.update + cCounts.dlc > 0
+              ? [
+                  {
+                    label: tr(
+                      "collection.update_all",
+                      undefined,
+                      "Bring this PS5 up to date",
+                    ),
+                    onSelect: () => void bringUpToDate(),
+                  },
+                ]
+              : []),
+          ]}
+        />
+      </div>
+    ) : undefined;
+  const header = embedded ? (
+    actions && <div className="mb-5 flex justify-end">{actions}</div>
+  ) : (
     <PageHeader
       icon={Library}
       title={tr("collection.title", undefined, "Collection")}
@@ -368,130 +489,14 @@ export default function CollectionScreen() {
         undefined,
         "Every game you keep on this computer's drives, grouped by game: its copies, updates and DLC, duplicates and the space they take. Each item is read from the file itself, wherever it sits.",
       )}
-      right={
-        roots.length > 0 ? (
-          <div className="flex flex-wrap items-center gap-2">
-            <ServingLinks />
-            {scanning ? (
-              <Button
-                size="sm"
-                variant="secondary"
-                leftIcon={<Square size={12} />}
-                onClick={() => void cancelCollectionScan()}
-              >
-                {tr("collection.stop_scan", undefined, "Stop scan")}
-              </Button>
-            ) : (
-              <Button
-                size="sm"
-                variant="primary"
-                leftIcon={<RefreshCw size={12} />}
-                onClick={() => void startCollectionScan(false)}
-              >
-                {tr("collection.scan", undefined, "Scan")}
-              </Button>
-            )}
-            {/* On a phone three buttons fill the row and the "…" menu was left
-                alone on a line of its own: Folders goes into the menu there. */}
-            {!phone && (
-              <Button
-                size="sm"
-                variant="secondary"
-                leftIcon={<FolderSearch size={12} />}
-                onClick={() => setFoldersOpen(true)}
-              >
-                {tr("collection.folders", undefined, "Folders")}
-              </Button>
-            )}
-            <OverflowMenu
-              items={[
-                ...(phone
-                  ? [
-                      {
-                        label: tr("collection.folders", undefined, "Folders"),
-                        icon: <FolderSearch size={12} />,
-                        onSelect: () => setFoldersOpen(true),
-                      },
-                    ]
-                  : []),
-                {
-                  label: tr(
-                    "collection.rescan_all",
-                    undefined,
-                    "Rescan everything",
-                  ),
-                  title: tr(
-                    "collection.rescan_all_hint",
-                    undefined,
-                    "Read every folder size and every item again, ignoring what was cached.",
-                  ),
-                  disabled: scanning,
-                  onSelect: () => void startCollectionScan(true),
-                },
-                {
-                  label: tr(
-                    "collection.org_menu",
-                    undefined,
-                    "Organize collection\u2026",
-                  ),
-                  disabled: scanning,
-                  onSelect: () => setOrganizeOpen(true),
-                },
-                {
-                  label: tr(
-                    "collection.junk_menu",
-                    undefined,
-                    "Clean up junk files…",
-                  ),
-                  onSelect: () => setCleanupOpen(true),
-                },
-                {
-                  label: tr(
-                    "collection.export_csv",
-                    undefined,
-                    "Export as CSV",
-                  ),
-                  onSelect: () => void exportCollection("csv"),
-                },
-                {
-                  label: tr(
-                    "collection.export_md",
-                    undefined,
-                    "Export as Markdown",
-                  ),
-                  onSelect: () => void exportCollection("md"),
-                },
-                {
-                  label: tr(
-                    "collection.export_json",
-                    undefined,
-                    "Export as JSON",
-                  ),
-                  onSelect: () => void exportCollection("json"),
-                },
-                ...(consoleStates && cCounts.update + cCounts.dlc > 0
-                  ? [
-                      {
-                        label: tr(
-                          "collection.update_all",
-                          undefined,
-                          "Bring this PS5 up to date",
-                        ),
-                        onSelect: () => void bringUpToDate(),
-                      },
-                    ]
-                  : []),
-              ]}
-            />
-          </div>
-        ) : undefined
-      }
+      right={actions}
     />
   );
+  const pageClass = embedded ? "" : "app-page";
 
   if (!s.settings && s.loading) {
     return (
-      <div className="app-page">
+      <div className={pageClass}>
         {header}
         <div className="flex items-center gap-2 text-sm text-[var(--color-muted)]">
           <Spinner size={14} />{" "}
@@ -502,7 +507,7 @@ export default function CollectionScreen() {
   }
 
   return (
-    <div className="app-page">
+    <div className={pageClass}>
       {header}
       {s.error && (
         <div className="mb-4">
@@ -902,11 +907,7 @@ export default function CollectionScreen() {
                   host={helperUp ? host : undefined}
                   consoleFw={consoleFw}
                   hasCheats={!!cheatIds?.has(g.game_id.toUpperCase())}
-                  playSec={playSecondsFor(
-                    { byHost: playByHost },
-                    host,
-                    g.game_id,
-                  )}
+                  playSec={playOf(g.game_id).seconds}
                   selecting={selecting}
                   selected={selected.has(g.game_id)}
                   onToggleSelect={toggleSelect}
@@ -921,7 +922,7 @@ export default function CollectionScreen() {
               consoleFw={consoleFw}
               consoleStates={consoleStates}
               cheatIds={cheatIds}
-              playSec={(id) => playSecondsFor({ byHost: playByHost }, host, id)}
+              playSec={(id) => playOf(id).seconds}
               selecting={selecting}
               selected={selected}
               onToggleSelect={toggleSelect}

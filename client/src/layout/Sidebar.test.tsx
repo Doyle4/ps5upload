@@ -146,22 +146,22 @@ describe("Sidebar", () => {
     expect(html).not.toContain('aria-label="Pin Home"');
   });
 
-  it("shows pinned screens in pin order under Home and Bug report, and keeps them in their sections", async () => {
-    const Pinned = await withLists([], [], ["/processes", "/files"]);
+  it("shows pinned screens in pin order under Home and Bug report, and only there", async () => {
+    const Pinned = await withLists([], [], ["/cheats", "/files"]);
     const html = render(<Pinned />);
     const group = html.slice(html.indexOf('data-testid="nav-pinned"'));
     const groupEnd = group.indexOf("</section>");
     const inGroup = group.slice(0, groupEnd);
     expect(html.indexOf('href="/bug-report"')).toBeLessThan(html.indexOf('data-testid="nav-pinned"'));
     expect(inGroup).toContain(">Pinned<");
-    expect(inGroup.indexOf('href="/processes"')).toBeLessThan(inGroup.indexOf('href="/files"'));
-    expect(inGroup).toContain('aria-label="Unpin Processes &amp; ports"');
+    expect(inGroup.indexOf('href="/cheats"')).toBeLessThan(inGroup.indexOf('href="/files"'));
+    expect(inGroup).toContain('aria-label="Unpin Cheats"');
     // Rows of the Pinned group drag to reorder, and have no hide button.
     expect(inGroup).toContain('draggable="true"');
     expect(inGroup).not.toContain("from the sidebar");
-    // Still in their own sections too, where the pin button now unpins.
-    expect(html.split('href="/files"').length - 1).toBe(2);
-    expect(html).toMatch(/aria-pressed="true"[^>]*aria-label="Unpin File System"/);
+    // Listed once: their own sections leave them out while they are pinned.
+    expect(html.split('href="/files"').length - 1).toBe(1);
+    expect(html.split('href="/cheats"').length - 1).toBe(1);
   });
 
   it("shows a pinned screen that is hidden in Pinned only, and does not count it hidden", async () => {

@@ -213,7 +213,7 @@ export function EngineProblem({ compact = false }: { compact?: boolean }) {
             {tr("engine_problem.restart", undefined, "Restart engine")}
           </Button>
         )}
-        <Button size="sm" variant="secondary" onClick={() => navigate("/logs")}>
+        <Button size="sm" variant="secondary" onClick={() => navigate("/tasks?tab=logs")}>
           {tr("gate_view_logs", "View logs")}
         </Button>
       </div>

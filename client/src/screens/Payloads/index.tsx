@@ -1,4 +1,5 @@
-import { Boxes, Gamepad2, Rocket } from "lucide-react";
+import { Boxes, Gamepad2, Layers, Network, Rocket } from "lucide-react";
+import { useState } from "react";
 import { Navigate, useSearchParams } from "react-router";
 
 import TabbedShell, { type TabbedShellTab } from "../../layout/TabbedShell";
@@ -7,6 +8,9 @@ import CatalogPanel from "./CatalogPanel";
 import SendPanel from "./SendPanel";
 import BrowserSendPanel from "./BrowserSendPanel";
 import OnPs5Panel from "./hub/OnPs5Panel";
+import { ProcessesPanel } from "../Processes/ProcessesPanel";
+import PortsPanel from "../Processes/PortsPanel";
+import { ConnectionGate } from "../../components";
 import { useConnectionStore } from "../../state/connection";
 import { isTauriEnv } from "../../lib/tauriEnv";
 import {
@@ -17,7 +21,7 @@ import {
 } from "./payloadTabs";
 
 /**
- * Payloads screen — URL-routed tabs:
+ * Payloads & processes — URL-routed tabs:
  *
  *   - **catalog**: curated GitHub-released third-party homebrew.
  *   - **send**: arbitrary ELF/BIN/JS/LUA/JAR picker. Includes
@@ -25,9 +29,13 @@ import {
  *   - **ps5** ("On your PS5"): a card per payload running or installed on the
  *     console; ShadowMount+, nanoDNS, Payload Manager and HearBridge open
  *     their own panel from the card. Available in the browser and native apps.
+ *   - **processes**: every process running on the console; stop or restart one.
+ *   - **ports**: the ports in use on the console (found by binding each port, so a port
+ *     can't be tied to a pid; the two lists stay separate).
  *
  * The integrations used to be tabs of their own; `?tab=manager|shadowmount|
- * nanodns` now opens their card, and `?tab=ports` moved to Processes.
+ * nanodns` now opens their card. Processes and Ports were their own screen
+ * (/processes); that path now opens these tabs.
  */
 
 type TabId = PayloadTabId;
@@ -35,6 +43,7 @@ type TabId = PayloadTabId;
 export default function PayloadsScreen() {
   const tr = useTr();
   const [params] = useSearchParams();
+  const [processCount, setProcessCount] = useState<number | undefined>(undefined);
   const host = useConnectionStore((s) => s.host);
   const payloadStatus = useConnectionStore((s) => s.payloadStatus);
   // "Connected" for picking the default tab: a console is set and not known to be down.
@@ -79,12 +88,42 @@ export default function PayloadsScreen() {
         "The payloads running or installed on the selected PS5. Open a payload's web page, update it, stop it, or manage it.",
       ),
     },
+    {
+      id: "processes",
+      icon: Layers,
+      key: "processes_title",
+      fallback: "Processes",
+      description: tr(
+        "processes_subtitle_v2",
+        undefined,
+        "The programs running on the PS5 right now. You can stop or restart one; take care with system processes, since stopping the wrong one can freeze the console.",
+      ),
+    },
+    {
+      id: "ports",
+      icon: Network,
+      key: "payloads_tab_ports",
+      fallback: "Ports",
+      description: tr(
+        "payloads_description_ports",
+        undefined,
+        "The ports in use on the PS5 and what usually listens on each, so you can tell which payload is where. Open the ones with a web page in your browser.",
+      ),
+    },
   ];
   const tabs = allTabs.filter((t) => available.includes(t.id));
 
   const renderPanel = (id: TabId) => {
     if (id === "send") return native ? <SendPanel /> : <BrowserSendPanel />;
     if (id === "ps5") return <OnPs5Panel />;
+    if (id === "processes") return <ProcessesPanel onCount={setProcessCount} />;
+    if (id === "ports") {
+      return (
+        <ConnectionGate require="payload">
+          <PortsPanel />
+        </ConnectionGate>
+      );
+    }
     return <CatalogPanel />;
   };
 
@@ -92,8 +131,9 @@ export default function PayloadsScreen() {
     <TabbedShell
       idPrefix="payloads"
       titleIcon={Boxes}
-      titleKey="payloads"
-      titleFallback="Payloads"
+      titleKey="payloads_and_processes"
+      titleFallback="Payloads & processes"
+      count={params.get("tab") === "processes" ? processCount : undefined}
       tabs={tabs}
       defaultTab={defaultPayloadTab(native, connected)}
       renderPanel={renderPanel}

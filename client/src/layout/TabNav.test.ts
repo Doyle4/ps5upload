@@ -30,8 +30,8 @@ describe("TabNav groups follow the sidebar's sections", () => {
   });
 
   it("files the screens the audit found misplaced where the sidebar has them", () => {
-    expect(tabForPath("/search")).toBe("files");
-    expect(tabForPath("/backup")).toBe("files");
+    expect(tabForPath("/volumes")).toBe("files");
+    expect(tabForPath("/cleanup")).toBe("files");
     expect(tabForPath("/local-image")).toBe("games");
   });
 

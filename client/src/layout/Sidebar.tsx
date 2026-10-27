@@ -141,7 +141,8 @@ export default function Sidebar() {
   const renderItem = (item: NavItem, kind: "fixed" | "section" | "pinned", index = 0) => {
     const Icon = item.icon;
     const label = tr(item.key, undefined, item.fallback);
-    const showErrors = item.to === "/logs" && errorCount > 0;
+    // App log errors: Logs is a tab of Activity & logs (/tasks).
+    const showErrors = item.to === "/tasks" && errorCount > 0;
     const showUpdate = item.to === "/settings" && updateAvailable;
     const hasButtons = kind !== "fixed" && !collapsed;
     const isPinned = pinned.includes(item.to);
@@ -345,7 +346,12 @@ export default function Sidebar() {
             <ul className="space-y-1">{pinnedItems.map((item) => renderItem(item, "pinned", pinned.indexOf(item.to)))}</ul>
           </section>
         )}
-        {groups.map((group) => {
+        {/* A pinned screen is listed once, in Pinned: its section leaves it out (and a section
+            whose screens are all pinned is not shown). More still lists every screen. */}
+        {groups
+          .map((group) => ({ ...group, items: group.items.filter((item) => !shownPins.includes(item.to)) }))
+          .filter((group) => group.items.length > 0)
+          .map((group) => {
           const title = tr(group.section.key, undefined, group.section.fallback);
           // The icon rail has no header to reopen a folded section from, so it shows them all.
           const open = collapsed || !closedSections.includes(group.section.key);

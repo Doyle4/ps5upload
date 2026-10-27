@@ -25,6 +25,7 @@ import { pushNotification } from "../../state/notifications";
 import { ActivityLine } from "./ActivityLine";
 import { installOffers } from "./collectionInstall";
 import { SendToPs5 } from "./SendToPs5";
+import { filesViewLink } from "../FileSystem/filesViews";
 
 /** Live enough to say "now": read in the last minute. */
 const LIVE_SEC = 60;
@@ -335,7 +336,7 @@ function ConsoleRow({
               aria-label={tr("game_search_files", undefined, "Search this game's files")}
               title={tr("game_search_files", undefined, "Search this game's files")}
               leftIcon={<Search size={13} />}
-              onClick={() => navigate("/search", { state: { titleId } })}
+              onClick={() => navigate(filesViewLink("search", { title: titleId }))}
             />
           )}
           <Button

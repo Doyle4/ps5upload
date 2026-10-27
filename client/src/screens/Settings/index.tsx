@@ -1256,8 +1256,8 @@ function NotifPrunePanel() {
   );
 }
 
-// 2.12.0: AuditLogPanel moved to its own top-level screen at
-// /audit-log (under Diagnostics in the sidebar). See
+// 2.12.0: AuditLogPanel moved to its own top-level screen, now the
+// Audit log tab of Activity & logs (/tasks?tab=audit). See
 // screens/AuditLog/index.tsx — the table render is identical;
 // only the rehousing changed.
 

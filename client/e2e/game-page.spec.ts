@@ -85,9 +85,9 @@ async function fakeEngine(page: Page) {
   );
 }
 
-test("a game opened from the Collection shows every console and every copy, and Back returns", async ({ page }) => {
+test("a game opened from Everything shows every console and every copy, and Back returns", async ({ page }) => {
   await fakeEngine(page);
-  await page.goto("/collection", { waitUntil: "domcontentloaded" });
+  await page.goto("/games?tab=all", { waitUntil: "domcontentloaded" });
   await page.getByRole("button", { name: /Astro/ }).first().click({ timeout: 30_000 });
   await expect(page).toHaveURL(new RegExp(`/games/${ID}$`));
 
@@ -103,7 +103,7 @@ test("a game opened from the Collection shows every console and every copy, and 
   await expect(page.getByTestId("game-summary")).toContainText("Installed on Phat (01.002)");
 
   await page.getByTestId("game-back").click();
-  await expect(page).toHaveURL(/\/collection$/);
+  await expect(page).toHaveURL(/\/games\?tab=all$/);
 });
 
 test("installing on a console that is not the connected one shows on its row and opens its activity", async ({ page }) => {
@@ -120,10 +120,10 @@ test("installing on a console that is not the connected one shows on its row and
   await expect(page.getByTestId("activity-console")).toContainText("Showing Phat");
 });
 
-test("Collection keeps the Games tab lit on a phone", async ({ page }) => {
+test("Everything keeps the Games tab lit on a phone", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await fakeEngine(page);
-  await page.goto("/collection", { waitUntil: "domcontentloaded" });
+  await page.goto("/games?tab=all", { waitUntil: "domcontentloaded" });
   const bottom = page.getByRole("navigation", { name: "Primary" }).last();
   await expect(bottom.getByRole("link", { name: /^Games/ })).toHaveAttribute("aria-current", "page", {
     timeout: 30_000,

@@ -16,6 +16,12 @@ import {
   type RowActionsContext,
 } from "./RowActions";
 import { SELECTION_ACTION, SelectionBar } from "./SelectionBar";
+import { FilesViewFrame } from "./FilesViewFrame";
+import { parseFilesView, type FilesView } from "./filesViews";
+import { SearchPanel, type SearchRequest } from "../Search/SearchPanel";
+import { fileSystemTargetFor } from "../Search/searchLink";
+import { DiskUsagePanel } from "../DiskUsage";
+import { SnapshotsPanel, type SnapshotPrefill } from "../Backup";
 import { useC2cRoutes } from "../../state/c2cRoutes";
 import { useUploadQueueStore } from "../../state/uploadQueue";
 import type { SendItem } from "../../lib/consoleSend";
@@ -34,6 +40,10 @@ import {
   FolderTree,
   Folder,
   File as FileIcon,
+  Search as SearchIcon,
+  PieChart,
+  Archive,
+  MoreHorizontal,
   ChevronRight,
   Home,
   ArrowUp,
@@ -116,6 +126,7 @@ import {
   generateTxIdHex,
   pathKind,
   loadConsolePayload,
+  type SearchHit,
   type Volume,
 } from "../../api/ps5";
 import { kindsOf, namesPreview, planFsUpload } from "../../state/fsUploadPlan";
@@ -743,6 +754,73 @@ export default function FileSystemScreen() {
     setSearchParams(next, { replace: true });
   }, [searchParams, setSearchParams, host]);
 
+  // The views Files opens over the listing (filesViews.ts): the all-drives search,
+  // "What takes space?" and the console snapshots. The view is in the URL, so Back
+  // closes it and the old /search, /disk-usage and /backup routes can land on one.
+  const view = parseFilesView(searchParams.get("view"));
+  const openView = (v: FilesView) => {
+    const next = new URLSearchParams(searchParams);
+    next.set("view", v);
+    setSearchParams(next);
+  };
+  const closeView = () => {
+    const next = new URLSearchParams(searchParams);
+    for (const k of ["view", "q", "title"]) next.delete(k);
+    setSearchParams(next);
+  };
+  // Search stays mounted once opened, so its results are still there after a hit
+  // opened its folder and the search box opens the view again.
+  const [searchKept, setSearchKept] = useState(false);
+  const [searchReq, setSearchReq] = useState<SearchRequest | null>(null);
+  const [searchDraft, setSearchDraft] = useState("");
+  useEffect(() => {
+    if (view === "search") setSearchKept(true);
+  }, [view]);
+  const askSearch = (pattern: string, titleId?: string) =>
+    setSearchReq((r) => ({ n: (r?.n ?? 0) + 1, pattern, titleId }));
+  // `?q=` / `?title=` (a game's "search this game's files"): run it, then drop the params.
+  useEffect(() => {
+    const q = searchParams.get("q");
+    const title = searchParams.get("title");
+    if (view !== "search" || (q === null && title === null)) return;
+    setSearchReq((r) => ({ n: (r?.n ?? 0) + 1, pattern: q ?? "", titleId: title ?? undefined }));
+    if (q) setSearchDraft(q);
+    const next = new URLSearchParams(searchParams);
+    next.delete("q");
+    next.delete("title");
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams, view]);
+  const runToolbarSearch = () => {
+    const pattern = searchDraft.trim();
+    if (pattern) askSearch(pattern);
+    if (view !== "search") openView("search");
+  };
+  // "What takes space?" starts at the folder or drive it was opened for; from a link,
+  // at its `?path=` (read here, before the deep-link effect above moves Files there).
+  const [spaceStart, setSpaceStart] = useState<string | null>(null);
+  const spaceRoot = spaceStart ?? searchParams.get("path") ?? path;
+  const openSpace = (p: string) => {
+    setSpaceStart(p);
+    openView("space");
+  };
+  // What "Snapshot…" asked to copy; the snapshots view fills its form with it.
+  const [snapshotPrefill, setSnapshotPrefill] = useState<SnapshotPrefill | null>(null);
+  const snapshotPaths = (paths: string[]) => {
+    if (paths.length === 0) return;
+    setSnapshotPrefill((cur) => ({ n: (cur?.n ?? 0) + 1, paths }));
+    openView("snapshots");
+  };
+  // A search hit opens its folder; a file hit is then selected once the listing has it.
+  const [pendingSelect, setPendingSelect] = useState<{ dir: string; name: string } | null>(null);
+  const openHit = (hit: SearchHit) => {
+    const t = fileSystemTargetFor(hit);
+    setPath(t.dir);
+    setPendingSelect(t.select ? { dir: t.dir, name: t.select } : null);
+    closeView();
+  };
+  // The page's ⋯ menu (space, snapshots, search), against its button.
+  const [moreMenu, setMoreMenu] = useState<DOMRect | null>(null);
+
   // Honor a cross-screen "open this directory" request (Saves, Install
   // Package, etc. call openInFileSystem then navigate here). Declared AFTER
   // the host-restore effect so on a fresh mount it runs last and wins. The
@@ -789,6 +867,27 @@ export default function FileSystemScreen() {
       return new Set(entries.map((e) => e.name));
     });
   };
+
+  // Select the file a search hit pointed at once this folder's listing has it, and
+  // bring its row into view.
+  useEffect(() => {
+    if (!pendingSelect) return;
+    // Gone somewhere else first: nothing left to select.
+    if (pendingSelect.dir !== path) {
+      setPendingSelect(null);
+      return;
+    }
+    if (!entries) return;
+    if (!entries.some((x) => x.name === pendingSelect.name)) return;
+    setSelected(new Set([pendingSelect.name]));
+    setPendingSelect(null);
+    const name = pendingSelect.name;
+    requestAnimationFrame(() =>
+      document
+        .querySelector(`[data-fs-name="${CSS.escape(name)}"]`)
+        ?.scrollIntoView({ block: "center" }),
+    );
+  }, [pendingSelect, path, entries]);
 
   const selectedEntries = useMemo(
     () => (entries ? entries.filter((e) => selected.has(e.name)) : []),
@@ -2662,6 +2761,8 @@ export default function FileSystemScreen() {
     keyHandler.current = (e: KeyboardEvent) => {
       if (
         keysBelongElsewhere(e.target) ||
+        // A view (search, space, snapshots) covers the listing: its keys are not the list's.
+        view !== null ||
         renaming !== null ||
         mkdirDraft !== null
       )
@@ -2777,6 +2878,8 @@ export default function FileSystemScreen() {
     },
     extractBusy: extractOp !== null,
     remove: (e) => void runDelete(e.name),
+    snapshot: (e) => snapshotPaths([joinPath(path, e.name)]),
+    space: (e) => openSpace(joinPath(path, e.name)),
   };
   const actionsMenuEntry =
     actionsMenu && actionsMenu.path === path
@@ -2785,6 +2888,22 @@ export default function FileSystemScreen() {
 
   // A const, so the menu items' closures keep the non-null narrowing.
   const menuEntry = rowMenu?.entry ?? null;
+
+  /** The open folder's own view items, in its right-click menu and the page's ⋯ menu. */
+  const folderViewItems = () => [
+    {
+      icon: PieChart,
+      label: tr("fs_space_here", undefined, "What takes space here?"),
+      run: () => openSpace(path),
+      disabled: !host?.trim(),
+    },
+    {
+      icon: Archive,
+      label: tr("fs_snapshot_folder", undefined, "Snapshot this folder"),
+      run: () => snapshotPaths([path]),
+      disabled: !host?.trim() || path === "/",
+    },
+  ];
 
   return (
     <div className="app-page" {...browserDrop}>
@@ -2928,6 +3047,22 @@ export default function FileSystemScreen() {
               label: tr("fs_menu_copy_path", undefined, "Copy path"),
               run: () => void copyEntryPath(menuEntry),
             },
+            ...(menuEntry.kind === "dir"
+              ? [
+                  {
+                    icon: PieChart,
+                    label: tr("fs_space_action", undefined, "What takes space?"),
+                    run: () => openSpace(joinPath(path, menuEntry.name)),
+                    disabled: !host?.trim(),
+                  },
+                ]
+              : []),
+            {
+              icon: Archive,
+              label: tr("fs_snapshot_action", undefined, "Snapshot…"),
+              run: () => snapshotPaths([joinPath(path, menuEntry.name)]),
+              disabled: !host?.trim(),
+            },
             {
               icon: FolderPlus,
               label: tr("fs_new_folder", "New folder"),
@@ -2975,11 +3110,33 @@ export default function FileSystemScreen() {
                 ]
               : []),
             ...showOnConsoleItems(consolePins, path, tr, toast),
+            ...folderViewItems(),
             {
               icon: RefreshCw,
               label: tr("fs_refresh", "Refresh"),
               run: () => void refresh(),
               disabled: loading || !host?.trim(),
+            },
+          ]}
+        />
+      )}
+      {moreMenu && (
+        <RowMenu
+          x={moreMenu.right}
+          y={moreMenu.bottom}
+          anchor={moreMenu}
+          onClose={() => setMoreMenu(null)}
+          items={[
+            ...folderViewItems(),
+            {
+              icon: Archive,
+              label: tr("fs_snapshots_open", undefined, "Snapshots"),
+              run: () => openView("snapshots"),
+            },
+            {
+              icon: SearchIcon,
+              label: tr("fs_search_all_drives", undefined, "Search all drives"),
+              run: () => openView("search"),
             },
           ]}
         />
@@ -3012,9 +3169,41 @@ export default function FileSystemScreen() {
         title={tr("file_system", undefined, "File System")}
         loading={loading}
         right={
-          // On a phone, Add folder / New folder / Refresh show their icon alone
-          // so the four fit one line under the title.
-          <div className="flex items-center gap-1 sm:gap-1.5">
+          // On a phone, Add folder / New folder / Refresh / ⋯ show their icon alone
+          // so they fit one line under the title, and the search box takes the
+          // whole next line (order-last + basis-full) instead of squeezing them.
+          <div className="flex items-center gap-1 sm:gap-1.5 max-sm:gap-y-1.5">
+            {/* Searches every writable drive, the same search the Search screen ran;
+                the results open as a view here (SearchPanel). */}
+            <form
+              role="search"
+              onSubmit={(ev) => {
+                ev.preventDefault();
+                runToolbarSearch();
+              }}
+              className="relative max-sm:order-last max-sm:basis-full"
+            >
+              <SearchIcon
+                size={12}
+                className="pointer-events-none absolute start-2.5 top-1/2 -translate-y-1/2 text-[var(--color-muted)]"
+              />
+              <input
+                type="search"
+                value={searchDraft}
+                onChange={(ev) => setSearchDraft(ev.target.value)}
+                disabled={!host?.trim()}
+                placeholder={tr("fs_search_placeholder", undefined, "Search all drives (*.pkg)")}
+                aria-label={tr("fs_search_all_drives", undefined, "Search all drives")}
+                title={tr(
+                  "search_description",
+                  undefined,
+                  "Searches every writable drive on your PS5. Use * and ? as wildcards (e.g. *.pkg, PPSA?????)",
+                )}
+                className="input input-sm w-full text-xs sm:w-52 lg:w-64"
+                // Room for the icon: `.input`'s own padding outranks a utility class.
+                style={{ paddingInlineStart: "1.75rem" }}
+              />
+            </form>
             <BrowseButton
               mode="file"
               remote
@@ -3068,6 +3257,24 @@ export default function FileSystemScreen() {
             >
               {tr("fs_refresh", "Refresh")}
             </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              leftIcon={<MoreHorizontal size={12} />}
+              aria-haspopup="menu"
+              aria-expanded={moreMenu !== null}
+              // The open menu closes on any mousedown outside it; without this the
+              // click that should close it would close it and reopen it.
+              onMouseDown={(ev) => ev.stopPropagation()}
+              onClick={(ev) => {
+                const box = ev.currentTarget.getBoundingClientRect();
+                setMoreMenu((cur) => (cur ? null : box));
+              }}
+              className="min-w-10! px-0 [&>span]:sr-only"
+              title={tr("fs_more_actions", undefined, "More: what takes space, snapshots")}
+            >
+              {tr("fs_more", undefined, "More")}
+            </Button>
           </div>
         }
       />
@@ -3083,851 +3290,938 @@ export default function FileSystemScreen() {
           <EditSessionBanner onFinished={() => void refresh()} />
         </div>
 
-        {/* Volume picker. Renders only when we have at least one
-          writable volume — otherwise it's clutter. Selecting a
-          volume jumps to its root, mirroring how Library's Move
-          modal lets users pick a destination volume. The picker
-          shows path + free-space so users can spot which mount has
-          headroom for an upload at a glance. */}
-        {/* Drives — internal + external/USB storage as a dedicated, always-
-            visible category (rather than a separate Volumes section). Each
-            chip jumps to that drive's root; external/USB drives get a USB icon
-            + accent border so they stand out. The active drive is highlighted. */}
-        {volumes && volumes.length > 0 && (
-          <div className="mb-2 flex items-center gap-1 text-xs max-sm:overflow-x-auto sm:flex-wrap sm:gap-1.5">
-            <span className="mr-0.5 inline-flex items-center gap-1 text-[var(--color-muted)] max-sm:sr-only">
-              <HardDrive size={12} />
-              {tr("fs_drives_label", undefined, "Drives")}
-            </span>
-            {volumes.map((v) => {
-              const external =
-                v.path.startsWith("/mnt/usb") || v.path.startsWith("/mnt/ext");
-              const active = currentVolumePath === v.path;
-              const Icon = external ? Usb : HardDrive;
-              const ejectable = canEjectUsb(v.path);
-              const chip = (
-                <button
-                  key={v.path}
-                  type="button"
-                  onClick={() => setPath(v.path)}
-                  title={`${v.path} · ${formatBytes(v.free_bytes)} ${tr("fs_free", "free")}`}
-                  aria-current={active ? "true" : undefined}
-                  // Exactly ONE thing is highlighted: the drive you are
-                  // currently in. Nothing else competes for that meaning.
-                  //
-                  // Before, external drives carried a coloured (ps4) border
-                  // whether or not they were active, so /mnt/ext1 always
-                  // looked selected while /data lit up and dimmed as you
-                  // moved — two different signals wearing the same clothes.
-                  // Drive TYPE is now carried solely by the icon, leaving
-                  // border and background to mean "you are here".
-                  aria-pressed={active}
-                  className="chip shrink-0 gap-1 px-2 py-1 font-mono sm:gap-1.5 sm:px-3 sm:py-1.5"
-                >
-                  {/* Type lives in the icon: USB glyph for removable
-                      drives, platter for internal. It stays tinted so the
-                      distinction survives, without implying selection. */}
-                  <Icon
-                    size={12}
-                    className={
-                      external
-                        ? "text-[var(--color-ps4)]"
-                        : "text-[var(--color-muted)]"
-                    }
-                  />
-                  {v.path}
-                  <span className="opacity-60">
-                    · {formatBytes(v.free_bytes)}
-                  </span>
-                </button>
-              );
-              if (!ejectable) return chip;
-              const ejecting = ejectingPath === v.path;
-              return (
-                <span key={v.path} className="inline-flex shrink-0 items-center gap-0.5">
-                  {chip}
-                  <button
-                    type="button"
-                    onClick={() => void ejectUsb(v.path)}
-                    disabled={ejectingPath !== null}
-                    title={tr("volumes_eject_tooltip", undefined, "Unmount the USB drive so it can be unplugged safely.")}
-                    aria-label={`${tr("volumes_eject", undefined, "Eject")} ${v.path}`}
-                    className="chip shrink-0 px-1.5 py-1 sm:py-1.5"
-                    data-eject={v.path}
-                  >
-                    {ejecting ? <Spinner size={12} /> : <Eject size={12} />}
-                  </button>
-                </span>
-              );
-            })}
-            {/* Mesh Drives: a shortcut to each drive's home on the console. */}
-            {meshDrives.map((d) => {
-              const here = path === d.hub || path.startsWith(`${d.hub}/`);
-              return (
-                <button
-                  key={`mesh:${d.id}`}
-                  type="button"
-                  onClick={() => setPath(d.hub)}
-                  title={tr("fs_mesh_drive_shortcut", { name: d.name, path: d.hub }, `Mesh Drive ${d.name}: ${d.hub}`)}
-                  aria-current={here ? "true" : undefined}
-                  aria-pressed={here}
-                  className="chip shrink-0 gap-1 px-2 py-1 sm:gap-1.5 sm:px-3 sm:py-1.5"
-                >
-                  <FolderSync size={12} className="text-[var(--color-accent-bright)]" />
-                  {d.name}
-                </button>
-              );
-            })}
-            {/* When the current path sits under no known volume, mirror the old
-                picker's "(custom path)" affordance so the lack of an active
-                chip isn't mysterious. */}
-            {currentVolumePath === null && (
-              <span className="rounded-[var(--radius-card)] border border-dashed border-[var(--glass-edge)] shrink-0 whitespace-nowrap px-2 py-1 font-mono text-[var(--color-muted)]">
-                {tr("fs_volume_picker_custom", undefined, "(custom path)")}
-              </span>
-            )}
+        {/* The views that used to be their own screens (Search, Disk usage, Console
+            snapshots), opened over the listing; the listing below stays mounted. */}
+        {(searchKept || view === "search") && (
+          <div hidden={view !== "search"}>
+            <FilesViewFrame
+              icon={SearchIcon}
+              title={tr("search", undefined, "Search")}
+              description={tr(
+                "search_description",
+                undefined,
+                "Searches every writable drive on your PS5. Use * and ? as wildcards (e.g. *.pkg, PPSA?????)",
+              )}
+              backLabel={tr("fs_view_back", undefined, "Back to files")}
+              onBack={closeView}
+            >
+              <SearchPanel request={searchReq} onOpenHit={openHit} />
+            </FilesViewFrame>
           </div>
         )}
+        {view === "space" && (
+          <FilesViewFrame
+            icon={PieChart}
+            title={tr("fs_space_title", undefined, "What takes space?")}
+            description={tr(
+              "disk_usage_description_v3",
+              undefined,
+              "See what is taking up space on the PS5. Each block is a file or a folder, and a folder counts everything inside it, subfolders included. Click a folder to look inside.",
+            )}
+            backLabel={tr("fs_view_back", undefined, "Back to files")}
+            onBack={() => {
+              setSpaceStart(null);
+              closeView();
+            }}
+          >
+            <DiskUsagePanel
+              key={spaceRoot}
+              initialPath={spaceRoot}
+              onOpenFolder={(p) => {
+                setPath(p);
+                setSpaceStart(null);
+                closeView();
+              }}
+            />
+          </FilesViewFrame>
+        )}
+        {view === "snapshots" && (
+          <FilesViewFrame
+            icon={Archive}
+            title={tr("console_snapshots", undefined, "Console snapshots")}
+            description={tr(
+              "backup_subtitle_v3",
+              undefined,
+              "Copy files and folders into a snapshot kept on the PS5 itself, and put them back later. Nothing is copied to this computer. For game saves, use Save data.",
+            )}
+            backLabel={tr("fs_view_back", undefined, "Back to files")}
+            onBack={closeView}
+          >
+            <SnapshotsPanel prefill={snapshotPrefill} />
+          </FilesViewFrame>
+        )}
 
-        {/* Breadcrumbs + up-button.
+        <div hidden={view !== null}>
 
-            The crumbs scroll horizontally on their own (`overflow-x-auto` on
-            the INNER row), but the Recent dropdown is a sibling OUTSIDE that
-            scroll container. Critical: a parent with `overflow-x:auto` makes
-            `overflow-y` compute to `auto` too (CSS spec), which would clip the
-            dropdown's absolutely-positioned panel to the thin breadcrumb bar
-            — the cramped/scrollbar'd overlay users saw. Keeping the dropdown
-            out of the scrolling row lets its panel open freely. */}
-        <div className="mb-2 flex items-center gap-1 rounded-full border border-[var(--glass-edge)] bg-[var(--color-surface-raised)] px-1.5 py-0.5 text-xs sm:mb-4 sm:px-2.5 sm:py-1.5 shadow-[var(--edge-highlight),var(--shadow-1)]">
-          <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
-            <button
-              type="button"
-              onClick={() => setPath(parent(path))}
-              disabled={path === "/"}
-              title={tr("fs_parent_dir", undefined, "Parent directory")}
-              className="shrink-0 rounded-full p-1.5 text-[var(--color-muted)] hover:bg-[var(--color-surface-3)] hover:text-[var(--color-text)] disabled:opacity-30"
-            >
-              <ArrowUp size={14} />
-            </button>
-            {pathDraft !== null ? (
-              <input
-                autoFocus
-                value={pathDraft}
-                onChange={(ev) => setPathDraft(ev.target.value)}
-                onKeyDown={(ev) => {
-                  if (ev.key === "Enter") {
-                    const next = normalizeTypedPath(pathDraft);
-                    if (next) {
-                      setPath(next);
-                      setPathDraft(null);
-                    }
-                  }
-                  if (ev.key === "Escape") setPathDraft(null);
-                }}
-                onBlur={() => setPathDraft(null)}
-                spellCheck={false}
-                aria-label={tr("fs_go_to_path", undefined, "Go to path")}
-                className="input input-sm min-w-0 flex-1 font-mono text-xs"
-              />
-            ) : (
-              <>
-                {crumbs(path).map((c, i, arr) => (
-                  <span
-                    key={c.path}
-                    className="flex shrink-0 items-center gap-1"
+          {/* Volume picker. Renders only when we have at least one
+            writable volume — otherwise it's clutter. Selecting a
+            volume jumps to its root, mirroring how Library's Move
+            modal lets users pick a destination volume. The picker
+            shows path + free-space so users can spot which mount has
+            headroom for an upload at a glance. */}
+          {/* Drives — internal + external/USB storage as a dedicated, always-
+              visible category (rather than a separate Volumes section). Each
+              chip jumps to that drive's root; external/USB drives get a USB icon
+              + accent border so they stand out. The active drive is highlighted. */}
+          {volumes && volumes.length > 0 && (
+            <div className="mb-2 flex items-center gap-1 text-xs max-sm:overflow-x-auto sm:flex-wrap sm:gap-1.5">
+              <span className="mr-0.5 inline-flex items-center gap-1 text-[var(--color-muted)] max-sm:sr-only">
+                <HardDrive size={12} />
+                {tr("fs_drives_label", undefined, "Drives")}
+              </span>
+              {volumes.map((v) => {
+                const external =
+                  v.path.startsWith("/mnt/usb") || v.path.startsWith("/mnt/ext");
+                const active = currentVolumePath === v.path;
+                const Icon = external ? Usb : HardDrive;
+                const ejectable = canEjectUsb(v.path);
+                const chip = (
+                  <button
+                    key={v.path}
+                    type="button"
+                    onClick={() => setPath(v.path)}
+                    title={`${v.path} · ${formatBytes(v.free_bytes)} ${tr("fs_free", "free")}`}
+                    aria-current={active ? "true" : undefined}
+                    // Exactly ONE thing is highlighted: the drive you are
+                    // currently in. Nothing else competes for that meaning.
+                    //
+                    // Before, external drives carried a coloured (ps4) border
+                    // whether or not they were active, so /mnt/ext1 always
+                    // looked selected while /data lit up and dimmed as you
+                    // moved — two different signals wearing the same clothes.
+                    // Drive TYPE is now carried solely by the icon, leaving
+                    // border and background to mean "you are here".
+                    aria-pressed={active}
+                    className="chip shrink-0 gap-1 px-2 py-1 font-mono sm:gap-1.5 sm:px-3 sm:py-1.5"
                   >
+                    {/* Type lives in the icon: USB glyph for removable
+                        drives, platter for internal. It stays tinted so the
+                        distinction survives, without implying selection. */}
+                    <Icon
+                      size={12}
+                      className={
+                        external
+                          ? "text-[var(--color-ps4)]"
+                          : "text-[var(--color-muted)]"
+                      }
+                    />
+                    {v.path}
+                    <span className="opacity-60">
+                      · {formatBytes(v.free_bytes)}
+                    </span>
+                  </button>
+                );
+                if (!ejectable) return chip;
+                const ejecting = ejectingPath === v.path;
+                return (
+                  <span key={v.path} className="inline-flex shrink-0 items-center gap-0.5">
+                    {chip}
                     <button
                       type="button"
-                      onClick={() => setPath(c.path)}
-                      {...(i < arr.length - 1 ? dropProps(c.path) : {})}
-                      className={
-                        (dropTarget === c.path ? "ring-2 ring-[var(--color-accent)] " : "") +
-                        "rounded px-1.5 py-0.5 font-mono " +
-                        (i === arr.length - 1
-                          ? "font-medium text-[var(--color-text)]"
-                          : "text-[var(--color-muted)] hover:bg-[var(--color-surface-3)] hover:text-[var(--color-text)]")
-                      }
+                      onClick={() => void ejectUsb(v.path)}
+                      disabled={ejectingPath !== null}
+                      title={tr("volumes_eject_tooltip", undefined, "Unmount the USB drive so it can be unplugged safely.")}
+                      aria-label={`${tr("volumes_eject", undefined, "Eject")} ${v.path}`}
+                      className="chip shrink-0 px-1.5 py-1 sm:py-1.5"
+                      data-eject={v.path}
                     >
-                      {i === 0 ? (
-                        <Home size={12} className="inline -translate-y-[1px]" />
-                      ) : (
-                        c.label
-                      )}
+                      {ejecting ? <Spinner size={12} /> : <Eject size={12} />}
                     </button>
-                    {i < arr.length - 1 && (
-                      <ChevronRight
-                        size={12}
-                        className="text-[var(--color-muted)] rtl:rotate-180"
-                      />
-                    )}
                   </span>
-                ))}
-                <button
-                  type="button"
-                  onClick={() => setPathDraft(path)}
-                  title={tr("fs_go_to_path", undefined, "Go to path")}
-                  className="ml-1 shrink-0 rounded-full p-1.5 text-[var(--color-muted)] hover:bg-[var(--color-surface-3)] hover:text-[var(--color-text)]"
-                >
-                  <Pencil size={12} />
-                </button>
-              </>
-            )}
-          </div>
-          <RecentPathsDropdown
-            onPick={(p) => setPath(p)}
-            currentPath={path}
-            onOpen={consolePins.refresh}
-            console={
-              consolePins.pins
-                ? {
-                    pins: consolePins.pins,
-                    pinned: consolePins.isPinned(path),
-                    onTogglePin: () =>
-                      void consolePins.toggle(path).catch((e: unknown) =>
-                        toast({
-                          tone: "warn",
-                          message: tr(
-                            "fs_console_pin_failed",
-                            { error: e instanceof Error ? e.message : String(e) },
-                            `Couldn't change the console's pinned folders: ${e instanceof Error ? e.message : String(e)}`,
-                          ),
-                        }),
-                      ),
-                  }
-                : undefined
-            }
-          />
-        </div>
-
-        {/* Clipboard banner: non-empty clipboard shows what's staged and
-          where it came from; paste target is always the current path. */}
-        {clipboardActive && (
-          <div className="mb-3 flex items-center gap-2 rounded-[var(--radius-card)] border border-[color-mix(in_srgb,var(--color-accent)_35%,transparent)] bg-[var(--color-accent-soft)] p-2 text-xs">
-            <ClipboardPaste size={14} className="text-[var(--color-accent)]" />
-            <span>
-              <span className="font-medium">
-                {tr(
-                  clipboard.items.length === 1 ? "fs_item_one" : "fs_item_many",
-                  { count: clipboard.items.length },
-                  `${clipboard.items.length} item${clipboard.items.length === 1 ? "" : "s"}`,
-                )}
-              </span>{" "}
-              {clipboard.op === "cut"
-                ? tr("fs_to_move", undefined, "to move")
-                : tr("fs_to_copy", undefined, "to copy")}
-              {clipboard.sourceLabel
-                ? ` ${tr("fs_from", undefined, "from")} ${clipboard.sourceLabel}`
-                : ""}
-            </span>
-            <div className="ml-auto flex items-center gap-1">
+                );
+              })}
+              {/* Mesh Drives: a shortcut to each drive's home on the console. */}
+              {meshDrives.map((d) => {
+                const here = path === d.hub || path.startsWith(`${d.hub}/`);
+                return (
+                  <button
+                    key={`mesh:${d.id}`}
+                    type="button"
+                    onClick={() => setPath(d.hub)}
+                    title={tr("fs_mesh_drive_shortcut", { name: d.name, path: d.hub }, `Mesh Drive ${d.name}: ${d.hub}`)}
+                    aria-current={here ? "true" : undefined}
+                    aria-pressed={here}
+                    className="chip shrink-0 gap-1 px-2 py-1 sm:gap-1.5 sm:px-3 sm:py-1.5"
+                  >
+                    <FolderSync size={12} className="text-[var(--color-accent-bright)]" />
+                    {d.name}
+                  </button>
+                );
+              })}
+              {/* When the current path sits under no known volume, mirror the old
+                  picker's "(custom path)" affordance so the lack of an active
+                  chip isn't mysterious. */}
+              {currentVolumePath === null && (
+                <span className="rounded-[var(--radius-card)] border border-dashed border-[var(--glass-edge)] shrink-0 whitespace-nowrap px-2 py-1 font-mono text-[var(--color-muted)]">
+                  {tr("fs_volume_picker_custom", undefined, "(custom path)")}
+                </span>
+              )}
+              {/* The size map of the drive you are on (Disk usage, now a Files view). */}
               <button
                 type="button"
-                onClick={() => void runPaste()}
-                disabled={bulkOp.op !== null || !host?.trim()}
-                className="rounded-full flex items-center gap-1 bg-[image:var(--accent-fill)] shadow-[var(--accent-glow)] px-2 py-1 text-xs font-medium text-[var(--color-accent-contrast)] disabled:opacity-50"
+                onClick={() => openSpace(currentVolumePath ?? path)}
+                title={tr("fs_space_drive_tooltip", undefined, "See what takes space on this drive")}
+                aria-label={tr("fs_space_drive_tooltip", undefined, "See what takes space on this drive")}
+                className="chip shrink-0 gap-1 px-2 py-1 sm:gap-1.5 sm:px-3 sm:py-1.5"
+                data-testid="fs-drive-space"
               >
-                {tr("fs_paste_here", undefined, "Paste here")}
-              </button>
-              <button
-                type="button"
-                onClick={() => clipboard.clear()}
-                className="rounded-full border shadow-[var(--edge-highlight),var(--shadow-1)] hover:bg-[var(--color-float)] border-[var(--glass-edge)] bg-[var(--color-surface-raised)] p-1"
-                title={tr(
-                  "fs_cancel_clipboard",
-                  undefined,
-                  "Cancel — forget the staged items",
-                )}
-              >
-                <X size={12} />
+                <PieChart size={12} className="text-[var(--color-accent-bright)]" />
+                <span className="max-sm:sr-only">{tr("fs_space_action", undefined, "What takes space?")}</span>
               </button>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* Selection toolbar: only visible with ≥1 selected. */}
-        {selectionActive && (
-          <SelectionBar
-            countLabel={tr(
-              "fs_selected_count",
-              { count: selected.size },
-              `${selected.size} selected`,
-            )}
-            clearLabel={tr("fs_clear_selection", undefined, "Clear selection")}
-            onClear={() => setSelected(new Set())}
-          >
-            <button
-              type="button"
-              onClick={() => startMove()}
-              disabled={bulkOp.op !== null || !volumes?.length}
-              className={`${SELECTION_ACTION} border-[color-mix(in_srgb,var(--color-accent)_40%,transparent)] font-medium`}
-            >
-              <FolderInput size={12} />
-              {tr("fs_move_to", undefined, "Move to…")}
-            </button>
-            {otherConsoles > 0 && (
+          {/* Breadcrumbs + up-button.
+
+              The crumbs scroll horizontally on their own (`overflow-x-auto` on
+              the INNER row), but the Recent dropdown is a sibling OUTSIDE that
+              scroll container. Critical: a parent with `overflow-x:auto` makes
+              `overflow-y` compute to `auto` too (CSS spec), which would clip the
+              dropdown's absolutely-positioned panel to the thin breadcrumb bar
+              — the cramped/scrollbar'd overlay users saw. Keeping the dropdown
+              out of the scrolling row lets its panel open freely. */}
+          <div className="mb-2 flex items-center gap-1 rounded-full border border-[var(--glass-edge)] bg-[var(--color-surface-raised)] px-1.5 py-0.5 text-xs sm:mb-4 sm:px-2.5 sm:py-1.5 shadow-[var(--edge-highlight),var(--shadow-1)]">
+            <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
               <button
                 type="button"
-                onClick={() => startSend()}
-                data-testid="fs-send-console"
-                className={`${SELECTION_ACTION} border-[var(--glass-edge)]`}
+                onClick={() => setPath(parent(path))}
+                disabled={path === "/"}
+                title={tr("fs_parent_dir", undefined, "Parent directory")}
+                className="shrink-0 rounded-full p-1.5 text-[var(--color-muted)] hover:bg-[var(--color-surface-3)] hover:text-[var(--color-text)] disabled:opacity-30"
               >
-                <Send size={12} />
-                {tr("fs_send_action", undefined, "Send to another console…")}
+                <ArrowUp size={14} />
               </button>
-            )}
-            <button
-              type="button"
-              onClick={() => stageClipboard("cut")}
-              disabled={bulkOp.op !== null}
-              className={`${SELECTION_ACTION} border-[var(--glass-edge)]`}
-            >
-              <Scissors size={12} />
-              {tr("fs_cut", undefined, "Cut")}
-            </button>
-            <button
-              type="button"
-              onClick={() => stageClipboard("copy")}
-              disabled={bulkOp.op !== null}
-              className={`${SELECTION_ACTION} border-[var(--glass-edge)]`}
-            >
-              <Copy size={12} />
-              {tr("copy", undefined, "Copy")}
-            </button>
-            <button
-              type="button"
-              onClick={() => void runChmod777()}
-              disabled={bulkOp.op !== null || chmodBusy}
-              className={`${SELECTION_ACTION} border-[var(--glass-edge)]`}
-            >
-              <KeyRound size={12} />
-              {tr("fs_chmod_777", undefined, "Set permissions (777)")}
-            </button>
-            <button
-              type="button"
-              onClick={() => runBulkRename(Array.from(selected))}
-              disabled={bulkOp.op !== null || selected.size === 0}
-              title={tr(
-                "fs_bulk_rename_tooltip",
-                undefined,
-                "Bulk rename via pattern (s/old/new/, ^prefix_, _suffix$, lower, upper)",
-              )}
-              className={`${SELECTION_ACTION} border-[var(--glass-edge)]`}
-            >
-              <Pencil size={12} />
-              {tr("fs_bulk_rename", undefined, "Bulk rename")}
-            </button>
-            <button
-              type="button"
-              onClick={runBulkDelete}
-              disabled={bulkOp.op !== null}
-              className={`${SELECTION_ACTION} border-[color-mix(in_srgb,var(--color-bad)_40%,transparent)] text-[var(--color-bad)]`}
-            >
-              <Trash2 size={12} />
-              {tr("library_delete", undefined, "Delete")}
-            </button>
-          </SelectionBar>
-        )}
-
-        {mkdirDraft !== null && (
-          <div className="rounded-[var(--radius-card)] border border-[var(--glass-edge)] bg-[var(--color-surface)] mb-3 flex items-center gap-2 p-2 text-sm">
-            <FolderPlus size={14} className="text-[var(--color-muted)]" />
-            <span className="text-xs text-[var(--color-muted)]">
-              {tr("fs_create_in", undefined, "Create in")}{" "}
-              <span className="font-mono">{path}</span>
-            </span>
-            <input
-              autoFocus
-              value={mkdirDraft}
-              placeholder={tr("fs_folder_name", undefined, "folder name")}
-              onChange={(e) => setMkdirDraft(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") runMkdir();
-                if (e.key === "Escape") setMkdirDraft(null);
-              }}
-              className="input input-sm flex-1 text-xs"
-            />
-            <button
-              type="button"
-              onClick={runMkdir}
-              className="rounded-full bg-[image:var(--accent-fill)] shadow-[var(--accent-glow)] px-3 py-1 text-xs font-medium text-[var(--color-accent-contrast)]"
-            >
-              {tr("fs_create", undefined, "Create")}
-            </button>
-            <button
-              type="button"
-              onClick={() => setMkdirDraft(null)}
-              className="rounded-full border shadow-[var(--edge-highlight),var(--shadow-1)] hover:bg-[var(--color-float)] border-[var(--glass-edge)] bg-[var(--color-surface-raised)] px-3 py-1 text-xs"
-            >
-              {tr("cancel", undefined, "Cancel")}
-            </button>
-          </div>
-        )}
-
-        {bulkOpHere && bulkOp.op !== null && (
-          <BulkOpBanner
-            host={host}
-            op={bulkOp.op}
-            total={bulkOp.total}
-            done={bulkOp.done}
-            currentName={bulkOp.currentName}
-            currentSize={bulkOp.currentSize}
-            fromPath={bulkOp.fromPath}
-            toPath={bulkOp.toPath}
-            startedAtMs={bulkOp.startedAtMs}
-          />
-        )}
-
-        {/* An op running on ANOTHER console no longer blocks this one (ops are
-          per-console now), but we still surface it so the user knows work is
-          happening elsewhere and where to look — without rendering the other
-          console's progress here as if it were this console's. */}
-        {(bulkOpElsewhere || downloadElsewhere) && (
-          <div className="rounded-[var(--radius-card)] border border-[var(--glass-edge)] bg-[var(--color-surface)] mb-3 flex items-center gap-2 p-2 text-xs text-[var(--color-muted)]">
-            <Spinner size={12} />
-            <span>
-              {tr(
-                "fs_op_on_other_console",
-                {
-                  name: profileNameForHost(
-                    bulkOpElsewhereHost ?? downloadElsewhereHost ?? "",
-                    rosterProfiles,
-                  ),
-                },
-                "A file operation is running on {name} — switch to that console's tab to see its progress.",
-              )}
-            </span>
-          </div>
-        )}
-
-        {uploadQueue && uploadQueue.items.length > 0 && (
-          <div className="mb-3 rounded-[var(--radius-card)] border border-[var(--color-border)] p-3 text-xs" data-testid="fs-upload-queue">
-            <strong>{tr("queue_title", undefined, "Queue")} · {uploadQueue.items.length}</strong>
-            {uploadQueue.error && <p role="alert">{uploadQueue.error}</p>}
-            {uploadQueue.items.map((item, index) => (
-              <div key={item.id} className="mt-2 flex items-center gap-2">
-                <span className="min-w-0 flex-1 break-all">{item.request.steps?.flatMap((s) => s.kind === "list" ? s.files.map((f) => f.name) : [s.name]).join(", ")} → {item.request.destDir}</span>
-                <Button size="sm" variant="ghost" disabled={uploadQueue.running && index === 0} onClick={() => removeFsUploadQueued(host, item.id)}>
-                  {tr("queue_remove", undefined, "Remove from queue")}
-                </Button>
-              </div>
-            ))}
-            {uploadQueue.paused && !uploadStopped && (
-              <Button size="sm" onClick={() => resumeFsUploadQueue(host, fsUploadDeps)}>{tr("queue_resume", undefined, "Resume")}</Button>
-            )}
-          </div>
-        )}
-        {busyEntry && bulkOp.op === null && (
-          <div className="rounded-[var(--radius-card)] border border-[var(--glass-edge)] bg-[var(--color-surface)] mb-3 flex flex-wrap items-center gap-2 p-2 text-xs">
-            <Spinner size={12} tone="accent" />
-            <span className="font-medium">
-              {busyEntry.op === "rename"
-                ? tr("fs_busy_renaming", undefined, "Renaming")
-                : busyEntry.op === "upload"
-                  ? tr("fs_busy_uploading", undefined, "Copying to PS5")
-                  : tr("fs_busy_creating_folder", undefined, "Creating folder")}
-            </span>
-            <span className="text-[var(--color-muted)]">
-              {busyEntry.name} ·{" "}
-              {busyEntry.op === "upload" && uploadStartedAtMs > 0 ? (
-                <ElapsedSince sinceMs={uploadStartedAtMs} />
+              {pathDraft !== null ? (
+                <input
+                  autoFocus
+                  value={pathDraft}
+                  onChange={(ev) => setPathDraft(ev.target.value)}
+                  onKeyDown={(ev) => {
+                    if (ev.key === "Enter") {
+                      const next = normalizeTypedPath(pathDraft);
+                      if (next) {
+                        setPath(next);
+                        setPathDraft(null);
+                      }
+                    }
+                    if (ev.key === "Escape") setPathDraft(null);
+                  }}
+                  onBlur={() => setPathDraft(null)}
+                  spellCheck={false}
+                  aria-label={tr("fs_go_to_path", undefined, "Go to path")}
+                  className="input input-sm min-w-0 flex-1 font-mono text-xs"
+                />
               ) : (
-                formatDuration(elapsedMs / 1000)
+                <>
+                  {crumbs(path).map((c, i, arr) => (
+                    <span
+                      key={c.path}
+                      className="flex shrink-0 items-center gap-1"
+                    >
+                      <button
+                        type="button"
+                        onClick={() => setPath(c.path)}
+                        {...(i < arr.length - 1 ? dropProps(c.path) : {})}
+                        className={
+                          (dropTarget === c.path ? "ring-2 ring-[var(--color-accent)] " : "") +
+                          "rounded px-1.5 py-0.5 font-mono " +
+                          (i === arr.length - 1
+                            ? "font-medium text-[var(--color-text)]"
+                            : "text-[var(--color-muted)] hover:bg-[var(--color-surface-3)] hover:text-[var(--color-text)]")
+                        }
+                      >
+                        {i === 0 ? (
+                          <Home size={12} className="inline -translate-y-[1px]" />
+                        ) : (
+                          c.label
+                        )}
+                      </button>
+                      {i < arr.length - 1 && (
+                        <ChevronRight
+                          size={12}
+                          className="text-[var(--color-muted)] rtl:rotate-180"
+                        />
+                      )}
+                    </span>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => setPathDraft(path)}
+                    title={tr("fs_go_to_path", undefined, "Go to path")}
+                    className="ml-1 shrink-0 rounded-full p-1.5 text-[var(--color-muted)] hover:bg-[var(--color-surface-3)] hover:text-[var(--color-text)]"
+                  >
+                    <Pencil size={12} />
+                  </button>
+                </>
               )}
-            </span>
-            {busyEntry.op === "upload" && (
-              <FsUploadProgress host={host} onCancel={cancelUpload} />
-            )}
-          </div>
-        )}
-
-        {unpackOp && (
-          <div className="mb-3 flex flex-wrap items-center gap-3 rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-surface-2)] px-3 py-2 text-sm" data-testid="fs-unpack">
-            <Spinner size={14} />
-            <span className="min-w-0 flex-1 truncate">
-              {tr("fs_unpack_running", { name: unpackOp.name }, `Decompressing ${unpackOp.name}`)}
-              {unpackOp.total > 0 &&
-                ` · ${formatBytes(unpackOp.done)} / ${formatBytes(unpackOp.total)} (${Math.floor((unpackOp.done / unpackOp.total) * 100)}%)`}
-            </span>
-            <Button variant="secondary" size="sm" disabled={unpackOp.stopping} onClick={() => void stopUnpack()}>
-              {tr("fs_unpack_stop", undefined, "Stop")}
-            </Button>
-          </div>
-        )}
-
-        {extractOp && (
-          <div className="mb-3 flex flex-wrap items-center gap-3 rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-surface-2)] px-3 py-2 text-sm" data-testid="fs-extract">
-            <Spinner size={14} />
-            <span className="min-w-0 flex-1 truncate">
-              {tr("fs_extract_running", { name: extractOp.name }, `Extracting ${extractOp.name}`)}
-              {extractOp.total > 0 &&
-                ` · ${formatBytes(extractOp.done)} / ${formatBytes(extractOp.total)} (${Math.min(100, Math.floor((extractOp.done / extractOp.total) * 100))}%)`}
-            </span>
-            <Button variant="secondary" size="sm" disabled={extractOp.stopping} onClick={() => void stopExtract()}>
-              {tr("fs_extract_stop", undefined, "Stop")}
-            </Button>
-          </div>
-        )}
-
-        {downloadHere && (
-          <DownloadOpBanner
-            host={host}
-            rootName={downloadOp.rootName}
-            rootSrcPath={downloadOp.rootSrcPath}
-            destDir={downloadOp.destDir}
-            startedAtMs={downloadOp.startedAtMs}
-          />
-        )}
-
-        {error && (
-          <div className="mb-3">
-            <ErrorCard
-              title={tr("fs_list_failed_title", undefined, "Couldn't read this folder")}
-              detail={error}
-              action={
-                <Button variant="secondary" size="sm" onClick={() => void refresh()}>
-                  {tr("fs_retry", undefined, "Retry")}
-                </Button>
+            </div>
+            <RecentPathsDropdown
+              onPick={(p) => setPath(p)}
+              currentPath={path}
+              onOpen={consolePins.refresh}
+              console={
+                consolePins.pins
+                  ? {
+                      pins: consolePins.pins,
+                      pinned: consolePins.isPinned(path),
+                      onTogglePin: () =>
+                        void consolePins.toggle(path).catch((e: unknown) =>
+                          toast({
+                            tone: "warn",
+                            message: tr(
+                              "fs_console_pin_failed",
+                              { error: e instanceof Error ? e.message : String(e) },
+                              `Couldn't change the console's pinned folders: ${e instanceof Error ? e.message : String(e)}`,
+                            ),
+                          }),
+                        ),
+                    }
+                  : undefined
               }
             />
           </div>
-        )}
 
-        {/* An "Add files" upload that ended on a failure. It lives in the store, so it is
-          here on every visit until the user resumes it or dismisses it. */}
-        {uploadStopped && uploadName === null && (
-          <div
-            className={`mb-3 rounded-[var(--radius-card)] border bg-[var(--color-surface-raised)] px-4 py-3.5 text-sm shadow-[var(--edge-highlight),var(--shadow-1)] ${uploadStopped.why === "failed" ? "border-[color-mix(in_srgb,var(--color-bad)_40%,transparent)]" : "border-[var(--glass-edge)]"}`}
-            data-testid="fs-upload-stopped"
-          >
-            <div className="font-medium">
-              {uploadStopped.why === "user"
-                ? tr(
-                    "fs_upload_stopped_by_user",
-                    stoppedAt,
-                    "You stopped this copy at {name} ({done} of {count} done)",
-                  )
-                : uploadStopped.why === "interrupted"
-                  ? tr(
-                      "fs_upload_stopped_interrupted",
-                      stoppedAt,
-                      "This copy was interrupted when the app closed, at {name} ({done} of {count} done)",
-                    )
-                  : tr(
-                      "fs_upload_stopped_title",
-                      stoppedAt,
-                      "Copy to PS5 stopped at {name} ({done} of {count} done)",
-                    )}
-            </div>
-            {uploadStopped.error && (
-              <div className="mt-1 break-words text-xs text-[var(--color-muted)]">
-                {humanizePs5Error(uploadStopped.error) || uploadStopped.error}
-              </div>
-            )}
-            {/* A stopped multi-file job: the files not (known to be) in place yet. */}
-            {uploadStopped.notLanded && uploadStopped.notLanded.length > 0 && (
-              <div
-                className="mt-1 break-words text-xs text-[var(--color-muted)]"
-                data-testid="fs-upload-not-landed"
-              >
-                {tr(
-                  "fs_upload_not_landed",
-                  { names: namesPreview(uploadStopped.notLanded) },
-                  `Not on the PS5 yet: ${namesPreview(uploadStopped.notLanded)}`,
-                )}
-              </div>
-            )}
-            <div className="mt-1 text-xs text-[var(--color-muted)]">
-              {tr(
-                "fs_upload_stopped_hint",
-                undefined,
-                "What already reached the PS5 is kept. Resume sends only the rest.",
-              )}
-            </div>
-            <div className="mt-2 flex gap-2">
-              <Button
-                size="sm"
-                onClick={() => void resumeFsUpload(host, fsUploadDeps).then((r) => {
-                  if (r.ok) resumeFsUploadQueue(host, fsUploadDeps);
-                })}
-              >
-                {tr("upload_dialog_resume", undefined, "Resume")}
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => dismissFsUploadStopped(host)}
-              >
-                {tr("dismiss", undefined, "Dismiss")}
-              </Button>
-            </div>
-          </div>
-        )}
-
-        {/* Errors written to the bulk-op or download stores are
-          surfaced here too — local `error` state is lost on screen
-          unmount, but the store survives navigation. Without this
-          banner, a paste/delete/download that fails while the user
-          is on another tab silently drops the error and the user
-          gets no signal that the op finished badly. Each banner is
-          dismissible (clearError) so it doesn't block subsequent
-          operations. */}
-        {bulkOp.errorBanner && (
-          <div className="mb-3">
-            <ErrorCard
-              title={tr("fs_bulk_error_title", "Error")}
-              detail={humanizePs5Error(bulkOp.errorBanner) || bulkOp.errorBanner}
-              onDismiss={() => fsBulk.clearError()}
-            />
-          </div>
-        )}
-
-        {downloadOp.errorBanner && !downloadOp.active && (
-          <div className="mb-3">
-            <ErrorCard
-              title={tr("fs_download_error_title", "Download failed")}
-              detail={humanizePs5Error(downloadOp.errorBanner) || downloadOp.errorBanner}
-              onDismiss={() => fsDownload.clearError()}
-            />
-          </div>
-        )}
-
-        {/* No entries yet and no error → we're connected (this whole block is
-            inside ConnectionGate require="payload") and simply still listing
-            the directory. Show a loading state, not the old "connect first"
-            message — by here the console is already reachable, so that copy
-            was both stale and confusing. */}
-        {entries === null && !error && (
-          <div className="flex items-center justify-center gap-2 py-10 text-xs text-[var(--color-muted)]">
-            <Spinner size={14} />
-            {tr("fs_listing", undefined, "Reading directory…")}
-          </div>
-        )}
-
-        {/* Right-click on the list's empty space opens the folder menu (New folder,
-            Paste, Refresh); a row's own handler stops the event first. */}
-        <div
-          data-testid="fs-list-area"
-          className="min-h-[12rem]"
-          onContextMenu={(ev) => {
-            if (!entries) return;
-            ev.preventDefault();
-            setRowMenu({ x: ev.clientX, y: ev.clientY, entry: null });
-          }}
-        >
-          {entries && entries.length === 0 && (
-            <div className="rounded-[var(--radius-card)] border border-dashed border-[var(--glass-edge)] p-4 text-center text-xs text-[var(--color-muted)]">
-              {tr("fs_empty_folder", "Empty folder.")}
-            </div>
-          )}
-
-          {entries && entries.length > 0 && (
-            <div className="mb-1 flex items-center gap-2 px-2 text-xs text-[var(--color-muted)]">
-              <input
-                type="checkbox"
-                checked={selected.size > 0 && selected.size === entries.length}
-                ref={(el) => {
-                  if (el)
-                    el.indeterminate =
-                      selected.size > 0 && selected.size < entries.length;
-                }}
-                onChange={toggleAll}
-                className="h-3.5 w-3.5 rounded border-[var(--color-border)]"
-                title={tr("fs_select_all", undefined, "Select all")}
-              />
+          {/* Clipboard banner: non-empty clipboard shows what's staged and
+            where it came from; paste target is always the current path. */}
+          {clipboardActive && (
+            <div className="mb-3 flex items-center gap-2 rounded-[var(--radius-card)] border border-[color-mix(in_srgb,var(--color-accent)_35%,transparent)] bg-[var(--color-accent-soft)] p-2 text-xs">
+              <ClipboardPaste size={14} className="text-[var(--color-accent)]" />
               <span>
-                {tr(
-                  entries.length === 1 ? "fs_item_one" : "fs_item_many",
-                  { count: entries.length },
-                  `${entries.length} item${entries.length === 1 ? "" : "s"}`,
-                )}
-              </span>
-              <span className="ml-auto flex items-center gap-1">
-                {(
-                  [
-                    ["name", tr("fs_sort_name", undefined, "Name")],
-                    ["size", tr("fs_sort_size", undefined, "Size")],
-                    ["mtime", tr("fs_sort_modified", undefined, "Modified")],
-                  ] as [SortKey, string][]
-                ).map(([k, label]) => (
-                  <button
-                    key={k}
-                    type="button"
-                    onClick={() => setSort((cur) => nextSort(cur, k))}
-                    className="chip border-transparent px-2 py-0.5 sm:px-2.5 sm:py-1"
-                    aria-pressed={sort.key === k}
-                  >
-                    {label}
-                    {sort.key === k ? (sort.desc ? " ↓" : " ↑") : ""}
-                  </button>
-                ))}
-              </span>
-            </div>
-          )}
-
-          <ul className="grid gap-1.5">
-            {sortedEntries.map((e) => {
-              const isDir = e.kind === "dir";
-              const Icon = isDir ? Folder : FileIcon;
-              const isRenaming = renaming === e.name;
-              const isSelected = selected.has(e.name);
-              return (
-                <li
-                  key={e.name}
-                  // Drag rows out of the window onto this computer (desktop app), or onto
-                  // another folder here to move them (Alt/Option in the desktop app).
-                  draggable={canDragOut || dragMoveWorks}
-                  {...(isDir ? dropProps(joinPath(path, e.name)) : {})}
-                  onDragStart={dragStart(e, isSelected)}
-                  onDoubleClick={(ev) => {
-                    if ((ev.target as HTMLElement).closest("input,button"))
-                      return;
-                    openEntry(e);
-                  }}
-                  onContextMenu={(ev) => {
-                    ev.preventDefault();
-                    ev.stopPropagation();
-                    setRowMenu({ x: ev.clientX, y: ev.clientY, entry: e });
-                  }}
-                  className={
-                    "list-row-contain-sm flex items-center gap-2 rounded-[var(--radius-card)] border px-2.5 py-1 text-sm transition-colors sm:gap-3 sm:px-3.5 sm:py-2.5 " +
-                    (isDir && dropTarget === joinPath(path, e.name)
-                      ? "ring-2 ring-[var(--color-accent)] "
-                      : "") +
-                    (isSelected
-                      ? "border-[color-mix(in_srgb,var(--color-accent)_40%,transparent)] bg-[var(--color-accent-soft)]"
-                      : "border-[var(--glass-edge)] bg-[var(--color-surface-raised)] hover:bg-[var(--color-float)]")
-                  }
-                >
-                  <input
-                    type="checkbox"
-                    checked={isSelected}
-                    onChange={() => toggleSelected(e.name)}
-                    className="h-3.5 w-3.5! shrink-0"
-                  />
-                  <Icon
-                    size={16}
-                    className={
-                      isDir
-                        ? "shrink-0 text-[var(--color-accent)]"
-                        : "shrink-0 text-[var(--color-muted)]"
-                    }
-                  />
-                  {isRenaming ? (
-                    <input
-                      autoFocus
-                      value={renameDraft}
-                      onChange={(ev) => setRenameDraft(ev.target.value)}
-                      onKeyDown={(ev) => {
-                        if (ev.key === "Enter") runRename(e.name);
-                        if (ev.key === "Escape") setRenaming(null);
-                      }}
-                      onBlur={() => setRenaming(null)}
-                      className="input input-sm flex-1"
-                    />
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (isDir) setPath(joinPath(path, e.name));
-                      }}
-                      title={e.name}
-                      className={
-                        "min-w-0 flex-1 truncate text-left text-sm " +
-                        (isDir ? "font-medium hover:text-[var(--color-accent)]" : "")
-                      }
-                      disabled={!isDir}
-                    >
-                      {e.name}
-                    </button>
+                <span className="font-medium">
+                  {tr(
+                    clipboard.items.length === 1 ? "fs_item_one" : "fs_item_many",
+                    { count: clipboard.items.length },
+                    `${clipboard.items.length} item${clipboard.items.length === 1 ? "" : "s"}`,
                   )}
-                  <span className="shrink-0 text-xs text-[var(--color-muted)] tabular-nums">
-                    {isDir ? "—" : formatBytes(e.size)}
-                  </span>
-                  <RowActionButtons entry={e} ctx={rowActionsCtx} />
-                  <RowActionsTrigger
-                    label={tr(
-                      "fs_row_actions",
-                      { name: e.name },
-                      `Actions for ${e.name}`,
-                    )}
-                    open={actionsMenuEntry?.name === e.name}
-                    onToggle={(r) =>
-                      setActionsMenu((cur) =>
-                        cur && cur.path === path && cur.name === e.name
-                          ? null
-                          : {
-                              path,
-                              name: e.name,
-                              anchor: {
-                                left: r.left,
-                                right: r.right,
-                                top: r.top,
-                                bottom: r.bottom,
-                              },
-                            },
-                      )
-                    }
-                  />
-                </li>
-              );
-            })}
-          </ul>
-          {canDragOut && sortedEntries.length > 0 && (
-            <p className="mt-2 text-xs text-[var(--color-muted)]" data-testid="fs-drag-hint">
-              {dragMoveWorks
-                ? tr(
-                    "fs_drag_hint_move",
-                    undefined,
-                    "Drag files and folders out of the window to copy them to this computer, or drag them in to copy them here. Hold Alt (⌥ Option on a Mac) while dragging to move them into a folder here.",
-                  )
-                : tr(
-                    "fs_drag_hint",
-                    undefined,
-                    "Drag files and folders out of the window to copy them to this computer, or drag them in to copy them here.",
-                  )}
-            </p>
-          )}
-        </div>
-        {preview && (
-          <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--overlay-scrim)] p-4"
-            onClick={() => setPreview(null)}
-          >
-            <div
-              className="rounded-[var(--radius-panel)] border border-[var(--glass-edge)] bg-[var(--color-surface-raised)] shadow-[var(--edge-highlight),var(--shadow-1)] flex max-h-[90dvh] w-full max-w-3xl flex-col overflow-hidden"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <header className="flex items-center justify-between border-b border-[var(--color-border)] px-4 py-2">
-                <div>
-                  <div className="text-sm font-semibold">{preview.name}</div>
-                  <div className="text-xs text-[var(--color-muted)]">
-                    {formatBytes(preview.size)} · {preview.kind}
-                  </div>
-                </div>
+                </span>{" "}
+                {clipboard.op === "cut"
+                  ? tr("fs_to_move", undefined, "to move")
+                  : tr("fs_to_copy", undefined, "to copy")}
+                {clipboard.sourceLabel
+                  ? ` ${tr("fs_from", undefined, "from")} ${clipboard.sourceLabel}`
+                  : ""}
+              </span>
+              <div className="ml-auto flex items-center gap-1">
                 <button
                   type="button"
-                  onClick={() => setPreview(null)}
-                  className="rounded-full p-1.5 text-[var(--color-muted)] hover:bg-[var(--color-surface)] hover:text-[var(--color-text)]"
+                  onClick={() => void runPaste()}
+                  disabled={bulkOp.op !== null || !host?.trim()}
+                  className="rounded-full flex items-center gap-1 bg-[image:var(--accent-fill)] shadow-[var(--accent-glow)] px-2 py-1 text-xs font-medium text-[var(--color-accent-contrast)] disabled:opacity-50"
                 >
-                  ✕
+                  {tr("fs_paste_here", undefined, "Paste here")}
                 </button>
-              </header>
-              <div className="flex-1 overflow-auto p-3">
-                {preview.kind === "image" ? (
-                  <img
-                    src={preview.body}
-                    alt={preview.name}
-                    className="mx-auto max-h-full"
-                  />
-                ) : (
-                  <pre className="whitespace-pre-wrap break-all font-mono text-xs">
-                    {preview.body}
-                  </pre>
-                )}
+                <button
+                  type="button"
+                  onClick={() => clipboard.clear()}
+                  className="rounded-full border shadow-[var(--edge-highlight),var(--shadow-1)] hover:bg-[var(--color-float)] border-[var(--glass-edge)] bg-[var(--color-surface-raised)] p-1"
+                  title={tr(
+                    "fs_cancel_clipboard",
+                    undefined,
+                    "Cancel — forget the staged items",
+                  )}
+                >
+                  <X size={12} />
+                </button>
               </div>
             </div>
+          )}
+
+          {/* Selection toolbar: only visible with ≥1 selected. */}
+          {selectionActive && (
+            <SelectionBar
+              countLabel={tr(
+                "fs_selected_count",
+                { count: selected.size },
+                `${selected.size} selected`,
+              )}
+              clearLabel={tr("fs_clear_selection", undefined, "Clear selection")}
+              onClear={() => setSelected(new Set())}
+            >
+              <button
+                type="button"
+                onClick={() => startMove()}
+                disabled={bulkOp.op !== null || !volumes?.length}
+                className={`${SELECTION_ACTION} border-[color-mix(in_srgb,var(--color-accent)_40%,transparent)] font-medium`}
+              >
+                <FolderInput size={12} />
+                {tr("fs_move_to", undefined, "Move to…")}
+              </button>
+              {otherConsoles > 0 && (
+                <button
+                  type="button"
+                  onClick={() => startSend()}
+                  data-testid="fs-send-console"
+                  className={`${SELECTION_ACTION} border-[var(--glass-edge)]`}
+                >
+                  <Send size={12} />
+                  {tr("fs_send_action", undefined, "Send to another console…")}
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => stageClipboard("cut")}
+                disabled={bulkOp.op !== null}
+                className={`${SELECTION_ACTION} border-[var(--glass-edge)]`}
+              >
+                <Scissors size={12} />
+                {tr("fs_cut", undefined, "Cut")}
+              </button>
+              <button
+                type="button"
+                onClick={() => stageClipboard("copy")}
+                disabled={bulkOp.op !== null}
+                className={`${SELECTION_ACTION} border-[var(--glass-edge)]`}
+              >
+                <Copy size={12} />
+                {tr("copy", undefined, "Copy")}
+              </button>
+              <button
+                type="button"
+                onClick={() => void runChmod777()}
+                disabled={bulkOp.op !== null || chmodBusy}
+                className={`${SELECTION_ACTION} border-[var(--glass-edge)]`}
+              >
+                <KeyRound size={12} />
+                {tr("fs_chmod_777", undefined, "Set permissions (777)")}
+              </button>
+              <button
+                type="button"
+                onClick={() => snapshotPaths(selectedEntries.map((x) => joinPath(path, x.name)))}
+                disabled={!host?.trim()}
+                title={tr("fs_snapshot_tooltip", undefined, "Copy into a snapshot kept on the PS5, to put back later")}
+                className={`${SELECTION_ACTION} border-[var(--glass-edge)]`}
+              >
+                <Archive size={12} />
+                {tr("fs_snapshot_action", undefined, "Snapshot…")}
+              </button>
+              <button
+                type="button"
+                onClick={() => runBulkRename(Array.from(selected))}
+                disabled={bulkOp.op !== null || selected.size === 0}
+                title={tr(
+                  "fs_bulk_rename_tooltip",
+                  undefined,
+                  "Bulk rename via pattern (s/old/new/, ^prefix_, _suffix$, lower, upper)",
+                )}
+                className={`${SELECTION_ACTION} border-[var(--glass-edge)]`}
+              >
+                <Pencil size={12} />
+                {tr("fs_bulk_rename", undefined, "Bulk rename")}
+              </button>
+              <button
+                type="button"
+                onClick={runBulkDelete}
+                disabled={bulkOp.op !== null}
+                className={`${SELECTION_ACTION} border-[color-mix(in_srgb,var(--color-bad)_40%,transparent)] text-[var(--color-bad)]`}
+              >
+                <Trash2 size={12} />
+                {tr("library_delete", undefined, "Delete")}
+              </button>
+            </SelectionBar>
+          )}
+
+          {mkdirDraft !== null && (
+            <div className="rounded-[var(--radius-card)] border border-[var(--glass-edge)] bg-[var(--color-surface)] mb-3 flex items-center gap-2 p-2 text-sm">
+              <FolderPlus size={14} className="text-[var(--color-muted)]" />
+              <span className="text-xs text-[var(--color-muted)]">
+                {tr("fs_create_in", undefined, "Create in")}{" "}
+                <span className="font-mono">{path}</span>
+              </span>
+              <input
+                autoFocus
+                value={mkdirDraft}
+                placeholder={tr("fs_folder_name", undefined, "folder name")}
+                onChange={(e) => setMkdirDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") runMkdir();
+                  if (e.key === "Escape") setMkdirDraft(null);
+                }}
+                className="input input-sm flex-1 text-xs"
+              />
+              <button
+                type="button"
+                onClick={runMkdir}
+                className="rounded-full bg-[image:var(--accent-fill)] shadow-[var(--accent-glow)] px-3 py-1 text-xs font-medium text-[var(--color-accent-contrast)]"
+              >
+                {tr("fs_create", undefined, "Create")}
+              </button>
+              <button
+                type="button"
+                onClick={() => setMkdirDraft(null)}
+                className="rounded-full border shadow-[var(--edge-highlight),var(--shadow-1)] hover:bg-[var(--color-float)] border-[var(--glass-edge)] bg-[var(--color-surface-raised)] px-3 py-1 text-xs"
+              >
+                {tr("cancel", undefined, "Cancel")}
+              </button>
+            </div>
+          )}
+
+          {bulkOpHere && bulkOp.op !== null && (
+            <BulkOpBanner
+              host={host}
+              op={bulkOp.op}
+              total={bulkOp.total}
+              done={bulkOp.done}
+              currentName={bulkOp.currentName}
+              currentSize={bulkOp.currentSize}
+              fromPath={bulkOp.fromPath}
+              toPath={bulkOp.toPath}
+              startedAtMs={bulkOp.startedAtMs}
+            />
+          )}
+
+          {/* An op running on ANOTHER console no longer blocks this one (ops are
+            per-console now), but we still surface it so the user knows work is
+            happening elsewhere and where to look — without rendering the other
+            console's progress here as if it were this console's. */}
+          {(bulkOpElsewhere || downloadElsewhere) && (
+            <div className="rounded-[var(--radius-card)] border border-[var(--glass-edge)] bg-[var(--color-surface)] mb-3 flex items-center gap-2 p-2 text-xs text-[var(--color-muted)]">
+              <Spinner size={12} />
+              <span>
+                {tr(
+                  "fs_op_on_other_console",
+                  {
+                    name: profileNameForHost(
+                      bulkOpElsewhereHost ?? downloadElsewhereHost ?? "",
+                      rosterProfiles,
+                    ),
+                  },
+                  "A file operation is running on {name} — switch to that console's tab to see its progress.",
+                )}
+              </span>
+            </div>
+          )}
+
+          {uploadQueue && uploadQueue.items.length > 0 && (
+            <div className="mb-3 rounded-[var(--radius-card)] border border-[var(--color-border)] p-3 text-xs" data-testid="fs-upload-queue">
+              <strong>{tr("queue_title", undefined, "Queue")} · {uploadQueue.items.length}</strong>
+              {uploadQueue.error && <p role="alert">{uploadQueue.error}</p>}
+              {uploadQueue.items.map((item, index) => (
+                <div key={item.id} className="mt-2 flex items-center gap-2">
+                  <span className="min-w-0 flex-1 break-all">{item.request.steps?.flatMap((s) => s.kind === "list" ? s.files.map((f) => f.name) : [s.name]).join(", ")} → {item.request.destDir}</span>
+                  <Button size="sm" variant="ghost" disabled={uploadQueue.running && index === 0} onClick={() => removeFsUploadQueued(host, item.id)}>
+                    {tr("queue_remove", undefined, "Remove from queue")}
+                  </Button>
+                </div>
+              ))}
+              {uploadQueue.paused && !uploadStopped && (
+                <Button size="sm" onClick={() => resumeFsUploadQueue(host, fsUploadDeps)}>{tr("queue_resume", undefined, "Resume")}</Button>
+              )}
+            </div>
+          )}
+          {busyEntry && bulkOp.op === null && (
+            <div className="rounded-[var(--radius-card)] border border-[var(--glass-edge)] bg-[var(--color-surface)] mb-3 flex flex-wrap items-center gap-2 p-2 text-xs">
+              <Spinner size={12} tone="accent" />
+              <span className="font-medium">
+                {busyEntry.op === "rename"
+                  ? tr("fs_busy_renaming", undefined, "Renaming")
+                  : busyEntry.op === "upload"
+                    ? tr("fs_busy_uploading", undefined, "Copying to PS5")
+                    : tr("fs_busy_creating_folder", undefined, "Creating folder")}
+              </span>
+              <span className="text-[var(--color-muted)]">
+                {busyEntry.name} ·{" "}
+                {busyEntry.op === "upload" && uploadStartedAtMs > 0 ? (
+                  <ElapsedSince sinceMs={uploadStartedAtMs} />
+                ) : (
+                  formatDuration(elapsedMs / 1000)
+                )}
+              </span>
+              {busyEntry.op === "upload" && (
+                <FsUploadProgress host={host} onCancel={cancelUpload} />
+              )}
+            </div>
+          )}
+
+          {unpackOp && (
+            <div className="mb-3 flex flex-wrap items-center gap-3 rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-surface-2)] px-3 py-2 text-sm" data-testid="fs-unpack">
+              <Spinner size={14} />
+              <span className="min-w-0 flex-1 truncate">
+                {tr("fs_unpack_running", { name: unpackOp.name }, `Decompressing ${unpackOp.name}`)}
+                {unpackOp.total > 0 &&
+                  ` · ${formatBytes(unpackOp.done)} / ${formatBytes(unpackOp.total)} (${Math.floor((unpackOp.done / unpackOp.total) * 100)}%)`}
+              </span>
+              <Button variant="secondary" size="sm" disabled={unpackOp.stopping} onClick={() => void stopUnpack()}>
+                {tr("fs_unpack_stop", undefined, "Stop")}
+              </Button>
+            </div>
+          )}
+
+          {extractOp && (
+            <div className="mb-3 flex flex-wrap items-center gap-3 rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-surface-2)] px-3 py-2 text-sm" data-testid="fs-extract">
+              <Spinner size={14} />
+              <span className="min-w-0 flex-1 truncate">
+                {tr("fs_extract_running", { name: extractOp.name }, `Extracting ${extractOp.name}`)}
+                {extractOp.total > 0 &&
+                  ` · ${formatBytes(extractOp.done)} / ${formatBytes(extractOp.total)} (${Math.min(100, Math.floor((extractOp.done / extractOp.total) * 100))}%)`}
+              </span>
+              <Button variant="secondary" size="sm" disabled={extractOp.stopping} onClick={() => void stopExtract()}>
+                {tr("fs_extract_stop", undefined, "Stop")}
+              </Button>
+            </div>
+          )}
+
+          {downloadHere && (
+            <DownloadOpBanner
+              host={host}
+              rootName={downloadOp.rootName}
+              rootSrcPath={downloadOp.rootSrcPath}
+              destDir={downloadOp.destDir}
+              startedAtMs={downloadOp.startedAtMs}
+            />
+          )}
+
+          {error && (
+            <div className="mb-3">
+              <ErrorCard
+                title={tr("fs_list_failed_title", undefined, "Couldn't read this folder")}
+                detail={error}
+                action={
+                  <Button variant="secondary" size="sm" onClick={() => void refresh()}>
+                    {tr("fs_retry", undefined, "Retry")}
+                  </Button>
+                }
+              />
+            </div>
+          )}
+
+          {/* An "Add files" upload that ended on a failure. It lives in the store, so it is
+            here on every visit until the user resumes it or dismisses it. */}
+          {uploadStopped && uploadName === null && (
+            <div
+              className={`mb-3 rounded-[var(--radius-card)] border bg-[var(--color-surface-raised)] px-4 py-3.5 text-sm shadow-[var(--edge-highlight),var(--shadow-1)] ${uploadStopped.why === "failed" ? "border-[color-mix(in_srgb,var(--color-bad)_40%,transparent)]" : "border-[var(--glass-edge)]"}`}
+              data-testid="fs-upload-stopped"
+            >
+              <div className="font-medium">
+                {uploadStopped.why === "user"
+                  ? tr(
+                      "fs_upload_stopped_by_user",
+                      stoppedAt,
+                      "You stopped this copy at {name} ({done} of {count} done)",
+                    )
+                  : uploadStopped.why === "interrupted"
+                    ? tr(
+                        "fs_upload_stopped_interrupted",
+                        stoppedAt,
+                        "This copy was interrupted when the app closed, at {name} ({done} of {count} done)",
+                      )
+                    : tr(
+                        "fs_upload_stopped_title",
+                        stoppedAt,
+                        "Copy to PS5 stopped at {name} ({done} of {count} done)",
+                      )}
+              </div>
+              {uploadStopped.error && (
+                <div className="mt-1 break-words text-xs text-[var(--color-muted)]">
+                  {humanizePs5Error(uploadStopped.error) || uploadStopped.error}
+                </div>
+              )}
+              {/* A stopped multi-file job: the files not (known to be) in place yet. */}
+              {uploadStopped.notLanded && uploadStopped.notLanded.length > 0 && (
+                <div
+                  className="mt-1 break-words text-xs text-[var(--color-muted)]"
+                  data-testid="fs-upload-not-landed"
+                >
+                  {tr(
+                    "fs_upload_not_landed",
+                    { names: namesPreview(uploadStopped.notLanded) },
+                    `Not on the PS5 yet: ${namesPreview(uploadStopped.notLanded)}`,
+                  )}
+                </div>
+              )}
+              <div className="mt-1 text-xs text-[var(--color-muted)]">
+                {tr(
+                  "fs_upload_stopped_hint",
+                  undefined,
+                  "What already reached the PS5 is kept. Resume sends only the rest.",
+                )}
+              </div>
+              <div className="mt-2 flex gap-2">
+                <Button
+                  size="sm"
+                  onClick={() => void resumeFsUpload(host, fsUploadDeps).then((r) => {
+                    if (r.ok) resumeFsUploadQueue(host, fsUploadDeps);
+                  })}
+                >
+                  {tr("upload_dialog_resume", undefined, "Resume")}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => dismissFsUploadStopped(host)}
+                >
+                  {tr("dismiss", undefined, "Dismiss")}
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Errors written to the bulk-op or download stores are
+            surfaced here too — local `error` state is lost on screen
+            unmount, but the store survives navigation. Without this
+            banner, a paste/delete/download that fails while the user
+            is on another tab silently drops the error and the user
+            gets no signal that the op finished badly. Each banner is
+            dismissible (clearError) so it doesn't block subsequent
+            operations. */}
+          {bulkOp.errorBanner && (
+            <div className="mb-3">
+              <ErrorCard
+                title={tr("fs_bulk_error_title", "Error")}
+                detail={humanizePs5Error(bulkOp.errorBanner) || bulkOp.errorBanner}
+                onDismiss={() => fsBulk.clearError()}
+              />
+            </div>
+          )}
+
+          {downloadOp.errorBanner && !downloadOp.active && (
+            <div className="mb-3">
+              <ErrorCard
+                title={tr("fs_download_error_title", "Download failed")}
+                detail={humanizePs5Error(downloadOp.errorBanner) || downloadOp.errorBanner}
+                onDismiss={() => fsDownload.clearError()}
+              />
+            </div>
+          )}
+
+          {/* No entries yet and no error → we're connected (this whole block is
+              inside ConnectionGate require="payload") and simply still listing
+              the directory. Show a loading state, not the old "connect first"
+              message — by here the console is already reachable, so that copy
+              was both stale and confusing. */}
+          {entries === null && !error && (
+            <div className="flex items-center justify-center gap-2 py-10 text-xs text-[var(--color-muted)]">
+              <Spinner size={14} />
+              {tr("fs_listing", undefined, "Reading directory…")}
+            </div>
+          )}
+
+          {/* Right-click on the list's empty space opens the folder menu (New folder,
+              Paste, Refresh); a row's own handler stops the event first. */}
+          <div
+            data-testid="fs-list-area"
+            className="min-h-[12rem]"
+            onContextMenu={(ev) => {
+              if (!entries) return;
+              ev.preventDefault();
+              setRowMenu({ x: ev.clientX, y: ev.clientY, entry: null });
+            }}
+          >
+            {entries && entries.length === 0 && (
+              <div className="rounded-[var(--radius-card)] border border-dashed border-[var(--glass-edge)] p-4 text-center text-xs text-[var(--color-muted)]">
+                {tr("fs_empty_folder", "Empty folder.")}
+              </div>
+            )}
+
+            {entries && entries.length > 0 && (
+              <div className="mb-1 flex items-center gap-2 px-2 text-xs text-[var(--color-muted)]">
+                <input
+                  type="checkbox"
+                  checked={selected.size > 0 && selected.size === entries.length}
+                  ref={(el) => {
+                    if (el)
+                      el.indeterminate =
+                        selected.size > 0 && selected.size < entries.length;
+                  }}
+                  onChange={toggleAll}
+                  className="h-3.5 w-3.5 rounded border-[var(--color-border)]"
+                  title={tr("fs_select_all", undefined, "Select all")}
+                />
+                <span>
+                  {tr(
+                    entries.length === 1 ? "fs_item_one" : "fs_item_many",
+                    { count: entries.length },
+                    `${entries.length} item${entries.length === 1 ? "" : "s"}`,
+                  )}
+                </span>
+                <span className="ml-auto flex items-center gap-1">
+                  {(
+                    [
+                      ["name", tr("fs_sort_name", undefined, "Name")],
+                      ["size", tr("fs_sort_size", undefined, "Size")],
+                      ["mtime", tr("fs_sort_modified", undefined, "Modified")],
+                    ] as [SortKey, string][]
+                  ).map(([k, label]) => (
+                    <button
+                      key={k}
+                      type="button"
+                      onClick={() => setSort((cur) => nextSort(cur, k))}
+                      className="chip border-transparent px-2 py-0.5 sm:px-2.5 sm:py-1"
+                      aria-pressed={sort.key === k}
+                    >
+                      {label}
+                      {sort.key === k ? (sort.desc ? " ↓" : " ↑") : ""}
+                    </button>
+                  ))}
+                </span>
+              </div>
+            )}
+
+            <ul className="grid gap-1.5">
+              {sortedEntries.map((e) => {
+                const isDir = e.kind === "dir";
+                const Icon = isDir ? Folder : FileIcon;
+                const isRenaming = renaming === e.name;
+                const isSelected = selected.has(e.name);
+                return (
+                  <li
+                    key={e.name}
+                    data-fs-name={e.name}
+                    // Drag rows out of the window onto this computer (desktop app), or onto
+                    // another folder here to move them (Alt/Option in the desktop app).
+                    draggable={canDragOut || dragMoveWorks}
+                    {...(isDir ? dropProps(joinPath(path, e.name)) : {})}
+                    onDragStart={dragStart(e, isSelected)}
+                    onDoubleClick={(ev) => {
+                      if ((ev.target as HTMLElement).closest("input,button"))
+                        return;
+                      openEntry(e);
+                    }}
+                    onContextMenu={(ev) => {
+                      ev.preventDefault();
+                      ev.stopPropagation();
+                      setRowMenu({ x: ev.clientX, y: ev.clientY, entry: e });
+                    }}
+                    className={
+                      "list-row-contain-sm flex items-center gap-2 rounded-[var(--radius-card)] border px-2.5 py-1 text-sm transition-colors sm:gap-3 sm:px-3.5 sm:py-2.5 " +
+                      (isDir && dropTarget === joinPath(path, e.name)
+                        ? "ring-2 ring-[var(--color-accent)] "
+                        : "") +
+                      (isSelected
+                        ? "border-[color-mix(in_srgb,var(--color-accent)_40%,transparent)] bg-[var(--color-accent-soft)]"
+                        : "border-[var(--glass-edge)] bg-[var(--color-surface-raised)] hover:bg-[var(--color-float)]")
+                    }
+                  >
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => toggleSelected(e.name)}
+                      className="h-3.5 w-3.5! shrink-0"
+                    />
+                    <Icon
+                      size={16}
+                      className={
+                        isDir
+                          ? "shrink-0 text-[var(--color-accent)]"
+                          : "shrink-0 text-[var(--color-muted)]"
+                      }
+                    />
+                    {isRenaming ? (
+                      <input
+                        autoFocus
+                        value={renameDraft}
+                        onChange={(ev) => setRenameDraft(ev.target.value)}
+                        onKeyDown={(ev) => {
+                          if (ev.key === "Enter") runRename(e.name);
+                          if (ev.key === "Escape") setRenaming(null);
+                        }}
+                        onBlur={() => setRenaming(null)}
+                        className="input input-sm flex-1"
+                      />
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (isDir) setPath(joinPath(path, e.name));
+                        }}
+                        title={e.name}
+                        className={
+                          "min-w-0 flex-1 truncate text-left text-sm " +
+                          (isDir ? "font-medium hover:text-[var(--color-accent)]" : "")
+                        }
+                        disabled={!isDir}
+                      >
+                        {e.name}
+                      </button>
+                    )}
+                    <span className="shrink-0 text-xs text-[var(--color-muted)] tabular-nums">
+                      {isDir ? "—" : formatBytes(e.size)}
+                    </span>
+                    <RowActionButtons entry={e} ctx={rowActionsCtx} />
+                    <RowActionsTrigger
+                      label={tr(
+                        "fs_row_actions",
+                        { name: e.name },
+                        `Actions for ${e.name}`,
+                      )}
+                      open={actionsMenuEntry?.name === e.name}
+                      onToggle={(r) =>
+                        setActionsMenu((cur) =>
+                          cur && cur.path === path && cur.name === e.name
+                            ? null
+                            : {
+                                path,
+                                name: e.name,
+                                anchor: {
+                                  left: r.left,
+                                  right: r.right,
+                                  top: r.top,
+                                  bottom: r.bottom,
+                                },
+                              },
+                        )
+                      }
+                    />
+                  </li>
+                );
+              })}
+            </ul>
+            {canDragOut && sortedEntries.length > 0 && (
+              <p className="mt-2 text-xs text-[var(--color-muted)]" data-testid="fs-drag-hint">
+                {dragMoveWorks
+                  ? tr(
+                      "fs_drag_hint_move",
+                      undefined,
+                      "Drag files and folders out of the window to copy them to this computer, or drag them in to copy them here. Hold Alt (⌥ Option on a Mac) while dragging to move them into a folder here.",
+                    )
+                  : tr(
+                      "fs_drag_hint",
+                      undefined,
+                      "Drag files and folders out of the window to copy them to this computer, or drag them in to copy them here.",
+                    )}
+              </p>
+            )}
           </div>
-        )}
+          {preview && (
+            <div
+              className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--overlay-scrim)] p-4"
+              onClick={() => setPreview(null)}
+            >
+              <div
+                className="rounded-[var(--radius-panel)] border border-[var(--glass-edge)] bg-[var(--color-surface-raised)] shadow-[var(--edge-highlight),var(--shadow-1)] flex max-h-[90dvh] w-full max-w-3xl flex-col overflow-hidden"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <header className="flex items-center justify-between border-b border-[var(--color-border)] px-4 py-2">
+                  <div>
+                    <div className="text-sm font-semibold">{preview.name}</div>
+                    <div className="text-xs text-[var(--color-muted)]">
+                      {formatBytes(preview.size)} · {preview.kind}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setPreview(null)}
+                    className="rounded-full p-1.5 text-[var(--color-muted)] hover:bg-[var(--color-surface)] hover:text-[var(--color-text)]"
+                  >
+                    ✕
+                  </button>
+                </header>
+                <div className="flex-1 overflow-auto p-3">
+                  {preview.kind === "image" ? (
+                    <img
+                      src={preview.body}
+                      alt={preview.name}
+                      className="mx-auto max-h-full"
+                    />
+                  ) : (
+                    <pre className="whitespace-pre-wrap break-all font-mono text-xs">
+                      {preview.body}
+                    </pre>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
       </ConnectionGate>
     </div>
   );

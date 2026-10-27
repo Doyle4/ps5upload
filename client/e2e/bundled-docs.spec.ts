@@ -8,6 +8,6 @@ test("the FAQ and What's New screens load their documents", async ({ page }) => 
   await expect(page.getByRole("heading", { name: "What ps5upload does (and doesn't)" })).toBeVisible({
     timeout: 20_000,
   });
-  await page.goto("/whats-new", { waitUntil: "domcontentloaded" });
+  await page.goto("/faq?tab=whats-new", { waitUntil: "domcontentloaded" });
   await expect(page.getByRole("heading", { name: "5.37.1" }).first()).toBeVisible({ timeout: 20_000 });
 });

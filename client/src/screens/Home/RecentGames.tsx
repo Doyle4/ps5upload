@@ -91,7 +91,7 @@ export function RecentGames() {
             {tr("home_recent_games", undefined, "Recent games")}
           </h2>
           <Link
-            to="/collection"
+            to="/games?tab=all"
             className="inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-[var(--color-accent)] hover:underline"
           >
             {tr("home_recent_games_all_link", undefined, "Collection")}

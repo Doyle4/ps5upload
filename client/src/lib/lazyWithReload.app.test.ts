@@ -9,6 +9,6 @@ describe("screens loaded on demand", () => {
   it("all go through lazyWithReload", () => {
     expect(APP.length).toBeGreaterThan(1000);
     expect(APP).not.toMatch(/(?<![A-Za-z])lazy\(\s*\(\)\s*=>\s*import/);
-    expect((APP.match(/lazyWithReload\(\(\) => import\(/g) ?? []).length).toBeGreaterThan(30);
+    expect((APP.match(/lazyWithReload\(\(\) => import\(/g) ?? []).length).toBeGreaterThan(20);
   });
 });

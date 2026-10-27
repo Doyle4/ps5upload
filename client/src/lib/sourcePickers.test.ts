@@ -33,7 +33,7 @@ describe("source pickers reach saved servers", () => {
     "screens/Videos/index.tsx",
     "screens/BugReport/index.tsx",
     "screens/Settings/index.tsx",
-    "screens/Search/index.tsx",
+    "screens/Search/SearchPanel.tsx",
     "screens/Logs/AppLogsPanel.tsx",
     "screens/Activity/StatsPanel.tsx",
     "screens/Saves/index.tsx",

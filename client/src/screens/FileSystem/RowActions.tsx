@@ -8,6 +8,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import {
+  Archive,
   BadgeCheck,
   Download,
   Eye,
@@ -18,6 +19,7 @@ import {
   PackageOpen,
   PackagePlus,
   Pencil,
+  PieChart,
   Rocket,
   ScanSearch,
   Trash2,
@@ -47,6 +49,8 @@ export interface RowAction {
   /** Working on it: the desktop button shows a spinner in place of its icon. */
   busy?: boolean;
   tone?: "accent" | "bad";
+  /** Only in the menus (the phone's ⋮; right-click on a desktop), not a row button. */
+  menuOnly?: boolean;
 }
 
 export interface RowMenuItem {
@@ -115,6 +119,10 @@ export interface RowActionsContext {
   extract?: (e: RowEntry) => void;
   /** An extract is running (one at a time). */
   extractBusy?: boolean;
+  /** Snapshot the entry on the console (absent: not offered). */
+  snapshot?: (e: RowEntry) => void;
+  /** Open "What takes space?" on a folder (absent: not offered). */
+  space?: (e: RowEntry) => void;
 }
 
 /** A file offered to the console's payload loader (:9021): .elf or .bin. */
@@ -270,6 +278,23 @@ export function buildRowActions(e: RowEntry, ctx: RowActionsContext): RowAction[
       busy: ctx.loadingPayloadName === e.name,
       tone: "accent",
     });
+  if (isDir && ctx.space && ctx.hasHost)
+    actions.push({
+      id: "space",
+      icon: PieChart,
+      label: tr("fs_space_action", undefined, "What takes space?"),
+      run: () => ctx.space?.(e),
+      menuOnly: true,
+    });
+  if (ctx.snapshot && ctx.hasHost)
+    actions.push({
+      id: "snapshot",
+      icon: Archive,
+      label: tr("fs_snapshot_action", undefined, "Snapshot…"),
+      title: tr("fs_snapshot_tooltip", undefined, "Copy into a snapshot kept on the PS5, to put back later"),
+      run: () => ctx.snapshot?.(e),
+      menuOnly: true,
+    });
   actions.push({
     id: "delete",
     icon: Trash2,
@@ -322,7 +347,7 @@ export function RowActionButtonList({ actions }: { actions: RowAction[] }) {
       data-testid="fs-row-actions"
       className="ml-2 hidden shrink-0 items-center gap-1 sm:flex"
     >
-      {actions.map((a) => (
+      {actions.filter((a) => !a.menuOnly).map((a) => (
         <button
           key={a.id}
           type="button"
