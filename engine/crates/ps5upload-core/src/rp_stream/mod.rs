@@ -46,7 +46,7 @@ use crate::rp_session::{
 
 use self::crypto::{Ecdh, GkCrypt, HANDSHAKE_KEY_SIZE};
 use self::proto::Message;
-use self::takion::{Event, Takion};
+use self::takion::{Event, Takion, DATA_TYPE_PAD_INFO, DATA_TYPE_PROTOBUF, DATA_TYPE_RUMBLE};
 
 pub use self::audio::{AudioAssembler, AudioHeader};
 pub use self::feedback::{button, ControllerState, FeedbackSender};
@@ -60,6 +60,10 @@ const RTT_MS: u32 = 1;
 const TAKION_VERSION_PS5: u32 = 12;
 
 const CTRL_SESSION_ID: u16 = 0x0033;
+/// The shortest a button press lasts on the console (about three frames).
+const MIN_HOLD: Duration = Duration::from_millis(50);
+/// Tries at the ctrl connection for one nonce, a second apart.
+const CTRL_ATTEMPTS: u32 = 8;
 const CTRL_HEARTBEAT_REQ: u16 = 0x00fe;
 const CTRL_HEARTBEAT_REP: u16 = 0x01fe;
 const CTRL_LOGIN_PIN_REQ: u16 = 0x0004;
@@ -98,12 +102,27 @@ impl Default for StreamConfig {
 /// Milestones, for a caller that wants to time or log them.
 #[derive(Debug, Clone)]
 pub enum Progress {
+    /// The console was in rest mode and is being woken (takes ~20 s).
+    Waking,
     Nonce,
     SessionId,
     TakionConnected,
     Bang,
     StreamInfo(Vec<(u32, u32)>),
     FirstFrame(usize),
+    /// Once a second while streaming.
+    Stats(LiveStats),
+}
+
+/// What the stream did in the last second, for a stats overlay.
+#[derive(Debug, Clone, Copy, Default, serde::Serialize)]
+pub struct LiveStats {
+    pub frames: u64,
+    pub frames_rebuilt: u64,
+    pub frames_lost: u64,
+    pub video_bytes: u64,
+    pub units: u64,
+    pub units_lost: u64,
 }
 
 /// Ctrl: our auth, the console's SESSION_ID, then heartbeats until stopped.
@@ -369,10 +388,14 @@ pub trait StreamSink {
     fn audio(&mut self, _frame: &[u8], _header: bool) -> bool {
         true
     }
-    /// The pad's latest state, if it changed since the last call.
+    /// The next pad state the user produced, oldest first; None when none is waiting.
     fn input(&mut self) -> Option<ControllerState> {
         None
     }
+    /// The console's rumble, 0-255 for the strong (left) and weak (right) motor.
+    fn rumble(&mut self, _left: u8, _right: u8) {}
+    /// The console's light-bar colour for this pad.
+    fn light_bar(&mut self, _rgb: [u8; 3]) {}
     /// True once the consumer has gone; the stream then ends.
     fn stopped(&mut self) -> bool {
         false
@@ -480,7 +503,9 @@ pub fn run_stream(
     sink: &mut impl StreamSink,
 ) -> Result<StreamReport> {
     // Readiness without touching the Remote Play slot (see guard.rs).
-    guard::prepare(host, creds, cfg.wake, Duration::from_secs(60))?;
+    guard::prepare(host, creds, cfg.wake, Duration::from_secs(60), &mut || {
+        sink.progress(Progress::Waking)
+    })?;
     let nonce = match session_init(host, &creds.regist_key) {
         Ok(n) => n,
         Err(e) if format!("{e:#}").contains(guard::REASON_IN_USE) => {
@@ -496,7 +521,40 @@ pub fn run_stream(
         clean: std::cell::Cell::new(false),
     };
     sink.progress(Progress::Nonce);
-    let (ctrl, session_id, brt, amb) = ctrl_open(host, creds, &nonce, cfg.codec)?;
+    // Take the nonce once, then retry only the ctrl connection while the console
+    // refuses or resets it (rp_session's rule: a second session-init would
+    // re-reserve the slot and lock us out). Seen from the engine on the Pro, FW
+    // 13.60: "Connection refused" on ctrl right after the nonce, intermittently.
+    let mut attempt = 0;
+    let opened = loop {
+        attempt += 1;
+        match ctrl_open(host, creds, &nonce, cfg.codec) {
+            Err(e)
+                if attempt < CTRL_ATTEMPTS
+                    && (format!("{e:#}").contains("ctrl reply")
+                        || format!("{e:#}").contains("connecting for ctrl")) =>
+            {
+                std::thread::sleep(Duration::from_secs(1));
+            }
+            r => break r,
+        }
+    };
+    let (ctrl, session_id, brt, amb) = match opened {
+        Ok(c) => c,
+        // The console gave a nonce, then refused or reset ctrl: it is booting
+        // (rule 2 in guard.rs) or still letting go of a session. Seen on the
+        // Pro awake (DDP 200) 2.5 min after a clean stop; fine again ~5 min
+        // later. Same answer as "in use": wait, do not hammer it.
+        Err(e)
+            if format!("{e:#}").contains("ctrl reply")
+                || format!("{e:#}").contains("connecting for ctrl") =>
+        {
+            guard::hold_off(host, guard::IN_USE_BACKOFF);
+            // Keep the console's own words: the user sees "busy", a log the cause.
+            return Err(e.context(guard::NotReady::Busy(guard::IN_USE_BACKOFF)));
+        }
+        Err(e) => return Err(e),
+    };
     sink.progress(Progress::SessionId);
 
     let mut takion = Takion::connect(resolve(host, STREAM_PORT)?)?;
@@ -549,7 +607,9 @@ pub fn run_stream(
         let Some(ev) = takion.poll(Duration::from_millis(200))? else {
             continue;
         };
-        let Event::Data(buf) = ev else { continue };
+        let Event::Data(DATA_TYPE_PROTOBUF, buf) = ev else {
+            continue;
+        };
         match proto::decode(&buf)? {
             Message::Bang(b) if !have_bang => {
                 if !b.version_accepted {
@@ -586,8 +646,14 @@ pub fn run_stream(
     let started = Instant::now();
     let mut last_heartbeat = Instant::now();
     let mut feedback = FeedbackSender::new();
+    let mut pad_queue: std::collections::VecDeque<ControllerState> = Default::default();
+    let mut applied = ControllerState::default();
+    let mut last_press = Instant::now();
     let mut reorder = VideoReorder::default();
     let mut last_congestion = Instant::now();
+    let mut last_stats = Instant::now();
+    let mut stats_prev = VideoStats::default();
+    let (mut second_units, mut second_units_lost) = (0u64, 0u64);
     let mut last_idr: Option<Instant> = None;
     let (mut state_seq, mut history_seq) = (0u16, 0u16);
     let result = loop {
@@ -598,8 +664,27 @@ pub fn run_stream(
             last_heartbeat = Instant::now();
             takion.send_message(1, &proto::bare(proto::kind::HEARTBEAT))?;
         }
-        if let Some(pad) = sink.input() {
-            feedback.set(pad);
+        // Every pad state, in order. A press is held for at least MIN_HOLD before
+        // its release is applied: the console reads the pad about once a frame,
+        // and a tap whose press and release land in one frame never registers
+        // (seen: 3 quick taps moved the home screen 1 tile).
+        while let Some(pad) = sink.input() {
+            pad_queue.push_back(pad);
+        }
+        while let Some(next) = pad_queue.front().copied() {
+            let releases = applied.buttons & !next.buttons != 0
+                || (applied.touch.is_some() && next.touch.is_none());
+            if releases && last_press.elapsed() < MIN_HOLD {
+                break;
+            }
+            if next.buttons & !applied.buttons != 0
+                || (applied.touch.is_none() && next.touch.is_some())
+            {
+                last_press = Instant::now();
+            }
+            feedback.set(next);
+            applied = next;
+            pad_queue.pop_front();
         }
         for pkt in feedback.tick(Instant::now()) {
             match pkt {
@@ -616,6 +701,19 @@ pub fn run_stream(
         // Every 200 ms: what arrived and what did not (chiaki's congestion
         // control). Reported loss is capped at 5%, as chiaki does by default:
         // the console cuts its bitrate on what it is told.
+        if last_stats.elapsed() >= Duration::from_secs(1) {
+            last_stats = Instant::now();
+            let now = assembler.stats;
+            sink.progress(Progress::Stats(LiveStats {
+                frames: now.frames - stats_prev.frames,
+                frames_rebuilt: now.frames_recovered - stats_prev.frames_recovered,
+                frames_lost: now.frames_dropped - stats_prev.frames_dropped,
+                video_bytes: now.bytes - stats_prev.bytes,
+                units: std::mem::take(&mut second_units),
+                units_lost: std::mem::take(&mut second_units_lost),
+            }));
+            stats_prev = now;
+        }
         if last_congestion.elapsed() >= Duration::from_millis(200) {
             last_congestion = Instant::now();
             let (vr, vl) = assembler.take_generation();
@@ -629,6 +727,8 @@ pub fn run_stream(
             report.loss_reported += lost;
             report.loss_seen += vl + al;
             report.units_seen += total;
+            second_units += total;
+            second_units_lost += vl + al;
             takion.send_congestion(
                 received.min(u16::MAX as u64) as u16,
                 lost.min(u16::MAX as u64) as u16,
@@ -673,12 +773,23 @@ pub fn run_stream(
             Err(e) => break Err(e),
         };
         match ev {
-            Event::Data(buf) => {
+            Event::Data(DATA_TYPE_PROTOBUF, buf) => {
                 if let Ok(Message::Disconnect(r)) = proto::decode(&buf) {
                     report.disconnect_reason = Some(r);
                     break Ok(());
                 }
             }
+            // Rumble: [?, left (strong), right (weak)] (chiaki
+            // stream_connection_takion_data_rumble).
+            Event::Data(DATA_TYPE_RUMBLE, b) if b.len() >= 3 => sink.rumble(b[1], b[2]),
+            // Pad info carries the light-bar colour: at 1..4 in the 0x11-byte
+            // form, 9..12 in the 0x19-byte one (chiaki ..._data_pad_info).
+            Event::Data(DATA_TYPE_PAD_INFO, b) => match b.len() {
+                0x11 => sink.light_bar([b[1], b[2], b[3]]),
+                0x19 => sink.light_bar([b[9], b[10], b[11]]),
+                _ => {}
+            },
+            Event::Data(..) => {}
             Event::Av(p) if p.is_video => {
                 // The codec header goes out before the first frame of each profile.
                 if profile != Some(p.adaptive_stream_index) {

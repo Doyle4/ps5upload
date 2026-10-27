@@ -10,7 +10,8 @@
 //!   pad changes, or `{"stop": true}`.
 //! * engine → client, binary `[u8 kind][payload]`: 0 = video codec header
 //!   (Annex-B parameter sets), 1 = video access unit, 3 = audio header,
-//!   4 = audio frame (Opus). Text JSON = status (`{"stage": …}`).
+//!   4 = audio frame (Opus). Text JSON = status (`{"stage": …}`), rumble
+//!   (`{"rumble": [strong, weak]}`) and light bar (`{"light": [r, g, b]}`).
 //!
 //! Closing the socket ends the stream. `GET /rp-player` is a test page.
 
@@ -57,7 +58,9 @@ struct ClientMsg {
 /// Shared between the socket task and the stream thread.
 #[derive(Default)]
 struct Shared {
-    pad: Mutex<Option<ControllerState>>,
+    /// Every pad state the page sent, in order: a quick tap is a press and a
+    /// release, and keeping only the latest would lose the press.
+    pad: Mutex<std::collections::VecDeque<ControllerState>>,
     stop: AtomicBool,
 }
 
@@ -92,6 +95,8 @@ impl StreamSink for WsSink {
     fn progress(&mut self, p: Progress) {
         let ms = self.t0.elapsed().as_millis() as u64;
         let v = match p {
+            Progress::Waking => serde_json::json!({"stage": "waking", "ms": ms}),
+            Progress::Stats(s) => serde_json::json!({"stage": "stats", "stats": s}),
             Progress::Nonce => serde_json::json!({"stage": "nonce", "ms": ms}),
             Progress::SessionId => serde_json::json!({"stage": "session", "ms": ms}),
             Progress::TakionConnected => serde_json::json!({"stage": "takion", "ms": ms}),
@@ -128,12 +133,42 @@ impl StreamSink for WsSink {
         }
         self.send_bin(4, frame)
     }
+    fn rumble(&mut self, left: u8, right: u8) {
+        let _ = self.out.try_send(Message::Text(
+            serde_json::json!({"rumble": [left, right]})
+                .to_string()
+                .into(),
+        ));
+    }
+    fn light_bar(&mut self, rgb: [u8; 3]) {
+        let _ = self.out.try_send(Message::Text(
+            serde_json::json!({"light": rgb}).to_string().into(),
+        ));
+    }
     fn input(&mut self) -> Option<ControllerState> {
-        self.shared.pad.lock().ok()?.take()
+        self.shared.pad.lock().ok()?.pop_front()
     }
     fn stopped(&mut self) -> bool {
         self.shared.stop.load(Ordering::Relaxed) || self.out.is_closed()
     }
+}
+
+/// An error as the player shows it: a stable `code` to pick the plain-English
+/// message from, plus the raw text for the details line.
+fn error_status(e: &anyhow::Error) -> serde_json::Value {
+    use ps5upload_core::rp_stream::guard::NotReady;
+    let text = format!("{e:#}");
+    let (code, retry_s) = match e.downcast_ref::<NotReady>() {
+        Some(NotReady::Busy(d)) => ("busy", Some(d.as_secs().max(1))),
+        Some(NotReady::Standby) => ("asleep", None),
+        Some(NotReady::Unreachable) => ("unreachable", None),
+        None if text.contains("refused the control session") => ("keys", None),
+        None if text.contains("did not wake") => ("wake_failed", None),
+        None if text.contains("login passcode") => ("passcode", None),
+        None if text.contains("Nagare") || text.contains("AvCap") => ("video_refused", None),
+        None => ("other", None),
+    };
+    serde_json::json!({"stage": "error", "code": code, "retry_s": retry_s, "error": text})
 }
 
 pub async fn ws(upgrade: WebSocketUpgrade) -> Response {
@@ -228,7 +263,7 @@ async fn session(mut socket: WebSocket) {
                 "ws_dropped": sink.dropped,
                 "reason": rep.disconnect_reason,
             }),
-            Err(e) => serde_json::json!({"stage": "error", "error": format!("{e:#}")}),
+            Err(e) => error_status(&e),
         };
         crate::log_info!("rp_stream: {end}");
         sink.status(end);
@@ -250,7 +285,9 @@ async fn session(mut socket: WebSocket) {
                     if let Ok(m) = serde_json::from_str::<ClientMsg>(t.as_str()) {
                         if let Some(p) = m.pad {
                             if let Ok(mut g) = shared.pad.lock() {
-                                *g = Some(p);
+                                if g.len() < 256 {
+                                    g.push_back(p);
+                                }
                             }
                         }
                         if m.stop {

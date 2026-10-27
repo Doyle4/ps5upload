@@ -37,6 +37,8 @@ const CHUNK_COOKIE: u8 = 0xa;
 const CHUNK_COOKIE_ACK: u8 = 0xb;
 
 pub const DATA_TYPE_PROTOBUF: u8 = 0;
+pub const DATA_TYPE_RUMBLE: u8 = 7;
+pub const DATA_TYPE_PAD_INFO: u8 = 9;
 
 fn mac_offset(kind: u8) -> Option<usize> {
     match kind {
@@ -83,8 +85,9 @@ pub struct AvPacket {
 }
 
 pub enum Event {
-    /// A protobuf `TakionMessage` from the console, in order.
-    Data(Vec<u8>),
+    /// A data message from the console, in order: its data type (0 protobuf
+    /// `TakionMessage`, 7 rumble, 9 pad info, 11 trigger effects) and body.
+    Data(u8, Vec<u8>),
     Av(AvPacket),
 }
 
@@ -99,7 +102,7 @@ pub struct Takion {
     key_state: KeyState,
     /// Next DATA sequence number we owe the application, and early arrivals.
     seq_remote_next: u32,
-    data_early: BTreeMap<u32, Vec<u8>>,
+    data_early: BTreeMap<u32, (u8, Vec<u8>)>,
     /// AV packets that arrived before the console's crypt was ready.
     postponed: Vec<Vec<u8>>,
     pub av_received: u64,
@@ -441,7 +444,7 @@ impl Takion {
             }
         }
         if let Some(d) = self.pop_data()? {
-            return Ok(Some(Event::Data(d)));
+            return Ok(Some(Event::Data(d.0, d.1)));
         }
         let mut buf = vec![0u8; 2048];
         let deadline = Instant::now() + timeout;
@@ -456,7 +459,7 @@ impl Takion {
                 return Ok(Some(ev));
             }
             if let Some(d) = self.pop_data()? {
-                return Ok(Some(Event::Data(d)));
+                return Ok(Some(Event::Data(d.0, d.1)));
             }
             if left.is_zero() {
                 return Ok(None);
@@ -464,7 +467,7 @@ impl Takion {
         }
     }
 
-    fn pop_data(&mut self) -> Result<Option<Vec<u8>>> {
+    fn pop_data(&mut self) -> Result<Option<(u8, Vec<u8>)>> {
         let next = self.seq_remote_next;
         if let Some(d) = self.data_early.remove(&next) {
             self.seq_remote_next = next.wrapping_add(1);
@@ -513,12 +516,8 @@ impl Takion {
                         self.send_data_ack(self.seq_remote_next.wrapping_sub(1))?;
                         return Ok(None);
                     }
-                    let body = if data_type == DATA_TYPE_PROTOBUF {
-                        payload[9..].to_vec()
-                    } else {
-                        Vec::new()
-                    };
-                    self.data_early.insert(seq, body);
+                    self.data_early
+                        .insert(seq, (data_type, payload[9..].to_vec()));
                 }
                 Ok(None)
             }

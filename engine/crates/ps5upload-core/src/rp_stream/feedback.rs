@@ -50,6 +50,26 @@ pub struct ControllerState {
     pub rx: i16,
     #[serde(default)]
     pub ry: i16,
+    /// One finger on the touchpad, at (x 0-1919, y 0-941), or none.
+    #[serde(default)]
+    pub touch: Option<[u16; 2]>,
+}
+
+/// The touchpad's coordinate space (DualShock 4 / DualSense).
+pub const TOUCHPAD_W: u16 = 1920;
+pub const TOUCHPAD_H: u16 = 942;
+
+/// A touch event (chiaki `feedback_history_event_set_touchpad`).
+fn touch_event(down: bool, id: u8, x: u16, y: u16) -> Vec<u8> {
+    let x = x.min(TOUCHPAD_W - 1);
+    let y = y.min(TOUCHPAD_H - 1);
+    vec![
+        if down { 0xd0 } else { 0xc0 },
+        id & 0x7f,
+        (x >> 4) as u8,
+        (((x & 0xf) << 4) as u8) | (y >> 8) as u8,
+        y as u8,
+    ]
 }
 
 const HISTORY_SIZE: usize = 16;
@@ -136,6 +156,7 @@ pub struct FeedbackSender {
     queued: VecDeque<(u8, Vec<u8>)>,
     last_history: Option<(u8, Vec<u8>, Instant)>,
     tail_sent: usize,
+    touch_id: u8,
 }
 
 impl Default for FeedbackSender {
@@ -155,6 +176,7 @@ impl FeedbackSender {
             queued: VecDeque::new(),
             last_history: None,
             tail_sent: TAIL_MS.len(),
+            touch_id: 0,
         }
     }
 
@@ -166,24 +188,40 @@ impl FeedbackSender {
         self.history.truncate(HISTORY_RESEND_EVENTS);
     }
 
+    fn buttons_changed(&mut self, prev: u32, now: u32, pressed: bool) {
+        for i in 0..button::COUNT {
+            let bit = 1 << i;
+            let (p, n) = (prev & bit != 0, now & bit != 0);
+            if p != n && n == pressed {
+                if let Some(ev) = button_event(bit, if n { 0xff } else { 0 }) {
+                    self.push_event(ev);
+                }
+            }
+        }
+    }
+
     /// Take a new pad snapshot; records button/trigger events for history.
     pub fn set(&mut self, now: ControllerState) {
         let prev = self.state;
         if prev == now {
             return;
         }
-        // Releases first, then presses (chiaki's order), then the triggers.
-        for pressed in [false, true] {
-            for i in 0..button::COUNT {
-                let bit = 1 << i;
-                let (p, n) = (prev.buttons & bit != 0, now.buttons & bit != 0);
-                if p != n && n == pressed {
-                    if let Some(ev) = button_event(bit, if n { 0xff } else { 0 }) {
-                        self.push_event(ev);
-                    }
-                }
+        // Releases first, then the finger, then presses (chiaki's order: a
+        // touchpad click and its finger released together must not lift the
+        // finger while the click is still held), then the triggers.
+        self.buttons_changed(prev.buttons, now.buttons, false);
+        match (prev.touch, now.touch) {
+            (Some([x, y]), None) => self.push_event(touch_event(false, self.touch_id, x, y)),
+            (None, Some([x, y])) => {
+                self.touch_id = (self.touch_id + 1) & 0x7f;
+                self.push_event(touch_event(true, self.touch_id, x, y));
             }
+            (Some(a), Some(b)) if a != b => {
+                self.push_event(touch_event(true, self.touch_id, b[0], b[1]))
+            }
+            _ => {}
         }
+        self.buttons_changed(prev.buttons, now.buttons, true);
         if prev.l2 != now.l2 {
             self.push_event(vec![0x80, L2_CODE, now.l2]);
         }
@@ -244,6 +282,41 @@ mod tests {
         }
         assert_eq!(hist[0], (1, vec![0x80, 0x88, 0xff]));
         assert_eq!(hist[1], (2, vec![0x80, 0x88, 0x00, 0x80, 0x88, 0xff]));
+    }
+
+    #[test]
+    fn a_touch_is_down_then_up_with_one_id() {
+        let mut f = FeedbackSender::new();
+        f.set(ControllerState {
+            touch: Some([960, 471]),
+            ..Default::default()
+        });
+        f.set(ControllerState::default());
+        let t = Instant::now();
+        let mut hist = Vec::new();
+        for _ in 0..2 {
+            for p in f.tick(t) {
+                if let Packet::History(_, b) = p {
+                    hist.push(b);
+                }
+            }
+        }
+        // x 960 = 0x3c0, y 471 = 0x1d7: [d0, id, 3c, 0x0<<4|0x1, d7].
+        assert_eq!(hist[0], vec![0xd0, 1, 0x3c, 0x01, 0xd7]);
+        assert_eq!(&hist[1][..5], &[0xc0, 1, 0x3c, 0x01, 0xd7]);
+    }
+
+    #[test]
+    fn parses_the_page_pad_json() {
+        let p: ControllerState = serde_json::from_str(
+            r#"{"buttons":32,"l2":0,"r2":0,"lx":0,"ly":0,"rx":0,"ry":0,"touch":null}"#,
+        )
+        .unwrap();
+        assert_eq!(p.buttons, button::DPAD_RIGHT);
+        assert_eq!(p.touch, None);
+        let p: ControllerState =
+            serde_json::from_str(r#"{"buttons":0,"touch":[960,471]}"#).unwrap();
+        assert_eq!(p.touch, Some([960, 471]));
     }
 
     #[test]

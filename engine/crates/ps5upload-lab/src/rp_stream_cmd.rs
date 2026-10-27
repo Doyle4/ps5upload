@@ -22,6 +22,8 @@ impl StreamSink for FileSink {
     fn progress(&mut self, p: Progress) {
         let ms = self.t0.elapsed().as_millis();
         match p {
+            Progress::Waking => eprintln!("[{ms:>6} ms] console in rest mode: waking it"),
+            Progress::Stats(_) => {}
             Progress::Nonce => eprintln!("[{ms:>6} ms] session-init: nonce"),
             Progress::SessionId => eprintln!("[{ms:>6} ms] ctrl: session id"),
             Progress::TakionConnected => eprintln!("[{ms:>6} ms] takion: connected"),

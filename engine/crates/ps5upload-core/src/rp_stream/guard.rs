@@ -108,7 +108,13 @@ fn regist_key_hex(creds: &SessionCreds) -> String {
 
 /// Get `host` ready for a session without touching its Remote Play slot:
 /// honours the hold-off, checks DDP, wakes a resting console when `wake`.
-pub fn prepare(host: &str, creds: &SessionCreds, wake: bool, budget: Duration) -> Result<()> {
+pub fn prepare(
+    host: &str,
+    creds: &SessionCreds,
+    wake: bool,
+    budget: Duration,
+    on_wake: &mut dyn FnMut(),
+) -> Result<()> {
     if let Some(left) = held_for(host) {
         return Err(NotReady::Busy(left).into());
     }
@@ -122,6 +128,7 @@ pub fn prepare(host: &str, creds: &SessionCreds, wake: bool, budget: Duration) -
             if !wake {
                 return Err(NotReady::Standby.into());
             }
+            on_wake();
             let credential = credential_from_regist_key(&regist_key_hex(creds))?;
             ddp::wake(host, &credential.to_string())?;
             let deadline = Instant::now() + budget;

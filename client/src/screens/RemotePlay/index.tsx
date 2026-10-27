@@ -8,6 +8,7 @@ import {
   User,
   Copy,
   Check,
+  Gamepad2,
 } from "lucide-react";
 import {
   PageHeader,
@@ -34,6 +35,8 @@ import {
 } from "../../api/ps5";
 import { humanizePs5Error } from "../../lib/humanizeError";
 import { NpSignInCard } from "./NpSignInCard";
+import { StreamPanel } from "./StreamPanel";
+import TabbedShell, { type TabbedShellTab } from "../../layout/TabbedShell";
 import { useNavigate } from "react-router";
 
 /** Firmware magic to a human version, e.g. 0x09600004 -> "9.60".
@@ -195,7 +198,9 @@ function ReadinessPanel({
   );
 }
 
-export default function RemotePlayScreen() {
+/** Set up: the readiness checklist and the PIN that pairs Sony's PS Remote Play app. As a tab
+ *  of Remote Play (`embedded`) the page header is the shell's. */
+export function RemotePlaySetup({ embedded = false }: { embedded?: boolean }) {
   const tr = useTr();
   const host = useConnectionStore((s) => s.host);
   const payloadStatus = useConnectionStore((s) => s.payloadStatus);
@@ -345,8 +350,17 @@ export default function RemotePlayScreen() {
     }
   }, [addr, refresh, guard]);
 
+  const refreshButton = (
+    <Button variant="ghost" size="sm" onClick={refresh} disabled={busy || payloadStatus !== "up" || !addr}>
+      <RefreshCw size={14} />
+    </Button>
+  );
+
   return (
-    <div className="app-page space-y-4">
+    <div className={embedded ? "space-y-4" : "app-page space-y-4"}>
+      {embedded ? (
+        <div className="flex justify-end">{refreshButton}</div>
+      ) : (
       <PageHeader
         icon={MonitorPlay}
         title={tr("remotePlay_title", undefined, "Remote Play")}
@@ -355,17 +369,9 @@ export default function RemotePlayScreen() {
           undefined,
           "Set this PS5 up for Remote Play and get the PIN that pairs the PS Remote Play app with it.",
         )}
-        right={
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={refresh}
-            disabled={busy || payloadStatus !== "up" || !addr}
-          >
-            <RefreshCw size={14} />
-          </Button>
-        }
+        right={refreshButton}
       />
+      )}
 
       <ConnectionGate>
         {error && <ErrorCard title={error} onRetry={() => void refresh()} />}
@@ -558,5 +564,50 @@ export default function RemotePlayScreen() {
         )}
       </ConnectionGate>
     </div>
+  );
+}
+
+type TabId = "play" | "setup";
+
+/**
+ * Remote Play (/remote-play): play a console's screen here (Play), or set the console up for
+ * Sony's PS Remote Play app (Setup, `?tab=setup`).
+ */
+export default function RemotePlayScreen() {
+  const tr = useTr();
+  const tabs: ReadonlyArray<TabbedShellTab<TabId>> = [
+    {
+      id: "play",
+      icon: Gamepad2,
+      key: "rp_tab_play",
+      fallback: "Play",
+      description: tr(
+        "rp_play_description",
+        undefined,
+        "Stream a PS5 into this app and play it with a controller or the keyboard. It wakes a console in rest mode on its own.",
+      ),
+    },
+    {
+      id: "setup",
+      icon: KeyRound,
+      key: "rp_tab_setup",
+      fallback: "Set up",
+      description: tr(
+        "remotePlay_subtitle_v2",
+        undefined,
+        "Set this PS5 up for Remote Play and get the PIN that pairs the PS Remote Play app with it.",
+      ),
+    },
+  ];
+  return (
+    <TabbedShell
+      idPrefix="remote-play"
+      titleIcon={MonitorPlay}
+      titleKey="rp_screen_title"
+      titleFallback="Remote Play"
+      tabs={tabs}
+      defaultTab="play"
+      renderPanel={(id) => (id === "setup" ? <RemotePlaySetup embedded /> : <StreamPanel />)}
+    />
   );
 }
