@@ -181,7 +181,12 @@ async fn session(mut socket: WebSocket) {
         return;
     }
     let mut cfg = StreamConfig::default();
+    // PS5 Remote Play streams at most 1080p: asked for 2160p, the Pro (FW
+    // 13.60) ends the stream with "Nagare did not init! AvCap failed to
+    // initialize video: [InitResult:-6]", and chiaki-ng has no preset above
+    // 1080p. So anything taller is asked for as 1080p.
     if let (Some(w), Some(h)) = (start.width, start.height) {
+        let (w, h) = if h > 1080 { (1920, 1080) } else { (w, h) };
         cfg.width = w;
         cfg.height = h;
         cfg.bitrate_kbps = if h >= 1080 { 15000 } else { 10000 };
@@ -213,6 +218,12 @@ async fn session(mut socket: WebSocket) {
                 "stage": "ended",
                 "frames": rep.video.frames,
                 "dropped": rep.video.frames_dropped,
+                "rebuilt": rep.video.frames_recovered,
+                "audio_frames": rep.audio_frames,
+                "units_seen": rep.units_seen,
+                "loss_seen": rep.loss_seen,
+                "loss_reported": rep.loss_reported,
+                "video_mb": rep.video.bytes as f64 / 1e6,
                 "bad_mac": rep.av_bad_mac,
                 "ws_dropped": sink.dropped,
                 "reason": rep.disconnect_reason,

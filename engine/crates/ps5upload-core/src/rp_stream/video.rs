@@ -41,6 +41,8 @@ pub struct FrameAssembler {
     m: usize,
     unit_size: usize,
     units: Vec<Option<Vec<u8>>>,
+    /// Which units of the current frame came at all, before or after a flush.
+    arrived: Vec<bool>,
     pub stats: VideoStats,
     /// Units received / missing in frames finished since the last
     /// [`FrameAssembler::take_generation`] (chiaki's "generation" stats).
@@ -64,6 +66,7 @@ impl FrameAssembler {
             m: 0,
             unit_size: 0,
             units: Vec::new(),
+            arrived: Vec::new(),
             stats: VideoStats::default(),
             gen_received: 0,
             gen_lost: 0,
@@ -80,10 +83,13 @@ impl FrameAssembler {
 
     fn start(&mut self, p: &AvPacket, out: &mut Vec<Output>) {
         // The frame we are leaving: how many of its units ever came.
+        // Counted from `arrived`, not the stored units: FEC units that come
+        // after the frame was already rebuilt still arrived (chiaki counts
+        // them), and calling them lost would make the console cut its bitrate.
         if self.frame_index.is_some() {
-            let got = self.units.iter().filter(|u| u.is_some()).count() as u64;
+            let got = self.arrived.iter().filter(|&&a| a).count() as u64;
             self.gen_received += got;
-            self.gen_lost += self.units.len() as u64 - got;
+            self.gen_lost += self.arrived.len() as u64 - got;
         }
         // Whole frames skipped since the last one finished.
         if let Some(done) = self.last_done {
@@ -105,6 +111,7 @@ impl FrameAssembler {
             self.unit_size += u16::from_be_bytes([p.data[0], p.data[1]]) as usize;
         }
         self.units = vec![None; total.max(1)];
+        self.arrived = vec![false; total.max(1)];
     }
 
     /// Feed one decrypted video unit.
@@ -121,10 +128,13 @@ impl FrameAssembler {
             }
             self.start(p, &mut out);
         }
+        let idx = p.unit_index as usize;
+        if let Some(a) = self.arrived.get_mut(idx) {
+            *a = true;
+        }
         if self.flushed {
             return out;
         }
-        let idx = p.unit_index as usize;
         if idx < self.units.len()
             && self.units[idx].is_none()
             && !p.data.is_empty()
@@ -278,6 +288,16 @@ mod tests {
         let f = frames(a.push(&unit(1, 2, 3, 1, &all[2]))).pop().unwrap();
         assert_eq!(f, vec![0xaa, 0xbb, 0xcc]);
         assert_eq!(a.stats.frames_recovered, 1);
+    }
+
+    #[test]
+    fn fec_units_after_the_flush_count_as_received() {
+        let mut a = FrameAssembler::new();
+        a.push(&unit(1, 0, 3, 2, &[0, 0, 1])); // k = 1: flushes at once
+        a.push(&unit(1, 1, 3, 2, &[9, 9, 9]));
+        a.push(&unit(1, 2, 3, 2, &[9, 9, 9]));
+        a.push(&unit(2, 0, 1, 0, &[0, 0, 2])); // closes frame 1's books
+        assert_eq!(a.take_generation(), (3, 0));
     }
 
     #[test]

@@ -20,7 +20,7 @@
   <input id="host" placeholder="PS5 address" size="14">
   <input id="regist" type="password" placeholder="regist key (hex)" size="20" autocomplete="off">
   <input id="rp" type="password" placeholder="RP key (hex)" size="20" autocomplete="off">
-  <select id="res"><option value="1280x720">720p</option><option value="1920x1080">1080p</option><option value="3840x2160">4K (Pro)</option></select>
+  <select id="res"><option value="1280x720">720p</option><option value="1920x1080">1080p</option></select>
   <select id="codec"><option value="h264">H.264</option><option value="h265">HEVC</option></select>
   <button id="go" type="submit">Start</button>
   <button id="stop" type="button">Stop</button>
@@ -80,7 +80,7 @@ const clamp = (v) => Math.max(-32768, Math.min(32767, v));
 let lastSent = "";
 // Test hook: a pad state pushed from outside (automation), merged in.
 window.rpExtra = { buttons: 0, l2: 0, r2: 0, lx: 0, ly: 0, rx: 0, ry: 0 };
-function pollPad() {
+function sendPad() {
   const k = keyPad(), g = gamepadPad(), x = window.rpExtra;
   const p = {
     buttons: k.buttons | g.buttons | x.buttons, l2: Math.max(k.l2, g.l2, x.l2), r2: Math.max(k.r2, g.r2, x.r2),
@@ -88,10 +88,12 @@ function pollPad() {
   };
   const s = JSON.stringify(p);
   if (s !== lastSent && ws && ws.readyState === 1) { ws.send(JSON.stringify({ pad: p })); lastSent = s; st.inputs++; st.lastInputAt = performance.now(); }
-  requestAnimationFrame(pollPad);
 }
-canvas.addEventListener("keydown", (e) => { if (KEY_BUTTONS[e.code] || STICK_KEYS[e.code] || e.code.startsWith("Digit")) { held.add(e.code); e.preventDefault(); } });
-canvas.addEventListener("keyup", (e) => { held.delete(e.code); e.preventDefault(); });
+// Gamepads have no events: poll them every frame. Keys send at once, so a tap
+// shorter than a frame still reaches the console as a press and a release.
+function pollPad() { sendPad(); requestAnimationFrame(pollPad); }
+canvas.addEventListener("keydown", (e) => { if (KEY_BUTTONS[e.code] || STICK_KEYS[e.code] || e.code.startsWith("Digit")) { held.add(e.code); e.preventDefault(); sendPad(); } });
+canvas.addEventListener("keyup", (e) => { held.delete(e.code); e.preventDefault(); sendPad(); });
 canvas.addEventListener("blur", () => held.clear());
 
 // ---- stream ----------------------------------------------------------------
@@ -263,7 +265,14 @@ function start(e) {
   ws.onclose = () => { if (st.stage !== "error") st.stage = "ended"; show(); };
   canvas.focus();
 }
-function stop() { if (ws) { try { ws.send(JSON.stringify({ stop: true })); } catch (_) {} ws.close(); ws = null; } }
+// Stop asks the engine to end the stream; the engine closes the socket after
+// its final status, so the page sees why and how it ended.
+function stop() {
+  if (!ws) return;
+  const w = ws; ws = null;
+  try { w.send(JSON.stringify({ stop: true })); } catch (_) {}
+  setTimeout(() => w.close(), 3000); // in case the engine never answers
+}
 $("f").addEventListener("submit", start);
 $("stop").addEventListener("click", stop);
 requestAnimationFrame(pollPad);
