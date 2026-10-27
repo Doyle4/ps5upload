@@ -20,7 +20,8 @@
   <input id="host" placeholder="PS5 address" size="14">
   <input id="regist" type="password" placeholder="regist key (hex)" size="20" autocomplete="off">
   <input id="rp" type="password" placeholder="RP key (hex)" size="20" autocomplete="off">
-  <select id="res"><option value="1280x720">720p</option><option value="1920x1080">1080p</option></select>
+  <select id="res"><option value="1280x720">720p</option><option value="1920x1080">1080p</option><option value="3840x2160">4K (Pro)</option></select>
+  <select id="codec"><option value="h264">H.264</option><option value="h265">HEVC</option></select>
   <button id="go" type="submit">Start</button>
   <button id="stop" type="button">Stop</button>
 </form>
@@ -100,7 +101,7 @@ function show() {
   $("stats").textContent =
     `stage ${st.stage}  frames ${st.frames}  decoded ${st.decoded}  ${st.fps} fps  ` +
     `${(st.bytes / 1e6).toFixed(1)} MB  first frame ${st.first ? st.first + " ms" : "-"}  ` +
-    `decode ${st.lastDecodeMs.toFixed(1)} ms  inputs ${st.inputs}  audio ${st.audio}${st.err ? "  error: " + st.err : ""}`;
+    `decode ${st.lastDecodeMs.toFixed(1)} ms  ${st.codec || ""}  inputs ${st.inputs}  audio ${st.audio}${st.err ? "  error: " + st.err : ""}`;
 }
 setInterval(() => { st.fps = st.decoded - (st._lastDecoded || 0); st._lastDecoded = st.decoded; show(); }, 1000);
 
@@ -113,18 +114,33 @@ function avcCodec(header) {
   }
   return "avc1.4d4028";
 }
+let hevc = false;
 function isKey(au) {
   for (let i = 0; i + 3 < au.length; i++) {
     if (au[i] === 0 && au[i + 1] === 0 && au[i + 2] === 1) {
-      const t = au[i + 3] & 0x1f;
-      if (t === 5) return true;
-      if (t === 1) return false;
+      if (hevc) {
+        const t = (au[i + 3] >> 1) & 0x3f;
+        if (t >= 16 && t <= 21) return true; // IRAP: BLA/IDR/CRA
+        if (t < 16) return false;
+      } else {
+        const t = au[i + 3] & 0x1f;
+        if (t === 5) return true;
+        if (t === 1) return false;
+      }
     }
   }
   return false;
 }
+// HEVC: the first codec string this browser can decode (Main, then Main 10).
+async function hevcCodec(w, h) {
+  for (const c of ["hev1.1.6.L153.B0", "hvc1.1.6.L153.B0", "hev1.2.4.L153.B0", "hvc1.2.4.L153.B0", "hev1.1.6.L150.90"]) {
+    try { if ((await VideoDecoder.isConfigSupported({ codec: c, codedWidth: w, codedHeight: h })).supported) return c; } catch (_) {}
+  }
+  return null;
+}
 
 let decoder = null, header = null, ts = 0, sawKey = false;
+const queued = [];
 const sentAt = new Map();
 function onVideo(kind, payload) {
   if (kind === 0) {
@@ -142,7 +158,19 @@ function onVideo(kind, payload) {
         },
         error: (err) => { st.err = String(err); show(); },
       });
-      decoder.configure({ codec: avcCodec(header), optimizeForLatency: true, hardwareAcceleration: "prefer-hardware" });
+      const cfg = { optimizeForLatency: true, hardwareAcceleration: "prefer-hardware" };
+      if (hevc) {
+        decoder.pending = hevcCodec(canvas.width, canvas.height).then((c) => {
+          if (!c) { st.err = "this browser cannot decode HEVC"; return; }
+          st.codec = c;
+          decoder.configure({ codec: c, ...cfg });
+          for (const q of queued) decoder.decode(q);
+          queued.length = 0;
+        });
+      } else {
+        st.codec = avcCodec(header);
+        decoder.configure({ codec: st.codec, ...cfg });
+      }
     }
     return;
   }
@@ -154,7 +182,9 @@ function onVideo(kind, payload) {
   sawKey = true;
   ts += 16667;
   sentAt.set(ts, performance.now());
-  decoder.decode(new EncodedVideoChunk({ type: key ? "key" : "delta", timestamp: ts, data }));
+  const chunk = new EncodedVideoChunk({ type: key ? "key" : "delta", timestamp: ts, data });
+  if (decoder.state !== "configured") { queued.push(chunk); return; } // HEVC config still being probed
+  decoder.decode(chunk);
 }
 // ---- audio: Opus via WebCodecs, played ~60 ms ahead -------------------------
 // Video frames are drawn the moment they decode, so audio is kept just far
@@ -211,15 +241,16 @@ function start(e) {
   stop();
   Object.assign(st, { stage: "connecting", frames: 0, decoded: 0, bytes: 0, first: 0, err: "", inputs: 0, audio: 0 });
   decoder = null; header = null; ts = 0; sawKey = false;
-  adec = null; aNext = 0; aLastIdx = -1;
+  adec = null; aNext = 0; aLastIdx = -1; queued.length = 0;
   if (!actx) actx = new AudioContext({ latencyHint: "interactive" }); // created in the click, so it may play
   actx.resume();
   const [w, h] = $("res").value.split("x").map(Number);
   canvas.width = w; canvas.height = h;
+  hevc = $("codec").value === "h265";
   st.t0 = performance.now();
   ws = new WebSocket((location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/api/ps5/rp/ws");
   ws.binaryType = "arraybuffer";
-  ws.onopen = () => ws.send(JSON.stringify({ host: $("host").value, regist_key: $("regist").value, rp_key: $("rp").value, width: w, height: h }));
+  ws.onopen = () => ws.send(JSON.stringify({ host: $("host").value, regist_key: $("regist").value, rp_key: $("rp").value, width: w, height: h, codec: $("codec").value }));
   ws.onmessage = (m) => {
     if (typeof m.data === "string") {
       const s = JSON.parse(m.data);

@@ -1020,6 +1020,8 @@ fn main() -> Result<()> {
         // Remote Play stream spike: rp-stream <creds.json> <out.264> [seconds] [h264|h265] [WxH]
         // creds.json = {"<host>": {"regist_key": hex32, "rp_key": hex32}}; keys never printed.
         "rp-stream" => rp_stream_cmd::run(addr, &rest[1..]),
+        "rp-ddp" => rp_stream_cmd::ddp_raw(addr),
+        "app-running" | "app-kill" => rp_stream_cmd::app_cmd(addr, rest),
         "save-open" => {
             let image = rest.get(1).map(String::as_str).unwrap_or("");
             let r = ps5upload_core::saves::save_open(addr, image)?;

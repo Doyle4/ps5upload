@@ -102,3 +102,38 @@ pub fn run(host: &str, args: &[String]) -> Result<()> {
     eprintln!("{} access units written to {out_path}", sink.units);
     Ok(())
 }
+
+/// `app-running` / `app-kill <app_id>`: what runs, and close one app (the
+/// desktop's "Close game" path). For tests that open a game and must close it.
+pub fn app_cmd(host: &str, args: &[String]) -> Result<()> {
+    use ps5upload_core::app_lifecycle::{app_lifecycle, AppAction};
+    let (action, id) = match args.first().map(String::as_str) {
+        Some("app-kill") => (
+            AppAction::Kill,
+            args.get(1)
+                .ok_or_else(|| anyhow!("need an app id"))?
+                .parse()?,
+        ),
+        _ => (AppAction::List, 0),
+    };
+    let r = app_lifecycle(host, action, id)?;
+    println!("{}", serde_json::to_string_pretty(&r)?);
+    Ok(())
+}
+
+/// `rp-ddp`: the console's raw discovery reply (UDP 9302). Takes no session,
+/// so it is safe to poll while a Remote Play session may be held.
+pub fn ddp_raw(host: &str) -> Result<()> {
+    let sock = std::net::UdpSocket::bind("0.0.0.0:0")?;
+    sock.set_read_timeout(Some(Duration::from_secs(2)))?;
+    sock.send_to(
+        b"SRCH * HTTP/1.1\ndevice-discovery-protocol-version:00030010\n\0",
+        (host, 9302),
+    )?;
+    let mut buf = [0u8; 2048];
+    let n = sock
+        .recv(&mut buf)
+        .map_err(|e| anyhow!("no DDP reply: {e}"))?;
+    println!("{}", String::from_utf8_lossy(&buf[..n]));
+    Ok(())
+}

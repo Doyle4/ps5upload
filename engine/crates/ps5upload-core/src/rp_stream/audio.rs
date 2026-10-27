@@ -45,6 +45,11 @@ pub struct AudioAssembler {
     /// Bit i set = frame `newest - i` already delivered.
     seen: u64,
     pub frames: u64,
+    /// Packet sequence stats since the last [`AudioAssembler::take_seq`]
+    /// (chiaki's "seq" stats over audio packet frame indexes).
+    seq_min: Option<u16>,
+    seq_max: u16,
+    seq_received: u64,
 }
 
 impl AudioAssembler {
@@ -77,9 +82,34 @@ impl AudioAssembler {
         }
     }
 
+    /// Packets received and lost since the last call, as chiaki counts them:
+    /// the spread of frame indexes seen against how many packets came.
+    pub fn take_seq(&mut self) -> (u64, u64) {
+        let Some(min) = self.seq_min else {
+            return (0, 0);
+        };
+        let diff = self.seq_max.wrapping_sub(min) as u64;
+        let lost = if self.seq_received > diff {
+            diff
+        } else {
+            diff - self.seq_received
+        };
+        let r = (self.seq_received, lost);
+        self.seq_min = Some(self.seq_max);
+        self.seq_received = 0;
+        r
+    }
+
     /// Opus frames in this packet not delivered before, with their index.
     pub fn push(&mut self, p: &AvPacket) -> Vec<(u16, Vec<u8>)> {
         let mut out = Vec::new();
+        self.seq_received += 1;
+        if self.seq_min.is_none() {
+            self.seq_min = Some(p.frame_index);
+            self.seq_max = p.frame_index;
+        } else if seq16_gt(p.frame_index, self.seq_max) {
+            self.seq_max = p.frame_index;
+        }
         if p.codec != 5 {
             return out;
         }

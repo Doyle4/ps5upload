@@ -42,6 +42,10 @@ pub struct FrameAssembler {
     unit_size: usize,
     units: Vec<Option<Vec<u8>>>,
     pub stats: VideoStats,
+    /// Units received / missing in frames finished since the last
+    /// [`FrameAssembler::take_generation`] (chiaki's "generation" stats).
+    gen_received: u64,
+    gen_lost: u64,
 }
 
 impl Default for FrameAssembler {
@@ -61,10 +65,26 @@ impl FrameAssembler {
             unit_size: 0,
             units: Vec::new(),
             stats: VideoStats::default(),
+            gen_received: 0,
+            gen_lost: 0,
         }
     }
 
+    /// Units received and lost since the last call, for the congestion report.
+    pub fn take_generation(&mut self) -> (u64, u64) {
+        (
+            std::mem::take(&mut self.gen_received),
+            std::mem::take(&mut self.gen_lost),
+        )
+    }
+
     fn start(&mut self, p: &AvPacket, out: &mut Vec<Output>) {
+        // The frame we are leaving: how many of its units ever came.
+        if self.frame_index.is_some() {
+            let got = self.units.iter().filter(|u| u.is_some()).count() as u64;
+            self.gen_received += got;
+            self.gen_lost += self.units.len() as u64 - got;
+        }
         // Whole frames skipped since the last one finished.
         if let Some(done) = self.last_done {
             let expected = done.wrapping_add(1);

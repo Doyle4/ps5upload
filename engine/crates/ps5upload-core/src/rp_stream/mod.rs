@@ -24,6 +24,7 @@ pub mod audio;
 pub mod crypto;
 pub mod fec;
 pub mod feedback;
+pub mod guard;
 pub mod proto;
 pub mod takion;
 pub mod video;
@@ -76,6 +77,8 @@ pub struct StreamConfig {
     pub fps: u32,
     pub bitrate_kbps: u32,
     pub codec: Codec,
+    /// Wake a console found in rest mode before opening the session.
+    pub wake: bool,
 }
 
 impl Default for StreamConfig {
@@ -87,6 +90,7 @@ impl Default for StreamConfig {
             fps: 60,
             bitrate_kbps: 10000,
             codec: Codec::H264,
+            wake: true,
         }
     }
 }
@@ -375,6 +379,25 @@ pub trait StreamSink {
     }
 }
 
+/// Records the console's hold-off when a session ends, however it ends.
+struct ReleaseHold {
+    host: String,
+    clean: std::cell::Cell<bool>,
+}
+
+impl Drop for ReleaseHold {
+    fn drop(&mut self) {
+        guard::hold_off(
+            &self.host,
+            if self.clean.get() {
+                guard::RELEASE_AFTER_CLEAN_STOP
+            } else {
+                guard::RELEASE_AFTER_DROP
+            },
+        );
+    }
+}
+
 /// Puts video packets back in order (chiaki-ng's video reorder queue): a
 /// missing packet is waited for up to 16 ms (about a frame), then skipped.
 #[derive(Default)]
@@ -439,6 +462,10 @@ pub struct StreamReport {
     pub av_bad_mac: u64,
     pub audio_frames: u64,
     pub av_dropped_on_purpose: u64,
+    /// Units the congestion reports covered, lost as seen, and lost as reported.
+    pub units_seen: u64,
+    pub loss_seen: u64,
+    pub loss_reported: u64,
     pub bytes_received: u64,
     pub disconnect_reason: Option<String>,
 }
@@ -452,7 +479,22 @@ pub fn run_stream(
     max: Duration,
     sink: &mut impl StreamSink,
 ) -> Result<StreamReport> {
-    let nonce = session_init(host, &creds.regist_key)?;
+    // Readiness without touching the Remote Play slot (see guard.rs).
+    guard::prepare(host, creds, cfg.wake, Duration::from_secs(60))?;
+    let nonce = match session_init(host, &creds.regist_key) {
+        Ok(n) => n,
+        Err(e) if format!("{e:#}").contains(guard::REASON_IN_USE) => {
+            guard::hold_off(host, guard::IN_USE_BACKOFF);
+            return Err(guard::NotReady::Busy(guard::IN_USE_BACKOFF).into());
+        }
+        Err(e) => return Err(e),
+    };
+    // From here the console holds a slot for us: whatever happens next, do
+    // not ask again until it has had time to let go.
+    let _release = ReleaseHold {
+        host: host.to_string(),
+        clean: std::cell::Cell::new(false),
+    };
     sink.progress(Progress::Nonce);
     let (ctrl, session_id, brt, amb) = ctrl_open(host, creds, &nonce, cfg.codec)?;
     sink.progress(Progress::SessionId);
@@ -545,6 +587,7 @@ pub fn run_stream(
     let mut last_heartbeat = Instant::now();
     let mut feedback = FeedbackSender::new();
     let mut reorder = VideoReorder::default();
+    let mut last_congestion = Instant::now();
     let mut last_idr: Option<Instant> = None;
     let (mut state_seq, mut history_seq) = (0u16, 0u16);
     let result = loop {
@@ -569,6 +612,27 @@ pub fn run_stream(
                     history_seq = history_seq.wrapping_add(1);
                 }
             }
+        }
+        // Every 200 ms: what arrived and what did not (chiaki's congestion
+        // control). Reported loss is capped at 5%, as chiaki does by default:
+        // the console cuts its bitrate on what it is told.
+        if last_congestion.elapsed() >= Duration::from_millis(200) {
+            last_congestion = Instant::now();
+            let (vr, vl) = assembler.take_generation();
+            let (ar, al) = audio.take_seq();
+            let (mut received, mut lost) = (vr + ar, vl + al);
+            let total = received + lost;
+            if total > 0 && lost * 100 > total * 5 {
+                lost = total * 5 / 100;
+                received = total - lost;
+            }
+            report.loss_reported += lost;
+            report.loss_seen += vl + al;
+            report.units_seen += total;
+            takion.send_congestion(
+                received.min(u16::MAX as u64) as u16,
+                lost.min(u16::MAX as u64) as u16,
+            )?;
         }
         // Video packets in order (late ones waited for briefly) into frames.
         let mut stop = false;
@@ -640,8 +704,10 @@ pub fn run_stream(
             }
         }
     };
+    // Clean stop, in chiaki's order: DISCONNECT over Takion, then close ctrl.
     takion.close();
     drop(ctrl);
+    _release.clean.set(true);
     report.video = assembler.stats;
     report.av_packets = takion.av_received;
     report.av_bad_mac = takion.av_bad_mac;

@@ -105,13 +105,12 @@ pub struct Takion {
     pub av_received: u64,
     pub av_bad_mac: u64,
     pub bytes_received: u64,
-    last_congestion: Instant,
-    congestion_received: u16,
     /// Test knob: drop this share (0-100) of received video packets
     /// (`PS5UPLOAD_RP_DROP_PCT`), to exercise FEC and loss recovery.
     drop_pct: u32,
     rng: u64,
     pub av_dropped_on_purpose: u64,
+    closed: bool,
 }
 
 impl Takion {
@@ -145,8 +144,6 @@ impl Takion {
             av_received: 0,
             av_bad_mac: 0,
             bytes_received: 0,
-            last_congestion: Instant::now(),
-            congestion_received: 0,
             drop_pct: std::env::var("PS5UPLOAD_RP_DROP_PCT")
                 .ok()
                 .and_then(|v| v.parse().ok())
@@ -154,6 +151,7 @@ impl Takion {
                 .min(100),
             rng: tag_local as u64 | 1,
             av_dropped_on_purpose: 0,
+            closed: false,
         };
         t.handshake()?;
         Ok(t)
@@ -366,14 +364,18 @@ impl Takion {
         self.send_maced(&mut pkt, key_pos)
     }
 
-    /// The periodic "received n, lost m" report chiaki sends every 200 ms.
-    fn send_congestion(&mut self) -> Result<()> {
+    /// The periodic "received n, lost m" report (chiaki sends it every
+    /// 200 ms; the counts come from the frame and audio assemblers).
+    pub fn send_congestion(&mut self, received: u16, lost: u16) -> Result<()> {
+        if self.gk_local.is_none() {
+            return Ok(());
+        }
         let key_pos = self.advance_key_pos(0xf);
         let mut pkt = [0u8; 0xf];
         pkt[0] = PACKET_CONGESTION;
-        pkt[3..5].copy_from_slice(&self.congestion_received.to_be_bytes());
+        pkt[3..5].copy_from_slice(&received.to_be_bytes());
+        pkt[5..7].copy_from_slice(&lost.to_be_bytes());
         pkt[0xb..0xf].copy_from_slice(&(key_pos as u32).to_be_bytes());
-        self.congestion_received = 0;
         self.send_maced(&mut pkt, key_pos)
     }
 
@@ -429,13 +431,8 @@ impl Takion {
         true
     }
 
-    /// Wait up to `timeout` for the next event. Sends DATA acks and periodic
-    /// congestion reports as a side effect.
+    /// Wait up to `timeout` for the next event. Sends DATA acks as a side effect.
     pub fn poll(&mut self, timeout: Duration) -> Result<Option<Event>> {
-        if self.gk_local.is_some() && self.last_congestion.elapsed() >= Duration::from_millis(200) {
-            self.last_congestion = Instant::now();
-            self.send_congestion()?;
-        }
         // Packets parked before the crypt was up go first.
         if self.gk_remote.is_some() && !self.postponed.is_empty() {
             let mut pkt = self.postponed.remove(0);
@@ -533,16 +530,26 @@ impl Takion {
                     gk.apply(av.key_pos + BLOCK as u64, &mut av.data);
                 }
                 self.av_received += 1;
-                self.congestion_received = self.congestion_received.wrapping_add(1);
                 Ok(Some(Event::Av(av)))
             }
             _ => Ok(None),
         }
     }
 
+    /// End the stream the way chiaki does: a DISCONNECT on channel 1. Runs at
+    /// most once; dropping a `Takion` calls it, so every exit path says goodbye.
     pub fn close(&mut self) {
-        // Best effort, like chiaki's disconnect on the way out.
+        if self.closed {
+            return;
+        }
+        self.closed = true;
         let _ = self.send_message(1, &super::proto::disconnect("Client Disconnecting"));
+    }
+}
+
+impl Drop for Takion {
+    fn drop(&mut self) {
+        self.close();
     }
 }
 
