@@ -156,13 +156,64 @@ function onVideo(kind, payload) {
   sentAt.set(ts, performance.now());
   decoder.decode(new EncodedVideoChunk({ type: key ? "key" : "delta", timestamp: ts, data }));
 }
-function onAudio(kind, payload) { st.audio++; }
+// ---- audio: Opus via WebCodecs, played ~60 ms ahead -------------------------
+// Video frames are drawn the moment they decode, so audio is kept just far
+// enough ahead to ride out network jitter: that holds the two within a few
+// tens of milliseconds. Too far behind (an underrun) or ahead (a stall that
+// piled frames up) and the schedule resets to the target.
+const AUDIO_TARGET = 0.06, AUDIO_MAX = 0.25;
+let actx = null, adec = null, aNext = 0, aLastIdx = -1, aRate = 48000, aFrame = 480;
+window.rpAudioLog = [];
+function onAudio(kind, payload) {
+  if (kind === 3) {
+    const dv = new DataView(payload.buffer, payload.byteOffset);
+    const ch = payload[0];
+    aRate = dv.getUint32(2); aFrame = dv.getUint32(6);
+    if (!actx) actx = new AudioContext({ sampleRate: aRate, latencyHint: "interactive" });
+    adec = new AudioDecoder({
+      output: (data) => {
+        const n = data.numberOfFrames, buf = actx.createBuffer(data.numberOfChannels, n, data.sampleRate);
+        let sum = 0;
+        for (let c = 0; c < data.numberOfChannels; c++) {
+          const plane = new Float32Array(n);
+          data.copyTo(plane, { planeIndex: c, format: "f32-planar" });
+          buf.copyToChannel(plane, c);
+          if (c === 0) for (let i = 0; i < n; i++) sum += plane[i] * plane[i];
+          if (c === 0 && window.rpPcm) window.rpPcm.push(Array.from(plane)); // test capture
+        }
+        data.close();
+        const now = actx.currentTime;
+        if (aNext < now + 0.01 || aNext > now + AUDIO_MAX) aNext = now + AUDIO_TARGET;
+        const src = actx.createBufferSource();
+        src.buffer = buf; src.connect(actx.destination); src.start(aNext);
+        // When it will be heard, on the page's clock.
+        const heardAt = performance.now() + (aNext - now + (actx.outputLatency || 0)) * 1000;
+        window.rpAudioLog.push([heardAt, Math.sqrt(sum / n)]);
+        if (window.rpAudioLog.length > 2000) window.rpAudioLog.splice(0, 1000);
+        aNext += n / data.sampleRate;
+        st.audio++;
+      },
+      error: (e) => { st.err = "audio: " + e; },
+    });
+    adec.configure({ codec: "opus", sampleRate: aRate, numberOfChannels: ch });
+    return;
+  }
+  if (!adec) return;
+  const idx = (payload[0] << 8) | payload[1];
+  // Frames come in order; a late copy of one already played is dropped.
+  if (aLastIdx >= 0 && ((idx - aLastIdx) & 0xffff) >= 0x8000) return;
+  aLastIdx = idx;
+  adec.decode(new EncodedAudioChunk({ type: "key", timestamp: idx * (aFrame / aRate) * 1e6, data: payload.subarray(2) }));
+}
 
 function start(e) {
   e.preventDefault();
   stop();
   Object.assign(st, { stage: "connecting", frames: 0, decoded: 0, bytes: 0, first: 0, err: "", inputs: 0, audio: 0 });
   decoder = null; header = null; ts = 0; sawKey = false;
+  adec = null; aNext = 0; aLastIdx = -1;
+  if (!actx) actx = new AudioContext({ latencyHint: "interactive" }); // created in the click, so it may play
+  actx.resume();
   const [w, h] = $("res").value.split("x").map(Number);
   canvas.width = w; canvas.height = h;
   st.t0 = performance.now();

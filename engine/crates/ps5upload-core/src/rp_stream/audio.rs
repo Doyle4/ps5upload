@@ -1,0 +1,159 @@
+//! Audio frames out of Takion audio packets.
+//!
+//! Ported from chiaki-ng (AGPL-3.0, `lib/src/audioreceiver.c`, `audio.c`).
+//! Each packet carries `source` consecutive Opus frames starting at its frame
+//! index, then `fec` copies of the frames just before it (redundancy, so a
+//! lost packet's audio usually arrives in the next one). Every unit is the
+//! same size. We pass each frame on once, tagged with its index; ordering and
+//! the jitter buffer are the player's.
+
+use super::takion::AvPacket;
+
+/// The 14-byte audio header from STREAMINFO.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AudioHeader {
+    pub channels: u8,
+    pub bits: u8,
+    pub rate: u32,
+    pub frame_size: u32,
+}
+
+impl AudioHeader {
+    pub fn parse(b: &[u8]) -> Option<Self> {
+        if b.len() < 14 {
+            return None;
+        }
+        Some(Self {
+            channels: b[0],
+            bits: b[1],
+            rate: u32::from_be_bytes(b[2..6].try_into().ok()?),
+            frame_size: u32::from_be_bytes(b[6..10].try_into().ok()?),
+        })
+    }
+}
+
+fn seq16_gt(a: u16, b: u16) -> bool {
+    a != b && (a.wrapping_sub(b) as i16) > 0
+}
+
+/// How far back a frame may arrive and still be played.
+const WINDOW: u16 = 64;
+
+#[derive(Default)]
+pub struct AudioAssembler {
+    newest: Option<u16>,
+    /// Bit i set = frame `newest - i` already delivered.
+    seen: u64,
+    pub frames: u64,
+}
+
+impl AudioAssembler {
+    fn mark(&mut self, idx: u16) -> bool {
+        match self.newest {
+            None => {
+                self.newest = Some(idx);
+                self.seen = 1;
+                true
+            }
+            Some(n) if seq16_gt(idx, n) => {
+                let shift = idx.wrapping_sub(n) as u32;
+                self.seen = if shift >= 64 { 0 } else { self.seen << shift };
+                self.seen |= 1;
+                self.newest = Some(idx);
+                true
+            }
+            Some(n) => {
+                let back = n.wrapping_sub(idx);
+                if back >= WINDOW {
+                    return false;
+                }
+                let bit = 1u64 << back;
+                if self.seen & bit != 0 {
+                    return false;
+                }
+                self.seen |= bit;
+                true
+            }
+        }
+    }
+
+    /// Opus frames in this packet not delivered before, with their index.
+    pub fn push(&mut self, p: &AvPacket) -> Vec<(u16, Vec<u8>)> {
+        let mut out = Vec::new();
+        if p.codec != 5 {
+            return out;
+        }
+        let unit = (p.units_in_frame_fec >> 8) as usize;
+        let source = (p.units_in_frame_fec & 0xf) as usize;
+        let fec = ((p.units_in_frame_fec >> 4) & 0xf) as usize;
+        if unit == 0
+            || source + fec != p.units_in_frame_total as usize
+            || p.data.len() != unit * (source + fec)
+        {
+            return out;
+        }
+        for i in 0..source + fec {
+            let idx = if i < source {
+                p.frame_index.wrapping_add(i as u16)
+            } else {
+                // Before the stream's first frames, FEC slots point at nothing.
+                let fec_index = i - source;
+                if p.frame_index < 0x8000 && (p.frame_index as usize + fec_index) < fec + 1 {
+                    continue;
+                }
+                p.frame_index
+                    .wrapping_sub(fec as u16)
+                    .wrapping_add((i - source) as u16)
+            };
+            if self.mark(idx) {
+                self.frames += 1;
+                out.push((idx, p.data[unit * i..unit * (i + 1)].to_vec()));
+            }
+        }
+        out
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn pkt(frame: u16, source: u16, fec: u16, unit: u16) -> AvPacket {
+        let n = (source + fec) as usize;
+        AvPacket {
+            is_video: false,
+            packet_index: 0,
+            frame_index: frame,
+            unit_index: 0,
+            units_in_frame_total: source + fec,
+            units_in_frame_fec: (unit << 8) | (fec << 4) | source,
+            codec: 5,
+            adaptive_stream_index: 0,
+            key_pos: 0,
+            data: (0..n * unit as usize)
+                .map(|i| (i / unit as usize) as u8)
+                .collect(),
+        }
+    }
+
+    #[test]
+    fn fec_copies_fill_a_gap_and_duplicates_are_dropped() {
+        let mut a = AudioAssembler::default();
+        let got: Vec<u16> = a.push(&pkt(10, 1, 2, 4)).into_iter().map(|f| f.0).collect();
+        assert_eq!(got, vec![10, 8, 9]);
+        // Packet for 11 lost; 12 carries copies of 10 and 11.
+        let got: Vec<u16> = a.push(&pkt(12, 1, 2, 4)).into_iter().map(|f| f.0).collect();
+        assert_eq!(got, vec![12, 11]);
+    }
+
+    #[test]
+    fn reads_the_header() {
+        let mut h = [0u8; 14];
+        h[0] = 2;
+        h[1] = 16;
+        h[2..6].copy_from_slice(&48000u32.to_be_bytes());
+        h[6..10].copy_from_slice(&480u32.to_be_bytes());
+        let a = AudioHeader::parse(&h).unwrap();
+        assert_eq!((a.channels, a.rate, a.frame_size), (2, 48000, 480));
+    }
+}

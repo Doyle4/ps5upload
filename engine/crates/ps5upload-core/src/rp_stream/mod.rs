@@ -20,6 +20,7 @@
 //! Senkusha (the MTU/RTT probe on 9297) is skipped: chiaki falls back to an
 //! MTU of 1454 and 1 ms RTT when it fails and streams anyway.
 
+pub mod audio;
 pub mod crypto;
 pub mod feedback;
 pub mod proto;
@@ -45,6 +46,7 @@ use self::crypto::{Ecdh, GkCrypt, HANDSHAKE_KEY_SIZE};
 use self::proto::Message;
 use self::takion::{Event, Takion};
 
+pub use self::audio::{AudioAssembler, AudioHeader};
 pub use self::feedback::{button, ControllerState, FeedbackSender};
 pub use self::proto::Resolution;
 pub use self::video::{FrameAssembler, VideoStats};
@@ -374,7 +376,9 @@ pub trait StreamSink {
     fn progress(&mut self, _p: Progress) {}
     /// One Annex-B access unit (`header` = codec parameter sets). False stops.
     fn video(&mut self, au: &[u8], header: bool) -> bool;
-    /// One audio frame (`header` = the 14-byte audio header). False stops.
+    /// One audio frame: its frame index (u16 BE) then one Opus packet; or, with
+    /// `header`, the 14-byte audio header (channels, bits, rate, frame size).
+    /// False stops.
     fn audio(&mut self, _frame: &[u8], _header: bool) -> bool {
         true
     }
@@ -395,6 +399,7 @@ pub struct StreamReport {
     pub video: VideoStats,
     pub av_packets: u64,
     pub av_bad_mac: u64,
+    pub audio_frames: u64,
     pub bytes_received: u64,
     pub disconnect_reason: Option<String>,
 }
@@ -491,6 +496,10 @@ pub fn run_stream(
     sink.progress(Progress::StreamInfo(report.resolutions.clone()));
     takion.send_message(9, &proto::bare(proto::kind::STREAMINFOACK))?;
     takion.send_message(1, &proto::controller_connection())?;
+    if !si.audio_header.is_empty() {
+        sink.audio(&si.audio_header, true);
+    }
+    let mut audio = AudioAssembler::default();
 
     let mut assembler = FrameAssembler::new();
     let mut profile: Option<u8> = None;
@@ -562,7 +571,16 @@ pub fn run_stream(
                     break Ok(());
                 }
             }
-            Event::Av(_) => {}
+            Event::Av(p) => {
+                for (idx, frame) in audio.push(&p) {
+                    let mut f = Vec::with_capacity(2 + frame.len());
+                    f.extend_from_slice(&idx.to_be_bytes());
+                    f.extend_from_slice(&frame);
+                    if !sink.audio(&f, false) {
+                        break;
+                    }
+                }
+            }
         }
     };
     takion.close();
@@ -570,6 +588,7 @@ pub fn run_stream(
     report.video = assembler.stats;
     report.av_packets = takion.av_received;
     report.av_bad_mac = takion.av_bad_mac;
+    report.audio_frames = audio.frames;
     report.bytes_received = takion.bytes_received;
     result.map(|_| report)
 }

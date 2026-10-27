@@ -36,8 +36,22 @@ impl StreamSink for FileSink {
         self.out.write_all(au).is_ok()
     }
 
-    fn audio(&mut self, _frame: &[u8], _header: bool) -> bool {
-        self.audio_frames += 1;
+    fn audio(&mut self, frame: &[u8], header: bool) -> bool {
+        if header {
+            eprintln!(
+                "audio header: {:?}",
+                ps5upload_core::rp_stream::AudioHeader::parse(frame)
+            );
+        } else {
+            if self.audio_frames == 0 {
+                eprintln!(
+                    "first audio frame: index {}, {} bytes of Opus",
+                    u16::from_be_bytes([frame[0], frame[1]]),
+                    frame.len() - 2
+                );
+            }
+            self.audio_frames += 1;
+        }
         true
     }
 }
