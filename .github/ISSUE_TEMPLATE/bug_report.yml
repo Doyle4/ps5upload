@@ -27,6 +27,7 @@ body:
         - Linux (x64)
         - Linux (ARM64)
         - Android
+        - iOS
         - Browser / self-hosted web UI
     validations:
       required: true

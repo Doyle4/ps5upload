@@ -45,6 +45,34 @@ pub(crate) fn looks_renamed_by_samba(name: &str) -> bool {
         && !(name.contains('.') && ext.is_empty())
 }
 
+/// For a folder read from this computer's own disk: a NAS share mounted by the OS (a Windows
+/// mapped drive, a share mounted in Finder) shows Samba's made-up names too, and nothing marks
+/// it as SMB. The names among `rel_paths` (any path component) that look made up, and the
+/// message that says so; None when there are none.
+pub(crate) fn samba_renamed_message<'a>(
+    rel_paths: impl Iterator<Item = &'a str>,
+    folder: &str,
+) -> Option<String> {
+    let mut count = 0usize;
+    let mut first: Option<&str> = None;
+    for p in rel_paths {
+        for part in p.split(['/', '\\']) {
+            if looks_renamed_by_samba(part) {
+                count += 1;
+                first.get_or_insert(part);
+            }
+        }
+    }
+    let first = first?;
+    Some(format!(
+        "{count} file name(s) in {folder} were made up by a network share (for example \"{first}\"): \
+         their real names hold characters Windows file sharing cannot, such as : ? * or a trailing \
+         dot, and the real names cannot be read back through the share. Copied like this the game \
+         would get the wrong file names and not start. Copy it from the server over SFTP or FTP \
+         (add the server under Connections), or copy the game to this computer another way first."
+    ))
+}
+
 fn server_addr(host: &str, port: u16) -> String {
     let mut h = host.trim();
     for scheme in ["smb://", "cifs://", "//", "\\\\"] {
@@ -406,6 +434,16 @@ impl RemoteFs for SmbFs {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn a_mounted_share_with_made_up_names_is_caught_and_a_normal_game_is_not() {
+        let game = ["sce_sys/param.json", "eboot.bin", "Media/Data/level1.pak"];
+        assert!(samba_renamed_message(game.into_iter(), "Z:\\Games\\G").is_none());
+        let renamed = ["S0YQZ1~A/param.json", "eboot.bin", "Media/C69YSY~1.TXT"];
+        let msg = samba_renamed_message(renamed.into_iter(), "Z:\\Games\\G").unwrap();
+        assert!(msg.starts_with("2 file name(s) in Z:\\Games\\G"), "{msg}");
+        assert!(msg.contains("S0YQZ1~A"), "{msg}");
+    }
 
     #[test]
     fn samba_made_up_names_are_recognised() {

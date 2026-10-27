@@ -159,6 +159,18 @@ pub(crate) async fn fpkg_inspect_handler(
         .to_string_lossy()
         .into_owned();
     let result = tokio::task::spawn_blocking(move || {
+        // A game folder on a NAS share the OS mounted: names the share made up would become
+        // the package's file names (see smb_fs::samba_renamed_message).
+        let dir = Path::new(&source);
+        if dir.is_dir() {
+            let (_, files) = crate::walk_plan(dir, &[]);
+            if let Some(msg) = crate::remote::smb_fs::samba_renamed_message(
+                files.iter().map(|f| f.rel_path.as_str()),
+                &source,
+            ) {
+                return Err(ps5upload_fpkg::Error::Format(msg));
+            }
+        }
         let inspection = build::inspect(Path::new(&source), &out)?;
         let min_firmware =
             min_firmware_of(Path::new(&source), inspection.required_firmware.as_deref());

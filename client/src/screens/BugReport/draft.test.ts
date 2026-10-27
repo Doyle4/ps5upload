@@ -95,3 +95,11 @@ describe("platformFromHost", () => {
     expect(platformFromHost({ os: "freebsd", arch: "x86_64" })).toBeNull();
   });
 });
+
+describe("iOS reports", () => {
+  it("are filed as iOS, not macOS", async () => {
+    const { platformFromHost, PLATFORMS } = await import("./draft");
+    expect(platformFromHost({ os: "ios", arch: "aarch64" })).toBe("iOS");
+    expect(PLATFORMS).toContain("iOS");
+  });
+});

@@ -6624,6 +6624,25 @@ async fn transfer_dir_handler(
                 return;
             }
         };
+        // A NAS share mounted by the OS reads as local disk: its made-up names are caught
+        // here, before a game is copied under them (its own SMB connection is checked in
+        // RemoteSourceFs::entries).
+        if source_fs.is_none() {
+            if let Some(msg) = remote::smb_fs::samba_renamed_message(
+                files.iter().map(|f| f.rel_path.as_str()),
+                &req.src_dir,
+            ) {
+                let completed_at_ms = now_ms();
+                set_job(
+                    &jobs,
+                    &events_tx,
+                    job_id,
+                    job_failed_from_err(started_at_ms, completed_at_ms, &anyhow::anyhow!(msg)),
+                );
+                fail_guard.mark_succeeded();
+                return;
+            }
+        }
         let files_sent_count = files.len() as u64;
         crate::log_info!(
             "transfer_dir: job={job_id} walk done in {} ms — files={} bytes={}",

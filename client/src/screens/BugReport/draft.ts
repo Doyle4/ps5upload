@@ -3,6 +3,7 @@
  * closing the app mid-report loses nothing. Everything recorded in the time frame goes in: the
  * only choice about the logs is how far back.
  */
+import { isIOS } from "../../lib/platform";
 import type { ReportForm } from "../../lib/reportOutputs";
 
 export type RangeKey = "15m" | "1h" | "6h" | "24h" | "3d" | "7d" | "custom";
@@ -25,6 +26,7 @@ export const PLATFORMS = [
   "Linux (x64)",
   "Linux (ARM64)",
   "Android",
+  "iOS",
   "Browser / self-hosted web UI",
 ] as const;
 
@@ -107,6 +109,8 @@ export function detectPlatform(isTauri: boolean): string {
   if (!isTauri) return "Browser / self-hosted web UI";
   const ua = typeof navigator !== "undefined" ? navigator.userAgent : "";
   if (/Android/i.test(ua)) return "Android";
+  // Before Mac: an iPhone's user agent says "like Mac OS X" (and an iPad's can say Macintosh).
+  if (isIOS()) return "iOS";
   if (/Windows/i.test(ua)) return /ARM64|aarch64/i.test(ua) ? "Windows (ARM64)" : "Windows (x64)";
   if (/Mac/i.test(ua)) return "macOS (Apple Silicon)";
   if (/Linux/i.test(ua)) return /aarch64|arm64/i.test(ua) ? "Linux (ARM64)" : "Linux (x64)";
@@ -126,6 +130,8 @@ export function platformFromHost(h: { os: string; arch: string }): string | null
       return arm ? "Linux (ARM64)" : "Linux (x64)";
     case "android":
       return "Android";
+    case "ios":
+      return "iOS";
     default:
       return null;
   }

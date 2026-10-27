@@ -6,6 +6,13 @@ What's new in ps5upload, written for humans.
 
 ## Unreleased
 
+- **Games copied from a mounted NAS share no longer arrive with made-up names.** A Samba
+  share mounted by the OS (a Windows mapped drive, a share mounted in Finder) shows files whose
+  real names hold `:` `?` `*` as `C69YSY~1.TXT`; copied that way a game does not start. Uploads
+  and Convert now stop on such a folder and say to copy it over SFTP/FTP instead (the app's own
+  SMB connections already did since 7.5.3).
+- **Bug reports from an iPhone say iOS.** They were filed as macOS (an iPhone's browser says
+  "like Mac OS X").
 - **Convert queue: add and change games while it runs (#518).** Games can be added at any
   time, and each waiting game has an options button to change what it becomes (package, game
   image, folder) and what happens after (keep, install, upload).
