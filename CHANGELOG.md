@@ -4,7 +4,7 @@ What's new in ps5upload, written for humans.
 
 ---
 
-## Unreleased
+## 8.5.0
 
 - **A shorter sidebar.** Screens that belong together now live together; every old link still
   opens the right place.
