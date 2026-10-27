@@ -4,7 +4,7 @@ What's new in ps5upload, written for humans.
 
 ---
 
-## Unreleased
+## 8.4.0
 
 - **Games copied from a mounted NAS share no longer arrive with made-up names.** A Samba
   share mounted by the OS (a Windows mapped drive, a share mounted in Finder) shows files whose
