@@ -11128,7 +11128,7 @@ async fn run(cfg: EngineConfig) -> anyhow::Result<()> {
         .route("/api/ps5/power/wake", post(ps5_power_wake))
         .route("/api/ps5/power/wake-login", post(ps5_power_wake_login))
         // Remote Play stream spike (rp_stream_api).
-        .route("/api/ps5/rp/stream", post(rp_stream_api::stream))
+        .route("/api/ps5/rp/ws", get(rp_stream_api::ws))
         .route("/rp-player", get(rp_stream_api::player))
         .route("/api/ps5/power/ddp-status", get(ps5_power_ddp_status))
         .route("/api/ps5/power/pair", post(ps5_power_pair))

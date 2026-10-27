@@ -21,6 +21,7 @@
 //! MTU of 1454 and 1 ms RTT when it fails and streams anyway.
 
 pub mod crypto;
+pub mod feedback;
 pub mod proto;
 pub mod takion;
 pub mod video;
@@ -44,6 +45,7 @@ use self::crypto::{Ecdh, GkCrypt, HANDSHAKE_KEY_SIZE};
 use self::proto::Message;
 use self::takion::{Event, Takion};
 
+pub use self::feedback::{button, ControllerState, FeedbackSender};
 pub use self::proto::Resolution;
 pub use self::video::{FrameAssembler, VideoStats};
 
@@ -367,6 +369,25 @@ fn launch_spec(cfg: &StreamConfig, handshake_key: &[u8; HANDSHAKE_KEY_SIZE]) -> 
     )
 }
 
+/// Where a stream's output goes and its input comes from.
+pub trait StreamSink {
+    fn progress(&mut self, _p: Progress) {}
+    /// One Annex-B access unit (`header` = codec parameter sets). False stops.
+    fn video(&mut self, au: &[u8], header: bool) -> bool;
+    /// One audio frame (`header` = the 14-byte audio header). False stops.
+    fn audio(&mut self, _frame: &[u8], _header: bool) -> bool {
+        true
+    }
+    /// The pad's latest state, if it changed since the last call.
+    fn input(&mut self) -> Option<ControllerState> {
+        None
+    }
+    /// True once the consumer has gone; the stream then ends.
+    fn stopped(&mut self) -> bool {
+        false
+    }
+}
+
 /// What a finished stream run saw.
 #[derive(Debug, Default, Clone)]
 pub struct StreamReport {
@@ -387,16 +408,15 @@ pub fn run_stream(
     creds: &SessionCreds,
     cfg: StreamConfig,
     max: Duration,
-    mut on_progress: impl FnMut(Progress),
-    mut on_video: impl FnMut(&[u8], bool) -> bool,
+    sink: &mut impl StreamSink,
 ) -> Result<StreamReport> {
     let nonce = session_init(host, &creds.regist_key)?;
-    on_progress(Progress::Nonce);
+    sink.progress(Progress::Nonce);
     let (ctrl, session_id, brt, amb) = ctrl_open(host, creds, &nonce, cfg.codec)?;
-    on_progress(Progress::SessionId);
+    sink.progress(Progress::SessionId);
 
     let mut takion = Takion::connect(resolve(host, STREAM_PORT)?)?;
-    on_progress(Progress::TakionConnected);
+    sink.progress(Progress::TakionConnected);
 
     let mut handshake_key = [0u8; HANDSHAKE_KEY_SIZE];
     getrandom::fill(&mut handshake_key).map_err(|e| anyhow!("random: {e}"))?;
@@ -458,7 +478,7 @@ pub fn run_stream(
                 takion.gk_local = Some(GkCrypt::new(2, &handshake_key, &secret));
                 takion.gk_remote = Some(GkCrypt::new(3, &handshake_key, &secret));
                 have_bang = true;
-                on_progress(Progress::Bang);
+                sink.progress(Progress::Bang);
             }
             Message::StreamInfo(si) if have_bang => stream_info = Some(si),
             Message::StreamInfo(_) => early_streaminfo = Some(buf),
@@ -468,7 +488,7 @@ pub fn run_stream(
     }
     let si = stream_info.unwrap();
     report.resolutions = si.resolutions.iter().map(|r| (r.width, r.height)).collect();
-    on_progress(Progress::StreamInfo(report.resolutions.clone()));
+    sink.progress(Progress::StreamInfo(report.resolutions.clone()));
     takion.send_message(9, &proto::bare(proto::kind::STREAMINFOACK))?;
     takion.send_message(1, &proto::controller_connection())?;
 
@@ -477,15 +497,34 @@ pub fn run_stream(
     let mut first_frame = true;
     let started = Instant::now();
     let mut last_heartbeat = Instant::now();
+    let mut feedback = FeedbackSender::new();
+    let (mut state_seq, mut history_seq) = (0u16, 0u16);
     let result = loop {
-        if started.elapsed() > max {
+        if started.elapsed() > max || sink.stopped() {
             break Ok(());
         }
         if last_heartbeat.elapsed() >= Duration::from_secs(1) {
             last_heartbeat = Instant::now();
             takion.send_message(1, &proto::bare(proto::kind::HEARTBEAT))?;
         }
-        let ev = match takion.poll(Duration::from_millis(100)) {
+        if let Some(pad) = sink.input() {
+            feedback.set(pad);
+        }
+        for pkt in feedback.tick(Instant::now()) {
+            match pkt {
+                feedback::Packet::State(p) => {
+                    takion.send_feedback(6, state_seq, 1, &p)?;
+                    state_seq = state_seq.wrapping_add(1);
+                }
+                feedback::Packet::History(n, p) => {
+                    takion.send_feedback(1, history_seq, n, &p)?;
+                    history_seq = history_seq.wrapping_add(1);
+                }
+            }
+        }
+        // Short waits: input is polled between packets, and video packets
+        // arrive every few milliseconds anyway.
+        let ev = match takion.poll(Duration::from_millis(4)) {
             Ok(Some(ev)) => ev,
             Ok(None) => continue,
             Err(e) => break Err(e),
@@ -504,7 +543,7 @@ pub fn run_stream(
                         continue;
                     };
                     profile = Some(p.adaptive_stream_index);
-                    if !on_video(&r.video_header, true) {
+                    if !sink.video(&r.video_header, true) {
                         break Ok(());
                     }
                 }
@@ -512,9 +551,9 @@ pub fn run_stream(
                 for frame in assembler.push(&p) {
                     if first_frame {
                         first_frame = false;
-                        on_progress(Progress::FirstFrame(frame.len()));
+                        sink.progress(Progress::FirstFrame(frame.len()));
                     }
-                    if !on_video(&frame, false) {
+                    if !sink.video(&frame, false) {
                         stop = true;
                         break;
                     }

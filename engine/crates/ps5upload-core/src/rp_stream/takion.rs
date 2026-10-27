@@ -365,6 +365,29 @@ impl Takion {
         self.send_maced(&mut pkt, key_pos)
     }
 
+    /// A controller feedback packet: `kind` 1 = history, 6 = state. The payload
+    /// is encrypted, then the whole packet MACed (chiaki
+    /// `takion_send_feedback_packet`).
+    pub fn send_feedback(&mut self, kind: u8, seq: u16, count: u8, payload: &[u8]) -> Result<()> {
+        let key_pos = self.advance_key_pos(payload.len() + BLOCK);
+        let Some(gk) = self.gk_local.as_mut() else {
+            bail!("feedback before the stream crypt is up");
+        };
+        let mut pkt = Vec::with_capacity(0xc + payload.len());
+        pkt.push(kind);
+        pkt.extend_from_slice(&seq.to_be_bytes());
+        pkt.push(count);
+        pkt.extend_from_slice(&(key_pos as u32).to_be_bytes());
+        pkt.extend_from_slice(&[0, 0, 0, 0]);
+        let mut body = payload.to_vec();
+        gk.apply(key_pos + BLOCK as u64, &mut body);
+        pkt.extend_from_slice(&body);
+        let mac = gk.gmac(key_pos, &pkt);
+        pkt[8..12].copy_from_slice(&mac);
+        self.sock.send(&pkt)?;
+        Ok(())
+    }
+
     /// Check a received packet's MAC (once the console's crypt is known).
     fn verify(&mut self, pkt: &mut [u8]) -> bool {
         let kind = pkt[0] & 0xf;

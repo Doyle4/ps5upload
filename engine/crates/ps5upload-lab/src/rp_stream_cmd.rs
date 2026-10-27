@@ -3,12 +3,44 @@
 //! timing each milestone. `creds.json` is `{"<host>": {"regist_key": hex32,
 //! "rp_key": hex32}}`; the keys are never printed.
 
+use std::fs::File;
 use std::io::Write as _;
 use std::time::{Duration, Instant};
 
 use anyhow::{anyhow, Result};
 use ps5upload_core::rp_session::SessionCreds;
-use ps5upload_core::rp_stream::{run_stream, Codec, Progress, StreamConfig};
+use ps5upload_core::rp_stream::{run_stream, Codec, Progress, StreamConfig, StreamSink};
+
+struct FileSink {
+    out: File,
+    t0: Instant,
+    units: u64,
+    audio_frames: u64,
+}
+
+impl StreamSink for FileSink {
+    fn progress(&mut self, p: Progress) {
+        let ms = self.t0.elapsed().as_millis();
+        match p {
+            Progress::Nonce => eprintln!("[{ms:>6} ms] session-init: nonce"),
+            Progress::SessionId => eprintln!("[{ms:>6} ms] ctrl: session id"),
+            Progress::TakionConnected => eprintln!("[{ms:>6} ms] takion: connected"),
+            Progress::Bang => eprintln!("[{ms:>6} ms] stream: BANG, crypt on"),
+            Progress::StreamInfo(r) => eprintln!("[{ms:>6} ms] stream: STREAMINFO {r:?}"),
+            Progress::FirstFrame(n) => eprintln!("[{ms:>6} ms] video: first frame ({n} bytes)"),
+        }
+    }
+
+    fn video(&mut self, au: &[u8], _header: bool) -> bool {
+        self.units += 1;
+        self.out.write_all(au).is_ok()
+    }
+
+    fn audio(&mut self, _frame: &[u8], _header: bool) -> bool {
+        self.audio_frames += 1;
+        true
+    }
+}
 
 pub fn run(host: &str, args: &[String]) -> Result<()> {
     let creds_path = args.first().ok_or_else(|| anyhow!("need creds.json"))?;
@@ -31,42 +63,26 @@ pub fn run(host: &str, args: &[String]) -> Result<()> {
         c["regist_key"].as_str().unwrap_or(""),
         c["rp_key"].as_str().unwrap_or(""),
     )?;
-    let mut out = std::fs::File::create(out_path)?;
-    let t0 = Instant::now();
-    let mut units = 0u64;
-    let report = run_stream(
-        host,
-        &creds,
-        cfg,
-        Duration::from_secs(secs),
-        |p| {
-            let ms = t0.elapsed().as_millis();
-            match p {
-                Progress::Nonce => eprintln!("[{ms:>6} ms] session-init: nonce"),
-                Progress::SessionId => eprintln!("[{ms:>6} ms] ctrl: session id"),
-                Progress::TakionConnected => eprintln!("[{ms:>6} ms] takion: connected"),
-                Progress::Bang => eprintln!("[{ms:>6} ms] stream: BANG, crypt on"),
-                Progress::StreamInfo(r) => eprintln!("[{ms:>6} ms] stream: STREAMINFO {r:?}"),
-                Progress::FirstFrame(n) => eprintln!("[{ms:>6} ms] video: first frame ({n} bytes)"),
-            }
-        },
-        |au, _header| {
-            units += 1;
-            out.write_all(au).is_ok()
-        },
-    )?;
-    let secs_f = t0.elapsed().as_secs_f64();
+    let mut sink = FileSink {
+        out: File::create(out_path)?,
+        t0: Instant::now(),
+        units: 0,
+        audio_frames: 0,
+    };
+    let report = run_stream(host, &creds, cfg, Duration::from_secs(secs), &mut sink)?;
+    let secs_f = sink.t0.elapsed().as_secs_f64();
     eprintln!(
-        "done in {secs_f:.1}s: {} frames ({} dropped), {:.1} MB video, {} AV packets ({} bad MAC), \
+        "done in {secs_f:.1}s: {} frames ({} dropped), {:.1} MB video, {} audio frames, {} AV packets ({} bad MAC), \
          {:.1} Mbit/s on the wire, disconnect: {:?}",
         report.video.frames,
         report.video.frames_dropped,
         report.video.bytes as f64 / 1e6,
+        sink.audio_frames,
         report.av_packets,
         report.av_bad_mac,
         report.bytes_received as f64 * 8.0 / 1e6 / secs_f,
         report.disconnect_reason
     );
-    eprintln!("{units} access units written to {out_path}");
+    eprintln!("{} access units written to {out_path}", sink.units);
     Ok(())
 }

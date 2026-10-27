@@ -26,7 +26,7 @@ version = "8.4.0"
 anyhow = "1.0"
 # "multipart" is for the backport library import (fakelibs_api.rs): users pick
 # library files and upload them as one set. Same crate, just the extractor.
-axum = { version = "0.8", features = ["multipart"] }
+axum = { version = "0.8", features = ["multipart", "ws"] }
 # `rayon`: an image build hashes every file twice (writing, reading back) on all cores.
 blake3 = { version = "1", features = ["rayon"] }
 serde = { version = "1.0", features = ["derive"] }
