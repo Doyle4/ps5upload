@@ -563,8 +563,18 @@ async fn resume_restarts_the_folder_and_sends_only_missing_files() {
         "a finished folder was decoded again ({} opened, {need} unfinished at the cut)",
         src.folders_opened()
     );
+    // A cut that lands exactly where a folder ends leaves the next folder to start fresh, with
+    // nothing to skip; anywhere else the restarted folder has a done prefix to decode past.
+    let at_folder_end = spec
+        .folders
+        .iter()
+        .scan(0u64, |sum, f| {
+            *sum += f.iter().map(|(_, data)| data.len() as u64).sum::<u64>();
+            Some(*sum)
+        })
+        .any(|end| end == fin1);
     assert!(
-        src.bytes_skipped() > 0,
+        at_folder_end || src.bytes_skipped() > 0,
         "the restart folder's done prefix was discarded"
     );
 }
