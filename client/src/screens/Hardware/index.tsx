@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { parsePS5Firmware } from "../../lib/ps5Firmware";
 import { Link } from "react-router";
 import { invoke } from "../../lib/invokeLogged";
 import {
@@ -205,6 +206,7 @@ export default function HardwareScreen() {
   const tr = useTr();
   const host = useConnectionStore((s) => s.host);
   const payloadStatus = useConnectionStore((s) => s.payloadStatus);
+  const ps5Firmware = parsePS5Firmware(useConnectionStore((s) => s.ps5Kernel));
   const guard = useStaleHostGuard();
 
   const [info, setInfo] = useState<HwInfo | null>(null);
@@ -590,7 +592,9 @@ export default function HardwareScreen() {
             />
             <StatRow
               label={tr("hw_os", undefined, "OS")}
-              value={info?.os ?? "—"}
+              value={osLabel(tr, info?.os, ps5Firmware)}
+              // The kernel's own answer ("FreeBSD 0.0-prototype" on every PS5) for whoever wants it.
+              hint={info?.os || undefined}
             />
             {/* Precise FW word via kernel R/W (added via the 2026-05
                 SDK refresh, kernel_get_fw_version). 0 means kernel
@@ -816,7 +820,25 @@ function StatRow({
   );
 }
 
-function FanThresholdCard({
+/** Where the fan slider starts: the target ps5upload keeps (pinned), else what the console is
+ *  holding now, else 65 °C; inside the range the slider offers. */
+/** The OS row in words a person expects: the PS5's system software version. The kernel itself
+ *  answers "FreeBSD 0.0-prototype" on every firmware (#522 follow-up), which reads like a fault. */
+export function osLabel(
+  tr: (key: string, vars?: Record<string, string | number>, fallback?: string) => string,
+  kernelOs: string | null | undefined,
+  firmware: string | null,
+): string {
+  if (firmware) return tr("hw_os_system_software", { fw: firmware }, `PS5 system software ${firmware}`);
+  return kernelOs || "—";
+}
+
+export function fanDraftStart(pinnedC: number, targetC: number, stockC: number): number {
+  const c = pinnedC > 0 ? pinnedC : targetC > 0 ? targetC : 65;
+  return Math.max(FAN_THRESHOLD_MIN_C, Math.min(fanTargetCeiling(stockC), Math.round(c)));
+}
+
+export function FanThresholdCard({
   host,
   payloadUp,
   pinnedC,
@@ -848,8 +870,20 @@ function FanThresholdCard({
    * whether a permanent fan speed is active. lastSetC tracks what the
    * user has set via THIS UI during this session, so the preset
    * highlight stays in sync with the user's own actions. */
-  const [draftC, setDraftC] = useState<number>(65);
+  const [draftC, setDraftC] = useState<number>(() => fanDraftStart(pinnedC, targetC, stockC));
   const [lastSetC, setLastSetC] = useState<number | null>(null);
+  // The slider starts at what the console holds (#522): it showed a fixed 65 °C every time the
+  // screen was opened, which read as the setting having gone back to the default. Followed
+  // until the slider is moved: the first reading arrives after the card opens.
+  const draftTouched = useRef(false);
+  useEffect(() => {
+    if (!draftTouched.current) setDraftC(fanDraftStart(pinnedC, targetC, stockC));
+  }, [pinnedC, targetC, stockC]);
+  // The console is the truth: a target changed elsewhere (another device, the console's own
+  // Fan page) replaces the one set here, which would otherwise keep saying "Set to …".
+  useEffect(() => {
+    if (pinnedC > 0) setLastSetC((last) => (last !== null && last !== pinnedC ? null : last));
+  }, [pinnedC]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [restored, setRestored] = useState<"done" | "restart" | null>(null);
@@ -912,6 +946,8 @@ function FanThresholdCard({
         await setFanThreshold(addr, clamped);
         setLastSetC(clamped);
         setDraftC(clamped);
+        // Set: the slider follows the console again.
+        draftTouched.current = false;
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         // The helper refuses a target above the console's own (fans slower than stock).
@@ -977,13 +1013,16 @@ function FanThresholdCard({
           step={1}
           value={draftC}
           disabled={!canSet}
-          onChange={(e) => setDraftC(Number(e.target.value))}
+          onChange={(e) => {
+            draftTouched.current = true;
+            setDraftC(Number(e.target.value));
+          }}
           className="flex-1 accent-[var(--color-accent)] disabled:opacity-50"
         />
         <button
           type="button"
           onClick={() => applyThreshold(draftC)}
-          disabled={!canSet || lastSetC === draftC}
+          disabled={!canSet || (lastSetC ?? (pinnedC > 0 ? pinnedC : null)) === draftC}
           className="chip min-h-8 px-3.5 text-xs disabled:opacity-50"
         >
           {tr("hardware_apply", "Apply")}
@@ -1462,6 +1501,8 @@ function SmpMetaCard({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pollDraft, setPollDraft] = useState<number>(30);
+  // While the slider is held, a refresh must not move it under the finger.
+  const pollDragging = useRef(false);
   const guard = useStaleHostGuard();
 
   const canTalk = payloadUp && !!host.trim();
@@ -1474,7 +1515,7 @@ function SmpMetaCard({
       if (probe.isStale()) return;
       setStats(s);
       setError(null);
-      if (s.poll_seconds > 0) setPollDraft(s.poll_seconds);
+      if (s.poll_seconds > 0 && !pollDragging.current) setPollDraft(s.poll_seconds);
     } catch (e) {
       if (probe.isStale()) return;
       setError(e instanceof Error ? e.message : String(e));
@@ -1546,6 +1587,8 @@ function SmpMetaCard({
 
   const applyPoll = useCallback(
     async (seconds: number) => {
+      // Let go of (or a key released on) the slider: refreshes may set it again.
+      pollDragging.current = false;
       if (!canTalk || busy) return;
       const clamped = Math.max(5, Math.min(600, Math.round(seconds)));
       if (lastAppliedPoll.current === clamped) return;
@@ -1680,7 +1723,10 @@ function SmpMetaCard({
               max={600}
               step={5}
               value={pollDraft}
-              onChange={(e) => setPollDraft(Number(e.target.value))}
+              onChange={(e) => {
+                pollDragging.current = true;
+                setPollDraft(Number(e.target.value));
+              }}
               /* Three commit triggers cover mouse, touch, and
                * keyboard (←/→/Page/Home/End all fire keyup). Without
                * onKeyUp, a keyboard-only user would see the slider

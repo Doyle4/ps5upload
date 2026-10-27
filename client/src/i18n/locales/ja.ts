@@ -4015,6 +4015,7 @@ drive_check_inside: "ドライブ {other} のフォルダーの中にありま�
 drive_check_holds: "ドライブ {other} のフォルダーを含んでいます。",
 drive_check_app_data: "それはアプリ自身のデータフォルダーです。別のフォルダーを選んでください。",
 drive_check_too_broad: "ドライブ全体またはホームフォルダーです。中身がすべて同期されます。その中のフォルダーを選ぶか作成してください。",
+hw_os_system_software: "PS5 システムソフトウェア {fw}",
 cq_edit_hint: "キューの実行中もゲームを追加できます。待機中のゲームの設定はオプションボタンで変更できます。",
 cq_options: "このゲームの設定",
 cq_opt_make: "作成",

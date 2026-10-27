@@ -44,6 +44,17 @@ pub(crate) fn host_of(console: &str) -> String {
 /// has no room for another job; it is never a verdict on the transfer.
 pub(crate) const DEFAULT_BUSY_TRIES: u32 = 12;
 
+/// Told the console's address each time a new session to it opens (on its own thread). The
+/// engine says who it is there: a console lists every device by its sessions, and one that never
+/// said hello shows as an app from before 8.0.0 even when it runs the newest version.
+type SessionHook = Box<dyn Fn(&str) + Send + Sync>;
+static ON_NEW_SESSION: std::sync::OnceLock<SessionHook> = std::sync::OnceLock::new();
+
+/// Sets the new-session hook (once per process; a later call is ignored).
+pub fn on_new_session(f: impl Fn(&str) + Send + Sync + 'static) {
+    let _ = ON_NEW_SESSION.set(Box::new(f));
+}
+
 pub struct Pool {
     dir: PathBuf,
     /// No identity is an error, not a panic (C4): `session()` turns the reason into an
@@ -972,6 +983,10 @@ impl Pool {
                 },
             );
             drop(map);
+            if let Some(hook) = ON_NEW_SESSION.get() {
+                let console = console.to_string();
+                std::thread::spawn(move || hook(&console));
+            }
             // Count how often this session ends on its own, so a second engine on the same
             // identity (which the console resolves by ending the older session) is named.
             // Polls through a `Weak`: a watcher must not keep a session (and its console

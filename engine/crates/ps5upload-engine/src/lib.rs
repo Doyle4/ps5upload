@@ -10689,6 +10689,9 @@ async fn run(cfg: EngineConfig) -> anyhow::Result<()> {
     // seam in the core crate; this registers the AVA1 implementation over the shared pool.
     // A console it cannot serve is a `helper_not_ava1` error, never another protocol.
     ps5upload_ava1::mgmt::install();
+    // Every new session says who this engine is, whatever opened it (Devices showed a phone
+    // that had only checked the console's status as an app from before 8.0.0).
+    ps5upload_ava1::pool::on_new_session(mesh_api::greet);
     // Renamed variables: the old name is read once with a deprecation line. Archives stream
     // (nothing is staged or held back to inflate), so both settings are accepted and reported
     // but change nothing.

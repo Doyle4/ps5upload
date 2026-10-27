@@ -4,6 +4,22 @@ What's new in ps5upload, written for humans.
 
 ---
 
+## Unreleased
+
+- **The fan target shows what the console keeps (#522).** Opening Console › Hardware again put
+  the slider back at 65 °C, which looked like the setting had been lost (the console kept it).
+  It now starts at the target the console holds; a target changed from another device or the
+  console's own Fan page replaces "Set to …" here; after applying, the slider follows the
+  console again.
+- **The ShadowMount+ metadata poll slider no longer jumps while it is held** (a refresh moved
+  it under the finger).
+- **OS reads as the system software.** It showed the kernel's own "FreeBSD 0.0-prototype" (the
+  same on every PS5); it now says "PS5 system software 13.60", the kernel's answer on hover.
+- **Power telemetry never takes the Hardware screen down** when a field is missing.
+- **Devices names every app that uses the console.** A phone or computer that only checked the
+  console's status (without opening Devices or Mesh Drive) never said who it was, and showed as
+  "PS5Upload (older version)". Every new connection now introduces itself.
+
 ## 8.4.0
 
 - **Games copied from a mounted NAS share no longer arrive with made-up names.** A Samba

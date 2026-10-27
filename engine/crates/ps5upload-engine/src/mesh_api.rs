@@ -305,6 +305,15 @@ pub(crate) fn call(
     }
 }
 
+/// Says hello on a session that just opened (ps5upload_ava1::pool::on_new_session): any work
+/// opens one, not only mesh calls, and a console lists a device that never said hello as an
+/// app from before 8.0.0. Best effort: an old helper or a dropped session is tried again later.
+pub(crate) fn greet(addr: &str) {
+    if let Err(e) = hello(addr) {
+        crate::log_debug!("mesh hello to {addr} on a new session: {e:#}");
+    }
+}
+
 /// false: the helper predates the mesh.
 fn hello(addr: &str) -> anyhow::Result<bool> {
     let r = mesh::hello(addr, &hello_info())?;

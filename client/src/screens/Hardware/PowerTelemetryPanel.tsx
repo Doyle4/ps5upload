@@ -152,8 +152,10 @@ export function unavailableNote(data: {
   }
 }
 
-function formatSeconds(s: number | null): string {
-  if (s === null) return "—";
+function formatSeconds(s: number | null | undefined): string {
+  // `== null`: a field an older engine or helper does not send is undefined, not null, and
+  // must not take the whole Hardware screen down.
+  if (s == null) return "—";
   const hours = Math.floor(s / 3600);
   const minutes = Math.floor((s % 3600) / 60);
   if (hours > 24) {
@@ -163,8 +165,8 @@ function formatSeconds(s: number | null): string {
   return `${hours}h ${minutes}m`;
 }
 
-function formatThermal(flags: number | null): string {
-  if (flags === null) return "—";
+function formatThermal(flags: number | null | undefined): string {
+  if (flags == null) return "—";
   if (flags === 0) return "no alerts";
   // Count the SET bits, not the raw flag value — `${flags} bits set` labelled
   // e.g. flag 0x4 as "4 bits set" when only one bit is set.
