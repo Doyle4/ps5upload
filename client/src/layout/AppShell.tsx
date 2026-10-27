@@ -1,6 +1,6 @@
 import { saveLastRoute } from "../lib/lastRoute";
-import { useLocation, useNavigate, useOutlet } from "react-router";
-import { Activity, useEffect, useRef, useState, type ReactNode } from "react";
+import { UNSAFE_LocationContext, useLocation, useNavigate, useOutlet, type Location } from "react-router";
+import { Activity, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { Lock, Moon, RefreshCw, RotateCw, Search, Sun, WifiOff, X } from "lucide-react";
 import { localNetworkBlocked, requestLocalNetwork } from "../lib/androidLocalNetwork";
 import StatusBar from "./StatusBar";
@@ -1754,28 +1754,34 @@ const KEPT_SCREENS = 6;
  * whole tree of screens per console, and this component is inside each of them. */
 function KeptScreens({ pathname, className }: { pathname: string; className: string }) {
   const outlet = useOutlet();
+  const location = useLocation();
+  const locationContext = useContext(UNSAFE_LocationContext);
   const behindAnotherConsole = useConnectionFrozen();
   // path -> the route element as first rendered for it. The element's props do not change
   // for a given route, so the first one keeps rendering the same component instance.
-  const [kept, setKept] = useState<Array<{ path: string; node: ReactNode }>>([]);
+  // Each also keeps where it was left (its query too): a hidden screen still reads the router, so
+  // it would otherwise see the next screen's URL, and a tabbed screen would fall back to its
+  // first tab while hidden and come back rebuilt, scrolled to the top.
+  const [kept, setKept] = useState<Array<{ path: string; node: ReactNode; location: Location }>>([]);
   useEffect(() => {
     setKept((prev) => {
-      const here = prev.find((k) => k.path === pathname) ?? { path: pathname, node: outlet };
+      const found = prev.find((k) => k.path === pathname);
+      const here = found ? { ...found, location } : { path: pathname, node: outlet, location };
       // Most recent last; the oldest beyond the limit is let go.
       return [...prev.filter((k) => k.path !== pathname), here].slice(-KEPT_SCREENS);
     });
-    // The outlet element is new on every render; only a change of screen matters here.
+    // The outlet element is new on every render; only a change of screen or of its URL matters.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pathname]);
+  }, [pathname, location]);
   // The screen being opened is not in `kept` until the effect above has run.
   const screens = kept.some((k) => k.path === pathname)
     ? kept
-    : [...kept, { path: pathname, node: outlet }];
+    : [...kept, { path: pathname, node: outlet, location }];
   return (
     <>
       {[...screens]
         .sort((a, b) => a.path.localeCompare(b.path))
-        .map(({ path, node }) => {
+        .map(({ path, node, location: leftAt }) => {
           const active = path === pathname;
           return (
             <Activity key={path} mode={active ? "visible" : "hidden"}>
@@ -1791,7 +1797,17 @@ function KeptScreens({ pathname, className }: { pathname: string; className: str
               >
                 {/* The screen on show renders the live route element; a hidden one keeps
                     the element it was last shown with. Same component either way. */}
-                {active ? outlet : node}
+                {/* Always the same wrapper (a different element type would remount the screen);
+                    a hidden screen reads the URL it was left at. */}
+                <UNSAFE_LocationContext.Provider
+                  value={
+                    active
+                      ? locationContext
+                      : { ...locationContext, location: leftAt }
+                  }
+                >
+                  {active ? outlet : node}
+                </UNSAFE_LocationContext.Provider>
               </div>
             </Activity>
           );

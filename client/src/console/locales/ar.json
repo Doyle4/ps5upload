@@ -843,7 +843,7 @@
   "cw_procs_err_protected": "لا يمكن إيقاف هذه العملية من هنا.",
   "cw_procs_intro": "ما يعمل الآن على PS5. يمكنك إيقاف لعبة أو payload؛ تُعرض عمليات النظام لكنها لا تُوقَف أبدًا من هنا.",
   "cw_procs_kind_game": "لعبة",
-  "cw_procs_kind_payload": "Payload",
+  "cw_procs_kind_payload": "حمولة",
   "cw_procs_kind_system": "النظام",
   "cw_procs_mb": "{mb} م.ب",
   "cw_procs_pid": "PID {pid}",
