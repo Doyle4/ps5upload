@@ -21,7 +21,7 @@
   <input id="regist" type="password" placeholder="regist key (hex)" size="20" autocomplete="off">
   <input id="rp" type="password" placeholder="RP key (hex)" size="20" autocomplete="off">
   <select id="res"><option value="1280x720">720p</option><option value="1920x1080">1080p</option></select>
-  <select id="codec"><option value="h264">H.264</option><option value="h265">HEVC</option></select>
+  <select id="codec"><option value="auto">Auto (HEVC if this device can)</option><option value="h265">HEVC</option><option value="h264">H.264</option></select>
   <button id="go" type="submit">Start</button>
   <button id="stop" type="button">Stop</button>
 </form>
@@ -238,7 +238,15 @@ function onAudio(kind, payload) {
   adec.decode(new EncodedAudioChunk({ type: "key", timestamp: idx * (aFrame / aRate) * 1e6, data: payload.subarray(2) }));
 }
 
-function start(e) {
+// HEVC carries the same picture in fewer bits, so it is the default whenever
+// this device can decode it; the PS5 offers only H.264 and HEVC.
+async function pickCodec(w, h) {
+  const want = $("codec").value;
+  if (want !== "auto") return want;
+  return (await hevcCodec(w, h)) ? "h265" : "h264";
+}
+
+async function start(e) {
   e.preventDefault();
   stop();
   Object.assign(st, { stage: "connecting", frames: 0, decoded: 0, bytes: 0, first: 0, err: "", inputs: 0, audio: 0 });
@@ -248,11 +256,12 @@ function start(e) {
   actx.resume();
   const [w, h] = $("res").value.split("x").map(Number);
   canvas.width = w; canvas.height = h;
-  hevc = $("codec").value === "h265";
+  const codec = await pickCodec(w, h);
+  hevc = codec === "h265";
   st.t0 = performance.now();
   ws = new WebSocket((location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/api/ps5/rp/ws");
   ws.binaryType = "arraybuffer";
-  ws.onopen = () => ws.send(JSON.stringify({ host: $("host").value, regist_key: $("regist").value, rp_key: $("rp").value, width: w, height: h, codec: $("codec").value }));
+  ws.onopen = () => ws.send(JSON.stringify({ host: $("host").value, regist_key: $("regist").value, rp_key: $("rp").value, width: w, height: h, codec }));
   ws.onmessage = (m) => {
     if (typeof m.data === "string") {
       const s = JSON.parse(m.data);

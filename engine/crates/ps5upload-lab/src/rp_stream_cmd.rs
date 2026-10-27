@@ -103,10 +103,41 @@ pub fn run(host: &str, args: &[String]) -> Result<()> {
     Ok(())
 }
 
-/// `app-running` / `app-kill <app_id>`: what runs, and close one app (the
-/// desktop's "Close game" path). For tests that open a game and must close it.
+/// `app-running` / `app-kill <app_id>` / `app-close <TITLE_ID>`. app-close is
+/// the desktop's "Close game": the app id from the process list (the
+/// libSceSysCore list is blind to running games), a graceful kill, then the
+/// process itself if that is refused. For tests that open a game.
 pub fn app_cmd(host: &str, args: &[String]) -> Result<()> {
     use ps5upload_core::app_lifecycle::{app_lifecycle, AppAction};
+    if args.first().map(String::as_str) == Some("app-close") {
+        let title = args.get(1).ok_or_else(|| anyhow!("need a title id"))?;
+        let procs = ps5upload_core::process_mgr::process_list(host)?;
+        let Some(p) = procs
+            .processes
+            .iter()
+            .find(|p| p.kind == "app" && p.title_id.eq_ignore_ascii_case(title))
+        else {
+            println!("{title} is not running");
+            return Ok(());
+        };
+        let kill = app_lifecycle(host, AppAction::Kill, p.app_id);
+        println!("app kill (app id {:#x}): {kill:?}", p.app_id);
+        std::thread::sleep(Duration::from_secs(3));
+        let still = ps5upload_core::process_mgr::process_list(host)?
+            .processes
+            .iter()
+            .any(|q| q.pid == p.pid);
+        if still {
+            println!("still running; killing pid {}", p.pid);
+            println!(
+                "{:?}",
+                ps5upload_core::process_mgr::process_kill(host, p.pid)?
+            );
+        } else {
+            println!("{title} closed");
+        }
+        return Ok(());
+    }
     let (action, id) = match args.first().map(String::as_str) {
         Some("app-kill") => (
             AppAction::Kill,
