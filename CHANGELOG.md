@@ -4,6 +4,34 @@ What's new in ps5upload, written for humans.
 
 ---
 
+## Unreleased
+
+- **Signing in from Profile can be undone, and says what it can do to the console.** The
+  np-fake-signin payload copies a template account's PlayStation Network settings (a 1983 birth
+  date, the offline-adult flag off) onto yours, and some consoles then ask to "Temporarily
+  Disable PS5 Console Restrictions" before every game. The helper now keeps a copy on the PS5 of
+  every setting and file np-fake-signin changes before it runs, and **Undo sign-in** on Profile
+  puts them back (restart afterwards). The confirmation names the side effect. An account signed in
+  before this version has no copy; Profile recognises it and says where Sony's console
+  restrictions are lifted.
+- **Connection says where Send payload went.** Sending kstuff, etaHEN or any other payload
+  moved to Payloads & processes → Send payload; Connection now shows a line and an **Open Send
+  payload** button for it, and the README/FAQ say Send helper where they meant the helper.
+- **HyperHEN's built-in ShadowMount+ is recognised more reliably.** Besides its process name, the
+  app now reads HyperHEN's own "automount ready" marker, so Mount for compressed images, Play
+  on disc-image titles and the setup wizard stop treating a working ShadowMount+ as missing.
+- **Check source opens several files at once when converting a game folder.** The step reads
+  the start of every file to find executables that need repair; on a big game on Windows that
+  took many minutes one file at a time. It now keeps several opens in flight and still shows
+  progress and honours Stop.
+- **Upload says when the file is a payload.** Picking an `.elf` now explains that uploading only
+  copies it (ShadowMount+ picks up game folders and images, never an `.elf`) and offers Send
+  payload, which runs it.
+- **A slow upload says what holds it back, not only when it is the network.** When an upload
+  runs far below the speed test for half a minute, Upload now names the cause the engine
+  measured: reading the source on this computer (USB/hard drive, NAS, archive unpacking), the
+  PS5's drive or its file writing (many small files), or the upload speed limit you set.
+
 ## 8.5.1
 
 - **Packages with Windows bookkeeping folders convert to game images again (#523, thanks

@@ -1172,6 +1172,18 @@ name = "METHOD_MESH_ANNOUNCE"
 ty = "u16"
 value = 181
 [[const]]
+name = "METHOD_PROFILE_NP_STATE"
+ty = "u16"
+value = 182
+[[const]]
+name = "METHOD_PROFILE_NP_BACKUP"
+ty = "u16"
+value = 183
+[[const]]
+name = "METHOD_PROFILE_NP_RESTORE"
+ty = "u16"
+value = 184
+[[const]]
 name = "JOB_OP_DELETE"
 ty = "u8"
 value = 1

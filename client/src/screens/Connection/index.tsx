@@ -734,6 +734,10 @@ export default function ConnectionScreen() {
           </p>
         </StepCard>
 
+        {/* Other payloads (kstuff, etaHEN, any .elf) are sent from Payloads & processes, not
+            here; users still look for that button on this screen, so point at it. */}
+        <SendPayloadPointer />
+
         {step1 === "ok" && (
           <StepCard
             index={2}
@@ -1313,6 +1317,39 @@ function CompanionStrip({ host }: { host: string }) {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+/** Where "Send payload" went. It used to live on this screen; it is now a tab of Payloads &
+ *  processes, and users who look for it here found only "Send helper" (a Discord report:
+ *  "there is no send payload button in Connection"). Always shown, not dismissible: it is
+ *  one line, and the people who need it are the ones who have not found it yet. The
+ *  browser build has the tab too (it forwards the ELF through the engine). */
+export function SendPayloadPointer() {
+  const tr = useTr();
+  const navigate = useNavigate();
+  return (
+    <div
+      className="flex flex-wrap items-center gap-2 rounded-[var(--radius-card)] border border-[var(--glass-edge)] bg-[var(--color-surface)] p-3 text-xs"
+      data-testid="connection-send-payload-pointer"
+    >
+      <Send size={14} className="shrink-0 text-[var(--color-accent)]" aria-hidden />
+      <span className="min-w-[14rem] flex-1 text-[var(--color-muted)]">
+        {tr(
+          "connection_send_payload_moved",
+          undefined,
+          "Sending another payload (kstuff, etaHEN, any .elf)? That is in Payloads & processes → Send payload. This screen sends only the PS5Upload helper.",
+        )}
+      </span>
+      <Button
+        variant="secondary"
+        size="sm"
+        rightIcon={<ArrowRight size={11} className="rtl:rotate-180" />}
+        onClick={() => navigate("/payloads?tab=send")}
+      >
+        {tr("connection_send_payload_open", undefined, "Open Send payload")}
+      </Button>
     </div>
   );
 }

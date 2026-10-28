@@ -64,6 +64,22 @@ int profile_slot_activate(int slot, uint64_t id);
  * recognisable but no longer "activated"). */
 int profile_slot_clear(int slot);
 
+/* ── PlayStation Network sign-in state (np-fake-signin): backup and restore ──
+ * profile_np_backup keeps every registry value np-fake-signin overwrites (slot 1's keys and
+ * `slot`'s) and its two NP files as they are now, in PROFILE_NP_BACKUP_ROOT/0x<UID>.txt, unless
+ * a backup is already there (the first one is the state before any sign-in). 0 on success
+ * (*out_created says whether it wrote one), -1 on failure.
+ * profile_np_restore writes them all back and removes files the sign-in created; the backup is
+ * renamed *.restored once everything was written. 0 on success, -2 with no backup, -1 when
+ * something could not be written (the backup is kept then).
+ * profile_np_state_json reports the backup and the values that matter for the sign-in.
+ * All need sony_api_lock held by the caller. */
+#define PROFILE_NP_BACKUP_ROOT "/data/ps5upload/np-backup"
+int profile_np_backup(int slot, uint32_t uid, int *out_created);
+int profile_np_backup_exists(uint32_t uid, int *out_slot);
+int profile_np_restore(uint32_t uid, int *out_written, int *out_failed);
+int profile_np_state_json(int slot, uint32_t uid, char *out, size_t cap);
+
 /* ── Foreground user ────────────────────────────────────────────────────
  * Resolve the active (foreground) user id. Returns the id, or 0 on
  * failure. If name_out is non-NULL it is filled with the current display

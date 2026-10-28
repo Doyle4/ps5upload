@@ -359,34 +359,51 @@ fn build_mode(
     // This walk opens every file of the game; on a big title on Windows (where each open is
     // slow) it took ~14 minutes with the stage showing nothing (a 156 GiB Ghost of Yotei
     // report read as "stuck at Check source"). Report how far it got, as the share of the
-    // game's bytes walked, the unit the stage row already shows.
+    // game's bytes walked, the unit the stage row already shows; a folder reads the headers
+    // several files at a time (`read_heads`), which hides most of the per-open cost.
     let walk_total: u64 = files.iter().map(|f| f.size).sum();
-    let mut walked: u64 = 0;
-    let mut last_report = std::time::Instant::now();
-    for f in files.iter_mut() {
-        walked = walked.saturating_add(f.size);
-        if last_report.elapsed() >= std::time::Duration::from_millis(250) {
-            last_report = std::time::Instant::now();
-            if let Some(cb) = control.bytes.as_deref_mut() {
-                cb(walked, walk_total);
+    // A backport's `fakelib/` holds newer system libraries the game loads in place of the
+    // console's own; working releases ship some with the PS4 signature, and every one of
+    // them is used exactly as shipped. Rewriting them is not a repair.
+    let checked: Vec<usize> = (0..files.len())
+        .filter(|&i| files[i].size >= 0x20 && !is_fakelib(&files[i].path))
+        .collect();
+    let checked_paths: Vec<String> = checked.iter().map(|&i| files[i].path.clone()).collect();
+    // Bytes walked once the first `n` checked files are read (plus the skipped ones before
+    // them), so the bar moves the way the old one-by-one walk did.
+    let mut walked_upto: Vec<u64> = Vec::with_capacity(checked.len() + 1);
+    {
+        let mut acc = 0u64;
+        let mut next = 0usize;
+        walked_upto.push(0);
+        for &i in &checked {
+            while next <= i {
+                acc = acc.saturating_add(files[next].size);
+                next += 1;
             }
-            if control
-                .cancel
-                .is_some_and(|c| c.load(std::sync::atomic::Ordering::Relaxed))
-            {
-                return Err(crate::Error::Cancelled);
+            walked_upto.push(acc);
+        }
+    }
+    let heads = {
+        let mut last_report = std::time::Instant::now();
+        let bytes_cb = &mut control.bytes;
+        let cancel = control.cancel;
+        let mut on_progress = |n: usize| -> bool {
+            if last_report.elapsed() >= std::time::Duration::from_millis(250) {
+                last_report = std::time::Instant::now();
+                if let Some(cb) = bytes_cb.as_deref_mut() {
+                    cb(walked_upto[n.min(checked.len())], walk_total);
+                }
             }
-        }
-        // A backport's `fakelib/` holds newer system libraries the game loads in place of the
-        // console's own; working releases ship some with the PS4 signature, and every one of
-        // them is used exactly as shipped. Rewriting them is not a repair.
-        if f.size < 0x20 || is_fakelib(&f.path) {
-            continue;
-        }
-        let header = tree.read_range(&f.path, 0, 0x20)?;
+            !cancel.is_some_and(|c| c.load(std::sync::atomic::Ordering::Relaxed))
+        };
+        tree.read_heads(&checked_paths, 0x20, &mut on_progress)?
+    };
+    for (&i, header) in checked.iter().zip(heads.iter()) {
+        let f = &mut files[i];
         let path = f.path.clone();
         let mut read = |offset: u64, len: usize| tree.read_range(&path, offset, len);
-        if let Some(repair) = self_repair::plan(&header, f.size, &mut read) {
+        if let Some(repair) = self_repair::plan(header, f.size, &mut read) {
             progress(&format!("repairing {}: {}", f.path, repair.describe()));
             repairs.insert(f.path.clone(), (repair, f.size));
             f.size = repair.new_size(f.size);

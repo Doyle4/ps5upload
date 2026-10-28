@@ -186,6 +186,9 @@ methods! {
     (MESH_DOC_GET, 179, "MESH_DOC_GET"),
     (MESH_DOC_PUT, 180, "MESH_DOC_PUT"),
     (MESH_ANNOUNCE, 181, "MESH_ANNOUNCE"),
+    (PROFILE_NP_STATE, 182, "PROFILE_NP_STATE"),
+    (PROFILE_NP_BACKUP, 183, "PROFILE_NP_BACKUP"),
+    (PROFILE_NP_RESTORE, 184, "PROFILE_NP_RESTORE"),
 }
 
 /// A management call the payload refused.

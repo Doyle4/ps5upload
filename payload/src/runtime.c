@@ -323,6 +323,13 @@
 #define MGMT_FRAME_MESH_DOC_PUT_ACK 331u
 #define MGMT_FRAME_MESH_ANNOUNCE 332u
 #define MGMT_FRAME_MESH_ANNOUNCE_ACK 333u
+/* PlayStation Network sign-in state: what np-fake-signin overwrites, kept and put back (profile.c) */
+#define MGMT_FRAME_PROFILE_NP_STATE 334u
+#define MGMT_FRAME_PROFILE_NP_STATE_ACK 335u
+#define MGMT_FRAME_PROFILE_NP_BACKUP 336u
+#define MGMT_FRAME_PROFILE_NP_BACKUP_ACK 337u
+#define MGMT_FRAME_PROFILE_NP_RESTORE 338u
+#define MGMT_FRAME_PROFILE_NP_RESTORE_ACK 339u
 #define MGMT_FRAME_SDK_SCAN 214u
 #define MGMT_FRAME_SDK_SCAN_ACK 215u
 #define MGMT_FRAME_SDK_PATCH 216u
@@ -2143,6 +2150,24 @@ static int is_disc_read_path(const char *p) {
      * that cannot be resolved for another reason, is refused. */
     if (realpath(p, resolved) == NULL) return errno == ENOENT;
     return is_disc_lexical(resolved);
+}
+
+/* READ-ONLY exception for HyperHEN's readiness markers: /system_tmp/hyperhen/ready/<name>, one
+ * small file per stage holding the stage's pid ("automount" for its built-in ShadowMount+). The
+ * engine reads them to tell that HyperHEN's own mount engine runs, whatever its process is called.
+ * One flat directory of tokens: no subdirectory, no dot-dot, and the canonical form must stay. */
+static int is_hyperhen_ready_lexical(const char *p) {
+    static const char PRE[] = "/system_tmp/hyperhen/ready/";
+    if (strncmp(p, PRE, sizeof(PRE) - 1) != 0) return 0;
+    const char *name = p + sizeof(PRE) - 1;
+    if (!name[0] || strchr(name, '/') || path_has_dotdot_component(p)) return 0;
+    return 1;
+}
+static int is_hyperhen_ready_read_path(const char *p) {
+    if (!is_hyperhen_ready_lexical(p)) return 0;
+    char resolved[PATH_MAX];
+    if (realpath(p, resolved) == NULL) return errno == ENOENT;
+    return is_hyperhen_ready_lexical(resolved);
 }
 
 /* Validate a path for unsafe read mode. This relaxes the writable-root
@@ -8878,6 +8903,63 @@ static int handle_profile_clear_slot(const char *body) {
     return mgmt_reply(MGMT_FRAME_PROFILE_CLEAR_SLOT_ACK, resp, (uint64_t)len);
 }
 
+/* The PSN sign-in backup (profile.c profile_np_*). Body: {"slot":n,"uid":u}; uid 0 or absent
+ * means the foreground user. All three hold sony_api_lock: they read and write sceRegMgr. */
+static uint32_t np_uid_of(const char *body) {
+    uint32_t uid = (uint32_t)extract_json_uint64_field(body, "uid");
+    if (uid == 0) uid = profile_foreground_user(NULL, 0);
+    return uid;
+}
+
+static int handle_profile_np_state(const char *body) {
+    int slot = (int)extract_json_uint64_field(body, "slot");
+    char resp[512];
+    int len = -1;
+    pthread_mutex_lock(&sony_api_lock);
+    uint32_t uid = np_uid_of(body);
+    if (slot >= 1 && slot <= PROFILE_SLOT_COUNT && uid != 0)
+        len = profile_np_state_json(slot, uid, resp, sizeof(resp));
+    usleep(SONY_API_POST_SLEEP_US);
+    pthread_mutex_unlock(&sony_api_lock);
+    if (len < 0) {
+        const char *err = "{\"ok\":false,\"err\":\"np_state_bad_request\"}";
+        return mgmt_reply(MGMT_FRAME_PROFILE_NP_STATE_ACK, err, strlen(err));
+    }
+    return mgmt_reply(MGMT_FRAME_PROFILE_NP_STATE_ACK, resp, (uint64_t)len);
+}
+
+static int handle_profile_np_backup(const char *body) {
+    int slot = (int)extract_json_uint64_field(body, "slot");
+    int created = 0, rc = -1;
+    pthread_mutex_lock(&sony_api_lock);
+    uint32_t uid = np_uid_of(body);
+    if (slot >= 1 && slot <= PROFILE_SLOT_COUNT && uid != 0) rc = profile_np_backup(slot, uid, &created);
+    usleep(SONY_API_POST_SLEEP_US);
+    pthread_mutex_unlock(&sony_api_lock);
+    char resp[160];
+    int len = snprintf(resp, sizeof(resp), "{\"ok\":%s,\"uid\":%u,\"slot\":%d,\"created\":%s%s}",
+                       rc == 0 ? "true" : "false", uid, slot, created ? "true" : "false",
+                       rc == 0 ? "" : ",\"err\":\"np_backup_failed\"");
+    return mgmt_reply(MGMT_FRAME_PROFILE_NP_BACKUP_ACK, resp, (uint64_t)len);
+}
+
+static int handle_profile_np_restore(const char *body) {
+    int written = 0, failed = 0, rc = -1;
+    pthread_mutex_lock(&sony_api_lock);
+    uint32_t uid = np_uid_of(body);
+    if (uid != 0) rc = profile_np_restore(uid, &written, &failed);
+    usleep(SONY_API_POST_SLEEP_US);
+    pthread_mutex_unlock(&sony_api_lock);
+    char resp[192];
+    int len = snprintf(resp, sizeof(resp),
+                       "{\"ok\":%s,\"uid\":%u,\"written\":%d,\"failed\":%d%s}",
+                       rc == 0 ? "true" : "false", uid, written, failed,
+                       rc == -2   ? ",\"err\":\"np_no_backup\""
+                       : rc != 0 ? ",\"err\":\"np_restore_incomplete\""
+                                 : "");
+    return mgmt_reply(MGMT_FRAME_PROFILE_NP_RESTORE_ACK, resp, (uint64_t)len);
+}
+
 static int handle_profile_apply_avatar(const char *body) {
     uint32_t uid = (uint32_t)extract_json_uint64_field(body, "uid");
     if (uid == 0) {
@@ -9111,7 +9193,7 @@ static runtime_state_t *g_mgmt_fs_state;
  * fs.read may open is one a download may open too (the disc and avatar carve-outs included). */
 int mgmt_fs_read_allowed(const char *path, int unsafe_read) {
     return is_path_allowed(path) || is_profile_avatar_read_path(path) || is_disc_read_path(path) ||
-           (unsafe_read && is_safe_unsafe_read_path(path));
+           is_hyperhen_ready_read_path(path) || (unsafe_read && is_safe_unsafe_read_path(path));
 }
 
 static void mgmt_fs_count(void) {
@@ -9198,6 +9280,21 @@ static int mgmt_w_profile_set_username(runtime_state_t *st, const char *b, uint6
     (void)st;
     (void)l;
     return handle_profile_set_username(b);
+}
+static int mgmt_w_profile_np_state(runtime_state_t *st, const char *b, uint64_t l) {
+    (void)st;
+    (void)l;
+    return handle_profile_np_state(b);
+}
+static int mgmt_w_profile_np_backup(runtime_state_t *st, const char *b, uint64_t l) {
+    (void)st;
+    (void)l;
+    return handle_profile_np_backup(b);
+}
+static int mgmt_w_profile_np_restore(runtime_state_t *st, const char *b, uint64_t l) {
+    (void)st;
+    (void)l;
+    return handle_profile_np_restore(b);
 }
 static int mgmt_w_profile_activate(runtime_state_t *st, const char *b, uint64_t l) {
     (void)st;

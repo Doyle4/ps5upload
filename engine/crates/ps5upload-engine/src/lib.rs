@@ -7470,6 +7470,17 @@ struct ProfileLocalUsernameReq {
     name: String,
 }
 
+/// The PSN sign-in backup routes: the account slot np-fake-signin matches the user to, and the
+/// user (0 or absent = the foreground user).
+#[derive(Deserialize)]
+struct ProfileNpReq {
+    addr: Option<String>,
+    #[serde(default)]
+    slot: i32,
+    #[serde(default)]
+    uid: u32,
+}
+
 #[derive(Deserialize)]
 struct ProfileActivateReq {
     addr: Option<String>,
@@ -7687,6 +7698,70 @@ async fn profile_activate_handler(
         Ok(id) => (
             StatusCode::OK,
             Json(serde_json::json!({ "ok": true, "id": id })),
+        )
+            .into_response(),
+        Err(e) => json_err(StatusCode::BAD_GATEWAY, format!("{e:#}")).into_response(),
+    }
+}
+
+/// POST /api/profile/np/state — the user's sign-in state and whether a backup is kept.
+async fn profile_np_state_handler(Json(req): Json<ProfileNpReq>) -> impl IntoResponse {
+    let Some(addr) = required_console_addr(req.addr) else {
+        return missing_console_addr();
+    };
+    let (slot, uid) = (req.slot, req.uid);
+    let r = tokio::task::spawn_blocking(move || {
+        ps5upload_core::profile::profile_np_state(&addr, slot, uid)
+    })
+    .await
+    .map_err(anyhow::Error::from)
+    .and_then(|r| r);
+    match r {
+        Ok(v) => (StatusCode::OK, Json(v)).into_response(),
+        Err(e) => json_err(StatusCode::BAD_GATEWAY, format!("{e:#}")).into_response(),
+    }
+}
+
+/// POST /api/profile/np/backup — keep what np-fake-signin overwrites, before it runs.
+async fn profile_np_backup_handler(Json(req): Json<ProfileNpReq>) -> impl IntoResponse {
+    let Some(addr) = required_console_addr(req.addr) else {
+        return missing_console_addr();
+    };
+    let (slot, uid) = (req.slot, req.uid);
+    crate::log_info!("profile_np_backup: addr={addr} slot={slot} uid={uid}");
+    let r = tokio::task::spawn_blocking(move || {
+        ps5upload_core::profile::profile_np_backup(&addr, slot, uid)
+    })
+    .await
+    .map_err(anyhow::Error::from)
+    .and_then(|r| r);
+    match r {
+        Ok(created) => (
+            StatusCode::OK,
+            Json(serde_json::json!({ "ok": true, "created": created })),
+        )
+            .into_response(),
+        Err(e) => json_err(StatusCode::BAD_GATEWAY, format!("{e:#}")).into_response(),
+    }
+}
+
+/// POST /api/profile/np/restore — put the kept sign-in state back (undo np-fake-signin).
+async fn profile_np_restore_handler(Json(req): Json<ProfileNpReq>) -> impl IntoResponse {
+    let Some(addr) = required_console_addr(req.addr) else {
+        return missing_console_addr();
+    };
+    let uid = req.uid;
+    crate::log_info!("profile_np_restore: addr={addr} uid={uid}");
+    let r = tokio::task::spawn_blocking(move || {
+        ps5upload_core::profile::profile_np_restore(&addr, uid)
+    })
+    .await
+    .map_err(anyhow::Error::from)
+    .and_then(|r| r);
+    match r {
+        Ok(written) => (
+            StatusCode::OK,
+            Json(serde_json::json!({ "ok": true, "written": written })),
         )
             .into_response(),
         Err(e) => json_err(StatusCode::BAD_GATEWAY, format!("{e:#}")).into_response(),
@@ -11289,6 +11364,9 @@ async fn run(cfg: EngineConfig) -> anyhow::Result<()> {
             post(profile_local_username_handler),
         )
         .route("/api/profile/activate", post(profile_activate_handler))
+        .route("/api/profile/np/state", post(profile_np_state_handler))
+        .route("/api/profile/np/backup", post(profile_np_backup_handler))
+        .route("/api/profile/np/restore", post(profile_np_restore_handler))
         .route(
             "/api/profile/avatar",
             post(profile_avatar_handler)

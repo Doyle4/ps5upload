@@ -258,6 +258,61 @@ export async function profileActivate(
   return assertOk(resp, "Activate profile");
 }
 
+/** What the console says about a user's PlayStation Network sign-in (np-fake-signin): whether
+ *  a backup from before the first sign-in is kept on it, and the values that decide how the
+ *  console treats the account. `null` where the registry could not be read. */
+export interface NpState {
+  ok: boolean;
+  slot: number;
+  uid: number;
+  backup: boolean;
+  backup_slot: number;
+  online_id: string;
+  /** NP_date_of_birth; np-fake-signin's template sets 1983-04-12. */
+  dob: string;
+  auth_dat: boolean;
+  config_dat: boolean;
+  sub_account: number | null;
+  offline_adult: number | null;
+  age: number | null;
+  login_flag: number | null;
+}
+
+/** The sign-in state of `uid` (0 = the foreground user) for account slot `slot`. */
+export async function profileNpState(slot: number, uid: number, addr: string): Promise<NpState> {
+  const resp = await invoke<NpState & { error?: string | null }>("profile_np_state", {
+    req: { addr, slot, uid },
+  });
+  return assertOk(resp, "Read the sign-in state");
+}
+
+/** Keep, on the console, everything np-fake-signin is about to overwrite. A backup already
+ *  there is kept (it is the state from before the first sign-in); `created` says whether a new
+ *  one was written. */
+export async function profileNpBackup(
+  slot: number,
+  uid: number,
+  addr: string,
+): Promise<{ ok: boolean; created: boolean }> {
+  const resp = await invoke<{ ok: boolean; created: boolean; error?: string | null }>(
+    "profile_np_backup",
+    { req: { addr, slot, uid } },
+  );
+  return assertOk(resp, "Back up the sign-in state");
+}
+
+/** Put the kept sign-in state back: undoes np-fake-signin once the PS5 restarts. */
+export async function profileNpRestore(
+  uid: number,
+  addr: string,
+): Promise<{ ok: boolean; written: number }> {
+  const resp = await invoke<{ ok: boolean; written: number; error?: string | null }>(
+    "profile_np_restore",
+    { req: { addr, slot: 0, uid } },
+  );
+  return assertOk(resp, "Undo the sign-in");
+}
+
 /** Create a new local user account. Returns the new user's uid. */
 export async function userCreate(
   name: string,
