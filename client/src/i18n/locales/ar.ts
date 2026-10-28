@@ -5860,6 +5860,12 @@ library_compressed_hint: "تحتاج الصور المضغوطة إلى ShadowMo
 "game_show_in_files": "إظهار في الملفات",
 "game_search_files": "البحث في ملفات هذه اللعبة",
 "installed_uninstall_no_copy": "لا توجد في مجموعتك على هذا الكمبيوتر نسخة من هذه اللعبة: احتفظ بحزمتها في مكان ما قبل إلغاء التثبيت.",
+"linkdl.lz4_title": "هذا الرابط مضغوط بـ LZ4",
+"linkdl.image_title": "هذا الرابط صورة لعبة",
+"linkdl.lz4_help": "يمكن لـ ps5upload فك ضغطه أثناء التنزيل، فيستلم PS5 الملف بعد فك ضغطه. لا يُخزَّن شيء على هذا الكمبيوتر، ولا يحتاج PS5 إلا إلى مساحة للملف بعد فك ضغطه.",
+"linkdl.lz4_unpack": "فك الضغط أثناء النقل",
+"linkdl.lz4_unpack_hint": "إيقاف: يُحفظ ملف ‎.lz4 على PS5 كما هو.",
+"linkdl.image_hint": "صورة لعبة {kind}. يركّبها ShadowMount+ كما هي من مجلد يفحصه، مثل homebrew على أحد الأقراص. لا يظهر الملف هناك إلا بعد اكتماله.",
 };
 
 export default ar;

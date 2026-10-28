@@ -58,6 +58,14 @@ pub struct LinkClass {
     /// The origin answered the ranged request with 206, so the parallel fetcher can read it.
     pub ranges: bool,
     pub content_type: String,
+    /// A `.lz4` stream (any name): what it unpacks to on the way to the console. Only for
+    /// `File`, filled in by [`probe`] from the first decoded block.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub lz4: Option<crate::link_lz4::Lz4Info>,
+    /// A game image ShadowMount+ mounts as it is (by its header, else its name): `exfat`,
+    /// `ufs`, `pfs`. Only for `File`; an `.lz4`'s image is in `lz4`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub image: Option<crate::link_lz4::ImageKind>,
 }
 
 /// What one probe request returned. Plain data so the decision is a pure function.
@@ -89,6 +97,8 @@ fn refused(
         total_size: None,
         ranges: false,
         content_type: input.content_type.clone(),
+        lz4: None,
+        image: None,
     }
 }
 
@@ -146,6 +156,8 @@ pub fn classify(input: &ProbeInput) -> LinkClass {
             total_size: total_of(input),
             ranges: status == 206,
             content_type: input.content_type.clone(),
+            lz4: None,
+            image: None,
         };
     }
 
@@ -202,6 +214,7 @@ pub fn classify(input: &ProbeInput) -> LinkClass {
         );
     }
 
+    let image = image_of(&filename, &input.head);
     LinkClass {
         kind: LinkKind::File,
         reason: None,
@@ -210,6 +223,25 @@ pub fn classify(input: &ProbeInput) -> LinkClass {
         total_size: total,
         ranges: status == 206,
         content_type: input.content_type.clone(),
+        lz4: None,
+        image,
+    }
+}
+
+/// The game image a plain (not compressed) link serves: its header when the sniff window
+/// holds it (exFAT, PFS), else its extension (a UFS2 superblock sits past the window).
+fn image_of(filename: &str, head: &[u8]) -> Option<crate::link_lz4::ImageKind> {
+    use crate::link_lz4::{image_ext, sniff_image, ImageKind};
+    if crate::link_lz4::is_lz4(head) {
+        return None;
+    }
+    if let Some((kind, _)) = sniff_image(head) {
+        return Some(kind);
+    }
+    match image_ext(filename)? {
+        "exfat" => Some(ImageKind::Exfat),
+        "ffpkg" => Some(ImageKind::Ufs),
+        _ => Some(ImageKind::Pfs),
     }
 }
 
@@ -385,7 +417,7 @@ pub fn probe(url: &str, insecure_tls: bool) -> Result<LinkClass, String> {
         .as_reader()
         .take(SNIFF_BYTES)
         .read_to_end(&mut head);
-    Ok(classify(&ProbeInput {
+    let input = ProbeInput {
         status,
         content_type,
         content_disposition,
@@ -393,7 +425,31 @@ pub fn probe(url: &str, insecure_tls: bool) -> Result<LinkClass, String> {
         content_length,
         head,
         final_url,
-    }))
+    };
+    let mut class = classify(&input);
+    // An LZ4 stream: read its first block(s) to learn what it unpacks to. Only worth asking
+    // when it could be streamed at all (a size and byte ranges).
+    if class.kind == LinkKind::File && crate::link_lz4::is_lz4(&input.head) {
+        if let (Some(total), true) = (class.total_size.filter(|t| *t > 0), class.ranges) {
+            let src = Arc::new(RemoteSource::new_with_options(
+                url.to_string(),
+                total,
+                insecure_tls,
+            ));
+            class.lz4 = Some(
+                match crate::link_lz4::inspect(src, total, &class.filename) {
+                    Ok(info) => info,
+                    Err(e) => crate::link_lz4::Lz4Info {
+                        unpacked_size: None,
+                        unpacked_name: crate::link_lz4::unpacked_name(&class.filename, None),
+                        image: None,
+                        unsupported: Some(e),
+                    },
+                },
+            );
+        }
+    }
+    Ok(class)
 }
 
 /// One remote file as an AVA1 source: reads are ranged GETs through the engine's
@@ -839,6 +895,85 @@ mod served_tests {
         assert_eq!(off, total);
         assert!(ls.open("other").is_err());
         assert_eq!(ls.stat("tool.elf").unwrap().size, total);
+    }
+
+    /// An .lz4 link: the probe says what it unpacks to, and the decoded image (not the .lz4)
+    /// streams to the console folder over AVA1.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn an_lz4_link_is_unpacked_on_the_way_to_the_console() {
+        use crate::link_lz4::tests::{exfat_image, frame};
+        use crate::link_lz4::{ImageKind, Lz4LinkSource};
+        use ava1::host::FolderHost;
+        use ava1::keys::Identity;
+        use ava1::peers::PeerStore;
+        use ava1::server::{self, ServerCtx};
+        use ps5upload_ava1::Pool;
+
+        let image = exfat_image(5 * 1024 * 1024 + 4096);
+        let packed = frame(&image, 64 << 10, false, false);
+        assert!(packed.len() < image.len());
+        let b = serve(pkg_bytes(1024), packed.clone());
+        let url = format!("{b}/tool.elf");
+        let probe_url = url.clone();
+        let class = tokio::task::spawn_blocking(move || probe(&probe_url, false))
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(class.kind, LinkKind::File);
+        assert_eq!(class.image, None);
+        let info = class.lz4.expect("an lz4 link");
+        assert_eq!(info.unpacked_size, Some(image.len() as u64));
+        assert_eq!(info.image, Some(ImageKind::Exfat));
+        assert_eq!(info.unpacked_name, "tool.elf.exfat");
+
+        let dir = std::env::temp_dir().join(format!("link-lz4-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let ava = dir.join("engine");
+        let key = Identity::load_or_create(&ava.join("identity"))
+            .unwrap()
+            .public();
+        std::fs::create_dir_all(dir.join("host/share")).unwrap();
+        let mut peers = PeerStore::in_memory();
+        peers.add(key, "engine").unwrap();
+        let rpc: ava1::server::RpcHandler = Box::new(|_, _| ava1::session::RpcReply {
+            status: ava1::gen::ERR_UNKNOWN_METHOD,
+            body: Vec::new(),
+        });
+        let ctx = ServerCtx::new(Identity::generate().unwrap(), "host", peers, rpc).with_jobs(
+            Arc::new(FolderHost {
+                root: dir.join("host/share"),
+                jobs_dir: dir.join("host/jobs"),
+            }),
+        );
+        let l = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = l.local_addr().unwrap().to_string();
+        tokio::spawn(server::serve(l, Arc::new(ctx)));
+        let pool = Pool::new(ava).with_addr(addr);
+
+        let (plen, ilen) = (packed.len() as u64, image.len() as u64);
+        let r = tokio::task::spawn_blocking(move || {
+            let src = Arc::new(RemoteSource::new_with_options(url, plen, false));
+            let source = Arc::new(Lz4LinkSource::new(src, plen, "g.exfat".into(), ilen));
+            let manifest = ava1::manifest::single(source.as_ref(), "g.exfat").unwrap();
+            let mut opts = ava1::send::SendOptions::upload("dst/g.exfat");
+            opts.flags = ava1::gen::JF_SINGLE_FILE;
+            opts.seq = Some(source.clone());
+            ps5upload_ava1::upload::upload_with_in(
+                &pool,
+                "127.0.0.1",
+                [9; 16],
+                manifest,
+                source,
+                opts,
+                &ps5upload_core::transfer::TransferConfig::new("127.0.0.1"),
+            )
+        })
+        .await
+        .unwrap()
+        .expect("upload");
+        assert_eq!(r.bytes_sent, ilen);
+        assert!(std::fs::read(dir.join("host/share/dst/g.exfat")).unwrap() == image);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// The whole path: ranged link -> LinkSource -> AVA1 upload -> a console folder.

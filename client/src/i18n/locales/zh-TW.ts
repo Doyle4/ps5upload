@@ -5810,6 +5810,12 @@ library_compressed_hint: "壓縮映像需要 ShadowMount+ 才能遊玩。如需�
 "game_show_in_files": "在檔案中顯示",
 "game_search_files": "搜尋此遊戲的檔案",
 "installed_uninstall_no_copy": "這台電腦上的收藏中沒有這款遊戲的副本：解除安裝前請先把它的安裝包儲存到別處。",
+"linkdl.lz4_title": "此連結是 LZ4 壓縮檔",
+"linkdl.image_title": "此連結是遊戲映像",
+"linkdl.lz4_help": "ps5upload 可以邊下載邊解壓縮，PS5 收到的是解壓縮後的檔案。這台電腦上不會儲存任何內容，PS5 只需要容納解壓縮後檔案的空間。",
+"linkdl.lz4_unpack": "傳輸時解壓縮",
+"linkdl.lz4_unpack_hint": "關閉：.lz4 檔案依原樣儲存到 PS5。",
+"linkdl.image_hint": "{kind} 遊戲映像。ShadowMount+ 會從它掃描的資料夾（例如某個磁碟上的 homebrew）依原樣掛載。檔案只有在完整後才會出現在那裡。",
 };
 
 export default zh_TW;

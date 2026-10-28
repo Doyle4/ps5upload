@@ -2133,6 +2133,7 @@ dependencies = [
  "blake3",
  "getrandom 0.4.3",
  "image",
+ "lz4_flex 0.14.0",
  "mime_guess",
  "ps5-dump-forge-pfs",
  "ps5-dump-forge-ufs2",

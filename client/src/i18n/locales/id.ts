@@ -5869,6 +5869,12 @@ library_compressed_hint: "Image terkompresi memerlukan ShadowMount+ untuk bermai
 "game_show_in_files": "Tampilkan di Berkas",
 "game_search_files": "Cari file game ini",
 "installed_uninstall_no_copy": "Koleksi Anda di komputer ini tidak memiliki salinan game ini: simpan paketnya di suatu tempat sebelum menghapus instalasinya.",
+"linkdl.lz4_title": "Tautan ini dikompresi dengan LZ4",
+"linkdl.image_title": "Tautan ini adalah image game",
+"linkdl.lz4_help": "ps5upload dapat mengekstraknya sambil mengunduh, sehingga PS5 menerima file yang sudah diekstrak. Tidak ada yang disimpan di komputer ini, dan PS5 hanya butuh ruang untuk file yang sudah diekstrak.",
+"linkdl.lz4_unpack": "Ekstrak di jalan",
+"linkdl.lz4_unpack_hint": "Mati: file .lz4 disimpan di PS5 apa adanya.",
+"linkdl.image_hint": "Image game {kind}. ShadowMount+ memasangnya apa adanya dari folder yang dipindainya, seperti homebrew di sebuah drive. File baru muncul di sana setelah lengkap.",
 };
 
 export default id;

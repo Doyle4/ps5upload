@@ -5867,6 +5867,12 @@ library_compressed_hint: "Sıkıştırılmış kalıpları oynatmak için Shadow
 "game_show_in_files": "Dosyalar'da göster",
 "game_search_files": "Bu oyunun dosyalarında ara",
 "installed_uninstall_no_copy": "Bu bilgisayardaki Koleksiyonunuzda bu oyunun kopyası yok: kaldırmadan önce paketini bir yerde saklayın.",
+"linkdl.lz4_title": "Bu bağlantı LZ4 ile sıkıştırılmış",
+"linkdl.image_title": "Bu bağlantı bir oyun imajı",
+"linkdl.lz4_help": "ps5upload indirirken açabilir, böylece PS5 açılmış dosyayı alır. Bu bilgisayarda hiçbir şey saklanmaz ve PS5'in yalnızca açılmış dosya için yere ihtiyacı olur.",
+"linkdl.lz4_unpack": "Yolda aç",
+"linkdl.lz4_unpack_hint": "Kapalı: .lz4 dosyası PS5'e olduğu gibi kaydedilir.",
+"linkdl.image_hint": "Bir {kind} oyun imajı. ShadowMount+ onu taradığı bir klasörden, örneğin bir sürücüdeki homebrew klasöründen olduğu gibi bağlar. Dosya orada ancak tamamlandığında görünür.",
 };
 
 export default tr;

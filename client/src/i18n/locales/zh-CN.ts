@@ -5816,6 +5816,12 @@ library_compressed_hint: "压缩镜像需要 ShadowMount+ 才能游玩。如需�
 "game_show_in_files": "在文件中显示",
 "game_search_files": "搜索此游戏的文件",
 "installed_uninstall_no_copy": "这台电脑上的收藏中没有这款游戏的副本：卸载前请先把它的安装包保存到别处。",
+"linkdl.lz4_title": "此链接是 LZ4 压缩文件",
+"linkdl.image_title": "此链接是游戏镜像",
+"linkdl.lz4_help": "ps5upload 可以边下载边解压，PS5 收到的是解压后的文件。这台电脑上不会保存任何内容，PS5 只需要容纳解压后文件的空间。",
+"linkdl.lz4_unpack": "传输时解压",
+"linkdl.lz4_unpack_hint": "关闭：.lz4 文件按原样保存到 PS5。",
+"linkdl.image_hint": "{kind} 游戏镜像。ShadowMount+ 会从它扫描的文件夹（例如某个驱动器上的 homebrew）中按原样挂载。文件只有在完整后才会出现在那里。",
 };
 
 export default zh_CN;

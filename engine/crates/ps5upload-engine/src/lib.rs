@@ -70,6 +70,7 @@ mod image_build;
 mod inspect;
 mod install;
 mod link;
+mod link_lz4;
 mod local_fs;
 mod log_dedup;
 mod mesh_api;
@@ -2052,6 +2053,9 @@ struct LinkDownloadReq {
     insecure_tls: bool,
     #[serde(default)]
     bandwidth_cap_mbps: Option<f64>,
+    /// An `.lz4` link is unpacked on the way (the default); false keeps the `.lz4` as it is.
+    #[serde(default = "default_true")]
+    unpack: bool,
 }
 
 /// `/api/rar/packages` request. Desktop-only, same gate as the handler.
@@ -9182,12 +9186,31 @@ async fn link_download_handler(
         )
         .into_response();
     }
+    // An .lz4 link is unpacked on the way: the console gets the image, not the .lz4.
+    let lz4 = class.lz4.clone().filter(|_| req.unpack);
+    let packed = total;
+    let (default_name, total) = match &lz4 {
+        Some(info) => match (info.unpacked_size, &info.unsupported) {
+            (Some(n), None) if n > 0 => (info.unpacked_name.clone(), n),
+            (_, why) => {
+                return (
+                    StatusCode::UNPROCESSABLE_ENTITY,
+                    Json(serde_json::json!({
+                        "error": why.clone().unwrap_or_else(|| "this .lz4 cannot be unpacked on the way".into()),
+                        "reason": "lz4_not_streamable",
+                    })),
+                )
+                    .into_response();
+            }
+        },
+        None => (class.filename.clone(), total),
+    };
     let name = req
         .file_name
         .as_deref()
         .map(link::sanitize_name)
         .filter(|n| !n.is_empty())
-        .unwrap_or_else(|| class.filename.clone());
+        .unwrap_or(default_name);
     let dest_path = format!("{dest_dir}/{name}");
 
     let job_id = Uuid::new_v4();
@@ -9201,7 +9224,12 @@ async fn link_download_handler(
         .and_then(|u| u.host().map(str::to_string))
         .unwrap_or_default();
     crate::log_info!(
-        "link_download: job={job_id} addr={addr} host={host} dest={dest_path} bytes={total}"
+        "link_download: job={job_id} addr={addr} host={host} dest={dest_path} bytes={total}{}",
+        if lz4.is_some() {
+            format!(" lz4_packed={packed}")
+        } else {
+            String::new()
+        }
     );
     let progress = Arc::new(AtomicU64::new(0));
     let progress_files = Arc::new(AtomicU64::new(0));
@@ -9270,9 +9298,27 @@ async fn link_download_handler(
         cfg.progress_live = Some(live_notes_for(job_id));
         apply_per_request_bandwidth(&mut cfg, req.bandwidth_cap_mbps);
         let remote = Arc::new(crate::remote_pkg::RemoteSource::new_with_options(
-            url, total, insecure,
+            url, packed, insecure,
         ));
-        let source = Arc::new(link::LinkSource::new(remote, name.clone(), total));
+        // A plain file is read at any offset (resume continues where the console stopped); an
+        // .lz4 is decoded forward on one thread and its decoded bytes are what is sent.
+        let (source, seq): (
+            Arc<dyn ava1::source::Source>,
+            Option<Arc<dyn ava1::seq::SeqSource>>,
+        ) = if lz4.is_some() {
+            let s = Arc::new(link_lz4::Lz4LinkSource::new(
+                remote,
+                packed,
+                name.clone(),
+                total,
+            ));
+            (s.clone(), Some(s))
+        } else {
+            (
+                Arc::new(link::LinkSource::new(remote, name.clone(), total)),
+                None,
+            )
+        };
         let result = ava1::manifest::single(source.as_ref(), &name)
             .map_err(anyhow::Error::from)
             .and_then(|manifest| {
@@ -9289,6 +9335,7 @@ async fn link_download_handler(
                 loop {
                     let mut opts = ava1::send::SendOptions::upload(&dest_path);
                     opts.flags = ava1::gen::JF_SINGLE_FILE;
+                    opts.seq = seq.clone();
                     let r = ps5upload_ava1::upload::upload_with(
                         &cfg.addr,
                         tx_id,

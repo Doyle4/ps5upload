@@ -5879,6 +5879,12 @@ library_compressed_hint: "압축 이미지를 플레이하려면 ShadowMount+가
 "game_show_in_files": "파일에서 보기",
 "game_search_files": "이 게임의 파일 검색",
 "installed_uninstall_no_copy": "이 컴퓨터의 컬렉션에 이 게임의 사본이 없습니다. 제거하기 전에 패키지를 다른 곳에 보관하세요.",
+"linkdl.lz4_title": "이 링크는 LZ4로 압축되어 있습니다",
+"linkdl.image_title": "이 링크는 게임 이미지입니다",
+"linkdl.lz4_help": "ps5upload가 다운로드하면서 압축을 풀 수 있어 PS5는 압축이 풀린 파일을 받습니다. 이 컴퓨터에는 아무것도 저장되지 않으며, PS5에는 압축이 풀린 파일만큼의 공간만 필요합니다.",
+"linkdl.lz4_unpack": "전송 중 압축 풀기",
+"linkdl.lz4_unpack_hint": "끄기: .lz4 파일을 그대로 PS5에 저장합니다.",
+"linkdl.image_hint": "{kind} 게임 이미지입니다. ShadowMount+가 드라이브의 homebrew 같은 검색 폴더에서 그대로 마운트합니다. 파일은 완료된 뒤에만 그곳에 나타납니다.",
 };
 
 export default ko;

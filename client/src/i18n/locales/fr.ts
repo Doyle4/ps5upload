@@ -5878,6 +5878,12 @@ library_compressed_hint: "Les images compressées nécessitent ShadowMount+ pour
 "game_show_in_files": "Afficher dans Fichiers",
 "game_search_files": "Rechercher dans les fichiers de ce jeu",
 "installed_uninstall_no_copy": "Votre Collection sur cet ordinateur n’a aucune copie de ce jeu : conservez son package quelque part avant de le désinstaller.",
+"linkdl.lz4_title": "Ce lien est compressé en LZ4",
+"linkdl.image_title": "Ce lien est une image de jeu",
+"linkdl.lz4_help": "ps5upload peut le décompresser pendant le téléchargement : la PS5 reçoit le fichier décompressé. Rien n'est stocké sur cet ordinateur, et la PS5 n'a besoin de place que pour le fichier décompressé.",
+"linkdl.lz4_unpack": "Décompresser en route",
+"linkdl.lz4_unpack_hint": "Désactivé : le fichier .lz4 est enregistré tel quel sur la PS5.",
+"linkdl.image_hint": "Une image de jeu {kind}. ShadowMount+ la monte telle quelle depuis un dossier qu'il analyse, comme homebrew sur un disque. Le fichier n'y apparaît qu'une fois complet.",
 };
 
 export default fr;

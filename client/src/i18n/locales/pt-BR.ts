@@ -5877,6 +5877,12 @@ library_compressed_hint: "Imagens compactadas precisam do ShadowMount+ para joga
 "game_show_in_files": "Mostrar em Arquivos",
 "game_search_files": "Pesquisar nos arquivos deste jogo",
 "installed_uninstall_no_copy": "Sua Coleção neste computador não tem uma cópia deste jogo: guarde o pacote dele em algum lugar antes de desinstalar.",
+"linkdl.lz4_title": "Este link está compactado com LZ4",
+"linkdl.image_title": "Este link é uma imagem de jogo",
+"linkdl.lz4_help": "O ps5upload pode descompactá-lo durante o download, então o PS5 recebe o arquivo descompactado. Nada é salvo neste computador, e o PS5 só precisa de espaço para o arquivo descompactado.",
+"linkdl.lz4_unpack": "Descompactar no caminho",
+"linkdl.lz4_unpack_hint": "Desligado: o arquivo .lz4 é salvo no PS5 como está.",
+"linkdl.image_hint": "Uma imagem de jogo {kind}. O ShadowMount+ a monta como está a partir de uma pasta que ele verifica, como homebrew em uma unidade. O arquivo só aparece lá quando estiver completo.",
 };
 
 export default pt_BR;

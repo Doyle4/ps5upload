@@ -5862,6 +5862,12 @@ library_compressed_hint: "Ảnh đĩa nén cần ShadowMount+ để chơi. Để
 "game_show_in_files": "Hiện trong Tệp",
 "game_search_files": "Tìm trong tệp của game này",
 "installed_uninstall_no_copy": "Bộ sưu tập trên máy tính này không có bản sao của game này: hãy lưu gói của nó ở đâu đó trước khi gỡ cài đặt.",
+"linkdl.lz4_title": "Liên kết này được nén bằng LZ4",
+"linkdl.image_title": "Liên kết này là một bản image trò chơi",
+"linkdl.lz4_help": "ps5upload có thể giải nén trong khi tải, nên PS5 nhận được tệp đã giải nén. Không có gì được lưu trên máy tính này, và PS5 chỉ cần chỗ cho tệp đã giải nén.",
+"linkdl.lz4_unpack": "Giải nén trên đường truyền",
+"linkdl.lz4_unpack_hint": "Tắt: tệp .lz4 được lưu nguyên trạng trên PS5.",
+"linkdl.image_hint": "Một bản image trò chơi {kind}. ShadowMount+ gắn nó nguyên trạng từ một thư mục mà nó quét, như homebrew trên một ổ. Tệp chỉ xuất hiện ở đó khi đã hoàn tất.",
 };
 
 export default vi;

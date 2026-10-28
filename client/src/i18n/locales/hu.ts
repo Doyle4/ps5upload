@@ -6175,6 +6175,12 @@ library_compressed_hint: "A tömörített képfájlok futtatásához ShadowMount
 "game_show_in_files": "Megjelenítés a Fájlokban",
 "game_search_files": "Keresés a játék fájljai között",
 "installed_uninstall_no_copy": "A számítógépen lévő Gyűjteményedben nincs másolat erről a játékról: az eltávolítás előtt mentsd el valahová a csomagját.",
+"linkdl.lz4_title": "Ez a link LZ4-gyel tömörített",
+"linkdl.image_title": "Ez a link egy játékképfájl",
+"linkdl.lz4_help": "A ps5upload letöltés közben ki tudja csomagolni, így a PS5 a kicsomagolt fájlt kapja meg. Ezen a számítógépen semmi sem tárolódik, és a PS5-nek csak a kicsomagolt fájlhoz kell hely.",
+"linkdl.lz4_unpack": "Kicsomagolás útközben",
+"linkdl.lz4_unpack_hint": "Ki: a .lz4 fájl változatlanul kerül a PS5-re.",
+"linkdl.image_hint": "Egy {kind} játékképfájl. A ShadowMount+ változatlanul csatolja egy általa figyelt mappából, például egy meghajtó homebrew mappájából. A fájl csak akkor jelenik meg ott, amikor teljes.",
 };
 
 export default hu;

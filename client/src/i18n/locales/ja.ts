@@ -5881,6 +5881,12 @@ library_compressed_hint: "圧縮イメージのプレイには ShadowMount+ が�
 "game_show_in_files": "ファイルで表示",
 "game_search_files": "このゲームのファイルを検索",
 "installed_uninstall_no_copy": "このコンピューター上のコレクションにこのゲームのコピーがありません。アンインストールする前にパッケージをどこかに保管してください。",
+"linkdl.lz4_title": "このリンクは LZ4 で圧縮されています",
+"linkdl.image_title": "このリンクはゲームイメージです",
+"linkdl.lz4_help": "ps5upload はダウンロードしながら展開できるので、PS5 は展開済みのファイルを受け取ります。このコンピューターには何も保存されず、PS5 に必要なのは展開後のファイルの容量だけです。",
+"linkdl.lz4_unpack": "転送中に展開",
+"linkdl.lz4_unpack_hint": "オフ: .lz4 ファイルをそのまま PS5 に保存します。",
+"linkdl.image_hint": "{kind} ゲームイメージです。ShadowMount+ は、ドライブ上の homebrew などスキャン対象のフォルダーからそのままマウントします。ファイルは完了して初めてそこに現れます。",
 };
 
 export default ja;
