@@ -6055,6 +6055,7 @@ library_compressed_hint: "Image terkompresi memerlukan ShadowMount+ untuk bermai
 "rp_stop": "Berhenti",
 "rp_err_busy": "PS5 masih menutup sesi Remote Play terakhir. Coba lagi dalam {s} dtk.",
 "rp_stats_line": "{fps} fps · {mbps} Mbit/dtk · {ms} md · {codec} · hilang {loss}%",
+"dumps_fself": "FSELF",
 };
 
 export default id;

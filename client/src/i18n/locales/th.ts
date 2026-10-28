@@ -6055,6 +6055,7 @@ library_compressed_hint: "อิมเมจที่บีบอัดต้อ
 "rp_stop": "หยุด",
 "rp_err_busy": "PS5 ยังปิดเซสชันรีโมทเพลย์ครั้งก่อนไม่เสร็จ ลองใหม่ใน {s} วินาที",
 "rp_stats_line": "{fps} fps · {mbps} Mbit/s · {ms} ms · {codec} · สูญหาย {loss}%",
+"dumps_fself": "FSELF",
 };
 
 export default th;

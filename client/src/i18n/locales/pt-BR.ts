@@ -6063,6 +6063,7 @@ library_compressed_hint: "Imagens compactadas precisam do ShadowMount+ para joga
 "rp_stop": "Parar",
 "rp_err_busy": "O PS5 ainda está encerrando a última sessão de Remote Play. Tente de novo em {s} s.",
 "rp_stats_line": "{fps} fps · {mbps} Mbit/s · {ms} ms · {codec} · perda {loss}%",
+"dumps_fself": "FSELF",
 };
 
 export default pt_BR;

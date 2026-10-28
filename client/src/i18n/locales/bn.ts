@@ -6046,6 +6046,7 @@ library_compressed_hint: "সংকুচিত ইমেজ চালাতে 
 "rp_stop": "থামান",
 "rp_err_busy": "PS5 এখনও আগের রিমোট প্লে সেশন শেষ করছে। {s} সেকেন্ড পরে আবার চেষ্টা করুন।",
 "rp_stats_line": "{fps} fps · {mbps} Mbit/s · {ms} ms · {codec} · ক্ষতি {loss}%",
+"dumps_fself": "FSELF",
 };
 
 export default bn;

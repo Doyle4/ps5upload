@@ -5996,6 +5996,7 @@ library_compressed_hint: "壓縮映像需要 ShadowMount+ 才能遊玩。如需�
 "rp_stop": "停止",
 "rp_err_busy": "PS5 仍在結束上一次遙控遊玩工作階段。請在 {s} 秒後重試。",
 "rp_stats_line": "{fps} fps · {mbps} Mbit/s · {ms} ms · {codec} · 遺失 {loss}%",
+"dumps_fself": "FSELF",
 };
 
 export default zh_TW;

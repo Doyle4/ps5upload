@@ -6361,6 +6361,7 @@ library_compressed_hint: "A tömörített képfájlok futtatásához ShadowMount
 "rp_stop": "Leállítás",
 "rp_err_busy": "A PS5 még zárja az előző Remote Play-munkamenetet. Próbáld újra {s} mp múlva.",
 "rp_stats_line": "{fps} fps · {mbps} Mbit/s · {ms} ms · {codec} · veszteség {loss}%",
+"dumps_fself": "FSELF",
 };
 
 export default hu;

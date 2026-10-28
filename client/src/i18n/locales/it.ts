@@ -5996,6 +5996,7 @@ library_compressed_hint: "Le immagini compresse richiedono ShadowMount+ per gioc
 "rp_stop": "Ferma",
 "rp_err_busy": "La PS5 sta ancora chiudendo l'ultima sessione di Riproduzione remota. Riprova tra {s} s.",
 "rp_stats_line": "{fps} fps · {mbps} Mbit/s · {ms} ms · {codec} · perdita {loss}%",
+"dumps_fself": "FSELF",
 };
 
 export default it;

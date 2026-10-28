@@ -6301,6 +6301,7 @@ library_compressed_hint: "Skompresowane obrazy wymagają ShadowMount+, aby grać
 "rp_stop": "Stop",
 "rp_err_busy": "PS5 wciąż kończy ostatnią sesję Remote Play. Spróbuj ponownie za {s} s.",
 "rp_stats_line": "{fps} kl./s · {mbps} Mbit/s · {ms} ms · {codec} · utrata {loss}%",
+"dumps_fself": "FSELF",
 };
 
 export default pl;

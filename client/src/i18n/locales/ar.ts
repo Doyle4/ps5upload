@@ -6046,6 +6046,7 @@ library_compressed_hint: "تحتاج الصور المضغوطة إلى ShadowMo
 "rp_stop": "إيقاف",
 "rp_err_busy": "لا يزال PS5 يُنهي آخر جلسة تشغيل عن بُعد. حاول مجددًا بعد {s} ث.",
 "rp_stats_line": "{fps} إطار/ث · {mbps} ميغابت/ث · {ms} مللي ث · {codec} · فقد {loss}%",
+"dumps_fself": "FSELF",
 };
 
 export default ar;

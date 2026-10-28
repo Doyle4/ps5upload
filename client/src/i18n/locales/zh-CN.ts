@@ -6002,6 +6002,7 @@ library_compressed_hint: "压缩镜像需要 ShadowMount+ 才能游玩。如需�
 "rp_stop": "停止",
 "rp_err_busy": "PS5 仍在结束上一次遥控游戏会话。请在 {s} 秒后重试。",
 "rp_stats_line": "{fps} fps · {mbps} Mbit/s · {ms} ms · {codec} · 丢包 {loss}%",
+"dumps_fself": "FSELF",
 };
 
 export default zh_CN;

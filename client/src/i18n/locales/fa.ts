@@ -6347,6 +6347,7 @@ library_compressed_hint: "برای اجرای ایمیج فشرده به ShadowM
 "rp_stop": "توقف",
 "rp_err_busy": "PS5 هنوز دارد جلسهٔ قبلی Remote Play را می‌بندد. {s} ثانیهٔ دیگر دوباره امتحان کنید.",
 "rp_stats_line": "{fps} fps · {mbps} Mbit/s · {ms} ms · {codec} · افت {loss}%",
+"dumps_fself": "FSELF",
 };
 
 export default fa;
