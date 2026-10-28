@@ -5263,7 +5263,7 @@ mod payload_restore_tests {
     /// Stands in for `ava1_api::stamped_helper` without touching the real data dir.
     fn stamp_test_key(elf: &[u8]) -> Vec<u8> {
         let mut bytes = elf.to_vec();
-        ava1::trust::stamp_helper(&mut bytes, Some(&KEY), || None).unwrap();
+        ava1::trust::stamp_program(&mut bytes, Some(&KEY), || None).unwrap();
         bytes
     }
 

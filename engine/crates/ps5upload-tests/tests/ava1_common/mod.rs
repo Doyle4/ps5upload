@@ -11,7 +11,6 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
-use ava1::gen::{self, MgmtText};
 use ava1::host::FolderHost;
 use ava1::keys::Identity;
 use ava1::peers::PeerStore;
@@ -19,6 +18,7 @@ use ava1::server::{self, RpcHandler, ServerCtx};
 use ava1::session::RpcReply;
 use ava1::wire::Message;
 use ava1_chaos::{ChaosConfig, ChaosProxy};
+use ps5upload_ava1::gen::{self, MgmtText};
 use ps5upload_ava1::mgmt::AvaTransport;
 use ps5upload_ava1::Pool;
 use ps5upload_core::transfer::TransferConfig;

@@ -12,7 +12,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-#include "ava1_gen.h"
+#include "ava1_app_gen.h"
 #include "ava1_wire.h"
 #include "cross_device.h"
 #include "path_policy.h"

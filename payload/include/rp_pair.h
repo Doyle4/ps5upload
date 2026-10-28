@@ -4,8 +4,8 @@
 /* Remote Play pairing state: the pure part, with no Sony call of its own.
  *
  * Everything that touches the console goes through rp_pair_ops_t, so the
- * host-built ava1-ctest suite can drive this file with fake Sony functions
- * (engine/crates/ava1-ctest/tests/rp_pair.rs). remoteplay.c supplies the
+ * host-built ps5upload-ctest suite can drive this file with fake Sony functions
+ * (engine/crates/ps5upload-ctest/tests/rp_pair.rs). remoteplay.c supplies the
  * real ones and owns the locking:
  *
  *   - functions marked [sony] call ops; the caller holds sony_api_lock;

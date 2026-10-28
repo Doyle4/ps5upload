@@ -22,8 +22,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
+use crate::gen::{self, JobRef, JobRun, Status};
 use anyhow::{anyhow, Result};
-use ava1::gen::{self, JobRef, JobRun, Status};
 use ava1::wire::Message;
 use ps5upload_core::mgmt::{JobCall, JobOp, JobProgress, MgmtError};
 

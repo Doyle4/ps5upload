@@ -12,8 +12,8 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
+use crate::gen;
 use anyhow::{anyhow, Result};
-use ava1::gen;
 use ava1::journal::{self, State};
 use ava1::manifest::{self, Manifest};
 use ava1::packlog::LoggedGroup;
@@ -202,7 +202,7 @@ impl Sink for CheckedSink {
         self.inner.sync(ids)
     }
     // The durable-by-log hooks go to the `LocalSink` too (the log is its decision: on by
-    // default off macOS, `PS5UPLOAD_AVA1_LOG_SMALL` to override), or a download would never
+    // default off macOS, `AVA1_LOG_SMALL` to override), or a download would never
     // take that path while the receiver believed it could.
     fn enable_log(&self, dir: &Path) {
         self.inner.enable_log(dir)

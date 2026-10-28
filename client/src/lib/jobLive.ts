@@ -17,7 +17,7 @@
 //                                 or "relay" through this computer and why (live while running, and
 //                                 in the finished job's commit_ack)
 //
-// The contract is written down in protocol/ava1/CLIENT_CONTRACT.md.
+// The contract is written down in protocol/ps5upload-ava1/PROFILE.md §8.
 
 export type BottleneckCause = "network" | "source" | "disk" | "workers" | "memory";
 

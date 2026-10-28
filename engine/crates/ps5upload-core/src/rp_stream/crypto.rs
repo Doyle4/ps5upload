@@ -19,7 +19,7 @@ use aes_gcm::aes::cipher::consts::U16;
 use aes_gcm::AeadInOut;
 use anyhow::{anyhow, bail, Result};
 use hmac::{Hmac, Mac};
-use k256::elliptic_curve::sec1::ToEncodedPoint;
+use k256::elliptic_curve::sec1::ToSec1Point;
 use sha2::{Digest, Sha256};
 
 pub const BLOCK: usize = 16;
@@ -71,7 +71,7 @@ impl Ecdh {
         let pk = self
             .secret
             .public_key()
-            .to_encoded_point(false)
+            .to_sec1_point(false)
             .as_bytes()
             .to_vec();
         let sig = hmac_sha256(handshake_key, &pk);

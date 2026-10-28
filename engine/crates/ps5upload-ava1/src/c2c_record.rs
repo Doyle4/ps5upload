@@ -122,7 +122,7 @@ pub enum Seen {
 }
 
 impl Seen {
-    pub fn of(status: &Result<Option<ava1::gen::Status>>) -> Seen {
+    pub fn of(status: &Result<Option<crate::gen::Status>>) -> Seen {
         match status {
             Ok(Some(st)) => match st.state {
                 Some(1) => Seen::Finished,

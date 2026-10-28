@@ -17,7 +17,7 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
-use ava1::gen;
+use crate::gen;
 use ava1::manifest::{self, Entry, Manifest};
 use ava1::seq::{EntrySink, Keep, Restart, SeqSource};
 use ava1::source::{ReadAt, Source, SourceMeta};

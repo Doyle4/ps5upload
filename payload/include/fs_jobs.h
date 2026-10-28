@@ -2,7 +2,7 @@
  * BLAKE3 file hash and CRC-32 file checksum, plus the tree walkers the management handlers in
  * runtime.c share with them (rm_rf_op, chmod_rf, recursive_size_op delegate here).
  *
- * Plain POSIX and BLAKE3, no runtime.c types, so the host test harness (ava1-ctest) runs
+ * Plain POSIX and BLAKE3, no runtime.c types, so the host test harness (ps5upload-ctest) runs
  * the real code against temporary trees. Policy comes from ava1_data_cfg() (may_write,
  * may_read, same_device), the same hooks the data plane uses. */
 #ifndef PS5UPLOAD_FS_JOBS_H

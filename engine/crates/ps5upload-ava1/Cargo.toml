@@ -8,7 +8,7 @@ license.workspace = true
 anyhow.workspace = true
 base64 = "0.23"
 blake3.workspace = true
-ava1 = { path = "../ava1" }
+ava1.workspace = true
 ps5upload-core = { path = "../ps5upload-core" }
 serde.workspace = true
 serde_json.workspace = true
@@ -22,6 +22,6 @@ tokio = { workspace = true, features = ["rt", "rt-multi-thread", "net", "time", 
 
 [dev-dependencies]
 sevenz-rust2 = { version = "0.23", default-features = false, features = ["compress"] }
-ava1-chaos = { path = "../ava1-chaos" }
+ava1-chaos.workspace = true
 libc = "0.2"
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "time", "test-util"] }

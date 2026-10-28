@@ -70,6 +70,8 @@ jobs:
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          submodules: true
 
       - name: Stage the committed DPI daemon for the embed
         # ps5upload.elf is not in the repo (it needs the payload SDK), so a
@@ -110,6 +112,8 @@ jobs:
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          submodules: true
 
       - name: Stage the committed DPI daemon for the embed
         # ps5upload.elf is not in the repo (it needs the payload SDK), so a
@@ -198,6 +202,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
+          submodules: true
           ref: ${{ needs.resolve.outputs.tag }}
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
@@ -286,6 +291,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
+          submodules: true
           ref: ${{ needs.resolve.outputs.tag }}
 
       - name: Prepare environment
@@ -405,6 +411,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
+          submodules: true
           ref: ${{ needs.resolve.outputs.tag }}
 
       - name: Prepare environment

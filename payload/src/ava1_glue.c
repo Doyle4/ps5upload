@@ -16,7 +16,7 @@
 #include "ava1_aead.h"
 #include "ava1_data.h"
 #include "ava1_events.h"
-#include "ava1_gen.h"
+#include "ava1_app_gen.h"
 #include "ava1_journal.h"
 #include "ava1_noise.h"
 #include "ava1_server.h"

@@ -9,7 +9,6 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use ava1::gen::{self, JobCopy, JobRef, Status};
 use ava1::host::FolderHost;
 use ava1::keys::Identity;
 use ava1::manifest::{Entry, Manifest};
@@ -23,6 +22,7 @@ use ps5upload_ava1::copy::{
     console_copy_limited, console_copy_with, op_cancel, op_snapshot, record_status,
 };
 use ps5upload_ava1::download::{self, Counters, ZipCompression, ZipSink};
+use ps5upload_ava1::gen::{self, JobCopy, JobRef, Status};
 use ps5upload_ava1::upload::UploadFailure;
 use ps5upload_ava1::Pool;
 use ps5upload_core::download::DownloadKind;
@@ -307,7 +307,7 @@ async fn a_single_file_downloads_to_its_basename() {
     assert_eq!(names, ["big.pkg"], "no part file or extra entry is left");
 }
 
-/// Floors measured like the ava1-ctest tiny-download test: the per-file drive flush
+/// Floors measured like the ps5upload-ctest tiny-download test: the per-file drive flush
 /// measured 56 files/s on a Mac; a healthy debug build does several hundred.
 const ZIP_FLOOR_FILES_PER_S: f64 = if cfg!(debug_assertions) { 150.0 } else { 400.0 };
 
@@ -335,7 +335,7 @@ async fn two_thousand_tiny_files_zip_fast() {
     let rate = 2000.0 / secs;
     eprintln!("tiny zip: 2000 files in {secs:.2}s = {rate:.0} files/s");
     assert_eq!(zip_entries(&out.join("t.zip")).len(), 2000);
-    // Shared CI runners (CI=true) have slow disks, as for the ava1-ctest tiny download:
+    // Shared CI runners (CI=true) have slow disks, as for the ps5upload-ctest tiny download:
     // there the floor only catches a stall.
     let floor = if std::env::var_os("CI").is_some() {
         ZIP_FLOOR_FILES_PER_S / 4.0

@@ -1447,7 +1447,7 @@ fn load_elf(path: &Path) -> anyhow::Result<ElfInfo> {
     let key = crate::ava1_cmds::identity()?.public();
     let tokens = ava1::launch::LaunchTokens::at(&crate::ava1_cmds::ava_dir().join("launch_tokens"));
     let mut stamped = raw;
-    ava1::trust::stamp_helper(&mut stamped, Some(&key), || tokens.issue().ok())
+    ava1::trust::stamp_program(&mut stamped, Some(&key), || tokens.issue().ok())
         .map_err(|e| anyhow!("{}: {e}", path.display()))?;
     Ok(ElfInfo {
         path: path.to_path_buf(),
@@ -1640,7 +1640,7 @@ async fn run_resume(env: &Env, args: &BenchArgs, prep: &Prep, cancel: &Arc<Atomi
 
 async fn session_evidence(env: &Env, console: &str) -> String {
     match env.pool.get().session(console).await {
-        Ok(s) if s.peer_caps() & ava1::gen::CAP_DATA_PLANE != 0 => "ava1".into(),
+        Ok(s) if s.peer_caps() & ps5upload_ava1::gen::CAP_DATA_PLANE != 0 => "ava1".into(),
         Ok(s) => format!("ava1-session-without-data-plane(caps={:#x})", s.peer_caps()),
         Err(e) => format!("no-ava1-session({e})"),
     }
@@ -1838,7 +1838,7 @@ async fn ava1_preflight(env: &Env, console: &str) -> anyhow::Result<u64> {
         ),
         other => anyhow!("{console}: no AVA1 session: {other}"),
     })?;
-    if s.peer_caps() & ava1::gen::CAP_DATA_PLANE == 0 {
+    if s.peer_caps() & ps5upload_ava1::gen::CAP_DATA_PLANE == 0 {
         bail!("{console}: the console's helper does not advertise the AVA1 data plane");
     }
     Ok(t.elapsed().as_millis() as u64)
@@ -3314,20 +3314,20 @@ mod tests {
         let mut peers = PeerStore::in_memory();
         peers.add(me.public(), "bench").unwrap();
         let rpc: ava1::server::RpcHandler = Box::new(|method, _| {
-            if method == ava1::gen::METHOD_NODE_INFO {
-                let info = ava1::gen::NodeInfo {
+            if method == ps5upload_ava1::gen::METHOD_NODE_INFO {
+                let info = ps5upload_ava1::gen::NodeInfo {
                     version: "t".into(),
                     platform: "rust".into(),
                     name: "h".into(),
                     firmware: None,
                 };
                 RpcReply {
-                    status: ava1::gen::STATUS_OK,
+                    status: ps5upload_ava1::gen::STATUS_OK,
                     body: info.to_bytes().unwrap(),
                 }
             } else {
                 RpcReply {
-                    status: ava1::gen::ERR_UNKNOWN_METHOD,
+                    status: ps5upload_ava1::gen::ERR_UNKNOWN_METHOD,
                     body: Vec::new(),
                 }
             }

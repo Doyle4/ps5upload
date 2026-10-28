@@ -16,8 +16,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
+use crate::gen::{self, JobCopy, JobRef, Status};
 use anyhow::{anyhow, Result};
-use ava1::gen::{self, JobCopy, JobRef, Status};
 use ava1::wire::Message;
 use ps5upload_core::fs_ops::FsOpSnapshot;
 

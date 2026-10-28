@@ -3,7 +3,7 @@
  *
  * These are native (not the management handlers behind the capture sink): their bodies are typed
  * (SPEC.md section 7.5), and keeping them in one file that includes no runtime.c types lets the
- * host harness (ava1-ctest) run the very code the console runs. The path policy and the command
+ * host harness (ps5upload-ctest) run the very code the console runs. The path policy and the command
  * counter are the only things that stay in runtime.c; it hands them over through
  * mgmt_fs_set_policy() (runtime_mgmt_install()).
  *

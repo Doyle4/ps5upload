@@ -8,7 +8,7 @@
  * becomes an AVA1 error status with the legacy token as its cause; anything that does not
  * fit the reply is ERR_INTERNAL "reply truncated", never a clipped OK.
  *
- * This file does not include runtime.c's types, so the host test harness (ava1-ctest)
+ * This file does not include runtime.c's types, so the host test harness (ps5upload-ctest)
  * compiles it as is, with stub handlers. The real table is payload/src/mgmt_table.def,
  * installed by runtime_mgmt_install() (runtime.c).
  */
@@ -18,7 +18,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "ava1_gen.h" /* AVA1_METHOD_* for the table */
+#include "ava1_app_gen.h" /* AVA1_METHOD_* for the table */
 #include "ava1_op.h"  /* job.run operations (AVA1_JOB_OP_*) */
 
 /* Entry flags. */

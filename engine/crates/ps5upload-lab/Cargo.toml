@@ -11,8 +11,8 @@ serde.workspace = true
 serde_json.workspace = true
 flate2 = "1"
 ps5upload-core = { path = "../ps5upload-core" }
-ava1 = { path = "../ava1" }
-ava1-chaos = { path = "../ava1-chaos" }
+ava1.workspace = true
+ava1-chaos.workspace = true
 ps5upload-ava1 = { path = "../ps5upload-ava1" }
 tokio = { workspace = true, features = ["net", "time", "io-util", "rt-multi-thread", "macros", "io-std"] }
 uuid.workspace = true

@@ -29,7 +29,7 @@ use anyhow::Result;
 /// One management operation.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Method {
-    /// The AVA1 method number (`METHOD_*` in `protocol/ava1/schema/ava1.toml`).
+    /// The AVA1 method number (`METHOD_*` in `protocol/ps5upload-ava1/app.toml`).
     pub id: u16,
     /// The legacy label callers put in `payload rejected <LABEL>: ...`.
     pub label: &'static str,
@@ -331,7 +331,7 @@ pub struct JobOp {
 
 macro_rules! job_ops {
     ($(($name:ident, $id:expr, $label:expr, $kind:expr),)*) => {
-        /// The operations that run as jobs (`JOB_OP_*` in `protocol/ava1/schema/ava1.toml`).
+        /// The operations that run as jobs (`JOB_OP_*` in `protocol/ps5upload-ava1/app.toml`).
         pub mod ops {
             use super::JobOp;
             $(pub const $name: JobOp = JobOp {

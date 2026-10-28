@@ -9,7 +9,6 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use ava1::gen;
 use ava1::host::FolderHost;
 use ava1::keys::Identity;
 use ava1::manifest::Manifest;
@@ -19,6 +18,7 @@ use ava1::server::{self, ServerCtx};
 use ava1::session::RpcReply;
 use ava1::wire::Message;
 use ava1_chaos::{ChaosConfig, ChaosProxy};
+use ps5upload_ava1::gen;
 use ps5upload_ava1::seq::SevenzSource;
 use ps5upload_ava1::upload::{self, UploadFailure};
 use ps5upload_ava1::Pool;

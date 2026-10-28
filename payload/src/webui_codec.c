@@ -4,7 +4,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "ava1_gen.h"
+#include "ava1_app_gen.h"
 #include "ava1_wire.h"
 #include "config.h"
 

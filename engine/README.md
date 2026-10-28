@@ -17,12 +17,14 @@ client (Tauri/React)  ──HTTP──▶  ps5upload-engine :19113
 
 ## Crates
 
+The AVA1 protocol itself (crates `ava1`, `ava1-gen`, `ava1-chaos`, its C library and spec) is
+[github.com/phantomptr/ava1](https://github.com/phantomptr/ava1), checked out as the
+`third_party/ava1` submodule (`git submodule update --init`).
+
 | Crate | What it is |
 |---|---|
-| `ava1` | The AVA1 protocol: frames, generated message codecs, Noise handshake, sessions, lanes, pairing. Spec: `protocol/ava1/SPEC.md`. |
-| `ava1-gen` | Generates the Rust and C codecs from `protocol/ava1/schema/ava1.toml`. Run it after editing the schema. |
-| `ava1-ctest` | Builds the payload's AVA1 C on the host so `cargo test` checks C against Rust. |
-| `ava1-chaos` | A misbehaving TCP proxy (latency, bandwidth caps, blackholes, kills) for resilience tests. |
+| `ps5upload-ava1` | ps5upload over AVA1: uploads, downloads, the helper's management methods (`protocol/ps5upload-ava1/app.toml`, generated with `make ava1-app-gen`), the connection pool. |
+| `ps5upload-ctest` | Builds the payload's C (the AVA1 library from the submodule plus the payload's own AVA1 code) on the host so `cargo test` checks it against the Rust side. |
 | `ps5upload-core` | The bulk of the logic — socket helpers, the management seam, archive inspection and plan previews, filesystem and app RPCs, volume parsing, package install, saves, cheats, hardware, SMB, BPS patching. |
 | `ps5upload-engine` | The Axum HTTP service (~100 routes), job tracking, SSE progress events, and the desktop + mobile entry points. |
 | `ps5upload-pkg` | `.pkg` parsing — headers, entries, split-file sets. |
@@ -33,7 +35,7 @@ client (Tauri/React)  ──HTTP──▶  ps5upload-engine :19113
 
 ```sh
 cargo test --workspace          # no PS5 required — loopback peers
-cargo test -p ava1-ctest -- --test-threads=1   # payload AVA1 C vs Rust, on the host
+cargo test -p ps5upload-ctest -- --test-threads=1   # payload AVA1 C vs Rust, on the host
 cargo fmt --all -- --check      # CI fails on this; client/src-tauri has its own
 cargo build --release -p ps5upload-engine
 ```

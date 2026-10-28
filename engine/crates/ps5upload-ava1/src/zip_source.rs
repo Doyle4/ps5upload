@@ -3,7 +3,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::io::{self, BufReader, Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 
-use ava1::gen;
+use crate::gen;
 use ava1::manifest::{self, Entry, Manifest};
 use ava1::source::{ReadAt, Source, SourceMeta};
 

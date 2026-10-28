@@ -19,7 +19,7 @@
 #include <unistd.h>
 
 #include "archive_name.h"
-#include "ava1_gen.h"
+#include "ava1_app_gen.h"
 #include "ava1_op.h"
 #include "fs_jobs.h"
 #include "path_policy.h"

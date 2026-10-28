@@ -7,8 +7,8 @@
 
 use std::time::Duration;
 
+use crate::gen;
 use anyhow::{anyhow, Result};
-use ava1::gen;
 use ps5upload_core::mgmt::{Method, MgmtError};
 use serde_json::{json, Value};
 

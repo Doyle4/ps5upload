@@ -743,9 +743,12 @@ async fn a_session_opens_and_the_console_answers_node_info() {
     use ava1::wire::Message;
     let c = console().await;
     let s = c.pool.session(&c.addr).await.expect("a paired session");
-    let reply = s.rpc(ava1::gen::METHOD_NODE_INFO, &[]).await.unwrap();
-    assert_eq!(reply.status, ava1::gen::STATUS_OK);
-    let info = ava1::gen::NodeInfo::decode(&reply.body).unwrap();
+    let reply = s
+        .rpc(ps5upload_ava1::gen::METHOD_NODE_INFO, &[])
+        .await
+        .unwrap();
+    assert_eq!(reply.status, ps5upload_ava1::gen::STATUS_OK);
+    let info = ps5upload_ava1::gen::NodeInfo::decode(&reply.body).unwrap();
     assert!(!info.version.is_empty());
 }
 

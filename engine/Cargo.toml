@@ -1,11 +1,7 @@
 [workspace]
-exclude = ["crates/ava1/fuzz"]
 members = [
-  "crates/ava1",
-  "crates/ava1-gen",
-  "crates/ava1-chaos",
-  "crates/ava1-ctest",
   "crates/ps5upload-core",
+  "crates/ps5upload-ctest",
   "crates/ps5upload-lab",
   "crates/ps5upload-ava1",
   "crates/ps5upload-engine",
@@ -23,6 +19,10 @@ license = "GPL-3.0-or-later"
 version = "8.8.0"
 
 [workspace.dependencies]
+# AVA1 (github.com/phantomptr/ava1), checked out as the third_party/ava1 submodule: the payload
+# builds the C side from the same checkout, so the two can never be different versions.
+ava1 = { path = "../third_party/ava1/crates/ava1", version = "1.0.0" }
+ava1-chaos = { path = "../third_party/ava1/crates/ava1-chaos" }
 anyhow = "1.0"
 # "multipart" is for the backport library import (fakelibs_api.rs): users pick
 # library files and upload them as one set. Same crate, just the extractor.

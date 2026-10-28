@@ -108,16 +108,16 @@ const engineSteps = [
   step("engine clippy", "cargo", ["clippy", "--workspace", "--", "-D", "warnings"], engineDir),
   ...(nextest
     ? [
-        step("engine tests (nextest)", "cargo", ["nextest", "run", "--workspace", "--exclude", "ava1-ctest", "--no-fail-fast"], engineDir),
-        step("engine doctests", "cargo", ["test", "--workspace", "--exclude", "ava1-ctest", "--doc"], engineDir),
+        step("engine tests (nextest)", "cargo", ["nextest", "run", "--workspace", "--exclude", "ps5upload-ctest", "--no-fail-fast"], engineDir),
+        step("engine doctests", "cargo", ["test", "--workspace", "--exclude", "ps5upload-ctest", "--doc"], engineDir),
         // Each nextest test is its own process, so the C interop tests' process-wide C server
         // is not shared; the timing-sensitive ones are serialized by engine/.config/nextest.toml.
-        step("ava1 C interop tests (nextest)", "cargo", ["nextest", "run", "-p", "ava1-ctest", "--no-fail-fast"], engineDir),
+        step("payload AVA1 C tests (nextest)", "cargo", ["nextest", "run", "-p", "ps5upload-ctest", "--no-fail-fast"], engineDir),
       ]
     : [
-        step("engine tests", "cargo", ["test", "--workspace", "--exclude", "ava1-ctest"], engineDir),
+        step("engine tests", "cargo", ["test", "--workspace", "--exclude", "ps5upload-ctest"], engineDir),
         // The C interop tests share one C server per process and must run serially.
-        step("ava1 C interop tests", "cargo", ["test", "-p", "ava1-ctest", "--", "--test-threads=1"], engineDir),
+        step("payload AVA1 C tests", "cargo", ["test", "-p", "ps5upload-ctest", "--", "--test-threads=1"], engineDir),
       ]),
 ];
 

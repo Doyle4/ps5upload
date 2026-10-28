@@ -12,7 +12,7 @@
  * MgmtText method that pages with offset/limit/more) or a typed one (mgmt_call_node_status).
  *
  * The handler is the one in runtime.c, unchanged; this file is included twice by
- * runtime.c (wrappers, then the table) and parsed by the ava1-ctest table tests, so keep
+ * runtime.c (wrappers, then the table) and parsed by the ps5upload-ctest table tests, so keep
  * every entry on one line.
  */
 MGMT_H0(AVA1_METHOD_FS_VOLUMES, MGMT_FRAME_FS_LIST_VOLUMES, MGMT_FRAME_FS_LIST_VOLUMES_ACK, 0, handle_fs_list_volumes, mgmt_call_text)
@@ -27,7 +27,7 @@ MGMT_H0(AVA1_METHOD_NODE_STATUS, MGMT_FRAME_STATUS, MGMT_FRAME_STATUS_ACK, 0, ha
  *   MGMT_OP1(op, legacy_frame, legacy_ack, flags, handler)    handler(state, body, len)
  *   MGMT_OP1B(op, legacy_frame, legacy_ack, flags, handler)   handler(state, body)
  *
- * These are not methods: payload/ava1/ava1_op.c runs each on its own 512 KiB worker, the
+ * These are not methods: third_party/ava1/c/ava1_op.c runs each on its own 512 KiB worker, the
  * client polls job.status and may job.cancel. The worker calls the handler behind the same
  * capture sink as a method, but an {"ok":false,...} body is the operation's answer, not an
  * error (fsck's code, a backup's err text). mgmt_audit.py audits them like methods.

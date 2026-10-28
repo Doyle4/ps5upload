@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::mgmt::{self, m, MgmtError};
 
-/// AVA1 `ERR_UNKNOWN_METHOD` (`protocol/ava1/schema/ava1.toml`): what an older helper answers
+/// AVA1 `ERR_UNKNOWN_METHOD` (`third_party/ava1/schema/ava1.toml`): what an older helper answers
 /// for a method it does not have. (`ps5upload-core` cannot depend on the `ava1` crate; a
 /// drift test in `ps5upload-ava1` checks the number.)
 pub const ERR_UNKNOWN_METHOD: u16 = 6;

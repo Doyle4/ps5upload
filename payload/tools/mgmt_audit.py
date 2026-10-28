@@ -2,7 +2,7 @@
 """Static audits of the AVA1 management table (payload/src/mgmt_table.def).
 
   mgmt_audit.py table    every entry names a real AVA1_METHOD_* constant, a handler defined in
-                         runtime.c, a method listed in protocol/ava1/MGMT_METHODS.md, once
+                         runtime.c, a method listed in protocol/ps5upload-ava1/MGMT_METHODS.md, once
   mgmt_audit.py recv     no management handler reads from a socket (the handlers run on AVA1 workers
                          behind the capture sink: there is no connection to read)
   mgmt_audit.py sony     every entry whose handler can reach register/profile/registry/Remote
@@ -62,7 +62,7 @@ def strip(b):
 
 
 DEFS = {"PATH_MAX": "1024"}
-for f in glob.glob("src/*.c") + glob.glob("src/*.inc") + glob.glob("include/*.h") + glob.glob("ava1/*.h"):
+for f in glob.glob("src/*.c") + glob.glob("src/*.inc") + glob.glob("include/*.h") + glob.glob("../third_party/ava1/c/*.h"):
     for l in open(f, errors="ignore"):
         m = re.match(r"\s*#\s*define\s+(\w+)\s+(.+)", l)
         if m:
@@ -181,7 +181,7 @@ def load_types(sources):
             STRUCTS.setdefault(m.group(1), members_size(m.group(2)))
 
 
-for _f in glob.glob("include/*.h") + glob.glob("src/*.c") + glob.glob("ava1/*.h"):
+for _f in glob.glob("include/*.h") + glob.glob("src/*.c") + glob.glob("../third_party/ava1/c/*.h"):
     load_types([open(_f, errors="ignore").read()])
 
 # `type [*]name[dim]...` for locals; the type is a scalar, a typedef, `struct tag` or anything else.
@@ -253,8 +253,9 @@ def table():
 
 def check_table():
     bad, seen = [], set()
-    gen = open("ava1/gen/ava1_gen.h").read()
-    checklist = open("../protocol/ava1/MGMT_METHODS.md").read()
+    # The core codecs (the AVA1 submodule) and ps5upload's application codecs (gen/).
+    gen = open("../third_party/ava1/c/gen/ava1_gen.h").read() + open("gen/ava1_app_gen.h").read()
+    checklist = open("../protocol/ps5upload-ava1/MGMT_METHODS.md").read()
     for e in table():
         if e["method"] in seen:
             bad.append("duplicate method " + e["method"])
@@ -523,7 +524,7 @@ def selftest():
 
 
 def report():
-    md = open("../protocol/ava1/MGMT_METHODS.md").read()
+    md = open("../protocol/ps5upload-ava1/MGMT_METHODS.md").read()
     skip = {"handle_begin_tx_frame", "handle_query_tx_frame", "handle_commit_tx_frame", "handle_abort_tx_frame", "handle_stream_shard", "handle_status_frame"}
     for h in re.findall(r"`src/runtime.c` `(\w+)`", md):
         if h in skip:

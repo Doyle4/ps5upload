@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Deal the ava1-ctest test files across CI shards by measured run time.
+"""Deal the ps5upload-ctest test files across CI shards by measured run time.
 
 Usage: ctest-shard.py SHARD COUNT  (SHARD is 1-based)
 
 Prints `--test <name>` argument pairs, one token per line, for cargo test.
 
-Used by the rust-ctest and ava1-ctest-sanitize jobs in .github/workflows/engine-ci.yml. Both used
+Used by the rust-ctest and ps5upload-ctest-sanitize jobs in .github/workflows/engine-ci.yml. Both used
 to deal the files round-robin by name, which left shard 3 with ~300 s of tests against ~170-240 s
 on the others, so the slowest shard set the PR gate's time. Here the files are dealt longest
 first, each to the shard with the least time so far (the classic LPT schedule), so the four
@@ -43,7 +43,7 @@ DEFAULT_WEIGHT = 15
 # measured times above leave out; charge it so the shard with the many tiny files is not overfilled.
 PER_FILE_COST = 2
 
-TESTS_DIR = pathlib.Path(__file__).resolve().parents[2] / "engine" / "crates" / "ava1-ctest" / "tests"
+TESTS_DIR = pathlib.Path(__file__).resolve().parents[2] / "engine" / "crates" / "ps5upload-ctest" / "tests"
 
 
 def main() -> int:

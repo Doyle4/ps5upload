@@ -5,7 +5,7 @@ The C payload that runs on the PS5. Built with the
 in [`../scripts/ps5-sdk.env`](../scripts/ps5-sdk.env)), sent to the
 console's ELF loader, and left resident until reboot or rest mode.
 
-Its main port is **9120**, AVA1 (`protocol/ava1/SPEC.md`): transfers,
+Its main port is **9120**, AVA1 (`third_party/ava1/spec/SPEC.md`): transfers,
 status, filesystem, mount, app, hardware, package and shell calls all
 travel over one encrypted session with up to 8 data lanes. It also serves
 PS5Upload Minion, the console's own web page, on **9180** (`WEBUI_PORT` in
@@ -63,8 +63,9 @@ Logic that can be separated from the console lives in a header under
 
 See `tests/*_selftest.c` for the full list (hardware guards, ptrace recovery, `app.db`
 reading, SDK param rewriting, installer, cheats, wake watchdog and more). AVA1 itself is
-tested from Rust: `cargo test -p ava1-ctest -- --test-threads=1` in `engine/` compiles
-`ava1/` on the host and checks it against the Rust side.
+tested from Rust: `cargo test -p ps5upload-ctest -- --test-threads=1` in `engine/` compiles
+the AVA1 library (`../third_party/ava1/c`) and the payload's AVA1 code on the host and checks
+them against the Rust side.
 
 Prefer adding to this set over testing on hardware: a host self-test runs
 in milliseconds and can't wedge a console.

@@ -28,7 +28,7 @@
 #include "takeover_flag.h"
 #include "ava1_stop.h"
 #include "ava1_data.h"
-#include "ava1_gen.h"
+#include "ava1_app_gen.h"
 #include "sony_api_lock.h"
 
 #include "proc_identity.h"

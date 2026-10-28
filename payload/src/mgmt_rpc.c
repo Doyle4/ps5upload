@@ -5,7 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "ava1_gen.h"
+#include "ava1_app_gen.h"
 #include "ava1_wire.h"
 
 /* The sink's room for a paged method's whole (unpaged) answer. */
@@ -325,7 +325,12 @@ int mgmt_rpc_install_ops(const mgmt_op_entry_t *table, size_t n) {
     size_t i;
     if (!table) return -1;
     for (i = 0; i < n; i++)
-        if (table[i].op == 0 || !table[i].fn || ava1_op_register(table[i].op, op_entry_run, (void *)&table[i]) != 0)
+        if (table[i].op == 0 || !table[i].fn ||
+            ava1_op_register_ex(table[i].op, op_entry_run, (void *)&table[i],
+                                /* a re-run after a lost reply would take a second snapshot */
+                                table[i].op == AVA1_JOB_OP_BACKUP_SNAPSHOT || table[i].op == AVA1_JOB_OP_BACKUP_RESTORE
+                                    ? AVA1_OP_ONCE
+                                    : 0) != 0)
             return -1;
     return 0;
 }

@@ -28,6 +28,8 @@ jobs:
     timeout-minutes: 150
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          submodules: true
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
@@ -44,7 +46,7 @@ jobs:
           AVA1_CTEST_SANITIZE: '1'
           RUSTFLAGS: -Clinker=clang
           ASAN_OPTIONS: detect_leaks=1
-          LSAN_OPTIONS: suppressions=${{ github.workspace }}/engine/crates/ava1-ctest/lsan.supp
+          LSAN_OPTIONS: suppressions=${{ github.workspace }}/engine/crates/ps5upload-ctest/lsan.supp
           AVA1_SOAK_MINUTES: ${{ github.event.inputs.minutes || '60' }}
           AVA1_SOAK_RSS_MB: '512'
-        run: cargo test -p ava1-ctest --test soak -- --ignored --test-threads=1 --nocapture
+        run: cargo test -p ps5upload-ctest --test soak -- --ignored --test-threads=1 --nocapture

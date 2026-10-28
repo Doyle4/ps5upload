@@ -6,7 +6,7 @@
 #include <errno.h>
 #include "runtime.h"
 #include "config.h"
-#include "ava1_gen.h"
+#include "ava1_app_gen.h"
 #include "takeover_flag.h"
 
 /* How long a new instance waits for the old one to release its ports. The old instance may be

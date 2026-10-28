@@ -4,6 +4,18 @@ What's new in ps5upload, written for humans.
 
 ---
 
+## 8.9.0
+
+- **AVA1, the transfer protocol, is its own open-source project.** It now lives at
+  [github.com/phantomptr/ava1](https://github.com/phantomptr/ava1) (MIT or Apache-2.0), with its
+  specification, test vectors, a Rust crate and the C library, so other tools can use it.
+  ps5upload builds it from the `third_party/ava1` submodule: clone with
+  `git clone --recurse-submodules`, or run `git submodule update --init` in an existing checkout
+  (`make` does it for you). Nothing changes on the wire: an 8.9.0 app and an 8.8 helper still
+  talk to each other.
+  - The benchmark switches are now `AVA1_LANES`, `AVA1_CHUNK`, `AVA1_LANES_FIRST`,
+    `AVA1_LOG_SMALL` and `AVA1_TIMING` (they were `PS5UPLOAD_AVA1_*`).
+
 ## 8.8.1
 
 - **"Convert…" opens Workshop with the game picked again.** Since 8.7.0, Convert… from Files,

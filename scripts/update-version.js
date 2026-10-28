@@ -136,7 +136,8 @@ function patchRegex(relPath, regex, replacer, extractor) {
 // gets them "synced" to the ps5upload version — renaming unrar 0.5.8 to
 // 5.3.1 and drifting the lockfile on every release. They keep upstream's
 // version; only their vendored copy's own Cargo.toml governs it.
-const VENDORED_THIRD_PARTY = new Set(["unrar", "sevenz-rust2"]);
+// AVA1 (the third_party/ava1 submodule) is versioned by its own repository the same way.
+const VENDORED_THIRD_PARTY = new Set(["unrar", "sevenz-rust2", "ava1", "ava1-chaos", "ava1-gen"]);
 
 function patchCargoLock(relPath) {
   const full = path.join(repoRoot, relPath);

@@ -243,7 +243,7 @@ fn live_ps5_streams_a_real_game_subset() {
     let expected: Vec<(String, u64)> = manifest
         .entries
         .iter()
-        .filter(|e| e.kind == ava1::gen::ENTRY_FILE)
+        .filter(|e| e.kind == ps5upload_ava1::gen::ENTRY_FILE)
         .map(|e| (e.path.clone(), e.size))
         .collect();
     eprintln!("streaming {} files", expected.len());
@@ -283,7 +283,7 @@ fn real_archive_uploads_every_entry_at_its_declared_size() {
     let expected: Vec<(String, u64)> = manifest
         .entries
         .iter()
-        .filter(|e| e.kind == ava1::gen::ENTRY_FILE)
+        .filter(|e| e.kind == ps5upload_ava1::gen::ENTRY_FILE)
         .map(|e| (e.path.clone(), e.size))
         .collect();
     let total: u64 = expected.iter().map(|(_, s)| s).sum();
