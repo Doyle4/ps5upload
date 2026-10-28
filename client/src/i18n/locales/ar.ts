@@ -6074,6 +6074,7 @@ library_compressed_hint: "تحتاج الصور المضغوطة إلى ShadowMo
 "connect_tab_console": "الجهاز",
 "gate_helper_stopped_body_v2": "تحتاج هذه الشاشة إلى المساعد. أرسله مرة أخرى عندما تحتاجه.",
 "gate_payload_down_body_v2": "جهازك مُعدّ لكن مساعد ps5upload لا يستجيب — فهو يتوقف عند كل إعادة تشغيل أو وضع راحة. أرسله مرة أخرى للمتابعة.",
+"cw_system_title": "النظام",
 };
 
 export default ar;

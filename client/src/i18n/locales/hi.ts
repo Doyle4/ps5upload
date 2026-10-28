@@ -6089,6 +6089,7 @@ library_compressed_hint: "संपीड़ित इमेज चलाने 
 "connect_tab_console": "कंसोल",
 "gate_helper_stopped_body_v2": "इस स्क्रीन को हेल्पर चाहिए। ज़रूरत हो तब इसे फिर से भेजें।",
 "gate_payload_down_body_v2": "आपका कंसोल सेट है पर ps5upload हेल्पर जवाब नहीं दे रहा — हर रीबूट या रेस्ट मोड पर यह बंद हो जाता है। जारी रखने के लिए इसे फिर से भेजें।",
+"cw_system_title": "सिस्टम",
 };
 
 export default hi;

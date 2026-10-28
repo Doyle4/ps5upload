@@ -524,7 +524,7 @@ export function Home({ ctx }: { ctx: SectionContext }) {
   const cover = loadedCover && coverFailed !== loadedCover ? loadedCover : null;
   const onOpenCheats = hasSection("cheats") ? () => openSection("cheats") : null;
   const onOpenDrive = canOpen("files") ? (path: string) => openSection("files", { path }) : null;
-  const onOpenCleanup = hasSection("cleanup") ? () => openSection("cleanup") : null;
+  const onOpenCleanup = hasSection("system") ? () => openSection("system", { view: "cleanup" }) : null;
   const [cleanupFound, setCleanupFound] = useState(cleanupLastFound);
   useEffect(() => onCleanupFound(() => setCleanupFound(cleanupLastFound())), []);
   // A USB stick plugged in while the page is open: offer to find games on it. Cleared when it

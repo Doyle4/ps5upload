@@ -958,6 +958,7 @@
   "cw_settings_version": "Version {version}",
   "cw_status_connecting": "Connecting…",
   "cw_status_offline": "Not connected",
+  "cw_system_title": "System",
   "cw_task_from_console": "From this console",
   "cw_task_from_pc": "From a PC",
   "cw_theme_dark": "Dark",

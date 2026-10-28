@@ -63,7 +63,7 @@ beforeEach(() => {
 
 describe("cheats section", () => {
   it("is_registered_between_files_and_settings", () => {
-    expect(SECTIONS.map((s) => s.id)).toEqual(["home", "games", "saves", "files", "cheats", "fan", "processes", "cleanup", "settings"]);
+    expect(SECTIONS.map((s) => s.id)).toEqual(["home", "games", "saves", "files", "cheats", "system", "settings"]);
     expect(SECTIONS.find((s) => s.id === "cheats")?.labelKey).toBe("cw_cheats_title");
   });
 

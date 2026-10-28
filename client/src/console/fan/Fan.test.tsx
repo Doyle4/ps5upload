@@ -14,6 +14,7 @@ import {
   stepChoice,
   type FanStatus,
 } from "./model";
+import { systemViewOf } from "../system/SystemSection";
 
 const status = (over: Partial<FanStatus> = {}): FanStatus => ({
   cpu_c: 52,
@@ -62,10 +63,11 @@ const press = (p: FanViewProps, attr: string, value: string) => {
 };
 
 describe("fan section", () => {
-  it("is registered right after cheats", () => {
+  it("is System's first view, right after cheats in the rail", () => {
     const ids = SECTIONS.map((s) => s.id);
-    expect(ids.indexOf("fan")).toBe(ids.indexOf("cheats") + 1);
-    expect(SECTIONS.find((s) => s.id === "fan")?.labelKey).toBe("cw_fan_title");
+    expect(ids.indexOf("system")).toBe(ids.indexOf("cheats") + 1);
+    expect(SECTIONS.find((s) => s.id === "system")?.labelKey).toBe("cw_system_title");
+    expect(systemViewOf(null)).toBe("fan");
   });
 
   it("shows the readings, what is held and the console's own value", () => {

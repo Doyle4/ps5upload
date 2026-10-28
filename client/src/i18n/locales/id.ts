@@ -6083,6 +6083,7 @@ library_compressed_hint: "Image terkompresi memerlukan ShadowMount+ untuk bermai
 "connect_tab_console": "Konsol",
 "gate_helper_stopped_body_v2": "Layar ini memerlukan helper. Kirim lagi saat Anda membutuhkannya.",
 "gate_payload_down_body_v2": "Konsol Anda sudah diatur tetapi helper ps5upload tidak merespons — helper berhenti setiap kali reboot atau mode istirahat. Kirim lagi untuk melanjutkan.",
+"cw_system_title": "Sistem",
 };
 
 export default id;

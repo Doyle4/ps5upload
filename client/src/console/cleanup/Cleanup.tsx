@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Check, FolderOpen, RefreshCw, Square, Trash2 } from "lucide-react";
 import type { CleanupApplyStatus, CleanupItem, CleanupScan } from "../../api/cleanup";
 import {
@@ -74,6 +74,8 @@ function itemTitle(item: CleanupItem): string {
 }
 
 export interface CleanupViewProps {
+  /** The System section's view switch, shown under the title. */
+  switcher?: ReactNode;
   scan: CleanupScan | null;
   scanning: boolean;
   /** Scanning, but still waiting for a scan or removal already running in the helper to end. */
@@ -167,6 +169,7 @@ export function CleanupView(p: CleanupViewProps) {
   return (
     <div className="cw-cleanup">
       <h1 className="cw-h1">{t("cw_cleanup_title")}</h1>
+      {p.switcher}
       {p.message ? (
         <div className="cw-msg is-error" role="alert">
           {p.message}
@@ -301,7 +304,7 @@ export function focusedItemId(root: Element | null, active: Element | null): num
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /** The Clean up section: scan the console, tick what goes (✕), △ for details, then Remove. */
-export function Cleanup({ ctx }: { ctx: SectionContext }) {
+export function Cleanup({ ctx, switcher }: { ctx: SectionContext; switcher?: ReactNode }) {
   const [scan, setScan] = useState<CleanupScan | null>(null);
   const [scanning, setScanning] = useState(false);
   const [waiting, setWaiting] = useState(false);
@@ -454,6 +457,7 @@ export function Cleanup({ ctx }: { ctx: SectionContext }) {
   return (
     <div ref={root}>
       <CleanupView
+        switcher={switcher}
         scan={scan}
         scanning={scanning}
         waiting={waiting}

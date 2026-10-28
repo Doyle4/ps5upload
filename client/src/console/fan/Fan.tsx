@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { call } from "../api";
 import { onNavAction } from "../nav";
 import { t } from "../strings";
@@ -17,6 +17,8 @@ import {
 } from "./model";
 
 export interface FanViewProps {
+  /** The System section's view switch, shown under the title. */
+  switcher?: ReactNode;
   /** null until the first answer. */
   status: FanStatus | null;
   loadFailed: boolean;
@@ -58,6 +60,7 @@ export function FanView(p: FanViewProps) {
   return (
     <div className="cw-fan">
       <h1 className="cw-h1">{t("cw_fan_title")}</h1>
+      {p.switcher}
       {p.error ? (
         <div className="cw-msg is-error" role="alert">
           {p.error}
@@ -143,7 +146,7 @@ export function FanView(p: FanViewProps) {
 }
 
 /** The Fan section: reads /api/fan every FAN_POLL_MS while visible; a choice goes to /api/fan/set. */
-export function Fan() {
+export function Fan({ switcher }: { switcher?: ReactNode } = {}) {
   const [status, setStatus] = useState<FanStatus | null>(null);
   const [loadFailed, setLoadFailed] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -216,5 +219,15 @@ export function Fan() {
       });
   }, [read]);
 
-  return <FanView status={status} loadFailed={loadFailed} busy={busy} error={error} note={note} onChoose={choose} />;
+  return (
+    <FanView
+      status={status}
+      loadFailed={loadFailed}
+      busy={busy}
+      error={error}
+      note={note}
+      onChoose={choose}
+      switcher={switcher}
+    />
+  );
 }

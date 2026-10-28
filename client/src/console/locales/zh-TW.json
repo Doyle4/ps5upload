@@ -958,6 +958,7 @@
   "cw_settings_version": "版本 {version}",
   "cw_status_connecting": "正在連線…",
   "cw_status_offline": "未連線",
+  "cw_system_title": "系統",
   "cw_task_from_console": "來自本主機",
   "cw_task_from_pc": "來自電腦",
   "cw_theme_dark": "深色",

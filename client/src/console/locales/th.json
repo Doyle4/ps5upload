@@ -958,6 +958,7 @@
   "cw_settings_version": "เวอร์ชัน {version}",
   "cw_status_connecting": "กำลังเชื่อมต่อ…",
   "cw_status_offline": "ไม่ได้เชื่อมต่อ",
+  "cw_system_title": "ระบบ",
   "cw_task_from_console": "จากคอนโซลนี้",
   "cw_task_from_pc": "จาก PC",
   "cw_theme_dark": "เข้ม",

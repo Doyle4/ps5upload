@@ -6081,6 +6081,7 @@ library_compressed_hint: "Sıkıştırılmış kalıpları oynatmak için Shadow
 "connect_tab_console": "Konsol",
 "gate_helper_stopped_body_v2": "Bu ekranın yardımcıya ihtiyacı var. Gerektiğinde yeniden gönderin.",
 "gate_payload_down_body_v2": "Konsolunuz yapılandırılmış ancak ps5upload yardımcısı yanıt vermiyor — her yeniden başlatmada veya dinlenme modunda kapanır. Devam etmek için yeniden gönderin.",
+"cw_system_title": "Sistem",
 };
 
 export default tr;

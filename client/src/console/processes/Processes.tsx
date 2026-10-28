@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Cpu, Gamepad2, RefreshCw, Settings2 } from "lucide-react";
 import { call } from "../api";
 import { parseProcesses, type Proc } from "../games/model";
@@ -46,6 +46,8 @@ export function stopErrorText(err: unknown): string | null {
 }
 
 export interface ProcessesViewProps {
+  /** The System section's view switch, shown under the title. */
+  switcher?: ReactNode;
   procs: Proc[] | null;
   truncated: boolean;
   loadError: string | null;
@@ -132,6 +134,7 @@ export function ProcessesView(p: ProcessesViewProps) {
         {t("cw_procs_title")}
         {p.procs ? <span className="cw-tag">{p.procs.length}</span> : null}
       </h1>
+      {p.switcher}
       <p className="cw-dim">{t("cw_procs_intro")}</p>
       <div className="cw-toolbar">
         <button
@@ -180,7 +183,7 @@ export function ProcessesView(p: ProcessesViewProps) {
 }
 
 /** The Processes section: what runs on the console, and Stop for a game or a payload. */
-export function Processes({ ctx }: { ctx: SectionContext }) {
+export function Processes({ ctx, switcher }: { ctx: SectionContext; switcher?: ReactNode }) {
   const [procs, setProcs] = useState<Proc[] | null>(null);
   const [truncated, setTruncated] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -258,6 +261,7 @@ export function Processes({ ctx }: { ctx: SectionContext }) {
   return (
     <div ref={root}>
       <ProcessesView
+        switcher={switcher}
         procs={procs}
         truncated={truncated}
         loadError={loadError}

@@ -5,6 +5,7 @@ import type { Proc } from "../games/model";
 import { SECTIONS } from "../sections";
 import { t } from "../strings";
 import { canStop, isForeground, ProcessesView, stopErrorText, visibleProcs, type ProcessesViewProps } from "./Processes";
+import { systemViewOf } from "../system/SystemSection";
 
 const proc = (over: Partial<Proc>): Proc => ({
   pid: 100,
@@ -45,10 +46,10 @@ const base = (over: Partial<ProcessesViewProps> = {}): ProcessesViewProps => ({
 const html = (over: Partial<ProcessesViewProps> = {}) => renderToStaticMarkup(<ProcessesView {...base(over)} />);
 
 describe("Processes section", () => {
-  it("is in the rail after Fan and before Settings", () => {
+  it("is System's second view, before Settings in the rail", () => {
     const ids = SECTIONS.map((s) => s.id);
-    expect(ids.indexOf("processes")).toBe(ids.indexOf("fan") + 1);
-    expect(ids.indexOf("processes")).toBeLessThan(ids.indexOf("settings"));
+    expect(ids.indexOf("system")).toBeLessThan(ids.indexOf("settings"));
+    expect(systemViewOf({ view: "processes" })).toBe("processes");
   });
 
   it("stops only games and payloads, never the helper or a system process", () => {

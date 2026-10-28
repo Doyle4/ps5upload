@@ -6090,6 +6090,7 @@ library_compressed_hint: "Imagens compactadas precisam do ShadowMount+ para joga
 "connect_tab_console": "Console",
 "gate_helper_stopped_body_v2": "Esta tela precisa do helper. Envie de novo quando precisar.",
 "gate_payload_down_body_v2": "Seu console está configurado, mas o helper do ps5upload não responde — ele para a cada reinício ou modo de descanso. Envie de novo para continuar.",
+"cw_system_title": "Sistema",
 };
 
 export default pt_BR;

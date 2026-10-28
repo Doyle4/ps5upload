@@ -6024,6 +6024,7 @@ library_compressed_hint: "Le immagini compresse richiedono ShadowMount+ per gioc
 "connect_tab_console": "Console",
 "gate_helper_stopped_body_v2": "Questa schermata ha bisogno dell'helper. Invialo di nuovo quando ti serve.",
 "gate_payload_down_body_v2": "La console è configurata ma l'helper di ps5upload non risponde: si ferma a ogni riavvio o modalità di riposo. Invialo di nuovo per continuare.",
+"cw_system_title": "Sistema",
 };
 
 export default it;

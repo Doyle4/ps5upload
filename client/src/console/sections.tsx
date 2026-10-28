@@ -1,15 +1,13 @@
 import type { ReactNode } from "react";
-import { Activity, ArchiveRestore, Eraser, Fan as FanIcon, Folder, Gamepad2, House, Settings, Sparkles, type LucideIcon } from "lucide-react";
-import { Cleanup } from "./cleanup/Cleanup";
+import { ArchiveRestore, Cpu, Folder, Gamepad2, House, Settings, Sparkles, type LucideIcon } from "lucide-react";
 import { Cheats } from "./cheats/Cheats";
-import { Fan } from "./fan/Fan";
 import { Files } from "./files/Files";
 import { GamesSection } from "./games/GamesSection";
 import { Home } from "./home/Home";
-import { Processes } from "./processes/Processes";
 import { Saves } from "./saves/Saves";
 import { Settings as SettingsSection } from "./settings/Settings";
 import type { ConsoleStatus } from "./shell/TopBar";
+import { SystemSection } from "./system/SystemSection";
 
 /** What a section is opened with, e.g. Files at {path: "/mnt/usb0"}. */
 export type SectionParams = Record<string, string>;
@@ -84,22 +82,12 @@ export const SECTIONS: Section[] = [
     render: () => <Cheats />,
   },
   {
-    id: "fan",
-    icon: FanIcon,
-    labelKey: "cw_fan_title",
-    render: () => <Fan />,
-  },
-  {
-    id: "processes",
-    icon: Activity,
-    labelKey: "cw_procs_title",
-    render: (ctx) => <Processes ctx={ctx} />,
-  },
-  {
-    id: "cleanup",
-    icon: Eraser,
-    labelKey: "cw_cleanup_title",
-    render: (ctx) => <Cleanup ctx={ctx} />,
+    // Fan, Processes and Clean up, one entry with a switch (system/SystemSection).
+    id: "system",
+    icon: Cpu,
+    labelKey: "cw_system_title",
+    render: (ctx) => <SystemSection key={ctx.params?.view ?? ""} ctx={ctx} />,
+    acceptsParams: true,
   },
   {
     id: "settings",

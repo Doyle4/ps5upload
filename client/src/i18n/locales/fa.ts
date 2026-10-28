@@ -6374,6 +6374,7 @@ library_compressed_hint: "برای اجرای ایمیج فشرده به ShadowM
 "connect_tab_console": "کنسول",
 "gate_helper_stopped_body_v2": "این صفحه به دستیار نیاز دارد. هر وقت لازم بود دوباره آن را بفرستید.",
 "gate_payload_down_body_v2": "کنسول شما پیکربندی شده اما دستیار ps5upload پاسخ نمی‌دهد — با هر راه‌اندازی دوباره یا حالت استراحت متوقف می‌شود. برای ادامه دوباره آن را بفرستید.",
+"cw_system_title": "سیستم",
 };
 
 export default fa;

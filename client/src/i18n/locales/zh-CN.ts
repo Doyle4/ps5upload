@@ -6030,6 +6030,7 @@ library_compressed_hint: "压缩镜像需要 ShadowMount+ 才能游玩。如需�
 "connect_tab_console": "主机",
 "gate_helper_stopped_body_v2": "此页面需要助手。需要时再发送一次。",
 "gate_payload_down_body_v2": "主机已设置，但 ps5upload 助手没有响应——每次重启或进入静止模式都会停止。再发送一次即可继续。",
+"cw_system_title": "系统",
 };
 
 export default zh_CN;

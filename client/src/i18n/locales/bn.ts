@@ -6074,6 +6074,7 @@ library_compressed_hint: "সংকুচিত ইমেজ চালাতে 
 "connect_tab_console": "কনসোল",
 "gate_helper_stopped_body_v2": "এই স্ক্রিনে হেল্পার দরকার। প্রয়োজন হলে আবার পাঠান।",
 "gate_payload_down_body_v2": "আপনার কনসোল সেট আপ করা আছে কিন্তু ps5upload হেল্পার সাড়া দিচ্ছে না — প্রতিবার রিবুট বা রেস্ট মোডে এটি বন্ধ হয়। চালিয়ে যেতে আবার পাঠান।",
+"cw_system_title": "সিস্টেম",
 };
 
 export default bn;

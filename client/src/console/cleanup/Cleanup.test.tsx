@@ -6,6 +6,7 @@ import { ApiError } from "../api";
 import { SECTIONS } from "../sections";
 import { t } from "../strings";
 import { cleanupErrorText, CleanupView, confirmBody, focusedItemId, type CleanupViewProps } from "./Cleanup";
+import { systemViewOf } from "../system/SystemSection";
 
 const item = (over: Partial<CleanupItem> & Pick<CleanupItem, "id" | "cat">): CleanupItem => ({
   path: `/data/pkg/x${over.id}.pkg`,
@@ -64,10 +65,10 @@ const view = (over: Partial<CleanupViewProps> = {}) =>
   );
 
 describe("console Clean up", () => {
-  it("is a section, labelled with its own string", () => {
-    const s = SECTIONS.find((x) => x.id === "cleanup");
-    expect(s).toBeTruthy();
-    expect(t(s!.labelKey)).toBe("Clean Up");
+  it("is System's third view, labelled with its own string", () => {
+    expect(SECTIONS.find((x) => x.id === "system")?.acceptsParams).toBe(true);
+    expect(systemViewOf({ view: "cleanup" })).toBe("cleanup");
+    expect(t("cw_cleanup_title")).toBe("Clean Up");
   });
 
   it("lists the groups, ticks the selected item and totals it in the bar", () => {

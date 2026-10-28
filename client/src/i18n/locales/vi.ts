@@ -6076,6 +6076,7 @@ library_compressed_hint: "Ảnh đĩa nén cần ShadowMount+ để chơi. Để
 "connect_tab_console": "Máy",
 "gate_helper_stopped_body_v2": "Màn hình này cần helper. Gửi lại khi bạn cần.",
 "gate_payload_down_body_v2": "Máy đã được thiết lập nhưng helper ps5upload không phản hồi — nó dừng sau mỗi lần khởi động lại hoặc chế độ nghỉ. Gửi lại để tiếp tục.",
+"cw_system_title": "Hệ thống",
 };
 
 export default vi;

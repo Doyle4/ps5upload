@@ -958,6 +958,7 @@
   "cw_settings_version": "版本 {version}",
   "cw_status_connecting": "正在连接…",
   "cw_status_offline": "未连接",
+  "cw_system_title": "系统",
   "cw_task_from_console": "来自本主机",
   "cw_task_from_pc": "来自电脑",
   "cw_theme_dark": "深色",

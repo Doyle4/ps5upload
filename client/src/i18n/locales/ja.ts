@@ -6094,6 +6094,7 @@ library_compressed_hint: "圧縮イメージのプレイには ShadowMount+ が�
 "connect_tab_console": "本体",
 "gate_helper_stopped_body_v2": "この画面にはヘルパーが必要です。必要なときに再送信してください。",
 "gate_payload_down_body_v2": "本体は設定済みですが、ps5upload ヘルパーが応答しません。再起動やレストモードのたびに止まります。続けるには再送信してください。",
+"cw_system_title": "システム",
 };
 
 export default ja;

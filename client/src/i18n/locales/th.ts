@@ -6082,6 +6082,7 @@ library_compressed_hint: "อิมเมจที่บีบอัดต้อ
 "connect_tab_console": "เครื่อง",
 "gate_helper_stopped_body_v2": "หน้าจอนี้ต้องใช้ตัวช่วย ส่งอีกครั้งเมื่อคุณต้องการ",
 "gate_payload_down_body_v2": "ตั้งค่าเครื่องแล้ว แต่ตัวช่วย ps5upload ไม่ตอบสนอง — มันหยุดทุกครั้งที่รีบูตหรือเข้าโหมดพัก ส่งอีกครั้งเพื่อดำเนินการต่อ",
+"cw_system_title": "ระบบ",
 };
 
 export default th;

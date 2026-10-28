@@ -6024,6 +6024,7 @@ library_compressed_hint: "Las imágenes comprimidas necesitan ShadowMount+ para 
 "connect_tab_console": "Consola",
 "gate_helper_stopped_body_v2": "Esta pantalla necesita el asistente. Vuelve a enviarlo cuando lo necesites.",
 "gate_payload_down_body_v2": "Tu consola está configurada, pero el asistente de ps5upload no responde: se detiene con cada reinicio o modo de reposo. Vuelve a enviarlo para continuar.",
+"cw_system_title": "Sistema",
 };
 
 export default es;
