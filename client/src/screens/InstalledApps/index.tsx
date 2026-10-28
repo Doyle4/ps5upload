@@ -39,14 +39,12 @@ import { useRunningAppsStore } from "../../state/runningApps";
 import {
   appsInstalled,
   appUnregister,
-  appLaunch,
   appIconUrl,
   appIconDataUrl,
   GRID_ICON_SIZE,
   cachedAppIcon,
   smpStatus,
   sdkScan,
-  processList,
   fsChmod,
   type InstalledTitle,
   type SmpStatus,
@@ -73,16 +71,17 @@ import {
   Spinner,
   OverflowMenu,
 } from "../../components";
-import { CoverFrame, CoverTag, MetaDot, PlatformTag } from "../../components/GameIconFrame";
+import {
+  CoverFrame,
+  CoverTag,
+  MetaDot,
+  PlatformTag,
+} from "../../components/GameIconFrame";
 // Direct import to avoid the barrel's circular-dep warning at build.
 import { useConfirm } from "../../components/ConfirmDialog";
-import { DOC_ANCHORS, faqLink, installErrorLink } from "../../lib/installErrorDoc";
-import { LAST_PS5_FAKE_GAME_FIRMWARE, ps5FakeGameUnplayableFirmware } from "../../lib/ps5Firmware";
 import { humanizePs5Error } from "../../lib/humanizeError";
-import { handleHomebrewRefusal, isHomebrewRefusal, type RefusalOutcome } from "../../lib/launchRefusal";
-import { killGame } from "../../lib/killGame";
 import { playFor, useTrackedPlay } from "../../lib/trackedPlay";
-import { useMakeWay } from "../../lib/useMakeWay";
+import { useGameLaunch } from "../../lib/useGameLaunch";
 import { pushNotification } from "../../state/notifications";
 import { withConsolePrefix } from "../../state/roster";
 import { audit } from "../../state/auditLog";
@@ -101,7 +100,11 @@ import {
   useCollectionItems,
 } from "./collectionLink";
 import { hiddenIcons, setIconHidden } from "../../api/hiddenIcons";
-import { EMPTY_CORPUS, loadFakelibCorpus, type FakelibCorpus } from "../../state/fakelibCorpus";
+import {
+  EMPTY_CORPUS,
+  loadFakelibCorpus,
+  type FakelibCorpus,
+} from "../../state/fakelibCorpus";
 
 // ── Classification helpers ───────────────────────────────────────────────────
 
@@ -178,7 +181,9 @@ function KindBadge({ title }: { title: InstalledTitle }) {
 
 function Cover({ host, title }: { host: string; title: InstalledTitle }) {
   const { src, onError } = useImageRetry(
-    host.trim() ? appIconUrl(transferAddr(host), title.titleId, GRID_ICON_SIZE) : null,
+    host.trim()
+      ? appIconUrl(transferAddr(host), title.titleId, GRID_ICON_SIZE)
+      : null,
     {
       // Bytes this session already fetched. Returning to Games then paints
       // covers on the first frame instead of re-deriving what we hold.
@@ -271,7 +276,10 @@ function NowPlayingBanner({
               </div>
             </div>
             <div className="min-w-0 flex-1">
-              <div className="truncate text-sm font-semibold" title={t.titleName}>
+              <div
+                className="truncate text-sm font-semibold"
+                title={t.titleName}
+              >
                 <Link to={gamePath(t.titleId)} className="hover:underline">
                   {t.titleName}
                 </Link>
@@ -302,21 +310,6 @@ function NowPlayingBanner({
       })}
     </section>
   );
-}
-
-// How long to keep a just-launched title in the patient "Starting…" state
-// while we watch for its process to appear, and how often to check. A first
-// launch (just-installed, cold cache, disc image) can be slow, so this is
-// generous — it never fails the launch or touches the game, it just stops
-// reporting "Starting…" after this and tells the user it may still be coming up.
-const LAUNCH_CONFIRM_TIMEOUT_MS = 90_000;
-const LAUNCH_CONFIRM_POLL_MS = 2_000;
-
-/** A 0x80940033 launch refusal that the repair in launchRefusal.ts could not clear. */
-class HomebrewRefused extends Error {
-  constructor(readonly outcome: Exclude<RefusalOutcome, { kind: "fixed" }>) {
-    super("launch_sony_error_0x80940033");
-  }
 }
 
 // ── App card ─────────────────────────────────────────────────────────────────
@@ -416,7 +409,13 @@ export const AppCard = memo(function AppCard({
               <span className="absolute bottom-2 right-2">
                 <CoverTag
                   tone="good"
-                  icon={<CircleDot size={11} className="animate-pulse" aria-hidden />}
+                  icon={
+                    <CircleDot
+                      size={11}
+                      className="animate-pulse"
+                      aria-hidden
+                    />
+                  }
                   title={tr("installed_now_playing", undefined, "Now playing")}
                 >
                   {tr("installed_badge_playing", undefined, "Playing")}
@@ -431,7 +430,12 @@ export const AppCard = memo(function AppCard({
         ) : (
           // The cover opens the game page too; the title link below is the
           // one keyboard and screen-reader users get, so this one is skipped.
-          <Link to={gamePath(title.titleId)} tabIndex={-1} aria-hidden className="block h-full w-full">
+          <Link
+            to={gamePath(title.titleId)}
+            tabIndex={-1}
+            aria-hidden
+            className="block h-full w-full"
+          >
             <Cover host={host} title={title} />
           </Link>
         )}
@@ -498,7 +502,8 @@ export const AppCard = memo(function AppCard({
               games. (The never-seen branch also asked for --color-warning,
               which is not a token — the real one is --color-warn — so it
               silently applied no colour at all.) */}
-          <div className="mt-0.5 flex items-center gap-1.5 text-xs text-[var(--color-muted)]"
+          <div
+            className="mt-0.5 flex items-center gap-1.5 text-xs text-[var(--color-muted)]"
             title={tr(
               "installed_playtime_tooltip",
               undefined,
@@ -510,7 +515,10 @@ export const AppCard = memo(function AppCard({
               {playSeconds && playSeconds > 0
                 ? tr(
                     "installed_playtime_line",
-                    { time: formatPlayTime(playSeconds), seen: formatLastSeen(lastSeenMs, undefined, lang) },
+                    {
+                      time: formatPlayTime(playSeconds),
+                      seen: formatLastSeen(lastSeenMs, undefined, lang),
+                    },
                     `${formatPlayTime(playSeconds)} · last seen ${formatLastSeen(lastSeenMs)}`,
                   )
                 : tr("installed_playtime_never", undefined, "not seen playing")}
@@ -616,7 +624,11 @@ export const AppCard = memo(function AppCard({
             triggerVariant="secondary"
             triggerClassName="!w-10 !min-w-10 shrink-0 justify-center !px-0"
             ariaLabel={tr("installed_more_actions", undefined, "More actions")}
-            buttonTitle={tr("installed_more_actions", undefined, "More actions")}
+            buttonTitle={tr(
+              "installed_more_actions",
+              undefined,
+              "More actions",
+            )}
             items={[
               ...collectionItems,
               ...(backportEligible
@@ -631,7 +643,11 @@ export const AppCard = memo(function AppCard({
               ...(sourceFolder
                 ? [
                     {
-                      label: tr("installed_open_folder_short", undefined, "Open folder"),
+                      label: tr(
+                        "installed_open_folder_short",
+                        undefined,
+                        "Open folder",
+                      ),
                       icon: <FolderOpen size={12} />,
                       title: tr(
                         "installed_open_folder",
@@ -641,7 +657,11 @@ export const AppCard = memo(function AppCard({
                       onSelect: () => openInFileSystem(navigate, sourceFolder),
                     },
                     {
-                      label: tr("installed_fix_permissions_short", undefined, "Fix permissions"),
+                      label: tr(
+                        "installed_fix_permissions_short",
+                        undefined,
+                        "Fix permissions",
+                      ),
                       icon: <ShieldCheck size={12} />,
                       title: tr(
                         "installed_fix_permissions",
@@ -657,8 +677,16 @@ export const AppCard = memo(function AppCard({
                 ? [
                     {
                       label: hidden
-                        ? tr("installed_show_on_home", undefined, "Show on home screen")
-                        : tr("installed_hide_from_home", undefined, "Hide from home screen"),
+                        ? tr(
+                            "installed_show_on_home",
+                            undefined,
+                            "Show on home screen",
+                          )
+                        : tr(
+                            "installed_hide_from_home",
+                            undefined,
+                            "Hide from home screen",
+                          ),
                       icon: hidden ? <Eye size={12} /> : <EyeOff size={12} />,
                       disabled: busy,
                       onSelect: () => onToggleHidden(title),
@@ -728,10 +756,12 @@ function Section({
 
 // ── Screen ───────────────────────────────────────────────────────────────────
 
-
 /** A game installed from a package is gone once uninstalled: say so when the Collection on
  *  this computer (once read) has no copy of it to install again. */
-function noCopyWarning(t: InstalledTitle, tr: ReturnType<typeof useTr>): string {
+function noCopyWarning(
+  t: InstalledTitle,
+  tr: ReturnType<typeof useTr>,
+): string {
   const library = useCollectionStore.getState().library;
   if (!library || library.games[t.titleId.toUpperCase()]) return "";
   return (
@@ -757,7 +787,9 @@ export default function InstalledAppsScreen() {
   const guard = useStaleHostGuard();
   const [titles, setTitles] = useState<InstalledTitle[] | null>(null);
   const [sdkState, setSdkState] = useState<SdkScanResponse>({ titles: [] });
-  const [backportTitle, setBackportTitle] = useState<InstalledTitle | null>(null);
+  const [backportTitle, setBackportTitle] = useState<InstalledTitle | null>(
+    null,
+  );
   // A game handed over for backporting (the Collection's "Backport…"): its panel opens once
   // the list has it.
   const location = useLocation();
@@ -765,8 +797,11 @@ export default function InstalledAppsScreen() {
     ?.backportTitleId;
   const backportOpened = useRef<string | null>(null);
   useEffect(() => {
-    if (!handedBackport || !titles || backportOpened.current === handedBackport) return;
-    const t = titles.find((x) => x.titleId.toUpperCase() === handedBackport.toUpperCase());
+    if (!handedBackport || !titles || backportOpened.current === handedBackport)
+      return;
+    const t = titles.find(
+      (x) => x.titleId.toUpperCase() === handedBackport.toUpperCase(),
+    );
     if (t) {
       backportOpened.current = handedBackport;
       setBackportTitle(t);
@@ -785,8 +820,12 @@ export default function InstalledAppsScreen() {
   useEffect(() => {
     if (!backportTitle) return;
     let cancelled = false;
-    void loadFakelibCorpus().then((next) => { if (!cancelled) setCorpus(next); });
-    return () => { cancelled = true; };
+    void loadFakelibCorpus().then((next) => {
+      if (!cancelled) setCorpus(next);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [backportTitle]);
   /* What a library scan may walk. Only titles with a source can have a
    * fakelib/ to read; an empty list disables the scan route rather than
@@ -814,14 +853,15 @@ export default function InstalledAppsScreen() {
   const [error, setError] = useState<string | null>(null);
   // A title action that failed (uninstall, hide): its own box, so it never reads as the list
   // failing to load ("Couldn't read installed apps" over an uninstall refusal).
-  const [actionError, setActionError] = useState<{ title: string; detail: string } | null>(null);
+  const [actionError, setActionError] = useState<{
+    title: string;
+    detail: string;
+  } | null>(null);
   const [registeredUnavailable, setRegisteredUnavailable] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
-  const [launchingId, setLaunchingId] = useState<string | null>(null);
   // Games currently running on the console (title_id → handle), refreshed on a
   // poll while this screen is open. Drives the "Playing" badge + Stop button.
   const [running, setRunning] = useState<Map<string, RunningGame>>(new Map());
-  const [stoppingId, setStoppingId] = useState<string | null>(null);
   const [smpSending, setSmpSending] = useState(false);
   const [smpMsg, setSmpMsg] = useState<string | null>(null);
   // #116: sort the Installed group by play-time (least-played first) and,
@@ -849,13 +889,13 @@ export default function InstalledAppsScreen() {
   // count when the helper has no tracker.
   const tracked = useTrackedPlay(host);
   const playOf = useCallback(
-    (titleId: string) => playFor(tracked, { byHost: playByHost, lastSeenByHost }, host, titleId),
+    (titleId: string) =>
+      playFor(tracked, { byHost: playByHost, lastSeenByHost }, host, titleId),
     [tracked, playByHost, lastSeenByHost, host],
   );
   // Native window.confirm() is a no-op in Tauri's webview; use the in-tree
   // modal instead (see ConfirmDialog.tsx).
   const { confirm: confirmDialog, dialog: confirmDialogNode } = useConfirm();
-  const { makeWay, dialog: makeWayDialog } = useMakeWay();
 
   const refresh = useCallback(async () => {
     if (!host?.trim()) return;
@@ -973,22 +1013,6 @@ export default function InstalledAppsScreen() {
     };
   }, [host]);
 
-  /** A launch message plus, for a PS5 game on firmware above 11.60, the note
-   *  that a fake PS5 game package installs but can't be played there. */
-  const launchHelpBody = useCallback(
-    (body: string, launchHost: string, titleId: string) => {
-      const kernel = useConnectionStore.getState().runtimeByHost[hostOf(launchHost)]?.ps5Kernel;
-      const fw = ps5FakeGameUnplayableFirmware(kernel, titleId);
-      if (!fw) return body;
-      return `${body} ${tr(
-        "fakegame.fw.launch",
-        { fw, last: LAST_PS5_FAKE_GAME_FIRMWARE },
-        `PS5 fake game packages can't be played on firmware above ${LAST_PS5_FAKE_GAME_FIRMWARE} (this console is on ${fw}). If this game was installed from a fake package, that is why it won't start. PS4 packages are fine.`,
-      )}`;
-    },
-    [tr],
-  );
-
   const handleFixPermissions = useCallback(
     async (t: InstalledTitle) => {
       if (!host?.trim() || !t.source) return;
@@ -997,13 +1021,17 @@ export default function InstalledAppsScreen() {
       try {
         await fsChmod(transferAddr(probe.host), t.source, "0777", true);
         if (probe.isStale()) return;
-        pushNotification("success", withConsolePrefix(probe.host, t.titleName), {
-          body: tr(
-            "installed_fix_permissions_done",
-            undefined,
-            "Permissions fixed: every file in this game's folder is now 0777. Press Play.",
-          ),
-        });
+        pushNotification(
+          "success",
+          withConsolePrefix(probe.host, t.titleName),
+          {
+            body: tr(
+              "installed_fix_permissions_done",
+              undefined,
+              "Permissions fixed: every file in this game's folder is now 0777. Press Play.",
+            ),
+          },
+        );
       } catch (e) {
         if (probe.isStale()) return;
         const raw = e instanceof Error ? e.message : String(e);
@@ -1017,212 +1045,26 @@ export default function InstalledAppsScreen() {
     [host, guard, tr],
   );
 
+  // Play and Close game: one implementation for every place that offers them
+  // (lib/useGameLaunch), with this screen's running list kept in step.
+  const launcher = useGameLaunch({
+    nameOf: (id) => titles?.find((x) => x.titleId === id)?.titleName ?? id,
+    onRunning: setRunning,
+  });
+  const { launchingId, stoppingId } = launcher;
   const handleLaunch = useCallback(
-    async (t: InstalledTitle) => {
-      if (!host?.trim()) return;
-      const probe = guard.capture();
-      // Hold the "Starting…" state for the whole come-up window (not just the
-      // launch RPC) so Play stays disabled and the user can't fire a second
-      // launch into a game that's still starting — re-launching a half-started
-      // title is exactly how it gets killed. We only watch (read-only) for the
-      // game's process to appear; we never act on a starting game.
-      setLaunchingId(t.titleId);
-      try {
-        // One game at a time: the running one is closed first, with the user's say-so
-        // (see lib/useMakeWay).
-        const clear = await makeWay(
-          probe.host,
-          t.titleId,
-          t.titleName,
-          (id) => titles?.find((x) => x.titleId === id)?.titleName ?? id,
-        );
-        if (probe.isStale() || !clear) return;
-        try {
-          await appLaunch(transferAddr(probe.host), t.titleId);
-        } catch (e) {
-          const raw = e instanceof Error ? e.message : String(e);
-          if (!isHomebrewRefusal(raw) || probe.isStale()) throw e;
-          // The console refused a non-Sony title: find out whether kstuff is missing, and
-          // repair a folder uploaded without world-execute (see launchRefusal.ts).
-          const outcome = await handleHomebrewRefusal(t.source, {
-            processes: async () => (await processList(mgmtAddr(probe.host))).processes,
-            chmod777: (path) => fsChmod(transferAddr(probe.host), path, "0777", true),
-            relaunch: () => appLaunch(transferAddr(probe.host), t.titleId),
-          });
-          if (outcome.kind !== "fixed") throw new HomebrewRefused(outcome);
-        }
-        if (probe.isStale()) return;
-        // Patiently wait for the title to actually come up. A first launch
-        // (just-installed, cold cache, disc image) can take a while; the launch
-        // RPC only means "Sony accepted it," not "it's running." Poll the
-        // process list until the title appears, then the card shows "Playing".
-        const addr = mgmtAddr(probe.host);
-        const deadline = Date.now() + LAUNCH_CONFIRM_TIMEOUT_MS;
-        let confirmed = false;
-        while (Date.now() < deadline) {
-          await new Promise((r) => setTimeout(r, LAUNCH_CONFIRM_POLL_MS));
-          if (probe.isStale()) return;
-          try {
-            const r = await fetchRunningGames(addr);
-            if (probe.isStale()) return;
-            setRunning(r);
-            useRunningAppsStore
-              .getState()
-              .setRunning(Array.from(r.keys()), probe.host);
-            if (r.has(t.titleId)) {
-              confirmed = true;
-              break;
-            }
-          } catch {
-            // Console momentarily busy/recovering while the game spins up —
-            // keep waiting rather than giving up.
-          }
-        }
-        if (confirmed) {
-          pushNotification("success", withConsolePrefix(probe.host, t.titleName), {
-            body: tr("installed_now_playing", undefined, "Now playing"),
-          });
-        } else {
-          // Not seen yet — do NOT treat this as a failure (and never kill it).
-          // The launch was accepted; a slow first start just hasn't surfaced in
-          // the process list yet.
-          pushNotification("info", withConsolePrefix(probe.host, t.titleName), {
-            body: launchHelpBody(
-              tr(
-                "installed_launch_slow",
-                undefined,
-                "Launch sent — first starts can take a while. Give it a moment and check your PS5.",
-              ),
-              probe.host,
-              t.titleId,
-            ),
-            link: faqLink(DOC_ANCHORS.wontLaunch),
-          });
-        }
-      } catch (e) {
-        if (probe.isStale()) return;
-        if (e instanceof HomebrewRefused) {
-          // Not this game's fault and not the 11.60 fake-package limit: the console is
-          // refusing every non-Sony title, so name the cause instead.
-          pushNotification("error", withConsolePrefix(probe.host, t.titleName), {
-            body:
-              e.outcome.kind === "refused" && e.outcome.shadowmount
-                ? tr(
-                    "installed_launch_smp_refused",
-                    undefined,
-                    "The PS5 refused to start this game (0x80940033) although kstuff is running. ShadowMount+ mounts a game when it starts, and that did not happen. Close any game that is running, send ShadowMount+ again from Payloads, then press Play.",
-                  )
-                : e.outcome.kind === "no_kstuff"
-                ? tr(
-                    "installed_launch_no_kstuff",
-                    undefined,
-                    "The PS5 refused to start this game (0x80940033) because kstuff isn't running. Without it the console starts no homebrew or fake-package game. Load kstuff (your autoloader, or Connection → Set up) and press Play again.",
-                  )
-                : tr(
-                    "installed_launch_homebrew_refused",
-                    undefined,
-                    "The PS5 refused to start this game (0x80940033). The console isn't starting homebrew or fake-package games right now: reload kstuff (or reboot and run the jailbreak again), then press Play again.",
-                  ),
-            link: faqLink(DOC_ANCHORS.wontLaunch),
-          });
-          return;
-        }
-        const raw = e instanceof Error ? e.message : String(e);
-        pushNotification("error", withConsolePrefix(probe.host, t.titleName), {
-          body: launchHelpBody(humanizePs5Error(raw), probe.host, t.titleId),
-          link: installErrorLink(raw),
-        });
-      } finally {
-        setLaunchingId(null);
-      }
-    },
-    [host, guard, tr, launchHelpBody, titles, makeWay],
+    (t: InstalledTitle) =>
+      launcher.launch({
+        titleId: t.titleId,
+        titleName: t.titleName,
+        source: t.source,
+      }),
+    [launcher],
   );
-
-  /* Bring an already-running title to the screen.
-   *
-   * Mechanically this is just another launch request: the console raises a
-   * title that is already up when it receives one. It is NOT handleLaunch,
-   * because that path confirms, tracks "launching" state and then patiently
-   * polls for the process to appear — all meaningless here, since the game is
-   * already running and we simply want it on screen.
-   *
-   * Deliberately manual. A launch request lands differently depending on
-   * whether the title has finished loading — too early and the console pushes
-   * it back — and there is no readable "ready" signal to wait for. The user
-   * can see when the game is up; the app can only guess, and guessing on a
-   * timer is what previously froze a console. */
   const handleStop = useCallback(
-    async (t: InstalledTitle) => {
-      if (!host?.trim()) return;
-      const game = running.get(t.titleId);
-      if (!game) return;
-      const probe = guard.capture();
-      const ok = await confirmDialog({
-        title: tr(
-          "installed_stop_confirm_title",
-          { name: t.titleName },
-          `Close ${t.titleName}?`,
-        ),
-        message: tr(
-          "installed_stop_confirm_body",
-          undefined,
-          "This closes the running game on the PS5. Any unsaved progress will be lost — the same as quitting from the console.",
-        ),
-        confirmLabel: tr("installed_stop", undefined, "Close game"),
-        destructive: true,
-      });
-      if (!ok || probe.isStale()) return;
-      setStoppingId(t.titleId);
-      try {
-        // Prefer Sony's clean app-kill (by app id); fall back to a SIGKILL of
-        // the title's pid. CRUCIAL: appKill can *throw* (the engine bails when
-        // the payload returns ok=false — observed on FW 12.20, where
-        // sceApplicationKill rejects the app id), so the fallback must run on a
-        // throw too, not only on a resolved ok=false. Treating both the same
-        // way is what makes the SIGKILL path actually reachable — previously a
-        // 12.20 appKill threw straight to the outer catch and the pid fallback
-        // (which runs with the payload's elevated ucred) never fired, so the
-        // Close button "did nothing".
-        const ack = { ok: await killGame(mgmtAddr(probe.host), game) };
-        if (probe.isStale()) return;
-        if (ack.ok) {
-          // Drop it from the running set immediately so the card flips back to
-          // Play without waiting for the next poll.
-          // Computed outside the updater on purpose: React invokes updaters
-          // twice under StrictMode, so a store write in there would fire
-          // twice per close.
-          const next = new Map(running);
-          next.delete(t.titleId);
-          setRunning(next);
-          // Keep the shared store in step, or the tab badge would stay lit
-          // until the next poll for a game the user just closed.
-          useRunningAppsStore
-            .getState()
-            .setRunning(Array.from(next.keys()), probe.host);
-          pushNotification("info", withConsolePrefix(probe.host, t.titleName), {
-            body: tr("installed_stopped", undefined, "Game closed"),
-          });
-        } else {
-          pushNotification("error", withConsolePrefix(probe.host, t.titleName), {
-            body: tr(
-              "installed_stop_failed",
-              undefined,
-              "Couldn't close the game — it may have already exited.",
-            ),
-          });
-        }
-      } catch (e) {
-        if (probe.isStale()) return;
-        const raw = e instanceof Error ? e.message : String(e);
-        pushNotification("error", withConsolePrefix(probe.host, t.titleName), {
-          body: humanizePs5Error(raw),
-        });
-      } finally {
-        setStoppingId(null);
-      }
-    },
-    [host, guard, running, confirmDialog, tr],
+    (t: InstalledTitle) =>
+      launcher.stop({ titleId: t.titleId, titleName: t.titleName }),
+    [launcher],
   );
 
   const handleUninstall = useCallback(
@@ -1260,20 +1102,28 @@ export default function InstalledAppsScreen() {
       setActionError(null);
       try {
         const res = await appUnregister(transferAddr(probe.host), t.titleId);
-        audit("app_uninstall", withConsolePrefix(probe.host, t.titleName), { context: t.titleId });
+        audit("app_uninstall", withConsolePrefix(probe.host, t.titleName), {
+          context: t.titleId,
+        });
         if (probe.isStale()) return;
         if (res.stillPresent) {
           // #476: the PS5 accepted but the game is still there. Dropping it from the list
           // only for the next refresh to bring it back is what looked like "it pops up again".
-          pushNotification("warning", withConsolePrefix(probe.host, t.titleName), {
-            body: tr(
-              "installed_uninstall_still_present",
-              { name: t.titleName },
-              `The PS5 accepted the uninstall, but ${t.titleName} is still on the console. A large game can take a few minutes to remove: refresh in a moment. If it stays, delete it from the PS5's Settings → Storage.`,
-            ),
-          });
+          pushNotification(
+            "warning",
+            withConsolePrefix(probe.host, t.titleName),
+            {
+              body: tr(
+                "installed_uninstall_still_present",
+                { name: t.titleName },
+                `The PS5 accepted the uninstall, but ${t.titleName} is still on the console. A large game can take a few minutes to remove: refresh in a moment. If it stays, delete it from the PS5's Settings → Storage.`,
+              ),
+            },
+          );
         } else {
-          setTitles((cur) => cur?.filter((x) => x.titleId !== t.titleId) ?? cur);
+          setTitles(
+            (cur) => cur?.filter((x) => x.titleId !== t.titleId) ?? cur,
+          );
         }
         void refresh();
       } catch (e) {
@@ -1283,7 +1133,11 @@ export default function InstalledAppsScreen() {
         // the install"): an uninstall says what it is.
         const code = /0x80B2_?[0-9A-Fa-f]{4}/i.exec(raw)?.[0];
         setActionError({
-          title: tr("installed_uninstall_failed", { name: t.titleName }, `Couldn't uninstall ${t.titleName}`),
+          title: tr(
+            "installed_uninstall_failed",
+            { name: t.titleName },
+            `Couldn't uninstall ${t.titleName}`,
+          ),
           detail: code
             ? tr(
                 "installed_uninstall_refused",
@@ -1318,7 +1172,11 @@ export default function InstalledAppsScreen() {
             undefined,
             "Only its icon is hidden: it stays installed, keeps its saves, and you can still start it from here. Show it again from this menu. The PS5's home screen updates the next time you open and close any app.",
           ),
-          confirmLabel: tr("installed_hide_from_home", undefined, "Hide from home screen"),
+          confirmLabel: tr(
+            "installed_hide_from_home",
+            undefined,
+            "Hide from home screen",
+          ),
         });
         if (!ok || probe.isStale()) return;
       }
@@ -1326,9 +1184,13 @@ export default function InstalledAppsScreen() {
       setActionError(null);
       try {
         await setIconHidden(probe.host, t.titleId, hide);
-        audit(hide ? "app_icon_hide" : "app_icon_show", withConsolePrefix(probe.host, t.titleName), {
-          context: t.titleId,
-        });
+        audit(
+          hide ? "app_icon_hide" : "app_icon_show",
+          withConsolePrefix(probe.host, t.titleName),
+          {
+            context: t.titleId,
+          },
+        );
         if (probe.isStale()) return;
         setHiddenIds((cur) => {
           const next = new Set(cur ?? []);
@@ -1341,8 +1203,16 @@ export default function InstalledAppsScreen() {
         const raw = e instanceof Error ? e.message : String(e);
         setActionError({
           title: hide
-            ? tr("installed_hide_failed", { name: t.titleName }, `Couldn't hide ${t.titleName}`)
-            : tr("installed_show_failed", { name: t.titleName }, `Couldn't show ${t.titleName}`),
+            ? tr(
+                "installed_hide_failed",
+                { name: t.titleName },
+                `Couldn't hide ${t.titleName}`,
+              )
+            : tr(
+                "installed_show_failed",
+                { name: t.titleName },
+                `Couldn't show ${t.titleName}`,
+              ),
           detail: humanizePs5Error(raw),
         });
       } finally {
@@ -1415,7 +1285,9 @@ export default function InstalledAppsScreen() {
   // shape as the Game files tab.
   const all = useMemo(() => {
     const rows = filterInstalledTitles(titles ?? [], deferredQuery);
-    return onlyHidden && hiddenIds ? rows.filter((t) => hiddenIds.has(t.titleId)) : rows;
+    return onlyHidden && hiddenIds
+      ? rows.filter((t) => hiddenIds.has(t.titleId))
+      : rows;
   }, [titles, deferredQuery, onlyHidden, hiddenIds]);
   const hiddenCount = useMemo(
     () => (titles ?? []).filter((t) => hiddenIds?.has(t.titleId)).length,
@@ -1440,7 +1312,10 @@ export default function InstalledAppsScreen() {
   // While the probe is still in flight we know neither "running" nor "off",
   // so the warning must stay hidden — surfacing it only once we've confirmed
   // ShadowMount+ is actually not running.
-  const smpAbsent = smp !== null && smp !== "checking" && !smp.running &&
+  const smpAbsent =
+    smp !== null &&
+    smp !== "checking" &&
+    !smp.running &&
     !smp.errors.some((e) => e.startsWith("proc list:"));
   const discNeedsSmp = discs.length > 0 && smpAbsent;
 
@@ -1488,14 +1363,21 @@ export default function InstalledAppsScreen() {
       rows = [...rows].sort((a, b) => secs(a) - secs(b));
     } else if (playSort === "recent") {
       // Never seen played sorts last, keeping name order.
-      rows = [...rows].sort((a, b) => (playOf(b.titleId).lastSeenMs ?? 0) - (playOf(a.titleId).lastSeenMs ?? 0));
+      rows = [...rows].sort(
+        (a, b) =>
+          (playOf(b.titleId).lastSeenMs ?? 0) -
+          (playOf(a.titleId).lastSeenMs ?? 0),
+      );
     }
     // Running titles to the front, after every other ordering. See
     // sortRunningFirst for why this is applied last.
     return sortRunningFirst(rows, running);
   }, [installed, onlyUnplayed, playSort, playOf, running]);
   // The strip reads every title, not the search's matches: it is not part of the search.
-  const recent = useMemo(() => recentlyPlayed(titles ?? [], playOf, running), [titles, playOf, running]);
+  const recent = useMemo(
+    () => recentlyPlayed(titles ?? [], playOf, running),
+    [titles, playOf, running],
+  );
 
   return (
     <div className="flex flex-col gap-6">
@@ -1553,7 +1435,11 @@ export default function InstalledAppsScreen() {
           playSecondsOf={(id) => playOf(id).seconds}
           onStop={handleStop}
         />
-        <RecentlyPlayedStrip host={host} items={recent} canReset={tracked !== null} />
+        <RecentlyPlayedStrip
+          host={host}
+          items={recent}
+          canReset={tracked !== null}
+        />
 
         {/* kstuff status — games can't install or launch without kernel R/W.
           The gate guarantees a connected console here, so we key off the
@@ -1620,7 +1506,10 @@ export default function InstalledAppsScreen() {
                     {tr("installed_smp_send", undefined, "Send ShadowMount+")}
                   </Button>
                 ) : (
-                  <Link to="/payloads" className="text-xs text-[var(--color-accent)] underline">
+                  <Link
+                    to="/payloads"
+                    className="text-xs text-[var(--color-accent)] underline"
+                  >
                     {tr(
                       "installed_smp_send_browser",
                       undefined,
@@ -1638,7 +1527,9 @@ export default function InstalledAppsScreen() {
           />
         ) : null}
 
-        {actionError ? <ErrorCard title={actionError.title} detail={actionError.detail} /> : null}
+        {actionError ? (
+          <ErrorCard title={actionError.title} detail={actionError.detail} />
+        ) : null}
         {error ? (
           <ErrorCard
             title={tr(
@@ -1670,7 +1561,10 @@ export default function InstalledAppsScreen() {
             className="grid grid-cols-2 gap-x-3 gap-y-6 sm:grid-cols-[repeat(auto-fill,minmax(11.5rem,1fr))] sm:gap-x-5"
           >
             {Array.from({ length: 10 }, (_, i) => (
-              <Skeleton key={i} className="aspect-square !rounded-[var(--radius-card)]" />
+              <Skeleton
+                key={i}
+                className="aspect-square !rounded-[var(--radius-card)]"
+              />
             ))}
           </div>
         ) : titles && titles.length === 0 ? (
@@ -1729,7 +1623,11 @@ export default function InstalledAppsScreen() {
                   // `.input` is the shared pill field; its padding is unlayered
                   // CSS, so the room for the two icons goes inline.
                   className="input outline-none [&::-webkit-search-cancel-button]:appearance-none"
-                  style={{ paddingLeft: "2.5rem", paddingRight: "2.5rem", minHeight: "2.75rem" }}
+                  style={{
+                    paddingLeft: "2.5rem",
+                    paddingRight: "2.5rem",
+                    minHeight: "2.75rem",
+                  }}
                 />
                 {searching && (
                   <button
@@ -1810,7 +1708,9 @@ export default function InstalledAppsScreen() {
                     <button
                       type="button"
                       aria-pressed={playSort === "recent"}
-                      onClick={() => setPlaySort(playSort === "recent" ? "none" : "recent")}
+                      onClick={() =>
+                        setPlaySort(playSort === "recent" ? "none" : "recent")
+                      }
                       className="chip min-h-9 px-4 text-xs font-medium"
                     >
                       {tr("games_sort_recent", undefined, "Recently played")}
@@ -1818,10 +1718,16 @@ export default function InstalledAppsScreen() {
                     <button
                       type="button"
                       aria-pressed={playSort === "least"}
-                      onClick={() => setPlaySort(playSort === "least" ? "none" : "least")}
+                      onClick={() =>
+                        setPlaySort(playSort === "least" ? "none" : "least")
+                      }
                       className="chip min-h-9 px-4 text-xs font-medium"
                     >
-                      {tr("installed_sort_playtime", undefined, "Sort by play time")}
+                      {tr(
+                        "installed_sort_playtime",
+                        undefined,
+                        "Sort by play time",
+                      )}
                     </button>
                     <button
                       type="button"
@@ -1829,7 +1735,11 @@ export default function InstalledAppsScreen() {
                       onClick={() => setOnlyUnplayed(!onlyUnplayed)}
                       className="chip min-h-9 px-4 text-xs font-medium"
                     >
-                      {tr("installed_only_unplayed", undefined, "Only not-seen-playing")}
+                      {tr(
+                        "installed_only_unplayed",
+                        undefined,
+                        "Only not-seen-playing",
+                      )}
                     </button>
                   </div>
                 }
@@ -1853,7 +1763,11 @@ export default function InstalledAppsScreen() {
             {discs.length > 0 ? (
               <Section
                 icon={Disc3}
-                title={tr("installed_section_disc_v2", undefined, "Games from disk images")}
+                title={tr(
+                  "installed_section_disc_v2",
+                  undefined,
+                  "Games from disk images",
+                )}
                 hint={tr(
                   "installed_section_disc_hint_v2",
                   undefined,
@@ -1909,7 +1823,7 @@ export default function InstalledAppsScreen() {
       </ConnectionGate>
 
       {confirmDialogNode}
-      {makeWayDialog}
+      {launcher.dialogs}
     </div>
   );
 }

@@ -5,7 +5,9 @@ import {
   Gamepad2,
   HardDrive,
   Laptop,
+  Play,
   Search,
+  Square,
 } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router";
 
@@ -21,6 +23,7 @@ import {
 } from "../../components";
 import { hostOf, transferAddr } from "../../lib/addr";
 import { gamePath } from "../../lib/gamePage";
+import { useGameLaunch } from "../../lib/useGameLaunch";
 import {
   collectionGames,
   loadCollection,
@@ -76,6 +79,9 @@ export function AllGames({ onShow }: { onShow: (tab: GamesTab) => void }) {
     setSearchParams(params, { replace: true });
   };
   const servers = useConnectionsStore((s) => s.connections);
+  const game = useGameLaunch({
+    nameOf: (id) => installed?.find((t) => t.titleId === id)?.titleName ?? id,
+  });
   const serverName = (id: string) => servers.find((c) => c.id === id)?.name;
 
   useEffect(() => {
@@ -140,6 +146,7 @@ export function AllGames({ onShow }: { onShow: (tab: GamesTab) => void }) {
 
   return (
     <div className="flex flex-col gap-4">
+      {game.dialogs}
       <div className="flex flex-wrap items-center gap-3">
         <div className="min-w-[12rem] flex-1">
           <Input
@@ -232,11 +239,14 @@ export function AllGames({ onShow }: { onShow: (tab: GamesTab) => void }) {
       ) : (
         <ul className="flex flex-col gap-2" data-testid="games-all">
           {shown.map((r) => (
-            <li key={r.titleId || r.storage[0]?.path}>
+            <li
+              key={r.titleId || r.storage[0]?.path}
+              className="flex items-center gap-2 rounded-[var(--radius-card)] border border-[var(--glass-edge)] bg-[var(--color-surface-raised)] pe-3 shadow-[var(--edge-highlight)] transition-colors hover:bg-[var(--color-surface)]"
+            >
               <button
                 type="button"
                 onClick={() => open(r)}
-                className="flex w-full items-center gap-3 rounded-[var(--radius-card)] border border-[var(--glass-edge)] bg-[var(--color-surface-raised)] p-3 text-start shadow-[var(--edge-highlight)] transition-colors hover:bg-[var(--color-surface)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
+                className="flex min-w-0 flex-1 items-center gap-3 rounded-[var(--radius-card)] p-3 text-start focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
               >
                 <span className="h-12 w-12 shrink-0 overflow-hidden rounded-md">
                   {r.computer &&
@@ -304,6 +314,47 @@ export function AllGames({ onShow }: { onShow: (tab: GamesTab) => void }) {
                   aria-hidden
                 />
               </button>
+              {/* The one thing a row does in place: play an installed game, or close it. Every
+                  other action is on the game page, for whichever copy it is about. */}
+              {up &&
+                r.installed &&
+                r.titleId &&
+                (running.has(r.titleId) ? (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    leftIcon={<Square size={12} />}
+                    loading={game.stoppingId === r.titleId}
+                    onClick={() =>
+                      void game.stop({
+                        titleId: r.titleId,
+                        titleName: r.title || r.titleId,
+                      })
+                    }
+                  >
+                    {tr("installed_stop", undefined, "Close game")}
+                  </Button>
+                ) : (
+                  <Button
+                    size="sm"
+                    variant="primary"
+                    leftIcon={<Play size={12} />}
+                    loading={game.launchingId === r.titleId}
+                    disabled={
+                      game.launchingId !== null &&
+                      game.launchingId !== r.titleId
+                    }
+                    onClick={() =>
+                      void game.launch({
+                        titleId: r.titleId,
+                        titleName: r.title || r.titleId,
+                        source: r.consolePath,
+                      })
+                    }
+                  >
+                    {tr("installed_play", undefined, "Play")}
+                  </Button>
+                ))}
             </li>
           ))}
         </ul>

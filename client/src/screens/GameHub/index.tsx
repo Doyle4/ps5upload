@@ -11,8 +11,8 @@
  * Each tab fetches its own data when opened.
  */
 import { formatDate } from "../../lib/formatDate";
-import { useMakeWay } from "../../lib/useMakeWay";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useGameLaunch } from "../../lib/useGameLaunch";
+import { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router";
 import {
   ArrowLeft,
@@ -47,7 +47,6 @@ import { usePkgLibrary, type PkgEntry } from "../../state/pkgLibrary";
 import { pushNotification } from "../../state/notifications";
 import {
   appsInstalled,
-  appLaunch,
   cheatsGet,
   cheatsToggle,
   savesList,
@@ -55,8 +54,13 @@ import {
   type CheatMod,
   type SaveEntry,
 } from "../../api/ps5";
-import { transferAddr, mgmtAddr, hostOf } from "../../lib/addr";
-import { driveOffers, gamePath, rosterOnly, summaryLine } from "../../lib/gamePage";
+import { transferAddr, hostOf } from "../../lib/addr";
+import {
+  driveOffers,
+  gamePath,
+  rosterOnly,
+  summaryLine,
+} from "../../lib/gamePage";
 import type { GameView } from "../../api/games";
 import { installOffers } from "./collectionInstall";
 import { useRosterStore } from "../../state/roster";
@@ -68,25 +72,17 @@ import { ConsolesCard } from "./ConsolesCard";
 import { DrivesCard } from "./DrivesCard";
 import { ConvertBuildsCard, NextStep } from "./NextStep";
 import { TraceCard } from "./TraceCard";
-import { fetchRunningGames } from "../../lib/runningGames";
-import { killGame } from "../../lib/killGame";
-import { humanizePs5Error } from "../../lib/humanizeError";
-import { playFor, useConsolePlayTime, useTrackedPlay } from "../../lib/trackedPlay";
+import {
+  playFor,
+  useConsolePlayTime,
+  useTrackedPlay,
+} from "../../lib/trackedPlay";
 import { PlayedLine } from "./PlayedLine";
-import { runningAfterClose, runningOn, useRunningAppsStore } from "../../state/runningApps";
+import { runningOn, useRunningAppsStore } from "../../state/runningApps";
 // Direct import to avoid the barrel's circular-dep warning at build.
 import { useConfirm } from "../../components/ConfirmDialog";
 import { SaveBackupsList } from "./SaveBackupsList";
-import { useStaleHostGuard } from "../../lib/staleHostGuard";
 import { formatBytes } from "../../lib/format";
-
-/** How long to keep Play disabled while waiting for the title to appear in
- *  the process list, and how often to re-check. Mirrors the Installed Apps
- *  screen — a cold first launch (just-installed, disc image) legitimately
- *  takes this long, and re-firing a launch at a half-started title is
- *  exactly how it gets killed. */
-const LAUNCH_CONFIRM_TIMEOUT_MS = 90_000;
-const LAUNCH_CONFIRM_POLL_MS = 2_000;
 
 const TAB_IDS = ["overview", "cheats", "saves", "addons", "updates"] as const;
 
@@ -108,11 +104,16 @@ export default function GameHubScreen() {
   const [sendHost, setSendHost] = useState<string | null>(null);
   const profiles = useRosterStore((s) => s.profiles);
   const names = useMemo(
-    () => Object.fromEntries(profiles.map((p) => [hostOf(p.host), p.name || hostOf(p.host)])),
+    () =>
+      Object.fromEntries(
+        profiles.map((p) => [hostOf(p.host), p.name || hostOf(p.host)]),
+      ),
     [profiles],
   );
   const connectedHost = payloadStatus === "up" ? hostOf(host ?? "") : "";
-  const connectedEntry = gv.view?.consoles.find((c) => c.host === connectedHost);
+  const connectedEntry = gv.view?.consoles.find(
+    (c) => c.host === connectedHost,
+  );
   // Back to wherever the page was opened from; Games when it was opened directly.
   const goBack = () => {
     const idx = (window.history.state as { idx?: number } | null)?.idx ?? 0;
@@ -139,8 +140,7 @@ export default function GameHubScreen() {
 
   // Determine the active tab from URL ?tab=
   const tabParam = searchParams.get("tab");
-  const activeTab: TabId =
-    TAB_IDS.find((t) => t === tabParam) ?? "overview";
+  const activeTab: TabId = TAB_IDS.find((t) => t === tabParam) ?? "overview";
 
   // Find the game in the library or installed apps
   const game = useMemo(() => {
@@ -184,7 +184,12 @@ export default function GameHubScreen() {
   // The helper's tracked play time; the app's own count only when the helper has
   // no tracker to ask. The console's own Play Time record backs it up.
   const tracked = useTrackedPlay(host);
-  const { seconds: playSeconds, lastSeenMs } = playFor(tracked, playTimeState, host, title_id);
+  const { seconds: playSeconds, lastSeenMs } = playFor(
+    tracked,
+    playTimeState,
+    host,
+    title_id,
+  );
   const consolePlay = useConsolePlayTime(host);
 
   const tabs = useMemo(
@@ -197,128 +202,33 @@ export default function GameHubScreen() {
     [tr],
   );
 
-  // ── Launch ────────────────────────────────────────────────────────
-  const guard = useStaleHostGuard();
-  const [launching, setLaunching] = useState(false);
-  const { makeWay, dialog: makeWayDialog } = useMakeWay();
-
-  /**
-   * Start this title on the console, then wait for it to actually come up.
-   *
-   * `appLaunch` returning only means Sony accepted the request — not that
-   * the game is running. We hold the disabled/"Starting…" state for the
-   * whole come-up window and watch (read-only) for the title to appear in
-   * the process list, so the user can't fire a second launch into a title
-   * that's still starting. We never act on a starting game.
-   */
-  const handleLaunch = useCallback(async () => {
-    if (!title_id || launching) return;
-    const probe = guard.capture();
-    if (!probe.host?.trim()) return;
-
-    setLaunching(true);
-    try {
-      // One game at a time: a running one is closed first, with the user's say-so.
-      if (!(await makeWay(probe.host, title_id, title_id))) return;
-      if (probe.isStale()) return;
-      await appLaunch(transferAddr(probe.host), title_id);
-      if (probe.isStale()) return;
-
-      const addr = mgmtAddr(probe.host);
-      const deadline = Date.now() + LAUNCH_CONFIRM_TIMEOUT_MS;
-      while (Date.now() < deadline) {
-        await new Promise((r) => setTimeout(r, LAUNCH_CONFIRM_POLL_MS));
-        if (probe.isStale()) return;
-        try {
-          const running = await fetchRunningGames(addr);
-          if (probe.isStale()) return;
-          // Publish it so the console row offers Close game straight away.
-          useRunningAppsStore.getState().setRunning(Array.from(running.keys()), probe.host);
-          if (running.has(title_id)) return; // up — done waiting
-        } catch {
-          // Transient RPC failure while the title comes up: keep waiting.
-          // The deadline is what ends this loop, not a single bad poll.
-        }
-      }
-      // Timed out waiting. The launch itself may still have worked — say so
-      // rather than claiming a failure we can't prove.
-      pushNotification(
-        "info",
-        tr("game_hub_launch_unconfirmed", undefined, "Launch not confirmed"),
-        {
-          body: tr(
-            "game_hub_launch_unconfirmed_body",
-            undefined,
-            "The PS5 accepted the launch but the title hasn't appeared yet. Check the console — it may still be starting.",
-          ),
-        },
-      );
-    } catch (e) {
-      if (probe.isStale()) return;
-      pushNotification(
-        "error",
-        tr("game_hub_launch_failed", undefined, "Launch failed"),
-        { body: humanizePs5Error(e instanceof Error ? e.message : String(e)) },
-      );
-    } finally {
-      setLaunching(false);
-    }
-  }, [title_id, launching, guard, tr, makeWay]);
-
-  // ── Close ─────────────────────────────────────────────────────────
-  // Running state comes from the shared store the shell's watcher (and the
-  // Games screen, while open) keeps current for the connected console.
-  const running = useRunningAppsStore((s) => !!title_id && runningOn(s, host).has(title_id));
-  const [stopping, setStopping] = useState(false);
-  const { confirm: confirmDialog, dialog: confirmDialogNode } = useConfirm();
-
-  const handleStop = useCallback(async () => {
-    if (!title_id || stopping) return;
-    const probe = guard.capture();
-    if (!probe.host?.trim()) return;
-    const label = game?.name ?? title_id;
-    const ok = await confirmDialog({
-      title: tr("installed_stop_confirm_title", { name: label }, `Close ${label}?`),
-      message: tr(
-        "installed_stop_confirm_body",
-        undefined,
-        "This closes the running game on the PS5. Any unsaved progress will be lost — the same as quitting from the console.",
-      ),
-      confirmLabel: tr("installed_stop", undefined, "Close game"),
-      destructive: true,
+  // ── Play and Close game ───────────────────────────────────────────
+  // One implementation for every place that offers them (lib/useGameLaunch): it closes a running
+  // game first with the user's say-so, waits for the title to come up, and diagnoses (and for a
+  // folder, repairs) a console that refuses homebrew.
+  const launcher = useGameLaunch();
+  // Running state comes from the shared store the shell's watcher keeps current.
+  const running = useRunningAppsStore(
+    (s) => !!title_id && runningOn(s, host).has(title_id),
+  );
+  const launching = !!title_id && launcher.launchingId === title_id;
+  const stopping = !!title_id && launcher.stoppingId === title_id;
+  const handleLaunch = () => {
+    if (!title_id) return Promise.resolve();
+    // Where the console runs it from (a folder or image), for the homebrew repair.
+    const source = gv.view?.consoles.find(
+      (c) => c.host === connectedHost,
+    )?.registered_from;
+    return launcher.launch({
+      titleId: title_id,
+      titleName: game?.name ?? title_id,
+      source,
     });
-    if (!ok || probe.isStale()) return;
-    setStopping(true);
-    try {
-      const addr = mgmtAddr(probe.host);
-      // The store holds title ids only; the app id and pid come from a fresh read.
-      const target = (await fetchRunningGames(addr)).get(title_id);
-      const closed = target ? await killGame(addr, target) : true;
-      if (probe.isStale()) return;
-      if (closed) {
-        const store = useRunningAppsStore.getState();
-        store.setRunning(runningAfterClose(store, probe.host, title_id), probe.host);
-        pushNotification("info", label, {
-          body: tr("installed_stopped", undefined, "Game closed"),
-        });
-      } else {
-        pushNotification("error", label, {
-          body: tr(
-            "installed_stop_failed",
-            undefined,
-            "Couldn't close the game — it may have already exited.",
-          ),
-        });
-      }
-    } catch (e) {
-      if (probe.isStale()) return;
-      pushNotification("error", label, {
-        body: e instanceof Error ? e.message : String(e),
-      });
-    } finally {
-      setStopping(false);
-    }
-  }, [title_id, stopping, guard, game?.name, confirmDialog, tr]);
+  };
+  const handleStop = () =>
+    title_id
+      ? launcher.stop({ titleId: title_id, titleName: game?.name ?? title_id })
+      : Promise.resolve();
 
   if (!title_id) {
     return (
@@ -382,8 +292,7 @@ export default function GameHubScreen() {
 
   return (
     <div className="app-page">
-      {makeWayDialog}
-      {confirmDialogNode}
+      {launcher.dialogs}
       {/* Hero: the framed cover beside a big title and the facts as chips, on
           one glass panel (the reference's greeting panel, laid sideways). */}
       <div className="mb-4">
@@ -398,7 +307,10 @@ export default function GameHubScreen() {
         </button>
       </div>
       <header className="glass relative mb-6 overflow-hidden rounded-[var(--radius-panel)] p-5 sm:p-7">
-        <div aria-hidden className="dot-texture pointer-events-none absolute -right-10 -top-10 h-64 w-96" />
+        <div
+          aria-hidden
+          className="dot-texture pointer-events-none absolute -right-10 -top-10 h-64 w-96"
+        />
         <div className="relative flex flex-col gap-5 sm:flex-row sm:items-center sm:gap-7">
           <CoverFrame
             className="w-36 shrink-0 sm:w-44"
@@ -418,9 +330,13 @@ export default function GameHubScreen() {
                 game={{
                   game_id: gv.view.title_id,
                   title: game.name,
-                  local_cover: gv.view.cover.startsWith("/api/collection/") ? "cover" : undefined,
+                  local_cover: gv.view.cover.startsWith("/api/collection/")
+                    ? "cover"
+                    : undefined,
                   cover_stamp: /[?&]v=([^&]+)/.exec(gv.view.cover)?.[1],
-                  cover_url: gv.view.cover.startsWith("http") ? gv.view.cover : undefined,
+                  cover_url: gv.view.cover.startsWith("http")
+                    ? gv.view.cover
+                    : undefined,
                   locations: gv.view.copies,
                 }}
               />
@@ -445,7 +361,16 @@ export default function GameHubScreen() {
               <FactChip mono>{game.titleId}</FactChip>
               {game.size > 0 && <FactChip>{formatBytes(game.size)}</FactChip>}
               {running && (
-                <FactChip tone="good" icon={<CircleDot size={12} className="animate-pulse" aria-hidden />}>
+                <FactChip
+                  tone="good"
+                  icon={
+                    <CircleDot
+                      size={12}
+                      className="animate-pulse"
+                      aria-hidden
+                    />
+                  }
+                >
                   {tr("installed_badge_playing", undefined, "Playing")}
                 </FactChip>
               )}
@@ -459,14 +384,30 @@ export default function GameHubScreen() {
                 {tr("captures", undefined, "Screenshots & clips")}
               </button>
             </div>
-            <PlayedLine seconds={playSeconds} lastSeenMs={lastSeenMs} consoleSeconds={consolePlay?.get(game.titleId)} />
-            {gv.view && (gv.view.consoles.length > 0 || gv.view.copies.length > 0) && (
-              <p className="mt-3 text-sm text-[var(--color-muted)]" data-testid="game-summary">
-                {summaryLine(rosterOnly(gv.view, Object.keys(names)), names, tr)}
-              </p>
-            )}
+            <PlayedLine
+              seconds={playSeconds}
+              lastSeenMs={lastSeenMs}
+              consoleSeconds={consolePlay?.get(game.titleId)}
+            />
+            {gv.view &&
+              (gv.view.consoles.length > 0 || gv.view.copies.length > 0) && (
+                <p
+                  className="mt-3 text-sm text-[var(--color-muted)]"
+                  data-testid="game-summary"
+                >
+                  {summaryLine(
+                    rosterOnly(gv.view, Object.keys(names)),
+                    names,
+                    tr,
+                  )}
+                </p>
+              )}
             {game.path && (
-              <p className="mt-2 truncate font-mono text-xs text-[var(--color-muted)]" title={game.path} data-testid="game-path">
+              <p
+                className="mt-2 truncate font-mono text-xs text-[var(--color-muted)]"
+                title={game.path}
+                data-testid="game-path"
+              >
                 {game.path}
               </p>
             )}
@@ -495,7 +436,10 @@ export default function GameHubScreen() {
           />
           <ConsolesCard
             titleId={game.titleId}
-            consoles={profiles.map((p) => ({ host: hostOf(p.host), name: p.name || hostOf(p.host) }))}
+            consoles={profiles.map((p) => ({
+              host: hostOf(p.host),
+              name: p.name || hostOf(p.host),
+            }))}
             connected={connectedHost}
             view={gv.view}
             refresh={gv.refresh}
@@ -523,7 +467,10 @@ export default function GameHubScreen() {
                 : game.source === "installed" && game.path
                   ? game.path
                   : null;
-            const isFolder = !!folder && /^\//.test(folder) && !/\.(exfat|ffpkg|ffpfs|ffpfsc)$/i.test(folder);
+            const isFolder =
+              !!folder &&
+              /^\//.test(folder) &&
+              !/\.(exfat|ffpkg|ffpfs|ffpfsc)$/i.test(folder);
             return (
               <TraceCard
                 titleId={game.titleId}
@@ -538,13 +485,27 @@ export default function GameHubScreen() {
       )}
 
       {/* The other tabs are about the connected console: say which, and when it lacks the game. */}
-      {activeTab !== "overview" && activeTab !== "updates" && activeTab !== "addons" && connectedHost && (
-        <div className="mb-3 text-xs text-[var(--color-muted)]" data-testid="game-tab-console">
-          {connectedEntry && !connectedEntry.installed
-            ? tr("game_tab_not_on", { name: names[connectedHost] ?? connectedHost }, "Not on {name}")
-            : tr("game_tab_on", { name: names[connectedHost] ?? connectedHost }, "On {name}")}
-        </div>
-      )}
+      {activeTab !== "overview" &&
+        activeTab !== "updates" &&
+        activeTab !== "addons" &&
+        connectedHost && (
+          <div
+            className="mb-3 text-xs text-[var(--color-muted)]"
+            data-testid="game-tab-console"
+          >
+            {connectedEntry && !connectedEntry.installed
+              ? tr(
+                  "game_tab_not_on",
+                  { name: names[connectedHost] ?? connectedHost },
+                  "Not on {name}",
+                )
+              : tr(
+                  "game_tab_on",
+                  { name: names[connectedHost] ?? connectedHost },
+                  "On {name}",
+                )}
+          </div>
+        )}
 
       {/* Tab content */}
       <GameTabContent view={gv.view} game={game} host={host} tab={activeTab} />
@@ -597,9 +558,25 @@ function GameTabContent({
     case "saves":
       return <SavesTab titleId={game.titleId} host={host} />;
     case "addons":
-      return <PackagesTab titleId={game.titleId} title={game.name} host={host} view={view} kind="addons" />;
+      return (
+        <PackagesTab
+          titleId={game.titleId}
+          title={game.name}
+          host={host}
+          view={view}
+          kind="addons"
+        />
+      );
     case "updates":
-      return <PackagesTab titleId={game.titleId} title={game.name} host={host} view={view} kind="updates" />;
+      return (
+        <PackagesTab
+          titleId={game.titleId}
+          title={game.name}
+          host={host}
+          view={view}
+          kind="updates"
+        />
+      );
     default:
       return null;
   }
@@ -672,12 +649,17 @@ function TabCard({
   return (
     <Card>
       <h2 className="mb-4 flex items-center gap-3 text-[1.0625rem] font-semibold tracking-[-0.01em]">
-        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[var(--color-accent-soft)] text-[var(--color-accent-bright)]"><Icon size={15} aria-hidden /></span>
+        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[var(--color-accent-soft)] text-[var(--color-accent-bright)]">
+          <Icon size={15} aria-hidden />
+        </span>
         {title}
         {loading && <Spinner size={14} />}
       </h2>
       {error ? (
-        <Callout tone="error" title={tr("game_hub_error_title", undefined, "Error")}>
+        <Callout
+          tone="error"
+          title={tr("game_hub_error_title", undefined, "Error")}
+        >
           {error}
         </Callout>
       ) : loading ? (
@@ -706,7 +688,13 @@ function NotConnectedNote() {
 }
 
 /** Cheats tab — the cheat mods this title has, each individually toggleable. */
-function CheatsTab({ titleId, host }: { titleId: string; host: string | null }) {
+function CheatsTab({
+  titleId,
+  host,
+}: {
+  titleId: string;
+  host: string | null;
+}) {
   const tr = useTr();
   const navigate = useNavigate();
   const payloadStatus = useConnectionStore((s) => s.payloadStatus);
@@ -781,7 +769,11 @@ function CheatsTab({ titleId, host }: { titleId: string; host: string | null }) 
           {toggleError && (
             <Callout
               tone="error"
-              title={tr("game_hub_cheat_toggle_failed", undefined, "Couldn’t change that cheat")}
+              title={tr(
+                "game_hub_cheat_toggle_failed",
+                undefined,
+                "Couldn’t change that cheat",
+              )}
               className="mb-3"
               onDismiss={() => setToggleError(null)}
             >
@@ -814,7 +806,11 @@ function SavesTab({ titleId, host }: { titleId: string; host: string | null }) {
   const payloadStatus = useConnectionStore((s) => s.payloadStatus);
   const connected = !!host?.trim() && payloadStatus === "up";
   // user_id=0 lists every user's saves; we filter to this title client-side.
-  const { data, loading, error } = useTabFetch(host, (addr) => savesList(addr, 0), []);
+  const { data, loading, error } = useTabFetch(
+    host,
+    (addr) => savesList(addr, 0),
+    [],
+  );
 
   const saves = useMemo(
     () => (data?.saves ?? []).filter((s: SaveEntry) => s.title_id === titleId),
@@ -832,18 +828,22 @@ function SavesTab({ titleId, host }: { titleId: string; host: string | null }) {
         <NotConnectedNote />
       ) : saves.length === 0 ? (
         <p className="text-sm text-[var(--color-muted)]">
-          {tr("game_hub_no_saves", undefined, "No save data found for this title.")}
+          {tr(
+            "game_hub_no_saves",
+            undefined,
+            "No save data found for this title.",
+          )}
         </p>
       ) : (
         <>
           <ul className="divide-y divide-[var(--color-border)]">
             {saves.map((s) => (
-              <li key={s.path} className="flex items-center justify-between gap-4 py-2">
+              <li
+                key={s.path}
+                className="flex items-center justify-between gap-4 py-2"
+              >
                 <div className="min-w-0">
-                  <div
-                    className="truncate font-mono text-xs"
-                    title={s.path}
-                  >
+                  <div className="truncate font-mono text-xs" title={s.path}>
                     {s.path}
                   </div>
                   <div className="mt-0.5 flex items-center gap-2 text-xs text-[var(--color-muted)]">
@@ -864,8 +864,16 @@ function SavesTab({ titleId, host }: { titleId: string; host: string | null }) {
             ))}
           </ul>
           <div className="mt-4">
-            <Button variant="ghost" size="sm" onClick={() => navigate("/saves", { state: { titleId } })}>
-              {tr("game_hub_manage_saves", undefined, "Back up / restore in Saves")}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate("/saves", { state: { titleId } })}
+            >
+              {tr(
+                "game_hub_manage_saves",
+                undefined,
+                "Back up / restore in Saves",
+              )}
             </Button>
           </div>
         </>
@@ -912,7 +920,8 @@ function PackagesTab({
   // Unknown (no read of this console yet) counts as installed: the question
   // is a warning, not a gate, and asking it on a guess would be noise.
   const baseInstalled =
-    view?.consoles.find((c) => c.host === hostOf(host ?? ""))?.installed ?? true;
+    view?.consoles.find((c) => c.host === hostOf(host ?? ""))?.installed ??
+    true;
   const onInstall = (e: PkgEntry) => {
     if (!host?.trim()) return;
     const what = isAddons
@@ -924,7 +933,11 @@ function PackagesTab({
       baseInstalled,
       confirmWithoutBase: () =>
         confirm({
-          title: tr("pkglib.baseMissing.title", undefined, "Base game isn't installed"),
+          title: tr(
+            "pkglib.baseMissing.title",
+            undefined,
+            "Base game isn't installed",
+          ),
           message:
             e.platform === "ps5"
               ? tr(
@@ -937,7 +950,11 @@ function PackagesTab({
                   { kind: what, id: titleId },
                   `This ${what} is for ${titleId}, but its base game isn't installed on the PS5. Sony's installer will accept it, but nothing installs until the base game is on the console — install the base first.`,
                 ),
-          confirmLabel: tr("pkglib.baseMissing.installAnyway", undefined, "Install anyway"),
+          confirmLabel: tr(
+            "pkglib.baseMissing.installAnyway",
+            undefined,
+            "Install anyway",
+          ),
         }),
     });
   };
@@ -970,7 +987,10 @@ function PackagesTab({
       ) : (
         <ul className="divide-y divide-[var(--color-border)]">
           {matching.map((e) => (
-            <li key={e.path} className="flex items-center justify-between gap-4 py-2">
+            <li
+              key={e.path}
+              className="flex items-center justify-between gap-4 py-2"
+            >
               <div className="min-w-0">
                 <div className="truncate text-sm font-medium">
                   {e.originalName || e.title || e.name}
@@ -1015,18 +1035,30 @@ function PackagesTab({
         </Button>
       </div>
       {connected && driveOffers(view, host ?? "", kind).length > 0 && (
-        <div className="mt-4 border-t border-[var(--color-border)] pt-3" data-testid="game-drive-offers">
+        <div
+          className="mt-4 border-t border-[var(--color-border)] pt-3"
+          data-testid="game-drive-offers"
+        >
           <h3 className="mb-2 text-xs font-semibold text-[var(--color-muted)]">
             {tr("game_drive_offers", undefined, "On your drives")}
           </h3>
           <ul className="divide-y divide-[var(--color-border)]">
             {driveOffers(view, host ?? "", kind).map((o) => (
-              <li key={o.path} className="flex items-center justify-between gap-4 py-2">
+              <li
+                key={o.path}
+                className="flex items-center justify-between gap-4 py-2"
+              >
                 <div className="min-w-0">
-                  <div className="truncate text-sm font-medium">{o.title || o.name}</div>
+                  <div className="truncate text-sm font-medium">
+                    {o.title || o.name}
+                  </div>
                   <div className="mt-0.5 flex items-center gap-2 text-xs text-[var(--color-muted)]">
-                    {o.version && <span className="font-mono">v{o.version}</span>}
-                    {o.size_bytes > 0 && <span>· {formatBytes(o.size_bytes)}</span>}
+                    {o.version && (
+                      <span className="font-mono">v{o.version}</span>
+                    )}
+                    {o.size_bytes > 0 && (
+                      <span>· {formatBytes(o.size_bytes)}</span>
+                    )}
                   </div>
                 </div>
                 <Button
@@ -1034,10 +1066,20 @@ function PackagesTab({
                   variant="secondary"
                   leftIcon={<Download size={13} />}
                   onClick={() => {
-                    installOffers(hostOf(host ?? ""), [{ game: { title }, offer: o }]);
-                    pushNotification("info", tr("collection.queued", { n: 1 }, "{n} packages queued for install"), {
-                      link: gamePath(titleId),
-                    });
+                    installOffers(hostOf(host ?? ""), [
+                      { game: { title }, offer: o },
+                    ]);
+                    pushNotification(
+                      "info",
+                      tr(
+                        "collection.queued",
+                        { n: 1 },
+                        "{n} packages queued for install",
+                      ),
+                      {
+                        link: gamePath(titleId),
+                      },
+                    );
                   }}
                 >
                   {tr("game_install", undefined, "Install")}
@@ -1063,7 +1105,11 @@ interface GameInfo {
 /** Tab label lookup. */
 function tabLabel(
   id: TabId,
-  tr: (key: string, vars?: Record<string, string | number>, fallback?: string) => string,
+  tr: (
+    key: string,
+    vars?: Record<string, string | number>,
+    fallback?: string,
+  ) => string,
 ): string {
   switch (id) {
     case "overview":
