@@ -2280,7 +2280,6 @@ upload_done_close: "Tutup",
 upload_detect_error_title: "Kesalahan",
 upload_done_registered: "Di layar utama PS5 Anda sebagai “{name}” — siap dijalankan.",
 upload_helper_down: "Helper PS5 tidak dapat dijangkau",
-upload_helper_down_detail: "Unggahan akan gagal sampai helper berjalan. Kembali ke Koneksi, tekan Kirim, dan tunggu langkah ketiga berubah hijau.",
 upload_helper_unknown: "Status helper PS5 tidak diketahui",
 upload_helper_unknown_detail: "Kami belum memastikan PS5 Anda menjalankan helper. Atur IP Anda dan kirim helper di layar Koneksi dulu.",
 upload_kind_archive: "Arsip terkompresi ({ext})",
@@ -6059,6 +6058,8 @@ library_compressed_hint: "Image terkompresi memerlukan ShadowMount+ untuk bermai
 "fs_mesh_home_note": "Folder ini adalah Mesh Drive, dijaga sama di setiap perangkat di dalamnya. File sinkronnya disembunyikan di sini: biarkan folder di tempatnya dan jangan ganti namanya, atau drive akan menganggapnya offline.",
 "cw_files_mesh_home": "Folder ini adalah Mesh Drive. File sinkronnya disembunyikan: jangan pindahkan atau ganti nama folder.",
 "remotePlay_account_id_placeholder_v2": "Akun yang masuk (otomatis)",
+"upload_helper_down_detail_v2": "Unggahan akan gagal sampai helper berjalan. Kirim dari sini, atau buka Koneksi untuk memeriksa alamat konsol.",
+"fpkg.compressionStoredShort": "Ukuran game itu sendiri",
 };
 
 export default id;

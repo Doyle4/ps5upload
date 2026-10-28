@@ -2290,7 +2290,6 @@ upload_done_close: "닫기",
 upload_detect_error_title: "오류",
 upload_done_registered: "PS5 홈 화면에 “{name}”(으)로 표시되며 실행할 수 있습니다.",
 upload_helper_down: "PS5 헬퍼에 연결할 수 없습니다",
-upload_helper_down_detail: "헬퍼가 실행될 때까지 업로드는 실패합니다. 연결 화면으로 돌아가 보내기를 누르고 세 번째 단계가 초록색이 될 때까지 기다리세요.",
 upload_helper_unknown: "PS5 헬퍼 상태를 알 수 없음",
 upload_helper_unknown_detail: "PS5에서 헬퍼가 실행 중인지 아직 확인하지 못했습니다. 먼저 연결 화면에서 IP를 설정하고 헬퍼를 보내세요.",
 upload_kind_archive: "압축 파일({ext})",
@@ -6069,6 +6068,8 @@ library_compressed_hint: "압축 이미지를 플레이하려면 ShadowMount+가
 "fs_mesh_home_note": "이 폴더는 Mesh Drive이며, 참여한 모든 기기에서 같게 유지됩니다. 동기화 파일은 여기서 숨겨집니다. 폴더를 그 자리에 두고 이름을 바꾸지 마세요. 그렇지 않으면 드라이브가 오프라인으로 처리합니다.",
 "cw_files_mesh_home": "이 폴더는 Mesh Drive입니다. 동기화 파일은 숨겨져 있습니다. 폴더를 옮기거나 이름을 바꾸지 마세요.",
 "remotePlay_account_id_placeholder_v2": "로그인한 계정(자동)",
+"upload_helper_down_detail_v2": "헬퍼가 실행될 때까지 업로드는 실패합니다. 여기서 보내거나, 연결을 열어 콘솔 주소를 확인하세요.",
+"fpkg.compressionStoredShort": "게임 원래 크기",
 };
 
 export default ko;

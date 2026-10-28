@@ -2841,8 +2841,6 @@ roster_order_hint: "This order sets the console tabs and the picker.",
   settings_text_size_hint:
     "Resize the whole app. Pick a smaller size if text is cut off (“ps5-image…”) on your phone.",
   update_toast_downloaded_hint: "open Settings to install",
-  upload_helper_down_detail:
-    "Uploads will fail until the helper is running. Head back to Connection, press Send, and wait for the third step to turn green.",
   upload_helper_unknown_detail:
     "We haven't confirmed your PS5 is running the helper yet. Set your IP and send the helper on the Connection screen first.",
 
@@ -6375,6 +6373,8 @@ library_compressed_hint: "Compressed images need ShadowMount+ to play. To edit, 
 "fs_mesh_home_note": "This folder is a Mesh Drive, kept the same on every device in it. Its sync file is hidden here: leave the folder where it is and don't rename it, or the drive treats it as offline.",
 "cw_files_mesh_home": "This folder is a Mesh Drive. Its sync file is hidden: don't move or rename the folder.",
 "remotePlay_account_id_placeholder_v2": "Signed-in account (automatic)",
+"upload_helper_down_detail_v2": "Uploads will fail until the helper is running. Send it from here, or open Connection to check the console's address.",
+"fpkg.compressionStoredShort": "The game's own size",
 };
 
 export default en;

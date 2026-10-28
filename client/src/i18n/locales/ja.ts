@@ -2292,7 +2292,6 @@ upload_done_close: "閉じる",
 upload_detect_error_title: "エラー",
 upload_done_registered: "PS5のホーム画面に「{name}」として表示され、起動できます。",
 upload_helper_down: "PS5の補助に接続できません",
-upload_helper_down_detail: "補助が動作するまでアップロードは失敗します。接続画面に戻り、送信を押して、3つ目のステップが緑になるまでお待ちください。",
 upload_helper_unknown: "PS5の補助の状態が不明です",
 upload_helper_unknown_detail: "お使いのPS5で補助が動作しているかまだ確認できていません。先に接続画面でIPを設定し、補助を送信してください。",
 upload_kind_archive: "圧縮アーカイブ（{ext}）",
@@ -6071,6 +6070,8 @@ library_compressed_hint: "圧縮イメージのプレイには ShadowMount+ が�
 "fs_mesh_home_note": "このフォルダーは Mesh Drive で、参加しているすべてのデバイスで同じ内容に保たれます。同期ファイルはここでは非表示です。フォルダーを移動したり名前を変えたりしないでください。オフライン扱いになります。",
 "cw_files_mesh_home": "このフォルダーは Mesh Drive です。同期ファイルは非表示です。フォルダーを移動したり名前を変えたりしないでください。",
 "remotePlay_account_id_placeholder_v2": "サインイン中のアカウント（自動）",
+"upload_helper_down_detail_v2": "ヘルパーが動作するまでアップロードは失敗します。ここから送信するか、接続を開いて本体のアドレスを確認してください。",
+"fpkg.compressionStoredShort": "ゲーム本来のサイズ",
 };
 
 export default ja;

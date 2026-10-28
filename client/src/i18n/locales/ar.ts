@@ -2271,7 +2271,6 @@ upload_done_close: "إغلاق",
 upload_detect_error_title: "خطأ",
 upload_done_registered: "على شاشة PS5 الرئيسية باسم «{name}» — جاهزة للتشغيل.",
 upload_helper_down: "تعذّر الوصول إلى مساعد PS5",
-upload_helper_down_detail: "ستفشل عمليات الرفع حتى يعمل المساعد. عد إلى «الاتصال»، واضغط «إرسال»، وانتظر حتى تتحول الخطوة الثالثة إلى الأخضر.",
 upload_helper_unknown: "حالة مساعد PS5 غير معروفة",
 upload_helper_unknown_detail: "لم نؤكد بعد أن جهاز PS5 لديك يشغّل المساعد. اضبط عنوان IP وأرسل المساعد من شاشة «الاتصال» أولًا.",
 upload_kind_archive: "أرشيف مضغوط ({ext})",
@@ -6050,6 +6049,8 @@ library_compressed_hint: "تحتاج الصور المضغوطة إلى ShadowMo
 "fs_mesh_home_note": "هذا المجلد محرك Mesh، يبقى متطابقًا على كل جهاز فيه. ملف المزامنة مخفي هنا: اترك المجلد في مكانه ولا تعِد تسميته، وإلا سيعامله المحرك كغير متصل.",
 "cw_files_mesh_home": "هذا المجلد محرك Mesh. ملف المزامنة مخفي: لا تنقل المجلد ولا تعِد تسميته.",
 "remotePlay_account_id_placeholder_v2": "الحساب المسجَّل (تلقائي)",
+"upload_helper_down_detail_v2": "ستفشل عمليات الرفع حتى يعمل المساعد. أرسله من هنا، أو افتح الاتصال للتحقق من عنوان الجهاز.",
+"fpkg.compressionStoredShort": "حجم اللعبة نفسه",
 };
 
 export default ar;

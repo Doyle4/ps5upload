@@ -2322,8 +2322,6 @@ shortcuts_activate: "Otwórz / aktywuj",
   settings_text_size_hint:
     "Zmień rozmiar całej aplikacji. Wybierz mniejszy rozmiar, jeśli tekst jest ucinany („ps5-image…”) na Twoim telefonie.",
   update_toast_downloaded_hint: "otwórz Ustawienia, aby zainstalować",
-  upload_helper_down_detail:
-    "Przesyłanie nie powiedzie się, dopóki helper nie zostanie uruchomiony. Przejdź z powrotem do Połączenia, naciśnij Wyślij i poczekaj, aż trzeci krok zmieni kolor na zielony.",
   upload_helper_unknown_detail:
     "Nie potwierdziliśmy jeszcze, czy Twoje PS5 ma uruchomionego helpera. Najpierw ustaw swoje IP i wyślij helpera na ekranie Połączenia.",
 
@@ -6305,6 +6303,8 @@ library_compressed_hint: "Skompresowane obrazy wymagają ShadowMount+, aby grać
 "fs_mesh_home_note": "Ten folder to Mesh Drive, utrzymywany tak samo na każdym urządzeniu, które do niego należy. Jego plik synchronizacji jest tu ukryty: zostaw folder na miejscu i nie zmieniaj jego nazwy, inaczej dysk uzna go za offline.",
 "cw_files_mesh_home": "Ten folder to Mesh Drive. Jego plik synchronizacji jest ukryty: nie przenoś folderu ani nie zmieniaj jego nazwy.",
 "remotePlay_account_id_placeholder_v2": "Zalogowane konto (automatycznie)",
+"upload_helper_down_detail_v2": "Przesyłanie nie powiedzie się, dopóki pomocnik nie działa. Wyślij go stąd albo otwórz Połączenie, aby sprawdzić adres konsoli.",
+"fpkg.compressionStoredShort": "Rozmiar samej gry",
 };
 
 export default pl;

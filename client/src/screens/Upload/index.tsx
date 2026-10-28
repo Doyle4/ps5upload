@@ -74,6 +74,7 @@ import {
   Toggle,
   ProgressBar,
 } from "../../components";
+import { SendHelperButton } from "../../components/SendHelperButton";
 import {
   parseArchivePart,
   siblingParts,
@@ -3747,9 +3748,9 @@ function PayloadReadinessBanner() {
   const detail =
     status === "down"
       ? tr(
-          "upload_helper_down_detail",
+          "upload_helper_down_detail_v2",
           undefined,
-          "Uploads will fail until the helper is running. Head back to Connection, press Send, and wait for the third step to turn green.",
+          "Uploads will fail until the helper is running. Send it from here, or open Connection to check the console's address.",
         )
       : tr(
           "upload_helper_unknown_detail",
@@ -3762,13 +3763,16 @@ function PayloadReadinessBanner() {
         title={title}
         detail={detail}
         action={
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => navigate("/connection")}
-          >
-            {tr("upload_go_to_connection", "Go to Connection")}
-          </Button>
+          <div className="flex flex-wrap items-start gap-2">
+            <SendHelperButton size="sm" />
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => navigate("/connection")}
+            >
+              {tr("upload_go_to_connection", "Go to Connection")}
+            </Button>
+          </div>
         }
       />
     </div>

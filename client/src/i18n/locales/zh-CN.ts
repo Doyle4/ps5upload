@@ -2227,7 +2227,6 @@ upload_done_close: "关闭",
 upload_detect_error_title: "错误",
 upload_done_registered: "已出现在你的 PS5 主界面，名为“{name}”——可以启动了。",
 upload_helper_down: "无法连接到 PS5 助手",
-upload_helper_down_detail: "在助手运行前上传都会失败。请返回“连接”，点击发送，等待第三步变为绿色。",
 upload_helper_unknown: "PS5 助手状态未知",
 upload_helper_unknown_detail: "我们尚未确认你的 PS5 正在运行助手。请先在“连接”页面设置 IP 并发送助手。",
 upload_kind_archive: "压缩包（{ext}）",
@@ -6006,6 +6005,8 @@ library_compressed_hint: "压缩镜像需要 ShadowMount+ 才能游玩。如需�
 "fs_mesh_home_note": "此文件夹是 Mesh Drive，会在其中每台设备上保持一致。它的同步文件在这里是隐藏的：请勿移动或重命名此文件夹，否则该驱动器会被视为离线。",
 "cw_files_mesh_home": "此文件夹是 Mesh Drive。它的同步文件已隐藏：请勿移动或重命名此文件夹。",
 "remotePlay_account_id_placeholder_v2": "已登录的账户（自动）",
+"upload_helper_down_detail_v2": "在助手运行之前上传会失败。可在此处发送，或打开“连接”检查主机地址。",
+"fpkg.compressionStoredShort": "游戏原本大小",
 };
 
 export default zh_CN;

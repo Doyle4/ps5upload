@@ -2581,8 +2581,6 @@ roster_order_hint: "Ez a sorrend állítja be a konzolfüleket és a választót
   settings_text_size_hint:
     "Az egész alkalmazás méretének módosítása. Válassz kisebb méretet, ha a szöveg levágva jelenik meg („ps5-image…”) a telefonodon.",
   update_toast_downloaded_hint: "nyisd meg a Beállításokat a telepítéshez",
-  upload_helper_down_detail:
-    "A feltöltések sikertelenek lesznek, amíg a segédprogram nem fut. Menj vissza a Kapcsolathoz, nyomd meg a Küldést, és várd meg, amíg a harmadik lépés zöldre vált.",
   upload_helper_unknown_detail:
     "Még nem erősítettük meg, hogy a PS5-ödön fut-e a segédprogram. Add meg az IP-címet, és küldd el a segédprogramot előbb a Kapcsolat képernyőn.",
 
@@ -6365,6 +6363,8 @@ library_compressed_hint: "A tömörített képfájlok futtatásához ShadowMount
 "fs_mesh_home_note": "Ez a mappa egy Mesh Drive, amely minden hozzá tartozó eszközön azonos marad. A szinkronfájlja itt rejtve van: hagyd a mappát a helyén, és ne nevezd át, különben a meghajtó offline-nak tekinti.",
 "cw_files_mesh_home": "Ez a mappa egy Mesh Drive. A szinkronfájlja rejtett: ne helyezd át és ne nevezd át a mappát.",
 "remotePlay_account_id_placeholder_v2": "Bejelentkezett fiók (automatikus)",
+"upload_helper_down_detail_v2": "A feltöltések sikertelenek lesznek, amíg a segéd nem fut. Küldd el innen, vagy nyisd meg a Kapcsolatot a konzol címének ellenőrzéséhez.",
+"fpkg.compressionStoredShort": "A játék saját mérete",
 };
 
 export default hu;

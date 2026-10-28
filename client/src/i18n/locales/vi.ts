@@ -2273,7 +2273,6 @@ upload_done_close: "Đóng",
 upload_detect_error_title: "Lỗi",
 upload_done_registered: "Trên màn hình chính PS5 của bạn với tên “{name}” — sẵn sàng khởi chạy.",
 upload_helper_down: "Không kết nối được tới trình trợ giúp PS5",
-upload_helper_down_detail: "Việc tải lên sẽ thất bại cho đến khi trình trợ giúp chạy. Hãy quay lại Kết nối, bấm Gửi và chờ bước thứ ba chuyển sang xanh.",
 upload_helper_unknown: "Không rõ trạng thái trình trợ giúp PS5",
 upload_helper_unknown_detail: "Chúng tôi chưa xác nhận PS5 của bạn đang chạy trình trợ giúp. Hãy đặt IP và gửi trình trợ giúp ở màn hình Kết nối trước.",
 upload_kind_archive: "Kho nén ({ext})",
@@ -6052,6 +6051,8 @@ library_compressed_hint: "Ảnh đĩa nén cần ShadowMount+ để chơi. Để
 "fs_mesh_home_note": "Thư mục này là một Mesh Drive, được giữ giống nhau trên mọi thiết bị trong đó. Tệp đồng bộ của nó bị ẩn ở đây: hãy để thư mục ở nguyên chỗ và đừng đổi tên, nếu không ổ sẽ coi nó là ngoại tuyến.",
 "cw_files_mesh_home": "Thư mục này là một Mesh Drive. Tệp đồng bộ của nó bị ẩn: đừng di chuyển hoặc đổi tên thư mục.",
 "remotePlay_account_id_placeholder_v2": "Tài khoản đang đăng nhập (tự động)",
+"upload_helper_down_detail_v2": "Tải lên sẽ thất bại cho đến khi helper chạy. Gửi nó từ đây, hoặc mở Kết nối để kiểm tra địa chỉ máy.",
+"fpkg.compressionStoredShort": "Kích thước gốc của game",
 };
 
 export default vi;

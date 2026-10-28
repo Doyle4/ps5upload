@@ -2278,7 +2278,6 @@ upload_done_close: "Kapat",
 upload_detect_error_title: "Hata",
 upload_done_registered: "PS5 ana ekranınızda “{name}” olarak — başlatmaya hazır.",
 upload_helper_down: "PS5 yardımcısına ulaşılamıyor",
-upload_helper_down_detail: "Yardımcı çalışana kadar yüklemeler başarısız olur. Bağlantı'ya dönün, Gönder'e basın ve üçüncü adımın yeşile dönmesini bekleyin.",
 upload_helper_unknown: "PS5 yardımcı durumu bilinmiyor",
 upload_helper_unknown_detail: "PS5'inizin yardımcıyı çalıştırdığını henüz doğrulamadık. Önce Bağlantı ekranında IP'nizi ayarlayın ve yardımcıyı gönderin.",
 upload_kind_archive: "Sıkıştırılmış arşiv ({ext})",
@@ -6057,6 +6056,8 @@ library_compressed_hint: "Sıkıştırılmış kalıpları oynatmak için Shadow
 "fs_mesh_home_note": "Bu klasör bir Mesh Drive'dır ve içindeki her cihazda aynı tutulur. Eşitleme dosyası burada gizlidir: klasörü yerinde bırakın ve adını değiştirmeyin, yoksa sürücü onu çevrimdışı sayar.",
 "cw_files_mesh_home": "Bu klasör bir Mesh Drive'dır. Eşitleme dosyası gizlidir: klasörü taşımayın veya adını değiştirmeyin.",
 "remotePlay_account_id_placeholder_v2": "Oturum açmış hesap (otomatik)",
+"upload_helper_down_detail_v2": "Yardımcı çalışana kadar yüklemeler başarısız olur. Buradan gönderin veya konsolun adresini kontrol etmek için Bağlantı'yı açın.",
+"fpkg.compressionStoredShort": "Oyunun kendi boyutu",
 };
 
 export default tr;

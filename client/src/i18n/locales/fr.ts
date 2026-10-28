@@ -2289,7 +2289,6 @@ upload_done_close: "Fermer",
 upload_detect_error_title: "Erreur",
 upload_done_registered: "Sur l'écran d'accueil de votre PS5 sous « {name} » — prêt à lancer.",
 upload_helper_down: "L'assistant PS5 est injoignable",
-upload_helper_down_detail: "Les envois échoueront tant que l'assistant ne tourne pas. Retournez à Connexion, appuyez sur Envoyer et attendez que la troisième étape passe au vert.",
 upload_helper_unknown: "État de l'assistant PS5 inconnu",
 upload_helper_unknown_detail: "Nous n'avons pas encore confirmé que votre PS5 exécute l'assistant. Renseignez votre IP et envoyez l'assistant depuis l'écran Connexion.",
 upload_kind_archive: "Archive compressée ({ext})",
@@ -6068,6 +6067,8 @@ library_compressed_hint: "Les images compressées nécessitent ShadowMount+ pour
 "fs_mesh_home_note": "Ce dossier est un Mesh Drive, maintenu identique sur chaque appareil qui en fait partie. Son fichier de synchronisation est masqué ici : laissez le dossier à sa place et ne le renommez pas, sinon le disque le considère comme hors ligne.",
 "cw_files_mesh_home": "Ce dossier est un Mesh Drive. Son fichier de synchronisation est masqué : ne déplacez pas et ne renommez pas le dossier.",
 "remotePlay_account_id_placeholder_v2": "Compte connecté (automatique)",
+"upload_helper_down_detail_v2": "Les envois échoueront tant que l'assistant ne tourne pas. Envoyez-le d'ici, ou ouvrez Connexion pour vérifier l'adresse de la console.",
+"fpkg.compressionStoredShort": "La taille du jeu",
 };
 
 export default fr;

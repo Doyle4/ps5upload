@@ -2279,7 +2279,6 @@ upload_done_close: "Schließen",
 upload_detect_error_title: "Fehler",
 upload_done_registered: "Auf deinem PS5-Startbildschirm als „{name}“ — bereit zum Starten.",
 upload_helper_down: "PS5-Helfer nicht erreichbar",
-upload_helper_down_detail: "Uploads schlagen fehl, bis der Helfer läuft. Geh zurück zu Verbindung, drücke Senden und warte, bis der dritte Schritt grün wird.",
 upload_helper_unknown: "PS5-Helferstatus unbekannt",
 upload_helper_unknown_detail: "Wir haben noch nicht bestätigt, dass deine PS5 den Helfer ausführt. Setze zuerst deine IP und sende den Helfer auf dem Verbindungsbildschirm.",
 upload_kind_archive: "Komprimiertes Archiv ({ext})",
@@ -6058,6 +6057,8 @@ library_compressed_hint: "Komprimierte Images benötigen ShadowMount+ zum Spiele
 "fs_mesh_home_note": "Dieser Ordner ist ein Mesh Drive und wird auf jedem Gerät darin gleich gehalten. Seine Sync-Datei ist hier ausgeblendet: Lass den Ordner an seinem Platz und benenne ihn nicht um, sonst gilt das Laufwerk als offline.",
 "cw_files_mesh_home": "Dieser Ordner ist ein Mesh Drive. Seine Sync-Datei ist ausgeblendet: Verschiebe den Ordner nicht und benenne ihn nicht um.",
 "remotePlay_account_id_placeholder_v2": "Angemeldetes Konto (automatisch)",
+"upload_helper_down_detail_v2": "Uploads schlagen fehl, bis der Helfer läuft. Sende ihn von hier oder öffne Verbindung, um die Adresse der Konsole zu prüfen.",
+"fpkg.compressionStoredShort": "Die Größe des Spiels",
 };
 
 export default de;
