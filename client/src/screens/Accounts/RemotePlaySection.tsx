@@ -19,7 +19,7 @@ import { useConnectionStore } from "../../state/connection";
 import { useDocumentVisible } from "../../lib/visibility";
 import { useStaleHostGuard } from "../../lib/staleHostGuard";
 import { transferAddr } from "../../lib/addr";
-import { accountIdToChiakiNumeric, accountIdToPairingB64 } from "../../lib/remoteplay";
+import { accountIdToChiakiNumeric, accountIdToHex, accountIdToPairingB64 } from "../../lib/remoteplay";
 import {
   remoteplayRequest,
   remoteplayStatus,
@@ -437,11 +437,11 @@ export function RemotePlaySection({
                 type="text"
                 value={manualAccountId}
                 onChange={(e) => setManualAccountId(e.target.value)}
-                placeholder={tr(
-                  "remotePlay_account_id_placeholder",
-                  undefined,
-                  "auto-detect",
-                )}
+                // The id pairing uses when the field is left empty: the signed-in account's.
+                placeholder={
+                  accountIdToHex(readiness?.account_id_b64 ?? "") ||
+                  tr("remotePlay_account_id_placeholder_v2", undefined, "Signed-in account (automatic)")
+                }
                 className="w-full rounded-full border border-[var(--glass-edge)] bg-[var(--color-surface-raised)] px-3 py-2 text-sm text-[var(--color-text)] placeholder:text-[var(--color-muted)] focus:border-[var(--color-accent)] focus:outline-none"
               />
             </div>

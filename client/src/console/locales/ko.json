@@ -374,6 +374,7 @@
   "cw_files_last_gone": "마지막으로 열었던 폴더({path})가 없습니다.",
   "cw_files_list_truncated": "이 공유 폴더는 너무 커서 전부 표시할 수 없습니다. 처음 100,000개 항목만 표시합니다.",
   "cw_files_load_all": "모두 불러오기",
+  "cw_files_mesh_home": "이 폴더는 Mesh Drive입니다. 동기화 파일은 숨겨져 있습니다. 폴더를 옮기거나 이름을 바꾸지 마세요.",
   "cw_files_more": "더 보기",
   "cw_files_move_to": "이동할 위치…",
   "cw_files_name": "이름",

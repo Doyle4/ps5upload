@@ -6066,6 +6066,9 @@ library_compressed_hint: "압축 이미지를 플레이하려면 ShadowMount+가
 "rp_err_busy": "PS5가 아직 지난 리모트 플레이 세션을 마무리하고 있습니다. {s}초 후에 다시 시도하세요.",
 "rp_stats_line": "{fps} fps · {mbps} Mbit/s · {ms} ms · {codec} · 손실 {loss}%",
 "dumps_fself": "FSELF",
+"fs_mesh_home_note": "이 폴더는 Mesh Drive이며, 참여한 모든 기기에서 같게 유지됩니다. 동기화 파일은 여기서 숨겨집니다. 폴더를 그 자리에 두고 이름을 바꾸지 마세요. 그렇지 않으면 드라이브가 오프라인으로 처리합니다.",
+"cw_files_mesh_home": "이 폴더는 Mesh Drive입니다. 동기화 파일은 숨겨져 있습니다. 폴더를 옮기거나 이름을 바꾸지 마세요.",
+"remotePlay_account_id_placeholder_v2": "로그인한 계정(자동)",
 };
 
 export default ko;

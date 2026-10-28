@@ -374,6 +374,7 @@
   "cw_files_last_gone": "A legutóbb megnyitott mappa ({path}) már nem létezik.",
   "cw_files_list_truncated": "Ez a megosztott mappa túl nagy ahhoz, hogy teljesen listázzuk: csak az első 100 000 eleme látszik.",
   "cw_files_load_all": "Összes betöltése",
+  "cw_files_mesh_home": "Ez a mappa egy Mesh Drive. A szinkronfájlja rejtett: ne helyezd át és ne nevezd át a mappát.",
   "cw_files_more": "Több",
   "cw_files_move_to": "Áthelyezés ide…",
   "cw_files_name": "Név",

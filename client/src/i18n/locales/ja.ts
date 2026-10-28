@@ -6068,6 +6068,9 @@ library_compressed_hint: "圧縮イメージのプレイには ShadowMount+ が�
 "rp_err_busy": "PS5 は前回のリモートプレイのセッションをまだ終了中です。{s} 秒後にもう一度お試しください。",
 "rp_stats_line": "{fps} fps · {mbps} Mbit/s · {ms} ms · {codec} · ロス {loss}%",
 "dumps_fself": "FSELF",
+"fs_mesh_home_note": "このフォルダーは Mesh Drive で、参加しているすべてのデバイスで同じ内容に保たれます。同期ファイルはここでは非表示です。フォルダーを移動したり名前を変えたりしないでください。オフライン扱いになります。",
+"cw_files_mesh_home": "このフォルダーは Mesh Drive です。同期ファイルは非表示です。フォルダーを移動したり名前を変えたりしないでください。",
+"remotePlay_account_id_placeholder_v2": "サインイン中のアカウント（自動）",
 };
 
 export default ja;

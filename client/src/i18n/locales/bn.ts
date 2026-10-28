@@ -6047,6 +6047,9 @@ library_compressed_hint: "সংকুচিত ইমেজ চালাতে 
 "rp_err_busy": "PS5 এখনও আগের রিমোট প্লে সেশন শেষ করছে। {s} সেকেন্ড পরে আবার চেষ্টা করুন।",
 "rp_stats_line": "{fps} fps · {mbps} Mbit/s · {ms} ms · {codec} · ক্ষতি {loss}%",
 "dumps_fself": "FSELF",
+"fs_mesh_home_note": "এই ফোল্ডারটি একটি Mesh Drive, এতে থাকা প্রতিটি ডিভাইসে একই রাখা হয়। এর সিঙ্ক ফাইল এখানে লুকানো: ফোল্ডারটি যেখানে আছে সেখানেই রাখুন এবং নাম বদলাবেন না, নইলে ড্রাইভটি একে অফলাইন ধরবে।",
+"cw_files_mesh_home": "এই ফোল্ডারটি একটি Mesh Drive। এর সিঙ্ক ফাইল লুকানো: ফোল্ডারটি সরাবেন না বা নাম বদলাবেন না।",
+"remotePlay_account_id_placeholder_v2": "সাইন-ইন করা অ্যাকাউন্ট (স্বয়ংক্রিয়)",
 };
 
 export default bn;

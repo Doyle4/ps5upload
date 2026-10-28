@@ -20,6 +20,7 @@ import { FilesViewFrame } from "./FilesViewFrame";
 import { parseFilesView, type FilesView } from "./filesViews";
 import { SearchPanel, type SearchRequest } from "../Search/SearchPanel";
 import { fileSystemTargetFor } from "../Search/searchLink";
+import { isMeshInternal, MESH_MARKER } from "../../lib/meshFiles";
 import { DiskUsagePanel } from "../DiskUsage";
 import { SnapshotsPanel, type SnapshotPrefill } from "../Backup";
 import { useC2cRoutes } from "../../state/c2cRoutes";
@@ -430,6 +431,8 @@ export default function FileSystemScreen() {
   // Bumped after a USB eject so the drive bar lists the drives again.
   const [volumesEpoch, setVolumesEpoch] = useState(0);
   const [entries, setEntries] = useState<DirEntry[] | null>(null);
+  // The folder on screen is a Mesh Drive's (its marker file is in it, hidden from the list).
+  const [meshHome, setMeshHome] = useState(false);
   // Path of the most recent listing request — used to drop a stale (slower)
   // response from a folder the user already navigated away from. See refresh.
   const latestListReqRef = useRef<string>("");
@@ -607,7 +610,9 @@ export default function FileSystemScreen() {
         }
         return a.name.localeCompare(b.name);
       });
-      setEntries(raw);
+      // A Mesh Drive's own sync files are hidden; the folder says it is a drive instead.
+      setMeshHome(raw.some((e) => e.name === MESH_MARKER));
+      setEntries(raw.filter((e) => !isMeshInternal(e.name)));
       // Prune selections for items that no longer exist (e.g. after a
       // refresh that followed a delete). Selections keyed by name are
       // cheap to re-validate.
@@ -642,6 +647,7 @@ export default function FileSystemScreen() {
       if ((onRemovable || pathGone) && probedPath !== FS_DEFAULT_PATH) {
         setError(null);
         setEntries(null);
+        setMeshHome(false);
         setPath(FS_DEFAULT_PATH);
         pushNotification(
           "info",
@@ -675,6 +681,7 @@ export default function FileSystemScreen() {
       }
       setError(humanizePs5Error(raw) || raw);
       setEntries(null);
+      setMeshHome(false);
     } finally {
       // Always clear loading — even on stale-drop, since some other
       // refresh has either already cleared it or will clear it next.
@@ -3128,6 +3135,13 @@ export default function FileSystemScreen() {
           onClose={() => setMoreMenu(null)}
           items={[
             ...folderViewItems(),
+            // The size map of the drive you are on (Disk usage, a Files view). With the other
+            // whole-drive tools here, not among the drive chips, which only pick a drive.
+            {
+              icon: PieChart,
+              label: tr("fs_space_title", undefined, "What takes space?"),
+              run: () => openSpace(currentVolumePath ?? path),
+            },
             {
               icon: Archive,
               label: tr("fs_snapshots_open", undefined, "Snapshots"),
@@ -3456,18 +3470,6 @@ export default function FileSystemScreen() {
                   {tr("fs_volume_picker_custom", undefined, "(custom path)")}
                 </span>
               )}
-              {/* The size map of the drive you are on (Disk usage, now a Files view). */}
-              <button
-                type="button"
-                onClick={() => openSpace(currentVolumePath ?? path)}
-                title={tr("fs_space_drive_tooltip", undefined, "See what takes space on this drive")}
-                aria-label={tr("fs_space_drive_tooltip", undefined, "See what takes space on this drive")}
-                className="chip shrink-0 gap-1 px-2 py-1 sm:gap-1.5 sm:px-3 sm:py-1.5"
-                data-testid="fs-drive-space"
-              >
-                <PieChart size={12} className="text-[var(--color-accent-bright)]" />
-                <span className="max-sm:sr-only">{tr("fs_space_action", undefined, "What takes space?")}</span>
-              </button>
             </div>
           )}
 
@@ -4006,6 +4008,21 @@ export default function FileSystemScreen() {
               setRowMenu({ x: ev.clientX, y: ev.clientY, entry: null });
             }}
           >
+            {meshHome && (
+              <div
+                className="mb-2 flex items-start gap-2 rounded-[var(--radius-card)] border border-[color-mix(in_srgb,var(--color-accent)_35%,transparent)] bg-[var(--color-accent-soft)] px-3 py-2 text-xs"
+                data-testid="fs-mesh-home"
+              >
+                <FolderSync size={14} className="mt-0.5 shrink-0 text-[var(--color-accent-bright)]" aria-hidden />
+                <span>
+                  {tr(
+                    "fs_mesh_home_note",
+                    undefined,
+                    "This folder is a Mesh Drive, kept the same on every device in it. Its sync file is hidden here: leave the folder where it is and don't rename it, or the drive treats it as offline.",
+                  )}
+                </span>
+              </div>
+            )}
             {entries && entries.length === 0 && (
               <div className="rounded-[var(--radius-card)] border border-dashed border-[var(--glass-edge)] p-4 text-center text-xs text-[var(--color-muted)]">
                 {tr("fs_empty_folder", "Empty folder.")}

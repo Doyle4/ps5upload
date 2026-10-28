@@ -6054,6 +6054,9 @@ library_compressed_hint: "Sıkıştırılmış kalıpları oynatmak için Shadow
 "rp_err_busy": "PS5 hâlâ son Uzaktan Oynatma oturumunu kapatıyor. {s} sn sonra tekrar dene.",
 "rp_stats_line": "{fps} fps · {mbps} Mbit/sn · {ms} ms · {codec} · kayıp %{loss}",
 "dumps_fself": "FSELF",
+"fs_mesh_home_note": "Bu klasör bir Mesh Drive'dır ve içindeki her cihazda aynı tutulur. Eşitleme dosyası burada gizlidir: klasörü yerinde bırakın ve adını değiştirmeyin, yoksa sürücü onu çevrimdışı sayar.",
+"cw_files_mesh_home": "Bu klasör bir Mesh Drive'dır. Eşitleme dosyası gizlidir: klasörü taşımayın veya adını değiştirmeyin.",
+"remotePlay_account_id_placeholder_v2": "Oturum açmış hesap (otomatik)",
 };
 
 export default tr;

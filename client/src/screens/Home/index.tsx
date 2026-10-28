@@ -14,6 +14,7 @@ import {
   Power,
   Rocket,
   Save,
+  Send,
   Upload,
   WifiOff,
   XCircle,
@@ -25,7 +26,9 @@ import { useActivityHistoryStore } from "../../state/activityHistory";
 import { useNotificationsStore } from "../../state/notifications";
 import { useRunningTitleIds } from "../../state/runningApps";
 import { useSensors } from "../../state/sensors";
-import { Badge, Card, ConsoleChip, Sparkline, Spinner } from "../../components";
+import { Badge, Button, Card, ConsoleChip, Sparkline, Spinner } from "../../components";
+import { helperSendFor, useHelperSendStore } from "../../state/helperSend";
+import { sendHelperTo } from "../../state/helperSendRuntime";
 import { useTr } from "../../state/lang";
 import { SupportButton } from "../../components/SupportButton";
 import { ServersCard } from "./ServersCard";
@@ -93,6 +96,7 @@ export default function HomeScreen() {
   );
 
   const connected = engineStatus === "up" && payloadStatus === "up";
+  const helperSend = useHelperSendStore((s) => helperSendFor(s, host));
   // Asleep is not "setup required": nothing needs setting up, the console only needs a wake.
   const resting =
     !connected && engineStatus === "up" && payloadStatus === "down" && consolePower === "rest";
@@ -365,6 +369,32 @@ export default function HomeScreen() {
                     </p>
                   </div>
                 </div>
+                {/* The helper is the one thing a known console needs to be usable, so it is sent
+                    from here rather than only from Connections. */}
+                {!connected && !resting && host && engineStatus === "up" && (
+                  <div className="mt-4" data-testid="home-send-helper">
+                    <Button
+                      variant="primary"
+                      leftIcon={<Send size={14} />}
+                      loading={helperSend?.state === "busy"}
+                      onClick={() => void sendHelperTo(host, tr)}
+                      className="w-full"
+                    >
+                      {tr("drive_send_helper", undefined, "Send helper")}
+                    </Button>
+                    {helperSend && (
+                      <p
+                        className={`mt-2 text-xs ${
+                          helperSend.state === "fail"
+                            ? "text-[var(--color-bad)]"
+                            : "text-[var(--color-muted)]"
+                        }`}
+                      >
+                        {helperSend.msg}
+                      </p>
+                    )}
+                  </div>
+                )}
                 <Link
                   to="/connection"
                   className="mt-4 flex min-h-12 items-center justify-between gap-2 rounded-full border border-[var(--glass-edge)] bg-[var(--color-surface-raised)] py-1.5 ps-5 pe-1.5 text-sm font-medium shadow-[var(--edge-highlight),var(--shadow-1)] transition-colors hover:bg-[var(--color-float)]"

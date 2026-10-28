@@ -374,6 +374,7 @@
   "cw_files_last_gone": "En son açtığınız klasör ({path}) artık yok.",
   "cw_files_list_truncated": "Bu paylaşım klasörü tamamen listelenemeyecek kadar büyük: yalnızca ilk 100.000 öğesi gösteriliyor.",
   "cw_files_load_all": "Tümünü yükle",
+  "cw_files_mesh_home": "Bu klasör bir Mesh Drive'dır. Eşitleme dosyası gizlidir: klasörü taşımayın veya adını değiştirmeyin.",
   "cw_files_more": "Daha fazla göster",
   "cw_files_move_to": "Şuraya taşı…",
   "cw_files_name": "Ad",

@@ -119,12 +119,18 @@ export function sortEntries(entries: Entry[], sort: SortKey = "name", dir: SortD
 
 export const isHidden = (e: Entry): boolean => e.name.charCodeAt(0) === 46;
 
+/** A Mesh Drive's own sync files: never listed, even with hidden files on (deleting the
+ *  marker makes the drive treat its folder as offline). */
+export const MESH_MARKER = ".ps5upload-mesh";
+const MESH_INTERNAL = new Set([MESH_MARKER, ".ps5upload-mesh-tmp", ".ps5upload-mesh-base"]);
+export const isMeshInternal = (e: Entry): boolean => MESH_INTERNAL.has(e.name);
+
 /** The rows to show: hidden files and the filter applied, then sorted. */
 export function visibleEntries(entries: Entry[], v: ViewPrefs): Entry[] {
   const q = v.filter.trim().toLowerCase();
-  let list = entries;
+  let list = entries.filter((e) => !isMeshInternal(e));
   if (!v.hidden || q) {
-    list = entries.filter((e) => (v.hidden || !isHidden(e)) && (!q || e.name.toLowerCase().includes(q)));
+    list = list.filter((e) => (v.hidden || !isHidden(e)) && (!q || e.name.toLowerCase().includes(q)));
   }
   return sortEntries(list, v.sort, v.dir);
 }

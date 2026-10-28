@@ -374,6 +374,7 @@
   "cw_files_last_gone": "L'ultima cartella aperta ({path}) non esiste più.",
   "cw_files_list_truncated": "Questa cartella condivisa è troppo grande per essere elencata per intero: sono mostrati solo i primi 100.000 elementi.",
   "cw_files_load_all": "Carica tutto",
+  "cw_files_mesh_home": "Questa cartella è un Mesh Drive. Il suo file di sincronizzazione è nascosto: non spostare né rinominare la cartella.",
   "cw_files_more": "Mostra altro",
   "cw_files_move_to": "Sposta in…",
   "cw_files_name": "Nome",

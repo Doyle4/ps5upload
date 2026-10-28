@@ -6003,6 +6003,9 @@ library_compressed_hint: "压缩镜像需要 ShadowMount+ 才能游玩。如需�
 "rp_err_busy": "PS5 仍在结束上一次遥控游戏会话。请在 {s} 秒后重试。",
 "rp_stats_line": "{fps} fps · {mbps} Mbit/s · {ms} ms · {codec} · 丢包 {loss}%",
 "dumps_fself": "FSELF",
+"fs_mesh_home_note": "此文件夹是 Mesh Drive，会在其中每台设备上保持一致。它的同步文件在这里是隐藏的：请勿移动或重命名此文件夹，否则该驱动器会被视为离线。",
+"cw_files_mesh_home": "此文件夹是 Mesh Drive。它的同步文件已隐藏：请勿移动或重命名此文件夹。",
+"remotePlay_account_id_placeholder_v2": "已登录的账户（自动）",
 };
 
 export default zh_CN;

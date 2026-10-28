@@ -6362,6 +6362,9 @@ library_compressed_hint: "A tömörített képfájlok futtatásához ShadowMount
 "rp_err_busy": "A PS5 még zárja az előző Remote Play-munkamenetet. Próbáld újra {s} mp múlva.",
 "rp_stats_line": "{fps} fps · {mbps} Mbit/s · {ms} ms · {codec} · veszteség {loss}%",
 "dumps_fself": "FSELF",
+"fs_mesh_home_note": "Ez a mappa egy Mesh Drive, amely minden hozzá tartozó eszközön azonos marad. A szinkronfájlja itt rejtve van: hagyd a mappát a helyén, és ne nevezd át, különben a meghajtó offline-nak tekinti.",
+"cw_files_mesh_home": "Ez a mappa egy Mesh Drive. A szinkronfájlja rejtett: ne helyezd át és ne nevezd át a mappát.",
+"remotePlay_account_id_placeholder_v2": "Bejelentkezett fiók (automatikus)",
 };
 
 export default hu;

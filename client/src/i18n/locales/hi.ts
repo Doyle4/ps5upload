@@ -6063,6 +6063,9 @@ library_compressed_hint: "संपीड़ित इमेज चलाने 
 "rp_err_busy": "PS5 अभी पिछला रिमोट प्ले सत्र बंद कर रहा है। {s} सेकंड बाद फिर कोशिश करें।",
 "rp_stats_line": "{fps} fps · {mbps} Mbit/s · {ms} ms · {codec} · हानि {loss}%",
 "dumps_fself": "FSELF",
+"fs_mesh_home_note": "यह फ़ोल्डर एक Mesh Drive है, जो इसके हर डिवाइस पर एक जैसा रखा जाता है। इसकी सिंक फ़ाइल यहाँ छिपी है: फ़ोल्डर को उसी जगह रहने दें और उसका नाम न बदलें, वरना ड्राइव उसे ऑफ़लाइन मानेगी।",
+"cw_files_mesh_home": "यह फ़ोल्डर एक Mesh Drive है। इसकी सिंक फ़ाइल छिपी है: फ़ोल्डर को न हटाएँ और न उसका नाम बदलें।",
+"remotePlay_account_id_placeholder_v2": "साइन-इन किया गया खाता (स्वचालित)",
 };
 
 export default hi;

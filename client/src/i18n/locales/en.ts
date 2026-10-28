@@ -6372,6 +6372,9 @@ library_compressed_hint: "Compressed images need ShadowMount+ to play. To edit, 
 "rp_err_busy": "The PS5 is still finishing the last Remote Play session. Try again in {s} s.",
 "rp_stats_line": "{fps} fps · {mbps} Mbit/s · {ms} ms · {codec} · loss {loss}%",
 "dumps_fself": "FSELF",
+"fs_mesh_home_note": "This folder is a Mesh Drive, kept the same on every device in it. Its sync file is hidden here: leave the folder where it is and don't rename it, or the drive treats it as offline.",
+"cw_files_mesh_home": "This folder is a Mesh Drive. Its sync file is hidden: don't move or rename the folder.",
+"remotePlay_account_id_placeholder_v2": "Signed-in account (automatic)",
 };
 
 export default en;

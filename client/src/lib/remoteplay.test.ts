@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { accountIdToChiakiNumeric, accountIdToPairingB64 } from "./remoteplay";
+import { accountIdToChiakiNumeric, accountIdToHex, accountIdToPairingB64 } from "./remoteplay";
 
 // Ground truth. The console stores the id as 8 bytes, low byte first; the
 // base64 is over those bytes and pxplay's number is the same uint64 in
@@ -53,5 +53,13 @@ describe("accountIdToPairingB64", () => {
     for (const v of ["", "   ", "xyz", "0x", "0", "0x0", "12 34", "0x00123456789abcdef", "99999999999999999999"]) {
       expect(accountIdToPairingB64(v)).toBeNull();
     }
+  });
+});
+
+describe("accountIdToHex", () => {
+  it("spells the base64 the payload reports as the console's hex", () => {
+    expect(accountIdToHex("dp93cWlY034=")).toBe("0x7ed3586971779f76");
+    expect(accountIdToHex("AAAAAAAAAAA=")).toBe("");
+    expect(accountIdToHex("")).toBe("");
   });
 });

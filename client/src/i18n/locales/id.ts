@@ -6056,6 +6056,9 @@ library_compressed_hint: "Image terkompresi memerlukan ShadowMount+ untuk bermai
 "rp_err_busy": "PS5 masih menutup sesi Remote Play terakhir. Coba lagi dalam {s} dtk.",
 "rp_stats_line": "{fps} fps · {mbps} Mbit/dtk · {ms} md · {codec} · hilang {loss}%",
 "dumps_fself": "FSELF",
+"fs_mesh_home_note": "Folder ini adalah Mesh Drive, dijaga sama di setiap perangkat di dalamnya. File sinkronnya disembunyikan di sini: biarkan folder di tempatnya dan jangan ganti namanya, atau drive akan menganggapnya offline.",
+"cw_files_mesh_home": "Folder ini adalah Mesh Drive. File sinkronnya disembunyikan: jangan pindahkan atau ganti nama folder.",
+"remotePlay_account_id_placeholder_v2": "Akun yang masuk (otomatis)",
 };
 
 export default id;

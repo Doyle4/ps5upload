@@ -80,7 +80,7 @@ import {
 import { ConflictDialog } from "./ConflictDialog";
 import { pasteItems, type PasteMode, type PasteResult } from "./paste";
 import { PathBar } from "./PathBar";
-import { DEFAULT_VIEW, invertShown, loadView, saveView, selectAllShown, statusOf, visibleEntries, LOAD_ALL_CAP, type Status, type ViewPrefs } from "./listing";
+import { DEFAULT_VIEW, invertShown, loadView, MESH_MARKER, saveView, selectAllShown, statusOf, visibleEntries, LOAD_ALL_CAP, type Status, type ViewPrefs } from "./listing";
 import { checkFolder, typedPath } from "./pathParts";
 import { PathPicker } from "./PathPicker";
 import { cleanPath, isPinned, usePrefs, type FilesPrefs } from "./prefs";
@@ -1204,6 +1204,11 @@ export function FilesView(p: FilesViewProps) {
             </p>
           ) : null}
           {p.dir.loaded && sceSys ? <GameBanner key={p.path} folder={p.path} sceSys={sceSys} /> : null}
+          {p.dir.loaded && p.dir.entries.some((e) => e.name === MESH_MARKER) ? (
+            <p className="cw-dim" data-testid="cw-mesh-home">
+              {t("cw_files_mesh_home")}
+            </p>
+          ) : null}
           <DirList
             entries={shown}
             limit={p.rowLimit}

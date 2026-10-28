@@ -6047,6 +6047,9 @@ library_compressed_hint: "تحتاج الصور المضغوطة إلى ShadowMo
 "rp_err_busy": "لا يزال PS5 يُنهي آخر جلسة تشغيل عن بُعد. حاول مجددًا بعد {s} ث.",
 "rp_stats_line": "{fps} إطار/ث · {mbps} ميغابت/ث · {ms} مللي ث · {codec} · فقد {loss}%",
 "dumps_fself": "FSELF",
+"fs_mesh_home_note": "هذا المجلد محرك Mesh، يبقى متطابقًا على كل جهاز فيه. ملف المزامنة مخفي هنا: اترك المجلد في مكانه ولا تعِد تسميته، وإلا سيعامله المحرك كغير متصل.",
+"cw_files_mesh_home": "هذا المجلد محرك Mesh. ملف المزامنة مخفي: لا تنقل المجلد ولا تعِد تسميته.",
+"remotePlay_account_id_placeholder_v2": "الحساب المسجَّل (تلقائي)",
 };
 
 export default ar;

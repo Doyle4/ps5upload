@@ -6348,6 +6348,9 @@ library_compressed_hint: "برای اجرای ایمیج فشرده به ShadowM
 "rp_err_busy": "PS5 هنوز دارد جلسهٔ قبلی Remote Play را می‌بندد. {s} ثانیهٔ دیگر دوباره امتحان کنید.",
 "rp_stats_line": "{fps} fps · {mbps} Mbit/s · {ms} ms · {codec} · افت {loss}%",
 "dumps_fself": "FSELF",
+"fs_mesh_home_note": "این پوشه یک Mesh Drive است و در همهٔ دستگاه‌های آن یکسان نگه داشته می‌شود. فایل همگام‌سازی آن اینجا پنهان است: پوشه را جابه‌جا نکنید و نامش را تغییر ندهید، وگرنه درایو آن را آفلاین می‌داند.",
+"cw_files_mesh_home": "این پوشه یک Mesh Drive است. فایل همگام‌سازی آن پنهان است: پوشه را جابه‌جا نکنید و نامش را تغییر ندهید.",
+"remotePlay_account_id_placeholder_v2": "حساب واردشده (خودکار)",
 };
 
 export default fa;

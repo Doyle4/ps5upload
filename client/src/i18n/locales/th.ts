@@ -6056,6 +6056,9 @@ library_compressed_hint: "อิมเมจที่บีบอัดต้อ
 "rp_err_busy": "PS5 ยังปิดเซสชันรีโมทเพลย์ครั้งก่อนไม่เสร็จ ลองใหม่ใน {s} วินาที",
 "rp_stats_line": "{fps} fps · {mbps} Mbit/s · {ms} ms · {codec} · สูญหาย {loss}%",
 "dumps_fself": "FSELF",
+"fs_mesh_home_note": "โฟลเดอร์นี้เป็น Mesh Drive ซึ่งจะเหมือนกันในทุกอุปกรณ์ที่อยู่ในนั้น ไฟล์ซิงค์ถูกซ่อนไว้ที่นี่: อย่าย้ายหรือเปลี่ยนชื่อโฟลเดอร์ ไม่เช่นนั้นไดรฟ์จะถือว่าออฟไลน์",
+"cw_files_mesh_home": "โฟลเดอร์นี้เป็น Mesh Drive ไฟล์ซิงค์ถูกซ่อนไว้: อย่าย้ายหรือเปลี่ยนชื่อโฟลเดอร์",
+"remotePlay_account_id_placeholder_v2": "บัญชีที่ลงชื่อเข้าใช้ (อัตโนมัติ)",
 };
 
 export default th;
