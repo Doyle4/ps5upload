@@ -1709,8 +1709,6 @@ settings_section_reset: "초기화",
   gate_setup_cta: "연결 설정",
   gate_checking: "PS5 확인 중…",
   gate_payload_down_title: "PS5에서 헬퍼가 실행되고 있지 않습니다",
-  gate_payload_down_body:
-    "콘솔은 설정되어 있지만 ps5upload 헬퍼가 응답하지 않습니다 — 헬퍼는 재부팅이나 절전 모드 때마다 사라집니다. Connection 화면에서 다시 보내세요.",
   gate_send_helper_cta: "Connection 열기",
   picker_choose_folder: "폴더 선택",
   picker_choose_file: "파일 선택",
@@ -4855,7 +4853,6 @@ c2c_test_deep_bad: "4 KiB 테스트 전송이 도착하지 않았습니다: {det
 "helper_stop_failed": "헬퍼를 중지하지 못했습니다: {error}",
 "helper_stopped_status": "중지됨. 헬퍼를 껐습니다. 다시 보낼 때까지 꺼진 상태로 유지됩니다.",
 "gate_helper_stopped_title": "헬퍼를 중지했습니다",
-"gate_helper_stopped_body": "이 화면에는 헬퍼가 필요합니다. 필요할 때 연결 화면에서 다시 보내세요.",
 "joberr.console_rest_mode": "PS5가 휴식 모드입니다. 깨우면 전송이 멈춘 곳부터 이어집니다.",
 "queue_waiting_for_wake": "PS5가 깨어나기를 기다리는 중",
 "queue_waiting_for_wake_body": "PS5가 휴식 모드입니다. 헬퍼가 돌아오면 이 업로드는 저절로 이어집니다.",
@@ -6092,6 +6089,9 @@ library_compressed_hint: "압축 이미지를 플레이하려면 ShadowMount+가
 "send_more_options_summary": "속도 제한, 건너뛸 파일",
 "send_more_options_speed": "속도 제한",
 "send_more_options_skipping": "파일 {n}종류 건너뜀",
+"connect_tab_console": "콘솔",
+"gate_helper_stopped_body_v2": "이 화면에는 헬퍼가 필요합니다. 필요할 때 다시 보내세요.",
+"gate_payload_down_body_v2": "콘솔은 설정되어 있지만 ps5upload 헬퍼가 응답하지 않습니다. 재부팅하거나 휴식 모드에 들어갈 때마다 멈춥니다. 계속하려면 다시 보내세요.",
 };
 
 export default ko;

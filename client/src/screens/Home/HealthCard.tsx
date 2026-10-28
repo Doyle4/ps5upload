@@ -111,7 +111,7 @@ export function HealthCardView({
             {tr("home_health_recheck", undefined, "Check again")}
           </button>
           <Link
-            to="/health"
+            to="/connection?tab=health"
             className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-full border border-[var(--glass-edge)] bg-[var(--color-surface-raised)] px-4 text-xs font-medium shadow-[var(--edge-highlight),var(--shadow-1)] hover:bg-[var(--color-float)]"
           >
             {tr("home_health_open", undefined, "Health check and speed test")}

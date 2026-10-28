@@ -362,6 +362,14 @@ body {
   padding: 1.75rem 2rem 2.5rem;
 }
 
+/* A screen's view switcher, above that view's own .app-page (Connection's tabs). */
+.app-page-tabs {
+  width: 100%;
+  max-width: var(--content-max);
+  margin-inline: auto;
+  padding: 1.25rem 2rem 0;
+}
+
 /* ── Glass ────────────────────────────────────────────────────────────────
  * Frosted panels. `.glass` is the heavy one (backdrop blur) for the few big
  * or floating surfaces; `.surface-panel` is the card treatment without blur,
@@ -839,6 +847,9 @@ body {
 @media (max-width: 767px) {
   .app-page {
     padding: 1rem;
+  }
+  .app-page-tabs {
+    padding: 1rem 1rem 0;
   }
 }
 

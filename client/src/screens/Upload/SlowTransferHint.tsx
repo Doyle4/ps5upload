@@ -141,7 +141,7 @@ export function SlowTransferHint({
       <button
         type="button"
         className="font-medium text-[var(--color-accent)] hover:underline"
-        onClick={() => navigate("/health")}
+        onClick={() => navigate("/connection?tab=health")}
         data-testid="slow-transfer-hint-open"
       >
         {tr("netdoctor.hint.open", undefined, "Diagnose")}

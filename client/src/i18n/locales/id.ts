@@ -1707,7 +1707,6 @@ gate_no_console_body: "Tambahkan alamat IP konsol Anda di layar Koneksi — sete
 gate_setup_cta: "Siapkan koneksi",
 gate_checking: "Memeriksa PS5 Anda…",
 gate_payload_down_title: "Pembantu tidak berjalan di PS5",
-gate_payload_down_body: "Konsol Anda sudah dikonfigurasi tetapi pembantu ps5upload tidak merespons — pembantu hilang setiap kali konsol reboot atau masuk mode istirahat. Kirim lagi dari layar Koneksi.",
 gate_send_helper_cta: "Buka Koneksi",
 picker_choose_folder: "Pilih folder",
 picker_choose_file: "Pilih berkas",
@@ -4845,7 +4844,6 @@ c2c_test_deep_bad: "Kiriman uji 4 KiB tidak tiba: {detail}",
 "helper_stop_failed": "Tidak dapat menghentikan helper: {error}",
 "helper_stopped_status": "Dihentikan. Anda mematikan helper; helper tetap mati sampai Anda mengirimnya lagi.",
 "gate_helper_stopped_title": "Anda menghentikan helper",
-"gate_helper_stopped_body": "Layar ini memerlukan helper. Kirim lagi dari layar Koneksi saat Anda membutuhkannya.",
 "joberr.console_rest_mode": "PS5 sedang dalam mode istirahat. Bangunkan, dan transfer berlanjut dari titik berhentinya.",
 "queue_waiting_for_wake": "Menunggu PS5 bangun",
 "queue_waiting_for_wake_body": "PS5 sedang dalam mode istirahat. Unggahan ini berlanjut sendiri begitu pembantu kembali.",
@@ -6082,6 +6080,9 @@ library_compressed_hint: "Image terkompresi memerlukan ShadowMount+ untuk bermai
 "send_more_options_summary": "Batas kecepatan, file yang dilewati",
 "send_more_options_speed": "Batas kecepatan",
 "send_more_options_skipping": "Melewati {n} jenis file",
+"connect_tab_console": "Konsol",
+"gate_helper_stopped_body_v2": "Layar ini memerlukan helper. Kirim lagi saat Anda membutuhkannya.",
+"gate_payload_down_body_v2": "Konsol Anda sudah diatur tetapi helper ps5upload tidak merespons — helper berhenti setiap kali reboot atau mode istirahat. Kirim lagi untuk melanjutkan.",
 };
 
 export default id;

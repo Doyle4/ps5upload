@@ -2351,7 +2351,6 @@ gate_no_console_body: "آدرس IP کنسول خود را در صفحه‌ی Con
 gate_setup_cta: "راه‌اندازی اتصال",
 gate_checking: "در حال بررسی PS5 شما…",
 gate_payload_down_title: "راهنما روی PS5 اجرا نمی‌شود",
-gate_payload_down_body: "کنسول شما پیکربندی شده اما راهنمای ps5upload پاسخ نمی‌دهد — با هر ریبوت یا حالت استراحت حذف می‌شود. آن را از صفحه‌ی Connection دوباره بفرستید.",
 gate_send_helper_cta: "باز کردن Connection",
 picker_choose_folder: "انتخاب پوشه",
 picker_choose_file: "انتخاب فایل",
@@ -5136,7 +5135,6 @@ c2c_test_deep_bad: "ارسال آزمایشی ۴ KiB نرسید: {detail}",
 "helper_stop_failed": "توقف دستیار ممکن نشد: {error}",
 "helper_stopped_status": "متوقف شد. شما دستیار را خاموش کردید؛ تا وقتی دوباره نفرستید خاموش می‌ماند.",
 "gate_helper_stopped_title": "شما دستیار را متوقف کردید",
-"gate_helper_stopped_body": "این صفحه به دستیار نیاز دارد. هر وقت لازم شد از صفحهٔ اتصال دوباره بفرستیدش.",
 "joberr.console_rest_mode": "PS5 در حالت استراحت است. بیدارش کنید تا انتقال از همان جایی که متوقف شد ادامه یابد.",
 "queue_waiting_for_wake": "در انتظار بیدار شدن PS5",
 "queue_waiting_for_wake_body": "PS5 در حالت استراحت است. این بارگذاری به‌محض بازگشت راهنما خودش ادامه می‌یابد.",
@@ -6373,6 +6371,9 @@ library_compressed_hint: "برای اجرای ایمیج فشرده به ShadowM
 "send_more_options_summary": "محدودیت سرعت، فایل‌های نادیده‌گرفته",
 "send_more_options_speed": "محدودیت سرعت",
 "send_more_options_skipping": "نادیده گرفتن {n} نوع فایل",
+"connect_tab_console": "کنسول",
+"gate_helper_stopped_body_v2": "این صفحه به دستیار نیاز دارد. هر وقت لازم بود دوباره آن را بفرستید.",
+"gate_payload_down_body_v2": "کنسول شما پیکربندی شده اما دستیار ps5upload پاسخ نمی‌دهد — با هر راه‌اندازی دوباره یا حالت استراحت متوقف می‌شود. برای ادامه دوباره آن را بفرستید.",
 };
 
 export default fa;

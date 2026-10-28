@@ -1708,8 +1708,6 @@ settings_section_reset: "Réinitialisation",
   gate_setup_cta: "Configurer la connexion",
   gate_checking: "Vérification de votre PS5…",
   gate_payload_down_title: "L'assistant ne tourne pas sur la PS5",
-  gate_payload_down_body:
-    "Votre console est configurée mais l'assistant ps5upload ne répond pas — il disparaît à chaque redémarrage ou passage en mode repos. Renvoyez-le depuis l'écran Connection.",
   gate_send_helper_cta: "Ouvrir Connection",
   picker_choose_folder: "Choisir un dossier",
   picker_choose_file: "Choisir un fichier",
@@ -4854,7 +4852,6 @@ c2c_test_deep_bad: "L’envoi test de 4 Kio n’est pas arrivé : {detail}",
 "helper_stop_failed": "Impossible d'arrêter l'assistant : {error}",
 "helper_stopped_status": "Arrêté. Vous avez arrêté l'assistant ; il reste arrêté jusqu'à ce que vous le renvoyiez.",
 "gate_helper_stopped_title": "Vous avez arrêté l'assistant",
-"gate_helper_stopped_body": "Cet écran a besoin de l'assistant. Renvoyez-le depuis l'écran Connexion quand vous en avez besoin.",
 "joberr.console_rest_mode": "La PS5 est en mode repos. Réveillez-la et le transfert reprendra là où il s'est arrêté.",
 "queue_waiting_for_wake": "En attente du réveil de la PS5",
 "queue_waiting_for_wake_body": "La PS5 est en mode repos. Cet envoi reprendra tout seul dès que l'assistant sera de retour.",
@@ -6091,6 +6088,9 @@ library_compressed_hint: "Les images compressées nécessitent ShadowMount+ pour
 "send_more_options_summary": "Limite de vitesse, fichiers à ignorer",
 "send_more_options_speed": "Limite de vitesse",
 "send_more_options_skipping": "{n} types de fichiers ignorés",
+"connect_tab_console": "Console",
+"gate_helper_stopped_body_v2": "Cet écran a besoin de l'assistant. Renvoyez-le quand vous en avez besoin.",
+"gate_payload_down_body_v2": "Votre console est configurée mais l'assistant ps5upload ne répond pas — il s'arrête à chaque redémarrage ou mise en veille. Renvoyez-le pour continuer.",
 };
 
 export default fr;

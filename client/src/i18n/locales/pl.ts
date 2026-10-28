@@ -2055,7 +2055,6 @@ gate_no_console_body: "Dodaj adres IP konsoli na ekranie Połączenie — potem 
 gate_setup_cta: "Skonfiguruj połączenie",
 gate_checking: "Sprawdzanie PS5…",
 gate_payload_down_title: "Helper nie działa na PS5",
-gate_payload_down_body: "Twoja konsola jest skonfigurowana, ale helper ps5upload nie odpowiada — znika po każdym restarcie lub trybie spoczynku. Wyślij go ponownie z ekranu Połączenie.",
 gate_send_helper_cta: "Otwórz Połączenie",
 picker_choose_folder: "Wybierz folder",
 picker_choose_file: "Wybierz plik",
@@ -5090,7 +5089,6 @@ c2c_test_deep_bad: "Testowa wysyłka 4 KiB nie dotarła: {detail}",
 "helper_stop_failed": "Nie udało się zatrzymać pomocnika: {error}",
 "helper_stopped_status": "Zatrzymany. Wyłączyłeś pomocnika; pozostanie wyłączony, dopóki nie wyślesz go ponownie.",
 "gate_helper_stopped_title": "Zatrzymałeś pomocnika",
-"gate_helper_stopped_body": "Ten ekran wymaga pomocnika. Wyślij go ponownie z ekranu Połączenie, gdy będzie potrzebny.",
 "joberr.console_rest_mode": "PS5 jest w trybie spoczynku. Wybudź ją, a przesyłanie będzie kontynuowane od miejsca, w którym się zatrzymało.",
 "queue_waiting_for_wake": "Czekam, aż PS5 się wybudzi",
 "queue_waiting_for_wake_body": "PS5 jest w trybie spoczynku. To przesyłanie wznowi się samo, gdy helper wróci.",
@@ -6327,6 +6325,9 @@ library_compressed_hint: "Skompresowane obrazy wymagają ShadowMount+, aby grać
 "send_more_options_summary": "Limit prędkości, pliki do pominięcia",
 "send_more_options_speed": "Limit prędkości",
 "send_more_options_skipping": "Pomijane rodzaje plików: {n}",
+"connect_tab_console": "Konsola",
+"gate_helper_stopped_body_v2": "Ten ekran potrzebuje pomocnika. Wyślij go ponownie, gdy będzie potrzebny.",
+"gate_payload_down_body_v2": "Konsola jest skonfigurowana, ale pomocnik ps5upload nie odpowiada — wyłącza się przy każdym restarcie i trybie spoczynku. Wyślij go ponownie, aby kontynuować.",
 };
 
 export default pl;

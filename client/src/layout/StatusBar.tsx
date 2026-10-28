@@ -210,7 +210,7 @@ function OtherDevicesChip() {
   return (
     <button
       type="button"
-      onClick={() => navigate("/devices")}
+      onClick={() => navigate("/connection?tab=devices")}
       title={[label, ...lines].join("\n")}
       aria-label={label}
       className={`flex items-center gap-1 rounded-full px-1.5 py-0.5 hover:bg-[var(--color-surface)] ${busy ? "text-[var(--color-accent-bright)]" : ""}`}

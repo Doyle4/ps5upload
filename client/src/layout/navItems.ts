@@ -31,12 +31,10 @@ import {
   LayoutDashboard,
   Bug,
   Bell,
-  Stethoscope,
   HardDrive,
   Hammer,
   WandSparkles,
   Eraser,
-  MonitorSmartphone,
   FolderSync,
 } from "lucide-react";
 
@@ -185,14 +183,6 @@ export const NAV_ITEMS: NavItem[] = [
     icon: Cable,
     section: { key: "nav_section_connect", fallback: "Connect" },
   },
-  // 8.0.0: the phones, computers and Docker setups that use the console.
-  { to: "/devices", key: "mesh_devices", fallback: "Devices", icon: MonitorSmartphone },
-  {
-    to: "/health",
-    key: "health",
-    fallback: "Health Check",
-    icon: Stethoscope,
-  },
 
   // What happened: history, logs, notifications, debugging.
   {
@@ -298,6 +288,9 @@ export const NAV_MOVED: Readonly<Record<string, string>> = {
   "/local-image": "/workshop",
   "/upload": "/send",
   "/install-package": "/send",
+  // Tabs of Connection (?tab=devices, ?tab=health).
+  "/devices": "/connection",
+  "/health": "/connection",
 };
 
 /** The route a screen lives at now: its new home if it was folded into another, else itself. */

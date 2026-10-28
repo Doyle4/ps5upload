@@ -29,6 +29,7 @@ import { isTauriEnv } from "./lib/tauriEnv";
  * download all 11 screens upfront.
  */
 import HomeScreen from "./screens/Home";
+import { ConnectHub } from "./screens/Connection/ConnectHub";
 
 // Settings (2k lines) and Connection pull in a lot; nobody needs them
 // before the first paint of Home.
@@ -92,6 +93,14 @@ function MovedTo({ to, hash }: { to: string; hash?: string }) {
   return (
     <Navigate to={{ pathname: to, search: location.search, hash: hash ? `#${hash}` : location.hash }} replace />
   );
+}
+
+/** An old /devices or /health link: Connection's tab, with the rest of its query kept. */
+function ToConnectionTab({ tab }: { tab: "devices" | "health" }) {
+  const { search, hash } = useLocation();
+  const params = new URLSearchParams(search);
+  params.set("tab", tab);
+  return <Navigate to={{ pathname: "/connection", search: `?${params}`, hash }} replace />;
 }
 
 /** /activity keeps working for old links (?console=… included) but lands on /tasks. */
@@ -213,19 +222,28 @@ function AppRoutes({ location }: { location: Location }) {
         <Route
           path="/connection"
           element={
-            <Suspense fallback={<ScreenLoader />}>
-              <ConnectionScreen />
-            </Suspense>
+            <ConnectHub
+              console={
+                <Suspense fallback={<ScreenLoader />}>
+                  <ConnectionScreen />
+                </Suspense>
+              }
+              devices={
+                <Suspense fallback={<ScreenLoader />}>
+                  <DevicesScreen />
+                </Suspense>
+              }
+              health={
+                <Suspense fallback={<ScreenLoader />}>
+                  <HealthScreen />
+                </Suspense>
+              }
+            />
           }
         />
-        <Route
-          path="/devices"
-          element={
-            <Suspense fallback={<ScreenLoader />}>
-              <DevicesScreen />
-            </Suspense>
-          }
-        />
+        {/* Devices and Health Check are tabs of Connection now. */}
+        <Route path="/devices" element={<ToConnectionTab tab="devices" />} />
+        <Route path="/health" element={<ToConnectionTab tab="health" />} />
         <Route
           path="/shared-folders"
           element={
@@ -352,14 +370,6 @@ function AppRoutes({ location }: { location: Location }) {
           }
         />
         <Route path="/backup" element={<Navigate to="/files?view=snapshots" replace />} />
-        <Route
-          path="/health"
-          element={
-            <Suspense fallback={<ScreenLoader />}>
-              <HealthScreen />
-            </Suspense>
-          }
-        />
         {/* The console takes one fan target temperature, set on the Console
             screen's fan card; a multi-point curve had nothing to drive. */}
         <Route path="/fan-curve" element={<Navigate to="/console" replace />} />

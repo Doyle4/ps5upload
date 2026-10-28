@@ -1700,8 +1700,6 @@ settings_section_reset: "รีเซ็ต",
   gate_setup_cta: "ตั้งค่าการเชื่อมต่อ",
   gate_checking: "กำลังตรวจสอบ PS5 ของคุณ…",
   gate_payload_down_title: "ตัวช่วยไม่ได้ทำงานบน PS5",
-  gate_payload_down_body:
-    "คอนโซลของคุณถูกตั้งค่าแล้ว แต่ตัวช่วย ps5upload ไม่ตอบสนอง — มันจะหลุดทุกครั้งที่รีบูตหรือเข้าโหมดพัก ส่งใหม่จากหน้าจอ Connection",
   gate_send_helper_cta: "เปิด Connection",
   picker_choose_folder: "เลือกโฟลเดอร์",
   picker_choose_file: "เลือกไฟล์",
@@ -4845,7 +4843,6 @@ c2c_test_deep_bad: "การส่งทดสอบ 4 KiB ไปไม่ถ�
 "helper_stop_failed": "หยุดตัวช่วยไม่สำเร็จ: {error}",
 "helper_stopped_status": "หยุดแล้ว คุณปิดตัวช่วยไว้ และจะปิดอยู่จนกว่าคุณจะส่งอีกครั้ง",
 "gate_helper_stopped_title": "คุณหยุดตัวช่วยแล้ว",
-"gate_helper_stopped_body": "หน้าจอนี้ต้องใช้ตัวช่วย ส่งอีกครั้งจากหน้าการเชื่อมต่อเมื่อต้องการ",
 "joberr.console_rest_mode": "PS5 อยู่ในโหมดพัก ปลุกเครื่อง แล้วการถ่ายโอนจะทำต่อจากจุดที่หยุดไว้",
 "queue_waiting_for_wake": "กำลังรอให้ PS5 ตื่น",
 "queue_waiting_for_wake_body": "PS5 อยู่ในโหมดพัก การอัปโหลดนี้จะทำต่อเองเมื่อตัวช่วยกลับมา",
@@ -6082,6 +6079,9 @@ library_compressed_hint: "อิมเมจที่บีบอัดต้อ
 "send_more_options_summary": "จำกัดความเร็ว ไฟล์ที่ข้าม",
 "send_more_options_speed": "จำกัดความเร็ว",
 "send_more_options_skipping": "ข้ามไฟล์ {n} ประเภท",
+"connect_tab_console": "เครื่อง",
+"gate_helper_stopped_body_v2": "หน้าจอนี้ต้องใช้ตัวช่วย ส่งอีกครั้งเมื่อคุณต้องการ",
+"gate_payload_down_body_v2": "ตั้งค่าเครื่องแล้ว แต่ตัวช่วย ps5upload ไม่ตอบสนอง — มันหยุดทุกครั้งที่รีบูตหรือเข้าโหมดพัก ส่งอีกครั้งเพื่อดำเนินการต่อ",
 };
 
 export default th;

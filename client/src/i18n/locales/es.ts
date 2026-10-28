@@ -1648,7 +1648,6 @@ gate_no_console_body: "Añade la dirección IP de tu consola en la pantalla Conn
 gate_setup_cta: "Configurar conexión",
 gate_checking: "Comprobando tu PS5…",
 gate_payload_down_title: "El asistente no se está ejecutando en la PS5",
-gate_payload_down_body: "Tu consola está configurada pero el asistente de ps5upload no responde — se pierde con cada reinicio o modo reposo. Envíalo de nuevo desde la pantalla Connection.",
 gate_send_helper_cta: "Abrir Connection",
 picker_choose_folder: "Elegir una carpeta",
 picker_choose_file: "Elegir un archivo",
@@ -4786,7 +4785,6 @@ c2c_test_deep_bad: "El envío de prueba de 4 KiB no llegó: {detail}",
 "helper_stop_failed": "No se pudo detener el ayudante: {error}",
 "helper_stopped_status": "Detenido. Apagaste el ayudante; seguirá apagado hasta que lo vuelvas a enviar.",
 "gate_helper_stopped_title": "Detuviste el ayudante",
-"gate_helper_stopped_body": "Esta pantalla necesita el ayudante. Vuelve a enviarlo desde la pantalla Conexión cuando lo necesites.",
 "joberr.console_rest_mode": "La PS5 está en modo de reposo. Despiértala y la transferencia continuará donde se detuvo.",
 "queue_waiting_for_wake": "Esperando a que la PS5 despierte",
 "queue_waiting_for_wake_body": "La PS5 está en modo de reposo. Esta subida continuará sola cuando el asistente vuelva.",
@@ -6023,6 +6021,9 @@ library_compressed_hint: "Las imágenes comprimidas necesitan ShadowMount+ para 
 "send_more_options_summary": "Límite de velocidad, archivos a omitir",
 "send_more_options_speed": "Límite de velocidad",
 "send_more_options_skipping": "Omitiendo {n} tipos de archivo",
+"connect_tab_console": "Consola",
+"gate_helper_stopped_body_v2": "Esta pantalla necesita el asistente. Vuelve a enviarlo cuando lo necesites.",
+"gate_payload_down_body_v2": "Tu consola está configurada, pero el asistente de ps5upload no responde: se detiene con cada reinicio o modo de reposo. Vuelve a enviarlo para continuar.",
 };
 
 export default es;

@@ -46,7 +46,7 @@ describe("Home health card", () => {
       onScan: () => {},
     });
     expect(out).toContain("Everything checks out");
-    expect(out).toContain('href="/health"');
+    expect(out).toContain('href="/connection?tab=health"');
   });
 
   it("shows each thing that needs attention with what to do about it", () => {

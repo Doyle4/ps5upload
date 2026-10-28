@@ -1710,8 +1710,6 @@ settings_section_reset: "リセット",
   gate_setup_cta: "接続を設定",
   gate_checking: "PS5 を確認中…",
   gate_payload_down_title: "PS5 でヘルパーが動作していません",
-  gate_payload_down_body:
-    "本体は設定済みですが ps5upload ヘルパーが応答していません — ヘルパーは再起動やレストモードのたびに消えます。Connection 画面からもう一度送信してください。",
   gate_send_helper_cta: "Connection を開く",
   picker_choose_folder: "フォルダを選択",
   picker_choose_file: "ファイルを選択",
@@ -4857,7 +4855,6 @@ c2c_test_deep_bad: "4 KiB のテスト送信が届きませんでした: {detail
 "helper_stop_failed": "ヘルパーを停止できませんでした: {error}",
 "helper_stopped_status": "停止中。ヘルパーをオフにしました。再送するまでオフのままです。",
 "gate_helper_stopped_title": "ヘルパーを停止しました",
-"gate_helper_stopped_body": "この画面にはヘルパーが必要です。必要なときに接続画面から再送してください。",
 "joberr.console_rest_mode": "PS5はレストモード中です。起動すると、転送は止まったところから続きます。",
 "queue_waiting_for_wake": "PS5の起動を待っています",
 "queue_waiting_for_wake_body": "PS5はレストモード中です。ヘルパーが戻ると、このアップロードは自動で続きます。",
@@ -6094,6 +6091,9 @@ library_compressed_hint: "圧縮イメージのプレイには ShadowMount+ が�
 "send_more_options_summary": "速度制限、除外するファイル",
 "send_more_options_speed": "速度制限",
 "send_more_options_skipping": "{n} 種類のファイルを除外中",
+"connect_tab_console": "本体",
+"gate_helper_stopped_body_v2": "この画面にはヘルパーが必要です。必要なときに再送信してください。",
+"gate_payload_down_body_v2": "本体は設定済みですが、ps5upload ヘルパーが応答しません。再起動やレストモードのたびに止まります。続けるには再送信してください。",
 };
 
 export default ja;

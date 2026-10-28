@@ -3,6 +3,7 @@ import { Gamepad2, Moon, PlugZap, Power, ServerCrash, WifiOff } from "lucide-rea
 
 import { useConnectionStore } from "../state/connection";
 import { useHelperStopped } from "../state/helperStopped";
+import { SendHelperButton } from "./SendHelperButton";
 import { useTr } from "../state/lang";
 import { useUploadSettingsStore } from "../state/uploadSettings";
 import { isTauriEnv } from "../lib/tauriEnv";
@@ -112,13 +113,16 @@ export function ConnectionGate({
           icon={PlugZap}
           title={tr("gate_helper_stopped_title", "You stopped the helper")}
           message={tr(
-            "gate_helper_stopped_body",
-            "This screen needs the helper. Send it again from the Connection screen when you need it.",
+            "gate_helper_stopped_body_v2",
+            "This screen needs the helper. Send it again when you need it.",
           )}
           action={
-            <Button variant="primary" onClick={() => navigate("/connection")}>
-              {tr("gate_send_helper_cta", "Open Connection")}
-            </Button>
+            <div className="flex flex-wrap items-start justify-center gap-2">
+              <SendHelperButton />
+              <Button variant="secondary" onClick={() => navigate("/connection")}>
+                {tr("gate_send_helper_cta", "Open Connection")}
+              </Button>
+            </div>
           }
         />
       );
@@ -131,13 +135,17 @@ export function ConnectionGate({
         icon={PlugZap}
         title={tr("gate_payload_down_title", "Helper isn't running on the PS5")}
         message={tr(
-          "gate_payload_down_body",
-          "Your console is configured but the ps5upload helper isn't answering — it drops on every reboot or rest mode. Send it again from the Connection screen.",
+          "gate_payload_down_body_v2",
+          "Your console is configured but the ps5upload helper isn't answering — it drops on every reboot or rest mode. Send it again to carry on.",
         )}
         action={
-          <Button variant="primary" onClick={() => navigate("/connection")}>
-            {tr("gate_send_helper_cta", "Open Connection")}
-          </Button>
+          // The helper is the one thing missing: send it from here.
+          <div className="flex flex-wrap items-start justify-center gap-2">
+            <SendHelperButton />
+            <Button variant="secondary" onClick={() => navigate("/connection")}>
+              {tr("gate_send_helper_cta", "Open Connection")}
+            </Button>
+          </div>
         }
       />
     );

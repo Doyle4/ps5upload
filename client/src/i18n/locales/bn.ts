@@ -1698,7 +1698,6 @@ gate_no_console_body: "সংযোগ স্ক্রিনে আপনার 
 gate_setup_cta: "সংযোগ সেট আপ করুন",
 gate_checking: "আপনার PS5 পরীক্ষা করা হচ্ছে...",
 gate_payload_down_title: "সাহায্যকারী PS5 এ চলছে না",
-gate_payload_down_body: "আপনার কনসোল কনফিগার করা আছে কিন্তু ps5upload হেল্পার উত্তর দিচ্ছে না — এটি প্রতিটি রিবুট বা রেস্ট মোডে ড্রপ করে । সংযোগ স্ক্রিন থেকে এটি আবার পাঠান ।",
 gate_send_helper_cta: "সংযোগ খুলুন",
 picker_choose_folder: "ফোল্ডার খুলুন",
 picker_choose_file: "একটি ফাইল নির্বাচন করুন",
@@ -4836,7 +4835,6 @@ c2c_test_deep_bad: "4 KiB-এর পরীক্ষামূলক পাঠা�
 "helper_stop_failed": "হেল্পার বন্ধ করা যায়নি: {error}",
 "helper_stopped_status": "বন্ধ। আপনি হেল্পার বন্ধ করেছেন; আবার না পাঠানো পর্যন্ত এটি বন্ধ থাকবে।",
 "gate_helper_stopped_title": "আপনি হেল্পার বন্ধ করেছেন",
-"gate_helper_stopped_body": "এই স্ক্রিনের জন্য হেল্পার দরকার। দরকার হলে সংযোগ স্ক্রিন থেকে আবার পাঠান।",
 "joberr.console_rest_mode": "PS5 রেস্ট মোডে আছে। এটি জাগান, ট্রান্সফার যেখানে থেমেছিল সেখান থেকে চলবে।",
 "queue_waiting_for_wake": "PS5 জাগার অপেক্ষায়",
 "queue_waiting_for_wake_body": "PS5 রেস্ট মোডে আছে। সাহায্যকারী ফিরলেই এই আপলোড নিজে থেকে চলবে।",
@@ -6073,6 +6071,9 @@ library_compressed_hint: "সংকুচিত ইমেজ চালাতে 
 "send_more_options_summary": "গতির সীমা, বাদ দেওয়ার ফাইল",
 "send_more_options_speed": "গতির সীমা",
 "send_more_options_skipping": "{n} ধরনের ফাইল বাদ দেওয়া হচ্ছে",
+"connect_tab_console": "কনসোল",
+"gate_helper_stopped_body_v2": "এই স্ক্রিনে হেল্পার দরকার। প্রয়োজন হলে আবার পাঠান।",
+"gate_payload_down_body_v2": "আপনার কনসোল সেট আপ করা আছে কিন্তু ps5upload হেল্পার সাড়া দিচ্ছে না — প্রতিবার রিবুট বা রেস্ট মোডে এটি বন্ধ হয়। চালিয়ে যেতে আবার পাঠান।",
 };
 
 export default bn;

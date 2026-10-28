@@ -1708,8 +1708,6 @@ gate_no_console_body:
 gate_setup_cta: "Configurar conexão",
 gate_checking: "Verificando seu PS5…",
 gate_payload_down_title: "O auxiliar não está em execução no PS5",
-gate_payload_down_body:
-  "Seu console está configurado, mas o auxiliar do ps5upload não responde — ele se perde a cada reinicialização ou modo de descanso. Envie-o de novo pela tela Connection.",
 gate_send_helper_cta: "Abrir Connection",
 picker_choose_folder: "Escolher uma pasta",
 picker_choose_file: "Escolher um arquivo",
@@ -4853,7 +4851,6 @@ c2c_test_deep_bad: "O envio de teste de 4 KiB não chegou: {detail}",
 "helper_stop_failed": "Não foi possível parar o auxiliar: {error}",
 "helper_stopped_status": "Parado. Você desligou o auxiliar; ele fica desligado até você enviá-lo de novo.",
 "gate_helper_stopped_title": "Você parou o auxiliar",
-"gate_helper_stopped_body": "Esta tela precisa do auxiliar. Envie-o de novo pela tela Conexão quando precisar.",
 "joberr.console_rest_mode": "O PS5 está no modo de descanso. Acorde-o e a transferência continua de onde parou.",
 "queue_waiting_for_wake": "Aguardando o PS5 acordar",
 "queue_waiting_for_wake_body": "O PS5 está no modo de descanso. Este envio continua sozinho quando o auxiliar voltar.",
@@ -6090,6 +6087,9 @@ library_compressed_hint: "Imagens compactadas precisam do ShadowMount+ para joga
 "send_more_options_summary": "Limite de velocidade, arquivos a ignorar",
 "send_more_options_speed": "Limite de velocidade",
 "send_more_options_skipping": "Ignorando {n} tipos de arquivo",
+"connect_tab_console": "Console",
+"gate_helper_stopped_body_v2": "Esta tela precisa do helper. Envie de novo quando precisar.",
+"gate_payload_down_body_v2": "Seu console está configurado, mas o helper do ps5upload não responde — ele para a cada reinício ou modo de descanso. Envie de novo para continuar.",
 };
 
 export default pt_BR;

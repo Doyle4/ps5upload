@@ -1704,8 +1704,6 @@ settings_section_reset: "रीसेट",
   gate_setup_cta: "कनेक्शन सेट करें",
   gate_checking: "आपका PS5 जाँचा जा रहा है…",
   gate_payload_down_title: "PS5 पर सहायक नहीं चल रहा",
-  gate_payload_down_body:
-    "आपका कंसोल कॉन्फ़िगर है, पर ps5upload सहायक जवाब नहीं दे रहा — यह हर रीबूट या रेस्ट मोड पर हट जाता है। Connection स्क्रीन से इसे फिर भेजें।",
   gate_send_helper_cta: "Connection खोलें",
   picker_choose_folder: "फ़ोल्डर चुनें",
   picker_choose_file: "फ़ाइल चुनें",
@@ -4852,7 +4850,6 @@ c2c_test_deep_bad: "4 KiB का परीक्षण नहीं पहुँ
 "helper_stop_failed": "हेल्पर नहीं रुका: {error}",
 "helper_stopped_status": "रुका हुआ। आपने हेल्पर बंद किया है; जब तक आप इसे फिर नहीं भेजते, यह बंद रहेगा।",
 "gate_helper_stopped_title": "आपने हेल्पर रोक दिया है",
-"gate_helper_stopped_body": "इस स्क्रीन को हेल्पर चाहिए। ज़रूरत होने पर इसे कनेक्शन स्क्रीन से फिर भेजें।",
 "joberr.console_rest_mode": "PS5 रेस्ट मोड में है। इसे जगाएँ, ट्रांसफ़र वहीं से आगे चलेगा जहाँ रुका था।",
 "queue_waiting_for_wake": "PS5 के जागने का इंतज़ार",
 "queue_waiting_for_wake_body": "PS5 रेस्ट मोड में है। हेल्पर के लौटते ही यह अपलोड अपने आप आगे चलेगा।",
@@ -6089,6 +6086,9 @@ library_compressed_hint: "संपीड़ित इमेज चलाने 
 "send_more_options_summary": "गति सीमा, छोड़ी जाने वाली फ़ाइलें",
 "send_more_options_speed": "गति सीमा",
 "send_more_options_skipping": "{n} प्रकार की फ़ाइलें छोड़ी जा रही हैं",
+"connect_tab_console": "कंसोल",
+"gate_helper_stopped_body_v2": "इस स्क्रीन को हेल्पर चाहिए। ज़रूरत हो तब इसे फिर से भेजें।",
+"gate_payload_down_body_v2": "आपका कंसोल सेट है पर ps5upload हेल्पर जवाब नहीं दे रहा — हर रीबूट या रेस्ट मोड पर यह बंद हो जाता है। जारी रखने के लिए इसे फिर से भेजें।",
 };
 
 export default hi;

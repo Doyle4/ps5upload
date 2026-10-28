@@ -1698,7 +1698,6 @@ gate_no_console_body: "أضف عنوان IP لوحدة التحكم على شا�
 gate_setup_cta: "ضبط إعدادات الاتصال",
 gate_checking: "التحقق من جهاز PS5 الخاص بك...",
 gate_payload_down_title: "المساعد لا يعمل على PS5",
-gate_payload_down_body: "تم تكوين وحدة التحكم الخاصة بك ولكن مساعد تحميل PS5 لا يجيب — فهو يسقط في كل وضع إعادة تمهيد أو راحة. أرسلها مرة أخرى من شاشة الاتصال.",
 gate_send_helper_cta: "فتح الاتصال",
 picker_choose_folder: "اختيار مجلد",
 picker_choose_file: "اختر ملفًا",
@@ -4836,7 +4835,6 @@ c2c_test_deep_bad: "لم يصل الإرسال التجريبي بحجم 4 KiB: 
 "helper_stop_failed": "تعذّر إيقاف المساعد: {error}",
 "helper_stopped_status": "متوقف. أوقفتَ المساعد؛ وسيبقى متوقفًا حتى ترسله مجددًا.",
 "gate_helper_stopped_title": "لقد أوقفت المساعد",
-"gate_helper_stopped_body": "تحتاج هذه الشاشة إلى المساعد. أرسله مجددًا من شاشة الاتصال عندما تحتاج إليه.",
 "joberr.console_rest_mode": "جهاز PS5 في وضع الراحة. أيقظه وسيكمل النقل من حيث توقف.",
 "queue_waiting_for_wake": "بانتظار استيقاظ PS5",
 "queue_waiting_for_wake_body": "جهاز PS5 في وضع الراحة. سيكمل هذا الرفع وحده بمجرد عودة المساعد.",
@@ -6073,6 +6071,9 @@ library_compressed_hint: "تحتاج الصور المضغوطة إلى ShadowMo
 "send_more_options_summary": "حد السرعة، الملفات المستبعدة",
 "send_more_options_speed": "حد السرعة",
 "send_more_options_skipping": "تخطي {n} أنواع من الملفات",
+"connect_tab_console": "الجهاز",
+"gate_helper_stopped_body_v2": "تحتاج هذه الشاشة إلى المساعد. أرسله مرة أخرى عندما تحتاجه.",
+"gate_payload_down_body_v2": "جهازك مُعدّ لكن مساعد ps5upload لا يستجيب — فهو يتوقف عند كل إعادة تشغيل أو وضع راحة. أرسله مرة أخرى للمتابعة.",
 };
 
 export default ar;

@@ -2287,7 +2287,6 @@ gate_no_console_body: "Add meg a konzolod IP-címét a Kapcsolat képernyőn —
 gate_setup_cta: "Kapcsolat beállítása",
 gate_checking: "PS5 ellenőrzése…",
 gate_payload_down_title: "A segédprogram nem fut a PS5-ön",
-gate_payload_down_body: "A konzol be van állítva, de a ps5upload segédprogram nem válaszol — minden újraindításkor vagy pihenő módba lépéskor elszáll. Küldd el újra a Kapcsolat képernyőről.",
 gate_send_helper_cta: "Kapcsolat megnyitása",
 picker_choose_folder: "Mappa kiválasztása",
 picker_choose_file: "Fájl kiválasztása",
@@ -5150,7 +5149,6 @@ c2c_test_deep_bad: "A 4 KiB-os tesztküldés nem érkezett meg: {detail}",
 "helper_stop_failed": "Nem sikerült leállítani a segédprogramot: {error}",
 "helper_stopped_status": "Leállítva. Kikapcsoltad a segédprogramot; kikapcsolva marad, amíg újra el nem küldöd.",
 "gate_helper_stopped_title": "Leállítottad a segédprogramot",
-"gate_helper_stopped_body": "Ehhez a képernyőhöz kell a segédprogram. Küldd el újra a Kapcsolat képernyőről, amikor szükség van rá.",
 "joberr.console_rest_mode": "A PS5 nyugalmi módban van. Ébreszd fel, és az átvitel ott folytatódik, ahol megállt.",
 "queue_waiting_for_wake": "Várakozás a PS5 felébredésére",
 "queue_waiting_for_wake_body": "A PS5 nyugalmi módban van. Ez a feltöltés magától folytatódik, amint a segédprogram visszatér.",
@@ -6387,6 +6385,9 @@ library_compressed_hint: "A tömörített képfájlok futtatásához ShadowMount
 "send_more_options_summary": "Sebességkorlát, kihagyandó fájlok",
 "send_more_options_speed": "Sebességkorlát",
 "send_more_options_skipping": "{n} fájltípus kihagyva",
+"connect_tab_console": "Konzol",
+"gate_helper_stopped_body_v2": "Ehhez a képernyőhöz kell a segéd. Küldd el újra, amikor szükséged van rá.",
+"gate_payload_down_body_v2": "A konzol be van állítva, de a ps5upload segéd nem válaszol — minden újraindításkor és pihenő módban leáll. Küldd el újra a folytatáshoz.",
 };
 
 export default hu;
