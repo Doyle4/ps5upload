@@ -890,7 +890,7 @@ export default function WorkshopScreen() {
                 {tr(
                   "fpkg.aboutFake",
                   undefined,
-                  "The result is a fake package, so the console needs fake-package support loaded before it will install: kstuff (the build with PS5 fake-package support), a53_ppr_install_fast.elf and shadowmountplus.elf, in that order. Install Package states the same thing next to its Install button.",
+                  "The result is a fake package, so the console needs fake-package support loaded before it will install: kstuff (the build with PS5 fake-package support), a53_ppr_install_fast.elf and shadowmountplus.elf, in that order. Send to PS5 says the same next to its install buttons.",
                 )}
               </p>
               <details>

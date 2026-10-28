@@ -1,4 +1,4 @@
-import { FolderArchive, Gamepad2, Library } from "lucide-react";
+import { FolderArchive, Gamepad2, LayoutGrid, Laptop } from "lucide-react";
 import { useSearchParams } from "react-router";
 
 import { PageHeader, Tabs } from "../../components";
@@ -6,24 +6,25 @@ import { useTr } from "../../state/lang";
 import CollectionScreen from "../Collection";
 import InstalledAppsScreen from "../InstalledApps";
 import LibraryScreen from "../Library";
+import { AllGames } from "./AllGames";
 import { gamesTabOf, type GamesTab } from "./gamesTab";
 
 /**
- * One Games workspace with three deliberately user-facing views:
+ * Games: one place for every game, wherever it is.
  *
- * - On this PS5 (`ready`): titles registered with the PS5 and actionable now,
- *   with what was played lately at the top (the old Game Activity screen).
- * - Everything (`all`): the whole library on this computer's drives and shares
- *   (the old Collection screen).
- * - Game files (`files`): folders and disk images stored on console-attached storage.
+ * - All (`any`, the default): every game once, with where its copies are; a click opens its
+ *   game page, which holds every action for every copy.
+ * - Installed (`ready`): what the PS5 has registered; Play, Close, uninstall, backport.
+ * - On PS5 Storage (`files`): game folders and images on the console's drives; mount,
+ *   register, move, edit files.
+ * - On This Computer (`all`): the Collection on this computer's drives and shares.
  *
- * The old "Library" / "Installed Apps" / "Collection" set exposed implementation
- * details as sibling destinations and made users guess which inventory they
- * needed. Keeping the inventories is useful; naming and locating them by intent
- * is what removes the ambiguity.
+ * The three last views were the whole screen ("On this PS5", "Everything", "Game files"), so a
+ * game sat in up to three lists and people had to know which one to look in. All answers
+ * "where is my game" in one list; the others are for working on one place at a time.
  *
- * The views are chips (the shared Tabs), selected by `?tab=` so a link, a
- * refresh or Back lands on the same one.
+ * The views are chips (the shared Tabs), selected by `?tab=` so a link, a refresh or Back
+ * lands on the same one.
  */
 export default function GamesScreen() {
   const tr = useTr();
@@ -40,9 +41,10 @@ export default function GamesScreen() {
 
   const label = tr("games_title", undefined, "Games");
   const tabLabel: Record<GamesTab, string> = {
-    ready: tr("games_tab_on_ps5", undefined, "On this PS5"),
-    all: tr("games_tab_all", undefined, "Everything"),
-    files: tr("games_tab_files", undefined, "Game files"),
+    any: tr("games_tab_any", undefined, "All"),
+    ready: tr("games_tab_installed", undefined, "Installed"),
+    files: tr("games_tab_storage", undefined, "On PS5 Storage"),
+    all: tr("games_tab_computer", undefined, "On This Computer"),
   };
   return (
     <div className="app-page flex h-full flex-col">
@@ -50,7 +52,13 @@ export default function GamesScreen() {
         icon={Gamepad2}
         title={label}
         description={
-          tab === "all"
+          tab === "any"
+            ? tr(
+                "games_any_description",
+                undefined,
+                "Every game you have, once each: installed on the PS5, on its drives, or on this computer. Open one to see all its copies and what you can do with them.",
+              )
+            : tab === "all"
             ? tr(
                 "collection.description",
                 undefined,
@@ -75,13 +83,16 @@ export default function GamesScreen() {
         onChange={setTab}
         className="mb-6"
         tabs={[
+          { id: "any", icon: LayoutGrid, label: tabLabel.any },
           { id: "ready", icon: Gamepad2, label: tabLabel.ready },
-          { id: "all", icon: Library, label: tabLabel.all },
           { id: "files", icon: FolderArchive, label: tabLabel.files },
+          { id: "all", icon: Laptop, label: tabLabel.all },
         ]}
       />
       <div role="tabpanel" aria-label={tabLabel[tab]} className="min-h-0 flex-1">
-        {tab === "files" ? (
+        {tab === "any" ? (
+          <AllGames onShow={setTab} />
+        ) : tab === "files" ? (
           <LibraryScreen />
         ) : tab === "all" ? (
           <CollectionScreen embedded />

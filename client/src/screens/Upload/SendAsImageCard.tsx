@@ -151,13 +151,13 @@ export function SendAsImageCard({
               ? tr(
                   "upload_as_image_building",
                   undefined,
-                  "Building the image. It joins the Upload queue when it is ready.",
+                  "Building the image. It joins the queue when it is ready.",
                 )
               : pipeline.phase === "done"
                 ? tr(
                     "upload_as_image_queued",
                     undefined,
-                    "The image is built and in the Upload queue.",
+                    "The image is built and in the queue.",
                   )
                 : pipeline.phase === "failed"
                   ? pipeline.message

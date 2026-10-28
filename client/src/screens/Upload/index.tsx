@@ -1460,7 +1460,7 @@ function Step2Options(props: {
                 <div className="mt-0.5 text-xs text-[var(--color-muted)]">
                   {tr(
                     "upload_register_after_desc",
-                    "Registers the game with the PS5 right after the upload finishes, so it's ready to launch. If this step fails the upload itself is unaffected and you can still register it from Games → Game files.",
+                    "Registers the game with the PS5 right after the upload finishes, so it's ready to launch. If this step fails the upload itself is unaffected and you can still register it from Games → On PS5 Storage.",
                   )}
                 </div>
               </div>
@@ -1608,7 +1608,7 @@ function Step2Options(props: {
                 ? tr(
                     "upload_disabled_queue_running",
                     undefined,
-                    "Upload queue is running — pause the queue to start a one-shot upload, or use 'Add to queue' to append.",
+                    "The queue is running — pause the queue to start a one-shot upload, or use 'Add to queue' to append.",
                   )
                 : undefined
           }
@@ -2248,7 +2248,7 @@ function TransferStatus({ onRetry }: { onRetry: () => void }) {
                 )
               : tr(
                   "upload_done_next_hint",
-                  "Next: open Games → Game files to register or mount it so it shows up on the PS5 home screen.",
+                  "Next: open Games → On PS5 Storage to register or mount it so it shows up on the PS5 home screen.",
                 )}
           </span>
           <div className="ml-auto flex items-center gap-2">
@@ -2259,7 +2259,7 @@ function TransferStatus({ onRetry }: { onRetry: () => void }) {
                 className="shrink-0"
                 onClick={() => navigate("/games?tab=files")}
               >
-                {tr("upload_done_open_library", "Open Game files")}
+                {tr("upload_done_open_library", "Open PS5 Storage")}
               </Button>
             )}
             <Button
@@ -3306,7 +3306,7 @@ function BandwidthCard() {
           : tr(
               "bandwidth_cap_off_hint_v2",
               undefined,
-              "No limit. Set one if uploads saturate your Wi-Fi/LAN and make other devices lag. It applies to every upload from the Upload screen, the queue and Files, from the next one started.",
+              "No limit. Set one if uploads saturate your Wi-Fi/LAN and make other devices lag. It applies to every upload, from Send to PS5, the queue and Files, from the next one started.",
             )}
       </p>
     </section>

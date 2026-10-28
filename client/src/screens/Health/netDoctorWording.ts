@@ -235,7 +235,7 @@ export const WORDING: Record<string, Wording> = {
     detail: ["netdoctor.speed_cap.on.detail", "Uploads are held to about {cap} MiB/s."],
     fix: [
       "netdoctor.speed_cap.on.fix",
-      "Remove the limit on the Upload screen if you don't need it.",
+      "Remove the limit in Send to PS5 if you don't need it.",
     ],
   },
   "limit.at_link": {

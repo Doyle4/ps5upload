@@ -2064,7 +2064,7 @@ export default function FileSystemScreen() {
       const next = await extractedNext(addr, into);
       if (next.packages > 0)
         extra.push(
-          tr("fs_extract_next_pkgs", { n: next.packages }, `It holds ${next.packages} package(s): install them from Games › Install Package, or from their row here.`),
+          tr("fs_extract_next_pkgs", { n: next.packages }, `It holds ${next.packages} package(s): install them from Send to PS5, or from their row here.`),
         );
       else if (next.game)
         extra.push(tr("fs_extract_next_game", undefined, "It is a game folder: register it from its row menu to put it on the home screen."));

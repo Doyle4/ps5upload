@@ -538,12 +538,12 @@ function ImageUpload({
           {tr(
             "fpkg.imageQueued",
             undefined,
-            "In the Upload queue: it goes to the PS5 next, into the folder ShadowMount+ watches.",
+            "In the queue: it goes to the PS5 next, into the folder ShadowMount+ watches.",
           )}
         </span>
         {onOpen && (
           <Button size="sm" onClick={onOpen}>
-            {tr("fpkg.openUpload", undefined, "Open Upload")}
+            {tr("fpkg.openUpload", undefined, "Open Send to PS5")}
           </Button>
         )}
       </div>

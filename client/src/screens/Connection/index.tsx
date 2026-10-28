@@ -54,7 +54,7 @@ type StepState = "idle" | "busy" | "ok" | "fail" | "rest";
  *   1. Enter PS5 IP, probe the loader port (:9021).
  *   2. Send the payload ELF; poll the helper (:9120) until it
  *      answers so we know the payload actually booted.
- *   3. Unlock "Go to Upload".
+ *   3. Unlock "Open Send to PS5".
  *
  * Progressive disclosure: each step only renders once its predecessor
  * is `ok`. That keeps the screen focused on "what do I do next?"
@@ -809,7 +809,7 @@ export default function ConnectionScreen() {
               {tr(
                 "connection_step3_hint_v2",
                 undefined,
-                "Go to Upload and drop in a game folder, a .exfat image or a .ffpkg image. Uploaded images and folders are listed in Games → Game files, where Mount puts them on the PS5's home screen. To install .pkg packages, use Install Package.",
+                "Open Send to PS5 and drop in a game folder, a .exfat or .ffpkg image, or a .pkg package. Images and folders you send are listed in Games → On PS5 Storage, where Mount puts them on the PS5's home screen.",
               )}
             </p>
             <Button
@@ -818,7 +818,7 @@ export default function ConnectionScreen() {
               rightIcon={<ArrowRight size={14} className="rtl:rotate-180" />}
               onClick={() => navigate("/send")}
             >
-              {tr("connection_go_upload", undefined, "Go to Upload")}
+              {tr("connection_go_upload", undefined, "Open Send to PS5")}
             </Button>
           </StepCard>
         )}

@@ -135,7 +135,7 @@ export function SendManyModal({
         {tr(
           "collection.send_many_body",
           undefined,
-          "Each PS5 gets what it lacks: the game's package, or its folder, image or archive, plus newer updates and DLC for the games it has. Packages stream from this computer; the rest uploads to the drive set in Upload, in the homebrew folder.",
+          "Each PS5 gets what it lacks: the game's package, or its folder, image or archive, plus newer updates and DLC for the games it has. Packages stream from this computer; the rest uploads to the drive set in Send to PS5, in the homebrew folder.",
         )}
       </p>
       {consoles.length === 0 ? (

@@ -560,7 +560,7 @@ export default function FirstRunScreen() {
               {tr(
                 "first_run_step4_body_v2",
                 undefined,
-                "Drop a USB stick into your PS5 with .ffpkg game images and ShadowMount+ will auto-mount them — they'll appear in Games. To upload other files or install .pkg packages, use Upload and Install Package.",
+                "Drop a USB stick into your PS5 with .ffpkg game images and ShadowMount+ will auto-mount them — they'll appear in Games. To send other files or install .pkg packages, use Send to PS5.",
               )}
             </p>
             <div className="flex flex-wrap gap-2">
@@ -577,7 +577,7 @@ export default function FirstRunScreen() {
                 size="md"
                 onClick={() => navigate("/send")}
               >
-                {tr("first_run_go_upload", undefined, "Open Upload")}
+                {tr("first_run_go_upload", undefined, "Open Send to PS5")}
               </Button>
             </div>
           </SetupCard>
