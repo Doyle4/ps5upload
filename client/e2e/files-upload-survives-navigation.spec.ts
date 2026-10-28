@@ -137,7 +137,7 @@ test("an Add files upload keeps its progress across a screen change", async ({
   await expect(page.getByTestId("fs-upload-queue")).toContainText("big.exfat");
 
   // From another screen it is visible as a running task.
-  await primary.getByRole("link", { name: "Activity & logs", exact: true }).click();
+  await primary.getByRole("link", { name: "Activity & Logs", exact: true }).click();
   // Only the screen on show: the hidden Files screen also names the file.
   await expect(
     page.locator("[data-scroll-root]:visible").getByText("big.exfat").first(),

@@ -15,8 +15,8 @@ test("a screen keeps what was typed across a screen change", async ({
   await search.fill("rest mode");
 
   const primary = page.getByRole("navigation", { name: "Primary" });
-  await primary.getByRole("link", { name: "Activity & logs", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Activity & logs" })).toBeVisible();
+  await primary.getByRole("link", { name: "Activity & Logs", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Activity & Logs" })).toBeVisible();
   // The screen left behind is out of the way: nothing of it shows.
   await expect(main.getByPlaceholder("Search the FAQ…")).toBeHidden();
 
@@ -45,8 +45,8 @@ test("each screen scrolls by itself and comes back where it was left", async ({
     .toBeGreaterThan(300);
 
   const primary = page.getByRole("navigation", { name: "Primary" });
-  await primary.getByRole("link", { name: "Activity & logs", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Activity & logs" })).toBeVisible();
+  await primary.getByRole("link", { name: "Activity & Logs", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Activity & Logs" })).toBeVisible();
   // One scroll root is on show (a hidden screen may carry the marker a moment longer; the
   // scroll lock takes the visible one).
   await expect(page.locator("[data-scroll-root]:visible")).toHaveCount(1);
