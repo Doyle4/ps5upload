@@ -6023,6 +6023,12 @@ library_compressed_hint: "压缩镜像需要 ShadowMount+ 才能游玩。如需�
 "send_more_ways_summary": "从网址安装，或安装压缩包中的安装包",
 "send_on_ps5_count": "{n} 个安装包",
 "send_on_ps5_help_short": "U 盘上的或之前复制到 PS5 的安装包",
+"send_about_source": "关于此来源",
+"send_about_files": "{n} 个文件",
+"send_more_options": "更多选项",
+"send_more_options_summary": "速度限制、跳过的文件",
+"send_more_options_speed": "速度限制",
+"send_more_options_skipping": "跳过 {n} 类文件",
 };
 
 export default zh_CN;

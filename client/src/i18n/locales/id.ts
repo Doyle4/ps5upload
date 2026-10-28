@@ -6076,6 +6076,12 @@ library_compressed_hint: "Image terkompresi memerlukan ShadowMount+ untuk bermai
 "send_more_ways_summary": "Pasang dari URL, atau paket di dalam arsip",
 "send_on_ps5_count": "{n} paket",
 "send_on_ps5_help_short": "Paket di drive USB atau yang pernah disalin ke PS5",
+"send_about_source": "Tentang sumber ini",
+"send_about_files": "{n} file",
+"send_more_options": "Opsi lainnya",
+"send_more_options_summary": "Batas kecepatan, file yang dilewati",
+"send_more_options_speed": "Batas kecepatan",
+"send_more_options_skipping": "Melewati {n} jenis file",
 };
 
 export default id;

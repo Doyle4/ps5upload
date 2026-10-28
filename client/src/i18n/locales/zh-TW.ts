@@ -6017,6 +6017,12 @@ library_compressed_hint: "壓縮映像需要 ShadowMount+ 才能遊玩。如需�
 "send_more_ways_summary": "從網址安裝，或安裝壓縮檔中的安裝包",
 "send_on_ps5_count": "{n} 個安裝包",
 "send_on_ps5_help_short": "USB 隨身碟上的或之前複製到 PS5 的安裝包",
+"send_about_source": "關於此來源",
+"send_about_files": "{n} 個檔案",
+"send_more_options": "更多選項",
+"send_more_options_summary": "速度限制、略過的檔案",
+"send_more_options_speed": "速度限制",
+"send_more_options_skipping": "略過 {n} 類檔案",
 };
 
 export default zh_TW;

@@ -6067,6 +6067,12 @@ library_compressed_hint: "تحتاج الصور المضغوطة إلى ShadowMo
 "send_more_ways_summary": "التثبيت من رابط، أو الحزم الموجودة داخل أرشيف",
 "send_on_ps5_count": "{n} حزم",
 "send_on_ps5_help_short": "حزم على قرص USB أو منسوخة إلى PS5 من قبل",
+"send_about_source": "حول هذا المصدر",
+"send_about_files": "{n} ملفات",
+"send_more_options": "خيارات إضافية",
+"send_more_options_summary": "حد السرعة، الملفات المستبعدة",
+"send_more_options_speed": "حد السرعة",
+"send_more_options_skipping": "تخطي {n} أنواع من الملفات",
 };
 
 export default ar;

@@ -100,10 +100,17 @@ import {
   formatEtaSeconds,
   pickBannerMode,
 } from "../../lib/uploadEta";
-import { buildUploadQueueItem, type UploadItemOptions } from "../../lib/uploadQueueItem";
+import {
+  buildUploadQueueItem,
+  type UploadItemOptions,
+} from "../../lib/uploadQueueItem";
 import { validateBatch } from "../../lib/uploadBatch";
 import { scanChildren } from "../../lib/folderScan";
-import { useUploadBatch, type BatchEntry, type BatchRow } from "../../state/uploadBatch";
+import {
+  useUploadBatch,
+  type BatchEntry,
+  type BatchRow,
+} from "../../state/uploadBatch";
 import { BatchReview } from "./BatchReview";
 import { resolveUploadDest } from "../../lib/uploadDest";
 import { QueuePanel } from "./QueuePanel";
@@ -114,6 +121,7 @@ import { SlowTransferHint } from "./SlowTransferHint";
 import { ElfSourceHint } from "./ElfSourceHint";
 import { humanizePs5Error } from "../../lib/humanizeError";
 import { formatBytes } from "../../lib/format";
+import { FoldSection } from "../../components/FoldSection";
 import { resumeSummary } from "../../lib/resumeSummary";
 import { useTr, type Translator } from "../../state/lang";
 
@@ -178,7 +186,9 @@ function detectedLabel(
  * what it is and what to do with it. `embedded` is Send to PS5's use: no page header (the
  * screen has its own) and no queue (Send to PS5 shows the one queue below its other ways in).
  */
-export default function UploadScreen({ embedded = false }: { embedded?: boolean } = {}) {
+export default function UploadScreen({
+  embedded = false,
+}: { embedded?: boolean } = {}) {
   const tr = useTr();
   const {
     source,
@@ -282,7 +292,11 @@ export default function UploadScreen({ embedded = false }: { embedded?: boolean 
           if (cancelled) return;
           addToBatch(
             paths
-              .map((p, i) => ({ path: p, isDir: kinds[i] === "folder", ok: kinds[i] === "folder" || kinds[i] === "file" }))
+              .map((p, i) => ({
+                path: p,
+                isDir: kinds[i] === "folder",
+                ok: kinds[i] === "folder" || kinds[i] === "file",
+              }))
               .filter((x) => x.ok)
               .map(({ path, isDir }) => ({ path, isDir })),
           );
@@ -313,7 +327,12 @@ export default function UploadScreen({ embedded = false }: { embedded?: boolean 
     const batch = useUploadBatch.getState();
     const single = useUploadStore.getState().source;
     if (batch.rows.length === 0 && single) {
-      batch.add([{ path: single.path, isDir: single.kind === "folder" || single.kind === "game-folder" }]);
+      batch.add([
+        {
+          path: single.path,
+          isDir: single.kind === "folder" || single.kind === "game-folder",
+        },
+      ]);
     }
     useUploadStore.getState().reset();
     batch.add(entries);
@@ -321,13 +340,32 @@ export default function UploadScreen({ embedded = false }: { embedded?: boolean 
 
   const handleScanFolder = async () => {
     try {
-      const folder = isMobile() || !isTauriEnv()
-        ? await pickLocalPath({ mode: "folder", title: tr("batch_scan_pick", undefined, "Choose the folder that holds your games") })
-        : await openDialog({ directory: true, multiple: false, title: tr("batch_scan_pick", undefined, "Choose the folder that holds your games") });
+      const folder =
+        isMobile() || !isTauriEnv()
+          ? await pickLocalPath({
+              mode: "folder",
+              title: tr(
+                "batch_scan_pick",
+                undefined,
+                "Choose the folder that holds your games",
+              ),
+            })
+          : await openDialog({
+              directory: true,
+              multiple: false,
+              title: tr(
+                "batch_scan_pick",
+                undefined,
+                "Choose the folder that holds your games",
+              ),
+            });
       if (typeof folder !== "string") return;
       addToBatch(await scanChildren(folder));
     } catch (e) {
-      log.warn("upload", `folder scan failed: ${e instanceof Error ? e.message : String(e)}`);
+      log.warn(
+        "upload",
+        `folder scan failed: ${e instanceof Error ? e.message : String(e)}`,
+      );
     }
   };
 
@@ -339,10 +377,15 @@ export default function UploadScreen({ embedded = false }: { embedded?: boolean 
       // the wrong machine anyway (the browser's, not the engine's) — same
       // in-app browser, pointed at the engine's filesystem instead (see
       // api/localFs.ts).
-      const selected = isMobile() || !isTauriEnv()
-        ? await pickLocalPaths({ mode: "file" })
-        : await openDialog({ directory: false, multiple: true });
-      const list = Array.isArray(selected) ? selected : typeof selected === "string" ? [selected] : [];
+      const selected =
+        isMobile() || !isTauriEnv()
+          ? await pickLocalPaths({ mode: "file" })
+          : await openDialog({ directory: false, multiple: true });
+      const list = Array.isArray(selected)
+        ? selected
+        : typeof selected === "string"
+          ? [selected]
+          : [];
       if (list.length === 0) return;
       if (list.length > 1 || useUploadBatch.getState().rows.length > 0) {
         addToBatch(list.map((path) => ({ path, isDir: false })));
@@ -368,10 +411,15 @@ export default function UploadScreen({ embedded = false }: { embedded?: boolean 
       // in-app real-path browser so folder upload works. Browser (no
       // Tauri): same in-app browser, pointed at the engine's own
       // filesystem instead — see handleChooseFile above.
-      const selected = isMobile() || !isTauriEnv()
-        ? await pickLocalPaths({ mode: "folder" })
-        : await openDialog({ directory: true, multiple: true });
-      const list = Array.isArray(selected) ? selected : typeof selected === "string" ? [selected] : [];
+      const selected =
+        isMobile() || !isTauriEnv()
+          ? await pickLocalPaths({ mode: "folder" })
+          : await openDialog({ directory: true, multiple: true });
+      const list = Array.isArray(selected)
+        ? selected
+        : typeof selected === "string"
+          ? [selected]
+          : [];
       if (list.length === 0) return;
       if (list.length > 1 || useUploadBatch.getState().rows.length > 0) {
         addToBatch(list.map((path) => ({ path, isDir: true })));
@@ -427,7 +475,10 @@ export default function UploadScreen({ embedded = false }: { embedded?: boolean 
   ): UploadItemOptions => {
     // The console's default package drive (Volumes screen), or internal storage when that
     // drive is not connected.
-    const storage = pkgStorageFor(host ?? "", availableVolumes.length > 0 ? availableVolumes : null);
+    const storage = pkgStorageFor(
+      host ?? "",
+      availableVolumes.length > 0 ? availableVolumes : null,
+    );
     if (hasPackage && storage.fellBack) {
       pushNotification(
         "info",
@@ -464,7 +515,9 @@ export default function UploadScreen({ embedded = false }: { embedded?: boolean 
   /** Snapshot the current source + destination + options into a queue
    *  item. Captured at click time, so subsequent edits to the form
    *  don't bleed into the queued item. */
-  const handleAddToQueue = (strategy: "overwrite" | "resume"): string | null => {
+  const handleAddToQueue = (
+    strategy: "overwrite" | "resume",
+  ): string | null => {
     if (!source || !host?.trim()) return null;
     return queueAdd(
       buildUploadQueueItem(
@@ -684,13 +737,19 @@ export default function UploadScreen({ embedded = false }: { embedded?: boolean 
   // ── Several sources: the review list ──
   const batchRows = useUploadBatch((s) => s.rows);
   const batch = useUploadBatch.getState();
-  const [batchStrategy, setBatchStrategy] = useState<"overwrite" | "resume">("resume");
+  const [batchStrategy, setBatchStrategy] = useState<"overwrite" | "resume">(
+    "resume",
+  );
   const queueItems = useUploadQueueStore((s) => s.items);
   const hasBatchPkg = batchRows.some((r) => r.source?.kind === "pkg");
   // The preview uses fixed name parts; the add below makes real ones.
   const batchItemFor = (r: BatchRow, notify = false, nonce = r.id, now = 0) =>
     r.source
-      ? buildUploadQueueItem(r.source, r.password, uploadItemOptions(batchStrategy, notify && hasBatchPkg, nonce, now))
+      ? buildUploadQueueItem(
+          r.source,
+          r.password,
+          uploadItemOptions(batchStrategy, notify && hasBatchPkg, nonce, now),
+        )
       : null;
   const batchSizeFor = (r: BatchRow): number | null =>
     r.size ??
@@ -710,20 +769,42 @@ export default function UploadScreen({ embedded = false }: { embedded?: boolean 
         needsPassword: r.status === "needs-password",
       })),
     queueItems
-      .filter((q) => (q.status === "pending" || q.status === "running") && hostOf(q.addr) === hostOf(host ?? ""))
+      .filter(
+        (q) =>
+          (q.status === "pending" || q.status === "running") &&
+          hostOf(q.addr) === hostOf(host ?? ""),
+      )
       .map((q) => ({ sourcePath: q.sourcePath, resolvedDest: q.resolvedDest })),
-    new Map(availableVolumes.map((v) => [v.path, volumeAllocatableBytes(v)] as [string, number | null])),
-    new Map(availableVolumes.map((v) => [v.path, volumeLikelyFitsBytes(v)] as [string, number | null])),
+    new Map(
+      availableVolumes.map(
+        (v) => [v.path, volumeAllocatableBytes(v)] as [string, number | null],
+      ),
+    ),
+    new Map(
+      availableVolumes.map(
+        (v) => [v.path, volumeLikelyFitsBytes(v)] as [string, number | null],
+      ),
+    ),
   );
-  const toAdd = included.filter((r) => r.source && r.status === "ready" && !batchCheck.skip.has(r.id));
+  const toAdd = included.filter(
+    (r) => r.source && r.status === "ready" && !batchCheck.skip.has(r.id),
+  );
   const batchReady =
-    !!host?.trim() && toAdd.length > 0 && !batchCheck.blocked && included.every((r) => r.status !== "inspecting");
+    !!host?.trim() &&
+    toAdd.length > 0 &&
+    !batchCheck.blocked &&
+    included.every((r) => r.status !== "inspecting");
   const addBatch = (startNow: boolean) => {
     if (!batchReady) return;
     const now = Date.now();
     const ids: string[] = [];
     toAdd.forEach((r, i) => {
-      const item = batchItemFor(r, i === 0, `${r.id}${Math.random().toString(36).slice(2, 6)}`, now);
+      const item = batchItemFor(
+        r,
+        i === 0,
+        `${r.id}${Math.random().toString(36).slice(2, 6)}`,
+        now,
+      );
       if (item) ids.push(queueAdd(item));
     });
     batch.clear();
@@ -731,7 +812,11 @@ export default function UploadScreen({ embedded = false }: { embedded?: boolean 
     if (startNow && host) void queueStartHost(hostOf(host), { onlyIds: ids });
   };
   const batchKindLabel = (r: BatchRow) =>
-    r.source ? detectedLabel(r.source, tr).label : r.isDir ? tr("upload_kind_folder", "Folder") : "";
+    r.source
+      ? detectedLabel(r.source, tr).label
+      : r.isDir
+        ? tr("upload_kind_folder", "Folder")
+        : "";
 
   return (
     <div className={embedded ? undefined : "app-page"}>
@@ -759,18 +844,31 @@ export default function UploadScreen({ embedded = false }: { embedded?: boolean 
 
       <PayloadReadinessBanner />
 
-      {!isTauriEnv() && <BrowserFilePicker onFiles={(paths) => {
-        if (paths.length === 1 && !source && batchRows.length === 0) void pickFile(paths[0]);
-        else addToBatch(paths.map((path) => ({ path, isDir: false })));
-      }} />}
+      {!isTauriEnv() && (
+        <BrowserFilePicker
+          onFiles={(paths) => {
+            if (paths.length === 1 && !source && batchRows.length === 0)
+              void pickFile(paths[0]);
+            else addToBatch(paths.map((path) => ({ path, isDir: false })));
+          }}
+        />
+      )}
 
       <Step1Picker
         active={!source}
         dropActive={dropActive}
         onFile={handleChooseFile}
         onFolder={handleChooseFolder}
-        onRemoteFile={(p) => (batchRows.length > 0 ? addToBatch([{ path: p, isDir: false }]) : void pickFile(p))}
-        onRemoteFolder={(p) => (batchRows.length > 0 ? addToBatch([{ path: p, isDir: true }]) : void pickFolder(p))}
+        onRemoteFile={(p) =>
+          batchRows.length > 0
+            ? addToBatch([{ path: p, isDir: false }])
+            : void pickFile(p)
+        }
+        onRemoteFolder={(p) =>
+          batchRows.length > 0
+            ? addToBatch([{ path: p, isDir: true }])
+            : void pickFolder(p)
+        }
         onScanFolder={() => void handleScanFolder()}
       />
 
@@ -798,21 +896,39 @@ export default function UploadScreen({ embedded = false }: { embedded?: boolean 
                 <Toggle
                   checked={mountAfterUpload}
                   onChange={setMountAfterUpload}
-                  label={tr("batch_mount", undefined, "Mount images after upload")}
+                  label={tr(
+                    "batch_mount",
+                    undefined,
+                    "Mount images after upload",
+                  )}
                 />
               )}
               {batchRows.some((r) => r.source?.kind === "game-folder") && (
                 <Toggle
                   checked={registerAfterUpload}
                   onChange={setRegisterAfterUpload}
-                  label={tr("batch_register", undefined, "Add game folders to the home screen")}
+                  label={tr(
+                    "batch_register",
+                    undefined,
+                    "Add game folders to the home screen",
+                  )}
                 />
               )}
               {hasBatchPkg && (
                 <Toggle
-                  checked={useInstallSettingsStore.getState().autoInstallAfterUpload}
-                  onChange={(v) => useInstallSettingsStore.getState().setAutoInstallAfterUpload(v)}
-                  label={tr("batch_install", undefined, "Install packages after upload")}
+                  checked={
+                    useInstallSettingsStore.getState().autoInstallAfterUpload
+                  }
+                  onChange={(v) =>
+                    useInstallSettingsStore
+                      .getState()
+                      .setAutoInstallAfterUpload(v)
+                  }
+                  label={tr(
+                    "batch_install",
+                    undefined,
+                    "Install packages after upload",
+                  )}
                 />
               )}
             </>
@@ -909,7 +1025,10 @@ function Step1Picker({
         !active && "opacity-70",
       )}
     >
-      <div aria-hidden className="dot-texture pointer-events-none absolute inset-0 opacity-60" />
+      <div
+        aria-hidden
+        className="dot-texture pointer-events-none absolute inset-0 opacity-60"
+      />
       <div className="relative mx-auto mb-4 grid h-16 w-16 place-items-center rounded-full border border-[var(--glass-edge)] bg-[var(--color-surface-raised)] text-[var(--color-accent-bright)] shadow-[var(--edge-highlight),var(--shadow-1)]">
         <UploadIcon size={24} aria-hidden />
       </div>
@@ -945,7 +1064,11 @@ function Step1Picker({
           onMainClick={onFolder}
           onPick={onRemoteFolder}
         />
-        <Button variant="ghost" leftIcon={<ListPlus size={14} />} onClick={onScanFolder}>
+        <Button
+          variant="ghost"
+          leftIcon={<ListPlus size={14} />}
+          onClick={onScanFolder}
+        >
           {tr("batch_scan", undefined, "Add games from a folder…")}
         </Button>
       </div>
@@ -1271,7 +1394,10 @@ function Step2Options(props: {
                 <div className="font-medium">
                   {tr(
                     "upload_multipart_title",
-                    { index: String(partSet.index), total: String(partSet.total) },
+                    {
+                      index: String(partSet.index),
+                      total: String(partSet.total),
+                    },
                     `This is part ${partSet.index} of ${partSet.total}`,
                   )}
                 </div>
@@ -1317,11 +1443,7 @@ function Step2Options(props: {
               // actually moving (especially valuable when the
               // archive is on a spun-down USB HDD).
               <div className="mt-2 flex items-start gap-2 rounded-[var(--radius-field)] border border-[color-mix(in_srgb,var(--color-accent)_40%,transparent)] bg-[var(--color-accent)]/5 p-2 text-xs">
-                <Spinner
-                  size={14}
-                  tone="accent"
-                  className="mt-0.5 shrink-0"
-                />
+                <Spinner size={14} tone="accent" className="mt-0.5 shrink-0" />
                 <div>
                   <div className="font-medium text-[var(--color-text)]">
                     {source.kind === "archive"
@@ -1392,23 +1514,39 @@ function Step2Options(props: {
         )}
       </section>
 
-      {source.kind === "game-folder" && source.meta && (
-        <GameMetaCard meta={source.meta} />
-      )}
-
-      {source.kind === "folder" && source.meta && (
-        <FolderStatsCard
-          totalBytes={source.meta.total_size}
-          fileCount={source.meta.file_count}
-        />
-      )}
-
+      {/* What was found in the source: worth a look, not a decision, so it folds to one line
+          that still says the essentials. */}
       {(source.kind === "folder" || source.kind === "game-folder") &&
         source.meta && (
-          <PreflightEtaBanner
-            fileCount={source.meta.file_count}
-            totalBytes={source.meta.total_size}
-          />
+          <FoldSection
+            id="send-source-about"
+            title={tr("send_about_source", undefined, "About this source")}
+            summary={[
+              source.kind === "game-folder" ? source.meta.title : null,
+              formatBytes(source.meta.total_size),
+              tr(
+                "send_about_files",
+                { n: source.meta.file_count },
+                "{n} files",
+              ),
+            ]
+              .filter(Boolean)
+              .join(" · ")}
+          >
+            {source.kind === "game-folder" && (
+              <GameMetaCard meta={source.meta} />
+            )}
+            {source.kind === "folder" && (
+              <FolderStatsCard
+                totalBytes={source.meta.total_size}
+                fileCount={source.meta.file_count}
+              />
+            )}
+            <PreflightEtaBanner
+              fileCount={source.meta.file_count}
+              totalBytes={source.meta.total_size}
+            />
+          </FoldSection>
         )}
 
       {/* Lead with the RAR card (multi-part guidance + password) so a blocked
@@ -1485,15 +1623,19 @@ function Step2Options(props: {
         <>
           <PkgFinisherCard
             pkgInfo={source.pkgInfo ?? null}
-            onView={isRemotePath(source.path) ? undefined : () => setViewingPkg(true)}
+            onView={
+              isRemotePath(source.path) ? undefined : () => setViewingPkg(true)
+            }
             onStream={
               consoleHost
                 ? () => {
                     // Queued on the console's queue (shown at the top of this
                     // screen and on Install Package); the pick is done.
-                    void pkgLibraryStore(consoleHost).getState().installStream(source.path, consoleHost, {
-                      sizeBytes: source.pkgInfo?.totalBytes ?? null,
-                    });
+                    void pkgLibraryStore(consoleHost)
+                      .getState()
+                      .installStream(source.path, consoleHost, {
+                        sizeBytes: source.pkgInfo?.totalBytes ?? null,
+                      });
                     onClear();
                   }
                 : undefined
@@ -1522,7 +1664,9 @@ function Step2Options(props: {
             subpath={destinationSubpath}
             onChange={onSetDestination}
             availableVolumes={availableVolumes}
-            gameFolder={source.kind === "game-folder" && !isRemotePath(source.path)}
+            gameFolder={
+              source.kind === "game-folder" && !isRemotePath(source.path)
+            }
             resolvedDest={
               resolveUploadDest(
                 destinationVolume,
@@ -1534,18 +1678,40 @@ function Step2Options(props: {
             }
           />
 
-          <BandwidthCard />
-
-          {showExcludes && (
-            <ExcludesCard
-              mode={excludeMode}
-              excludes={excludes}
-              onSetMode={onSetExcludeMode}
-              onToggle={onToggleExclude}
-              onAdd={onAddExclude}
-              onRemove={onRemoveExclude}
-            />
-          )}
+          <FoldSection
+            id="send-more-options"
+            title={tr("send_more_options", undefined, "More options")}
+            summary={
+              // Skipping files is a choice the user must still see when folded.
+              showExcludes &&
+              excludeMode === "rules" &&
+              excludes.some((rule) => rule.enabled)
+                ? tr(
+                    "send_more_options_skipping",
+                    { n: excludes.filter((rule) => rule.enabled).length },
+                    "Skipping {n} kinds of file",
+                  )
+                : showExcludes
+                  ? tr(
+                      "send_more_options_summary",
+                      undefined,
+                      "Speed limit, files to skip",
+                    )
+                  : tr("send_more_options_speed", undefined, "Speed limit")
+            }
+          >
+            <BandwidthCard />
+            {showExcludes && (
+              <ExcludesCard
+                mode={excludeMode}
+                excludes={excludes}
+                onSetMode={onSetExcludeMode}
+                onToggle={onToggleExclude}
+                onAdd={onAddExclude}
+                onRemove={onRemoveExclude}
+              />
+            )}
+          </FoldSection>
         </>
       )}
 
@@ -1562,11 +1728,7 @@ function Step2Options(props: {
           </span>
         )}
         {/* Nothing has started yet, so this is not a Cancel: it clears the source. */}
-        <button
-          type="button"
-          onClick={onClear}
-          className={ACTION_PLAIN}
-        >
+        <button type="button" onClick={onClear} className={ACTION_PLAIN}>
           {tr("upload_change_source", undefined, "Change source")}
         </button>
         {/* Add-to-queue: capture the current source + options into the
@@ -1578,7 +1740,11 @@ function Step2Options(props: {
           onClick={() => onAddToQueue("overwrite")}
           disabled={detecting || preflightBusy || !!detectError}
           // While the queue runs, Upload is disabled and this is the way forward.
-          className={queueRunning && source.kind !== "pkg" ? ACTION_PRIMARY : ACTION_PLAIN}
+          className={
+            queueRunning && source.kind !== "pkg"
+              ? ACTION_PRIMARY
+              : ACTION_PLAIN
+          }
           title={
             detecting
               ? tr(
@@ -1616,7 +1782,9 @@ function Step2Options(props: {
           className={
             // For a package, Stream & install (on its card) is the main
             // action; uploading it first is the fallback.
-            source.kind === "pkg" || queueRunning ? ACTION_PLAIN : ACTION_PRIMARY
+            source.kind === "pkg" || queueRunning
+              ? ACTION_PLAIN
+              : ACTION_PRIMARY
           }
         >
           {preflightBusy
@@ -1873,7 +2041,10 @@ function ExistingDestinationDialog({
               }
             >
               {hasExisting
-                ? tr("upload_override_desc", "Replace everything — re-send the entire source.")
+                ? tr(
+                    "upload_override_desc",
+                    "Replace everything — re-send the entire source.",
+                  )
                 : tr("upload_start_desc", "Send all files to the PS5.")}
             </span>
           </button>
@@ -1887,7 +2058,10 @@ function ExistingDestinationDialog({
             </span>
             <span className="text-xs text-[var(--color-muted)]">
               {hasExisting
-                ? tr("upload_cancel_existing_desc", "Don't upload. Pick a different destination or source.")
+                ? tr(
+                    "upload_cancel_existing_desc",
+                    "Don't upload. Pick a different destination or source.",
+                  )
                 : tr("upload_cancel_desc", "Don't upload.")}
             </span>
           </button>
@@ -2088,7 +2262,10 @@ function TransferStatus({ onRetry }: { onRetry: () => void }) {
           >
             <div className="min-w-0 flex-1">
               <div className="font-semibold text-[var(--color-warn)]">
-                {tr("upload_lost_contact_title", "Lost contact — the upload may still be running")}
+                {tr(
+                  "upload_lost_contact_title",
+                  "Lost contact — the upload may still be running",
+                )}
               </div>
               <div className="mt-0.5 text-[var(--color-muted)]">
                 {tr(
@@ -2097,7 +2274,11 @@ function TransferStatus({ onRetry }: { onRetry: () => void }) {
                 )}
               </div>
             </div>
-            <Button variant="secondary" size="sm" onClick={() => reattach(host ?? "")}>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => reattach(host ?? "")}
+            >
               {tr("upload_lost_contact_reattach", "Check again")}
             </Button>
           </div>
@@ -2163,7 +2344,10 @@ function TransferStatus({ onRetry }: { onRetry: () => void }) {
     return (
       <div className="mb-3 rounded-[var(--radius-card)] border border-[var(--glass-edge)] bg-[var(--color-surface-raised)] shadow-[var(--edge-highlight),var(--shadow-1)] px-5 py-4 text-sm">
         <div className="mb-3 flex items-center gap-2 font-semibold text-[var(--color-good)]">
-          <span aria-hidden className="h-2 w-2 rounded-full bg-[var(--color-good)]" />
+          <span
+            aria-hidden
+            className="h-2 w-2 rounded-full bg-[var(--color-good)]"
+          />
           {allSkipped
             ? tr("upload_already_up_to_date", "Already up to date")
             : tr("upload_complete", "Upload complete")}
@@ -2187,9 +2371,11 @@ function TransferStatus({ onRetry }: { onRetry: () => void }) {
           )}
           {phase.skippedFiles > 0 && (
             <>
-              <dt>{allSkipped
-                ? tr("upload_already_present", "Already present")
-                : tr("upload_skipped", "Skipped")}</dt>
+              <dt>
+                {allSkipped
+                  ? tr("upload_already_present", "Already present")
+                  : tr("upload_skipped", "Skipped")}
+              </dt>
               <dd className="text-[var(--color-text)]">
                 {phase.skippedFiles.toLocaleString()}{" "}
                 {tr("upload_done_skipped_files", "files (")}
@@ -2591,9 +2777,10 @@ function GameMetaCard({
   // missing global (#271: this took down the whole upload flow in the
   // web UI the instant a folder was picked). The fallback below already
   // renders for a missing icon.
-  const coverSrc = useMemo(() => localFileSrc(meta.icon0_path), [
-    meta.icon0_path,
-  ]);
+  const coverSrc = useMemo(
+    () => localFileSrc(meta.icon0_path),
+    [meta.icon0_path],
+  );
   const [coverFailed, setCoverFailed] = useState(false);
 
   return (
@@ -2621,7 +2808,10 @@ function GameMetaCard({
             {meta.content_id ? <> · {meta.content_id}</> : null}
           </div>
           <div className="truncate text-lg font-semibold">
-            <GameTitleLink id={meta.title_id} title={meta.title ?? "(untitled)"} />
+            <GameTitleLink
+              id={meta.title_id}
+              title={meta.title ?? "(untitled)"}
+            />
           </div>
           <div className="mt-0.5 text-xs text-[var(--color-muted)]">
             {meta.content_version ? `v${meta.content_version} · ` : ""}
@@ -2954,7 +3144,9 @@ function PkgFinisherCard({
     <section className="rounded-[var(--radius-panel)] border border-[var(--glass-edge)] bg-[var(--color-surface-raised)] shadow-[var(--edge-highlight),var(--shadow-1)] mb-4 p-5">
       <div className="mb-2 flex items-center gap-2 text-sm font-medium">
         <Package size={16} className="text-[var(--color-muted)]" />
-        <span className="flex-1">{tr("upload_pkg_card_title", "Package install")}</span>
+        <span className="flex-1">
+          {tr("upload_pkg_card_title", "Package install")}
+        </span>
         {onView && (
           <Button variant="secondary" size="sm" onClick={onView}>
             {tr("viewer_open", undefined, "View details")}
@@ -3046,7 +3238,10 @@ function ZipArchiveCard({ info }: { info: ZipInspect }) {
                 {info.content_id ? <> · {info.content_id}</> : null}
               </div>
               <div className="truncate text-lg font-semibold">
-                <GameTitleLink id={info.title_id} title={info.title ?? "(untitled)"} />
+                <GameTitleLink
+                  id={info.title_id}
+                  title={info.title ?? "(untitled)"}
+                />
               </div>
             </>
           )}
@@ -3286,7 +3481,9 @@ function BandwidthCard() {
           }}
           placeholder="0"
         />
-        <span className="text-xs text-[var(--color-muted)]">{tr("upload_unit_mbs", "MiB/s")}</span>
+        <span className="text-xs text-[var(--color-muted)]">
+          {tr("upload_unit_mbs", "MiB/s")}
+        </span>
         {cap > 0 && (
           <button
             type="button"
@@ -3378,38 +3575,43 @@ function MountAfterUploadCard({
  *  managers already look for, so uploads appear where users expect —
  *  but hint copy stays neutral and describes the destination in plain
  *  "what goes here" terms rather than naming specific managers. */
-const DESTINATION_PRESETS: { label: string; subpath: string; hintKey: string; hintFallback: string }[] =
-  [
-    // homebrew is first because it's the community-standard scan path
-    // — most PS5 game scanners read from <volume>/homebrew, so files
-    // landed here are auto-discoverable.
-    {
-      label: "homebrew",
-      subpath: "homebrew",
-      hintKey: "upload_preset_homebrew_hint",
-      hintFallback: "Homebrew apps & games (recommended)",
-    },
-    // etaHEN's app loader scans <volume>/etaHEN/games — common for users who
-    // jailbreak via etaHEN/Backpork and launch from there. Requested by users.
-    {
-      label: "etaHEN/games",
-      subpath: "etaHEN/games",
-      hintKey: "upload_preset_etahen_hint",
-      hintFallback: "etaHEN game folder (etaHEN app loader scans here)",
-    },
-    {
-      label: "exfat",
-      subpath: "exfat",
-      hintKey: "upload_preset_exfat_hint",
-      hintFallback: "A folder for disk images. It does not turn a game folder into an image.",
-    },
-    {
-      label: "ps5upload",
-      subpath: "ps5upload",
-      hintKey: "upload_preset_ps5upload_hint",
-      hintFallback: "Tool-specific generic folder",
-    },
-  ];
+const DESTINATION_PRESETS: {
+  label: string;
+  subpath: string;
+  hintKey: string;
+  hintFallback: string;
+}[] = [
+  // homebrew is first because it's the community-standard scan path
+  // — most PS5 game scanners read from <volume>/homebrew, so files
+  // landed here are auto-discoverable.
+  {
+    label: "homebrew",
+    subpath: "homebrew",
+    hintKey: "upload_preset_homebrew_hint",
+    hintFallback: "Homebrew apps & games (recommended)",
+  },
+  // etaHEN's app loader scans <volume>/etaHEN/games — common for users who
+  // jailbreak via etaHEN/Backpork and launch from there. Requested by users.
+  {
+    label: "etaHEN/games",
+    subpath: "etaHEN/games",
+    hintKey: "upload_preset_etahen_hint",
+    hintFallback: "etaHEN game folder (etaHEN app loader scans here)",
+  },
+  {
+    label: "exfat",
+    subpath: "exfat",
+    hintKey: "upload_preset_exfat_hint",
+    hintFallback:
+      "A folder for disk images. It does not turn a game folder into an image.",
+  },
+  {
+    label: "ps5upload",
+    subpath: "ps5upload",
+    hintKey: "upload_preset_ps5upload_hint",
+    hintFallback: "Tool-specific generic folder",
+  },
+];
 
 function DestinationCard({
   volume,
@@ -3534,7 +3736,7 @@ function DestinationCard({
           {tr(
             "upload_dest_image_folder_note",
             undefined,
-            "This game folder will arrive in the exfat folder as a folder. To send it as an .exfat image, use \"Or send it as one game image\" above.",
+            'This game folder will arrive in the exfat folder as a folder. To send it as an .exfat image, use "Or send it as one game image" above.',
           )}
         </p>
       )}
@@ -3589,7 +3791,10 @@ function ExcludesCard({
         />
         <ModeRadio
           label={tr("upload_apply_exclude_rules", "Apply exclude rules")}
-          hint={tr("upload_mode_rules_hint", "Skip junk files and anything you add below.")}
+          hint={tr(
+            "upload_mode_rules_hint",
+            "Skip junk files and anything you add below.",
+          )}
           checked={mode === "rules"}
           onCheck={() => onSetMode("rules")}
         />
@@ -3639,7 +3844,10 @@ function ExcludesCard({
               className="flex-1"
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
-              placeholder={tr("upload_add_pattern_placeholder", "Add pattern (e.g. *.log)")}
+              placeholder={tr(
+                "upload_add_pattern_placeholder",
+                "Add pattern (e.g. *.log)",
+              )}
             />
             <button
               type="submit"
@@ -3721,7 +3929,11 @@ function PayloadReadinessBanner() {
         data-testid="upload-rest-mode"
         className="mb-4 flex items-start gap-3 rounded-[var(--radius-card)] border border-[color-mix(in_srgb,var(--color-accent)_35%,transparent)] bg-[var(--color-accent-soft)] px-4 py-3 text-sm"
       >
-        <Moon size={16} className="mt-0.5 shrink-0 text-[var(--color-accent-bright)]" aria-hidden />
+        <Moon
+          size={16}
+          className="mt-0.5 shrink-0 text-[var(--color-accent-bright)]"
+          aria-hidden
+        />
         <div className="min-w-0">
           <div className="font-semibold">
             {tr("gate_rest_title", undefined, "Your PS5 is in rest mode")}

@@ -6088,6 +6088,12 @@ library_compressed_hint: "圧縮イメージのプレイには ShadowMount+ が�
 "send_more_ways_summary": "URL から、またはアーカイブ内のパッケージをインストール",
 "send_on_ps5_count": "{n} 個のパッケージ",
 "send_on_ps5_help_short": "USB ドライブ上、または以前 PS5 にコピーしたパッケージ",
+"send_about_source": "このソースについて",
+"send_about_files": "{n} 個のファイル",
+"send_more_options": "その他のオプション",
+"send_more_options_summary": "速度制限、除外するファイル",
+"send_more_options_speed": "速度制限",
+"send_more_options_skipping": "{n} 種類のファイルを除外中",
 };
 
 export default ja;

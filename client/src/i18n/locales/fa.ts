@@ -6367,6 +6367,12 @@ library_compressed_hint: "برای اجرای ایمیج فشرده به ShadowM
 "send_more_ways_summary": "نصب از یک نشانی اینترنتی، یا بسته‌های درون یک بایگانی",
 "send_on_ps5_count": "{n} بسته",
 "send_on_ps5_help_short": "بسته‌های روی درایو USB یا کپی‌شده به PS5 از قبل",
+"send_about_source": "دربارهٔ این منبع",
+"send_about_files": "{n} فایل",
+"send_more_options": "گزینه‌های بیشتر",
+"send_more_options_summary": "محدودیت سرعت، فایل‌های نادیده‌گرفته",
+"send_more_options_speed": "محدودیت سرعت",
+"send_more_options_skipping": "نادیده گرفتن {n} نوع فایل",
 };
 
 export default fa;

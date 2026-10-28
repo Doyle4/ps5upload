@@ -6083,6 +6083,12 @@ library_compressed_hint: "संपीड़ित इमेज चलाने 
 "send_more_ways_summary": "किसी URL से, या किसी आर्काइव के अंदर के पैकेज इंस्टॉल करें",
 "send_on_ps5_count": "{n} पैकेज",
 "send_on_ps5_help_short": "USB ड्राइव पर या पहले PS5 पर कॉपी किए गए पैकेज",
+"send_about_source": "इस स्रोत के बारे में",
+"send_about_files": "{n} फ़ाइलें",
+"send_more_options": "और विकल्प",
+"send_more_options_summary": "गति सीमा, छोड़ी जाने वाली फ़ाइलें",
+"send_more_options_speed": "गति सीमा",
+"send_more_options_skipping": "{n} प्रकार की फ़ाइलें छोड़ी जा रही हैं",
 };
 
 export default hi;

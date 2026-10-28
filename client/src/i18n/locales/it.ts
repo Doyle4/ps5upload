@@ -6017,6 +6017,12 @@ library_compressed_hint: "Le immagini compresse richiedono ShadowMount+ per gioc
 "send_more_ways_summary": "Installa da un URL o i pacchetti di un archivio",
 "send_on_ps5_count": "{n} pacchetti",
 "send_on_ps5_help_short": "Pacchetti su un'unità USB o copiati prima sulla PS5",
+"send_about_source": "Informazioni sull'origine",
+"send_about_files": "{n} file",
+"send_more_options": "Altre opzioni",
+"send_more_options_summary": "Limite di velocità, file da saltare",
+"send_more_options_speed": "Limite di velocità",
+"send_more_options_skipping": "Salto di {n} tipi di file",
 };
 
 export default it;

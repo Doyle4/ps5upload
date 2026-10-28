@@ -6381,6 +6381,12 @@ library_compressed_hint: "A tömörített képfájlok futtatásához ShadowMount
 "send_more_ways_summary": "Telepítés URL-ről, vagy egy archívumban lévő csomagok",
 "send_on_ps5_count": "{n} csomag",
 "send_on_ps5_help_short": "USB-meghajtón lévő vagy korábban a PS5-re másolt csomagok",
+"send_about_source": "A forrásról",
+"send_about_files": "{n} fájl",
+"send_more_options": "További beállítások",
+"send_more_options_summary": "Sebességkorlát, kihagyandó fájlok",
+"send_more_options_speed": "Sebességkorlát",
+"send_more_options_skipping": "{n} fájltípus kihagyva",
 };
 
 export default hu;

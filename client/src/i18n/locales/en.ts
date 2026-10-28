@@ -6391,6 +6391,12 @@ library_compressed_hint: "Compressed images need ShadowMount+ to play. To edit, 
 "send_more_ways_summary": "Install from a URL, or the packages inside an archive",
 "send_on_ps5_count": "{n} packages",
 "send_on_ps5_help_short": "Packages on a USB drive or copied to the PS5 before",
+"send_about_source": "About this source",
+"send_about_files": "{n} files",
+"send_more_options": "More options",
+"send_more_options_summary": "Speed limit, files to skip",
+"send_more_options_speed": "Speed limit",
+"send_more_options_skipping": "Skipping {n} kinds of file",
 };
 
 export default en;

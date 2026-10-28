@@ -6067,6 +6067,12 @@ library_compressed_hint: "সংকুচিত ইমেজ চালাতে 
 "send_more_ways_summary": "একটি URL থেকে, বা একটি আর্কাইভের ভেতরের প্যাকেজ ইনস্টল করুন",
 "send_on_ps5_count": "{n}টি প্যাকেজ",
 "send_on_ps5_help_short": "USB ড্রাইভে থাকা বা আগে PS5-এ কপি করা প্যাকেজ",
+"send_about_source": "এই উৎস সম্পর্কে",
+"send_about_files": "{n}টি ফাইল",
+"send_more_options": "আরও বিকল্প",
+"send_more_options_summary": "গতির সীমা, বাদ দেওয়ার ফাইল",
+"send_more_options_speed": "গতির সীমা",
+"send_more_options_skipping": "{n} ধরনের ফাইল বাদ দেওয়া হচ্ছে",
 };
 
 export default bn;

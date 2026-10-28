@@ -6074,6 +6074,12 @@ library_compressed_hint: "Sıkıştırılmış kalıpları oynatmak için Shadow
 "send_more_ways_summary": "Bir URL'den veya bir arşivdeki paketleri kurun",
 "send_on_ps5_count": "{n} paket",
 "send_on_ps5_help_short": "USB sürücüdeki veya daha önce PS5'e kopyalanmış paketler",
+"send_about_source": "Bu kaynak hakkında",
+"send_about_files": "{n} dosya",
+"send_more_options": "Diğer seçenekler",
+"send_more_options_summary": "Hız sınırı, atlanacak dosyalar",
+"send_more_options_speed": "Hız sınırı",
+"send_more_options_skipping": "{n} dosya türü atlanıyor",
 };
 
 export default tr;

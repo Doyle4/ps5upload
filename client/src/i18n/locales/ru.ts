@@ -6017,6 +6017,12 @@ library_compressed_hint: "Для запуска сжатых образов ну
 "send_more_ways_summary": "Установка по ссылке или пакеты из архива",
 "send_on_ps5_count": "Пакетов: {n}",
 "send_on_ps5_help_short": "Пакеты на USB-накопителе или скопированные на PS5 ранее",
+"send_about_source": "Об источнике",
+"send_about_files": "Файлов: {n}",
+"send_more_options": "Другие параметры",
+"send_more_options_summary": "Ограничение скорости, пропуск файлов",
+"send_more_options_speed": "Ограничение скорости",
+"send_more_options_skipping": "Пропуск типов файлов: {n}",
 };
 
 export default ru;

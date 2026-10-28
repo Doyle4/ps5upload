@@ -6076,6 +6076,12 @@ library_compressed_hint: "อิมเมจที่บีบอัดต้อ
 "send_more_ways_summary": "ติดตั้งจาก URL หรือแพ็กเกจภายในไฟล์บีบอัด",
 "send_on_ps5_count": "{n} แพ็กเกจ",
 "send_on_ps5_help_short": "แพ็กเกจบนไดรฟ์ USB หรือที่คัดลอกไปยัง PS5 ก่อนหน้านี้",
+"send_about_source": "เกี่ยวกับต้นทางนี้",
+"send_about_files": "{n} ไฟล์",
+"send_more_options": "ตัวเลือกเพิ่มเติม",
+"send_more_options_summary": "จำกัดความเร็ว ไฟล์ที่ข้าม",
+"send_more_options_speed": "จำกัดความเร็ว",
+"send_more_options_skipping": "ข้ามไฟล์ {n} ประเภท",
 };
 
 export default th;
