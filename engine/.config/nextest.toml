@@ -1,6 +1,18 @@
-# cargo-nextest settings for `scripts/validate-repo.mjs` and CI. (The tests that measure time or
-# process-wide limits, and had to run one at a time, moved with the AVA1 library to its own
-# repository: third_party/ava1.)
+# cargo-nextest settings for `scripts/validate-repo.mjs` and CI. nextest runs every test as its
+# own process and many at once; the tests below exhaust a process-wide limit on purpose (file
+# descriptors), so they run one at a time to stay meaningful on a loaded machine. (The timing
+# tests that needed this too moved with the AVA1 library to third_party/ava1.)
+[test-groups]
+alone = { max-threads = 1 }
+
+[[profile.default.overrides]]
+filter = "binary(download_fds)"
+test-group = "alone"
+
+[[profile.ci.overrides]]
+filter = "binary(download_fds)"
+test-group = "alone"
+
 [profile.default]
 # A hung test is a failure, not a stalled gate.
 slow-timeout = { period = "60s", terminate-after = 5 }
