@@ -77,3 +77,17 @@ export function swapAutoloadKey(list: string[], oldKey: string, newKey: string):
   if (list.includes(newKey)) return list.filter((e) => e !== oldKey);
   return list.map((e) => (e === oldKey ? newKey : e));
 }
+
+/** For a payload stored by hand (not by this app, not from Payload Manager's repository): the
+ *  catalogue payload whose downloaded file has the same name, so the tab can offer to replace
+ *  it with the catalogue's release. Payload Manager records no version for these, so whether
+ *  the stored one is older cannot be known; the offer says so. */
+export function catalogueMatch(
+  p: { path: string; slot: string; filename: string },
+  inventory: { payload_id: string; path: string }[],
+): string | null {
+  if (isRepoManaged(p) || !p.path.startsWith("/data/pldmgr/")) return null;
+  const name = p.filename.toLowerCase();
+  const hit = inventory.find((e) => (e.path.split(/[\\/]/).pop() ?? "").toLowerCase() === name);
+  return hit?.payload_id ?? null;
+}

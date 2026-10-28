@@ -6121,6 +6121,15 @@ library_compressed_hint: "Skompresowane obrazy wymagają ShadowMount+, aby grać
 "linkdl.lz4_unpack": "Rozpakuj po drodze",
 "linkdl.lz4_unpack_hint": "Wyłączone: plik .lz4 zostanie zapisany na PS5 bez zmian.",
 "linkdl.image_hint": "Obraz gry {kind}. ShadowMount+ montuje go bez zmian z folderu, który skanuje, np. homebrew na dysku. Plik pojawi się tam dopiero, gdy będzie kompletny.",
+"pm_add_failed": "Nie udało się zapisać {name} w Payload Manager",
+"pm_catalogue_match": "Katalog: {name}",
+"pm_replace_tooltip": "Payload Manager nie zapisuje wersji payloadu dodanego ręcznie, więc ps5upload nie może stwierdzić, czy ten jest starszy. Zastąpienie zapisze w jego miejscu wydanie z katalogu, zachowując jego miejsce na liście startowej; potem aktualizacje będą proponowane tutaj.",
+"pm_replace_with": "Zastąp wersją {tag}",
+"pm_add_header": "Dodaj do Payload Manager",
+"pm_add_local": "Z tego komputera…",
+"pm_add_catalogue_label": "Pobrany payload z katalogu",
+"pm_add_catalogue_pick": "Payload z katalogu…",
+"pm_add_hint": "Payload Manager trzyma plik na PS5, uruchamia go stąd lub przy starcie i pokazuje w swoim menu. Payload zapisany z katalogu zostanie tu zaproponowany, gdy katalog będzie miał nowsze wydanie.",
 };
 
 export default pl;

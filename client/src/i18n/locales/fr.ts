@@ -5884,6 +5884,15 @@ library_compressed_hint: "Les images compressées nécessitent ShadowMount+ pour
 "linkdl.lz4_unpack": "Décompresser en route",
 "linkdl.lz4_unpack_hint": "Désactivé : le fichier .lz4 est enregistré tel quel sur la PS5.",
 "linkdl.image_hint": "Une image de jeu {kind}. ShadowMount+ la monte telle quelle depuis un dossier qu'il analyse, comme homebrew sur un disque. Le fichier n'y apparaît qu'une fois complet.",
+"pm_add_failed": "Impossible d'enregistrer {name} dans Payload Manager",
+"pm_catalogue_match": "Catalogue : {name}",
+"pm_replace_tooltip": "Payload Manager ne garde aucune version pour un payload ajouté à la main, donc ps5upload ne peut pas savoir si celui-ci est plus ancien. Remplacer enregistre la version du catalogue à sa place en gardant sa position dans la liste de démarrage ; ensuite, les mises à jour sont proposées ici.",
+"pm_replace_with": "Remplacer par {tag}",
+"pm_add_header": "Ajouter à Payload Manager",
+"pm_add_local": "Depuis cet ordinateur…",
+"pm_add_catalogue_label": "Payload du catalogue téléchargé",
+"pm_add_catalogue_pick": "Payload du catalogue…",
+"pm_add_hint": "Payload Manager garde le fichier sur la PS5, le lance d'ici ou au démarrage et l'affiche dans son propre menu. Un payload enregistré depuis le catalogue est proposé ici quand le catalogue a une version plus récente.",
 };
 
 export default fr;

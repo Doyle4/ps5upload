@@ -11160,6 +11160,10 @@ async fn run(cfg: EngineConfig) -> anyhow::Result<()> {
         .route("/api/ps5/pldmgr/delete", post(pldmgr_api::delete))
         .route("/api/ps5/pldmgr/autoload", post(pldmgr_api::autoload))
         .route("/api/ps5/pldmgr/store", post(pldmgr_api::store))
+        .route(
+            "/api/ps5/pldmgr/upload",
+            post(pldmgr_api::upload).layer(axum::extract::DefaultBodyLimit::max(128 * 1024 * 1024)),
+        )
         .merge(hearbridge_api::routes())
         .route("/api/ps5/elfldr/ensure", post(ps5_elfldr_ensure))
         .route("/api/ps5/process/kill", post(ps5_process_kill))

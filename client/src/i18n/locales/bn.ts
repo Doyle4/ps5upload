@@ -5866,6 +5866,15 @@ library_compressed_hint: "সংকুচিত ইমেজ চালাতে 
 "linkdl.lz4_unpack": "পথেই আনপ্যাক করুন",
 "linkdl.lz4_unpack_hint": "বন্ধ: .lz4 ফাইলটি PS5-এ যেমন আছে তেমনই সংরক্ষিত হয়।",
 "linkdl.image_hint": "একটি {kind} গেম ইমেজ। ShadowMount+ এটি যেমন আছে তেমনই মাউন্ট করে এমন একটি ফোল্ডার থেকে যা সে স্ক্যান করে, যেমন কোনো ড্রাইভের homebrew। ফাইলটি সম্পূর্ণ হলেই কেবল সেখানে দেখা যায়।",
+"pm_add_failed": "{name} Payload Manager-এ রাখা যায়নি",
+"pm_catalogue_match": "ক্যাটালগ: {name}",
+"pm_replace_tooltip": "হাতে যোগ করা পেলোডের কোনো সংস্করণ Payload Manager রাখে না, তাই ps5upload বুঝতে পারে না এটি পুরোনো কি না। প্রতিস্থাপন করলে বুট তালিকায় এর জায়গা ঠিক রেখে ক্যাটালগের রিলিজ এর জায়গায় রাখা হয়; এরপর আপডেট এখানে দেখানো হবে।",
+"pm_replace_with": "{tag} দিয়ে প্রতিস্থাপন",
+"pm_add_header": "Payload Manager-এ যোগ করুন",
+"pm_add_local": "এই কম্পিউটার থেকে…",
+"pm_add_catalogue_label": "ডাউনলোড করা ক্যাটালগ পেলোড",
+"pm_add_catalogue_pick": "ক্যাটালগ পেলোড…",
+"pm_add_hint": "Payload Manager ফাইলটি PS5-এ রাখে, এখান থেকে বা বুটের সময় চালায়, এবং নিজের মেনুতে দেখায়। ক্যাটালগ থেকে রাখা পেলোড ক্যাটালগে নতুন রিলিজ এলে এখানে দেখানো হয়।",
 };
 
 export default bn;

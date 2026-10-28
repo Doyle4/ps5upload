@@ -5882,6 +5882,15 @@ library_compressed_hint: "संपीड़ित इमेज चलाने 
 "linkdl.lz4_unpack": "रास्ते में अनपैक करें",
 "linkdl.lz4_unpack_hint": "बंद: .lz4 फ़ाइल PS5 पर जैसी है वैसी ही सेव होती है।",
 "linkdl.image_hint": "एक {kind} गेम इमेज। ShadowMount+ इसे उस फ़ोल्डर से जैसी है वैसी ही माउंट करता है जिसे वह स्कैन करता है, जैसे किसी ड्राइव पर homebrew। फ़ाइल वहाँ पूरी होने के बाद ही दिखती है।",
+"pm_add_failed": "{name} को Payload Manager में सेव नहीं किया जा सका",
+"pm_catalogue_match": "कैटलॉग: {name}",
+"pm_replace_tooltip": "Payload Manager हाथ से जोड़े गए पेलोड का वर्शन नहीं रखता, इसलिए ps5upload नहीं बता सकता कि यह पुराना है या नहीं। बदलने पर कैटलॉग की रिलीज़ उसकी जगह सेव होती है और बूट सूची में उसकी जगह बनी रहती है; उसके बाद अपडेट यहीं दिखाए जाते हैं।",
+"pm_replace_with": "{tag} से बदलें",
+"pm_add_header": "Payload Manager में जोड़ें",
+"pm_add_local": "इस कंप्यूटर से…",
+"pm_add_catalogue_label": "डाउनलोड किया गया कैटलॉग पेलोड",
+"pm_add_catalogue_pick": "कैटलॉग पेलोड…",
+"pm_add_hint": "Payload Manager फ़ाइल को PS5 पर रखता है, उसे यहाँ से या बूट पर चलाता है, और अपने मेन्यू में दिखाता है। कैटलॉग से सेव किया गया पेलोड, कैटलॉग में नई रिलीज़ आने पर यहाँ दिखाया जाता है।",
 };
 
 export default hi;

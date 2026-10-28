@@ -6191,6 +6191,15 @@ library_compressed_hint: "Compressed images need ShadowMount+ to play. To edit, 
 "linkdl.lz4_unpack": "Unpack on the way",
 "linkdl.lz4_unpack_hint": "Off: the .lz4 file is saved on the PS5 as it is.",
 "linkdl.image_hint": "Game image ({kind}). ShadowMount+ mounts it as it is from a folder it scans, such as homebrew on a drive. The file appears there only once it is complete.",
+"pm_add_failed": "Couldn't store {name} in Payload Manager",
+"pm_catalogue_match": "Catalogue: {name}",
+"pm_replace_tooltip": "Payload Manager keeps no version for a payload stored by hand, so ps5upload cannot tell whether this one is older. Replacing stores the catalogue's release in its place, keeping its place in the boot list; after that, updates are offered here.",
+"pm_replace_with": "Replace with {tag}",
+"pm_add_header": "Add to Payload Manager",
+"pm_add_local": "From this computer…",
+"pm_add_catalogue_label": "Downloaded catalogue payload",
+"pm_add_catalogue_pick": "Catalogue payload…",
+"pm_add_hint": "Payload Manager keeps the file on the PS5, launches it from here or at boot, and lists it in its own menu. A payload stored from the catalogue is offered here when the catalogue has a newer release.",
 };
 
 export default en;

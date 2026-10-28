@@ -6181,6 +6181,15 @@ library_compressed_hint: "A tömörített képfájlok futtatásához ShadowMount
 "linkdl.lz4_unpack": "Kicsomagolás útközben",
 "linkdl.lz4_unpack_hint": "Ki: a .lz4 fájl változatlanul kerül a PS5-re.",
 "linkdl.image_hint": "Egy {kind} játékképfájl. A ShadowMount+ változatlanul csatolja egy általa figyelt mappából, például egy meghajtó homebrew mappájából. A fájl csak akkor jelenik meg ott, amikor teljes.",
+"pm_add_failed": "A(z) {name} nem menthető a Payload Managerbe",
+"pm_catalogue_match": "Katalógus: {name}",
+"pm_replace_tooltip": "A Payload Manager nem tárol verziót a kézzel hozzáadott payloadokhoz, így a ps5upload nem tudja eldönteni, hogy ez régebbi-e. A csere a katalógus kiadását menti a helyére, és megtartja a helyét az indítási listán; ezután a frissítéseket itt kínálja fel.",
+"pm_replace_with": "Csere erre: {tag}",
+"pm_add_header": "Hozzáadás a Payload Managerhez",
+"pm_add_local": "Erről a számítógépről…",
+"pm_add_catalogue_label": "Letöltött katalógus-payload",
+"pm_add_catalogue_pick": "Katalógus-payload…",
+"pm_add_hint": "A Payload Manager a PS5-ön tartja a fájlt, innen vagy indításkor elindítja, és a saját menüjében listázza. A katalógusból mentett payloadot itt kínálja fel, amikor a katalógusban újabb kiadás van.",
 };
 
 export default hu;

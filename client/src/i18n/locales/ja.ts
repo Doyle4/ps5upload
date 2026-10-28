@@ -5887,6 +5887,15 @@ library_compressed_hint: "圧縮イメージのプレイには ShadowMount+ が�
 "linkdl.lz4_unpack": "転送中に展開",
 "linkdl.lz4_unpack_hint": "オフ: .lz4 ファイルをそのまま PS5 に保存します。",
 "linkdl.image_hint": "{kind} ゲームイメージです。ShadowMount+ は、ドライブ上の homebrew などスキャン対象のフォルダーからそのままマウントします。ファイルは完了して初めてそこに現れます。",
+"pm_add_failed": "{name} を Payload Manager に保存できませんでした",
+"pm_catalogue_match": "カタログ: {name}",
+"pm_replace_tooltip": "Payload Manager は手動で追加したペイロードのバージョンを記録しないため、ps5upload はこれが古いかどうか判断できません。置き換えると、ブートリストでの位置を保ったままカタログのリリースをその場所に保存します。以降、更新はここで案内されます。",
+"pm_replace_with": "{tag} に置き換え",
+"pm_add_header": "Payload Manager に追加",
+"pm_add_local": "このコンピューターから…",
+"pm_add_catalogue_label": "ダウンロード済みのカタログペイロード",
+"pm_add_catalogue_pick": "カタログのペイロード…",
+"pm_add_hint": "Payload Manager はファイルを PS5 に保持し、ここから、または起動時に実行し、自身のメニューに表示します。カタログから保存したペイロードは、カタログに新しいリリースがあるとここで案内されます。",
 };
 
 export default ja;

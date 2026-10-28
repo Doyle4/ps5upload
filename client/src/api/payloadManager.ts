@@ -124,6 +124,29 @@ export async function pmStore(
   throw new Error(w.error || "store failed");
 }
 
+/** `pmStore` for bytes the caller holds (a payload picked from this computer in any build,
+ *  the browser one included). */
+export async function pmStoreBytes(
+  host: string,
+  filename: string,
+  bytes: ArrayBuffer | Uint8Array,
+  confirmed: boolean,
+): Promise<PmStoreResult> {
+  const q = new URLSearchParams({ host: hostOf(host), filename, confirmed: String(confirmed) });
+  const res = await fetch(`${getEngineUrl()}/api/ps5/pldmgr/upload?${q}`, {
+    method: "POST",
+    headers: { "content-type": "application/octet-stream" },
+    body: bytes as BodyInit,
+    signal: AbortSignal.timeout(120_000),
+  });
+  const w = await read(res);
+  if (w.ok) return { stored: true, folder: w.folder ?? "" };
+  if (w.needs_confirm) {
+    return { stored: false, needsConfirm: true, folder: w.folder ?? "", fileExists: !!w.file_exists };
+  }
+  throw new Error(w.error || "store failed");
+}
+
 /** The autoload-list entry that names `p`: its slot on Payload Manager 0.6, else its file name. */
 export function autoloadKey(p: Pick<PmStoredPayload, "slot" | "filename">): string {
   return p.slot || p.filename;

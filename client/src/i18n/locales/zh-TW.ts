@@ -5816,6 +5816,15 @@ library_compressed_hint: "壓縮映像需要 ShadowMount+ 才能遊玩。如需�
 "linkdl.lz4_unpack": "傳輸時解壓縮",
 "linkdl.lz4_unpack_hint": "關閉：.lz4 檔案依原樣儲存到 PS5。",
 "linkdl.image_hint": "{kind} 遊戲映像。ShadowMount+ 會從它掃描的資料夾（例如某個磁碟上的 homebrew）依原樣掛載。檔案只有在完整後才會出現在那裡。",
+"pm_add_failed": "無法將 {name} 存入 Payload Manager",
+"pm_catalogue_match": "目錄：{name}",
+"pm_replace_tooltip": "Payload Manager 不記錄手動加入的酬載版本，因此 ps5upload 無法判斷它是否較舊。取代會在原位置存入目錄中的版本，並保留它在開機清單中的位置；之後會在這裡提示更新。",
+"pm_replace_with": "取代為 {tag}",
+"pm_add_header": "加入 Payload Manager",
+"pm_add_local": "從這台電腦…",
+"pm_add_catalogue_label": "已下載的目錄酬載",
+"pm_add_catalogue_pick": "目錄酬載…",
+"pm_add_hint": "Payload Manager 將檔案保存在 PS5 上，可從這裡或開機時啟動，並在它自己的選單中列出。從目錄存入的酬載在目錄有更新版本時會在這裡提示。",
 };
 
 export default zh_TW;

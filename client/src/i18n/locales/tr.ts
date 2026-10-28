@@ -5873,6 +5873,15 @@ library_compressed_hint: "Sıkıştırılmış kalıpları oynatmak için Shadow
 "linkdl.lz4_unpack": "Yolda aç",
 "linkdl.lz4_unpack_hint": "Kapalı: .lz4 dosyası PS5'e olduğu gibi kaydedilir.",
 "linkdl.image_hint": "Bir {kind} oyun imajı. ShadowMount+ onu taradığı bir klasörden, örneğin bir sürücüdeki homebrew klasöründen olduğu gibi bağlar. Dosya orada ancak tamamlandığında görünür.",
+"pm_add_failed": "{name} Payload Manager'a kaydedilemedi",
+"pm_catalogue_match": "Katalog: {name}",
+"pm_replace_tooltip": "Payload Manager elle eklenen bir payload için sürüm tutmaz, bu yüzden ps5upload bunun daha eski olup olmadığını bilemez. Değiştirmek, katalogdaki sürümü onun yerine kaydeder ve önyükleme listesindeki yerini korur; bundan sonra güncellemeler burada önerilir.",
+"pm_replace_with": "{tag} ile değiştir",
+"pm_add_header": "Payload Manager'a ekle",
+"pm_add_local": "Bu bilgisayardan…",
+"pm_add_catalogue_label": "İndirilmiş katalog payload'ı",
+"pm_add_catalogue_pick": "Katalog payload'ı…",
+"pm_add_hint": "Payload Manager dosyayı PS5'te tutar, buradan veya açılışta başlatır ve kendi menüsünde listeler. Katalogdan kaydedilen bir payload, katalogda daha yeni bir sürüm olduğunda burada önerilir.",
 };
 
 export default tr;

@@ -5868,6 +5868,15 @@ library_compressed_hint: "Ảnh đĩa nén cần ShadowMount+ để chơi. Để
 "linkdl.lz4_unpack": "Giải nén trên đường truyền",
 "linkdl.lz4_unpack_hint": "Tắt: tệp .lz4 được lưu nguyên trạng trên PS5.",
 "linkdl.image_hint": "Một bản image trò chơi {kind}. ShadowMount+ gắn nó nguyên trạng từ một thư mục mà nó quét, như homebrew trên một ổ. Tệp chỉ xuất hiện ở đó khi đã hoàn tất.",
+"pm_add_failed": "Không thể lưu {name} vào Payload Manager",
+"pm_catalogue_match": "Danh mục: {name}",
+"pm_replace_tooltip": "Payload Manager không lưu phiên bản cho payload được thêm thủ công, nên ps5upload không thể biết payload này có cũ hơn không. Thay thế sẽ lưu bản phát hành từ danh mục vào chỗ của nó và giữ vị trí của nó trong danh sách khởi động; sau đó, các bản cập nhật sẽ được đề xuất ở đây.",
+"pm_replace_with": "Thay bằng {tag}",
+"pm_add_header": "Thêm vào Payload Manager",
+"pm_add_local": "Từ máy tính này…",
+"pm_add_catalogue_label": "Payload danh mục đã tải",
+"pm_add_catalogue_pick": "Payload danh mục…",
+"pm_add_hint": "Payload Manager giữ tệp trên PS5, chạy nó từ đây hoặc khi khởi động, và liệt kê nó trong menu riêng. Payload được lưu từ danh mục sẽ được đề xuất ở đây khi danh mục có bản phát hành mới hơn.",
 };
 
 export default vi;

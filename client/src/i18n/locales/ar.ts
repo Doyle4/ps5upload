@@ -5866,6 +5866,15 @@ library_compressed_hint: "تحتاج الصور المضغوطة إلى ShadowMo
 "linkdl.lz4_unpack": "فك الضغط أثناء النقل",
 "linkdl.lz4_unpack_hint": "إيقاف: يُحفظ ملف ‎.lz4 على PS5 كما هو.",
 "linkdl.image_hint": "صورة لعبة {kind}. يركّبها ShadowMount+ كما هي من مجلد يفحصه، مثل homebrew على أحد الأقراص. لا يظهر الملف هناك إلا بعد اكتماله.",
+"pm_add_failed": "تعذّر حفظ {name} في Payload Manager",
+"pm_catalogue_match": "الكتالوج: {name}",
+"pm_replace_tooltip": "لا يحتفظ Payload Manager بإصدار لحمولة أُضيفت يدويًا، لذلك لا يستطيع ps5upload معرفة إن كانت أقدم. الاستبدال يحفظ إصدار الكتالوج مكانها مع الحفاظ على موضعها في قائمة الإقلاع؛ بعد ذلك تُعرض التحديثات هنا.",
+"pm_replace_with": "استبدال بـ {tag}",
+"pm_add_header": "إضافة إلى Payload Manager",
+"pm_add_local": "من هذا الكمبيوتر…",
+"pm_add_catalogue_label": "حمولة كتالوج منزّلة",
+"pm_add_catalogue_pick": "حمولة من الكتالوج…",
+"pm_add_hint": "يحتفظ Payload Manager بالملف على PS5، ويشغّله من هنا أو عند الإقلاع، ويعرضه في قائمته الخاصة. تُعرض هنا الحمولة المحفوظة من الكتالوج عندما يتوفر في الكتالوج إصدار أحدث.",
 };
 
 export default ar;

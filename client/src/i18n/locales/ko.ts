@@ -5885,6 +5885,15 @@ library_compressed_hint: "압축 이미지를 플레이하려면 ShadowMount+가
 "linkdl.lz4_unpack": "전송 중 압축 풀기",
 "linkdl.lz4_unpack_hint": "끄기: .lz4 파일을 그대로 PS5에 저장합니다.",
 "linkdl.image_hint": "{kind} 게임 이미지입니다. ShadowMount+가 드라이브의 homebrew 같은 검색 폴더에서 그대로 마운트합니다. 파일은 완료된 뒤에만 그곳에 나타납니다.",
+"pm_add_failed": "{name}을(를) Payload Manager에 저장하지 못했습니다",
+"pm_catalogue_match": "카탈로그: {name}",
+"pm_replace_tooltip": "Payload Manager는 직접 추가한 페이로드의 버전을 기록하지 않으므로 ps5upload는 이것이 더 오래된 것인지 알 수 없습니다. 교체하면 부팅 목록의 위치를 유지한 채 카탈로그 릴리스를 그 자리에 저장하며, 이후 업데이트가 여기에 표시됩니다.",
+"pm_replace_with": "{tag}(으)로 교체",
+"pm_add_header": "Payload Manager에 추가",
+"pm_add_local": "이 컴퓨터에서…",
+"pm_add_catalogue_label": "다운로드한 카탈로그 페이로드",
+"pm_add_catalogue_pick": "카탈로그 페이로드…",
+"pm_add_hint": "Payload Manager는 파일을 PS5에 보관하고, 여기서 또는 부팅 시 실행하며, 자체 메뉴에 표시합니다. 카탈로그에서 저장한 페이로드는 카탈로그에 새 릴리스가 있으면 여기에 표시됩니다.",
 };
 
 export default ko;
