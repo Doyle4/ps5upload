@@ -1,4 +1,4 @@
-import { Boxes, Gamepad2, Layers, Network, Rocket } from "lucide-react";
+import { Boxes, Gamepad2, Layers, Rocket } from "lucide-react";
 import { useState } from "react";
 import { Navigate, useSearchParams } from "react-router";
 
@@ -21,7 +21,7 @@ import {
 } from "./payloadTabs";
 
 /**
- * Payloads & processes — URL-routed tabs:
+ * Payloads — URL-routed tabs:
  *
  *   - **catalog**: curated GitHub-released third-party homebrew.
  *   - **send**: arbitrary ELF/BIN/JS/LUA/JAR picker. Includes
@@ -29,13 +29,13 @@ import {
  *   - **ps5** ("On your PS5"): a card per payload running or installed on the
  *     console; ShadowMount+, nanoDNS, Payload Manager and HearBridge open
  *     their own panel from the card. Available in the browser and native apps.
- *   - **processes**: every process running on the console; stop or restart one.
- *   - **ports**: the ports in use on the console (found by binding each port, so a port
- *     can't be tied to a pid; the two lists stay separate).
+ *   - **running**: every process running on the console (stop or restart one), then the
+ *     ports in use (found by binding each port, so a port can't be tied to a pid; the two
+ *     lists stay separate on the one tab).
  *
  * The integrations used to be tabs of their own; `?tab=manager|shadowmount|
  * nanodns` now opens their card. Processes and Ports were their own screen
- * (/processes); that path now opens these tabs.
+ * (/processes), then two tabs here; old links open Running.
  */
 
 type TabId = PayloadTabId;
@@ -89,25 +89,14 @@ export default function PayloadsScreen() {
       ),
     },
     {
-      id: "processes",
+      id: "running",
       icon: Layers,
-      key: "processes_title",
-      fallback: "Processes",
+      key: "payloads_tab_running",
+      fallback: "Running",
       description: tr(
-        "processes_subtitle_v2",
+        "payloads_description_running",
         undefined,
-        "The programs running on the PS5 right now. You can stop or restart one; take care with system processes, since stopping the wrong one can freeze the console.",
-      ),
-    },
-    {
-      id: "ports",
-      icon: Network,
-      key: "payloads_tab_ports",
-      fallback: "Ports",
-      description: tr(
-        "payloads_description_ports",
-        undefined,
-        "The ports in use on the PS5 and what usually listens on each, so you can tell which payload is where. Open the ones with a web page in your browser.",
+        "The programs running on the PS5 right now, and the ports in use with what usually listens on each. You can stop or restart a program; take care with system processes, since stopping the wrong one can freeze the console.",
       ),
     },
   ];
@@ -116,12 +105,19 @@ export default function PayloadsScreen() {
   const renderPanel = (id: TabId) => {
     if (id === "send") return native ? <SendPanel /> : <BrowserSendPanel />;
     if (id === "ps5") return <OnPs5Panel />;
-    if (id === "processes") return <ProcessesPanel onCount={setProcessCount} />;
-    if (id === "ports") {
+    if (id === "running") {
       return (
-        <ConnectionGate require="payload">
-          <PortsPanel />
-        </ConnectionGate>
+        <div className="flex flex-col gap-8">
+          <ProcessesPanel onCount={setProcessCount} />
+          <section id="ports" aria-labelledby="payloads-ports-heading" className="flex flex-col gap-3">
+            <h2 id="payloads-ports-heading" className="text-base font-semibold">
+              {tr("payloads_ports_heading", undefined, "Ports in use")}
+            </h2>
+            <ConnectionGate require="payload">
+              <PortsPanel />
+            </ConnectionGate>
+          </section>
+        </div>
       );
     }
     return <CatalogPanel />;
@@ -131,9 +127,9 @@ export default function PayloadsScreen() {
     <TabbedShell
       idPrefix="payloads"
       titleIcon={Boxes}
-      titleKey="payloads_and_processes"
-      titleFallback="Payloads & processes"
-      count={params.get("tab") === "processes" ? processCount : undefined}
+      titleKey="payloads_title"
+      titleFallback="Payloads"
+      count={params.get("tab") === "running" ? processCount : undefined}
       tabs={tabs}
       defaultTab={defaultPayloadTab(native, connected)}
       renderPanel={renderPanel}

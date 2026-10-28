@@ -78,7 +78,7 @@ describe("Sidebar", () => {
     for (const to of ["/home", "/upload", "/install-package", "/convert", "/files", "/games", "/console", "/settings"]) {
       expect(html).toContain(`href="${to}"`);
     }
-    expect(html).toContain("Files &amp; storage");
+    expect(html).toContain("Files &amp; Storage");
     expect(html).toContain('href="/more"');
     // The old favorites hint is gone.
     expect(html).not.toContain("Star screens in More");

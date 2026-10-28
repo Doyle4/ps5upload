@@ -734,7 +734,7 @@ export default function ConnectionScreen() {
           </p>
         </StepCard>
 
-        {/* Other payloads (kstuff, etaHEN, any .elf) are sent from Payloads & processes, not
+        {/* Other payloads (kstuff, etaHEN, any .elf) are sent from Payloads, not
             here; users still look for that button on this screen, so point at it. */}
         <SendPayloadPointer />
 
@@ -1339,7 +1339,7 @@ export function SendPayloadPointer() {
         {tr(
           "connection_send_payload_moved",
           undefined,
-          "Sending another payload (kstuff, etaHEN, any .elf)? That is in Payloads & processes → Send payload. This screen sends only the PS5Upload helper.",
+          "Sending another payload (kstuff, etaHEN, any .elf)? That is in Payloads → Send payload. This screen sends only the PS5Upload helper.",
         )}
       </span>
       <Button

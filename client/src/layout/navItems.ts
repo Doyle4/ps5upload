@@ -86,7 +86,7 @@ export const NAV_ITEMS: NavItem[] = [
     key: "v5_tab_games",
     fallback: "Games",
     icon: Gamepad2,
-    section: { key: "nav_section_games_mods", fallback: "Games & content" },
+    section: { key: "nav_section_games_mods", fallback: "Games & Content" },
   },
   {
     to: "/install-package",
@@ -103,13 +103,13 @@ export const NAV_ITEMS: NavItem[] = [
   {
     to: "/local-image",
     key: "local_image_nav",
-    fallback: "Game images",
+    fallback: "Game Images",
     icon: FilePen,
     // Offered everywhere: looking inside an image goes through the engine.
     // Only the screen's mount ("Open an image") needs a macOS or Linux
     // desktop, and the screen hides that part by itself (#479).
   },
-  { to: "/saves", key: "saves", fallback: "Save data", icon: Save },
+  { to: "/saves", key: "saves", fallback: "Save Data", icon: Save },
   {
     to: "/cheats",
     key: "cheats_title",
@@ -120,7 +120,7 @@ export const NAV_ITEMS: NavItem[] = [
   {
     to: "/captures",
     key: "captures",
-    fallback: "Screenshots & clips",
+    fallback: "Screenshots & Clips",
     icon: ImageIcon,
   },
 
@@ -130,7 +130,7 @@ export const NAV_ITEMS: NavItem[] = [
     key: "upload",
     fallback: "Upload",
     icon: Upload,
-    section: { key: "nav_section_files", fallback: "Files & storage" },
+    section: { key: "nav_section_files", fallback: "Files & Storage" },
   },
   {
     to: "/files",
@@ -143,14 +143,14 @@ export const NAV_ITEMS: NavItem[] = [
   {
     to: "/connections",
     key: "network_shares",
-    fallback: "Network shares",
+    fallback: "Network Shares",
     icon: Network,
   },
   { to: "/volumes", key: "volumes", fallback: "Volumes", icon: HardDrive },
   {
     to: "/cleanup",
     key: "cleanup_nav",
-    fallback: "Clean up",
+    fallback: "Clean Up",
     icon: Eraser,
   },
 
@@ -162,11 +162,11 @@ export const NAV_ITEMS: NavItem[] = [
     icon: Cpu,
     section: { key: "nav_section_console", fallback: "Console" },
   },
-  // What gets loaded onto the console, and what runs there (processes and their ports).
+  // What gets loaded onto the console, and what runs there (processes and the ports in use).
   {
     to: "/payloads",
-    key: "payloads_and_processes",
-    fallback: "Payloads & processes",
+    key: "payloads_title",
+    fallback: "Payloads",
     icon: Boxes,
   },
   {
@@ -203,7 +203,7 @@ export const NAV_ITEMS: NavItem[] = [
   {
     to: "/tasks",
     key: "activity_logs_title",
-    fallback: "Activity & logs",
+    fallback: "Activity & Logs",
     icon: ActivityIcon,
     section: { key: "nav_section_diagnostics", fallback: "Diagnostics" },
   },
@@ -252,7 +252,7 @@ export const HOME_NAV_ITEM: NavItem = {
 export const BUG_REPORT_NAV_ITEM: NavItem = {
   to: "/bug-report",
   key: "bug_report",
-  fallback: "Bug report",
+  fallback: "Bug Report",
   icon: Bug,
 };
 

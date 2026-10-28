@@ -14,7 +14,7 @@ describe("Connection points at Send payload", () => {
       </MemoryRouter>,
     );
     expect(html).toContain('data-testid="connection-send-payload-pointer"');
-    expect(html).toContain("Payloads &amp; processes → Send payload");
+    expect(html).toContain("Payloads → Send payload");
     expect(html).toContain("Open Send payload");
   });
 });

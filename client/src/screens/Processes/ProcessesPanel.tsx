@@ -36,7 +36,7 @@ import { killPrompt } from "./killPrompt";
 
 /**
  * Process manager — a live task-manager for the connected PS5, the "Processes" tab of
- * Payloads & processes.
+ * Payloads (Running tab).
  *
  * Lists every running process (pid, memory, threads) with a `kind`
  * classification computed payload-side. The default view shows only user

@@ -13,7 +13,7 @@ export function isPayloadElf(path: string): boolean {
  *  more: ShadowMount+ only mounts and registers game folders (eboot.bin + sce_sys) and game
  *  images, so a homebrew `.elf` copied into a homebrew folder never shows up (a Discord report
  *  while installing Orbit Store, whose TV app is a `.ffpkg` image and whose `.elf` is sent to
- *  the loader). An `.elf` runs when it is sent: Payloads & processes → Send payload. */
+ *  the loader). An `.elf` runs when it is sent: Payloads → Send payload. */
 export function ElfSourceHint({ path }: { path: string }) {
   const tr = useTr();
   const navigate = useNavigate();

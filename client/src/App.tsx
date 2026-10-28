@@ -7,7 +7,7 @@ import {
 } from "./state/connection";
 import { Navigate, Route, Routes, useLocation, useNavigate, type Location } from "react-router";
 import { recallRoute, rememberRoute } from "./lib/consoleRoutes";
-import { payloadCardLink } from "./screens/Payloads/payloadTabs";
+import { payloadCardLink, RUNNING_LINK } from "./screens/Payloads/payloadTabs";
 
 import { lazyWithReload } from "./lib/lazyWithReload";
 import AppShell from "./layout/AppShell";
@@ -418,7 +418,7 @@ function AppRoutes({ location }: { location: Location }) {
           }
         />
         {/* Integrations were tabs (and before that screens); they are cards on "On your
-            PS5" now, and Processes and Ports are tabs of Payloads & processes. Old links open the card
+            PS5" now, and Processes and Ports are one Running tab of Payloads. Old links open the card
             or the tab. */}
         <Route path="/nanodns" element={<Navigate to={payloadCardLink("nanodns")} replace />} />
         <Route path="/nano-dns" element={<Navigate to={payloadCardLink("nanodns")} replace />} />
@@ -428,8 +428,8 @@ function AppRoutes({ location }: { location: Location }) {
         <Route path="/payloads/shadowmount" element={<Navigate to={payloadCardLink("shadowmountplus")} replace />} />
         <Route path="/payloads/nanodns" element={<Navigate to={payloadCardLink("nanodns")} replace />} />
         <Route path="/payloads/hearbridge" element={<Navigate to={payloadCardLink("hearbridge")} replace />} />
-        <Route path="/payloads/ports" element={<Navigate to="/payloads?tab=ports" replace />} />
-        <Route path="/ports" element={<Navigate to="/payloads?tab=ports" replace />} />
+        <Route path="/payloads/ports" element={<Navigate to={RUNNING_LINK} replace />} />
+        <Route path="/ports" element={<Navigate to={RUNNING_LINK} replace />} />
         {/* The wizard's whole point is step 2: download the payload ELFs to
             this machine and send them to the console over a raw socket.
             Neither is possible from a browser (the Payloads screen there has
