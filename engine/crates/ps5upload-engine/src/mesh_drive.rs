@@ -968,20 +968,26 @@ fn is_os_clutter(name: &str) -> bool {
 /// deleted: anything written into it meanwhile is still there).
 fn prune_console_dir(addr: &str, root: &str, rel: &str, today: &str) -> bool {
     let dir = join_hub(root, rel);
-    let Ok(l) = fs_ops::list_dir(
+    let l = match fs_ops::list_dir(
         addr,
         &dir,
         ListDirOptions {
             offset: 0,
             limit: 8,
         },
-    ) else {
-        return false;
+    ) {
+        Ok(l) => l,
+        Err(e) => {
+            crate::log_info!("mesh drive: kept {dir}: cannot list it ({e:#})");
+            return false;
+        }
     };
-    if l.entries
+    if let Some(e) = l
+        .entries
         .iter()
-        .any(|e| e.name != "." && e.name != ".." && !is_os_clutter(&e.name))
+        .find(|e| e.name != "." && e.name != ".." && !is_os_clutter(&e.name))
     {
+        crate::log_info!("mesh drive: kept {dir}: it still holds {}", e.name);
         return false;
     }
     let day = join_hub(&join_hub(root, TRASH), today);
@@ -990,11 +996,23 @@ fn prune_console_dir(addr: &str, root: &str, rel: &str, today: &str) -> bool {
         &free_name(rel, |r| hub_stat(addr, &join_hub(&day, r)).is_some()),
     );
     if let Some(parent) = to.rsplit_once('/').map(|(d, _)| d) {
-        if fs_ops::fs_mkdir(addr, parent).is_err() {
+        if let Err(e) = fs_ops::fs_mkdir(addr, parent) {
+            crate::log_info!("mesh drive: kept {dir}: cannot make {parent} ({e:#})");
             return false;
         }
     }
-    fs_ops::fs_move(addr, &dir, &to).is_ok()
+    // The console finishes moving the folder's files into the trash a moment after the pass
+    // has moved on, so the name picked above can be taken by the time the move runs: then the
+    // folder goes under a name nothing else uses.
+    let moved = fs_ops::fs_move(addr, &dir, &to)
+        .or_else(|_| fs_ops::fs_move(addr, &dir, &format!("{to} ({})", new_id())));
+    match moved {
+        Ok(()) => true,
+        Err(e) => {
+            crate::log_info!("mesh drive: kept {dir}: cannot move it to the trash ({e:#})");
+            false
+        }
+    }
 }
 
 /// The folders `deleted` files lay in, deepest first, without the drive's root.
@@ -4030,6 +4048,17 @@ pub async fn pause(Json(req): Json<MemberReq>) -> Response {
 }
 
 pub async fn sync_now(Json(_req): Json<MemberReq>) -> Response {
+    // Asked for: look at both sides now, not only at what changed through the drive (a file
+    // deleted on the console with Files otherwise waits for the next FULL_SCAN).
+    for rt in runtimes()
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .values_mut()
+    {
+        rt.quiet_local = None;
+        rt.side_rev = None;
+        rt.last_full = None;
+    }
     kick();
     Json(json!({ "supported": true, "ok": true })).into_response()
 }
