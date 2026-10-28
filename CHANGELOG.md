@@ -12,6 +12,10 @@ What's new in ps5upload, written for humans.
 - **HyperHEN's built-in ShadowMount+ is recognised more reliably.** Besides its process name, the
   app now reads HyperHEN's own "automount ready" marker, so Mount for compressed images, Play
   on disc-image titles and the setup wizard stop treating a working ShadowMount+ as missing.
+- **Check source opens several files at once when converting a game folder.** The step reads
+  the start of every file to find executables that need repair; on a big game on Windows that
+  took many minutes one file at a time. It now keeps several opens in flight and still shows
+  progress and honours Stop.
 
 ## 8.5.1
 
