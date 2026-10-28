@@ -960,6 +960,58 @@ fn free_name(rel: &str, taken: impl Fn(&str) -> bool) -> String {
     format!("{rel}.{}", new_id())
 }
 
+fn is_os_clutter(name: &str) -> bool {
+    name == ".DS_Store" || name == "Thumbs.db" || name == "desktop.ini" || name.starts_with("._")
+}
+
+/// A console folder of the drive that nothing is left in goes to the trash (moved, never
+/// deleted: anything written into it meanwhile is still there).
+fn prune_console_dir(addr: &str, root: &str, rel: &str, today: &str) -> bool {
+    let dir = join_hub(root, rel);
+    let Ok(l) = fs_ops::list_dir(
+        addr,
+        &dir,
+        ListDirOptions {
+            offset: 0,
+            limit: 8,
+        },
+    ) else {
+        return false;
+    };
+    if l.entries
+        .iter()
+        .any(|e| e.name != "." && e.name != ".." && !is_os_clutter(&e.name))
+    {
+        return false;
+    }
+    let day = join_hub(&join_hub(root, TRASH), today);
+    let to = join_hub(
+        &day,
+        &free_name(rel, |r| hub_stat(addr, &join_hub(&day, r)).is_some()),
+    );
+    if let Some(parent) = to.rsplit_once('/').map(|(d, _)| d) {
+        if fs_ops::fs_mkdir(addr, parent).is_err() {
+            return false;
+        }
+    }
+    fs_ops::fs_move(addr, &dir, &to).is_ok()
+}
+
+/// The folders `deleted` files lay in, deepest first, without the drive's root.
+fn emptied_folders<'a>(deleted: impl Iterator<Item = &'a String>) -> Vec<String> {
+    let mut dirs = std::collections::BTreeSet::new();
+    for rel in deleted {
+        let mut p = rel.as_str();
+        while let Some((parent, _)) = p.rsplit_once('/') {
+            dirs.insert(parent.to_string());
+            p = parent;
+        }
+    }
+    let mut v: Vec<String> = dirs.into_iter().collect();
+    v.sort_by_key(|d| std::cmp::Reverse(d.matches('/').count()));
+    v
+}
+
 // ---- the member's side: this device's folder, or a folder on another console (8.1.0) ----
 
 /// Where a member's copy lives. A pass reads and changes it only through this, so the same
@@ -984,6 +1036,9 @@ trait Side {
     fn hash(&self, rel: &str) -> Result<String>;
     fn rename(&self, from: &str, to: &str) -> Result<()>;
     fn trash(&self, rel: &str, today: &str) -> Result<()>;
+    /// Removes the folder `rel` when nothing of the drive is left in it (a folder deleted on the
+    /// other side leaves its files' folders behind here otherwise). False when it holds anything.
+    fn prune(&self, rel: &str, today: &str) -> bool;
     fn empty_trash(&self, cutoff: &str);
     /// What this side and the hub last agreed on. Empty only when there is none yet: a base that
     /// cannot be read is an error (a pass against an empty one would hash everything and bring
@@ -1125,6 +1180,21 @@ impl Side for LocalSide {
             std::fs::create_dir_all(parent)?;
         }
         std::fs::rename(&from, &to).with_context(|| format!("move {rel} to the trash"))
+    }
+    fn prune(&self, rel: &str, _today: &str) -> bool {
+        let dir = local_path(&self.root, rel);
+        let Ok(rd) = std::fs::read_dir(&dir) else {
+            return false;
+        };
+        let names: Vec<std::ffi::OsString> = rd.flatten().map(|e| e.file_name()).collect();
+        // Only the clutter an OS leaves (.DS_Store, Thumbs.db, ._ files) may stay behind it.
+        if !names.iter().all(|n| is_os_clutter(&n.to_string_lossy())) {
+            return false;
+        }
+        for n in &names {
+            let _ = std::fs::remove_file(dir.join(n));
+        }
+        std::fs::remove_dir(&dir).is_ok()
     }
     fn empty_trash(&self, cutoff: &str) {
         if let Ok(rd) = std::fs::read_dir(self.root.join(TRASH)) {
@@ -1344,6 +1414,9 @@ impl Side for ConsoleSide {
             fs_ops::fs_mkdir(&self.addr, parent)?;
         }
         fs_ops::fs_move(&self.addr, &self.path(rel), &to)
+    }
+    fn prune(&self, rel: &str, today: &str) -> bool {
+        prune_console_dir(&self.addr, &self.root, rel, today)
     }
     fn empty_trash(&self, cutoff: &str) {
         empty_console_trash(&self.addr, &self.root, cutoff);
@@ -1625,6 +1698,9 @@ impl Pass<'_> {
         // Uploaded while being edited: left for the next pass, never settled from a listing.
         let mut edited: std::collections::HashSet<String> = std::collections::HashSet::new();
         let mut first_error: Option<String> = None;
+        // Deleted here and on the hub: the folders they lay in go too once nothing is left in
+        // them, so a folder deleted on one device leaves no empty copy of itself on the others.
+        let (mut gone_member, mut gone_hub): (Vec<String>, Vec<String>) = (Vec::new(), Vec::new());
         // The console that went away mid-pass: the pass stops, keeping what it did.
         let mut went: Option<String> = None;
         let todo = ops.len();
@@ -1734,11 +1810,13 @@ impl Pass<'_> {
                         self.side.trash(&rel, &today)?;
                         del += 1;
                         base.remove(&rel);
+                        gone_member.push(rel.clone());
                     }
                     Op::DeleteHub(_) => {
                         self.trash_hub(&rel, &today)?;
                         del += 1;
                         base.remove(&rel);
+                        gone_hub.push(rel.clone());
                     }
                     Op::Compare(_) => {
                         if self.same_bytes(&rel)? {
@@ -1839,6 +1917,14 @@ impl Pass<'_> {
                         }
                     }
                 }
+            }
+        }
+        if !self.lost.load(Ordering::SeqCst) && went.is_none() {
+            for dir in emptied_folders(gone_member.iter()) {
+                self.side.prune(&dir, &today);
+            }
+            for dir in emptied_folders(gone_hub.iter()) {
+                prune_console_dir(hub_addr, hub_root, &dir, &today);
             }
         }
         if let Some(addr) = went {
@@ -3961,6 +4047,40 @@ pub async fn confirm(Json(req): Json<MemberReq>) -> Response {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn a_deleted_folder_takes_its_emptied_folders_deepest_first() {
+        let gone = [
+            "a/b/c.txt".to_string(),
+            "a/b/d.txt".into(),
+            "a/e.txt".into(),
+            "top.txt".into(),
+        ];
+        assert_eq!(
+            super::emptied_folders(gone.iter()),
+            vec!["a/b".to_string(), "a".into()]
+        );
+    }
+
+    #[test]
+    fn only_a_folder_with_nothing_of_the_drive_left_is_pruned() {
+        use super::Side;
+        let root = std::env::temp_dir().join(format!("mesh-prune-{}", std::process::id()));
+        std::fs::create_dir_all(root.join("gone/inner")).unwrap();
+        std::fs::write(root.join("gone/.DS_Store"), b"x").unwrap();
+        std::fs::create_dir_all(root.join("kept")).unwrap();
+        std::fs::write(root.join("kept/save.dat"), b"x").unwrap();
+        let side = super::LocalSide {
+            root: root.clone(),
+            via: String::new(),
+        };
+        assert!(side.prune("gone/inner", "2026-10-28"));
+        assert!(side.prune("gone", "2026-10-28"));
+        assert!(!root.join("gone").exists());
+        assert!(!side.prune("kept", "2026-10-28"));
+        assert!(root.join("kept/save.dat").exists());
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
     #[test]
     fn an_away_console_is_tried_less_and_less_often() {
         let secs: Vec<u64> = (1..=7).map(|n| away_backoff(n).as_secs()).collect();

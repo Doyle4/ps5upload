@@ -117,13 +117,14 @@ pub fn plan(member: &Listing, hub: &Listing, base: &Base) -> Vec<Op> {
 }
 
 /// Too many deletes for one pass to do on its own: more than `MASS_DELETE_MIN` files and more
-/// than a tenth of what the drive held. Usually a folder that was moved or a drive half-unmounted,
-/// so a person confirms first.
+/// than half of what the drive held. That is a side emptied (a drive half-unmounted, a folder
+/// moved away), so a person confirms first. Deleting a folder or two is what people do, and asking
+/// each time made them settle every delete by hand; those go through, into each side's trash.
 pub const MASS_DELETE_MIN: usize = 50;
 
 pub fn too_many_deletes(ops: &[Op], base_len: usize) -> bool {
     let n = ops.iter().filter(|o| o.is_delete()).count();
-    n > MASS_DELETE_MIN && n * 10 > base_len
+    n > MASS_DELETE_MIN && n * 2 > base_len
 }
 
 /// Names a sync never touches: its own markers and trash, half-written files, the clutter
@@ -424,8 +425,11 @@ mod tests {
         let hub: Listing = base.keys().map(|k| (k.clone(), meta(1, 1))).collect();
         let ops = plan(&Listing::new(), &hub, &base);
         assert!(too_many_deletes(&ops, base.len()));
-        let few: Vec<Op> = ops.into_iter().take(10).collect();
+        let few: Vec<Op> = ops.iter().take(10).cloned().collect();
         assert!(!too_many_deletes(&few, base.len()));
+        // A deleted folder of 80 files out of 200 is a delete, not an emptied side.
+        let folder: Vec<Op> = ops.into_iter().take(80).collect();
+        assert!(!too_many_deletes(&folder, base.len()));
     }
 
     #[test]
