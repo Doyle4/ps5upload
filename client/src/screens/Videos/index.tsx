@@ -29,6 +29,7 @@ import {
   Spinner,
   ConnectionGate,
 } from "../../components";
+import { CaptureThumb, useThumbCache } from "../Captures/CaptureThumb";
 import { CaptureSortSelect } from "../Captures/CaptureSortSelect";
 import { sortCaptures, type CaptureSort } from "../Captures/sortCaptures";
 import { CaptureToolbar } from "../Captures/CaptureToolbar";
@@ -67,6 +68,10 @@ export default function VideosScreen({ tabs }: { tabs?: ReactNode } = {}) {
   const payloadStatus = useConnectionStore((s) => s.payloadStatus);
   const tr = useTr();
   const guard = useStaleHostGuard();
+  // Thumbnails stage a local temp dir and load it with convertFileSrc: the desktop app only,
+  // as on Screenshots.
+  const canThumb = !isMobile() && isTauriEnv();
+  const thumbCache = useThumbCache();
 
   const [items, setItems] = useState<ScreenshotEntry[] | null>(null);
   const [sort, setSort] = useState<CaptureSort>("newest");
@@ -418,9 +423,13 @@ export default function VideosScreen({ tabs }: { tabs?: ReactNode } = {}) {
                   >
                     {isSelected ? <CheckSquare size={14} /> : <Square size={14} />}
                   </button>
-                  <span className="grid h-10 w-10 shrink-0 place-items-center rounded-[var(--radius-field)] bg-[var(--color-surface-3)] text-[var(--color-muted)]">
-                    <VideoIcon size={16} aria-hidden />
-                  </span>
+                  <CaptureThumb
+                    item={item}
+                    host={host ?? ""}
+                    enabled={canThumb}
+                    cache={thumbCache}
+                    icon={VideoIcon}
+                  />
                   <div className="min-w-0 flex-1">
                     <div className="truncate font-medium text-[var(--color-text)]">
                       {basename(item.path)}
