@@ -84,7 +84,7 @@ describe("More's pin switch", () => {
   });
 
   it("can't pin a thirteenth screen, but can still unpin", () => {
-    store.pinned = NAV_ITEMS.filter((i) => i.to !== "/files").slice(0, 12).map((i) => i.to);
+    store.pinned = NAV_ITEMS.filter((i) => i.to !== "/files" && !i.beta).slice(0, 12).map((i) => i.to);
     const pin = button(row("/files"), "Pin File System");
     expect(pin).toContain('disabled=""');
     expect(pin).toContain('title="You can pin up to 12 screens"');

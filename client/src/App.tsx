@@ -45,6 +45,7 @@ const VolumesScreen = lazyWithReload(() => import("./screens/Volumes"));
 const FileSystemScreen = lazyWithReload(() => import("./screens/FileSystem"));
 const HardwareScreen = lazyWithReload(() => import("./screens/Hardware"));
 const AccountsScreen = lazyWithReload(() => import("./screens/Accounts"));
+const PlayScreen = lazyWithReload(() => import("./screens/Play"));
 const HealthScreen = lazyWithReload(() => import("./screens/Health"));
 const NotificationsScreen = lazyWithReload(() => import("./screens/Notifications"));
 const CheatsScreen = lazyWithReload(() => import("./screens/Cheats"));
@@ -342,6 +343,14 @@ function AppRoutes({ location }: { location: Location }) {
         {/* Profile and Remote Play are one Accounts screen now. */}
         <Route path="/profile" element={<Navigate to="/accounts" replace />} />
         <Route path="/remote-play" element={<Navigate to="/accounts#remote-play" replace />} />
+        <Route
+          path="/play"
+          element={
+            <Suspense fallback={<ScreenLoader />}>
+              <PlayScreen />
+            </Suspense>
+          }
+        />
         <Route path="/backup" element={<Navigate to="/files?view=snapshots" replace />} />
         <Route
           path="/health"

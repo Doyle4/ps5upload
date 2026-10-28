@@ -41,6 +41,7 @@ pub mod remoteplay;
 pub mod rp_regist;
 mod rp_regist_keys;
 pub mod rp_session;
+pub mod rp_stream;
 pub mod save_archive;
 pub mod saves;
 pub mod sdk_changer;
