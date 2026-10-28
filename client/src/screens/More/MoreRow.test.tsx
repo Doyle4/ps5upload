@@ -92,13 +92,13 @@ describe("More's pin switch", () => {
   });
 
   it("moves a pinned row up and down, not past the ends", () => {
-    store.pinned = ["/files", "/upload"];
+    store.pinned = ["/files", "/send"];
     const first = row("/files", { first: true, last: false });
     expect(button(first, "Move File System up")).toContain('disabled=""');
     expect(button(first, "Move File System down")).not.toContain('disabled=""');
     // The Pinned group's rows have no hide switch.
     expect(first).not.toContain("from the sidebar");
-    const last = row("/upload", { first: false, last: true });
+    const last = row("/send", { first: false, last: true });
     expect(button(last, "Move [^\"]+ up")).not.toContain('disabled=""');
     expect(button(last, "Move [^\"]+ down")).toContain('disabled=""');
     // Arrows take the chevron's place while editing.

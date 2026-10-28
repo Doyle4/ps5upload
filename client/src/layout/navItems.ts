@@ -15,8 +15,7 @@
 import type { LucideIcon } from "lucide-react";
 import {
   Cable,
-  Upload,
-  PackageOpen,
+  Send as SendIcon,
   Gamepad2,
   FolderTree,
   Cpu,
@@ -85,11 +84,13 @@ export const NAV_ITEMS: NavItem[] = [
     icon: Gamepad2,
     section: { key: "nav_section_games_mods", fallback: "Games & Content" },
   },
+  // Every way something gets onto the console: from this computer or a server (any file,
+  // folder, image, archive or package), from a link, or what is already on the PS5's drives.
   {
-    to: "/install-package",
-    key: "install_package",
-    fallback: "Install Package",
-    icon: PackageOpen,
+    to: "/send",
+    key: "send_title",
+    fallback: "Send to PS5",
+    icon: SendIcon,
   },
   // Everything done to a game on this computer: convert it (package, image, folder), look
   // inside an image or package and edit it, or open an image as a drive. Offered everywhere:
@@ -116,19 +117,14 @@ export const NAV_ITEMS: NavItem[] = [
     icon: ImageIcon,
   },
 
-  // Move files and look after the drives.
-  {
-    to: "/upload",
-    key: "upload",
-    fallback: "Upload",
-    icon: Upload,
-    section: { key: "nav_section_files", fallback: "Files & Storage" },
-  },
+  // Browse the console's files and look after the drives.
+
   {
     to: "/files",
     key: "v5_tab_files",
     fallback: "File System",
     icon: FolderTree,
+    section: { key: "nav_section_files", fallback: "Files & Storage" },
   },
   // 8.0.0: a folder kept the same on every device, at home on the console.
   // Folders reached over the network: your NAS and servers, and Mesh Drives (8.0.0) kept the
@@ -290,6 +286,8 @@ export const NAV_MOVED: Readonly<Record<string, string>> = {
   "/connections": "/shared-folders",
   "/convert": "/workshop",
   "/local-image": "/workshop",
+  "/upload": "/send",
+  "/install-package": "/send",
 };
 
 /** The route a screen lives at now: its new home if it was folded into another, else itself. */

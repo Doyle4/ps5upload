@@ -38,8 +38,7 @@ const SharedFoldersScreen = lazyWithReload(() => import("./screens/SharedFolders
 const SettingsScreen = lazyWithReload(() => import("./screens/Settings"));
 
 const MoreScreen = lazyWithReload(() => import("./screens/More"));
-const UploadScreen = lazyWithReload(() => import("./screens/Upload"));
-const InstallPackageScreen = lazyWithReload(() => import("./screens/InstallPackage"));
+const SendScreen = lazyWithReload(() => import("./screens/Send"));
 const WorkshopScreen = lazyWithReload(() => import("./screens/FpkgConvert"));
 const GamesScreen = lazyWithReload(() => import("./screens/Games"));
 const VolumesScreen = lazyWithReload(() => import("./screens/Volumes"));
@@ -249,21 +248,16 @@ function AppRoutes({ location }: { location: Location }) {
           }
         />
         <Route
-          path="/upload"
+          path="/send"
           element={
             <Suspense fallback={<ScreenLoader />}>
-              <UploadScreen />
+              <SendScreen />
             </Suspense>
           }
         />
-        <Route
-          path="/install-package"
-          element={
-            <Suspense fallback={<ScreenLoader />}>
-              <InstallPackageScreen />
-            </Suspense>
-          }
-        />
+        {/* Upload and Install Package are one Send to PS5 screen now. */}
+        <Route path="/upload" element={<MovedTo to="/send" />} />
+        <Route path="/install-package" element={<MovedTo to="/send" />} />
         <Route
           path="/workshop"
           element={

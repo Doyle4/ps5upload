@@ -1142,7 +1142,7 @@ function usePkgAutoRoute() {
               primary: true,
               onClick: () => {
                 viewer.close();
-                navigate("/install-package", { state: { droppedPath: target.path } });
+                navigate("/send", { state: { droppedPath: target.path } });
               },
             }
           : {

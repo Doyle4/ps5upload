@@ -6263,6 +6263,12 @@ library_compressed_hint: "A tömörített képfájlok futtatásához ShadowMount
 "library_shrink_hint_v2": "Nyisd meg a Műhelyben tömörített játék-lemezképre (.ffpfsc) állítva, ami lecseréli ezt a példányt a PS5-ön és felszabadítja a különbséget. Hogy mennyit, a játéktól függ.",
 "imgbrowse_pkg_readonly_v2": "Egy csomagba bele lehet nézni és menteni belőle, de szerkeszteni nem. A módosításhoz mentsd mappaként, módosítsd a mappát, és itt készíts belőle új csomagot.",
 "upload_as_image_desc_v2": "Egyetlen lemezkép-fájl, amit a ShadowMount+ csatol, fájlok ezrei helyett: sokkal gyorsabb elküldeni, és tömörítve kevesebb helyet foglal a PS5-ön. A lemezkép előbb ezen a számítógépen készül el (ehhez itt hely kell), majd feltöltődik az alábbi mappába; a folyamat a Műhelyben látszik.",
+"send_title": "Küldés a PS5-re",
+"v5_qa_send_payload": "Payload küldése",
+"send_more_ways": "Linkről vagy archívumból",
+"send_on_ps5": "Már a PS5-ön",
+"send_on_ps5_help": "A PS5-höz csatlakoztatott USB-meghajtón lévő csomagok, és a korábban a PS5-re tett csomagmásolatok. Innen telepítheted őket.",
+"send_description": "Húzz erre az ablakra egy játékmappát, lemezképet, archívumot, csomagot vagy bármilyen fájlt, vagy válassz egyet lent; az app kitalálja, mit kezdjen vele. Linkről is telepíthetsz, vagy a PS5-ön már meglévő csomagokat.",
 };
 
 export default hu;

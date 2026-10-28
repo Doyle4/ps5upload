@@ -5904,6 +5904,12 @@ library_compressed_hint: "压缩镜像需要 ShadowMount+ 才能游玩。如需�
 "library_shrink_hint_v2": "在工坊中打开并设为压缩游戏镜像 (.ffpfsc)，它会替换 PS5 上的这份副本并释放差额空间。能省多少取决于游戏。",
 "imgbrowse_pkg_readonly_v2": "软件包可以查看内容和保存文件，但不能编辑。要修改，请将它保存为文件夹，修改文件夹，然后在这里用该文件夹制作新的软件包。",
 "upload_as_image_desc_v2": "用一个由 ShadowMount+ 挂载的镜像文件代替成千上万个文件：传输快得多，压缩后在 PS5 上也更省空间。镜像会先在这台电脑上生成（这里需要有空间），再上传到下面的文件夹；进度显示在工坊中。",
+"send_title": "发送到 PS5",
+"v5_qa_send_payload": "发送载荷",
+"send_more_ways": "从链接或压缩包",
+"send_on_ps5": "已在 PS5 上",
+"send_on_ps5_help": "插在 PS5 上的 USB 驱动器里的软件包，以及之前放到 PS5 上的软件包副本。可在这里安装。",
+"send_description": "把游戏文件夹、镜像、压缩包、软件包或任何文件拖到这个窗口，或在下方选择；应用会自动判断如何处理。也可以从链接安装，或安装已在 PS5 上的软件包。",
 };
 
 export default zh_CN;

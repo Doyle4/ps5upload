@@ -784,9 +784,9 @@ export default function WorkshopScreen() {
                 subpath: u.destinationSubpath || DEFAULT_IMAGE_SUBPATH,
                 deleteAfter,
               });
-              navigate("/upload");
+              navigate("/send");
             }}
-            onOpenUpload={() => navigate("/upload")}
+            onOpenUpload={() => navigate("/send")}
             onFinishReplace={(choice) =>
               void finishReplace(choice).catch((e) => setError(e instanceof Error ? e.message : String(e)))
             }

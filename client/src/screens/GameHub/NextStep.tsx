@@ -55,7 +55,7 @@ export function NextStep({
       "info",
       tr("collection.queued", { n }, "{n} packages queued for install"),
       {
-        link: "/install-package",
+        link: "/send",
       },
     );
   };
@@ -291,7 +291,7 @@ export function ConvertBuildsCard({
                         { n },
                         "{n} packages queued for install",
                       ),
-                      { link: "/install-package" },
+                      { link: "/send" },
                     );
                   }}
                 >

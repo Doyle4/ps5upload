@@ -81,11 +81,11 @@ describe("the sidebar's pinned screens", () => {
     const storage = installStorage();
     const store = await freshStore();
     store.getState().togglePinned("/files");
-    store.getState().togglePinned("/upload");
+    store.getState().togglePinned("/send");
     store.getState().togglePinned("/payloads");
-    expect(store.getState().pinned).toEqual(["/files", "/upload", "/payloads"]);
-    expect(JSON.parse(storage.get(PINNED_KEY)!)).toEqual(["/files", "/upload", "/payloads"]);
-    store.getState().togglePinned("/upload");
+    expect(store.getState().pinned).toEqual(["/files", "/send", "/payloads"]);
+    expect(JSON.parse(storage.get(PINNED_KEY)!)).toEqual(["/files", "/send", "/payloads"]);
+    store.getState().togglePinned("/send");
     expect(store.getState().pinned).toEqual(["/files", "/payloads"]);
     const again = await freshStore();
     expect(again.getState().pinned).toEqual(["/files", "/payloads"]);
@@ -93,17 +93,17 @@ describe("the sidebar's pinned screens", () => {
 
   it("moves a pin up and down, and by drag to a place, never past the ends", async () => {
     const store = await freshStore();
-    for (const to of ["/files", "/upload", "/workshop"]) store.getState().togglePinned(to);
+    for (const to of ["/files", "/send", "/workshop"]) store.getState().togglePinned(to);
     store.getState().movePinned("/workshop", -1);
-    expect(store.getState().pinned).toEqual(["/files", "/workshop", "/upload"]);
+    expect(store.getState().pinned).toEqual(["/files", "/workshop", "/send"]);
     store.getState().movePinned("/files", -1);
-    expect(store.getState().pinned).toEqual(["/files", "/workshop", "/upload"]);
-    store.getState().movePinned("/upload", 1);
-    expect(store.getState().pinned).toEqual(["/files", "/workshop", "/upload"]);
-    store.getState().movePinnedTo("/upload", 0);
-    expect(store.getState().pinned).toEqual(["/upload", "/files", "/workshop"]);
-    store.getState().movePinnedTo("/upload", 99);
-    expect(store.getState().pinned).toEqual(["/files", "/workshop", "/upload"]);
+    expect(store.getState().pinned).toEqual(["/files", "/workshop", "/send"]);
+    store.getState().movePinned("/send", 1);
+    expect(store.getState().pinned).toEqual(["/files", "/workshop", "/send"]);
+    store.getState().movePinnedTo("/send", 0);
+    expect(store.getState().pinned).toEqual(["/send", "/files", "/workshop"]);
+    store.getState().movePinnedTo("/send", 99);
+    expect(store.getState().pinned).toEqual(["/files", "/workshop", "/send"]);
   });
 
   it("pins at most twelve, and only real screens other than Home and Bug report", async () => {
@@ -125,9 +125,9 @@ describe("the sidebar's pinned screens", () => {
 
   it("drops unknown, removed, repeated and junk ids on load", async () => {
     installStorage({
-      [PINNED_KEY]: JSON.stringify(["/files", "/favorites-old", 4, "/files", "/home", "/upload"]),
+      [PINNED_KEY]: JSON.stringify(["/files", "/favorites-old", 4, "/files", "/home", "/send"]),
     });
-    expect((await freshStore()).getState().pinned).toEqual(["/files", "/upload"]);
+    expect((await freshStore()).getState().pinned).toEqual(["/files", "/send"]);
   });
 
   it("keeps a pinned screen pinned when it is hidden (Pinned overrides hidden)", async () => {
@@ -168,14 +168,14 @@ describe("the sidebar's pinned screens", () => {
 
   it("steps a move over pins that aren't shown, so every press visibly moves", async () => {
     const store = await freshStore();
-    for (const to of ["/files", "/cheats", "/upload"]) store.getState().togglePinned(to);
-    const shown = ["/files", "/upload"];
-    store.getState().movePinned("/upload", -1, shown);
-    expect(store.getState().pinned).toEqual(["/upload", "/files", "/cheats"]);
-    store.getState().movePinned("/upload", 1, shown);
-    expect(store.getState().pinned).toEqual(["/files", "/upload", "/cheats"]);
+    for (const to of ["/files", "/cheats", "/send"]) store.getState().togglePinned(to);
+    const shown = ["/files", "/send"];
+    store.getState().movePinned("/send", -1, shown);
+    expect(store.getState().pinned).toEqual(["/send", "/files", "/cheats"]);
+    store.getState().movePinned("/send", 1, shown);
+    expect(store.getState().pinned).toEqual(["/files", "/send", "/cheats"]);
     // Already last among the shown: nothing to do.
-    store.getState().movePinned("/upload", 1, shown);
-    expect(store.getState().pinned).toEqual(["/files", "/upload", "/cheats"]);
+    store.getState().movePinned("/send", 1, shown);
+    expect(store.getState().pinned).toEqual(["/files", "/send", "/cheats"]);
   });
 });

@@ -26,11 +26,11 @@ export function browseServer(
           return;
         }
         void pkgLibraryStore(host).getState().installStream(path, host);
-        navigate("/install-package");
+        navigate("/send");
       },
       onSend: (path) => {
         void useUploadStore.getState().pickFile(path);
-        navigate("/upload");
+        navigate("/send");
       },
     },
   });

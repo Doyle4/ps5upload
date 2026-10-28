@@ -5955,6 +5955,12 @@ library_compressed_hint: "Sıkıştırılmış kalıpları oynatmak için Shadow
 "library_shrink_hint_v2": "Sıkıştırılmış oyun imajı (.ffpfsc) seçili olarak Atölye'de aç; PS5'teki bu kopyanın yerini alır ve aradaki farkı boşaltır. Ne kadar olduğu oyuna bağlı.",
 "imgbrowse_pkg_readonly_v2": "Bir paketin içine bakılabilir ve içinden kaydedilebilir, ama düzenlenemez. Değiştirmek için klasör olarak kaydet, klasörü değiştir ve burada o klasörden yeni bir paket yap.",
 "upload_as_image_desc_v2": "Binlerce dosya yerine ShadowMount+'ın bağladığı tek bir imaj dosyası: göndermesi çok daha hızlı ve sıkıştırılınca PS5'te daha az yer kaplar. İmaj önce bu bilgisayarda oluşturulur (burada yer gerekir), sonra aşağıdaki klasöre yüklenir; ilerleme Atölye'de görünür.",
+"send_title": "PS5'e Gönder",
+"v5_qa_send_payload": "Payload Gönder",
+"send_more_ways": "Bir Bağlantıdan veya Arşivden",
+"send_on_ps5": "Zaten PS5'te",
+"send_on_ps5_help": "PS5'e takılı USB sürücüdeki paketler ve daha önce PS5'e konmuş paket kopyaları. Buradan kur.",
+"send_description": "Bu pencereye bir oyun klasörü, imaj, arşiv, paket ya da herhangi bir dosya bırak veya aşağıdan seç; uygulama ne yapacağını kendisi anlar. Bir bağlantıdan kurabilir ya da PS5'te zaten olan paketleri kurabilirsin.",
 };
 
 export default tr;

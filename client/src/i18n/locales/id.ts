@@ -5957,6 +5957,12 @@ library_compressed_hint: "Image terkompresi memerlukan ShadowMount+ untuk bermai
 "library_shrink_hint_v2": "Buka di Bengkel dengan pilihan image game terkompresi (.ffpfsc), yang menggantikan salinan ini di PS5 dan membebaskan selisihnya. Berapa banyak tergantung game-nya.",
 "imgbrowse_pkg_readonly_v2": "Paket bisa dilihat isinya dan disimpan darinya, tapi tidak diedit. Untuk mengubahnya, simpan sebagai folder, ubah foldernya, lalu buat paket baru dari folder itu di sini.",
 "upload_as_image_desc_v2": "Satu file image yang di-mount ShadowMount+, bukan ribuan file: jauh lebih cepat dikirim, dan bila dikompresi memakan lebih sedikit ruang di PS5. Image dibuat dulu di komputer ini (perlu ruang di sini), lalu diunggah ke folder di bawah; kemajuannya terlihat di Bengkel.",
+"send_title": "Kirim ke PS5",
+"v5_qa_send_payload": "Kirim Payload",
+"send_more_ways": "Dari Tautan atau Arsip",
+"send_on_ps5": "Sudah di PS5",
+"send_on_ps5_help": "Paket di drive USB yang tercolok ke PS5, dan salinan paket yang sudah ditaruh di PS5 sebelumnya. Pasang dari sini.",
+"send_description": "Jatuhkan folder game, image, arsip, paket, atau file apa pun ke jendela ini, atau pilih di bawah; aplikasi menentukan apa yang dilakukan. Anda juga bisa memasang dari tautan, atau memasang paket yang sudah ada di PS5.",
 };
 
 export default id;

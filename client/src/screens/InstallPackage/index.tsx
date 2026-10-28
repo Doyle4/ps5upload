@@ -590,7 +590,14 @@ function PkgRow({
 const installedIdsCache = new Map<string, Set<string>>();
 
 /* ─── Screen ──────────────────────────────────────────────────────────── */
-export default function InstallPackageScreen() {
+/**
+ * Installing packages: from a link or an archive of packages, and from the packages already on
+ * the PS5 (copies put there before, and USB drives). `embedded` is Send to PS5's use: those
+ * parts only, in its order (link and archive, the queue, then what is on the PS5). A package
+ * file on this computer is picked or dropped in Send to PS5's own picker there, so this part
+ * leaves dropped files to it.
+ */
+export default function InstallPackageScreen({ embedded = false }: { embedded?: boolean } = {}) {
   const tr = useTr();
   const host = useConnectionStore((s) => s.host);
   const payloadStatus = useConnectionStore((s) => s.payloadStatus);
@@ -811,7 +818,8 @@ export default function InstallPackageScreen() {
   // Webview drag-drop — accept install packages, but keep mountable UFS images
   // (.ffpkg/.ffpfs) in the File System flow.
   useEffect(() => {
-    if (!host) return;
+    // Embedded in Send to PS5, whose own picker takes every drop (a package included).
+    if (!host || embedded) return;
     // A dropped file is a path on this device; a remote engine can't open it.
     if (!engineIsOnThisDevice()) return;
     let unlisten: (() => void) | null = null;
@@ -1431,60 +1439,9 @@ export default function InstallPackageScreen() {
     );
   };
 
-  return (
-    <div className="app-page">
-      <PackagePanel
-        path={
-          viewEntry
-            ? // The original on this computer reads fastest; otherwise the staged copy on the
-              // console, read over its FTP server.
-              viewEntry.sourcePath && !isRemotePath(viewEntry.sourcePath)
-              ? viewEntry.sourcePath
-              : `ps5://${hostOf(host)}${viewEntry.path}`
-            : null
-        }
-        host={host}
-        onClose={() => setViewEntry(null)}
-        actions={
-          viewEntry
-            ? [
-                {
-                  label: tr("pkglib.install", undefined, "Install"),
-                  primary: true,
-                  onClick: () => {
-                    const e = viewEntry;
-                    setViewEntry(null);
-                    void handleInstall(e);
-                  },
-                },
-              ]
-            : []
-        }
-      />
-      <PageHeader
-        icon={PackageOpen}
-        title={tr("install.title", "Install Package")}
-        count={entries.length || undefined}
-        loading={loading}
-        description={tr(
-          "install.description.v2",
-          "Install .pkg and .fpkg packages on your PS5: straight from this computer or a link (Stream & install), or from a copy put on the PS5 first (Upload & install).",
-        )}
-        right={
-          <div className="flex items-center gap-2">
-            {/* Which console this library + install targets. Auto-hides for
-                single-PS5 users; color-matches the console's tab so it's
-                unambiguous with multiple consoles. */}
-            <ConsoleChip addr={host} />
-          </div>
-        }
-      />
-
-      {/* This console's queue first: what is installing or waiting is the
-          thing you came back to this screen to see. */}
-      {hostReady && <QueuePanel host={host} />}
-
-      <ConnectionGate require="payload">
+  // The parts Send to PS5 shows (embedded) and this screen shows in its own order.
+  const noticesEl = (
+    <>
         {pickError && (
           <div className="mb-4">
             <WarningCard
@@ -1572,114 +1529,10 @@ export default function InstallPackageScreen() {
             <span>{downloadNotice}</span>
           </div>
         )}
-
-        {/* Two ways in, a tab each. They differ in one thing the user has to choose between:
-            whether a copy of the package is put on the PS5 first. */}
-        <Tabs
-          className="mb-4"
-          variant="segmented"
-          ariaLabel={tr("install.title", "Install Package")}
-          value={tab}
-          onChange={(id) =>
-            setSearchParams(id === "upload" ? { tab: "upload" } : {}, { replace: true })
-          }
-          tabs={[
-            {
-              id: "stream",
-              label: tr("pkglib.streamInstall", undefined, "Stream & install"),
-              icon: Download,
-            },
-            {
-              id: "upload",
-              label: tr("install.uploadInstall", "Upload & install"),
-              icon: Upload,
-              badge: entries.length || undefined,
-            },
-          ]}
-        />
-
-        {tab === "stream" && (
-          <div className="mb-4 grid gap-4" data-testid="install-tab-stream">
-            <p className="text-sm text-[var(--color-muted)]">
-              {tr(
-                "install.tab.stream.lead",
-                undefined,
-                "The PS5 installs straight from this computer or from a link. No copy is put on the PS5 first, so it needs no spare space there, and it is the most reliable way to install.",
-              )}
-            </p>
-            <section className="rounded-[var(--radius-panel)] border border-[var(--glass-edge)] bg-[var(--color-surface-raised)] shadow-[var(--edge-highlight),var(--shadow-1)] p-4">
-              <header className="mb-1 flex items-center gap-2">
-                <PackageOpen size={15} aria-hidden />
-                <h3 className="text-sm font-semibold">
-                  {tr("install.stream.file.title", undefined, "Install a package file")}
-                </h3>
-              </header>
-              <p className="mb-3 text-xs text-[var(--color-muted)]">
-                {tr(
-                  "install.stream.file.help",
-                  undefined,
-                  "Choose a .pkg or .fpkg, or drop one anywhere on this window. Keep this app open until the install finishes; its progress shows in the queue above and in Tasks.",
-                )}
-              </p>
-              <div className="flex flex-wrap items-center gap-2">
-                <BrowseButton
-                  mode="file"
-                  remote
-                  primary
-                  icon={<Download size={14} />}
-                  filters={[{ name: "PlayStation Package", extensions: ["pkg", "fpkg"] }]}
-                  label={tr("pkglib.streamInstall", undefined, "Stream & install")}
-                  // Installs queue per console, so a running install never
-                  // blocks picking the next one.
-                  disabled={!hostReady}
-                  tooltip={
-                    !hostReady
-                      ? tr(
-                          "install.add.disabledHint",
-                          "Set a PS5 host on the Connection screen first",
-                        )
-                      : tr(
-                          "pkglib.stream.hint",
-                          "Install a .pkg straight from this PC over HTTP — no staging upload. The most reliable path.",
-                        )
-                  }
-                  onMainClick={() => void handleStreamPick()}
-                  onPick={(p) => void streamFromServer([p])}
-                  onPickMany={(paths) => void streamFromServer(paths)}
-                />
-                {!engineIsOnThisDevice() && (
-                  <input
-                    ref={browserPkgInputRef}
-                    type="file"
-                    accept=".pkg,.fpkg"
-                    multiple
-                    className="hidden"
-                    onChange={(event) => {
-                      const files = Array.from(event.currentTarget.files ?? []);
-                      // Selecting the same file again must fire another change.
-                      event.currentTarget.value = "";
-                      if (files.length) void handleBrowserStreamFiles(files);
-                    }}
-                  />
-                )}
-                {!engineIsOnThisDevice() && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => browserPkgInputRef.current?.click()}
-                    disabled={!hostReady}
-                    title={tr(
-                      "pkglib.stream.fromDevice.hint",
-                      undefined,
-                      "Upload a package from the device this browser is running on, then stream it.",
-                    )}
-                  >
-                    {tr("pkglib.stream.fromDevice", undefined, "From this device")}
-                  </Button>
-                )}
-              </div>
-            </section>
-
+    </>
+  );
+  const linkEl = (
+    <>
             <LinkInstallCard
               host={host}
               hostReady={hostReady}
@@ -1696,86 +1549,11 @@ export default function InstallPackageScreen() {
                 onClose={() => setLinkDownload(null)}
               />
             )}
-          </div>
-        )}
-
-        {tab === "upload" && (
-          <div className="mb-4 grid gap-4" data-testid="install-tab-upload">
-            <p className="text-sm text-[var(--color-muted)]">
-              {tr(
-                "install.tab.upload.lead",
-                undefined,
-                "The package is copied onto the PS5 first, then installed from that copy. Use this when the PS5 cannot reach this computer (Stream fails with a network error), or to keep packages on the PS5 so you can reinstall them later without this computer.",
-              )}
-            </p>
-            <section className="rounded-[var(--radius-panel)] border border-[var(--glass-edge)] bg-[var(--color-surface-raised)] shadow-[var(--edge-highlight),var(--shadow-1)] p-4">
-              <header className="mb-1 flex items-center gap-2">
-                <Upload size={15} aria-hidden />
-                <h3 className="text-sm font-semibold">
-                  {tr("install.upload.file.title", undefined, "Copy a package to the PS5 and install it")}
-                </h3>
-              </header>
-              <p className="mb-3 text-xs text-[var(--color-muted)]">
-                {isTauriEnv()
-                  ? tr(
-                      "install.upload.file.help",
-                      undefined,
-                      "Choose a .pkg or .fpkg. The copy needs free space on the PS5 for the whole package, and stays in the list below until you remove it.",
-                    )
-                  : tr(
-                      "install.upload.file.browser",
-                      undefined,
-                      "Copying a package to the PS5 from here needs the desktop app. In the web UI, use Stream & install, or install packages that are already on the PS5 below.",
-                    )}
-              </p>
-              <div className="flex flex-wrap items-center gap-2">
-                {isTauriEnv() && (
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    leftIcon={<Upload size={14} />}
-                    onClick={handlePick}
-                    loading={picking}
-                    disabled={!hostReady}
-                    title={
-                      !hostReady
-                        ? tr(
-                            "install.add.disabledHint",
-                            "Set a PS5 host on the Connection screen first",
-                          )
-                        : tr(
-                            "install.uploadInstall.hint",
-                            "Copy the package to the PS5 first, then install it — for when the console can't reach this computer.",
-                          )
-                    }
-                  >
-                    {tr("install.uploadInstall", "Upload & install")}
-                  </Button>
-                )}
-              </div>
-              <div className="mt-3 flex flex-col gap-2 border-t border-[var(--color-border)] pt-3">
-                <Toggle
-                  checked={autoInstall}
-                  onChange={setAutoInstall}
-                  label={tr(
-                    "pkglib.autoInstall",
-                    undefined,
-                    "Install automatically once the upload finishes",
-                  )}
-                />
-                <Toggle
-                  checked={autoRemove}
-                  onChange={setAutoRemove}
-                  label={tr(
-                    "pkglib.autoRemove",
-                    undefined,
-                    "Auto-delete each package from the PS5 after it installs",
-                  )}
-                />
-              </div>
-            </section>
-
-            {hostReady && <ArchivePackagesCard host={host} />}
+    </>
+  );
+  const archiveEl = hostReady ? <ArchivePackagesCard host={host} /> : null;
+  const onPs5El = (
+    <>
             {hostReady && <ExternalPackages host={host} />}
 
             <section data-testid="install-library">
@@ -2017,32 +1795,10 @@ export default function InstallPackageScreen() {
                 </>
               )}
             </section>
-          </div>
-        )}
-
-        {/* Reference notes, below the controls they explain: read once,
-            then out of the way. */}
-        <div className="rounded-[var(--radius-card)] border border-[var(--glass-edge)] bg-[var(--color-surface)] mb-4 flex items-start gap-2 p-3 text-[12px] text-[var(--color-muted)]">
-          <Info size={13} className="mt-0.5 shrink-0" />
-          <div>
-            <span className="font-medium text-[var(--color-text)]">
-              {tr("pkglib.installnote.title", "How installing works")}
-            </span>
-            {" — "}
-            {tr(
-              "pkglib.installnote.body",
-              "ps5upload hands the package to its own installer on the PS5 and only reports it installed once the console has read the whole package; a patch must also raise the game's version. If an install fails, the package is kept so you can retry. FW 12+ and system packages may still require the PS5's own Settings → System → Debug Settings → Game → Package Installer.",
-            )}
-          </div>
-        </div>
-
-        {/* Stated, not detected. A user installing an FPKG already knows it is
-            one, and there is no header marker that separates a fake package from
-            a retail one — every field that looked like a candidate is present on
-            genuine Sony packages too. So the note names the requirement and lets
-            the reader decide whether it applies to them. */}
-        {/* A disclosure, not a standing callout: it matters only to someone
-            installing a fake package, and they recognise the question. */}
+    </>
+  );
+  const fpkgNoteEl = (
+    <>
         <details className="group mb-4 rounded-[var(--radius-field)] border border-[color-mix(in_srgb,var(--color-warn)_40%,transparent)] bg-[var(--color-warn)]/5 text-[12px] text-[var(--color-muted)]">
           <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2 font-medium text-[var(--color-warn)] [&::-webkit-details-marker]:hidden">
             <AlertTriangle size={13} className="shrink-0" />
@@ -2113,7 +1869,330 @@ export default function InstallPackageScreen() {
             </div>
           </div>
         </details>
+    </>
+  );
 
+  const packagePanel = (
+      <PackagePanel
+        path={
+          viewEntry
+            ? // The original on this computer reads fastest; otherwise the staged copy on the
+              // console, read over its FTP server.
+              viewEntry.sourcePath && !isRemotePath(viewEntry.sourcePath)
+              ? viewEntry.sourcePath
+              : `ps5://${hostOf(host)}${viewEntry.path}`
+            : null
+        }
+        host={host}
+        onClose={() => setViewEntry(null)}
+        actions={
+          viewEntry
+            ? [
+                {
+                  label: tr("pkglib.install", undefined, "Install"),
+                  primary: true,
+                  onClick: () => {
+                    const e = viewEntry;
+                    setViewEntry(null);
+                    void handleInstall(e);
+                  },
+                },
+              ]
+            : []
+        }
+      />
+  );
+
+  if (embedded) {
+    // Upload's banner above already says why the helper can't be reached; the parts that need
+    // it wait for it here, and the queue shows either way (its items wait for the helper too).
+    const helperUp = hostReady && payloadStatus === "up";
+    return (
+      <>
+        {packagePanel}
+        {helperUp && noticesEl}
+        {helperUp && (
+          <section aria-labelledby="send-more-heading" className="mb-6 grid gap-4">
+            <h2 id="send-more-heading" className="text-base font-semibold">
+              {tr("send_more_ways", undefined, "From a Link or an Archive")}
+            </h2>
+            {linkEl}
+            {archiveEl}
+          </section>
+        )}
+        <QueuePanel host={hostReady ? host : undefined} />
+        {helperUp && (
+          <section aria-labelledby="send-on-ps5-heading" className="mb-4 grid gap-4">
+            <div>
+              <h2 id="send-on-ps5-heading" className="text-base font-semibold">
+                {tr("send_on_ps5", undefined, "Already on the PS5")}
+              </h2>
+              <p className="mt-1 text-sm text-[var(--color-muted)]">
+                {tr(
+                  "send_on_ps5_help",
+                  undefined,
+                  "Packages on a USB drive plugged into the PS5, and package copies put on the PS5 before. Install them from here.",
+                )}
+              </p>
+            </div>
+            <Toggle
+              checked={autoRemove}
+              onChange={setAutoRemove}
+              label={tr("pkglib.autoRemove", undefined, "Auto-delete each package from the PS5 after it installs")}
+            />
+            {onPs5El}
+          </section>
+        )}
+        {helperUp && fpkgNoteEl}
+        {dialog}
+      </>
+    );
+  }
+
+  return (
+    <div className="app-page">
+      {packagePanel}
+      <PageHeader
+        icon={PackageOpen}
+        title={tr("install.title", "Install Package")}
+        count={entries.length || undefined}
+        loading={loading}
+        description={tr(
+          "install.description.v2",
+          "Install .pkg and .fpkg packages on your PS5: straight from this computer or a link (Stream & install), or from a copy put on the PS5 first (Upload & install).",
+        )}
+        right={
+          <div className="flex items-center gap-2">
+            {/* Which console this library + install targets. Auto-hides for
+                single-PS5 users; color-matches the console's tab so it's
+                unambiguous with multiple consoles. */}
+            <ConsoleChip addr={host} />
+          </div>
+        }
+      />
+
+      {/* This console's queue first: what is installing or waiting is the
+          thing you came back to this screen to see. */}
+      {hostReady && <QueuePanel host={host} />}
+
+      <ConnectionGate require="payload">
+        {noticesEl}
+        {/* Two ways in, a tab each. They differ in one thing the user has to choose between:
+            whether a copy of the package is put on the PS5 first. */}
+        <Tabs
+          className="mb-4"
+          variant="segmented"
+          ariaLabel={tr("install.title", "Install Package")}
+          value={tab}
+          onChange={(id) =>
+            setSearchParams(id === "upload" ? { tab: "upload" } : {}, { replace: true })
+          }
+          tabs={[
+            {
+              id: "stream",
+              label: tr("pkglib.streamInstall", undefined, "Stream & install"),
+              icon: Download,
+            },
+            {
+              id: "upload",
+              label: tr("install.uploadInstall", "Upload & install"),
+              icon: Upload,
+              badge: entries.length || undefined,
+            },
+          ]}
+        />
+
+        {tab === "stream" && (
+          <div className="mb-4 grid gap-4" data-testid="install-tab-stream">
+            <p className="text-sm text-[var(--color-muted)]">
+              {tr(
+                "install.tab.stream.lead",
+                undefined,
+                "The PS5 installs straight from this computer or from a link. No copy is put on the PS5 first, so it needs no spare space there, and it is the most reliable way to install.",
+              )}
+            </p>
+            <section className="rounded-[var(--radius-panel)] border border-[var(--glass-edge)] bg-[var(--color-surface-raised)] shadow-[var(--edge-highlight),var(--shadow-1)] p-4">
+              <header className="mb-1 flex items-center gap-2">
+                <PackageOpen size={15} aria-hidden />
+                <h3 className="text-sm font-semibold">
+                  {tr("install.stream.file.title", undefined, "Install a package file")}
+                </h3>
+              </header>
+              <p className="mb-3 text-xs text-[var(--color-muted)]">
+                {tr(
+                  "install.stream.file.help",
+                  undefined,
+                  "Choose a .pkg or .fpkg, or drop one anywhere on this window. Keep this app open until the install finishes; its progress shows in the queue above and in Tasks.",
+                )}
+              </p>
+              <div className="flex flex-wrap items-center gap-2">
+                <BrowseButton
+                  mode="file"
+                  remote
+                  primary
+                  icon={<Download size={14} />}
+                  filters={[{ name: "PlayStation Package", extensions: ["pkg", "fpkg"] }]}
+                  label={tr("pkglib.streamInstall", undefined, "Stream & install")}
+                  // Installs queue per console, so a running install never
+                  // blocks picking the next one.
+                  disabled={!hostReady}
+                  tooltip={
+                    !hostReady
+                      ? tr(
+                          "install.add.disabledHint",
+                          "Set a PS5 host on the Connection screen first",
+                        )
+                      : tr(
+                          "pkglib.stream.hint",
+                          "Install a .pkg straight from this PC over HTTP — no staging upload. The most reliable path.",
+                        )
+                  }
+                  onMainClick={() => void handleStreamPick()}
+                  onPick={(p) => void streamFromServer([p])}
+                  onPickMany={(paths) => void streamFromServer(paths)}
+                />
+                {!engineIsOnThisDevice() && (
+                  <input
+                    ref={browserPkgInputRef}
+                    type="file"
+                    accept=".pkg,.fpkg"
+                    multiple
+                    className="hidden"
+                    onChange={(event) => {
+                      const files = Array.from(event.currentTarget.files ?? []);
+                      // Selecting the same file again must fire another change.
+                      event.currentTarget.value = "";
+                      if (files.length) void handleBrowserStreamFiles(files);
+                    }}
+                  />
+                )}
+                {!engineIsOnThisDevice() && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => browserPkgInputRef.current?.click()}
+                    disabled={!hostReady}
+                    title={tr(
+                      "pkglib.stream.fromDevice.hint",
+                      undefined,
+                      "Upload a package from the device this browser is running on, then stream it.",
+                    )}
+                  >
+                    {tr("pkglib.stream.fromDevice", undefined, "From this device")}
+                  </Button>
+                )}
+              </div>
+            </section>
+
+            {linkEl}
+          </div>
+        )}
+
+        {tab === "upload" && (
+          <div className="mb-4 grid gap-4" data-testid="install-tab-upload">
+            <p className="text-sm text-[var(--color-muted)]">
+              {tr(
+                "install.tab.upload.lead",
+                undefined,
+                "The package is copied onto the PS5 first, then installed from that copy. Use this when the PS5 cannot reach this computer (Stream fails with a network error), or to keep packages on the PS5 so you can reinstall them later without this computer.",
+              )}
+            </p>
+            <section className="rounded-[var(--radius-panel)] border border-[var(--glass-edge)] bg-[var(--color-surface-raised)] shadow-[var(--edge-highlight),var(--shadow-1)] p-4">
+              <header className="mb-1 flex items-center gap-2">
+                <Upload size={15} aria-hidden />
+                <h3 className="text-sm font-semibold">
+                  {tr("install.upload.file.title", undefined, "Copy a package to the PS5 and install it")}
+                </h3>
+              </header>
+              <p className="mb-3 text-xs text-[var(--color-muted)]">
+                {isTauriEnv()
+                  ? tr(
+                      "install.upload.file.help",
+                      undefined,
+                      "Choose a .pkg or .fpkg. The copy needs free space on the PS5 for the whole package, and stays in the list below until you remove it.",
+                    )
+                  : tr(
+                      "install.upload.file.browser",
+                      undefined,
+                      "Copying a package to the PS5 from here needs the desktop app. In the web UI, use Stream & install, or install packages that are already on the PS5 below.",
+                    )}
+              </p>
+              <div className="flex flex-wrap items-center gap-2">
+                {isTauriEnv() && (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    leftIcon={<Upload size={14} />}
+                    onClick={handlePick}
+                    loading={picking}
+                    disabled={!hostReady}
+                    title={
+                      !hostReady
+                        ? tr(
+                            "install.add.disabledHint",
+                            "Set a PS5 host on the Connection screen first",
+                          )
+                        : tr(
+                            "install.uploadInstall.hint",
+                            "Copy the package to the PS5 first, then install it — for when the console can't reach this computer.",
+                          )
+                    }
+                  >
+                    {tr("install.uploadInstall", "Upload & install")}
+                  </Button>
+                )}
+              </div>
+              <div className="mt-3 flex flex-col gap-2 border-t border-[var(--color-border)] pt-3">
+                <Toggle
+                  checked={autoInstall}
+                  onChange={setAutoInstall}
+                  label={tr(
+                    "pkglib.autoInstall",
+                    undefined,
+                    "Install automatically once the upload finishes",
+                  )}
+                />
+                <Toggle
+                  checked={autoRemove}
+                  onChange={setAutoRemove}
+                  label={tr(
+                    "pkglib.autoRemove",
+                    undefined,
+                    "Auto-delete each package from the PS5 after it installs",
+                  )}
+                />
+              </div>
+            </section>
+
+            {archiveEl}
+            {onPs5El}
+          </div>
+        )}
+
+        {/* Reference notes, below the controls they explain: read once,
+            then out of the way. */}
+        <div className="rounded-[var(--radius-card)] border border-[var(--glass-edge)] bg-[var(--color-surface)] mb-4 flex items-start gap-2 p-3 text-[12px] text-[var(--color-muted)]">
+          <Info size={13} className="mt-0.5 shrink-0" />
+          <div>
+            <span className="font-medium text-[var(--color-text)]">
+              {tr("pkglib.installnote.title", "How installing works")}
+            </span>
+            {" — "}
+            {tr(
+              "pkglib.installnote.body",
+              "ps5upload hands the package to its own installer on the PS5 and only reports it installed once the console has read the whole package; a patch must also raise the game's version. If an install fails, the package is kept so you can retry. FW 12+ and system packages may still require the PS5's own Settings → System → Debug Settings → Game → Package Installer.",
+            )}
+          </div>
+        </div>
+
+        {/* Stated, not detected. A user installing an FPKG already knows it is
+            one, and there is no header marker that separates a fake package from
+            a retail one — every field that looked like a candidate is present on
+            genuine Sony packages too. So the note names the requirement and lets
+            the reader decide whether it applies to them. */}
+        {/* A disclosure, not a standing callout: it matters only to someone
+            installing a fake package, and they recognise the question. */}
+        {fpkgNoteEl}
         {dialog}
       </ConnectionGate>
     </div>

@@ -1010,7 +1010,7 @@ function PackagesTab({
         </ul>
       )}
       <div className="mt-4">
-        <Button variant="ghost" size="sm" onClick={() => navigate("/install-package")}>
+        <Button variant="ghost" size="sm" onClick={() => navigate("/send")}>
           {tr("game_hub_open_install", undefined, "Open Install Package")}
         </Button>
       </div>

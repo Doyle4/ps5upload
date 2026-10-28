@@ -575,7 +575,7 @@ export default function FirstRunScreen() {
               <Button
                 variant="secondary"
                 size="md"
-                onClick={() => navigate("/upload")}
+                onClick={() => navigate("/send")}
               >
                 {tr("first_run_go_upload", undefined, "Open Upload")}
               </Button>

@@ -5966,6 +5966,12 @@ library_compressed_hint: "Les images compressées nécessitent ShadowMount+ pour
 "library_shrink_hint_v2": "Ouvrez-le dans l'Atelier réglé sur une image de jeu compressée (.ffpfsc), qui remplace cette copie sur la PS5 et libère la différence. Cela dépend du jeu.",
 "imgbrowse_pkg_readonly_v2": "On peut regarder à l'intérieur d'un paquet et en enregistrer des fichiers, pas le modifier. Pour en changer un, enregistrez-le comme dossier, modifiez le dossier, puis créez ici un nouveau paquet à partir de ce dossier.",
 "upload_as_image_desc_v2": "Un seul fichier image que ShadowMount+ monte, au lieu de milliers de fichiers : bien plus rapide à envoyer et, compressé, plus léger sur la PS5. L'image est d'abord créée sur cet ordinateur (il lui faut de la place ici), puis envoyée dans le dossier ci-dessous ; la progression s'affiche dans l'Atelier.",
+"send_title": "Envoyer vers la PS5",
+"v5_qa_send_payload": "Envoyer un payload",
+"send_more_ways": "Depuis un lien ou une archive",
+"send_on_ps5": "Déjà sur la PS5",
+"send_on_ps5_help": "Les paquets sur une clé USB branchée à la PS5, et les copies de paquets déjà mises sur la PS5. Installez-les d'ici.",
+"send_description": "Déposez un dossier de jeu, une image, une archive, un paquet ou n'importe quel fichier sur cette fenêtre, ou choisissez-en un ci-dessous ; l'app sait quoi en faire. Vous pouvez aussi installer depuis un lien, ou installer des paquets déjà sur la PS5.",
 };
 
 export default fr;

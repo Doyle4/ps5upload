@@ -80,7 +80,7 @@ export function GameQuickActions({
     pushNotification(
       "info",
       tr("collection.queued", { n }, "{n} packages queued for install"),
-      { link: "/install-package" },
+      { link: "/send" },
     );
   };
   const items: OverflowMenuItem[] = [

@@ -5956,6 +5956,12 @@ library_compressed_hint: "Komprimierte Images benötigen ShadowMount+ zum Spiele
 "library_shrink_hint_v2": "In der Werkstatt öffnen, eingestellt auf ein komprimiertes Spiel-Image (.ffpfsc), das diese Kopie auf der PS5 ersetzt und die Differenz freigibt. Wie viel, hängt vom Spiel ab.",
 "imgbrowse_pkg_readonly_v2": "In ein Paket kann man hineinsehen und daraus speichern, es aber nicht bearbeiten. Um eines zu ändern, speichere es als Ordner, ändere den Ordner und erstelle hier aus diesem Ordner ein neues Paket.",
 "upload_as_image_desc_v2": "Eine Image-Datei, die ShadowMount+ einhängt, statt Tausender Dateien: viel schneller gesendet und komprimiert platzsparender auf der PS5. Das Image wird zuerst auf diesem Computer erstellt (dafür braucht es hier Platz) und dann in den Ordner unten hochgeladen; der Fortschritt steht in der Werkstatt.",
+"send_title": "An PS5 senden",
+"v5_qa_send_payload": "Payload senden",
+"send_more_ways": "Von einem Link oder Archiv",
+"send_on_ps5": "Schon auf der PS5",
+"send_on_ps5_help": "Pakete auf einem USB-Laufwerk an der PS5 und Paketkopien, die schon auf der PS5 liegen. Installiere sie von hier.",
+"send_description": "Zieh einen Spielordner, ein Image, ein Archiv, ein Paket oder eine beliebige Datei auf dieses Fenster oder wähle unten eine aus; die App erkennt, was damit zu tun ist. Du kannst auch von einem Link installieren oder Pakete installieren, die schon auf der PS5 liegen.",
 };
 
 export default de;

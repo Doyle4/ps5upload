@@ -251,7 +251,7 @@ export function SendToPs5({
             navigate(
               how === "image" && activity?.phase === "building"
                 ? "/convert"
-                : queueLinkFor(host, connectedHost, false),
+                : queueLinkFor(host, connectedHost),
             )
           }
         />

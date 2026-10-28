@@ -85,7 +85,7 @@ describe("labels and routes", () => {
   it("routes each job to its screen", () => {
     expect(shortLabel("fpkg-convert")).toBe("Convert");
     expect(routeForTask(task({ kind: "fpkg-convert" }))).toBe("/workshop");
-    expect(routeForTask(task({ kind: "pkg-dpi-install" }))).toBe("/install-package");
+    expect(routeForTask(task({ kind: "pkg-dpi-install" }))).toBe("/send");
     expect(routeForTask(task({ kind: "library-op" }))).toBe("/games?tab=files");
     expect(routeForTask(task({ kind: "fs-delete" }))).toBe("/files");
     expect(routeForTask(task({ kind: "backport-patch" }))).toBe("/games?tab=ready");

@@ -88,7 +88,7 @@ export function SendManyModal({
                   "This PS5 could not be read, so games it may already have were queued too; an install that would replace one is refused.",
                 )
               : ""),
-          link: "/install-package",
+          link: "/send",
         },
       );
     }

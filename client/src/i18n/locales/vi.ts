@@ -5950,6 +5950,12 @@ library_compressed_hint: "Ảnh đĩa nén cần ShadowMount+ để chơi. Để
 "library_shrink_hint_v2": "Mở trong Xưởng với ảnh game nén (.ffpfsc), thay thế bản này trên PS5 và giải phóng phần chênh lệch. Bao nhiêu tùy vào game.",
 "imgbrowse_pkg_readonly_v2": "Gói có thể xem bên trong và lưu tệp ra, nhưng không sửa được. Muốn thay đổi, hãy lưu thành thư mục, sửa thư mục, rồi tạo gói mới từ thư mục đó tại đây.",
 "upload_as_image_desc_v2": "Một tệp ảnh duy nhất mà ShadowMount+ gắn vào, thay vì hàng nghìn tệp: gửi nhanh hơn nhiều, và nếu nén thì chiếm ít chỗ hơn trên PS5. Ảnh được tạo trên máy tính này trước (cần chỗ ở đây), rồi tải lên thư mục bên dưới; tiến độ hiển thị trong Xưởng.",
+"send_title": "Gửi tới PS5",
+"v5_qa_send_payload": "Gửi payload",
+"send_more_ways": "Từ liên kết hoặc tệp nén",
+"send_on_ps5": "Đã có trên PS5",
+"send_on_ps5_help": "Các gói trên ổ USB cắm vào PS5, và bản sao gói đã đặt lên PS5 trước đó. Cài đặt từ đây.",
+"send_description": "Thả thư mục game, ảnh, tệp nén, gói hoặc bất kỳ tệp nào vào cửa sổ này, hoặc chọn bên dưới; ứng dụng tự biết phải làm gì. Bạn cũng có thể cài từ liên kết, hoặc cài các gói đã có trên PS5.",
 };
 
 export default vi;

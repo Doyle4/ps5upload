@@ -45,12 +45,12 @@ describe("NAV_ITEMS", () => {
     expect(grouped).toHaveLength(NAV_ITEMS.length);
   });
 
-  it("keeps Install Package directly reachable", () => {
-    expect(NAV_ITEMS.map((item) => item.to)).toContain("/install-package");
+  it("keeps Send to PS5 directly reachable", () => {
+    expect(NAV_ITEMS.map((item) => item.to)).toContain("/send");
   });
 
   it("keeps every screen reachable from More", () => {
-    expect(NAV_ITEMS.map((item) => item.to)).toContain("/install-package");
+    expect(NAV_ITEMS.map((item) => item.to)).toContain("/send");
   });
 
   it("retires standalone backport screens in favor of Games", () => {
@@ -82,12 +82,12 @@ describe("the sidebar's sections", () => {
   });
 
   it("keeps a section whose first screen is hidden, with the rest in it", () => {
-    // Upload opens Files & storage: hiding it must not merge the rest into Games & content.
-    const groups = sidebarGroups(["/upload"], false, false);
+    // File System opens Files & Storage: hiding it must not merge the rest into Games & Content.
+    const groups = sidebarGroups(["/files"], false, false);
     const files = groups.find((g) => g.section.key === "nav_section_files");
-    expect(files?.items.map((i) => i.to)).toContain("/files");
+    expect(files?.items.map((i) => i.to)).toContain("/shared-folders");
     const games = groups.find((g) => g.section.key === "nav_section_games_mods");
-    expect(games?.items.map((i) => i.to)).not.toContain("/files");
+    expect(games?.items.map((i) => i.to)).not.toContain("/shared-folders");
   });
 
   it("drops a section once every screen in it is hidden", () => {
@@ -337,9 +337,9 @@ describe("screens folded into another", () => {
 
 describe("pinned screens", () => {
   it("cleans a stored pin list: real screens only, no Home/Bug report, no repeats", () => {
-    expect(cleanPinned(["/files", "/gone", 3, "/files", "/home", "/bug-report", "/upload"])).toEqual([
+    expect(cleanPinned(["/files", "/gone", 3, "/files", "/home", "/bug-report", "/send"])).toEqual([
       "/files",
-      "/upload",
+      "/send",
     ]);
     // Not capped on load: pins this build doesn't show don't count toward MAX_PINNED, and
     // capping here would drop a pin the user still has.

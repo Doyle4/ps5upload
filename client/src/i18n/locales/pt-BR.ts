@@ -5965,6 +5965,12 @@ library_compressed_hint: "Imagens compactadas precisam do ShadowMount+ para joga
 "library_shrink_hint_v2": "Abra na Oficina já com imagem de jogo comprimida (.ffpfsc), que substitui esta cópia no PS5 e libera a diferença. Quanto depende do jogo.",
 "imgbrowse_pkg_readonly_v2": "Um pacote pode ser visto por dentro e ter arquivos salvos, mas não editado. Para mudar um, salve-o como pasta, altere a pasta e crie aqui um novo pacote a partir dela.",
 "upload_as_image_desc_v2": "Um único arquivo de imagem que o ShadowMount+ monta, em vez de milhares de arquivos: muito mais rápido de enviar e, comprimido, ocupa menos espaço no PS5. A imagem é criada primeiro neste computador (precisa de espaço aqui) e depois enviada para a pasta abaixo; o progresso aparece na Oficina.",
+"send_title": "Enviar para o PS5",
+"v5_qa_send_payload": "Enviar payload",
+"send_more_ways": "De um link ou arquivo compactado",
+"send_on_ps5": "Já no PS5",
+"send_on_ps5_help": "Pacotes em um drive USB ligado ao PS5 e cópias de pacotes colocadas antes no PS5. Instale-os daqui.",
+"send_description": "Solte nesta janela uma pasta de jogo, uma imagem, um arquivo compactado, um pacote ou qualquer arquivo, ou escolha um abaixo; o app descobre o que fazer com ele. Também dá para instalar a partir de um link ou instalar pacotes que já estão no PS5.",
 };
 
 export default pt_BR;

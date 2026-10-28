@@ -67,13 +67,13 @@ export function IncomingShareSheet() {
 
   function send(it: IncomingItem) {
     if (it.kind === "url") {
-      navigate("/install-package?tab=stream", { state: { sharedLink: it.url } });
+      navigate("/send", { state: { sharedLink: it.url } });
     } else if (it.kind === "path") {
       if (shareTarget(it) === "archive") {
         void chooseArchive(host, it.path);
-        navigate("/install-package?tab=upload");
+        navigate("/send");
       } else {
-        navigate("/install-package?tab=stream", { state: { droppedPath: it.path } });
+        navigate("/send", { state: { droppedPath: it.path } });
       }
     } else {
       return;

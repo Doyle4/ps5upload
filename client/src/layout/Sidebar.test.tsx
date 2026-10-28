@@ -75,7 +75,7 @@ describe("Sidebar", () => {
     // safeStorage is mocked empty: a first run, nothing hidden.
     const html = render();
     expect(html).toContain('data-collapsed="false"');
-    for (const to of ["/home", "/upload", "/install-package", "/workshop", "/files", "/games", "/console", "/settings"]) {
+    for (const to of ["/home", "/send", "/workshop", "/files", "/games", "/console", "/settings"]) {
       expect(html).toContain(`href="${to}"`);
     }
     expect(html).toContain("Files &amp; Storage");
@@ -196,11 +196,11 @@ describe("Sidebar", () => {
     expect(inGroup).not.toContain("<button");
     expect(inGroup).not.toContain("draggable");
     // Above the sections' icons.
-    expect(html.indexOf('data-testid="nav-pinned"')).toBeLessThan(html.indexOf('href="/upload"'));
+    expect(html.indexOf('data-testid="nav-pinned"')).toBeLessThan(html.indexOf('href="/send"'));
   });
 
   it("offers no drag in the Windows app, whose window takes every drag", async () => {
-    const Win = await withLists([], [], ["/files", "/upload"], false, true);
+    const Win = await withLists([], [], ["/files", "/send"], false, true);
     const html = render(<Win />);
     expect(html).toContain('data-testid="nav-pinned"');
     expect(html).not.toContain("draggable");

@@ -172,7 +172,12 @@ function detectedLabel(
   }
 }
 
-export default function UploadScreen() {
+/**
+ * Sending from this computer (or a saved server): pick or drop anything, and the app works out
+ * what it is and what to do with it. `embedded` is Send to PS5's use: no page header (the
+ * screen has its own) and no queue (Send to PS5 shows the one queue below its other ways in).
+ */
+export default function UploadScreen({ embedded = false }: { embedded?: boolean } = {}) {
   const tr = useTr();
   const {
     source,
@@ -728,7 +733,7 @@ export default function UploadScreen() {
     r.source ? detectedLabel(r.source, tr).label : r.isDir ? tr("upload_kind_folder", "Folder") : "";
 
   return (
-    <div className="app-page">
+    <div className={embedded ? undefined : "app-page"}>
       {pending && (
         <ExistingDestinationDialog
           entryCount={pending.entryCount}
@@ -739,15 +744,17 @@ export default function UploadScreen() {
           onCancel={() => setPending(null)}
         />
       )}
-      <PageHeader
-        icon={UploadIcon}
-        title={tr("upload", undefined, "Upload")}
-        description={tr(
-          "upload_description",
-          undefined,
-          "Drag a game folder, an .exfat image, or any file onto this window — or use the buttons below. ps5upload figures out what to do based on what you drop.",
-        )}
-      />
+      {!embedded && (
+        <PageHeader
+          icon={UploadIcon}
+          title={tr("upload", undefined, "Upload")}
+          description={tr(
+            "upload_description",
+            undefined,
+            "Drag a game folder, an .exfat image, or any file onto this window — or use the buttons below. ps5upload figures out what to do based on what you drop.",
+          )}
+        />
+      )}
 
       <PayloadReadinessBanner />
 
@@ -864,7 +871,7 @@ export default function UploadScreen() {
       )}
 
       <RunningEngineJobs />
-      <QueuePanel host={host?.trim() ? host : undefined} />
+      {!embedded && <QueuePanel host={host?.trim() ? host : undefined} />}
     </div>
   );
 }

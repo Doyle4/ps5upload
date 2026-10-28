@@ -5898,6 +5898,12 @@ library_compressed_hint: "壓縮映像需要 ShadowMount+ 才能遊玩。如需�
 "library_shrink_hint_v2": "在工坊中開啟並設為壓縮遊戲映像 (.ffpfsc)，它會取代 PS5 上的這份副本並釋放差額空間。能省多少取決於遊戲。",
 "imgbrowse_pkg_readonly_v2": "套件可以查看內容和儲存檔案，但不能編輯。要修改，請將它存為資料夾，修改資料夾，然後在這裡用該資料夾製作新的套件。",
 "upload_as_image_desc_v2": "用一個由 ShadowMount+ 掛載的映像檔取代成千上萬個檔案：傳輸快得多，壓縮後在 PS5 上也更省空間。映像會先在這台電腦上產生（這裡需要有空間），再上傳到下方的資料夾；進度顯示在工坊中。",
+"send_title": "傳送到 PS5",
+"v5_qa_send_payload": "傳送載荷",
+"send_more_ways": "從連結或壓縮檔",
+"send_on_ps5": "已在 PS5 上",
+"send_on_ps5_help": "插在 PS5 上的 USB 磁碟中的套件，以及之前放到 PS5 上的套件副本。可在這裡安裝。",
+"send_description": "把遊戲資料夾、映像、壓縮檔、套件或任何檔案拖到這個視窗，或在下方選擇；應用程式會自動判斷如何處理。也可以從連結安裝，或安裝已在 PS5 上的套件。",
 };
 
 export default zh_TW;

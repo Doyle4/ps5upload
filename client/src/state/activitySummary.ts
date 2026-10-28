@@ -101,9 +101,9 @@ export function shortLabel(kind: TaskKind): string {
  *  would land on the right screen but leave a second history entry behind. */
 export function routeForTask(task: Task): string {
   const k = task.kind;
-  if (k.startsWith("upload-")) return "/upload";
+  if (k.startsWith("upload-")) return "/send";
   if (k.startsWith("fs-") || k === "download") return "/files";
-  if (k.startsWith("pkg-") || k === "install-batch") return "/install-package";
+  if (k.startsWith("pkg-") || k === "install-batch") return "/send";
   if (k.startsWith("backup-")) return "/files?view=snapshots";
   if (k.startsWith("save-")) return "/saves";
   if (k === "fpkg-convert" || k === "ffpfsc-compress") return "/workshop";

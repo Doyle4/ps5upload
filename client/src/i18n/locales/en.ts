@@ -6273,6 +6273,12 @@ library_compressed_hint: "Compressed images need ShadowMount+ to play. To edit, 
 "library_shrink_hint_v2": "Open it in Workshop set to a compressed game image (.ffpfsc), which replaces this copy on the PS5 and frees the difference. How much depends on the game.",
 "imgbrowse_pkg_readonly_v2": "A package can be looked inside and saved from, not edited. To change one, save it as a folder, change the folder, and build a new package from that folder here.",
 "upload_as_image_desc_v2": "One image file that ShadowMount+ mounts, instead of thousands of files: far quicker to send, and compressed it takes less space on the PS5. The image is built on this computer first (it needs room here for it), then uploaded into the folder below; progress shows in Workshop.",
+"send_title": "Send to PS5",
+"v5_qa_send_payload": "Send Payload",
+"send_more_ways": "From a Link or an Archive",
+"send_on_ps5": "Already on the PS5",
+"send_on_ps5_help": "Packages on a USB drive plugged into the PS5, and package copies put on the PS5 before. Install them from here.",
+"send_description": "Drop a game folder, an image, an archive, a package or any file on this window, or pick one below; the app works out what to do with it. You can also install from a link, or install packages already on the PS5.",
 };
 
 export default en;

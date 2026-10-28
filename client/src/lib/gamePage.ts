@@ -89,10 +89,11 @@ export function titleIdFromContentId(contentId: string | null | undefined): stri
 /** The game page's URL. */
 export const gamePath = (titleId: string): string => `/games/${encodeURIComponent(titleId)}`;
 
-/** Where "Open queue" goes for a job on `host`: the screen that shows it when that is the
- *  connected console, else that console's Activity (/tasks, which /activity redirects to). */
-export function queueLinkFor(host: string, connectedHost: string, installing: boolean): string {
-  if (hostOf(host) === hostOf(connectedHost)) return installing ? "/install-package" : "/upload";
+/** Where "Open queue" goes for a job on `host`: Send to PS5 (its queue, uploads and installs
+ *  alike) when that is the connected console, else that console's Activity (/tasks, which
+ *  /activity redirects to). */
+export function queueLinkFor(host: string, connectedHost: string): string {
+  if (hostOf(host) === hostOf(connectedHost)) return "/send";
   return `/tasks?console=${encodeURIComponent(hostOf(host))}`;
 }
 

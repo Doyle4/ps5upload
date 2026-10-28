@@ -816,7 +816,7 @@ export default function ConnectionScreen() {
               variant="primary"
               size="md"
               rightIcon={<ArrowRight size={14} className="rtl:rotate-180" />}
-              onClick={() => navigate("/upload")}
+              onClick={() => navigate("/send")}
             >
               {tr("connection_go_upload", undefined, "Go to Upload")}
             </Button>

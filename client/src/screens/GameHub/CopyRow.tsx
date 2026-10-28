@@ -238,7 +238,7 @@ export function CopyRow({
           <ActivityLine
             activity={activity}
             onOpen={() =>
-              navigate(queueLinkFor(host, connectedHost, "installing" in activity && activity.installing))
+              navigate(queueLinkFor(host, connectedHost))
             }
           />
         )}

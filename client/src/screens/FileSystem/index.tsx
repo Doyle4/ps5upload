@@ -1783,7 +1783,7 @@ export default function FileSystemScreen() {
     pushNotification(
       "info",
       tr("fs_send_queued", { n: items.length, name }, `${items.length} queued for ${name}`),
-      { link: queueLinkFor(target, host, false) },
+      { link: queueLinkFor(target, host) },
     );
   };
   // "Move to…": the items waiting for a destination, or null when the dialog is closed.

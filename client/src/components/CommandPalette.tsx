@@ -43,7 +43,7 @@ import { isMacOrLinuxDesktop } from "../lib/platform";
 const NAV_KEYWORDS: Record<string, string[]> = {
   "/home": ["dashboard", "overview"],
   "/connection": ["host", "ip", "connect"],
-  "/install-package": ["pkg"],
+  "/send": ["upload", "install package", "pkg", "install", "link", "url", "usb", "stream", "archive"],
   "/games": ["library", "apps", "installed"],
   "/workshop": ["convert", "convert games", "game images", "edit image", "look inside", "fpkg", "pkg", "exfat", "ffpfsc", "lz4", "compress"],
   "/shared-folders": ["network shares", "mesh drive", "nas", "smb", "ftp", "sftp", "server", "sync"],

@@ -291,7 +291,7 @@ export default function CollectionScreen({ embedded = false }: { embedded?: bool
     pushNotification(
       "info",
       tr("collection.queued", { n }, "{n} packages queued for install"),
-      { link: "/install-package" },
+      { link: "/send" },
     );
   }
   const roots = s.settings?.roots ?? [];
