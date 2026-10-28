@@ -229,7 +229,7 @@ export function ConvertBuildsCard({
         <Button
           size="sm"
           variant="secondary"
-          onClick={() => navigate("/convert")}
+          onClick={() => navigate("/workshop")}
         >
           {tr("open_workshop", undefined, "Open Workshop")}
         </Button>

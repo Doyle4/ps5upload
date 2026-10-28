@@ -4,6 +4,17 @@ What's new in ps5upload, written for humans.
 
 ---
 
+## 8.8.1
+
+- **"Convert…" opens Workshop with the game picked again.** Since 8.7.0, Convert… from Files,
+  a game page, a Collection card and the Send as One Image card opened an empty Workshop:
+  they still linked to the old Convert screen, and the redirect to Workshop lost the game.
+  They go straight to Workshop now, and a test keeps every link off the old screens.
+- **The web UI and Docker take .zip, .7z and .rar archives (#529).** Pick an archive on the
+  server and it is unpacked on the way to the PS5, as in the desktop app: nothing extra is
+  written next to it on the NAS. The web UI used to refuse archives with "isn't available in
+  the browser yet".
+
 ## 8.8.0
 
 - **XML game patches, without CheatRunner (#527).** Cheats now also takes game patches in the

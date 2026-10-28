@@ -919,7 +919,7 @@ export default function FileSystemScreen() {
               primary: true,
               onClick: () => {
                 viewer.close();
-                navigate("/convert", { state: { source } });
+                navigate("/workshop", { state: { source } });
               },
             },
           ],

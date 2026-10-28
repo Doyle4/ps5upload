@@ -11,7 +11,6 @@ import {
 } from "../api/ps5";
 import { useConnectionStore } from "./connection";
 import { hostOf } from "../lib/addr";
-import { isTauriEnv } from "../lib/tauriEnv";
 import { safeGetItem, safeSetItem } from "../lib/safeStorage";
 import { isInstallPackagePath } from "../lib/pkgDropDedupe";
 import { remoteApi } from "../api/remote";
@@ -359,19 +358,6 @@ export const useUploadStore = create<UploadState>((set, get) => ({
           }`,
         });
       }
-      return;
-    }
-    // Archive (.zip/.7z/.rar) upload isn't wired into the browser shim yet —
-    // the inspect step below streams progress over a Tauri Channel with no
-    // browser equivalent (see browserInvoke.ts). Refuse cleanly here rather
-    // than let it hit BrowserUnsupportedError mid-inspect.
-    if (isArchivePath(path) && !isTauriEnv()) {
-      set({
-        source: { kind: "archive", path, meta: null, wrappedHint: null, zipInfo: null },
-        detecting: false,
-        detectError:
-          "Archive upload (.zip/.7z/.rar) isn't available in the browser yet — pick a plain file or folder, or use the desktop app.",
-      });
       return;
     }
     // A .zip is an archive source: optimistically mark it, then inspect the

@@ -163,7 +163,7 @@ export function SendAsImageCard({
                   ? pipeline.message
                   : null}
           </span>
-          <Button size="sm" onClick={() => navigate("/convert")}>
+          <Button size="sm" onClick={() => navigate("/workshop")}>
             {tr("open_workshop", undefined, "Open Workshop")}
           </Button>
         </div>

@@ -99,7 +99,7 @@ export function DrivesCard({
               leftIcon={<PackageOpen size={13} />}
               data-testid="game-convert"
               onClick={() =>
-                navigate("/convert", {
+                navigate("/workshop", {
                   state: { source: convertible.absolute_path },
                 })
               }

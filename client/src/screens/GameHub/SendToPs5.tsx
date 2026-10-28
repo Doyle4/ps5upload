@@ -250,7 +250,7 @@ export function SendToPs5({
           onOpen={() =>
             navigate(
               how === "image" && activity?.phase === "building"
-                ? "/convert"
+                ? "/workshop"
                 : queueLinkFor(host, connectedHost),
             )
           }
