@@ -1,4 +1,4 @@
-import { FolderArchive, Gamepad2, LayoutGrid, Laptop } from "lucide-react";
+import { FolderArchive, Gamepad2, HardDriveDownload, LayoutGrid, Laptop } from "lucide-react";
 import { useSearchParams } from "react-router";
 
 import { PageHeader, Tabs } from "../../components";
@@ -7,6 +7,7 @@ import CollectionScreen from "../Collection";
 import InstalledAppsScreen from "../InstalledApps";
 import LibraryScreen from "../Library";
 import { AllGames } from "./AllGames";
+import { DumpsView } from "./Dumps";
 import { gamesTabOf, type GamesTab } from "./gamesTab";
 
 /**
@@ -18,6 +19,7 @@ import { gamesTabOf, type GamesTab } from "./gamesTab";
  * - On PS5 Storage (`files`): game folders and images on the console's drives; mount,
  *   register, move, edit files.
  * - On This Computer (`all`): the Collection on this computer's drives and shares.
+ * - Dumps (`dumps`): installed games dumped to a drive by ps5-app-dumper (Dumps.tsx).
  *
  * The three last views were the whole screen ("On this PS5", "Everything", "Game files"), so a
  * game sat in up to three lists and people had to know which one to look in. All answers
@@ -45,6 +47,7 @@ export default function GamesScreen() {
     ready: tr("games_tab_installed", undefined, "Installed"),
     files: tr("games_tab_storage", undefined, "On PS5 Storage"),
     all: tr("games_tab_computer", undefined, "On This Computer"),
+    dumps: tr("games_tab_dumps", undefined, "Dumps"),
   };
   return (
     <div className="app-page flex h-full flex-col">
@@ -52,7 +55,13 @@ export default function GamesScreen() {
         icon={Gamepad2}
         title={label}
         description={
-          tab === "any"
+          tab === "dumps"
+            ? tr(
+                "games_dumps_description",
+                undefined,
+                "Dump installed games, decrypted, to a USB drive or the console with ps5-app-dumper, one at a time or as a queue. Finished dumps open in Files and Workshop.",
+              )
+            : tab === "any"
             ? tr(
                 "games_any_description",
                 undefined,
@@ -87,11 +96,14 @@ export default function GamesScreen() {
           { id: "ready", icon: Gamepad2, label: tabLabel.ready },
           { id: "files", icon: FolderArchive, label: tabLabel.files },
           { id: "all", icon: Laptop, label: tabLabel.all },
+          { id: "dumps", icon: HardDriveDownload, label: tabLabel.dumps },
         ]}
       />
       <div role="tabpanel" aria-label={tabLabel[tab]} className="min-h-0 flex-1">
         {tab === "any" ? (
           <AllGames onShow={setTab} />
+        ) : tab === "dumps" ? (
+          <DumpsView />
         ) : tab === "files" ? (
           <LibraryScreen />
         ) : tab === "all" ? (

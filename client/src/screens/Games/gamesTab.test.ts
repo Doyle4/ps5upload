@@ -7,6 +7,7 @@ describe("Games views", () => {
     expect(gamesTabOf("ready")).toBe("ready");
     expect(gamesTabOf("files")).toBe("files");
     expect(gamesTabOf("all")).toBe("all");
+    expect(gamesTabOf("dumps")).toBe("dumps");
   });
 
   it("opens All otherwise", () => {

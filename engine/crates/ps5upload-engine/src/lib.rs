@@ -53,6 +53,7 @@ mod console_snapshot;
 mod convert_source;
 mod disk_usage;
 mod download_relay;
+mod dumper_api;
 mod elfldr_guard;
 mod engine_log;
 mod event_journal;
@@ -11228,6 +11229,11 @@ async fn run(cfg: EngineConfig) -> anyhow::Result<()> {
             "/api/ampr/profile",
             get(ampr_trace::profile_get).delete(ampr_trace::profile_delete),
         )
+        .route("/api/ps5/dumper", get(dumper_api::overview))
+        .route("/api/ps5/dumper/read", get(dumper_api::read))
+        .route("/api/ps5/dumper/unlock", post(dumper_api::unlock))
+        .route("/api/ps5/dumper/show-code", post(dumper_api::show_code))
+        .route("/api/ps5/dumper/call", post(dumper_api::call))
         .route("/api/ps5/pldmgr", get(pldmgr_api::overview))
         .route("/api/ps5/pldmgr/launch", post(pldmgr_api::launch))
         .route("/api/ps5/pldmgr/delete", post(pldmgr_api::delete))

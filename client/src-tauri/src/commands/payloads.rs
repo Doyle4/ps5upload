@@ -283,8 +283,8 @@ const CATALOGUE: &[CatalogueEntry] = &[
     CatalogueEntry {
         id: "ps5-app-dumper",
         display_name: "ps5-app-dumper",
-        role: "Dump installed apps to USB",
-        description: "Dumps installed PS5 apps to USB or internal storage in fakepkg/folder format. Reads config from /data/ps5-app-dumper/config.ini.",
+        role: "Dump installed games to a drive",
+        description: "Dumps the running game, decrypted, to a USB drive or the console, one at a time or as a queue. ps5upload drives it from Games → Dumps (enter the code the TV shows once); it also has a web page of its own on port 8081.",
         repo_host: "github.com",
         // The releases live under EchoStretch, not ps5-payload-dev (the old
         // owner 404s — GitHub issue #82). EchoStretch/ps5-app-dumper ships
@@ -294,7 +294,7 @@ const CATALOGUE: &[CatalogueEntry] = &[
         asset_name_hint: "dumper",
         on_console_marker_path: None,
         process_name_hint: Some("dumper"),
-        ports: &[],
+        ports: &[8081],
         autoload_priority: 4,
         autoload_delay_ms: 200,
         homepage: "https://github.com/EchoStretch/ps5-app-dumper",

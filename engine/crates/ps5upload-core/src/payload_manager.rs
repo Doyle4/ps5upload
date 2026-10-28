@@ -448,7 +448,7 @@ fn stored_path(list_json: &[u8], filename: &str) -> Option<String> {
 }
 
 /// Query-string escaping (what the web UI's encodeURIComponent does).
-fn encode_query(s: &str) -> String {
+pub fn encode_query(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     for b in s.bytes() {
         match b {
@@ -492,16 +492,44 @@ fn request(
     body: Option<&[u8]>,
 ) -> Result<(u16, Vec<u8>), String> {
     let addr = crate::payload_lifecycle::join_host_port(ip, PAYLOAD_MANAGER_PORT);
-    let sock = std::net::ToSocketAddrs::to_socket_addrs(&addr)
+    let body = body.unwrap_or(&[]);
+    let head = request_head(method, path, &addr, body.len());
+    exchange(&addr, &head, body, CONNECT_TIMEOUT, IO_TIMEOUT)
+}
+
+/// One plain HTTP/1.1 request to another small server on the console (`addr` is
+/// `ip:port`), `Connection: close`; status and body. For the console's other web payloads
+/// (`crate::app_dumper`), which need no request marker.
+pub fn http_request(
+    addr: &str,
+    method: &str,
+    path: &str,
+    connect: Duration,
+    io: Duration,
+) -> Result<(u16, Vec<u8>), String> {
+    let mut head = format!("{method} {path} HTTP/1.1\r\nHost: {addr}\r\nConnection: close\r\n");
+    if method == "POST" {
+        head.push_str("Content-Length: 0\r\n");
+    }
+    head.push_str("\r\n");
+    exchange(addr, &head, &[], connect, io)
+}
+
+fn exchange(
+    addr: &str,
+    head: &str,
+    body: &[u8],
+    connect: Duration,
+    io: Duration,
+) -> Result<(u16, Vec<u8>), String> {
+    let sock = std::net::ToSocketAddrs::to_socket_addrs(addr)
         .map_err(|e| format!("resolve {addr}: {e}"))?
         .next()
         .ok_or_else(|| format!("resolve {addr}: no address"))?;
-    let mut stream = TcpStream::connect_timeout(&sock, CONNECT_TIMEOUT)
-        .map_err(|e| format!("connect {addr}: {e}"))?;
-    stream.set_read_timeout(Some(IO_TIMEOUT)).ok();
-    stream.set_write_timeout(Some(IO_TIMEOUT)).ok();
-    let body = body.unwrap_or(&[]);
-    let head = request_head(method, path, &addr, body.len());
+    let mut stream =
+        TcpStream::connect_timeout(&sock, connect).map_err(|e| format!("connect {addr}: {e}"))?;
+    stream.set_read_timeout(Some(io)).ok();
+    stream.set_write_timeout(Some(io)).ok();
     stream
         .write_all(head.as_bytes())
         .and_then(|()| stream.write_all(body))
