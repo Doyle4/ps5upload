@@ -137,7 +137,8 @@ pub(crate) fn stop_with(
 pub(crate) fn stop(addr: &str, busy: bool) -> Result<Stopped, StopError> {
     let host = crate::install::console_id(addr);
     // `console_id` drops IPv6 brackets; `join_host_port` puts them back.
-    let port = ps5upload_core::payload_lifecycle::join_host_port(&host, ava1::gen::DEFAULT_PORT);
+    let port =
+        ps5upload_core::payload_lifecycle::join_host_port(&host, ps5upload_ava1::gen::DEFAULT_PORT);
     let r = stop_with(
         busy,
         || ps5upload_core::payload_lifecycle::shutdown_running_payload(&host).unwrap_or(false),

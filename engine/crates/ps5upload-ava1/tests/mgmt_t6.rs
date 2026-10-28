@@ -7,13 +7,13 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use ava1::gen::{self, MgmtText};
 use ava1::host::FolderHost;
 use ava1::keys::Identity;
 use ava1::peers::PeerStore;
 use ava1::server::{self, RpcHandler, ServerCtx};
 use ava1::session::RpcReply;
 use ava1::wire::Message;
+use ps5upload_ava1::gen::{self, MgmtText};
 use ps5upload_ava1::mgmt::{is_sony_long, AvaTransport, MgmtGate, GENERAL, SONY_LONG};
 use ps5upload_ava1::Pool;
 use ps5upload_core::mgmt::{self, m, MgmtError, MgmtTransport};

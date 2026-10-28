@@ -1,19 +1,19 @@
 //! P3 Task 5: long operations over the AVA1 management transport (`job.run`, polled), against
 //! the Rust AVA1 server on 127.0.0.1 with a scripted console that keeps job state.
-//! The C side of the same protocol is tested in `ava1-ctest/tests/job_run.rs`.
+//! The C side of the same protocol is tested in `ps5upload-ctest/tests/job_run.rs`.
 
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use ava1::gen::{self, JobRef, JobRun, Status};
 use ava1::host::FolderHost;
 use ava1::keys::Identity;
 use ava1::peers::PeerStore;
 use ava1::server::{self, ServerCtx};
 use ava1::session::RpcReply;
 use ava1::wire::Message;
+use ps5upload_ava1::gen::{self, JobRef, JobRun, Status};
 use ps5upload_ava1::mgmt::AvaTransport;
 use ps5upload_ava1::mgmt_job::{op_id_of, op_job_id};
 use ps5upload_ava1::Pool;

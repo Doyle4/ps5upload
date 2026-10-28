@@ -2,7 +2,7 @@
  * Copy, move, delete and rename for Files.
  *
  * Destinations: the helper's JOB_COPY takes `dest` as the copied item's own
- * new path (payload/ava1/ava1_copy.c: `dest` is the job's root, refused with
+ * new path (third_party/ava1/c/ava1_copy.c: `dest` is the job's root, refused with
  * "exists" when present; the PC app's engine sends the full target path,
  * engine/crates/ps5upload-ava1/src/copy.rs), never the folder to copy into.
  * Likewise rename's `to` is the full new path. So every item goes to

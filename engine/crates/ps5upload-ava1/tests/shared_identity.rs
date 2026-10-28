@@ -39,7 +39,7 @@ async fn console_and_pools(tag: &str, n: usize, deaths: usize) -> Vec<Pool> {
         "host",
         peers,
         Box::new(|_, _| ava1::session::RpcReply {
-            status: ava1::gen::ERR_UNKNOWN_METHOD,
+            status: ps5upload_ava1::gen::ERR_UNKNOWN_METHOD,
             body: Vec::new(),
         }),
     );

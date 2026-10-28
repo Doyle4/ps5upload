@@ -7,7 +7,6 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 
-use ava1::gen;
 use ava1::host::FolderHost;
 use ava1::keys::Identity;
 use ava1::peers::PeerStore;
@@ -15,6 +14,7 @@ use ava1::server::{self, RpcHandler, ServerCtx};
 use ava1::session::RpcReply;
 use ava1::wire::Message;
 use ps5upload_ava1::download::{self, Counters};
+use ps5upload_ava1::gen;
 use ps5upload_ava1::Pool;
 use ps5upload_core::download::DownloadKind;
 
@@ -77,7 +77,7 @@ async fn running_out_of_descriptors_mid_download_is_waited_out() {
 
 async fn scenario(tag: &str, log_small: &str, hog: bool) {
     let _one = ONE_AT_A_TIME.lock().await;
-    std::env::set_var("PS5UPLOAD_AVA1_LOG_SMALL", log_small);
+    std::env::set_var("AVA1_LOG_SMALL", log_small);
     let d = temp(tag);
     let n = 700usize;
     for i in 0..n {

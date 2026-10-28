@@ -21,7 +21,7 @@
 
 #include "archive_extract.h"
 #include "ava1_data.h"
-#include "ava1_gen.h"
+#include "ava1_app_gen.h"
 #include "ava1_glue.h"
 #include "ava1_op.h"
 #include "ava1_server.h"

@@ -20,7 +20,7 @@ use ps5upload_core::ddp::Power;
 /// `host:9120` — the AVA1 default port. The lab can override an address on
 /// its own Pool; a process environment variable cannot redirect engine jobs.
 pub fn ava1_addr(console: &str) -> String {
-    format!("{}:{}", host_of(console), ava1::gen::DEFAULT_PORT)
+    format!("{}:{}", host_of(console), crate::gen::DEFAULT_PORT)
 }
 
 /// The console string without its port (the pool's key).
@@ -749,7 +749,7 @@ impl Pool {
                 }
                 Ok((s, _)) => s.close().await, // already trusted: the cached path below
                 Err(Ava1Error::Refused { code, message })
-                    if code == ava1::gen::ERR_PAIRING_CLOSED =>
+                    if code == crate::gen::ERR_PAIRING_CLOSED =>
                 {
                     return Ok(if message.contains("blocked") {
                         Pairing::Blocked
@@ -831,7 +831,8 @@ impl Pool {
             Ok(()) => Ok(Pairing::Paired),
             Err(Ava1Error::NotPaired) => self.pairing_status(console).await,
             Err(Ava1Error::Refused { code, .. })
-                if code == ava1::gen::ERR_PAIRING_CODE || code == ava1::gen::ERR_PAIRING_CLOSED =>
+                if code == crate::gen::ERR_PAIRING_CODE
+                    || code == crate::gen::ERR_PAIRING_CLOSED =>
             {
                 match self.pairing_status(console).await? {
                     Pairing::Code { peer_name, .. } => Ok(Pairing::WrongCode { peer_name }),

@@ -9,7 +9,7 @@ use ps5upload_core::mgmt::m;
 fn the_method_table_matches_the_checklist() {
     let md = std::fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../../../protocol/ava1/MGMT_METHODS.md"
+        "/../../../protocol/ps5upload-ava1/MGMT_METHODS.md"
     ))
     .unwrap();
     // method number -> its checklist name, for rows whose method cell is `N `name``; and the
@@ -64,7 +64,7 @@ fn the_method_table_matches_the_checklist() {
 
 #[test]
 fn the_ids_the_gate_and_the_converters_key_on_are_the_schema_numbers() {
-    use ava1::gen;
+    use ps5upload_ava1::gen;
     assert_eq!(m::NODE_STATUS.id, gen::METHOD_NODE_STATUS);
     assert_eq!(m::FS_LIST.id, gen::METHOD_FS_LIST);
     assert_eq!(m::FS_STAT.id, gen::METHOD_FS_STAT);

@@ -7,7 +7,6 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
-use ava1::gen;
 use ava1::host::FolderHost;
 use ava1::keys::Identity;
 use ava1::manifest;
@@ -18,6 +17,7 @@ use ava1::source::LocalSource;
 use ava1::wire::{FrameMessage, Message};
 use ava1_chaos::{ChaosConfig, ChaosProxy};
 use ps5upload_ava1::console;
+use ps5upload_ava1::gen;
 use ps5upload_ava1::upload;
 use ps5upload_ava1::{block_on, Pool, PostCommitError, PostCommitKind};
 use ps5upload_core::transfer::{FileListEntry, TransferConfig};
@@ -353,7 +353,7 @@ async fn a_console_that_wants_a_user_code_is_not_paired() {
     // transfer's to settle: `not_paired`, the pairing dialog's trigger.
     let (pool, addr) = (Arc::new(pool), addr.clone());
     let failure = tokio::task::spawn_blocking(move || {
-        console::require_in(&pool, &addr, ava1::gen::CAP_DATA_PLANE).unwrap_err()
+        console::require_in(&pool, &addr, ps5upload_ava1::gen::CAP_DATA_PLANE).unwrap_err()
     })
     .await
     .unwrap();
@@ -389,9 +389,9 @@ async fn rapid_calls_to_an_unpaired_console_make_one_handshake() {
     let (c2, u2, a2) = (cached.clone(), uncached.clone(), addr.clone());
     tokio::task::spawn_blocking(move || {
         for _ in 0..10 {
-            let f = console::require_in(&c2, &a2, ava1::gen::CAP_DATA_PLANE).unwrap_err();
+            let f = console::require_in(&c2, &a2, ps5upload_ava1::gen::CAP_DATA_PLANE).unwrap_err();
             assert_eq!(f.reason, "not_paired");
-            console::require_in(&u2, &a2, ava1::gen::CAP_DATA_PLANE).unwrap_err();
+            console::require_in(&u2, &a2, ps5upload_ava1::gen::CAP_DATA_PLANE).unwrap_err();
         }
     })
     .await
@@ -411,12 +411,12 @@ fn an_unreachable_console_is_remembered_until_cleared() {
     let d = temp_dir("down-cache");
     let p = Pool::new(d.join("ava")).with_addr("127.0.0.1:1");
     for _ in 0..10 {
-        let f = console::require_in(&p, "c", ava1::gen::CAP_DATA_PLANE).unwrap_err();
+        let f = console::require_in(&p, "c", ps5upload_ava1::gen::CAP_DATA_PLANE).unwrap_err();
         assert_eq!(f.reason, "helper_not_ava1");
     }
     assert_eq!(p.attempts(), 1);
     p.clear_refusal("c");
-    console::require_in(&p, "c", ava1::gen::CAP_DATA_PLANE).unwrap_err();
+    console::require_in(&p, "c", ps5upload_ava1::gen::CAP_DATA_PLANE).unwrap_err();
     assert_eq!(p.attempts(), 2, "cleared: the next call tries again");
 }
 

@@ -8,8 +8,8 @@ use std::sync::atomic::{AtomicBool, AtomicU16, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
+use crate::gen::{self, C2cAllow, C2cSend, C2cTicket, JobRef, Status};
 use anyhow::{anyhow, Result};
-use ava1::gen::{self, C2cAllow, C2cSend, C2cTicket, JobRef, Status};
 use ava1::send::{Progress, SendReport};
 use ava1::wire::Message;
 

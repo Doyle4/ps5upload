@@ -9409,7 +9409,7 @@ async fn link_download_handler(
                 let mut durable_seen = progress_bytes_finalized.load(Ordering::Relaxed);
                 loop {
                     let mut opts = ava1::send::SendOptions::upload(&dest_path);
-                    opts.flags = ava1::gen::JF_SINGLE_FILE;
+                    opts.flags = ps5upload_ava1::gen::JF_SINGLE_FILE;
                     opts.seq = seq.clone();
                     let r = ps5upload_ava1::upload::upload_with(
                         &cfg.addr,
@@ -12075,20 +12075,20 @@ mod cancel_registry_tests {
         let mut peers = PeerStore::in_memory();
         peers.add(key, "engine").unwrap();
         let rpc: ava1::server::RpcHandler = Box::new(|method, _| {
-            if method == ava1::gen::METHOD_NODE_INFO {
-                let info = ava1::gen::NodeInfo {
+            if method == ps5upload_ava1::gen::METHOD_NODE_INFO {
+                let info = ps5upload_ava1::gen::NodeInfo {
                     version: "test".into(),
                     platform: "rust".into(),
                     name: "host".into(),
                     firmware: None,
                 };
                 ava1::session::RpcReply {
-                    status: ava1::gen::STATUS_OK,
+                    status: ps5upload_ava1::gen::STATUS_OK,
                     body: info.to_bytes().unwrap(),
                 }
             } else {
                 ava1::session::RpcReply {
-                    status: ava1::gen::ERR_UNKNOWN_METHOD,
+                    status: ps5upload_ava1::gen::ERR_UNKNOWN_METHOD,
                     body: Vec::new(),
                 }
             }
@@ -12634,7 +12634,7 @@ mod helpers_tests {
         let running = serde_json::json!({"status": "running", "bytes_sent": 1});
         // Nothing reported: the snapshot is unchanged (the client shows nothing).
         assert_eq!(merge_live_notes(Some(&n), running.clone()), running);
-        n.bottleneck.store(ava1::gen::BN_DISK, Relaxed);
+        n.bottleneck.store(ps5upload_ava1::gen::BN_DISK, Relaxed);
         n.phase.store(LIVE_PHASE_SKIPPING, Relaxed);
         n.skip_done_bytes.store(5, Relaxed);
         n.skip_total_bytes.store(20, Relaxed);

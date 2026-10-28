@@ -52,6 +52,8 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          submodules: true
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version: 22
@@ -70,6 +72,8 @@ jobs:
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          submodules: true
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
@@ -135,7 +139,7 @@ jobs:
 
   # The workspace's tests, in two legs that run side by side: the engine crate (and the
   # integration suite built on it) is about half of the time, everything else the other half.
-  # Together they are `cargo test --workspace --exclude ava1-ctest`; a crate added later lands
+  # Together they are `cargo test --workspace --exclude ps5upload-ctest`; a crate added later lands
   # in `libs` without anyone listing it.
   rust-engine-tests:
     name: rust tests (${{ matrix.part }})
@@ -148,9 +152,11 @@ jobs:
           - part: engine
             select: -p ps5upload-engine -p ps5upload-tests
           - part: libs
-            select: --workspace --exclude ava1-ctest --exclude ps5upload-engine --exclude ps5upload-tests
+            select: --workspace --exclude ps5upload-ctest --exclude ps5upload-engine --exclude ps5upload-tests
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          submodules: true
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
@@ -270,7 +276,7 @@ jobs:
   # rule holds inside one machine, so the test files are dealt across four machines, each still
   # running its share one at a time.
   rust-ctest:
-    name: rust (ava1 C interop ${{ matrix.shard }}/4)
+    name: rust (payload C over AVA1 ${{ matrix.shard }}/4)
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     strategy:
@@ -279,6 +285,8 @@ jobs:
         shard: [1, 2, 3, 4]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          submodules: true
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
@@ -299,7 +307,7 @@ jobs:
             ${{ runner.os }}-engine-ctest-${{ hashFiles('engine/Cargo.lock') }}-
             ${{ runner.os }}-engine-ctest-
 
-      - name: cargo test (ava1 C interop, serial)
+      - name: cargo test (payload C over AVA1, serial)
         working-directory: engine
         timeout-minutes: 25
         env:
@@ -311,7 +319,7 @@ jobs:
           # the rest). A file added later is picked up by one of the four without being listed.
           args=$(python3 ../.github/scripts/ctest-shard.py "$SHARD" 4) || exit 1
           mapfile -t args <<< "$args"
-          cargo test -p ava1-ctest "${args[@]}" -- --test-threads=1
+          cargo test -p ps5upload-ctest "${args[@]}" -- --test-threads=1
 
       - name: Save cargo cache
         if: github.ref == 'refs/heads/main'
@@ -324,64 +332,37 @@ jobs:
           key: ${{ runner.os }}-engine-ctest-${{ hashFiles('engine/Cargo.lock') }}-${{ github.run_id }}
 
   # ─────────────────────────────────────────────────────────────────────
-  # AVA1: C/Rust conformance + interop runs in rust-engine-tests and rust-ctest
-  # above. This job adds what those cannot:
-  # fuzzing the C decoders and data-plane parsers under ASan/UBSan and the
-  # Rust decoders with cargo-fuzz.
+  # AVA1 itself (the protocol library, its fuzzers and its own C interop suite) is tested in
+  # github.com/phantomptr/ava1, checked out here as third_party/ava1. Here: the app's side of it.
   # ─────────────────────────────────────────────────────────────────────
   ava1:
-    name: ava1 (fuzz C + Rust decoders)
+    name: ava1 (app schema, no FTX2)
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          submodules: true
 
-      - name: Install clang + libFuzzer
-        run: sudo apt-get update && sudo apt-get install -y clang libclang-rt-18-dev
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        with:
+          toolchain: stable
 
-      - name: C frame AEAD (RFC 8439 + Monocypher differential, AVX2 and portable paths)
-        run: scripts/ava1-aead-test.sh
+      - name: The app's AVA1 codecs match protocol/ps5upload-ava1/app.toml
+        run: make ava1-app-gen ARGS=--check
 
       - name: No FTX2 or ports 9113/9114 in the repository
         run: make check-no-ftx2
-
-      # The C fuzzers (60 s each) and the Rust ones (60 s + 30 s) are single-threaded and share
-      # nothing, so they run side by side on the 4-core runner instead of one after the other
-      # (~146 s, then ~196 s with the Rust toolchain and build). Each fuzzer still gets its full
-      # time on a core of its own; the Rust side runs at a lower priority so its compile, the
-      # only part that wants more than one core, never takes CPU from the C fuzzer.
-      - name: Fuzz C decoders + data-plane parsers (60 s each) and Rust decoders (60 s + 30 s)
-        env:
-          AVA1_FUZZ_SECONDS: 60
-        run: |
-          rust_log="$RUNNER_TEMP/rust-fuzz.log"
-          nice -n 10 bash -euo pipefail -c '
-            rustup toolchain install nightly --profile minimal
-            cargo install cargo-fuzz --locked
-            cd engine/crates/ava1/fuzz
-            cargo +nightly fuzz run decode -- -max_total_time=60
-            cargo +nightly fuzz run frame_header -- -max_total_time=30
-          ' > "$rust_log" 2>&1 &
-          rust_pid=$!
-          c_status=0
-          make ava1-fuzz-c || c_status=$?
-          rust_status=0
-          wait "$rust_pid" || rust_status=$?
-          echo "::group::Rust decoders (cargo-fuzz) output"
-          cat "$rust_log"
-          echo "::endgroup::"
-          [ "$c_status" -eq 0 ] || echo "::error::C fuzzing failed (exit $c_status); output above"
-          [ "$rust_status" -eq 0 ] || echo "::error::Rust fuzzing failed (exit $rust_status); see the 'Rust decoders' group"
-          [ "$c_status" -eq 0 ] && [ "$rust_status" -eq 0 ]
 
   # ─────────────────────────────────────────────────────────────────────
   # AVA1 sanitizers (review 009 #2a): the whole ctest suite, i.e. every console C path the host can run,
   # with ASan + UBSan (+ LSan on Linux) on every C unit. A leak, use-after-free, overflow or UB in the
   # payload C fails here instead of on a console with no debugger. Slow on purpose.
-  # engine/crates/ava1-ctest/lsan.supp lists the tests that exit on purpose, each with its reason.
+  # engine/crates/ps5upload-ctest/lsan.supp lists the tests that exit on purpose, each with its reason.
   # ─────────────────────────────────────────────────────────────────────
   ava1-ctest-sanitize:
-    name: ava1-ctest (ASan + UBSan)
+    name: ps5upload-ctest (ASan + UBSan)
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     # Four shards, test files dealt exactly like rust-ctest (by measured time): the serial
@@ -392,6 +373,8 @@ jobs:
         shard: [1, 2, 3, 4]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          submodules: true
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
@@ -415,20 +398,20 @@ jobs:
             ${{ runner.os }}-ava1-san-${{ hashFiles('engine/Cargo.lock') }}-
             ${{ runner.os }}-ava1-san-
 
-      - name: cargo test -p ava1-ctest (sanitized, serial)
+      - name: cargo test -p ps5upload-ctest (sanitized, serial)
         working-directory: engine
         env:
           CC: clang
           AVA1_CTEST_SANITIZE: '1'
           RUSTFLAGS: -Clinker=clang
           ASAN_OPTIONS: detect_leaks=1
-          LSAN_OPTIONS: suppressions=${{ github.workspace }}/engine/crates/ava1-ctest/lsan.supp:print_suppressions=0
+          LSAN_OPTIONS: suppressions=${{ github.workspace }}/engine/crates/ps5upload-ctest/lsan.supp:print_suppressions=0
           RUST_BACKTRACE: 1
           SHARD: ${{ matrix.shard }}
         run: |
           args=$(python3 ../.github/scripts/ctest-shard.py "$SHARD" 4) || exit 1
           mapfile -t args <<< "$args"
-          cargo test -p ava1-ctest "${args[@]}" -- --test-threads=1
+          cargo test -p ps5upload-ctest "${args[@]}" -- --test-threads=1
 
       - name: Save cargo cache
         if: github.ref == 'refs/heads/main'
@@ -485,6 +468,8 @@ jobs:
         working-directory: engine
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          submodules: true
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
@@ -513,6 +498,8 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          submodules: true
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
@@ -651,6 +638,8 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          submodules: true
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
@@ -709,6 +698,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
+          submodules: true
           # gitleaks reads every commit, not only the tip.
           fetch-depth: 0
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
@@ -748,6 +738,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          submodules: true
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version: 22
@@ -793,6 +785,8 @@ jobs:
     continue-on-error: true
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          submodules: true
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
@@ -849,6 +843,8 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          submodules: true
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
@@ -978,6 +974,8 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          submodules: true
 
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
@@ -1010,6 +1008,8 @@ jobs:
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          submodules: true
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:

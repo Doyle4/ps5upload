@@ -9,8 +9,8 @@ anyhow.workspace = true
 blake3.workspace = true
 ps5upload-core = { path = "../ps5upload-core" }
 # The AVA1 test console: the Rust job host and a scripted management node.
-ava1 = { path = "../ava1" }
-ava1-chaos = { path = "../ava1-chaos" }
+ava1.workspace = true
+ava1-chaos.workspace = true
 ps5upload-ava1 = { path = "../ps5upload-ava1" }
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "time", "net", "sync"] }
 serde.workspace = true

@@ -2,13 +2,13 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use ava1::gen;
 use ava1::host::FolderHost;
 use ava1::keys::Identity;
 use ava1::peers::PeerStore;
 use ava1::server::{self, ServerCtx};
 use ava1::session::RpcReply;
 use ava1::wire::Message;
+use ps5upload_ava1::gen;
 
 pub fn temp(tag: &str) -> PathBuf {
     let d = std::env::temp_dir().join(format!("ava1-relay-{tag}-{}", std::process::id()));

@@ -4300,7 +4300,7 @@ export interface JobSnapshot {
   bytes_finalized?: number;
   /** The sending phase when it is not plain sending: `"skipping"` while a 7z/RAR
    *  resume discards data the console already has. Absent otherwise (and on engines
-   *  that do not report it). Contract: protocol/ava1/CLIENT_CONTRACT.md. */
+   *  that do not report it). Contract: protocol/ps5upload-ava1/PROFILE.md §8. */
   phase?: string;
   /** Skipping progress: bytes decoded so far and bytes to skip in all. */
   skip_done_bytes?: number;

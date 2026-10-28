@@ -368,7 +368,7 @@ mod ava1_cmds {
         let port = std::env::var("AVA1_PORT")
             .ok()
             .and_then(|p| p.parse::<u16>().ok())
-            .unwrap_or(ava1::gen::DEFAULT_PORT);
+            .unwrap_or(ps5upload_ava1::gen::DEFAULT_PORT);
         format!("{host}:{port}")
     }
 
@@ -476,12 +476,14 @@ mod ava1_cmds {
     pub async fn cryptobench(addr: &str, mib: u16) -> Result<()> {
         use ava1::wire::Message;
         let s = session(addr).await?;
-        let body = ava1::gen::CryptoBench { mib }.to_bytes()?;
-        let r = s.rpc(ava1::gen::METHOD_CRYPTO_BENCH, &body).await?;
-        if r.status != ava1::gen::STATUS_OK {
+        let body = ps5upload_ava1::gen::CryptoBench { mib }.to_bytes()?;
+        let r = s
+            .rpc(ps5upload_ava1::gen::METHOD_CRYPTO_BENCH, &body)
+            .await?;
+        if r.status != ps5upload_ava1::gen::STATUS_OK {
             bail!("crypto.bench failed with status {}", r.status);
         }
-        let res = ava1::gen::CryptoBenchResult::decode(&r.body)?;
+        let res = ps5upload_ava1::gen::CryptoBenchResult::decode(&r.body)?;
         let rate = |micros: u64| res.bytes as f64 / micros.max(1) as f64; // bytes per µs = MB/s
         let seal = rate(res.micros);
         println!(
@@ -551,7 +553,7 @@ mod ava1_cmds {
         // cannot be kept is not stamped — the key alone still works, with a code.
         let tokens = LaunchTokens::at(&ava_dir().join("launch_tokens"));
         let mut failure = None;
-        let outcome = ava1::trust::stamp_helper(&mut b, Some(&key), || match tokens.issue() {
+        let outcome = ava1::trust::stamp_program(&mut b, Some(&key), || match tokens.issue() {
             Ok(t) => Some(t),
             Err(e) => {
                 failure = Some(e.to_string());
@@ -739,7 +741,7 @@ fn calibration_record(
     dir: &str,
     files: u32,
     size: u32,
-    points: &[ava1::gen::CalPoint],
+    points: &[ps5upload_ava1::gen::CalPoint],
 ) -> serde_json::Value {
     let mut record = bench::record_envelope("calibrate", None, None, "ava1");
     let object = record
@@ -1328,7 +1330,7 @@ fn main() -> Result<()> {
 mod tests {
     #[test]
     fn calibration_record_keeps_the_frozen_units_and_identity_fields() {
-        let point = ava1::gen::CalPoint {
+        let point = ps5upload_ava1::gen::CalPoint {
             workers: 4,
             files_per_s: 123,
             create_us: 2500,

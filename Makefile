@@ -20,6 +20,14 @@ JOBS ?= $(shell getconf _NPROCESSORS_ONLN 2>/dev/null || nproc 2>/dev/null || ec
 NPM_INSTALL ?= npm ci --no-audit --no-fund
 CARGO ?= cargo
 
+# AVA1 is the third_party/ava1 submodule (github.com/phantomptr/ava1). A clone made without
+# --recurse-submodules, or a pull across the change that made it one, leaves it empty: fill it
+# rather than fail later with missing-file errors.
+ifeq ($(wildcard third_party/ava1/Cargo.toml),)
+$(info third_party/ava1 is empty: git submodule update --init third_party/ava1)
+$(shell git submodule update --init third_party/ava1 >&2)
+endif
+
 PS5_HOST ?= 192.168.137.2
 PS5_LOADER_PORT ?= 9021
 
@@ -100,7 +108,7 @@ ADB ?= $(ANDROID_HOME)/platform-tools/adb
 .PHONY: quality quality-full quality-hardware ci ci-full
 .PHONY: clean clean-payload clean-engine clean-client
 .PHONY: verify info install-hooks
-.PHONY: test-ava1 test-ava1-sanitize ava1-fuzz-c ava1-soak check-no-ftx2
+.PHONY: test-ava1 test-ava1-sanitize ava1-app-gen check-no-ftx2
 .PHONY: run-engine run-client dev start _check-tauri-system-deps
 .PHONY: install-engine uninstall-engine
 .PHONY: dist dist-win dist-win-arm dist-mac dist-mac-x64 dist-linux dist-linux-arm
@@ -533,11 +541,10 @@ _wait-payload-ready:
 # the legacy protocol, and reword anything else to AVA1 terms):
 #   CHANGELOG.md                     history keeps FTX2 by design.
 #   site/releases.json               the website's copy of the release notes (same history).
-#   protocol/ava1/                   the spec, the cutover checklist and the method
-#                                    checklist describe the migration from FTX2.
+#   protocol/ps5upload-ava1/         the method checklist describes the migration from FTX2.
 #   Makefile, .github/workflows/engine-ci.yml
 #                                    name this check and its pattern.
-#   .../ava1-ctest/tests/payload_cutover.rs
+#   .../ps5upload-ctest/tests/payload_cutover.rs
 #                                    asserts the payload no longer says FTX2 or 9113/9114.
 #   .../ps5upload-engine/src/ava1_only_tests.rs
 #                                    the tests that pin the engine free of the retired symbols.
@@ -551,10 +558,10 @@ _wait-payload-ready:
 CHECK_NO_FTX2_PATTERN := ftx2|(^|[^0-9])911[34]([^0-9]|$$)
 CHECK_NO_FTX2_SCOPE := .
 CHECK_NO_FTX2_EXCEPT := \
-	':!engine/crates/ava1-ctest/tests/payload_cutover.rs' \
+	':!engine/crates/ps5upload-ctest/tests/payload_cutover.rs' \
 	':!CHANGELOG.md' ':!site/releases.json' \
 	':!CONTRIBUTING.md' ':!TESTING.md' \
-	':!protocol/ava1' \
+	':!protocol/ps5upload-ava1' ':!third_party/ava1' \
 	':!Makefile' \
 	':!.github/workflows/engine-ci.yml' \
 	':!*Cargo.lock' ':!*package-lock.json' \
@@ -888,12 +895,12 @@ test-engine: setup-engine
 	@# timing-sensitive binaries.
 	@# nextest skips doctests, so they run separately. Without nextest: cargo test, serially.
 	@if $(CARGO) nextest --version >/dev/null 2>&1; then \
-		cd $(ENGINE_DIR) && $(CARGO) nextest run --workspace --exclude ava1-ctest && \
-		$(CARGO) test --workspace --exclude ava1-ctest --doc && \
-		$(CARGO) nextest run -p ava1-ctest; \
+		cd $(ENGINE_DIR) && $(CARGO) nextest run --workspace --exclude ps5upload-ctest && \
+		$(CARGO) test --workspace --exclude ps5upload-ctest --doc && \
+		$(CARGO) nextest run -p ps5upload-ctest; \
 	else \
-		cd $(ENGINE_DIR) && $(CARGO) test --workspace --exclude ava1-ctest && \
-		$(CARGO) test -p ava1-ctest -- --test-threads=1; \
+		cd $(ENGINE_DIR) && $(CARGO) test --workspace --exclude ps5upload-ctest && \
+		$(CARGO) test -p ps5upload-ctest -- --test-threads=1; \
 	fi
 	@echo "✓ Engine tests passed"
 	@# Android cross-compile check. The engine cfg's some code out on
@@ -1017,10 +1024,10 @@ test-payload: payload
 	@/tmp/ps5upload-webui-server-selftest
 	@echo "✓ silent, half-sent and flooding web clients never stall the helper"
 	@echo "Running webui codec self-test (host build)..."
-	@cc -O2 -Wall -Wextra -Werror -I$(PAYLOAD_DIR)/include -I$(PAYLOAD_DIR)/ava1 -I$(PAYLOAD_DIR)/ava1/gen \
+	@cc -O2 -Wall -Wextra -Werror -I$(PAYLOAD_DIR)/include -I$(AVA1_C) -I$(AVA1_C)/gen -I$(PAYLOAD_DIR)/gen \
 		-o /tmp/ps5upload-webui-codec-selftest \
 		$(PAYLOAD_DIR)/tests/webui_codec_selftest.c $(PAYLOAD_DIR)/src/webui_codec.c \
-		$(PAYLOAD_DIR)/ava1/gen/ava1_gen.c $(PAYLOAD_DIR)/ava1/ava1_wire.c
+		$(AVA1_C)/gen/ava1_gen.c $(PAYLOAD_DIR)/gen/ava1_app_gen.c $(AVA1_C)/ava1_wire.c
 	@/tmp/ps5upload-webui-codec-selftest
 	@echo "✓ Unicode, quoted and very large folders survive the web UI's JSON both ways"
 	@echo "Running webui file transfer self-test (host build)..."
@@ -1050,10 +1057,10 @@ test-payload: payload
 	@echo "✓ the library scan finds packages, folder dumps and images with their covers, stays inside its limits and never walks a dump"
 	@echo "Running console page network-share routes self-test (host build)..."
 	@cc -O2 -Wall -Wextra -Werror -pthread -I$(PAYLOAD_DIR)/include -I$(PAYLOAD_DIR)/smb \
-		-I$(PAYLOAD_DIR)/ava1 -I$(PAYLOAD_DIR)/ava1/gen -I$(PAYLOAD_DIR)/third_party/monocypher \
+		-I$(AVA1_C) -I$(AVA1_C)/gen -I$(PAYLOAD_DIR)/gen -I$(AVA1_C)/third_party/monocypher \
 		-o /tmp/ps5upload-webui-smb-selftest $(PAYLOAD_DIR)/tests/webui_smb_selftest.c \
 		$(PAYLOAD_DIR)/src/webui_smb.c $(PAYLOAD_DIR)/src/smb_shares.c $(PAYLOAD_DIR)/smb/smbd_json.c \
-		$(PAYLOAD_DIR)/smb/smbd_path.c $(PAYLOAD_DIR)/third_party/monocypher/monocypher.c
+		$(PAYLOAD_DIR)/smb/smbd_path.c $(AVA1_C)/third_party/monocypher/monocypher.c
 	@/tmp/ps5upload-webui-smb-selftest
 	@echo "✓ saved shares keep passwords out of the page and the file; copies obey the helper's path policy"
 	@echo "Running file index name-match self-test (host build)..."
@@ -1062,32 +1069,32 @@ test-payload: payload
 	@/tmp/ps5upload-index-glob-selftest
 	@echo "✓ index name patterns match in linear time, whatever the pattern"
 	@echo "Running file manager prefs self-test (host build)..."
-	@cc -O2 -Wall -Wextra -Werror -pthread -I$(PAYLOAD_DIR)/include -I$(PAYLOAD_DIR)/ava1 -I$(PAYLOAD_DIR)/ava1/gen \
+	@cc -O2 -Wall -Wextra -Werror -pthread -I$(PAYLOAD_DIR)/include -I$(AVA1_C) -I$(AVA1_C)/gen -I$(PAYLOAD_DIR)/gen \
 		-o /tmp/ps5upload-files-prefs-selftest \
 		$(PAYLOAD_DIR)/tests/files_prefs_selftest.c $(PAYLOAD_DIR)/src/files_prefs.c $(PAYLOAD_DIR)/src/webui_codec.c \
-		$(PAYLOAD_DIR)/ava1/gen/ava1_gen.c $(PAYLOAD_DIR)/ava1/ava1_wire.c
+		$(AVA1_C)/gen/ava1_gen.c $(PAYLOAD_DIR)/gen/ava1_app_gen.c $(AVA1_C)/ava1_wire.c
 	@/tmp/ps5upload-files-prefs-selftest
 	@echo "✓ pinned/recent folders stay bounded; a garbled prefs file reads as empty; saves are atomic"
 	@echo "Running multi-device mesh self-test (host build)..."
-	@cc -O2 -Wall -Wextra -Werror -pthread -I$(PAYLOAD_DIR)/include -I$(PAYLOAD_DIR)/ava1 -I$(PAYLOAD_DIR)/ava1/gen \
+	@cc -O2 -Wall -Wextra -Werror -pthread -I$(PAYLOAD_DIR)/include -I$(AVA1_C) -I$(AVA1_C)/gen -I$(PAYLOAD_DIR)/gen \
 		-o /tmp/ps5upload-mesh-selftest \
 		$(PAYLOAD_DIR)/tests/mesh_selftest.c $(PAYLOAD_DIR)/src/mesh.c $(PAYLOAD_DIR)/src/webui_codec.c \
-		$(PAYLOAD_DIR)/ava1/gen/ava1_gen.c $(PAYLOAD_DIR)/ava1/ava1_wire.c
+		$(AVA1_C)/gen/ava1_gen.c $(PAYLOAD_DIR)/gen/ava1_app_gen.c $(AVA1_C)/ava1_wire.c
 	@/tmp/ps5upload-mesh-selftest
 	@echo "✓ devices connect, are listed, renamed, blocked and pruned; locks lapse; shared documents keep their revision"
 	@echo "Running Show on TV / Show on PC handoff self-test (host build)..."
-	@cc -O2 -Wall -Wextra -Werror -pthread -I$(PAYLOAD_DIR)/include -I$(PAYLOAD_DIR)/ava1 -I$(PAYLOAD_DIR)/ava1/gen \
+	@cc -O2 -Wall -Wextra -Werror -pthread -I$(PAYLOAD_DIR)/include -I$(AVA1_C) -I$(AVA1_C)/gen -I$(PAYLOAD_DIR)/gen \
 		-o /tmp/ps5upload-files-handoff-selftest \
 		$(PAYLOAD_DIR)/tests/files_handoff_selftest.c $(PAYLOAD_DIR)/src/files_handoff.c $(PAYLOAD_DIR)/src/files_prefs.c \
-		$(PAYLOAD_DIR)/src/webui_codec.c $(PAYLOAD_DIR)/ava1/gen/ava1_gen.c $(PAYLOAD_DIR)/ava1/ava1_wire.c
+		$(PAYLOAD_DIR)/src/webui_codec.c $(AVA1_C)/gen/ava1_gen.c $(PAYLOAD_DIR)/gen/ava1_app_gen.c $(AVA1_C)/ava1_wire.c
 	@/tmp/ps5upload-files-handoff-selftest
 	@echo "✓ a handoff opens once, expires after two minutes, and the PC reads the same prefs as the console"
 	@echo "Running webui settings + tile self-test (host build)..."
-	@cc -O2 -Wall -Wextra -Werror -DWEBUI_TILE_HOST_TEST -I$(PAYLOAD_DIR)/include -I$(PAYLOAD_DIR)/ava1 -I$(PAYLOAD_DIR)/ava1/gen \
+	@cc -O2 -Wall -Wextra -Werror -DWEBUI_TILE_HOST_TEST -I$(PAYLOAD_DIR)/include -I$(AVA1_C) -I$(AVA1_C)/gen -I$(PAYLOAD_DIR)/gen \
 		-o /tmp/ps5upload-webui-settings-selftest \
 		$(PAYLOAD_DIR)/tests/webui_settings_selftest.c $(PAYLOAD_DIR)/src/webui_settings.c \
 		$(PAYLOAD_DIR)/src/webui_tile.c $(PAYLOAD_DIR)/src/webui_codec.c \
-		$(PAYLOAD_DIR)/ava1/gen/ava1_gen.c $(PAYLOAD_DIR)/ava1/ava1_wire.c
+		$(AVA1_C)/gen/ava1_gen.c $(PAYLOAD_DIR)/gen/ava1_app_gen.c $(AVA1_C)/ava1_wire.c
 	@/tmp/ps5upload-webui-settings-selftest
 	@echo "✓ a missing or garbled settings file falls back to defaults; the tile is written only when it differs"
 	@echo "Running webui input log self-test (host build)..."
@@ -1097,11 +1104,11 @@ test-payload: payload
 	@/tmp/ps5upload-webui-inputlog-selftest
 	@echo "✓ the controller input log takes only plain short lines and never grows past its 64 KiB ring"
 	@echo "Running webui cheat download store self-test (host build)..."
-	@cc -O2 -Wall -Wextra -Werror -pthread -I$(PAYLOAD_DIR)/include -I$(PAYLOAD_DIR)/ava1 -I$(PAYLOAD_DIR)/ava1/gen \
+	@cc -O2 -Wall -Wextra -Werror -pthread -I$(PAYLOAD_DIR)/include -I$(AVA1_C) -I$(AVA1_C)/gen -I$(PAYLOAD_DIR)/gen \
 		-o /tmp/ps5upload-webui-cheats-store-selftest \
 		$(PAYLOAD_DIR)/tests/webui_cheats_store_selftest.c $(PAYLOAD_DIR)/src/webui_cheats_store.c \
 		$(PAYLOAD_DIR)/src/webui_files.c $(PAYLOAD_DIR)/src/webui_codec.c \
-		$(PAYLOAD_DIR)/ava1/gen/ava1_gen.c $(PAYLOAD_DIR)/ava1/ava1_wire.c
+		$(AVA1_C)/gen/ava1_gen.c $(PAYLOAD_DIR)/gen/ava1_app_gen.c $(AVA1_C)/ava1_wire.c
 	@/tmp/ps5upload-webui-cheats-store-selftest
 	@echo "✓ a downloaded cheat is stored only under a plain name with its format's extension, through a same-folder temp + rename"
 	@echo "Running AVA1 in-flight RPC gate self-test (host build)..."
@@ -1524,44 +1531,27 @@ release-post:
 promo-post:
 	@node scripts/promo-posts.js $(ARGS)
 
-AVA1_C := payload/ava1
-AVA1_C_CODEC := $(AVA1_C)/ava1_wire.c $(AVA1_C)/ava1_frame.c $(AVA1_C)/gen/ava1_gen.c \
-	$(AVA1_C)/ava1_keys.c $(AVA1_C)/ava1_noise.c $(AVA1_C)/ava1_aead.c $(AVA1_C)/platform_posix.c \
-	payload/third_party/monocypher/monocypher.c
+# The AVA1 protocol library (github.com/phantomptr/ava1) is the third_party/ava1 submodule; its own
+# tests, fuzzers and sanitizer runs live there (`make -C third_party/ava1 test`). Here: ps5upload's
+# side of it (the helper's management methods over AVA1, the glue) against the library's C.
+AVA1_C := third_party/ava1/c
 
-# scripts/ava1-aead-test.sh: the C AEAD against RFC 8439 and Monocypher, including the
-# AVX2 path (x86-64 natively, or under Rosetta 2 on an arm64 Mac).
 test-ava1:
-	scripts/ava1-aead-test.sh
-	cd engine && cargo test -p ava1 -p ava1-gen -p ava1-chaos
 	# The C server and the data layer are process-wide singletons
 	# (one CServer at a time, one ava1_data_start): serial, not two shells.
-	cd engine && cargo test -p ava1-ctest -- --test-threads=1
+	cd engine && cargo test -p ps5upload-ctest -- --test-threads=1
 
-# The whole ctest suite with ASan + UBSan on every C unit (review 009 #2a), LSan included on Linux.
-# Run it on Linux (CI, or `docker run rust:latest` with clang + libclang-rt-dev installed): the Rust link
-# of the sanitized C did not link with Homebrew's clang on macOS when tried (not investigated further).
-# engine/crates/ava1-ctest/lsan.supp lists the intentional leaks (test-side Box::leak), each with its reason.
+# ps5upload-ctest with ASan + UBSan on every C unit, LSan included on Linux (see the library's
+# `make sanitize` for why macOS is not used). lsan.supp lists the intentional leaks.
 CLANG ?= clang
 test-ava1-sanitize:
 	cd engine && CC=$(CLANG) AVA1_CTEST_SANITIZE=1 RUSTFLAGS="-Clinker=$(CLANG) $$RUSTFLAGS" \
 		ASAN_OPTIONS=$${ASAN_OPTIONS:-detect_leaks=$$([ "$$(uname)" = Linux ] && echo 1 || echo 0)} \
-		LSAN_OPTIONS=suppressions=$(CURDIR)/engine/crates/ava1-ctest/lsan.supp \
-		cargo test -p ava1-ctest -- --test-threads=1
+		LSAN_OPTIONS=suppressions=$(CURDIR)/engine/crates/ps5upload-ctest/lsan.supp \
+		cargo test -p ps5upload-ctest -- --test-threads=1
 
-# The host soak (review 009 #2c): AVA1_SOAK_MINUTES=60 make ava1-soak. Add AVA1_CTEST_SANITIZE=1 (and
-# CC/RUSTFLAGS as above) to run it under ASan.
-ava1-soak:
-	cd engine && AVA1_SOAK_MINUTES=$${AVA1_SOAK_MINUTES:-5} cargo test -p ava1-ctest --test soak -- --ignored --test-threads=1 --nocapture
-
-ava1-fuzz-c:
-	$${CC:-clang} -g -O1 -fsanitize=fuzzer,address,undefined -DAVA1_AEAD_PORTABLE -I$(AVA1_C) -I$(AVA1_C)/gen -Ipayload/third_party/monocypher \
-		-o /tmp/ava1-fuzz-decode $(AVA1_C)/fuzz/fuzz_decode.c $(AVA1_C_CODEC)
-	/tmp/ava1-fuzz-decode -max_total_time=$${AVA1_FUZZ_SECONDS:-60} -max_len=65536
-	$${CC:-clang} -g -O1 -fsanitize=fuzzer,address,undefined -I$(AVA1_C) -I$(AVA1_C)/gen -Ipayload/third_party/blake3 \
-		-DBLAKE3_NO_SSE2 -DBLAKE3_NO_SSE41 -DBLAKE3_NO_AVX2 -DBLAKE3_NO_AVX512 -DBLAKE3_USE_NEON=0 \
-		-o /tmp/ava1-fuzz-data $(AVA1_C)/fuzz/fuzz_data.c $(AVA1_C)/ava1_manifest.c $(AVA1_C)/ava1_journal.c \
-		$(AVA1_C)/ava1_ranges.c $(AVA1_C)/ava1_wire.c $(AVA1_C)/ava1_frame.c $(AVA1_C)/gen/ava1_gen.c \
-		payload/third_party/blake3/blake3.c payload/third_party/blake3/blake3_dispatch.c \
-		payload/third_party/blake3/blake3_portable.c
-	/tmp/ava1-fuzz-data -max_total_time=$${AVA1_FUZZ_SECONDS:-60} -max_len=65536
+# Regenerates ps5upload's AVA1 application codecs from protocol/ps5upload-ava1/app.toml.
+ava1-app-gen:
+	cargo run -q --manifest-path third_party/ava1/Cargo.toml -p ava1-gen -- --ext app \
+		--schema protocol/ps5upload-ava1/app.toml --rust engine/crates/ps5upload-ava1/src/app_gen.rs \
+		--c-dir payload/gen --source protocol/ps5upload-ava1/app.toml --regenerate 'run `make ava1-app-gen`' $(ARGS)

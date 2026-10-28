@@ -8,8 +8,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use crate::gen;
 use anyhow::{anyhow, Result};
-use ava1::gen;
 use ava1::manifest::{self, Entry, Manifest};
 use ava1::send::{send_job, Progress, SendError, SendOptions};
 use ava1::source::{LocalSource, Source};
@@ -1550,7 +1550,8 @@ mod list_destination_tests {
 #[cfg(test)]
 mod failure_reason_tests {
     use super::{refusal, refusal_reason, terminal_connection_reason};
-    use ava1::{gen, Ava1Error};
+    use crate::gen;
+    use ava1::Ava1Error;
     use std::io;
 
     #[test]

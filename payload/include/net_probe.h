@@ -1,5 +1,5 @@
 /* The reach-back probe behind net.reach / NET_REACH (P3 Task 9), split out of runtime.c so the
- * host tests (ava1-ctest) compile and run the real code against a loopback listener.
+ * host tests (ps5upload-ctest) compile and run the real code against a loopback listener.
  *
  * Request: {"host":"a.b.c.d","port":"19113","timeout_ms":"3000"} (numbers as strings).
  * Opens a TCP connection from this machine and closes it at once; nothing is sent. */

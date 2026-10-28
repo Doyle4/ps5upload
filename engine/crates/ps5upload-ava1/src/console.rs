@@ -8,7 +8,7 @@
 
 use std::time::Duration;
 
-use ava1::gen;
+use crate::gen;
 use ava1::Ava1Error;
 
 use crate::pool::{pool, Pool};

@@ -1,6 +1,6 @@
 /* Remote Play pairing state machine. See include/rp_pair.h for the contract.
  *
- * Built for the console (Makefile) and for the host (ava1-ctest), so this
+ * Built for the console (Makefile) and for the host (ps5upload-ctest), so this
  * file includes nothing Sony-specific and makes every console call through
  * rp_pair_ops_t. */
 #include "rp_pair.h"

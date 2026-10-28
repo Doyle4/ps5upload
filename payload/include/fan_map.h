@@ -2,7 +2,7 @@
 #define PS5UPLOAD_FAN_MAP_H
 
 /* Pure curve -> temperature mapping (no hardware, no Sony API), kept apart from
- * fan_curve.c so the host-built ava1-ctest suite can pin it.
+ * fan_curve.c so the host-built ps5upload-ctest suite can pin it.
  *
  * What /dev/icc_fan ioctl 0xC01C8F07 takes is ONE temperature: the one the
  * firmware's own fan control works to hold. It is not a curve. Lower means

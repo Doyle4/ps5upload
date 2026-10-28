@@ -22,11 +22,11 @@
  * own tmp files into their final name in the SAME directory are safe by
  * construction and do not need it.
  *
- * RENAME AUDIT (P3 Task 19). Every rename(2) call in payload/src, payload/ava1 and payload/installer, by file
+ * RENAME AUDIT (P3 Task 19). Every rename(2) call in payload/src, third_party/ava1/c and payload/installer, by file
  * and count. "dir" = the two names are siblings (a tmp file or a `.old` generation beside the original, the
  * destination built from the source's path), so no device can differ; "guard" = checked with this header (or
  * the hook that wraps it) first, failing closed. A new rename() site must be added here, with its kind; the
- * ava1-ctest test c_every_rename_site_is_audited counts them.
+ * ps5upload-ctest test c_every_rename_site_is_audited counts them.
  *
  *   src/activity.c        1  dir    play-time file: tmp -> final
  *   src/cheats.c          1  dir    cheat state: tmp -> final

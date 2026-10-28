@@ -42,7 +42,7 @@ common way to burn a cycle here.
 
 ```sh
 ( cd client/src-tauri && cargo fmt --all -- --check )   # validate only checks fmt in engine/
-( cd engine && cargo test -p ava1-ctest -- --test-threads=1 )
+( cd engine && cargo test -p ps5upload-ctest -- --test-threads=1 )
 make test-payload                                       # needs PS5_PAYLOAD_SDK
 make check-no-ftx2                                      # the retired protocol must stay gone
 ```
@@ -60,8 +60,10 @@ ELFs with valid gzip resources, then runs every host self-test with
 
 Each self-test lives in `payload/tests/*_selftest.c` (hardware guards, ptrace recovery,
 `app.db` reading, FTP, SDK param rewriting, installer, cheats, wake watchdog and more). The
-AVA1 C itself is tested by `ava1-ctest`, which compiles it on the host and checks it against the
-Rust side (see the full gate below).
+The payload's AVA1 code (the management methods, the glue) is tested by `ps5upload-ctest`, which
+compiles it with the AVA1 C library on the host and checks it against the Rust side (see the full
+gate below). The AVA1 library itself is tested in its own repository (`third_party/ava1`:
+`make -C third_party/ava1 test`).
 
 The SDK version is pinned in `scripts/ps5-sdk.env` (currently **v0.45**)
 and verified by checksum. Local installers and CI read the same file.
@@ -111,7 +113,7 @@ curl -X POST http://127.0.0.1:19113/api/ps5/cleanup \
 ```
 
 **Use a live console when touching:** the payload C runtime, AVA1
-(`payload/ava1/`), transfer/reconcile/resume, storage, mount, cleanup, the file
+(`third_party/ava1/c/`), transfer/reconcile/resume, storage, mount, cleanup, the file
 browser, volume commands, or anything performance-sensitive.
 
 ### Hardware testing has teeth

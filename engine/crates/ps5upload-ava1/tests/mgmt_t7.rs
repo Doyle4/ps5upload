@@ -10,13 +10,13 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use ava1::gen::{self, MgmtText};
 use ava1::host::FolderHost;
 use ava1::keys::Identity;
 use ava1::peers::PeerStore;
 use ava1::server::{self, RpcHandler, ServerCtx};
 use ava1::session::RpcReply;
 use ava1::wire::Message;
+use ps5upload_ava1::gen::{self, MgmtText};
 use ps5upload_ava1::mgmt::AvaTransport;
 use ps5upload_ava1::Pool;
 use ps5upload_core::mgmt::{scoped_transport, MgmtError};
@@ -516,7 +516,7 @@ async fn account_backup_cheat_mod_notice_activity_and_remote_play_calls_round_tr
         .unwrap();
     run(&t, &c, |a| smp_meta::smp_meta_stats(a)).await.unwrap();
     // sdk.scan runs as a job.run op (Task 5); the scripted console here answers methods only, so it is
-    // covered by ava1-ctest job_run.rs `cleanup_and_a_100_kib_sdk_scan_result_come_back_whole`.
+    // covered by ps5upload-ctest job_run.rs `cleanup_and_a_100_kib_sdk_scan_result_come_back_whole`.
     let sp = run(&t, &c, |a| {
         sdk_changer::sdk_patch(a, "CUSA00001", "0x04000031", false)
     })

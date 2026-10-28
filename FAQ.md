@@ -2213,9 +2213,12 @@ install), but everything else answers only loopback callers and the addresses in
 CLI users can hit the `/api/*` endpoints directly.
 
 **Q: Can I write my own client against the payload?**
-Yes. AVA1 is specified in [`protocol/ava1/SPEC.md`](protocol/ava1/SPEC.md); every message is
-defined once in `protocol/ava1/schema/ava1.toml`, and `protocol/ava1/vectors/` holds byte-exact test
-vectors. You must pair with the console: it shows a six-digit code your client must display too.
+Yes. The protocol, AVA1, is its own open-source project:
+[github.com/phantomptr/ava1](https://github.com/phantomptr/ava1) (MIT or Apache-2.0). It has the
+specification, the schema every message is defined in, byte-exact test vectors, and a Rust crate
+(`ava1` on crates.io) you can build a client with. The helper's own methods (files, apps, saves and
+so on) are in `protocol/ps5upload-ava1/` in this repository. You must pair with the console: it
+shows a six-digit code your client must display too.
 
 **Q: How do I contribute a translation?**
 Edit `client/src/i18n/locales/` (English, `en.ts`, is the source of truth) or use

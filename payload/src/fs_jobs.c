@@ -11,7 +11,7 @@
 #include <unistd.h>
 
 #include "ava1_data.h"
-#include "ava1_gen.h"
+#include "ava1_app_gen.h"
 #include "ava1_op.h"
 #include "blake3.h"
 #include "path_policy.h"

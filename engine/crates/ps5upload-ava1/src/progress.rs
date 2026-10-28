@@ -118,11 +118,11 @@ impl Drop for Bridge {
 /// `commit_ack` say the same thing.
 pub fn bottleneck_name(b: u8) -> &'static str {
     match b {
-        ava1::gen::BN_NETWORK => "network",
-        ava1::gen::BN_SOURCE => "source",
-        ava1::gen::BN_DISK => "console drive",
-        ava1::gen::BN_WORKERS => "console workers",
-        ava1::gen::BN_CREDIT => "console memory",
+        crate::gen::BN_NETWORK => "network",
+        crate::gen::BN_SOURCE => "source",
+        crate::gen::BN_DISK => "console drive",
+        crate::gen::BN_WORKERS => "console workers",
+        crate::gen::BN_CREDIT => "console memory",
         _ => "none",
     }
 }
@@ -139,7 +139,7 @@ mod live_tests {
         let mut cfg = TransferConfig::new("h");
         cfg.progress_live = Some(live.clone());
         let bridge = Bridge::start(p.clone(), &cfg);
-        p.bottleneck.store(ava1::gen::BN_DISK, Ordering::Relaxed);
+        p.bottleneck.store(crate::gen::BN_DISK, Ordering::Relaxed);
         p.phase.store(1, Ordering::Relaxed);
         p.skip_done_bytes.store(5, Ordering::Relaxed);
         p.skip_total_bytes.store(20, Ordering::Relaxed);
@@ -147,7 +147,7 @@ mod live_tests {
         p.unswept.store(7, Ordering::Relaxed);
         p.unswept_peak.store(40, Ordering::Relaxed);
         drop(bridge); // the final store
-        assert_eq!(live.bottleneck.load(Ordering::Relaxed), ava1::gen::BN_DISK);
+        assert_eq!(live.bottleneck.load(Ordering::Relaxed), crate::gen::BN_DISK);
         assert_eq!(live.phase.load(Ordering::Relaxed), LIVE_PHASE_SKIPPING);
         assert_eq!(live.skip_done_bytes.load(Ordering::Relaxed), 5);
         assert_eq!(live.skip_total_bytes.load(Ordering::Relaxed), 20);

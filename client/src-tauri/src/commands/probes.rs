@@ -482,7 +482,7 @@ async fn stamp_ava1_trust(bytes: &mut [u8]) {
     let key = fetched.as_ref().map(|(k, _)| k);
     let token = fetched.and_then(|(_, t)| t);
     // The same step the engine's own helper sends take (ava1_api::stamped_helper).
-    if let Err(why) = ava1::trust::stamp_helper(bytes, key, || token) {
+    if let Err(why) = ava1::trust::stamp_program(bytes, key, || token) {
         eprintln!("[payload_send] {why}");
     }
 }

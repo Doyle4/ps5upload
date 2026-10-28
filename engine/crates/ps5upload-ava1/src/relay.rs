@@ -6,8 +6,8 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Condvar, Mutex};
 use std::time::{Duration, Instant};
 
+use crate::gen;
 use anyhow::{anyhow, Result};
-use ava1::gen;
 use ava1::manifest::Manifest;
 use ava1::ranges::Need;
 use ava1::recv::{download_open, download_run, RecvOptions, Sink};

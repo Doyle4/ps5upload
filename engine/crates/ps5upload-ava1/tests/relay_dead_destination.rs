@@ -8,11 +8,11 @@ use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use std::time::Duration;
 
-use ava1::gen;
 use ava1::keys::Identity;
 use ava1::send::Progress;
 use ava1_chaos::{ChaosConfig, ChaosProxy};
 use common::*;
+use ps5upload_ava1::gen;
 use ps5upload_ava1::relay::ps5_to_ps5_between;
 use ps5upload_ava1::Pool;
 

@@ -937,7 +937,7 @@ mod served_tests {
         let mut peers = PeerStore::in_memory();
         peers.add(key, "engine").unwrap();
         let rpc: ava1::server::RpcHandler = Box::new(|_, _| ava1::session::RpcReply {
-            status: ava1::gen::ERR_UNKNOWN_METHOD,
+            status: ps5upload_ava1::gen::ERR_UNKNOWN_METHOD,
             body: Vec::new(),
         });
         let ctx = ServerCtx::new(Identity::generate().unwrap(), "host", peers, rpc).with_jobs(
@@ -957,7 +957,7 @@ mod served_tests {
             let source = Arc::new(Lz4LinkSource::new(src, plen, "g.exfat".into(), ilen));
             let manifest = ava1::manifest::single(source.as_ref(), "g.exfat").unwrap();
             let mut opts = ava1::send::SendOptions::upload("dst/g.exfat");
-            opts.flags = ava1::gen::JF_SINGLE_FILE;
+            opts.flags = ps5upload_ava1::gen::JF_SINGLE_FILE;
             opts.seq = Some(source.clone());
             ps5upload_ava1::upload::upload_with_in(
                 &pool,
@@ -998,7 +998,7 @@ mod served_tests {
         let mut peers = PeerStore::in_memory();
         peers.add(key, "engine").unwrap();
         let rpc: ava1::server::RpcHandler = Box::new(|_, _| ava1::session::RpcReply {
-            status: ava1::gen::ERR_UNKNOWN_METHOD,
+            status: ps5upload_ava1::gen::ERR_UNKNOWN_METHOD,
             body: Vec::new(),
         });
         let ctx = ServerCtx::new(Identity::generate().unwrap(), "host", peers, rpc).with_jobs(
@@ -1018,7 +1018,7 @@ mod served_tests {
             let source = Arc::new(LinkSource::new(src, "tool.elf".into(), total));
             let manifest = ava1::manifest::single(source.as_ref(), "tool.elf").unwrap();
             let mut opts = ava1::send::SendOptions::upload("dst/tool.elf");
-            opts.flags = ava1::gen::JF_SINGLE_FILE;
+            opts.flags = ps5upload_ava1::gen::JF_SINGLE_FILE;
             ps5upload_ava1::upload::upload_with_in(
                 &pool,
                 "127.0.0.1",

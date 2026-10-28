@@ -4,8 +4,8 @@
 //! Callers in `ps5upload-core` keep sending and reading the legacy JSON. These pure
 //! functions are the whole mapping, so they are tested without a network.
 
+use crate::gen::{self, FsEntry, FsFreeSpace, FsListResult, FsStat, NodeStatus};
 use anyhow::Result;
-use ava1::gen::{self, FsEntry, FsFreeSpace, FsListResult, FsStat, NodeStatus};
 use serde_json::{json, Value};
 
 /// A refusal that is the caller's own fault (a body the legacy handler would have

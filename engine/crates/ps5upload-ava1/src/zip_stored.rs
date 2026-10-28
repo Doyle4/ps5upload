@@ -23,7 +23,7 @@ use std::io;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
-use ava1::gen;
+use crate::gen;
 use ava1::manifest::Manifest;
 use ava1::ranges::RangeSet;
 use ava1::recv::Sink;

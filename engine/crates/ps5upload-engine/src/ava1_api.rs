@@ -127,7 +127,7 @@ fn stamp_helper_with(
     token: impl FnOnce() -> Option<[u8; 16]>,
 ) -> (Vec<u8>, Result<(), String>) {
     let mut bytes = elf.to_vec();
-    let outcome = ava1::trust::stamp_helper(&mut bytes, key, token);
+    let outcome = ava1::trust::stamp_program(&mut bytes, key, token);
     (bytes, outcome)
 }
 

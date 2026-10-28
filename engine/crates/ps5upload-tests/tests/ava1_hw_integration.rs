@@ -11,9 +11,9 @@ use ava1_common::*;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
-use ava1::gen;
 use ava1::server::RpcHandler;
 use ava1::session::RpcReply;
+use ps5upload_ava1::gen;
 use ps5upload_core::diagnostics::shell_run;
 use ps5upload_core::fs_ops::{app_launch, app_list_registered, app_register};
 use ps5upload_core::hw::{

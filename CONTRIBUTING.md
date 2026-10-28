@@ -46,15 +46,17 @@ these, and `cargo fmt --check` must pass in BOTH `engine/` and `client/src-tauri
 ( cd client/src-tauri && cargo fmt --all -- --check )
 ( cd engine && cargo clippy --workspace -- -D warnings )
 ( cd engine && cargo test --workspace )
-( cd engine && cargo test -p ava1-ctest -- --test-threads=1 )
+( cd engine && cargo test -p ps5upload-ctest -- --test-threads=1 )
 make test-payload                                 # needs PS5_PAYLOAD_SDK
 make check-no-ftx2                                # the retired protocol must stay gone
 ( cd client && npm run lint && npm run typecheck && npm test && npm run build:vite )
 npm run i18n:check                                # from the repo root
 ```
 
-`ava1-ctest` builds the payload's AVA1 C on the host and tests it against the Rust side, so no
-PS5 is needed. `check-no-ftx2` fails if the old protocol name or ports 9113/9114 reappear
+`ps5upload-ctest` builds the payload's AVA1 C (the `third_party/ava1` library plus the payload's
+management methods) on the host and tests it against the Rust side, so no PS5 is needed. A change
+to the protocol itself goes to [github.com/phantomptr/ava1](https://github.com/phantomptr/ava1)
+first, then the submodule is moved to it here. `check-no-ftx2` fails if the old protocol name or ports 9113/9114 reappear
 outside the changelog and a short list of exceptions in the Makefile.
 
 Other useful targets:

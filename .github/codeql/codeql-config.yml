@@ -8,7 +8,7 @@ paths-ignore:
   - "**/*.test.tsx"
   - "**/examples/**"
   - "**/fuzz/**"
-  - "engine/crates/ava1-ctest/**"
+  - "engine/crates/ps5upload-ctest/**"
   - "engine/crates/ps5upload-tests/**"
   - "engine/crates/ps5upload-lab/**"
   - "client/e2e/**"

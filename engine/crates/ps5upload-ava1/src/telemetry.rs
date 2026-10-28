@@ -94,7 +94,7 @@ mod tests {
                     lanes,
                     chunk: 4 << 20,
                     bundle: 0,
-                    bottleneck: ava1::gen::BN_NETWORK,
+                    bottleneck: crate::gen::BN_NETWORK,
                     mode: Mode::Mixed,
                     prefer: Class::Stream,
                     sequential: seq,
@@ -119,10 +119,10 @@ mod tests {
         with_ticks(
             &p,
             &[
-                (true, false, ava1::gen::BN_DISK, 4, false),
-                (true, false, ava1::gen::BN_DISK, 4, true),
-                (false, true, ava1::gen::BN_DISK, 6, true),
-                (false, false, ava1::gen::BN_DISK, 6, true),
+                (true, false, crate::gen::BN_DISK, 4, false),
+                (true, false, crate::gen::BN_DISK, 4, true),
+                (false, true, crate::gen::BN_DISK, 6, true),
+                (false, false, crate::gen::BN_DISK, 6, true),
             ],
         );
         {

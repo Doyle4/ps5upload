@@ -204,7 +204,7 @@ Download. Replace the old app and relaunch; the app then offers to update the he
 Building from source:
 
 ```bash
-git clone https://github.com/phantomptr/ps5upload.git
+git clone --recurse-submodules https://github.com/phantomptr/ps5upload.git
 cd ps5upload
 make install       # bootstrap dev env (auto-detects host OS)
 make build         # payload ELF + engine + client UI
@@ -263,7 +263,8 @@ client/ (Tauri 2 · React · TypeScript)   Android app · Docker web UI
 ```
 
 - **`payload/`**: C payload on the PS5 (FreeBSD 11). Transfers, BLAKE3 verification, mounts,
-  file operations and every management call. Spec: [`protocol/ava1/SPEC.md`](protocol/ava1/SPEC.md).
+  file operations and every management call, over [AVA1](https://github.com/phantomptr/ava1), the
+  transfer protocol (its own repository, checked out as `third_party/ava1`).
 - **`engine/`**: Rust workspace with the AVA1 client, transfer logic, HTTP API and lab tools.
 - **`client/`**: Tauri 2 desktop app (and the Android and web builds), talking to the engine.
 
