@@ -6065,6 +6065,7 @@ library_compressed_hint: "압축 이미지를 플레이하려면 ShadowMount+가
 "rp_stop": "중지",
 "rp_err_busy": "PS5가 아직 지난 리모트 플레이 세션을 마무리하고 있습니다. {s}초 후에 다시 시도하세요.",
 "rp_stats_line": "{fps} fps · {mbps} Mbit/s · {ms} ms · {codec} · 손실 {loss}%",
+"dumps_fself": "FSELF",
 };
 
 export default ko;

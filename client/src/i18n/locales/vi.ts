@@ -6048,6 +6048,7 @@ library_compressed_hint: "Ảnh đĩa nén cần ShadowMount+ để chơi. Để
 "rp_stop": "Dừng",
 "rp_err_busy": "PS5 vẫn đang kết thúc phiên Remote Play trước. Thử lại sau {s} giây.",
 "rp_stats_line": "{fps} fps · {mbps} Mbit/s · {ms} ms · {codec} · mất {loss}%",
+"dumps_fself": "FSELF",
 };
 
 export default vi;

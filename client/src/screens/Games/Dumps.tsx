@@ -455,7 +455,7 @@ export function DumpsView() {
                         <span>{formatBytes(d.bytes)}</span>
                         <span>{d.internal ? tr("dumps_console_drive", undefined, "This PS5") : d.mount}</span>
                         {d.state !== "done" && <Badge tone="warn">{tr("dumps_unfinished", undefined, "Unfinished")}</Badge>}
-                        {d.fself > 0 && <Badge tone="neutral">FSELF</Badge>}
+                        {d.fself > 0 && <Badge tone="neutral">{tr("dumps_fself", undefined, "FSELF")}</Badge>}
                       </span>
                     </span>
                     <Button variant="ghost" size="sm" leftIcon={<FolderOpen size={13} />} onClick={() => openInFileSystem(navigate, path)}>

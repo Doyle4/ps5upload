@@ -5996,6 +5996,7 @@ library_compressed_hint: "Для запуска сжатых образов ну
 "rp_stop": "Стоп",
 "rp_err_busy": "PS5 ещё завершает прошлый сеанс Remote Play. Повторите через {s} с.",
 "rp_stats_line": "{fps} к/с · {mbps} Мбит/с · {ms} мс · {codec} · потери {loss}%",
+"dumps_fself": "FSELF",
 };
 
 export default ru;

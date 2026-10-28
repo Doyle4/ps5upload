@@ -6062,6 +6062,7 @@ library_compressed_hint: "संपीड़ित इमेज चलाने 
 "rp_stop": "रोकें",
 "rp_err_busy": "PS5 अभी पिछला रिमोट प्ले सत्र बंद कर रहा है। {s} सेकंड बाद फिर कोशिश करें।",
 "rp_stats_line": "{fps} fps · {mbps} Mbit/s · {ms} ms · {codec} · हानि {loss}%",
+"dumps_fself": "FSELF",
 };
 
 export default hi;

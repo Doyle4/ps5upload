@@ -6053,6 +6053,7 @@ library_compressed_hint: "Sıkıştırılmış kalıpları oynatmak için Shadow
 "rp_stop": "Durdur",
 "rp_err_busy": "PS5 hâlâ son Uzaktan Oynatma oturumunu kapatıyor. {s} sn sonra tekrar dene.",
 "rp_stats_line": "{fps} fps · {mbps} Mbit/sn · {ms} ms · {codec} · kayıp %{loss}",
+"dumps_fself": "FSELF",
 };
 
 export default tr;
