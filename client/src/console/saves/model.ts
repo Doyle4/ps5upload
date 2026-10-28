@@ -1,0 +1,242 @@
+/**
+ * Save backups on the console itself (Discord request): copy a game's save of one user, as the
+ * console keeps it, to /data/ps5upload/save-backups/<user>/<title>/<YYYY-MM-DD_HH-MM-SS>/, keep as
+ * many as wanted, and put one back later (before a game's final choice, say).
+ *
+ * A PS5 game's save is two folders: /user/home/<user>/savedata_prospero/<title> (the sealed save
+ * images, sdimg_*) and savedata_prospero_meta/<title> (its title, details and icon as the system
+ * lists them); a PS4 game's is savedata/<title>. A backup holds each one there was, under its
+ * folder name. The images stay sealed: a backup is put back on the same console and user only
+ * (what the PC app's Save data screen does too, by download and upload).
+ *
+ * Restore replaces what is there with the backup's files: it first backs up the current save
+ * (named with "_auto"), then empties each live folder and copies the backup's files in. The
+ * live title folder itself is kept; when it is gone (the save was deleted) it is created, which
+ * the system's save folder may refuse (the PC app's restore notes EACCES there): the game then
+ * has to save once first. The game must not be running (the caller checks).
+ */
+import { ApiError, call } from "../api";
+import { watchOp } from "../files/opJob";
+import { TITLE_ID_RE, type CallFn } from "../games/model";
+
+export const BACKUP_ROOT = "/data/ps5upload/save-backups";
+/** The save folders a title can have, in the order a backup copies them. */
+export const SAVE_KINDS = ["savedata_prospero", "savedata_prospero_meta", "savedata"] as const;
+export type SaveKind = (typeof SAVE_KINDS)[number];
+
+const LIST_PAGE = 256;
+const HEX_USER = /^[0-9a-f]{8}$/;
+const STAMP = /^(\d{4})-(\d{2})-(\d{2})_(\d{2})-(\d{2})-(\d{2})(_auto)?$/;
+
+export interface SaveUser {
+  /** The home folder's name: the user id as 8 hex digits. */
+  id: string;
+  name: string;
+  foreground: boolean;
+}
+
+export interface SaveTitle {
+  titleId: string;
+  kinds: SaveKind[];
+}
+
+export interface Backup {
+  /** The folder name (its stamp). */
+  name: string;
+  /** When it was made (local time, ms), from its name. */
+  when: number;
+  /** Made by a restore, of the save it replaced. */
+  auto: boolean;
+}
+
+interface ListEntry {
+  name?: unknown;
+  kind?: unknown;
+  size?: unknown;
+}
+
+/** `path`'s entries (every page); null when the folder is not there. */
+export async function listAll(callFn: CallFn, path: string): Promise<{ name: string; kind: string; size: number }[] | null> {
+  const out: { name: string; kind: string; size: number }[] = [];
+  let offset = 0;
+  for (;;) {
+    let r: { entries?: ListEntry[]; more?: boolean; next?: number } | null;
+    try {
+      r = await callFn("/api/fs/list", { path, offset, limit: LIST_PAGE });
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 404) return null;
+      throw e;
+    }
+    const entries = Array.isArray(r?.entries) ? r.entries : [];
+    for (const e of entries) {
+      if (typeof e?.name === "string")
+        out.push({ name: e.name, kind: typeof e.kind === "string" ? e.kind : "other", size: typeof e.size === "number" ? e.size : 0 });
+    }
+    if (!r?.more || !entries.length) return out;
+    offset = typeof r.next === "number" && r.next > offset ? r.next : offset + entries.length;
+  }
+}
+
+const dirsOf = (l: { name: string; kind: string }[] | null) => (l ?? []).filter((e) => e.kind === "dir" || e.kind === "link").map((e) => e.name);
+
+export const userDir = (user: string) => `/user/home/${user}`;
+export const livePath = (user: string, kind: SaveKind, titleId: string) => `${userDir(user)}/${kind}/${titleId}`;
+export const backupsDir = (user: string, titleId: string) => `${BACKUP_ROOT}/${user}/${titleId}`;
+
+/** /api/users' reply → name by home folder (id as 8 hex digits). */
+export function parseUsers(raw: unknown): Map<string, { name: string; foreground: boolean }> {
+  const out = new Map<string, { name: string; foreground: boolean }>();
+  const list = Array.isArray((raw as { users?: unknown } | null)?.users) ? (raw as { users: Record<string, unknown>[] }).users : [];
+  for (const u of list) {
+    if (typeof u?.id !== "number" || !Number.isFinite(u.id)) continue;
+    const id = (u.id >>> 0).toString(16).padStart(8, "0");
+    out.set(id, { name: typeof u.name === "string" ? u.name : "", foreground: u.foreground === true });
+  }
+  return out;
+}
+
+/** The users with a home folder, named where the helper can say (an older helper has no /api/users). */
+export async function loadUsers(callFn: CallFn = call): Promise<SaveUser[]> {
+  const homes = dirsOf(await listAll(callFn, "/user/home")).filter((n) => HEX_USER.test(n));
+  let names = new Map<string, { name: string; foreground: boolean }>();
+  try {
+    names = parseUsers(await callFn<unknown>("/api/users"));
+  } catch {
+    // unnamed: the id is shown
+  }
+  const users = homes.map((id) => ({ id, name: names.get(id)?.name || id, foreground: names.get(id)?.foreground ?? false }));
+  // users the system lists first, in its order; then the rest
+  const order = Array.from(names.keys());
+  const rank = (id: string) => (order.indexOf(id) < 0 ? order.length : order.indexOf(id));
+  return users.sort((a, b) => rank(a.id) - rank(b.id) || a.id.localeCompare(b.id));
+}
+
+/** Every title with a save of `user`, and which save folders it has. */
+export async function loadSaves(user: string, callFn: CallFn = call): Promise<SaveTitle[]> {
+  const by = new Map<string, SaveKind[]>();
+  for (const kind of SAVE_KINDS) {
+    const l = await listAll(callFn, `${userDir(user)}/${kind}`);
+    for (const id of dirsOf(l)) {
+      if (!TITLE_ID_RE.test(id)) continue;
+      const k = by.get(id);
+      if (k) k.push(kind);
+      else by.set(id, [kind]);
+    }
+  }
+  // a meta folder alone (the save itself gone) is nothing to back up
+  return Array.from(by.entries())
+    .filter(([, kinds]) => kinds.some((k) => k !== "savedata_prospero_meta"))
+    .map(([titleId, kinds]) => ({ titleId, kinds }));
+}
+
+const pad = (n: number) => String(n).padStart(2, "0");
+
+/** A backup's folder name for `d` (local time), "_auto" for the one a restore makes. */
+export function backupName(d: Date, auto = false): string {
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}_${pad(d.getHours())}-${pad(d.getMinutes())}-${pad(d.getSeconds())}${auto ? "_auto" : ""}`;
+}
+
+export function parseBackupName(name: string): Backup | null {
+  const m = STAMP.exec(name);
+  if (!m) return null;
+  const when = new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]).getTime();
+  return Number.isFinite(when) ? { name, when, auto: !!m[7] } : null;
+}
+
+/** `titleId`'s backups for `user`, newest first. */
+export async function loadBackups(user: string, titleId: string, callFn: CallFn = call): Promise<Backup[]> {
+  const out: Backup[] = [];
+  for (const n of dirsOf(await listAll(callFn, backupsDir(user, titleId)))) {
+    const b = parseBackupName(n);
+    if (b) out.push(b);
+  }
+  return out.sort((a, b) => b.when - a.when);
+}
+
+/** The bytes of the files in `path` and one level of folders below (a save is shallow). */
+export async function shallowSize(path: string, callFn: CallFn = call): Promise<number> {
+  let bytes = 0;
+  const l = await listAll(callFn, path);
+  for (const e of l ?? []) {
+    if (e.kind === "file") bytes += e.size;
+    else if (e.kind === "dir") for (const f of (await listAll(callFn, `${path}/${e.name}`)) ?? []) if (f.kind === "file") bytes += f.size;
+  }
+  return bytes;
+}
+
+export interface OpDeps {
+  call: CallFn;
+  /** Runs job `id` to its end; throws with its cause when it failed. */
+  wait: (id: string) => Promise<void>;
+  now: () => Date;
+}
+
+async function waitOp(id: string): Promise<void> {
+  const end = await watchOp(id);
+  if (end.end === "done" || end.end === "gone") return;
+  if (end.end === "cancelled") throw new ApiError(409, "cancelled");
+  throw new ApiError(500, (end.status.message ?? "").split(":")[0] || "io_error");
+}
+
+const defaultDeps: OpDeps = { call, wait: waitOp, now: () => new Date() };
+
+async function runJob(d: OpDeps, route: "/api/fs/copy" | "/api/fs/delete", body: object): Promise<void> {
+  const r = await d.call<{ job?: unknown }>(route, body);
+  if (!r || typeof r.job !== "string") throw new ApiError(500, "bad_reply");
+  await d.wait(r.job);
+}
+
+/** Copies `user`'s save of `titleId` (each folder it has) into a new backup; its name. A failed copy leaves nothing behind. */
+export async function backUp(user: string, titleId: string, kinds: readonly SaveKind[], opts: { auto?: boolean } = {}, d: OpDeps = defaultDeps): Promise<string> {
+  if (!kinds.length) throw new ApiError(404, "save_not_found");
+  let name = backupName(d.now(), opts.auto);
+  // two in one second (a restore right after a backup): the next free second's name
+  const taken = new Set((await loadBackups(user, titleId, d.call)).map((b) => b.name));
+  for (let i = 1; taken.has(name) && i < 60; i++) name = backupName(new Date(d.now().getTime() + i * 1000), opts.auto);
+  const dest = `${backupsDir(user, titleId)}/${name}`;
+  await d.call("/api/fs/mkdir", { path: dest });
+  try {
+    for (const kind of kinds) await runJob(d, "/api/fs/copy", { src: livePath(user, kind, titleId), dest: `${dest}/${kind}` });
+  } catch (e) {
+    await runJob(d, "/api/fs/delete", { path: dest }).catch(() => undefined);
+    throw e;
+  }
+  return name;
+}
+
+/** The save folders `backup` holds. */
+export async function backupKinds(user: string, titleId: string, backup: string, callFn: CallFn = call): Promise<SaveKind[]> {
+  const names = new Set(dirsOf(await listAll(callFn, `${backupsDir(user, titleId)}/${backup}`)));
+  return SAVE_KINDS.filter((k) => names.has(k));
+}
+
+/**
+ * Puts `backup` back as `user`'s save of `titleId`: backs up the current save first (its name is
+ * returned, null when there was none), then for each folder the backup holds empties the live one
+ * and copies the backup's files in.
+ */
+export async function restore(
+  user: string,
+  titleId: string,
+  backup: string,
+  current: readonly SaveKind[],
+  d: OpDeps = defaultDeps,
+): Promise<string | null> {
+  const kinds = await backupKinds(user, titleId, backup, d.call);
+  if (!kinds.length) throw new ApiError(404, "backup_empty");
+  const safety = current.length ? await backUp(user, titleId, current, { auto: true }, d) : null;
+  for (const kind of kinds) {
+    const live = livePath(user, kind, titleId);
+    const src = `${backupsDir(user, titleId)}/${backup}/${kind}`;
+    const have = await listAll(d.call, live);
+    if (have === null) await d.call("/api/fs/mkdir", { path: live });
+    for (const e of have ?? []) await runJob(d, "/api/fs/delete", { path: `${live}/${e.name}` });
+    for (const e of (await listAll(d.call, src)) ?? []) await runJob(d, "/api/fs/copy", { src: `${src}/${e.name}`, dest: `${live}/${e.name}` });
+  }
+  return safety;
+}
+
+export async function deleteBackup(user: string, titleId: string, backup: string, d: OpDeps = defaultDeps): Promise<void> {
+  if (!STAMP.test(backup)) throw new ApiError(400, "bad_backup");
+  await runJob(d, "/api/fs/delete", { path: `${backupsDir(user, titleId)}/${backup}` });
+}

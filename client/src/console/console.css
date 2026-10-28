@@ -1469,6 +1469,38 @@ button {
   }
 }
 
+/* ---- Saves: backups of a game's save on the console ---- */
+.cw-saves-users {
+  display: flex;
+  flex-wrap: wrap;
+  flex: 1;
+  min-width: 0;
+}
+.cw-saves-users .cw-button {
+  margin: 0 0.6rem 0.4rem 0;
+}
+.cw-saves-users .cw-button[aria-pressed="true"] {
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+  box-shadow: inset 0 0 0 2px var(--color-accent);
+}
+.cw-dialog.cw-saves-sheet {
+  width: 56rem;
+}
+.cw-saves-actions {
+  margin: 0 0 0.8rem;
+}
+.cw-saves-list {
+  max-height: none;
+}
+.cw-saves-list .cw-libpart-name + .cw-tag {
+  margin-left: 0.6rem;
+}
+.cw-saves-where {
+  font-size: 0.75rem;
+  word-break: break-all;
+}
+
 /* ---- Processes ---- */
 .cw-procs .cw-task-item {
   margin-bottom: 0.4rem;

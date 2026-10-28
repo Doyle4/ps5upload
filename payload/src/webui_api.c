@@ -326,6 +326,22 @@ static void r_status(const char *b, size_t n, uint8_t *out, int fd) {
     }
 }
 
+/* The console's users ({"foreground":id,"users":[{"id","name","foreground"}]}, USER_LIST): the Saves
+ * screen names each /user/home/<id as %08x> folder by them. */
+static void r_users(const char *b, size_t n, uint8_t *out, int fd) {
+    const uint8_t *t;
+    size_t ol, tl;
+    int st;
+    (void)b;
+    (void)n;
+    st = call_text(AVA1_METHOD_USER_LIST, NULL, 0, out, &ol, &t, &tl);
+    if (st != AVA1_STATUS_OK) {
+        send_status_error(fd, st, out, ol);
+        return;
+    }
+    send_json(fd, 200, (const char *)t, tl);
+}
+
 static void r_volumes(const char *b, size_t n, uint8_t *out, int fd) {
     const uint8_t *t;
     size_t ol, tl;
@@ -2855,6 +2871,7 @@ static const struct {
     api_fn fn;
 } k_routes[] = {
     { "/api/status", r_status },
+    { "/api/users", r_users },
     { "/api/volumes", r_volumes },
     { "/api/volumes/eject", r_volumes_eject },
     { "/api/volumes/unmount", r_volumes_unmount },

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  ArchiveRestore,
   ArrowDownAZ,
   Clock,
   Eye,
@@ -129,6 +130,8 @@ export interface GamesViewProps {
   onAsk: (a: GameAsk) => void;
   onConfirm: () => void;
   onDismiss: () => void;
+  /** Open the game's save backups (the Saves section); absent: no button. */
+  onSaves?: (g: Game) => void;
 }
 
 function Cover({ titleId, big }: { titleId: string; big?: boolean }) {
@@ -223,6 +226,12 @@ function GameSheet({ g, p }: { g: Game; p: GamesViewProps }) {
             >
               <Square aria-hidden />
               <span>{t("cw_home_close_game")}</span>
+            </button>
+          ) : null}
+          {p.onSaves ? (
+            <button type="button" className="cw-focusable cw-sheet-item" data-game-action="saves" onClick={() => p.onSaves?.(g)}>
+              <ArchiveRestore aria-hidden />
+              <span>{t("cw_games_saves")}</span>
             </button>
           ) : null}
           {g.hidden !== null ? (
@@ -658,6 +667,7 @@ export function Games({ ctx }: { ctx: SectionContext }) {
           setAsk(a);
         }}
         onConfirm={() => void onConfirm()}
+        onSaves={ctx.canOpen("saves") ? (g) => ctx.openSection("saves", { title: g.titleId }) : undefined}
         onDismiss={() => {
           if (!busy) {
             setAsk(null);
