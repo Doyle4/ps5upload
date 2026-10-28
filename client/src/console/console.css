@@ -1852,12 +1852,18 @@ button {
   margin-bottom: 0.2rem;
 }
 .cw-toolbar-one .cw-pathbar {
-  flex: 1;
+  flex: 1 1 14rem;
+  min-width: 0;
   margin: 0 0.8rem 0 0;
 }
+/* The tools wrap onto a second row rather than push the page wider than the screen
+ * (the PS5 browser's page is 1540 px wide). */
 .cw-tools {
-  flex: none;
+  flex: 0 1 auto;
+  min-width: 0;
   display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   align-items: center;
 }
 .cw-tool {
@@ -1867,7 +1873,7 @@ button {
   justify-content: center;
   width: 2.6rem;
   height: 2.4rem;
-  margin-left: 0.3rem;
+  margin: 0 0 0.3rem 0.3rem;
   color: inherit;
   background: var(--color-surface-3);
 }

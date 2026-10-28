@@ -36,23 +36,22 @@ async function blobText(b: Blob): Promise<string> {
 }
 
 describe("where the page is open", () => {
-  it("offers upload/download only away from the console", () => {
-    expect(onOtherDevice("192.168.1.99", "192.168.1.20")).toBe(true);
-    expect(onOtherDevice("", "192.168.1.20")).toBe(true); // LAN access off: the address is ""
-    expect(onOtherDevice("192.168.1.99", "127.0.0.1")).toBe(false);
-    expect(onOtherDevice("192.168.1.99", "localhost")).toBe(false);
-    expect(onOtherDevice("192.168.1.99", "")).toBe(false);
-    // the console's own browser opened by its LAN address
-    expect(onOtherDevice("192.168.1.99", "192.168.1.99")).toBe(false);
-    // not known yet: nothing offered
-    expect(onOtherDevice(null, "192.168.1.20")).toBe(false);
+  const PS5 = "Mozilla/5.0 (PlayStation; PlayStation 5/13.60) AppleWebKit/605.1.15 (KHTML, like Gecko)";
+  const PHONE = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148";
+  it("offers upload/download on a phone or PC that opened the console's LAN address", () => {
+    // a phone always opens the page BY the console's address: that is location.hostname there
+    expect(onOtherDevice("192.168.1.99", PHONE)).toBe(true);
+    expect(onOtherDevice("ps5.local", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)")).toBe(true);
   });
-  it("reads the console's address from settings; a failed read offers nothing", async () => {
-    mCall.mockResolvedValueOnce({ addr: "192.168.1.99" });
-    expect(await loadOnOtherDevice()).toBe(false); // the test runner's host is not another device
-    expect(mCall).toHaveBeenCalledWith("/api/settings");
-    mCall.mockRejectedValueOnce(new ApiError(0, "offline"));
-    expect(await loadOnOtherDevice()).toBe(false);
+  it("never on the console's own browser, by the tile (127.0.0.1) or by its LAN address", () => {
+    expect(onOtherDevice("127.0.0.1", PS5)).toBe(false);
+    expect(onOtherDevice("localhost", PS5)).toBe(false);
+    expect(onOtherDevice("192.168.1.99", PS5)).toBe(false);
+    expect(onOtherDevice("", PHONE)).toBe(false);
+  });
+  it("needs no helper call to know", async () => {
+    expect(await loadOnOtherDevice()).toBe(false); // the test runner has no page host
+    expect(mCall).not.toHaveBeenCalled();
   });
 });
 
