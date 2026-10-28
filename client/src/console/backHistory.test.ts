@@ -183,31 +183,26 @@ describe("back history on the PS5 (close at the first screen)", () => {
     return { f, h, onRoot, runBack };
   }
 
-  it("○ on the first screen closes the browser instead of leaving the page", () => {
+  it("○ on the first screen is the browser's own: it leaves at the first press, nothing is spent on a refused close", () => {
     const { f, onRoot, runBack } = ps5();
-    expect(f.entries).toEqual(["page", "guard"]); // a guard even with nothing open
+    expect(f.entries).toEqual(["page"]); // no guard with nothing open
     f.tick(1000);
-    expect(f.browserBack()).toBe("stayed");
-    f.flush();
-    expect(onRoot).toHaveBeenCalledTimes(1);
-    expect(runBack).not.toHaveBeenCalled();
-    // Still open (close refused): the guard stays down, the next ○ is the browser's own.
-    expect(f.entries).toEqual(["page"]);
     expect(f.browserBack()).toBe("left");
+    expect(onRoot).not.toHaveBeenCalled();
+    expect(runBack).not.toHaveBeenCalled();
   });
 
-  it("a level opened after a refused close puts the first-screen guard back", () => {
+  it("Discord (13.20): after a section was opened and closed, the first ○ at Home still leaves", () => {
     const { f, h, onRoot } = ps5();
     f.tick(1000);
-    f.browserBack();
-    f.flush();
-    expect(onRoot).toHaveBeenCalledTimes(1);
     const close = h.addLevel();
     f.flush();
     expect(f.entries).toEqual(["page", "guard"]);
-    close();
+    close(); // back to Home by the rail
     f.flush();
-    expect(f.entries).toEqual(["page", "guard"]); // kept for the first screen
+    expect(f.entries).toEqual(["page"]); // the guard is gone with the level
+    expect(f.browserBack()).toBe("left");
+    expect(onRoot).not.toHaveBeenCalled();
   });
 
   it("closing a level by ○ steps back, and never closes the browser", () => {
@@ -220,11 +215,13 @@ describe("back history on the PS5 (close at the first screen)", () => {
     f.flush();
     expect(runBack).toHaveBeenCalledTimes(1);
     expect(onRoot).not.toHaveBeenCalled();
-    expect(f.entries).toEqual(["page", "guard"]);
+    expect(f.entries).toEqual(["page"]);
   });
 
   it("a popstate that pops nothing (WebKit at load) is ignored", () => {
-    const { f, onRoot, runBack } = ps5();
+    const { f, h, onRoot, runBack } = ps5();
+    h.addLevel();
+    f.flush();
     f.tick(1000);
     f.spuriousPop();
     f.flush();
@@ -234,25 +231,29 @@ describe("back history on the PS5 (close at the first screen)", () => {
   });
 
   it("before any key or click, a pop inside the load grace only puts the guard back", () => {
-    const { f, h, onRoot } = ps5(1500);
+    const { f, h, runBack } = ps5(1500);
+    h.addLevel(); // the tour, opened at load
+    f.flush();
     f.tick(500);
     f.browserBack();
     f.flush();
-    expect(onRoot).not.toHaveBeenCalled();
+    expect(runBack).not.toHaveBeenCalled();
     expect(f.entries).toEqual(["page", "guard"]);
     // After a key the same pop is real.
     h.noteInput();
     f.browserBack();
     f.flush();
-    expect(onRoot).toHaveBeenCalledTimes(1);
+    expect(runBack).toHaveBeenCalledTimes(1);
   });
 
   it("after the grace a pop is real even with no key pressed (○ is not a key on the PS5)", () => {
-    const { f, onRoot } = ps5(1500);
+    const { f, h, runBack } = ps5(1500);
+    h.addLevel();
+    f.flush();
     f.tick(1600);
     f.browserBack();
     f.flush();
-    expect(onRoot).toHaveBeenCalledTimes(1);
+    expect(runBack).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -304,20 +305,16 @@ describe("#480: ○ on the PS5's first screen leaves the page", () => {
     expect(onRoot).not.toHaveBeenCalled();
   });
 
-  it("after a level the first screen keeps its guard and ○ there tries onRoot once", () => {
-    const { f, h, onRoot, length } = ps5WithLength();
+  it("after a level the first screen has no guard either: ○ there leaves at once", () => {
+    const { f, h, onRoot } = ps5WithLength();
     f.tick(2000);
     const close = h.addLevel();
     f.flush();
     close();
     f.flush();
-    expect(f.entries).toEqual(["page", "guard"]); // history is deep now: kept for the first screen
-    expect(length()).toBe(2);
-    expect(f.browserBack()).toBe("stayed");
-    f.flush();
-    expect(onRoot).toHaveBeenCalledTimes(1);
-    expect(f.entries).toEqual(["page"]); // refused: the next ○ is the browser's own
+    expect(f.entries).toEqual(["page"]);
     expect(f.browserBack()).toBe("left");
+    expect(onRoot).not.toHaveBeenCalled();
   });
 
   it("Escape/Backspace/gamepad ○ on a fresh first screen leave too, once", () => {
@@ -333,7 +330,7 @@ describe("#480: ○ on the PS5's first screen leaves the page", () => {
     h.requestBack();
     expect(onRoot).toHaveBeenCalledTimes(1);
     expect(runBack).toHaveBeenCalledTimes(1);
-    // A level opened and closed again re-arms it (deep history: through the guard now).
+    // A level opened and closed again re-arms it.
     const close = h.addLevel();
     f.flush();
     close();
