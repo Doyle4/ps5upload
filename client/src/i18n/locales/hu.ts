@@ -6378,6 +6378,9 @@ library_compressed_hint: "A tömörített képfájlok futtatásához ShadowMount
 "queue_stage_mount": "Csatolás",
 "queue_stage_register": "Kezdőképernyőre",
 "queue_stages": "Lépések",
+"send_more_ways_summary": "Telepítés URL-ről, vagy egy archívumban lévő csomagok",
+"send_on_ps5_count": "{n} csomag",
+"send_on_ps5_help_short": "USB-meghajtón lévő vagy korábban a PS5-re másolt csomagok",
 };
 
 export default hu;

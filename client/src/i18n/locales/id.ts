@@ -6073,6 +6073,9 @@ library_compressed_hint: "Image terkompresi memerlukan ShadowMount+ untuk bermai
 "queue_stage_mount": "Pasang image",
 "queue_stage_register": "Tambah ke Beranda",
 "queue_stages": "Langkah",
+"send_more_ways_summary": "Pasang dari URL, atau paket di dalam arsip",
+"send_on_ps5_count": "{n} paket",
+"send_on_ps5_help_short": "Paket di drive USB atau yang pernah disalin ke PS5",
 };
 
 export default id;

@@ -6071,6 +6071,9 @@ library_compressed_hint: "Sıkıştırılmış kalıpları oynatmak için Shadow
 "queue_stage_mount": "Bağlama",
 "queue_stage_register": "Ana ekrana ekle",
 "queue_stages": "Adımlar",
+"send_more_ways_summary": "Bir URL'den veya bir arşivdeki paketleri kurun",
+"send_on_ps5_count": "{n} paket",
+"send_on_ps5_help_short": "USB sürücüdeki veya daha önce PS5'e kopyalanmış paketler",
 };
 
 export default tr;

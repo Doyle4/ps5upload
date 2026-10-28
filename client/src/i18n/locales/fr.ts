@@ -6082,6 +6082,9 @@ library_compressed_hint: "Les images compressées nécessitent ShadowMount+ pour
 "queue_stage_mount": "Montage",
 "queue_stage_register": "Ajout à l'accueil",
 "queue_stages": "Étapes",
+"send_more_ways_summary": "Installer depuis une URL, ou les paquets d'une archive",
+"send_on_ps5_count": "{n} paquets",
+"send_on_ps5_help_short": "Paquets sur une clé USB ou copiés sur la PS5 auparavant",
 };
 
 export default fr;

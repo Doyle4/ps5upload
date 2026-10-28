@@ -6064,6 +6064,9 @@ library_compressed_hint: "تحتاج الصور المضغوطة إلى ShadowMo
 "queue_stage_mount": "تركيب",
 "queue_stage_register": "إضافة إلى الرئيسية",
 "queue_stages": "الخطوات",
+"send_more_ways_summary": "التثبيت من رابط، أو الحزم الموجودة داخل أرشيف",
+"send_on_ps5_count": "{n} حزم",
+"send_on_ps5_help_short": "حزم على قرص USB أو منسوخة إلى PS5 من قبل",
 };
 
 export default ar;

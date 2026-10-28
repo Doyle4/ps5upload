@@ -6020,6 +6020,9 @@ library_compressed_hint: "压缩镜像需要 ShadowMount+ 才能游玩。如需�
 "queue_stage_mount": "挂载",
 "queue_stage_register": "添加到主屏幕",
 "queue_stages": "步骤",
+"send_more_ways_summary": "从网址安装，或安装压缩包中的安装包",
+"send_on_ps5_count": "{n} 个安装包",
+"send_on_ps5_help_short": "U 盘上的或之前复制到 PS5 的安装包",
 };
 
 export default zh_CN;

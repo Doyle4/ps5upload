@@ -6014,6 +6014,9 @@ library_compressed_hint: "Le immagini compresse richiedono ShadowMount+ per gioc
 "queue_stage_mount": "Montaggio",
 "queue_stage_register": "Aggiunta alla Home",
 "queue_stages": "Passaggi",
+"send_more_ways_summary": "Installa da un URL o i pacchetti di un archivio",
+"send_on_ps5_count": "{n} pacchetti",
+"send_on_ps5_help_short": "Pacchetti su un'unità USB o copiati prima sulla PS5",
 };
 
 export default it;

@@ -6014,6 +6014,9 @@ library_compressed_hint: "壓縮映像需要 ShadowMount+ 才能遊玩。如需�
 "queue_stage_mount": "掛載",
 "queue_stage_register": "加入主畫面",
 "queue_stages": "步驟",
+"send_more_ways_summary": "從網址安裝，或安裝壓縮檔中的安裝包",
+"send_on_ps5_count": "{n} 個安裝包",
+"send_on_ps5_help_short": "USB 隨身碟上的或之前複製到 PS5 的安裝包",
 };
 
 export default zh_TW;

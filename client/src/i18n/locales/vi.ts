@@ -6066,6 +6066,9 @@ library_compressed_hint: "Ảnh đĩa nén cần ShadowMount+ để chơi. Để
 "queue_stage_mount": "Gắn",
 "queue_stage_register": "Thêm vào màn hình chính",
 "queue_stages": "Các bước",
+"send_more_ways_summary": "Cài từ URL, hoặc các gói bên trong một tệp nén",
+"send_on_ps5_count": "{n} gói",
+"send_on_ps5_help_short": "Gói trên ổ USB hoặc đã chép vào PS5 trước đó",
 };
 
 export default vi;

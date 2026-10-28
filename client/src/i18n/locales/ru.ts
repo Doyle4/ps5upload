@@ -6014,6 +6014,9 @@ library_compressed_hint: "Для запуска сжатых образов ну
 "queue_stage_mount": "Подключение",
 "queue_stage_register": "На главный экран",
 "queue_stages": "Шаги",
+"send_more_ways_summary": "Установка по ссылке или пакеты из архива",
+"send_on_ps5_count": "Пакетов: {n}",
+"send_on_ps5_help_short": "Пакеты на USB-накопителе или скопированные на PS5 ранее",
 };
 
 export default ru;

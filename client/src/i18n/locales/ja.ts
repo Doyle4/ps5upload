@@ -6085,6 +6085,9 @@ library_compressed_hint: "圧縮イメージのプレイには ShadowMount+ が�
 "queue_stage_mount": "マウント",
 "queue_stage_register": "ホームに追加",
 "queue_stages": "手順",
+"send_more_ways_summary": "URL から、またはアーカイブ内のパッケージをインストール",
+"send_on_ps5_count": "{n} 個のパッケージ",
+"send_on_ps5_help_short": "USB ドライブ上、または以前 PS5 にコピーしたパッケージ",
 };
 
 export default ja;

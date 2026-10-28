@@ -6080,6 +6080,9 @@ library_compressed_hint: "संपीड़ित इमेज चलाने 
 "queue_stage_mount": "माउंट",
 "queue_stage_register": "होम में जोड़ें",
 "queue_stages": "चरण",
+"send_more_ways_summary": "किसी URL से, या किसी आर्काइव के अंदर के पैकेज इंस्टॉल करें",
+"send_on_ps5_count": "{n} पैकेज",
+"send_on_ps5_help_short": "USB ड्राइव पर या पहले PS5 पर कॉपी किए गए पैकेज",
 };
 
 export default hi;

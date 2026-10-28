@@ -6072,6 +6072,9 @@ library_compressed_hint: "Komprimierte Images benötigen ShadowMount+ zum Spiele
 "queue_stage_mount": "Einhängen",
 "queue_stage_register": "Zum Startbildschirm",
 "queue_stages": "Schritte",
+"send_more_ways_summary": "Von einer URL installieren, oder die Pakete in einem Archiv",
+"send_on_ps5_count": "{n} Pakete",
+"send_on_ps5_help_short": "Pakete auf einem USB-Laufwerk oder früher auf die PS5 kopiert",
 };
 
 export default de;

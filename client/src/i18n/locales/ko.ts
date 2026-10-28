@@ -6083,6 +6083,9 @@ library_compressed_hint: "압축 이미지를 플레이하려면 ShadowMount+가
 "queue_stage_mount": "마운트",
 "queue_stage_register": "홈에 추가",
 "queue_stages": "단계",
+"send_more_ways_summary": "URL에서 설치하거나 압축 파일 안의 패키지 설치",
+"send_on_ps5_count": "패키지 {n}개",
+"send_on_ps5_help_short": "USB 드라이브에 있거나 전에 PS5로 복사한 패키지",
 };
 
 export default ko;

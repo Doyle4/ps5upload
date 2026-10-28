@@ -6073,6 +6073,9 @@ library_compressed_hint: "อิมเมจที่บีบอัดต้อ
 "queue_stage_mount": "เมานต์",
 "queue_stage_register": "เพิ่มในหน้าหลัก",
 "queue_stages": "ขั้นตอน",
+"send_more_ways_summary": "ติดตั้งจาก URL หรือแพ็กเกจภายในไฟล์บีบอัด",
+"send_on_ps5_count": "{n} แพ็กเกจ",
+"send_on_ps5_help_short": "แพ็กเกจบนไดรฟ์ USB หรือที่คัดลอกไปยัง PS5 ก่อนหน้านี้",
 };
 
 export default th;

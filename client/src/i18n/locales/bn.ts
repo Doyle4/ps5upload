@@ -6064,6 +6064,9 @@ library_compressed_hint: "সংকুচিত ইমেজ চালাতে 
 "queue_stage_mount": "মাউন্ট",
 "queue_stage_register": "হোমে যোগ",
 "queue_stages": "ধাপ",
+"send_more_ways_summary": "একটি URL থেকে, বা একটি আর্কাইভের ভেতরের প্যাকেজ ইনস্টল করুন",
+"send_on_ps5_count": "{n}টি প্যাকেজ",
+"send_on_ps5_help_short": "USB ড্রাইভে থাকা বা আগে PS5-এ কপি করা প্যাকেজ",
 };
 
 export default bn;

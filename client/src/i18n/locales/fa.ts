@@ -6364,6 +6364,9 @@ library_compressed_hint: "برای اجرای ایمیج فشرده به ShadowM
 "queue_stage_mount": "سوار کردن",
 "queue_stage_register": "افزودن به خانه",
 "queue_stages": "مراحل",
+"send_more_ways_summary": "نصب از یک نشانی اینترنتی، یا بسته‌های درون یک بایگانی",
+"send_on_ps5_count": "{n} بسته",
+"send_on_ps5_help_short": "بسته‌های روی درایو USB یا کپی‌شده به PS5 از قبل",
 };
 
 export default fa;
