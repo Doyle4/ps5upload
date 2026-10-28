@@ -2,7 +2,7 @@ import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { ArchiveRestore, Gamepad2, HardDriveDownload, RefreshCw, Square, Trash2, X } from "lucide-react";
 import { formatBytes } from "../../lib/format";
 import { ApiError, call } from "../api";
-import { errorText, type Message } from "../home/Home";
+import { errorText, isWritableUsb, volumeLabel, type Message, type Volume } from "../home/Home";
 import { loadImage, useLazyImage } from "../games/covers";
 import { parseDbPage } from "../games/model";
 import { CARD_PX } from "../library/Library";
@@ -28,7 +28,20 @@ import {
   type SaveKind,
   type SaveTitle,
   type SaveUser,
+  usbBackupRoot,
 } from "./model";
+
+/** A place backups can go: the internal drive, or a USB drive (#528). */
+export interface BackupPlace {
+  root: string;
+  label: string;
+}
+
+/** The internal drive, then each USB drive that can be written to. */
+export function backupPlaces(volumes: readonly Volume[]): BackupPlace[] {
+  const usb = volumes.filter(isWritableUsb).map((v) => ({ root: usbBackupRoot(v.path), label: `${volumeLabel(v)} (${v.path.slice(5)})` }));
+  return [{ root: BACKUP_ROOT, label: t("cw_home_vol_internal") }, ...usb];
+}
 
 /** A backup, restore or delete running: one at a time, page-wide. */
 interface Task {
@@ -56,6 +69,10 @@ export interface SavesViewProps {
   running: { titleId: string; appId: number } | null;
   ask: SaveAsk | null;
   askError: string | null;
+  /** Where backups go and are listed from; the chooser shows when there is more than one. */
+  places: BackupPlace[];
+  place: string;
+  onPlace: (root: string) => void;
   onUser: (id: string) => void;
   onOpen: (titleId: string | null) => void;
   onRefresh: () => void;
@@ -190,7 +207,9 @@ function Sheet({ s, p }: { s: SaveTitle; p: SavesViewProps }) {
           })}
         </ul>
       ) : null}
-      <p className="cw-dim cw-saves-where">{t("cw_saves_where", { path: `${BACKUP_ROOT}/${p.user ?? ""}/${s.titleId}` })}</p>
+      <p className="cw-dim cw-saves-where">
+        {t(p.place === BACKUP_ROOT ? "cw_saves_where" : "cw_saves_where_usb", { path: backupsDir(p.user ?? "", s.titleId, p.place) })}
+      </p>
       <div className="cw-dialog-buttons">
         <button type="button" className="cw-focusable cw-button" onClick={close}>
           <X aria-hidden />
@@ -256,6 +275,26 @@ export function SavesView(p: SavesViewProps) {
           <span>{t("cw_saves_refresh")}</span>
         </button>
       </div>
+      {p.places.length > 1 ? (
+        <div className="cw-toolbar" role="group" aria-label={t("cw_saves_place")}>
+          <span className="cw-dim">{t("cw_saves_place")}</span>
+          <span className="cw-saves-users">
+            {p.places.map((pl) => (
+              <button
+                key={pl.root}
+                type="button"
+                className="cw-focusable cw-button"
+                aria-pressed={pl.root === p.place}
+                data-place={pl.root}
+                disabled={!!p.task}
+                onClick={() => p.onPlace(pl.root)}
+              >
+                <span>{pl.label}</span>
+              </button>
+            ))}
+          </span>
+        </div>
+      ) : null}
       {p.message && !open ? (
         <div className={`cw-msg ${p.message.tone === "error" ? "is-error" : "is-info"}`} role={p.message.tone === "error" ? "alert" : "status"}>
           {p.message.text}
@@ -276,6 +315,8 @@ interface SavesState {
 
 /** Outlives the section: a backup started here finishes, and says so, when the section is opened again. */
 const st: SavesState = { task: null, message: null };
+/** The backup place last picked (kept while the page is open). */
+let lastPlace = BACKUP_ROOT;
 const listeners = new Set<() => void>();
 function patch(p: Partial<SavesState>): void {
   Object.assign(st, p);
@@ -319,6 +360,12 @@ export function Saves({ ctx }: { ctx: SectionContext }) {
   const [ask, setAsk] = useState<SaveAsk | null>(null);
   const [askError, setAskError] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [places, setPlaces] = useState<BackupPlace[]>(() => backupPlaces([]));
+  const [place, setPlaceState] = useState(lastPlace);
+  const setPlace = (r: string) => {
+    lastPlace = r;
+    setPlaceState(r);
+  };
   const root = useRef<HTMLDivElement>(null);
   const live = useRef(true);
 
@@ -344,10 +391,22 @@ export function Saves({ ctx }: { ctx: SectionContext }) {
     }
   }, []);
 
-  const loadBackupsOf = useCallback(async (u: string, ids: string[]) => {
+  const loadPlaces = useCallback(async () => {
+    const r = await call<{ volumes?: unknown }>("/api/volumes").catch(() => null);
+    if (!live.current) return;
+    const pl = backupPlaces(Array.isArray(r?.volumes) ? (r.volumes as Volume[]) : []);
+    setPlaces(pl);
+    // the drive was unplugged: back to the internal drive
+    if (!pl.some((x) => x.root === lastPlace)) {
+      lastPlace = BACKUP_ROOT;
+      setPlaceState(BACKUP_ROOT);
+    }
+  }, []);
+
+  const loadBackupsOf = useCallback(async (u: string, ids: string[], where: string) => {
     for (const id of ids) {
       try {
-        const b = await loadBackups(u, id);
+        const b = await loadBackups(u, id, call, where);
         if (!live.current) return;
         setBackups((m) => new Map(m).set(id, b));
       } catch {
@@ -357,7 +416,7 @@ export function Saves({ ctx }: { ctx: SectionContext }) {
   }, []);
 
   const loadUserSaves = useCallback(
-    async (u: string) => {
+    async (u: string, where: string) => {
       setSaves(null);
       setBackups(new Map());
       try {
@@ -367,6 +426,7 @@ export function Saves({ ctx }: { ctx: SectionContext }) {
         void loadBackupsOf(
           u,
           s.map((x) => x.titleId),
+          where,
         );
       } catch (e) {
         if (live.current) setLoadError(saveErrorText(e));
@@ -377,6 +437,7 @@ export function Saves({ ctx }: { ctx: SectionContext }) {
 
   useEffect(() => {
     void loadUserList();
+    void loadPlaces();
     loadNames().then(
       (n) => {
         if (!live.current) return;
@@ -385,11 +446,11 @@ export function Saves({ ctx }: { ctx: SectionContext }) {
       },
       () => live.current && setNamesRead(true),
     );
-  }, [loadUserList]);
+  }, [loadUserList, loadPlaces]);
 
   useEffect(() => {
-    if (user) void loadUserSaves(user);
-  }, [user, loadUserSaves]);
+    if (user) void loadUserSaves(user, place);
+  }, [user, place, loadUserSaves]);
 
   // Games no longer installed (no name in app.db): their save's own icon as the cover.
   useEffect(() => {
@@ -423,7 +484,7 @@ export function Saves({ ctx }: { ctx: SectionContext }) {
         if (sizes.has(key)) continue;
         let n = 0;
         for (const k of SAVE_KINDS)
-          n += await shallowSize(`${backupsDir(user, openSave.titleId)}/${b.name}/${k}`).catch(() => 0);
+          n += await shallowSize(`${backupsDir(user, openSave.titleId, place)}/${b.name}/${k}`).catch(() => 0);
         if (on) setSizes((m) => new Map(m).set(key, n));
       }
     })();
@@ -440,36 +501,38 @@ export function Saves({ ctx }: { ctx: SectionContext }) {
         (a) => {
           if (a === "refresh" && !st.task) {
             void loadUserList();
-            if (user) void loadUserSaves(user);
+            void loadPlaces();
+            if (user) void loadUserSaves(user, place);
             return true;
           }
           return false;
         },
         () => root.current,
       ),
-    [loadUserList, loadUserSaves, user],
+    [loadUserList, loadUserSaves, loadPlaces, user, place],
   );
 
   const running = ctx.status?.running ? { titleId: ctx.status.running.title_id, appId: ctx.status.running.app_id } : null;
   const name = (id: string) => names.get(id) || id;
 
-  const reloadBackups = async (u: string, id: string) => {
-    const b = await loadBackups(u, id).catch(() => null);
+  const reloadBackups = async (u: string, id: string, where = place) => {
+    const b = await loadBackups(u, id, call, where).catch(() => null);
     if (b && live.current) setBackups((m) => new Map(m).set(id, b));
   };
 
   const doBackUp = async (s: SaveTitle) => {
     if (st.task || !user) return;
     const u = user;
+    const where = place;
     patch({ message: null, task: { text: t("cw_saves_backing_up", { name: name(s.titleId) }) } });
     try {
-      const made = await backUp(u, s.titleId, s.kinds);
-      const b = (await loadBackups(u, s.titleId).catch(() => [])).find((x) => x.name === made);
+      const made = await backUp(u, s.titleId, s.kinds, { root: where });
+      const b = (await loadBackups(u, s.titleId, call, where).catch(() => [])).find((x) => x.name === made);
       patch({ task: null, message: { tone: "info", text: t("cw_saves_backed_up", { when: b ? when(b) : made }) } });
     } catch (e) {
       patch({ task: null, message: { tone: "error", text: t("cw_saves_failed", { why: saveErrorText(e) }) } });
     }
-    await reloadBackups(u, s.titleId);
+    await reloadBackups(u, s.titleId, where);
   };
 
   const doConfirm = async () => {
@@ -477,18 +540,19 @@ export function Saves({ ctx }: { ctx: SectionContext }) {
     const u = user;
     const s = openSave;
     const a = ask;
+    const where = place;
     setAskError(null);
     if (a.kind === "delete") {
       patch({ message: null, task: { text: t("cw_saves_deleting") } });
       try {
-        await deleteBackup(u, s.titleId, a.backup.name);
+        await deleteBackup(u, s.titleId, a.backup.name, undefined, where);
         patch({ task: null, message: { tone: "info", text: t("cw_saves_deleted") } });
         setAsk(null);
       } catch (e) {
         patch({ task: null });
         setAskError(saveErrorText(e));
       }
-      await reloadBackups(u, s.titleId);
+      await reloadBackups(u, s.titleId, where);
       return;
     }
     // Restore: the game must be closed, as the console reports it now (not as last polled).
@@ -506,14 +570,14 @@ export function Saves({ ctx }: { ctx: SectionContext }) {
     setAsk(null);
     patch({ message: null, task: { text: t("cw_saves_restoring", { name: name(s.titleId) }) } });
     try {
-      await restore(u, s.titleId, a.backup.name, s.kinds);
+      await restore(u, s.titleId, a.backup.name, s.kinds, undefined, where);
       patch({ task: null, message: { tone: "info", text: t("cw_saves_restored", { when: when(a.backup) }) } });
     } catch (e) {
       // the current save was backed up first (unless that is what failed): say where it is
       const kept = (await loadBackups(u, s.titleId).catch(() => [])).some((b) => b.auto && Date.now() - b.when < 10 * 60 * 1000);
       patch({ task: null, message: { tone: "error", text: t(kept ? "cw_saves_restore_failed" : "cw_saves_failed", { why: saveErrorText(e) }) } });
     }
-    await reloadBackups(u, s.titleId);
+    await reloadBackups(u, s.titleId, where);
     setSizes((m) => {
       const n = new Map(m);
       n.delete(sizeKey(s.titleId));
@@ -547,6 +611,13 @@ export function Saves({ ctx }: { ctx: SectionContext }) {
         running={running}
         ask={ask}
         askError={askError}
+        places={places}
+        place={place}
+        onPlace={(r) => {
+          if (st.task || r === place) return;
+          setSizes(new Map());
+          setPlace(r);
+        }}
         onUser={(id) => {
           setOpen(null);
           setUser(id);
@@ -559,7 +630,8 @@ export function Saves({ ctx }: { ctx: SectionContext }) {
         }}
         onRefresh={() => {
           void loadUserList();
-          if (user) void loadUserSaves(user);
+          void loadPlaces();
+          if (user) void loadUserSaves(user, place);
         }}
         onBackUp={(s) => void doBackUp(s)}
         onAsk={(a) => {

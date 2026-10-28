@@ -5273,7 +5273,7 @@ export interface CheatTitle {
   /** Game version the downloaded cheat targets, parsed from its filename
    *  (e.g. "01.08"). Empty when the filename carries no version. */
   version?: string;
-  /** Formats on the console for this title: "json" | "shn" | "mc4". */
+  /** Formats on the console for this title: "json" | "shn" | "mc4" | "xml". */
   formats?: string[];
   /** How many of its cheats are switched on. */
   enabled?: number;
@@ -5292,6 +5292,11 @@ export interface CheatMod {
   desc: string;
   type: string;
   on: boolean;
+  /** "xml" for an XML game patch entry (PS-Game-Patch format). */
+  format?: string;
+  /** An XML game patch made for another game version than the installed one; the console
+   *  refuses to turn it on. */
+  other_version?: boolean;
 }
 
 export interface CheatsGetResponse {

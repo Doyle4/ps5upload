@@ -5001,7 +5001,7 @@ c2c_test_deep_bad: "4 KiB 테스트 전송이 도착하지 않았습니다: {det
 "cw_files_up_phone_body": "같은 네트워크의 휴대폰이나 PC에서 코드를 스캔하거나 주소를 여세요. 거기서 {files}의 {path}을(를) 열고 '{upload}'을(를) 누르면 파일을 보낼 수 있습니다.",
 "cw_files_up_phone_lan_off": "다른 기기는 아직 이 페이지에 접속할 수 없습니다. {settings}에서 '{setting}'을(를) 켠 뒤 여기로 돌아와 주소를 확인하세요.",
 "cw_saves_title": "세이브",
-"cw_saves_hint": "이 PS5에서 게임 세이브를 백업하고 나중에 되돌립니다. 예를 들어 게임의 마지막 선택 전에 쓰세요. 백업은 내장 드라이브에 남습니다.",
+"cw_saves_hint": "게임 저장 데이터를 백업하고 나중에 되돌릴 수 있습니다(예: 게임의 마지막 선택 전). 백업은 내장 드라이브나 선택한 USB 드라이브에 저장됩니다.",
 "cw_saves_none": "이 PS5에 {name}의 게임 세이브가 없습니다.",
 "cw_saves_refresh": "새로 고침",
 "cw_saves_backups_none": "아직 백업이 없습니다",
@@ -5012,7 +5012,7 @@ c2c_test_deep_bad: "4 KiB 테스트 전송이 도착하지 않았습니다: {det
 "cw_saves_backed_up": "백업됨: {when}",
 "cw_saves_restore": "복원",
 "cw_saves_restoring": "{name} 세이브를 복원하는 중…",
-"cw_saves_restored": "{when} 세이브가 돌아왔습니다. 바뀐 세이브는 백업으로 남겨 두었습니다.",
+"cw_saves_restored": "{when}의 저장 데이터로 돌아왔습니다. 교체된 저장 데이터는 내장 드라이브에 백업으로 보관됩니다.",
 "cw_saves_restore_failed": "복원이 멈췄습니다: {why}. 이전 세이브는 '복원 전' 백업으로 남아 있습니다.",
 "cw_saves_restore_title": "이 세이브를 복원할까요?",
 "cw_saves_restore_body": "{user}의 {game}이(가) {when} 세이브로 돌아갑니다. 지금 세이브는 먼저 백업되므로 다시 돌아올 수 있습니다.",
@@ -5983,6 +5983,12 @@ library_compressed_hint: "압축 이미지를 플레이하려면 ShadowMount+가
 "cw_games_view_installed": "설치됨",
 "cw_games_view_library": "드라이브 및 공유 폴더",
 "cw_tour1_games_v2": "게임: 게임을 시작, 종료, 숨기기 또는 제거합니다. '드라이브 및 공유 폴더'에는 네트워크 공유와 드라이브의 게임이 표시되어 설치하거나 복사할 수 있습니다.",
+"cheats_other_version": "다른 게임 버전",
+"cheats_import_hint_xml": "PS-Game-Patch .xml 형식의 게임 패치도 쓸 수 있습니다. 타이틀 ID로 이름을 지정하세요(예: PPSA01339.xml).",
+"cw_cheats_other_version": "다른 게임 버전용",
+"cw_cheats_err_version": "이 패치는 가지고 있는 게임 버전용이 아닙니다. 사용 중인 버전용 패치를 고르세요.",
+"cw_saves_place": "백업 위치:",
+"cw_saves_where_usb": "USB 드라이브의 {path}에 보관",
 };
 
 export default ko;

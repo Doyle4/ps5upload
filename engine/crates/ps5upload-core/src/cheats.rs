@@ -58,6 +58,12 @@ pub struct CheatMod {
     pub r#type: String,
     #[serde(default)]
     pub on: bool,
+    /// "xml" for an XML game patch entry; absent for the other formats.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub format: Option<String>,
+    /// An XML game patch entry made for another game version than the installed one.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub other_version: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -335,7 +341,92 @@ pub fn cheat_repos() -> Vec<CheatRepo> {
                     .into(),
             tree_prefix: "cheats/".into(),
         },
+        // XML game patches (#527): the PS-Game-Patch release zip, which holds one
+        // `<TITLE_ID>.xml` per game (PS4 under xml/, PS5 under xml_prospero/).
+        CheatRepo {
+            id: PS_GAME_PATCH_REPO.into(),
+            name: "illusionyy/PS-Game-Patch".into(),
+            raw_base: PS_GAME_PATCH_ZIP.into(),
+            index_files: Vec::new(),
+            content_base: String::new(),
+            tree_api: String::new(),
+            tree_prefix: String::new(),
+        },
     ]
+}
+
+/// The repo id of the PS-Game-Patch XML game patches.
+pub const PS_GAME_PATCH_REPO: &str = "psgamepatch";
+/// The latest PS-Game-Patch release: every patch, already split into one file per title id.
+const PS_GAME_PATCH_ZIP: &str =
+    "https://github.com/illusion0001/PS4-PS5-Game-Patch/releases/latest/download/patch1.zip";
+
+/// One file of the patch archive: `<TITLE_ID>.xml`, the game's title, the file's bytes.
+type PatchFile = (String, String, Vec<u8>);
+
+/// `patches/xml/CUSA03173.xml` or `patches/xml_prospero/PPSA01339.xml` -> `CUSA03173.xml`.
+/// Anything else in the archive (build notes, folders, other names) is `None`.
+fn patch_archive_name(path: &str) -> Option<String> {
+    let rest = path
+        .strip_prefix("patches/xml/")
+        .or_else(|| path.strip_prefix("patches/xml_prospero/"))?;
+    let stem = rest.strip_suffix(".xml")?;
+    let (title, _) = parse_cheat_filename(rest);
+    (!title.is_empty() && title.eq_ignore_ascii_case(stem)).then(|| format!("{title}.xml"))
+}
+
+/// The game title of a patch file: its first `Title="..."` attribute.
+fn patch_xml_title(xml: &str) -> String {
+    let Some(at) = xml.find("Title=\"") else {
+        return String::new();
+    };
+    let rest = &xml[at + 7..];
+    let end = rest.find('"').unwrap_or(0);
+    rest[..end]
+        .replace("&quot;", "\"")
+        .replace("&apos;", "'")
+        .replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&amp;", "&")
+}
+
+/// Every patch file of the release archive.
+fn parse_patch_archive(zip_bytes: &[u8]) -> Result<Vec<PatchFile>> {
+    let mut archive = zip::ZipArchive::new(std::io::Cursor::new(zip_bytes))?;
+    let mut out = Vec::new();
+    for i in 0..archive.len() {
+        let mut file = archive.by_index(i)?;
+        let Some(name) = file.name().ok().and_then(|n| patch_archive_name(&n)) else {
+            continue;
+        };
+        if file.size() > 1024 * 1024 {
+            continue;
+        }
+        let mut bytes = Vec::with_capacity(file.size() as usize);
+        file.read_to_end(&mut bytes)?;
+        let title = patch_xml_title(&String::from_utf8_lossy(&bytes));
+        out.push((name, title, bytes));
+    }
+    Ok(out)
+}
+
+type PatchArchiveCache =
+    std::sync::Mutex<Option<(std::time::Instant, std::sync::Arc<Vec<PatchFile>>)>>;
+
+/// The release archive, fetched at most once an hour (it is under 1 MiB).
+fn patch_archive() -> Result<std::sync::Arc<Vec<PatchFile>>> {
+    static CACHE: std::sync::OnceLock<PatchArchiveCache> = std::sync::OnceLock::new();
+    let cache = CACHE.get_or_init(|| std::sync::Mutex::new(None));
+    if let Some((at, files)) = cache.lock().ok().and_then(|c| c.clone()) {
+        if at.elapsed() < TREE_CACHE_TTL {
+            return Ok(files);
+        }
+    }
+    let files = std::sync::Arc::new(parse_patch_archive(&repo_fetch(PS_GAME_PATCH_ZIP)?)?);
+    if let Ok(mut c) = cache.lock() {
+        *c = Some((std::time::Instant::now(), files.clone()));
+    }
+    Ok(files)
 }
 
 /// Infer cheat format from the index file that contained the entry.
@@ -489,7 +580,16 @@ pub fn cheats_repo_search(query: &str) -> Result<CheatRepoSearchResponse> {
             });
         };
 
-        if repo.index_files.is_empty() {
+        if repo.id == PS_GAME_PATCH_REPO {
+            match patch_archive() {
+                Ok(files) => {
+                    for (filename, title, _) in files.iter() {
+                        push(filename.clone(), title.clone(), "xml".into());
+                    }
+                }
+                Err(e) => eprintln!("[cheats] patch archive failed: {e}"),
+            }
+        } else if repo.index_files.is_empty() {
             // No index published — enumerate through the git tree.
             // Game titles are not available this way, so these
             // entries match on filename (the title id) only.
@@ -538,6 +638,7 @@ fn cheat_install_path(filename: &str, format: &str) -> String {
     let subdir = match format {
         "shn" => "shn",
         "mc4" => "mc4",
+        "xml" => "xml",
         _ => "json",
     };
     format!("/data/ps5upload/cheats/{}/{}", subdir, safe)
@@ -561,6 +662,26 @@ pub fn cheats_repo_download(
         .into_iter()
         .find(|r| r.id == repo_id)
         .ok_or_else(|| anyhow::anyhow!("unknown repo: {repo_id}"))?;
+
+    if repo.id == PS_GAME_PATCH_REPO {
+        let files = patch_archive()?;
+        let Some((name, _, bytes)) = files
+            .iter()
+            .find(|(n, _, _)| n.eq_ignore_ascii_case(filename))
+        else {
+            return Ok(CheatDownloadResponse {
+                ok: false,
+                error: Some(format!("{filename} is not in the PS-Game-Patch release")),
+                ..Default::default()
+            });
+        };
+        return write_cheat_file(
+            addr,
+            &cheat_install_path(name, "xml"),
+            "/data/ps5upload/cheats/xml",
+            bytes,
+        );
+    }
 
     // Try each format subdirectory until one succeeds.
     let mut bytes = None;
@@ -612,6 +733,16 @@ pub fn cheats_repo_download(
         "mc4" => "/data/ps5upload/cheats/mc4",
         _ => "/data/ps5upload/cheats/json",
     };
+    write_cheat_file(addr, &path, dir, &bytes)
+}
+
+/// Write a downloaded cheat or patch file into its folder on the PS5 (≤ 256 KiB).
+fn write_cheat_file(
+    addr: &str,
+    path: &str,
+    dir: &str,
+    bytes: &[u8],
+) -> Result<CheatDownloadResponse> {
     if let Err(e) = crate::fs_ops::fs_mkdir(addr, dir) {
         eprintln!("[cheats] mkdir {} failed (may already exist): {}", dir, e);
     }
@@ -627,10 +758,10 @@ pub fn cheats_repo_download(
         });
     }
 
-    match crate::diagnostics::fs_write_bytes(addr, &path, &bytes, false) {
+    match crate::diagnostics::fs_write_bytes(addr, path, bytes, false) {
         Ok(r) => Ok(CheatDownloadResponse {
             ok: true,
-            path: Some(path),
+            path: Some(path.to_string()),
             size: r.size.or(Some(bytes.len() as u64)),
             ..Default::default()
         }),
@@ -658,9 +789,12 @@ pub fn prepare_local_cheat(filename: &str, bytes: &[u8]) -> Result<(String, Vec<
             && !filename.contains(".."),
         "Use a plain cheat filename without directories"
     );
+    if filename.ends_with(".xml") {
+        return prepare_local_patch(filename, bytes);
+    }
     ensure!(
         filename.ends_with(".json"),
-        "Local import supports JSON trainers; convert SHN/MC4 to JSON first"
+        "Local import supports JSON trainers and XML game patches; convert SHN/MC4 to JSON first"
     );
     let title = filename.get(..9).unwrap_or("");
     ensure!(
@@ -746,6 +880,26 @@ pub fn prepare_local_cheat(filename: &str, bytes: &[u8]) -> Result<(String, Vec<
     Ok((format!("/data/ps5upload/cheats/json/{filename}"), bytes))
 }
 
+/// A PS-Game-Patch XML file (#527): named `<TITLE_ID>.xml` like the published ones, with at least
+/// one `<Metadata>` entry. The helper reads it as is (every entry starts off).
+fn prepare_local_patch(filename: &str, bytes: &[u8]) -> Result<(String, Vec<u8>)> {
+    use anyhow::ensure;
+    let (title, _) = parse_cheat_filename(filename);
+    ensure!(
+        !title.is_empty() && filename.eq_ignore_ascii_case(&format!("{title}.xml")),
+        "Name a game patch after its title ID, e.g. PPSA01339.xml"
+    );
+    let text = String::from_utf8_lossy(bytes);
+    ensure!(
+        text.contains("<Metadata") && text.contains("<PatchList") && text.contains("<Line"),
+        "Not a PS-Game-Patch XML file (no <Metadata> entry with a <PatchList>)"
+    );
+    Ok((
+        format!("/data/ps5upload/cheats/xml/{title}.xml"),
+        bytes.to_vec(),
+    ))
+}
+
 /// Import without replacing files or inheriting index-based toggle state.
 pub fn cheats_import_local(addr: &str, source: &std::path::Path) -> Result<CheatDownloadResponse> {
     use anyhow::ensure;
@@ -777,7 +931,9 @@ pub fn cheats_import_local(addr: &str, source: &std::path::Path) -> Result<Cheat
         ),
     }
     // Directory normally exists after cheat-engine initialization; don't suppress unexpected errors.
-    let dir = "/data/ps5upload/cheats/json";
+    let dir = path
+        .rsplit_once('/')
+        .map_or("/data/ps5upload/cheats/json", |(d, _)| d);
     if let Err(e) = crate::fs_ops::fs_stat(addr, dir) {
         if crate::fs_ops::is_not_found(&format!("{e:#}")) {
             crate::fs_ops::fs_mkdir(addr, dir)?;
@@ -889,6 +1045,18 @@ mod tests {
         assert!(prepare_local_cheat("../PPSA13197.json", src).is_err());
         assert!(prepare_local_cheat("PPSA13197.json", b"{}").is_err());
         assert!(prepare_local_cheat("PPSA13197.json", &vec![b' '; 256 * 1024 + 1]).is_err());
+    }
+
+    #[test]
+    fn local_import_takes_xml_game_patches_named_by_title() {
+        let src = b"<Patch><Metadata Title=\"D\" Name=\"x\" AppVer=\"01.000.000\"><PatchList>\
+                    <Line Type=\"bytes\" Address=\"0x400000\" Value=\"90\"/></PatchList></Metadata></Patch>";
+        let (path, bytes) = prepare_local_cheat("PPSA01339.xml", src).unwrap();
+        assert_eq!(path, "/data/ps5upload/cheats/xml/PPSA01339.xml");
+        assert_eq!(bytes, src.to_vec());
+        assert!(prepare_local_cheat("DemonSouls.xml", src).is_err());
+        assert!(prepare_local_cheat("PPSA01339_01.000.xml", src).is_err());
+        assert!(prepare_local_cheat("PPSA01339.xml", b"<Trainer/>").is_err());
     }
 
     #[test]
@@ -1079,6 +1247,11 @@ mod tests {
         // publishes index files, or it declares a tree API. An entry
         // with neither contributes nothing and fails silently.
         for r in cheat_repos() {
+            if r.id == PS_GAME_PATCH_REPO {
+                // enumerated from its release archive instead
+                assert!(r.raw_base.ends_with("/patch1.zip"), "{}", r.raw_base);
+                continue;
+            }
             assert!(
                 !r.index_files.is_empty() || !r.tree_api.is_empty(),
                 "repo {} has no enumeration strategy",
@@ -1187,6 +1360,65 @@ mod tests {
     fn cheat_install_path_mc4() {
         let p = cheat_install_path("game.mc4", "mc4");
         assert_eq!(p, "/data/ps5upload/cheats/mc4/game.mc4");
+    }
+
+    #[test]
+    fn patch_archive_names_are_title_id_files() {
+        assert_eq!(
+            patch_archive_name("patches/xml/CUSA03173.xml").as_deref(),
+            Some("CUSA03173.xml")
+        );
+        assert_eq!(
+            patch_archive_name("patches/xml_prospero/PPSA01339.xml").as_deref(),
+            Some("PPSA01339.xml")
+        );
+        assert_eq!(patch_archive_name("patches/xml/"), None);
+        assert_eq!(patch_archive_name("patches/build.txt"), None);
+        assert_eq!(patch_archive_name("patches/xml/Bloodborne.xml"), None);
+        assert_eq!(patch_archive_name("patches/xml/CUSA03173_01.09.xml"), None);
+        assert_eq!(patch_archive_name("other/xml/CUSA03173.xml"), None);
+    }
+
+    #[test]
+    fn patch_archive_lists_each_title_with_its_game_title() {
+        use std::io::{Cursor, Write};
+        let mut buf: Vec<u8> = Vec::new();
+        {
+            let mut zw = zip::ZipWriter::new(Cursor::new(&mut buf));
+            let opts = zip::write::SimpleFileOptions::default()
+                .compression_method(zip::CompressionMethod::Deflated);
+            zw.start_file("patches/build.txt", opts).unwrap();
+            zw.write_all(b"Patch database version").unwrap();
+            zw.add_directory("patches/xml/", opts).unwrap();
+            zw.start_file("patches/xml/CUSA03173.xml", opts).unwrap();
+            zw.write_all(
+                b"<Patch><Metadata Title=\"Bloodborne &amp; Co\" Name=\"60 FPS\"/></Patch>",
+            )
+            .unwrap();
+            zw.start_file("patches/xml_prospero/PPSA01339.xml", opts)
+                .unwrap();
+            zw.write_all(
+                b"<Patch>\n  <Metadata Title=\"Demons Souls\" Name=\"Debug Menu\"/></Patch>",
+            )
+            .unwrap();
+            zw.finish().unwrap();
+        }
+        let files = parse_patch_archive(&buf).unwrap();
+        assert_eq!(files.len(), 2);
+        let bb = files.iter().find(|f| f.0 == "CUSA03173.xml").unwrap();
+        assert_eq!(bb.1, "Bloodborne & Co");
+        assert!(bb.2.starts_with(b"<Patch>"));
+        let ds = files.iter().find(|f| f.0 == "PPSA01339.xml").unwrap();
+        assert_eq!(ds.1, "Demons Souls");
+        assert_eq!(patch_xml_title("<Patch/>"), "");
+    }
+
+    #[test]
+    fn xml_patches_install_into_the_xml_folder() {
+        assert_eq!(
+            cheat_install_path("PPSA01339.xml", "xml"),
+            "/data/ps5upload/cheats/xml/PPSA01339.xml"
+        );
     }
 
     #[test]

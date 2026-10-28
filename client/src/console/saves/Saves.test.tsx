@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { ApiError } from "../api";
 import { SECTIONS } from "../sections";
 import { t } from "../strings";
-import { SavesView, type SavesViewProps } from "./Saves";
+import { backupPlaces, SavesView, type SavesViewProps } from "./Saves";
 import {
   BACKUP_ROOT,
   backUp,
@@ -16,6 +16,7 @@ import {
   parseUsers,
   restore,
   saveIconPath,
+  usbBackupRoot,
   type OpDeps,
 } from "./model";
 
@@ -189,6 +190,40 @@ describe("save backups: model", () => {
     expect(await loadBackups(U, "CUSA07842", c.call)).toEqual([]);
     await expect(deleteBackup(U, "CUSA07842", "..", d)).rejects.toThrow("bad_backup");
   });
+
+  it("backs up to a USB drive and restores from it, keeping the safety backup on the internal drive (#528)", async () => {
+    const c = tree();
+    const usb = usbBackupRoot("/mnt/usb0");
+    expect(usb).toBe("/mnt/usb0/ps5upload/save-backups");
+    const d: OpDeps = { call: c.call, wait: async () => undefined, now: at("2026-10-28T09:00:00") };
+    const name = await backUp(U, "PPSA04609", ["savedata_prospero", "savedata_prospero_meta"], { root: usb }, d);
+    expect(c.files.has(`${usb}/${U}/PPSA04609/${name}/savedata_prospero/sdimg_SAVEDATA00`)).toBe(true);
+    expect(await loadBackups(U, "PPSA04609", c.call, usb)).toEqual([expect.objectContaining({ name })]);
+    expect(await loadBackups(U, "PPSA04609", c.call)).toEqual([]); // nothing on the internal drive
+
+    d.now = at("2026-10-28T09:30:00");
+    const safety = await restore(U, "PPSA04609", name, ["savedata_prospero", "savedata_prospero_meta"], d, usb);
+    expect(safety).toBe("2026-10-28_09-30-00_auto");
+    expect((await loadBackups(U, "PPSA04609", c.call)).map((b) => b.name)).toEqual([safety]);
+    expect(c.files.has(`${HOME}/savedata_prospero/PPSA04609/sdimg_SAVEDATA00`)).toBe(true);
+
+    await deleteBackup(U, "PPSA04609", name, d, usb);
+    expect(await loadBackups(U, "PPSA04609", c.call, usb)).toEqual([]);
+  });
+
+  it("offers each writable USB drive as a backup place after the internal drive", () => {
+    const vol = (path: string, from: string, writable = true) => ({ path, mount_from: from, fs_type: "exfatfs", total_bytes: 1, free_bytes: 1, writable });
+    const places = backupPlaces([
+      vol("/data", "/dev/ssd0.user"),
+      vol("/mnt/usb0", "/dev/da0s1"),
+      vol("/mnt/usb1", "/dev/da1s1", false),
+      vol("/mnt/ext0", "/dev/nvme0"),
+      vol("/mnt/ext1", "/dev/da2"),
+      vol("/mnt/ps5upload/game", "/dev/lvd2"),
+    ]);
+    expect(places.map((p) => p.root)).toEqual([BACKUP_ROOT, "/mnt/usb0/ps5upload/save-backups", "/mnt/ext1/ps5upload/save-backups"]);
+    expect(places[1].label).toContain("usb0");
+  });
 });
 
 const backups = [
@@ -213,6 +248,9 @@ const view = (over: Partial<SavesViewProps> = {}): SavesViewProps => ({
   running: null,
   ask: null,
   askError: null,
+  places: backupPlaces([]),
+  place: BACKUP_ROOT,
+  onPlace: vi.fn(),
   onUser: vi.fn(),
   onOpen: vi.fn(),
   onRefresh: vi.fn(),
@@ -263,5 +301,15 @@ describe("Saves section", () => {
 
   it("says when a user has no saves", () => {
     expect(html({ saves: [] })).toContain(t("cw_saves_none", { name: "Alex" }));
+  });
+
+  it("shows the backup place chooser only when a USB drive is there, and says where backups are", () => {
+    expect(html()).not.toContain("data-place=");
+    const usb = usbBackupRoot("/mnt/usb0");
+    const places = [...backupPlaces([]), { root: usb, label: "USB drive (usb0)" }];
+    const out = html({ places, place: usb, open: "PPSA04609" });
+    expect(out).toContain(`data-place="${usb}"`);
+    expect(out).toMatch(new RegExp(`aria-pressed="true"[^>]*data-place="${usb}"`));
+    expect(out).toContain(t("cw_saves_where_usb", { path: `${usb}/${U}/PPSA04609` }));
   });
 });

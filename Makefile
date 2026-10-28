@@ -1122,6 +1122,12 @@ test-payload: payload
 		$(PAYLOAD_DIR)/tests/cheats_plan_selftest.c
 	@/tmp/ps5upload-cheats-plan-selftest
 	@echo "✓ a cheat's code caves are written before the jumps into them, and removed after"
+	@echo "Running XML game patch self-test (host build)..."
+	@cc -O2 -Wall -Wextra -Werror -I$(PAYLOAD_DIR)/include \
+		-o /tmp/ps5upload-game-patch-selftest \
+		$(PAYLOAD_DIR)/tests/game_patch_selftest.c
+	@/tmp/ps5upload-game-patch-selftest
+	@echo "✓ PS-Game-Patch XML entries parse to the addresses, patterns and bytes GoldHEN would write"
 	@echo "Running console clean-up rules self-test (host build)..."
 	@cc -O2 -Wall -Wextra -Werror -I$(PAYLOAD_DIR)/include \
 		-o /tmp/ps5upload-cleanup-rules-selftest \

@@ -4,6 +4,30 @@ What's new in ps5upload, written for humans.
 
 ---
 
+## 8.8.0
+
+- **XML game patches, without CheatRunner (#527).** Cheats now also takes game patches in the
+  PS-Game-Patch `.xml` format (the one GoldHEN, etaHEN and CheatRunner read): 60 fps unlocks,
+  resolution and debug-menu patches and the like.
+  - Find them in the cheat browser under **PS-Game-Patch**: the latest release of the repo, one
+    file per game. They download to `/data/ps5upload/cheats/xml/`, or import your own
+    `<TITLE ID>.xml` with Import.
+  - Patches you already have for other tools show up too, from `/data/cheatrunner/patches/xml`
+    and `xml_prospero`, `/data/elf-arsenal/patches/xml` and `/data/GoldHEN/patches/xml`. The app
+    only reads those folders; removing a game's cheats never deletes from them.
+  - Each patch in a file is its own switch, off until you turn it on, and turned back on when
+    the game starts again. A patch only goes on for the game version and executable it was
+    made for; one for another version is marked and refused. Pattern-scan (`mask`) patches
+    and `mask_jump32` detours are supported. As with cheats, a patch is written whole or not
+    at all, and only into the game's own code.
+- **Minion: back up saves to a USB drive (#528).** With a USB drive plugged in, Saves offers
+  **Backups on: Internal drive / USB drive**. Backups, the list of them, Restore and Delete
+  follow the place you pick, so a stick can carry backups off the console and back; you still
+  pick which backup to restore. The save a restore replaces is always kept on the internal
+  drive.
+- **Tests:** the AVA1 transfer tests no longer fail now and then on a loaded CI runner
+  (their 500 ms timeouts were meant for the dead-connection tests only).
+
 ## 8.7.0
 
 - **A simpler sidebar: 25 screens became 21, and every feature is still there.** Screens that

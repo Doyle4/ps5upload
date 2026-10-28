@@ -53,6 +53,8 @@ export function newUsbStick(seen: ReadonlySet<string> | null, volumes: readonly 
 
 /** A USB drive formatted as PS5 extended storage (M.2 is /dev/nvme*). */
 const isUsbExt = (v: Volume) => isExt(v) && v.mount_from.startsWith("/dev/da");
+/** A USB drive files can be written to: a stick, or one formatted as extended storage. */
+export const isWritableUsb = (v: Volume) => v.writable && (isUsbStick(v) || isUsbExt(v));
 
 /** The console's drives: internal, extended/M.2 and USB. Mounted disk images are left out. */
 export function isDrive(v: Volume): boolean {

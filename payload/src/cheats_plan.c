@@ -103,7 +103,7 @@ int cheat_plan_apply(cheat_loc_t *locs, int n, int turn_on,
                      const cheat_range_t *keep, int n_keep,
                      const cheat_mem_ops_t *ops, char *err, size_t err_cap) {
     if (err && err_cap) err[0] = '\0';
-    if (n <= 0 || n > CHEAT_PLAN_MAX_LOCS) {
+    if (n <= 0 || n > CHEAT_PLAN_MAX_APPLY) {
         if (err) snprintf(err, err_cap, "cheat has no usable locations");
         return -1;
     }
@@ -125,8 +125,18 @@ int cheat_plan_apply(cheat_loc_t *locs, int n, int turn_on,
         }
     }
 
-    int order[CHEAT_PLAN_MAX_LOCS];
-    int done[CHEAT_PLAN_MAX_LOCS];
+    int order_s[CHEAT_PLAN_MAX_LOCS], done_s[CHEAT_PLAN_MAX_LOCS];
+    int *order = order_s, *done = done_s;
+    if (n > CHEAT_PLAN_MAX_LOCS) {
+        order = (int *)malloc((size_t)n * sizeof(int));
+        done = (int *)malloc((size_t)n * sizeof(int));
+        if (!order || !done) {
+            free(order);
+            free(done);
+            if (err) snprintf(err, err_cap, "out of memory; nothing was written");
+            return -1;
+        }
+    }
     int n_done = 0;
     cheat_plan_order(locs, n, turn_on, order);
 
@@ -141,12 +151,14 @@ int cheat_plan_apply(cheat_loc_t *locs, int n, int turn_on,
         if (wrc != 0) { failed = order[k]; why = wrc; break; }
         done[n_done++] = order[k];
     }
-    if (failed == -1) return 0;
-
-    if (failed == -2) {
-        /* The game exited mid-apply: nothing left to put back. */
-        if (err) snprintf(err, err_cap, "no game is currently running");
-        return -1;
+    if (failed == -1 || failed == -2) {
+        if (order != order_s) {
+            free(order);
+            free(done);
+        }
+        /* -2: the game exited mid-apply, nothing left to put back. */
+        if (failed == -2 && err) snprintf(err, err_cap, "no game is currently running");
+        return failed == -1 ? 0 : -1;
     }
 
     /* The failing location may be half written (a split write that failed on its second page,
@@ -167,6 +179,10 @@ int cheat_plan_apply(cheat_loc_t *locs, int n, int turn_on,
         else
             snprintf(err, err_cap, "write failed at 0x%lx (rc=%d); the game was left as it was",
                      (unsigned long)locs[failed].addr, why);
+    }
+    if (order != order_s) {
+        free(order);
+        free(done);
     }
     return -1;
 }

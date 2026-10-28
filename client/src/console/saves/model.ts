@@ -15,12 +15,18 @@
  * live title folder itself is kept; when it is gone (the save was deleted) it is created, which
  * the system's save folder may refuse (the PC app's restore notes EACCES there): the game then
  * has to save once first. The game must not be running (the caller checks).
+ *
+ * Backups can also go to a USB drive (#528): the same layout under <drive>/ps5upload/save-backups,
+ * so a stick carries them off the console and back. `root` picks the place; the safety backup a
+ * restore makes always goes to the internal drive, which cannot be unplugged halfway.
  */
 import { ApiError, call } from "../api";
 import { watchOp } from "../files/opJob";
 import { TITLE_ID_RE, type CallFn } from "../games/model";
 
 export const BACKUP_ROOT = "/data/ps5upload/save-backups";
+/** Where backups go on a USB drive mounted at `mount` (/mnt/usb0, /mnt/ext1). */
+export const usbBackupRoot = (mount: string) => `${mount}/ps5upload/save-backups`;
 /** The save folders a title can have, in the order a backup copies them. */
 export const SAVE_KINDS = ["savedata_prospero", "savedata_prospero_meta", "savedata", "savedata_meta"] as const;
 export type SaveKind = (typeof SAVE_KINDS)[number];
@@ -85,7 +91,7 @@ const isMeta = (kind: SaveKind) => kind === "savedata_prospero_meta" || kind ===
 /** The folder holding `kind`'s title folders: the meta ones keep theirs one level down, in user/. */
 const kindRoot = (user: string, kind: SaveKind) => `${userDir(user)}/${kind}${isMeta(kind) ? "/user" : ""}`;
 export const livePath = (user: string, kind: SaveKind, titleId: string) => `${kindRoot(user, kind)}/${titleId}`;
-export const backupsDir = (user: string, titleId: string) => `${BACKUP_ROOT}/${user}/${titleId}`;
+export const backupsDir = (user: string, titleId: string, root = BACKUP_ROOT) => `${root}/${user}/${titleId}`;
 
 /** /api/users' reply → name by home folder (id as 8 hex digits). */
 export function parseUsers(raw: unknown): Map<string, { name: string; foreground: boolean }> {
@@ -161,9 +167,9 @@ export async function saveIconPath(user: string, s: SaveTitle, callFn: CallFn = 
 }
 
 /** `titleId`'s backups for `user`, newest first. */
-export async function loadBackups(user: string, titleId: string, callFn: CallFn = call): Promise<Backup[]> {
+export async function loadBackups(user: string, titleId: string, callFn: CallFn = call, root = BACKUP_ROOT): Promise<Backup[]> {
   const out: Backup[] = [];
-  for (const n of dirsOf(await listAll(callFn, backupsDir(user, titleId)))) {
+  for (const n of dirsOf(await listAll(callFn, backupsDir(user, titleId, root)))) {
     const b = parseBackupName(n);
     if (b) out.push(b);
   }
@@ -204,13 +210,20 @@ async function runJob(d: OpDeps, route: "/api/fs/copy" | "/api/fs/delete", body:
 }
 
 /** Copies `user`'s save of `titleId` (each folder it has) into a new backup; its name. A failed copy leaves nothing behind. */
-export async function backUp(user: string, titleId: string, kinds: readonly SaveKind[], opts: { auto?: boolean } = {}, d: OpDeps = defaultDeps): Promise<string> {
+export async function backUp(
+  user: string,
+  titleId: string,
+  kinds: readonly SaveKind[],
+  opts: { auto?: boolean; root?: string } = {},
+  d: OpDeps = defaultDeps,
+): Promise<string> {
   if (!kinds.length) throw new ApiError(404, "save_not_found");
+  const root = opts.root ?? BACKUP_ROOT;
   let name = backupName(d.now(), opts.auto);
   // two in one second (a restore right after a backup): the next free second's name
-  const taken = new Set((await loadBackups(user, titleId, d.call)).map((b) => b.name));
+  const taken = new Set((await loadBackups(user, titleId, d.call, root)).map((b) => b.name));
   for (let i = 1; taken.has(name) && i < 60; i++) name = backupName(new Date(d.now().getTime() + i * 1000), opts.auto);
-  const dest = `${backupsDir(user, titleId)}/${name}`;
+  const dest = `${backupsDir(user, titleId, root)}/${name}`;
   await d.call("/api/fs/mkdir", { path: dest });
   try {
     for (const kind of kinds) await runJob(d, "/api/fs/copy", { src: livePath(user, kind, titleId), dest: `${dest}/${kind}` });
@@ -222,8 +235,8 @@ export async function backUp(user: string, titleId: string, kinds: readonly Save
 }
 
 /** The save folders `backup` holds. */
-export async function backupKinds(user: string, titleId: string, backup: string, callFn: CallFn = call): Promise<SaveKind[]> {
-  const names = new Set(dirsOf(await listAll(callFn, `${backupsDir(user, titleId)}/${backup}`)));
+export async function backupKinds(user: string, titleId: string, backup: string, callFn: CallFn = call, root = BACKUP_ROOT): Promise<SaveKind[]> {
+  const names = new Set(dirsOf(await listAll(callFn, `${backupsDir(user, titleId, root)}/${backup}`)));
   return SAVE_KINDS.filter((k) => names.has(k));
 }
 
@@ -240,13 +253,14 @@ export async function restore(
   backup: string,
   current: readonly SaveKind[],
   d: OpDeps = defaultDeps,
+  root = BACKUP_ROOT,
 ): Promise<string | null> {
-  const kinds = await backupKinds(user, titleId, backup, d.call);
+  const kinds = await backupKinds(user, titleId, backup, d.call, root);
   if (!kinds.length) throw new ApiError(404, "backup_empty");
   const safety = current.length ? await backUp(user, titleId, current, { auto: true }, d) : null;
   for (const kind of kinds) {
     const live = livePath(user, kind, titleId);
-    const src = `${backupsDir(user, titleId)}/${backup}/${kind}`;
+    const src = `${backupsDir(user, titleId, root)}/${backup}/${kind}`;
     const have = await listAll(d.call, live);
     if (have === null) await d.call("/api/fs/mkdir", { path: live });
     // The system keeps a save's files 0600 (images, icons) and 0700 (.sfo); a copy comes out 0777.
@@ -273,7 +287,7 @@ export async function restore(
   return safety;
 }
 
-export async function deleteBackup(user: string, titleId: string, backup: string, d: OpDeps = defaultDeps): Promise<void> {
+export async function deleteBackup(user: string, titleId: string, backup: string, d: OpDeps = defaultDeps, root = BACKUP_ROOT): Promise<void> {
   if (!STAMP.test(backup)) throw new ApiError(400, "bad_backup");
-  await runJob(d, "/api/fs/delete", { path: `${backupsDir(user, titleId)}/${backup}` });
+  await runJob(d, "/api/fs/delete", { path: `${backupsDir(user, titleId, root)}/${backup}` });
 }

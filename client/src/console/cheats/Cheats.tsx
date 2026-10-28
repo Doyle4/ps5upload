@@ -56,6 +56,7 @@ function CheatRow({ mod, busy, disabled, onToggle }: { mod: CheatMod; busy: bool
         <span className="cw-cheat-text">
           <span className="cw-cheat-name">{mod.name}</span>
           {mod.desc ? <span className="cw-dim cw-cheat-desc">{mod.desc}</span> : null}
+          {mod.otherVersion ? <span className="cw-dim cw-cheat-desc">{t("cw_cheats_other_version")}</span> : null}
         </span>
         <span className={`cw-tag${mod.on && !mod.button ? " is-on" : ""}`}>{tag}</span>
       </button>

@@ -5003,7 +5003,7 @@ c2c_test_deep_bad: "4 KiB のテスト送信が届きませんでした: {detail
 "cw_files_up_phone_body": "同じネットワークのスマホや PC でコードを読み取るか、アドレスを開きます。そこで「{files}」の {path} を開き、[{upload}] を押すとファイルを送れます。",
 "cw_files_up_phone_lan_off": "他のデバイスはまだこのページを開けません。[{settings}] で「{setting}」をオンにしてから、ここに戻ってアドレスを確認してください。",
 "cw_saves_title": "セーブデータ",
-"cw_saves_hint": "ゲームのセーブデータをこの PS5 上にバックアップし、あとで戻せます(ゲームの最後の選択の前など)。バックアップは内蔵ドライブに保存されます。",
+"cw_saves_hint": "ゲームのセーブをバックアップし、後で戻せます（例：ゲームの最後の選択の前）。バックアップ先は本体ストレージか、選んだ USB ドライブです。",
 "cw_saves_none": "この PS5 には {name} のセーブデータがありません。",
 "cw_saves_refresh": "更新",
 "cw_saves_backups_none": "バックアップはまだありません",
@@ -5014,7 +5014,7 @@ c2c_test_deep_bad: "4 KiB のテスト送信が届きませんでした: {detail
 "cw_saves_backed_up": "バックアップしました: {when}",
 "cw_saves_restore": "復元",
 "cw_saves_restoring": "{name} のセーブデータを復元中…",
-"cw_saves_restored": "{when} のセーブデータに戻しました。置き換えたデータはバックアップとして残しています。",
+"cw_saves_restored": "{when} のセーブに戻しました。置き換えたセーブは本体ストレージにバックアップとして残っています。",
 "cw_saves_restore_failed": "復元が止まりました: {why}。以前のセーブデータは「復元前」のバックアップに残っています。",
 "cw_saves_restore_title": "このセーブデータを復元しますか?",
 "cw_saves_restore_body": "{user} の {game} を {when} のセーブデータに戻します。今のセーブデータは先にバックアップされるので、あとで戻せます。",
@@ -5985,6 +5985,12 @@ library_compressed_hint: "圧縮イメージのプレイには ShadowMount+ が�
 "cw_games_view_installed": "インストール済み",
 "cw_games_view_library": "ドライブと共有フォルダー",
 "cw_tour1_games_v2": "ゲーム：ゲームの起動、終了、非表示、アンインストール。「ドライブと共有フォルダー」には、ネットワーク共有やドライブ上のゲームが表示され、インストールやコピーができます。",
+"cheats_other_version": "別のゲームバージョン",
+"cheats_import_hint_xml": "PS-Game-Patch の .xml 形式のゲームパッチも使えます。ファイル名はタイトルID にしてください（例：PPSA01339.xml）。",
+"cw_cheats_other_version": "別のゲームバージョン用",
+"cw_cheats_err_version": "このパッチはお持ちのゲームバージョン用ではありません。お使いのバージョン用のものを選んでください。",
+"cw_saves_place": "バックアップ先：",
+"cw_saves_where_usb": "USB ドライブの {path} に保存",
 };
 
 export default ja;

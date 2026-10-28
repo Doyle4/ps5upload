@@ -24,7 +24,7 @@ export function LocalCheatImport({
       const selected = await pickPath({
         mode: "file",
         title: tr("cheats_import", undefined, "Import local JSON cheat"),
-        filters: [{ name: "JSON", extensions: ["json"] }],
+        filters: [{ name: "JSON / XML", extensions: ["json", "xml"] }],
       });
       if (selected) setPath(selected);
     } catch (e) {
@@ -85,6 +85,13 @@ export function LocalCheatImport({
                 "cheats_import_hint",
                 undefined,
                 "Use a JSON trainer up to 256 KiB, named for its exact title ID and game version (for example PPSA13197_01.000.json). Renaming a file does not make its patches compatible. SHN/MC4 must be converted to JSON first.",
+              )}
+            </p>
+            <p>
+              {tr(
+                "cheats_import_hint_xml",
+                undefined,
+                "A game patch in the PS-Game-Patch .xml format works too. Name it for its title ID, for example PPSA01339.xml.",
               )}
             </p>
             <p>

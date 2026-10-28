@@ -837,6 +837,12 @@ static void cheats_mods(void) {
                       "{\"index\":1,\"name\":\"\xe7\x84\xa1\xe9\x99\x90\",\"desc\":\"UTF-8 kept\",\"button\":true,\"on\":false},"
                       "{\"index\":3,\"name\":\"Max money\",\"desc\":\"a\\nb\",\"button\":false,\"on\":false}],"
                       "\"truncated\":false}") == 0);
+    /* an XML game patch for another game version keeps its mark (#527) */
+    j = "{\"title_id\":\"PPSA01339\",\"mods\":[{\"index\":0,\"name\":\"Debug Menu (01.000.000)\",\"desc\":\"by illusion\","
+        "\"type\":\"checkbox\",\"on\":false,\"format\":\"xml\",\"other_version\":true}]}";
+    CHECK(webui_cheats_mods_to_json(j, strlen(j), out, sizeof out, err, sizeof err) == 1);
+    CHECK(json_valid(out));
+    CHECK(strstr(out, "\"button\":false,\"other_version\":true,\"on\":false}") != NULL);
     /* the helper's "no cheat files" answer: an empty list, not an error */
     j = "{\"mods\":[],\"error\":\"no cheat files found\"}";
     CHECK(webui_cheats_mods_to_json(j, strlen(j), out, sizeof out, err, sizeof err) == 0);
@@ -877,6 +883,10 @@ static void cheats_toggle_errors(void) {
     c = "{\"ok\":false,\"err\":\"pt_attach failed (errno=1)\"}";
     CHECK(strcmp(webui_cheats_toggle_error(c, strlen(c)), "toggle_failed") == 0);
     CHECK(strcmp(webui_cheats_toggle_error(NULL, 0), "toggle_failed") == 0);
+    c = "{\"ok\":false,\"err\":\"this patch is for game version 01.000.000; the game is 01.004.000\"}";
+    CHECK(strcmp(webui_cheats_toggle_error(c, strlen(c)), "wrong_version") == 0);
+    c = "{\"ok\":false,\"err\":\"line 3: its pattern is not in the game (another game version?); nothing was written\"}";
+    CHECK(strcmp(webui_cheats_toggle_error(c, strlen(c)), "wrong_version") == 0);
     CHECK(strcmp(webui_cheats_toggle_error("busy", 4), "toggle_failed") == 0);
 }
 

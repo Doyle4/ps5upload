@@ -72,7 +72,13 @@ async fn latency_and_a_bandwidth_cap_do_not_kill_a_session() {
         kill_every: None,
     };
     let proxy = ChaosProxy::start(addr, cfg).await.unwrap();
-    let s = connect(&proxy.addr.to_string(), me, peers, "c", fast())
+    // The subject is the 500 ms dead_after; the handshake's several round trips through a
+    // 60 ms, 32 KiB/s proxy can outlast fast()'s 500 ms handshake on a loaded CI runner.
+    let timing = ava1::session::Timing {
+        handshake: Duration::from_secs(5),
+        ..fast()
+    };
+    let s = connect(&proxy.addr.to_string(), me, peers, "c", timing)
         .await
         .unwrap();
     for _ in 0..10 {

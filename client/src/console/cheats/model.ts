@@ -26,6 +26,8 @@ export interface CheatMod {
   /** A one-shot cheat: applied each time, it has no on/off state. */
   button: boolean;
   on: boolean;
+  /** An XML game patch made for another game version than the installed one. */
+  otherVersion?: boolean;
 }
 
 export interface CheatList {
@@ -98,6 +100,7 @@ export function toggleErrorText(err: unknown): string | null {
     if (isOffline(err)) return t("cw_home_err_offline");
     if (err.code === "module_missing") return t("cw_cheats_err_module");
     if (err.code === "game_busy") return t("cw_cheats_err_busy");
+    if (err.code === "wrong_version") return t("cw_cheats_err_version");
     if (err.code === "bad_index" || err.code === "no_cheats") return t("cw_cheats_err_changed");
     return t("cw_cheats_err_toggle", { code: err.code });
   }
@@ -121,7 +124,14 @@ export function readList(title: string, r: unknown): CheatList {
   if (Array.isArray(o.mods)) {
     for (const m of o.mods as Record<string, unknown>[]) {
       if (!m || typeof m.index !== "number" || !Number.isInteger(m.index) || !str(m.name)) continue;
-      mods.push({ index: m.index, name: str(m.name), desc: str(m.desc), button: m.button === true, on: m.on === true });
+      mods.push({
+        index: m.index,
+        name: str(m.name),
+        desc: str(m.desc),
+        button: m.button === true,
+        on: m.on === true,
+        ...(m.other_version === true ? { otherVersion: true } : {}),
+      });
     }
   }
   return { title, mods, truncated: o.truncated === true };

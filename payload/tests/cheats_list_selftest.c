@@ -287,6 +287,30 @@ int main(void) {
     CHECK(count_of(buf, "\"running\":true") == 1);
     CHECK(strstr(buf, "\"game_running\":true,\"game_title_id\":\"PPSA00005\"") != NULL);
 
+    /* XML game patches (#527): listed as format "xml" next to the other formats; the same file in
+     * two patch folders (ours and another tool's) is one patch, listed once */
+    clear_files();
+    char xa[300], xb[300];
+    snprintf(xa, sizeof xa, "%s/xml", root);
+    snprintf(xb, sizeof xb, "%s/other-xml", root);
+    mkdir(xa, 0777);
+    mkdir(xb, 0777);
+    c.xml_dirs[0] = xa;
+    c.xml_dirs[1] = xb;
+    c.running = 0;
+    put(xa, "PPSA01339.xml", "name=Demons Souls");
+    put(xb, "PPSA01339.xml", "name=Demons Souls");
+    put(xb, "CUSA03173.xml", "name=Bloodborne");
+    put(xb, "CUSA03173.json", "x"); /* wrong extension for an XML folder: ignored */
+    put(dirs[0], "CUSA03173_01.09.json", "x");
+    CHECK(cheats_list_build(&c, buf, sizeof buf, &w) == 0);
+    CHECK(json_valid(buf));
+    CHECK(count_of(buf, "\"title_id\"") == 2);
+    CHECK(strstr(buf, "\"title_id\":\"PPSA01339\",\"name\":\"Demons Souls\",\"version\":\"\","
+                      "\"formats\":[\"xml\"],\"enabled\":0") != NULL);
+    CHECK(strstr(buf, "\"title_id\":\"CUSA03173\"") != NULL);
+    CHECK(strstr(buf, "\"formats\":[\"json\",\"xml\"]") != NULL);
+
     wipe();
     if (failures) {
         fprintf(stderr, "%d failure(s)\n", failures);
