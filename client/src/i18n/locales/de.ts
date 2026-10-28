@@ -6067,6 +6067,11 @@ library_compressed_hint: "Komprimierte Images benötigen ShadowMount+ zum Spiele
 "games_where_everywhere": "Überall",
 "games_where_drives": "Auf PS5-Laufwerken",
 "games_all_empty_hint_v2": "Hier erscheinen Spiele, die auf der PS5 installiert, auf ihren Laufwerken, auf diesem Computer oder auf gespeicherten Servern sind. Sende eines an die PS5 oder füge unter Verwalten → Deine Kopien die Ordner hinzu, in denen du Spiele aufbewahrst.",
+"queue_stage_upload": "Hochladen",
+"queue_stage_install": "Installieren",
+"queue_stage_mount": "Einhängen",
+"queue_stage_register": "Zum Startbildschirm",
+"queue_stages": "Schritte",
 };
 
 export default de;

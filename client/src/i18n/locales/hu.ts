@@ -6373,6 +6373,11 @@ library_compressed_hint: "A tömörített képfájlok futtatásához ShadowMount
 "games_where_everywhere": "Mindenhol",
 "games_where_drives": "PS5-meghajtókon",
 "games_all_empty_hint_v2": "Itt jelenik meg minden játék, ami a PS5-re telepítve, a meghajtóin, ezen a számítógépen vagy mentett szervereken van. Küldj egyet a PS5-re, vagy add hozzá a játékmappáidat a Kezelés → Saját példányok alatt.",
+"queue_stage_upload": "Feltöltés",
+"queue_stage_install": "Telepítés",
+"queue_stage_mount": "Csatolás",
+"queue_stage_register": "Kezdőképernyőre",
+"queue_stages": "Lépések",
 };
 
 export default hu;

@@ -6383,6 +6383,11 @@ library_compressed_hint: "Compressed images need ShadowMount+ to play. To edit, 
 "games_where_everywhere": "Everywhere",
 "games_where_drives": "On PS5 drives",
 "games_all_empty_hint_v2": "Games installed on the PS5, on its drives, on this computer and on saved servers all show here. Send one to the PS5, or add the folders you keep games in under Manage → Your copies.",
+"queue_stage_upload": "Upload",
+"queue_stage_install": "Install",
+"queue_stage_mount": "Mount",
+"queue_stage_register": "Add to Home",
+"queue_stages": "Steps",
 };
 
 export default en;

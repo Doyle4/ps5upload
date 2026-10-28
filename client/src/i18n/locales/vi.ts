@@ -6061,6 +6061,11 @@ library_compressed_hint: "Ảnh đĩa nén cần ShadowMount+ để chơi. Để
 "games_where_everywhere": "Mọi nơi",
 "games_where_drives": "Trên ổ PS5",
 "games_all_empty_hint_v2": "Mọi game đã cài trên PS5, trên ổ của PS5, trên máy tính này và trên máy chủ đã lưu đều hiện ở đây. Gửi một game tới PS5, hoặc thêm thư mục chứa game trong Quản lý → Bản sao của bạn.",
+"queue_stage_upload": "Tải lên",
+"queue_stage_install": "Cài đặt",
+"queue_stage_mount": "Gắn",
+"queue_stage_register": "Thêm vào màn hình chính",
+"queue_stages": "Các bước",
 };
 
 export default vi;

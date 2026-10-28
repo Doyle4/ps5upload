@@ -6080,6 +6080,11 @@ library_compressed_hint: "圧縮イメージのプレイには ShadowMount+ が�
 "games_where_everywhere": "すべて",
 "games_where_drives": "PS5 のドライブ",
 "games_all_empty_hint_v2": "PS5 にインストール済み、PS5 のドライブ上、このコンピューター、保存したサーバーにあるゲームがすべてここに表示されます。PS5 に送信するか、［管理］→［手元のコピー］でゲームを置いているフォルダーを追加してください。",
+"queue_stage_upload": "アップロード",
+"queue_stage_install": "インストール",
+"queue_stage_mount": "マウント",
+"queue_stage_register": "ホームに追加",
+"queue_stages": "手順",
 };
 
 export default ja;

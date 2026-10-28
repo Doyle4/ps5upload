@@ -6009,6 +6009,11 @@ library_compressed_hint: "壓縮映像需要 ShadowMount+ 才能遊玩。如需�
 "games_where_everywhere": "全部",
 "games_where_drives": "PS5 硬碟上",
 "games_all_empty_hint_v2": "安裝在 PS5 上、PS5 硬碟上、這台電腦上與已儲存伺服器上的遊戲都會顯示在這裡。把一個遊戲傳送到 PS5，或在「管理 → 你的副本」中新增你存放遊戲的資料夾。",
+"queue_stage_upload": "上傳",
+"queue_stage_install": "安裝",
+"queue_stage_mount": "掛載",
+"queue_stage_register": "加入主畫面",
+"queue_stages": "步驟",
 };
 
 export default zh_TW;

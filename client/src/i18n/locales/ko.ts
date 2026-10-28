@@ -6078,6 +6078,11 @@ library_compressed_hint: "압축 이미지를 플레이하려면 ShadowMount+가
 "games_where_everywhere": "전체",
 "games_where_drives": "PS5 드라이브",
 "games_all_empty_hint_v2": "PS5에 설치된 게임, PS5 드라이브의 게임, 이 컴퓨터와 저장된 서버의 게임이 모두 여기에 표시됩니다. 게임을 PS5로 보내거나 관리 → 내 사본에서 게임을 보관하는 폴더를 추가하세요.",
+"queue_stage_upload": "업로드",
+"queue_stage_install": "설치",
+"queue_stage_mount": "마운트",
+"queue_stage_register": "홈에 추가",
+"queue_stages": "단계",
 };
 
 export default ko;

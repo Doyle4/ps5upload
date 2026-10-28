@@ -6068,6 +6068,11 @@ library_compressed_hint: "Image terkompresi memerlukan ShadowMount+ untuk bermai
 "games_where_everywhere": "Di mana saja",
 "games_where_drives": "Di drive PS5",
 "games_all_empty_hint_v2": "Game yang terpasang di PS5, di drive-nya, di komputer ini, dan di server tersimpan semuanya tampil di sini. Kirim satu ke PS5, atau tambahkan folder tempat Anda menyimpan game di Kelola → Salinan Anda.",
+"queue_stage_upload": "Unggah",
+"queue_stage_install": "Pasang",
+"queue_stage_mount": "Pasang image",
+"queue_stage_register": "Tambah ke Beranda",
+"queue_stages": "Langkah",
 };
 
 export default id;

@@ -6059,6 +6059,11 @@ library_compressed_hint: "সংকুচিত ইমেজ চালাতে 
 "games_where_everywhere": "সবখানে",
 "games_where_drives": "PS5 ড্রাইভে",
 "games_all_empty_hint_v2": "PS5-এ ইনস্টল করা, এর ড্রাইভে, এই কম্পিউটারে এবং সংরক্ষিত সার্ভারে থাকা সব গেম এখানে দেখায়। একটি PS5-এ পাঠান, অথবা পরিচালনা → আপনার কপি থেকে গেম রাখার ফোল্ডার যোগ করুন।",
+"queue_stage_upload": "আপলোড",
+"queue_stage_install": "ইনস্টল",
+"queue_stage_mount": "মাউন্ট",
+"queue_stage_register": "হোমে যোগ",
+"queue_stages": "ধাপ",
 };
 
 export default bn;

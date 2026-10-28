@@ -6015,6 +6015,11 @@ library_compressed_hint: "压缩镜像需要 ShadowMount+ 才能游玩。如需�
 "games_where_everywhere": "全部",
 "games_where_drives": "PS5 硬盘上",
 "games_all_empty_hint_v2": "安装在 PS5 上、PS5 硬盘上、这台电脑上和已保存服务器上的游戏都会显示在这里。把一个游戏发送到 PS5，或在“管理 → 你的副本”中添加你存放游戏的文件夹。",
+"queue_stage_upload": "上传",
+"queue_stage_install": "安装",
+"queue_stage_mount": "挂载",
+"queue_stage_register": "添加到主屏幕",
+"queue_stages": "步骤",
 };
 
 export default zh_CN;

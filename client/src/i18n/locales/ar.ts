@@ -6059,6 +6059,11 @@ library_compressed_hint: "تحتاج الصور المضغوطة إلى ShadowMo
 "games_where_everywhere": "في كل مكان",
 "games_where_drives": "على أقراص PS5",
 "games_all_empty_hint_v2": "تظهر هنا الألعاب المثبتة على PS5 وعلى أقراصه وعلى هذا الكمبيوتر وعلى الخوادم المحفوظة. أرسل لعبة إلى PS5، أو أضف المجلدات التي تحفظ فيها ألعابك من إدارة ← نسخك.",
+"queue_stage_upload": "رفع",
+"queue_stage_install": "تثبيت",
+"queue_stage_mount": "تركيب",
+"queue_stage_register": "إضافة إلى الرئيسية",
+"queue_stages": "الخطوات",
 };
 
 export default ar;

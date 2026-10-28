@@ -6075,6 +6075,11 @@ library_compressed_hint: "संपीड़ित इमेज चलाने 
 "games_where_everywhere": "हर जगह",
 "games_where_drives": "PS5 ड्राइव पर",
 "games_all_empty_hint_v2": "PS5 पर इंस्टॉल, उसकी ड्राइव पर, इस कंप्यूटर पर और सहेजे गए सर्वर पर मौजूद सभी गेम यहाँ दिखते हैं। एक PS5 पर भेजें, या प्रबंधित करें → आपकी प्रतियाँ में वे फ़ोल्डर जोड़ें जिनमें आप गेम रखते हैं।",
+"queue_stage_upload": "अपलोड",
+"queue_stage_install": "इंस्टॉल",
+"queue_stage_mount": "माउंट",
+"queue_stage_register": "होम में जोड़ें",
+"queue_stages": "चरण",
 };
 
 export default hi;

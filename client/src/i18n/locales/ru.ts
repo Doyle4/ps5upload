@@ -6009,6 +6009,11 @@ library_compressed_hint: "Для запуска сжатых образов ну
 "games_where_everywhere": "Везде",
 "games_where_drives": "На дисках PS5",
 "games_all_empty_hint_v2": "Здесь показываются игры, установленные на PS5, лежащие на её дисках, на этом компьютере и на сохранённых серверах. Отправьте игру на PS5 или добавьте папки с играми в «Управление → Ваши копии».",
+"queue_stage_upload": "Загрузка",
+"queue_stage_install": "Установка",
+"queue_stage_mount": "Подключение",
+"queue_stage_register": "На главный экран",
+"queue_stages": "Шаги",
 };
 
 export default ru;

@@ -6359,6 +6359,11 @@ library_compressed_hint: "برای اجرای ایمیج فشرده به ShadowM
 "games_where_everywhere": "همه‌جا",
 "games_where_drives": "روی درایوهای PS5",
 "games_all_empty_hint_v2": "بازی‌های نصب‌شده روی PS5، روی درایوهای آن، روی این رایانه و روی سرورهای ذخیره‌شده همه اینجا نمایش داده می‌شوند. یکی را به PS5 بفرستید یا پوشه‌هایی را که بازی‌ها را در آن نگه می‌دارید از مدیریت ← نسخه‌های شما اضافه کنید.",
+"queue_stage_upload": "بارگذاری",
+"queue_stage_install": "نصب",
+"queue_stage_mount": "سوار کردن",
+"queue_stage_register": "افزودن به خانه",
+"queue_stages": "مراحل",
 };
 
 export default fa;

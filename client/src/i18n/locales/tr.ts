@@ -6066,6 +6066,11 @@ library_compressed_hint: "Sıkıştırılmış kalıpları oynatmak için Shadow
 "games_where_everywhere": "Her yerde",
 "games_where_drives": "PS5 sürücülerinde",
 "games_all_empty_hint_v2": "PS5'e yüklü, sürücülerinde, bu bilgisayarda ve kayıtlı sunucularda bulunan oyunların hepsi burada görünür. Birini PS5'e gönderin veya oyun tuttuğunuz klasörleri Yönet → Kopyalarınız altından ekleyin.",
+"queue_stage_upload": "Yükleme",
+"queue_stage_install": "Kurulum",
+"queue_stage_mount": "Bağlama",
+"queue_stage_register": "Ana ekrana ekle",
+"queue_stages": "Adımlar",
 };
 
 export default tr;

@@ -6068,6 +6068,11 @@ library_compressed_hint: "อิมเมจที่บีบอัดต้อ
 "games_where_everywhere": "ทุกที่",
 "games_where_drives": "บนไดรฟ์ PS5",
 "games_all_empty_hint_v2": "เกมที่ติดตั้งบน PS5 อยู่บนไดรฟ์ของมัน บนคอมพิวเตอร์เครื่องนี้ และบนเซิร์ฟเวอร์ที่บันทึกไว้จะแสดงที่นี่ทั้งหมด ส่งเกมไปยัง PS5 หรือเพิ่มโฟลเดอร์ที่เก็บเกมได้ที่ จัดการ → สำเนาของคุณ",
+"queue_stage_upload": "อัปโหลด",
+"queue_stage_install": "ติดตั้ง",
+"queue_stage_mount": "เมานต์",
+"queue_stage_register": "เพิ่มในหน้าหลัก",
+"queue_stages": "ขั้นตอน",
 };
 
 export default th;

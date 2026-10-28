@@ -6009,6 +6009,11 @@ library_compressed_hint: "Las imágenes comprimidas necesitan ShadowMount+ para 
 "games_where_everywhere": "En todas partes",
 "games_where_drives": "En unidades de la PS5",
 "games_all_empty_hint_v2": "Aquí aparecen los juegos instalados en la PS5, en sus unidades, en este ordenador y en servidores guardados. Envía uno a la PS5 o añade las carpetas donde guardas juegos en Gestionar → Tus copias.",
+"queue_stage_upload": "Subida",
+"queue_stage_install": "Instalación",
+"queue_stage_mount": "Montaje",
+"queue_stage_register": "Añadir al inicio",
+"queue_stages": "Pasos",
 };
 
 export default es;
