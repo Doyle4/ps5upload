@@ -5941,6 +5941,21 @@ library_compressed_hint: "Ảnh đĩa nén cần ShadowMount+ để chơi. Để
 "profile.np.undoing": "Đang khôi phục thiết lập…",
 "profile.np.undone": "Đã khôi phục ({count} thiết lập và tệp). Khởi động lại PS5 để hoàn tất.",
 "profile.np.no_backup": "Tài khoản này mang thiết lập mẫu của np-fake-signin (ngày sinh 1983-04-12, cờ người lớn ngoại tuyến tắt) và trên PS5 này không có bản sao nào từ trước, nên ứng dụng không thể hoàn tác. Nếu giờ PS5 đòi tạm tắt giới hạn máy trước khi mở trò chơi: Cài đặt > Gia đình và kiểm soát của phụ huynh > Giới hạn máy PS5 (mã 0000 nếu bạn chưa đổi), rồi gỡ giới hạn ở đó.",
+"linkdl.lz4_title": "Liên kết này được nén bằng LZ4",
+"linkdl.image_title": "Liên kết này là một bản image trò chơi",
+"linkdl.lz4_help": "ps5upload có thể giải nén trong khi tải, nên PS5 nhận được tệp đã giải nén. Không có gì được lưu trên máy tính này, và PS5 chỉ cần chỗ cho tệp đã giải nén.",
+"linkdl.lz4_unpack": "Giải nén trên đường truyền",
+"linkdl.lz4_unpack_hint": "Tắt: tệp .lz4 được lưu nguyên trạng trên PS5.",
+"linkdl.image_hint": "Một bản image trò chơi {kind}. ShadowMount+ gắn nó nguyên trạng từ một thư mục mà nó quét, như homebrew trên một ổ. Tệp chỉ xuất hiện ở đó khi đã hoàn tất.",
+"pm_add_failed": "Không thể lưu {name} vào Payload Manager",
+"pm_catalogue_match": "Danh mục: {name}",
+"pm_replace_tooltip": "Payload Manager không lưu phiên bản cho payload được thêm thủ công, nên ps5upload không thể biết payload này có cũ hơn không. Thay thế sẽ lưu bản phát hành từ danh mục vào chỗ của nó và giữ vị trí của nó trong danh sách khởi động; sau đó, các bản cập nhật sẽ được đề xuất ở đây.",
+"pm_replace_with": "Thay bằng {tag}",
+"pm_add_header": "Thêm vào Payload Manager",
+"pm_add_local": "Từ máy tính này…",
+"pm_add_catalogue_label": "Payload danh mục đã tải",
+"pm_add_catalogue_pick": "Payload danh mục…",
+"pm_add_hint": "Payload Manager giữ tệp trên PS5, chạy nó từ đây hoặc khi khởi động, và liệt kê nó trong menu riêng. Payload được lưu từ danh mục sẽ được đề xuất ở đây khi danh mục có bản phát hành mới hơn.",
 };
 
 export default vi;

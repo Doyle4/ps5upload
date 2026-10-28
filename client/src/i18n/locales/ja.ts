@@ -5960,6 +5960,21 @@ library_compressed_hint: "圧縮イメージのプレイには ShadowMount+ が�
 "profile.np.undoing": "設定を元に戻しています…",
 "profile.np.undone": "元に戻しました（設定とファイル {count} 件）。完了するには PS5 を再起動してください。",
 "profile.np.no_backup": "このアカウントには np-fake-signin のテンプレート設定（生年月日 1983-04-12、オフライン成人フラグがオフ）が入っており、この PS5 には以前のコピーが残っていないため、アプリでは元に戻せません。ゲームを開く前に本体の利用制限を一時的に解除するよう求められる場合は、設定 > ファミリーとペアレンタルコントロール > PS5 本体の利用制限（変更していなければパスコードは 0000）で制限を解除してください。",
+"linkdl.lz4_title": "このリンクは LZ4 で圧縮されています",
+"linkdl.image_title": "このリンクはゲームイメージです",
+"linkdl.lz4_help": "ps5upload はダウンロードしながら展開できるので、PS5 は展開済みのファイルを受け取ります。このコンピューターには何も保存されず、PS5 に必要なのは展開後のファイルの容量だけです。",
+"linkdl.lz4_unpack": "転送中に展開",
+"linkdl.lz4_unpack_hint": "オフ: .lz4 ファイルをそのまま PS5 に保存します。",
+"linkdl.image_hint": "{kind} ゲームイメージです。ShadowMount+ は、ドライブ上の homebrew などスキャン対象のフォルダーからそのままマウントします。ファイルは完了して初めてそこに現れます。",
+"pm_add_failed": "{name} を Payload Manager に保存できませんでした",
+"pm_catalogue_match": "カタログ: {name}",
+"pm_replace_tooltip": "Payload Manager は手動で追加したペイロードのバージョンを記録しないため、ps5upload はこれが古いかどうか判断できません。置き換えると、ブートリストでの位置を保ったままカタログのリリースをその場所に保存します。以降、更新はここで案内されます。",
+"pm_replace_with": "{tag} に置き換え",
+"pm_add_header": "Payload Manager に追加",
+"pm_add_local": "このコンピューターから…",
+"pm_add_catalogue_label": "ダウンロード済みのカタログペイロード",
+"pm_add_catalogue_pick": "カタログのペイロード…",
+"pm_add_hint": "Payload Manager はファイルを PS5 に保持し、ここから、または起動時に実行し、自身のメニューに表示します。カタログから保存したペイロードは、カタログに新しいリリースがあるとここで案内されます。",
 };
 
 export default ja;

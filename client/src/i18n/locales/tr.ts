@@ -5946,6 +5946,21 @@ library_compressed_hint: "Sıkıştırılmış kalıpları oynatmak için Shadow
 "profile.np.undoing": "Ayarlar geri yükleniyor…",
 "profile.np.undone": "Geri yüklendi ({count} ayar ve dosya). Bitirmek için PS5'i yeniden başlatın.",
 "profile.np.no_backup": "Bu hesapta np-fake-signin'in şablon ayarları var (doğum tarihi 1983-04-12, çevrimdışı yetişkin işareti kapalı) ve bu PS5'te öncesinden bir kopya yok, bu yüzden uygulama bunu geri alamaz. PS5 artık oyunlar açılmadan önce konsol kısıtlamalarını geçici olarak devre dışı bırakmayı istiyorsa: Ayarlar > Aile ve Ebeveyn Denetimleri > PS5 Konsol Kısıtlamaları (değiştirmediyseniz parola 0000) ve kısıtlamaları orada kaldırın.",
+"linkdl.lz4_title": "Bu bağlantı LZ4 ile sıkıştırılmış",
+"linkdl.image_title": "Bu bağlantı bir oyun imajı",
+"linkdl.lz4_help": "ps5upload indirirken açabilir, böylece PS5 açılmış dosyayı alır. Bu bilgisayarda hiçbir şey saklanmaz ve PS5'in yalnızca açılmış dosya için yere ihtiyacı olur.",
+"linkdl.lz4_unpack": "Yolda aç",
+"linkdl.lz4_unpack_hint": "Kapalı: .lz4 dosyası PS5'e olduğu gibi kaydedilir.",
+"linkdl.image_hint": "Bir {kind} oyun imajı. ShadowMount+ onu taradığı bir klasörden, örneğin bir sürücüdeki homebrew klasöründen olduğu gibi bağlar. Dosya orada ancak tamamlandığında görünür.",
+"pm_add_failed": "{name} Payload Manager'a kaydedilemedi",
+"pm_catalogue_match": "Katalog: {name}",
+"pm_replace_tooltip": "Payload Manager elle eklenen bir payload için sürüm tutmaz, bu yüzden ps5upload bunun daha eski olup olmadığını bilemez. Değiştirmek, katalogdaki sürümü onun yerine kaydeder ve önyükleme listesindeki yerini korur; bundan sonra güncellemeler burada önerilir.",
+"pm_replace_with": "{tag} ile değiştir",
+"pm_add_header": "Payload Manager'a ekle",
+"pm_add_local": "Bu bilgisayardan…",
+"pm_add_catalogue_label": "İndirilmiş katalog payload'ı",
+"pm_add_catalogue_pick": "Katalog payload'ı…",
+"pm_add_hint": "Payload Manager dosyayı PS5'te tutar, buradan veya açılışta başlatır ve kendi menüsünde listeler. Katalogdan kaydedilen bir payload, katalogda daha yeni bir sürüm olduğunda burada önerilir.",
 };
 
 export default tr;

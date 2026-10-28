@@ -5895,6 +5895,21 @@ library_compressed_hint: "压缩镜像需要 ShadowMount+ 才能游玩。如需�
 "profile.np.undoing": "正在恢复设置…",
 "profile.np.undone": "已恢复（{count} 项设置和文件）。重启 PS5 即可完成。",
 "profile.np.no_backup": "该账户带有 np-fake-signin 的模板设置（出生日期 1983-04-12，离线成人标志为关），而且这台 PS5 上没有之前的副本，因此应用无法撤销。如果 PS5 现在在打开游戏前要求暂时停用主机限制：设置 > 家庭和家长控制 > PS5 主机限制（若未更改，密码为 0000），在那里解除限制。",
+"linkdl.lz4_title": "此链接是 LZ4 压缩文件",
+"linkdl.image_title": "此链接是游戏镜像",
+"linkdl.lz4_help": "ps5upload 可以边下载边解压，PS5 收到的是解压后的文件。这台电脑上不会保存任何内容，PS5 只需要容纳解压后文件的空间。",
+"linkdl.lz4_unpack": "传输时解压",
+"linkdl.lz4_unpack_hint": "关闭：.lz4 文件按原样保存到 PS5。",
+"linkdl.image_hint": "{kind} 游戏镜像。ShadowMount+ 会从它扫描的文件夹（例如某个驱动器上的 homebrew）中按原样挂载。文件只有在完整后才会出现在那里。",
+"pm_add_failed": "无法将 {name} 存入 Payload Manager",
+"pm_catalogue_match": "目录：{name}",
+"pm_replace_tooltip": "Payload Manager 不记录手动添加的载荷的版本，因此 ps5upload 无法判断它是否较旧。替换会在原位置存入目录中的版本，并保留它在开机列表中的位置；之后会在这里提示更新。",
+"pm_replace_with": "替换为 {tag}",
+"pm_add_header": "添加到 Payload Manager",
+"pm_add_local": "从这台电脑…",
+"pm_add_catalogue_label": "已下载的目录载荷",
+"pm_add_catalogue_pick": "目录载荷…",
+"pm_add_hint": "Payload Manager 把文件保存在 PS5 上，可从这里或开机时启动，并在它自己的菜单中列出。从目录存入的载荷在目录有更新版本时会在这里提示。",
 };
 
 export default zh_CN;

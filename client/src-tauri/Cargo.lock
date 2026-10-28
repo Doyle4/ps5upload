@@ -4274,6 +4274,7 @@ dependencies = [
  "blake3",
  "getrandom 0.4.3",
  "image",
+ "lz4_flex 0.14.0",
  "ps5-dump-forge-pfs",
  "ps5-dump-forge-ufs2",
  "ps5upload-ava1",

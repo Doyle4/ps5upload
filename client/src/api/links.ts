@@ -21,6 +21,21 @@ export interface LinkClass {
   /** The server honours byte ranges, which streaming to the console needs. */
   ranges: boolean;
   content_type: string;
+  /** An LZ4 stream (`Game.exfat.lz4`): what it unpacks to on the way to the console. */
+  lz4?: LinkLz4 | null;
+  /** A game image ShadowMount+ mounts as it is. */
+  image?: LinkImageKind | null;
+}
+
+export type LinkImageKind = "exfat" | "ufs" | "pfs";
+
+export interface LinkLz4 {
+  /** null when the link cannot be unpacked on the way (`unsupported` says why). */
+  unpacked_size: number | null;
+  /** The name on the console: the link's name without `.lz4`. */
+  unpacked_name: string;
+  image: LinkImageKind | null;
+  unsupported: string | null;
 }
 
 export async function linkProbe(
@@ -42,6 +57,8 @@ export async function startLinkDownload(opts: {
   addr: string;
   fileName?: string | null;
   insecureTls?: boolean;
+  /** An `.lz4` link is unpacked on the way unless this is false. */
+  unpack?: boolean;
 }): Promise<string> {
   const res = await invoke<{ job_id: string }>("link_download", {
     req: {
@@ -50,6 +67,7 @@ export async function startLinkDownload(opts: {
       addr: opts.addr,
       file_name: opts.fileName ?? null,
       insecure_tls: opts.insecureTls ?? false,
+      unpack: opts.unpack ?? true,
     },
   });
   return res.job_id;

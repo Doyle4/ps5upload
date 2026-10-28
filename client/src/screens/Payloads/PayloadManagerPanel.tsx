@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useState } from "react";
-import { ArrowDown, ArrowUp, Download, Play, RefreshCw, Trash2 } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { ArrowDown, ArrowUp, Download, Play, Plus, RefreshCw, Trash2, Upload } from "lucide-react";
 
-import { Badge, Button, Callout, ErrorCard, Spinner, Toggle } from "../../components";
+import { Badge, Button, Callout, ErrorCard, Select, Spinner, Toggle } from "../../components";
 import { useConfirm } from "../../components/ConfirmDialog";
 import {
   autoloadKey,
@@ -10,13 +10,24 @@ import {
   pmOverview,
   pmSetAutoload,
   pmStore,
+  pmStoreBytes,
   type PmOverview,
+  type PmStoreResult,
   type PmStoredPayload,
 } from "../../api/payloadManager";
-import { payloadsDownload, payloadsReleases, type PayloadReleaseInfo } from "../../api/ps5";
+import {
+  payloadsCatalog,
+  payloadsDownload,
+  payloadsLocalInventory,
+  payloadsReleases,
+  type PayloadInfo,
+  type PayloadLocalEntry,
+  type PayloadReleaseInfo,
+} from "../../api/ps5";
 import { hostOf } from "../../lib/addr";
 import { defaultRelease } from "../../lib/payloadVersions";
 import {
+  catalogueMatch,
   forgetPmStore,
   isRepoManaged,
   pmRecords,
@@ -57,6 +68,11 @@ export default function PayloadManagerPanel() {
   /** The catalogue's current release for each payload this app stored here (native builds:
    *  the catalogue talks to GitHub from the app). */
   const [latest, setLatest] = useState<Record<string, PayloadReleaseInfo | null>>({});
+  /** Catalogue payloads downloaded to this computer (native builds), to store or match. */
+  const [inventory, setInventory] = useState<PayloadLocalEntry[]>([]);
+  const [catalog, setCatalog] = useState<PayloadInfo[]>([]);
+  const [pick, setPick] = useState("");
+  const fileInput = useRef<HTMLInputElement>(null);
 
   const refresh = useCallback(async () => {
     const h = host.trim();
@@ -77,9 +93,28 @@ export default function PayloadManagerPanel() {
     void refresh();
   }, [refresh]);
 
+  const present = !!view?.present;
+  useEffect(() => {
+    if (!isTauriEnv() || !present) return;
+    let live = true;
+    payloadsLocalInventory()
+      .then((v) => live && setInventory(v))
+      .catch(() => undefined);
+    payloadsCatalog()
+      .then((v) => live && setCatalog(v))
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, [present]);
+
   useEffect(() => {
     if (!isTauriEnv() || !view?.present) return;
     const ids = new Set(Object.values(pmRecords(hostOf(host))).map((r) => r.id));
+    for (const p of view.payloads) {
+      const id = catalogueMatch(p, inventory);
+      if (id) ids.add(id);
+    }
     let live = true;
     for (const id of ids) {
       if (id in latest) continue;
@@ -90,7 +125,7 @@ export default function PayloadManagerPanel() {
     return () => {
       live = false;
     };
-  }, [view, host, latest]);
+  }, [view, host, latest, inventory]);
 
   const run = async (key: string, work: () => Promise<void>, failTitle: string) => {
     setBusy(key);
@@ -170,6 +205,78 @@ export default function PayloadManagerPanel() {
       tr("pm_update_failed", { name: p.filename }, `Couldn't update ${p.filename}`),
     );
 
+  /** Stores under `filename`, asking first when Payload Manager already has that folder
+   *  (storing into it removes the folder's other files). False when the user said no. */
+  const storeConfirmed = async (
+    filename: string,
+    store: (confirmed: boolean) => Promise<PmStoreResult>,
+  ): Promise<boolean> => {
+    let r = await store(false);
+    if (!r.stored) {
+      const ok = await confirm({
+        title: tr(
+          "payloads_pm_store_confirm_title",
+          { folder: r.folder },
+          `Replace Payload Manager's "${r.folder}" folder?`,
+        ),
+        message: r.fileExists
+          ? tr(
+              "payloads_pm_store_confirm_same",
+              { name: filename },
+              `Payload Manager already has ${filename}. Storing replaces it, and removes any other file in that folder.`,
+            )
+          : tr(
+              "payloads_pm_store_confirm_other",
+              { folder: r.folder },
+              `Payload Manager already has a "${r.folder}" folder. Storing into it removes the other files there (an older version, usually).`,
+            ),
+        confirmLabel: tr("payloads_pm_store", undefined, "Store in Payload Manager"),
+        destructive: true,
+      });
+      if (!ok) return false;
+      r = await store(true);
+      if (!r.stored) return false;
+    }
+    pushNotification(
+      "success",
+      withConsolePrefix(host, tr("payloads_pm_stored_title", { name: filename }, `Stored ${filename} in Payload Manager`)),
+    );
+    return true;
+  };
+
+  /** A payload file picked on this computer (any build: the bytes go to the engine). */
+  const addLocal = (file: File) =>
+    run(
+      "add:local",
+      async () => {
+        const bytes = await file.arrayBuffer();
+        const h = hostOf(host);
+        if (await storeConfirmed(file.name, (c) => pmStoreBytes(h, file.name, bytes, c))) {
+          // Not a catalogue payload: no update tracking for it.
+          forgetPmStore(h, file.name);
+        }
+      },
+      tr("pm_add_failed", { name: file.name }, `Couldn't store ${file.name} in Payload Manager`),
+    );
+
+  /** A catalogue payload already downloaded to this computer; remembered so updates are offered. */
+  const addCatalogue = (id: string) => {
+    const local = inventory.find((e) => e.payload_id === id);
+    if (!local) return;
+    const filename = local.path.split(/[\\/]/).pop() || `${id}.elf`;
+    return run(
+      "add:catalogue",
+      async () => {
+        const h = hostOf(host);
+        if (await storeConfirmed(filename, (c) => pmStore(h, filename, local.path, c))) {
+          recordPmStore(h, filename, id, local.version);
+          setPick("");
+        }
+      },
+      tr("pm_add_failed", { name: filename }, `Couldn't store ${filename} in Payload Manager`),
+    );
+  };
+
   const setAutoload = (enabled: boolean, list: string[]) =>
     run(
       "autoload",
@@ -217,9 +324,15 @@ export default function PayloadManagerPanel() {
   const onUsb = view.payloads.filter((p) => !p.path.startsWith("/data/pldmgr/"));
 
   const records = pmRecords(hostOf(host));
+  const nameOf = (id: string) => catalog.find((c) => c.id === id)?.display_name ?? id;
   const row = (p: PmStoredPayload) => {
-    const rec = isRepoManaged(p) ? undefined : records[p.filename];
-    const to = rec ? pmUpdateFor(rec, latest[rec.id]) : null;
+    const recorded = isRepoManaged(p) ? undefined : records[p.filename];
+    // Stored by hand under the same name as a catalogue download: offer the catalogue's release
+    // (Payload Manager keeps no version for it, so "newer" cannot be told).
+    const matchId = recorded ? null : catalogueMatch(p, inventory);
+    const matchTo = matchId ? latest[matchId] : null;
+    const rec = recorded ?? (matchId && matchTo?.picked_asset_url ? { id: matchId, tag: "" } : undefined);
+    const to = recorded ? pmUpdateFor(recorded, latest[recorded.id]) : (rec && matchTo) || null;
     const listed = inList(p);
     const key = autoloadKey(p);
     const order = autoload ? autoload.list.filter((e) => !e.startsWith("!")) : [];
@@ -237,9 +350,14 @@ export default function PayloadManagerPanel() {
                 {p.version}
               </Badge>
             )}
-            {to && (
+            {to && recorded && (
               <Badge tone="warn" variant="outline">
                 {tr("pm_update_available", { tag: to.tag }, `${to.tag} available`)}
+              </Badge>
+            )}
+            {to && !recorded && matchId && (
+              <Badge tone="neutral" variant="outline">
+                {tr("pm_catalogue_match", { name: nameOf(matchId) }, `Catalogue: ${nameOf(matchId)}`)}
               </Badge>
             )}
             {listed && autoload && (
@@ -311,13 +429,23 @@ export default function PayloadManagerPanel() {
               leftIcon={busy === `update:${p.path}` ? <Spinner size={12} tone="inherit" /> : <Download size={12} />}
               disabled={busy !== null}
               onClick={() => void update(p, rec.id, to)}
-              title={tr(
-                "pm_update_tooltip",
-                undefined,
-                "Downloads the newer release and stores it in Payload Manager in place of this one, keeping its place in the boot list.",
-              )}
+              title={
+                recorded
+                  ? tr(
+                      "pm_update_tooltip",
+                      undefined,
+                      "Downloads the newer release and stores it in Payload Manager in place of this one, keeping its place in the boot list.",
+                    )
+                  : tr(
+                      "pm_replace_tooltip",
+                      undefined,
+                      "Payload Manager keeps no version for a payload stored by hand, so ps5upload cannot tell whether this one is older. Replacing stores the catalogue's release in its place, keeping its place in the boot list; after that, updates are offered here.",
+                    )
+              }
             >
-              {tr("pm_update", undefined, "Update")}
+              {recorded
+                ? tr("pm_update", undefined, "Update")
+                : tr("pm_replace_with", { tag: to.tag }, `Replace with ${to.tag}`)}
             </Button>
           )}
           <Button
@@ -385,6 +513,67 @@ export default function PayloadManagerPanel() {
           />
         )
       )}
+
+      <section className="surface-panel space-y-3 p-4">
+        <header className="text-xs font-semibold uppercase tracking-wide text-[var(--color-muted)]">
+          {tr("pm_add_header", undefined, "Add to Payload Manager")}
+        </header>
+        <div className="flex flex-wrap items-end gap-2">
+          <input
+            ref={fileInput}
+            type="file"
+            accept=".elf,.bin"
+            className="hidden"
+            data-testid="pm-add-file"
+            onChange={(e) => {
+              const f = e.currentTarget.files?.[0];
+              e.currentTarget.value = "";
+              if (f) void addLocal(f);
+            }}
+          />
+          <Button
+            variant="secondary"
+            size="sm"
+            leftIcon={busy === "add:local" ? <Spinner size={12} tone="inherit" /> : <Upload size={12} />}
+            disabled={busy !== null}
+            onClick={() => fileInput.current?.click()}
+          >
+            {tr("pm_add_local", undefined, "From this computer…")}
+          </Button>
+          {inventory.length > 0 && (
+            <>
+              <div className="min-w-48">
+                <Select
+                  aria-label={tr("pm_add_catalogue_label", undefined, "Downloaded catalogue payload")}
+                  value={pick}
+                  onChange={(e) => setPick(e.currentTarget.value)}
+                  disabled={busy !== null}
+                  options={[
+                    { value: "", label: tr("pm_add_catalogue_pick", undefined, "Catalogue payload…") },
+                    ...inventory.map((e) => ({ value: e.payload_id, label: `${nameOf(e.payload_id)} ${e.version}` })),
+                  ]}
+                />
+              </div>
+              <Button
+                variant="secondary"
+                size="sm"
+                leftIcon={busy === "add:catalogue" ? <Spinner size={12} tone="inherit" /> : <Plus size={12} />}
+                disabled={busy !== null || !pick}
+                onClick={() => void addCatalogue(pick)}
+              >
+                {tr("payloads_pm_store", undefined, "Store in Payload Manager")}
+              </Button>
+            </>
+          )}
+        </div>
+        <p className="text-xs text-[var(--color-muted)]">
+          {tr(
+            "pm_add_hint",
+            undefined,
+            "Payload Manager keeps the file on the PS5, launches it from here or at boot, and lists it in its own menu. A payload stored from the catalogue is offered here when the catalogue has a newer release.",
+          )}
+        </p>
+      </section>
 
       {view.payloadsError && (
         <ErrorCard

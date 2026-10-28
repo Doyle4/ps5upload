@@ -5889,6 +5889,21 @@ library_compressed_hint: "Las imágenes comprimidas necesitan ShadowMount+ para 
 "profile.np.undoing": "Restaurando los ajustes…",
 "profile.np.undone": "Restaurado ({count} ajustes y archivos). Reinicia la PS5 para terminar.",
 "profile.np.no_backup": "Esta cuenta tiene los ajustes de la plantilla de np-fake-signin (fecha de nacimiento 1983-04-12, el indicador de adulto sin conexión desactivado) y en esta PS5 no hay ninguna copia de antes, así que la app no puede deshacerlo. Si la PS5 ahora pide desactivar temporalmente las restricciones de la consola antes de abrir juegos: Ajustes > Familia y controles parentales > Restricciones de la consola PS5 (código 0000 salvo que lo hayas cambiado), y quita las restricciones allí.",
+"linkdl.lz4_title": "Este enlace está comprimido con LZ4",
+"linkdl.image_title": "Este enlace es una imagen de juego",
+"linkdl.lz4_help": "ps5upload puede descomprimirlo mientras se descarga, así la PS5 recibe el archivo descomprimido. No se guarda nada en este ordenador y la PS5 solo necesita espacio para el archivo descomprimido.",
+"linkdl.lz4_unpack": "Descomprimir por el camino",
+"linkdl.lz4_unpack_hint": "Desactivado: el archivo .lz4 se guarda en la PS5 tal cual.",
+"linkdl.image_hint": "Una imagen de juego {kind}. ShadowMount+ la monta tal cual desde una carpeta que examina, como homebrew en una unidad. El archivo aparece ahí solo cuando está completo.",
+"pm_add_failed": "No se pudo guardar {name} en Payload Manager",
+"pm_catalogue_match": "Catálogo: {name}",
+"pm_replace_tooltip": "Payload Manager no guarda la versión de un payload añadido a mano, así que ps5upload no puede saber si este es más antiguo. Reemplazar guarda la versión del catálogo en su lugar y conserva su puesto en la lista de arranque; después, las actualizaciones se ofrecen aquí.",
+"pm_replace_with": "Reemplazar por {tag}",
+"pm_add_header": "Añadir a Payload Manager",
+"pm_add_local": "Desde este ordenador…",
+"pm_add_catalogue_label": "Payload del catálogo descargado",
+"pm_add_catalogue_pick": "Payload del catálogo…",
+"pm_add_hint": "Payload Manager guarda el archivo en la PS5, lo inicia desde aquí o al arrancar y lo muestra en su propio menú. Un payload guardado desde el catálogo se ofrece aquí cuando el catálogo tiene una versión más nueva.",
 };
 
 export default es;

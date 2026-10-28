@@ -5958,6 +5958,21 @@ library_compressed_hint: "압축 이미지를 플레이하려면 ShadowMount+가
 "profile.np.undoing": "설정을 되돌리는 중…",
 "profile.np.undone": "되돌렸습니다(설정 및 파일 {count}개). 마무리하려면 PS5를 다시 시작하세요.",
 "profile.np.no_backup": "이 계정에는 np-fake-signin의 템플릿 설정(생년월일 1983-04-12, 오프라인 성인 플래그 꺼짐)이 들어 있고 이 PS5에는 이전 사본이 없어 앱에서 되돌릴 수 없습니다. 이제 게임을 열기 전에 콘솔 제한을 일시적으로 해제하라고 묻는다면: 설정 > 가족 및 자녀 보호 기능 > PS5 콘솔 제한(바꾸지 않았다면 패스코드 0000)에서 제한을 풀어 주세요.",
+"linkdl.lz4_title": "이 링크는 LZ4로 압축되어 있습니다",
+"linkdl.image_title": "이 링크는 게임 이미지입니다",
+"linkdl.lz4_help": "ps5upload가 다운로드하면서 압축을 풀 수 있어 PS5는 압축이 풀린 파일을 받습니다. 이 컴퓨터에는 아무것도 저장되지 않으며, PS5에는 압축이 풀린 파일만큼의 공간만 필요합니다.",
+"linkdl.lz4_unpack": "전송 중 압축 풀기",
+"linkdl.lz4_unpack_hint": "끄기: .lz4 파일을 그대로 PS5에 저장합니다.",
+"linkdl.image_hint": "{kind} 게임 이미지입니다. ShadowMount+가 드라이브의 homebrew 같은 검색 폴더에서 그대로 마운트합니다. 파일은 완료된 뒤에만 그곳에 나타납니다.",
+"pm_add_failed": "{name}을(를) Payload Manager에 저장하지 못했습니다",
+"pm_catalogue_match": "카탈로그: {name}",
+"pm_replace_tooltip": "Payload Manager는 직접 추가한 페이로드의 버전을 기록하지 않으므로 ps5upload는 이것이 더 오래된 것인지 알 수 없습니다. 교체하면 부팅 목록의 위치를 유지한 채 카탈로그 릴리스를 그 자리에 저장하며, 이후 업데이트가 여기에 표시됩니다.",
+"pm_replace_with": "{tag}(으)로 교체",
+"pm_add_header": "Payload Manager에 추가",
+"pm_add_local": "이 컴퓨터에서…",
+"pm_add_catalogue_label": "다운로드한 카탈로그 페이로드",
+"pm_add_catalogue_pick": "카탈로그 페이로드…",
+"pm_add_hint": "Payload Manager는 파일을 PS5에 보관하고, 여기서 또는 부팅 시 실행하며, 자체 메뉴에 표시합니다. 카탈로그에서 저장한 페이로드는 카탈로그에 새 릴리스가 있으면 여기에 표시됩니다.",
 };
 
 export default ko;

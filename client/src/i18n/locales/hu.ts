@@ -6254,6 +6254,21 @@ library_compressed_hint: "A tömörített képfájlok futtatásához ShadowMount
 "profile.np.undoing": "A beállítások visszaállítása…",
 "profile.np.undone": "Visszaállítva ({count} beállítás és fájl). A befejezéshez indítsd újra a PS5-öt.",
 "profile.np.no_backup": "Ezen a fiókon az np-fake-signin sablonbeállításai vannak (születési dátum 1983-04-12, az offline felnőtt jelző kikapcsolva), és erről a PS5-ről hiányzik a korábbi másolat, ezért az alkalmazás nem tudja visszavonni. Ha a PS5 most a játékok megnyitása előtt a konzolkorlátozások ideiglenes kikapcsolását kéri: Beállítások > Család és szülői felügyelet > PS5 konzolkorlátozások (jelkód 0000, hacsak nem változtattad meg), és ott oldd fel a korlátozásokat.",
+"linkdl.lz4_title": "Ez a link LZ4-gyel tömörített",
+"linkdl.image_title": "Ez a link egy játékképfájl",
+"linkdl.lz4_help": "A ps5upload letöltés közben ki tudja csomagolni, így a PS5 a kicsomagolt fájlt kapja meg. Ezen a számítógépen semmi sem tárolódik, és a PS5-nek csak a kicsomagolt fájlhoz kell hely.",
+"linkdl.lz4_unpack": "Kicsomagolás útközben",
+"linkdl.lz4_unpack_hint": "Ki: a .lz4 fájl változatlanul kerül a PS5-re.",
+"linkdl.image_hint": "Egy {kind} játékképfájl. A ShadowMount+ változatlanul csatolja egy általa figyelt mappából, például egy meghajtó homebrew mappájából. A fájl csak akkor jelenik meg ott, amikor teljes.",
+"pm_add_failed": "A(z) {name} nem menthető a Payload Managerbe",
+"pm_catalogue_match": "Katalógus: {name}",
+"pm_replace_tooltip": "A Payload Manager nem tárol verziót a kézzel hozzáadott payloadokhoz, így a ps5upload nem tudja eldönteni, hogy ez régebbi-e. A csere a katalógus kiadását menti a helyére, és megtartja a helyét az indítási listán; ezután a frissítéseket itt kínálja fel.",
+"pm_replace_with": "Csere erre: {tag}",
+"pm_add_header": "Hozzáadás a Payload Managerhez",
+"pm_add_local": "Erről a számítógépről…",
+"pm_add_catalogue_label": "Letöltött katalógus-payload",
+"pm_add_catalogue_pick": "Katalógus-payload…",
+"pm_add_hint": "A Payload Manager a PS5-ön tartja a fájlt, innen vagy indításkor elindítja, és a saját menüjében listázza. A katalógusból mentett payloadot itt kínálja fel, amikor a katalógusban újabb kiadás van.",
 };
 
 export default hu;

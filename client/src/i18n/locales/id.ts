@@ -5948,6 +5948,21 @@ library_compressed_hint: "Image terkompresi memerlukan ShadowMount+ untuk bermai
 "profile.np.undoing": "Mengembalikan pengaturan…",
 "profile.np.undone": "Dikembalikan ({count} pengaturan dan berkas). Mulai ulang PS5 untuk menyelesaikan.",
 "profile.np.no_backup": "Akun ini membawa pengaturan templat np-fake-signin (tanggal lahir 1983-04-12, penanda dewasa luring mati), dan tidak ada salinan dari sebelumnya di PS5 ini, jadi aplikasi tidak dapat membatalkannya. Jika PS5 kini meminta menonaktifkan sementara pembatasan konsol sebelum game terbuka: Pengaturan > Keluarga dan Kontrol Orang Tua > Pembatasan Konsol PS5 (kode sandi 0000 kecuali Anda mengubahnya), lalu cabut pembatasannya di sana.",
+"linkdl.lz4_title": "Tautan ini dikompresi dengan LZ4",
+"linkdl.image_title": "Tautan ini adalah image game",
+"linkdl.lz4_help": "ps5upload dapat mengekstraknya sambil mengunduh, sehingga PS5 menerima file yang sudah diekstrak. Tidak ada yang disimpan di komputer ini, dan PS5 hanya butuh ruang untuk file yang sudah diekstrak.",
+"linkdl.lz4_unpack": "Ekstrak di jalan",
+"linkdl.lz4_unpack_hint": "Mati: file .lz4 disimpan di PS5 apa adanya.",
+"linkdl.image_hint": "Image game {kind}. ShadowMount+ memasangnya apa adanya dari folder yang dipindainya, seperti homebrew di sebuah drive. File baru muncul di sana setelah lengkap.",
+"pm_add_failed": "Tidak dapat menyimpan {name} di Payload Manager",
+"pm_catalogue_match": "Katalog: {name}",
+"pm_replace_tooltip": "Payload Manager tidak menyimpan versi untuk payload yang ditambahkan manual, jadi ps5upload tidak bisa tahu apakah yang ini lebih lama. Mengganti akan menyimpan rilis katalog di tempatnya dan mempertahankan posisinya di daftar boot; setelah itu, pembaruan ditawarkan di sini.",
+"pm_replace_with": "Ganti dengan {tag}",
+"pm_add_header": "Tambahkan ke Payload Manager",
+"pm_add_local": "Dari komputer ini…",
+"pm_add_catalogue_label": "Payload katalog yang diunduh",
+"pm_add_catalogue_pick": "Payload katalog…",
+"pm_add_hint": "Payload Manager menyimpan file di PS5, menjalankannya dari sini atau saat boot, dan menampilkannya di menunya sendiri. Payload yang disimpan dari katalog ditawarkan di sini saat katalog punya rilis yang lebih baru.",
 };
 
 export default id;

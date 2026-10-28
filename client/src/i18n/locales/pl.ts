@@ -6194,6 +6194,21 @@ library_compressed_hint: "Skompresowane obrazy wymagają ShadowMount+, aby grać
 "profile.np.undoing": "Przywracanie ustawień…",
 "profile.np.undone": "Przywrócono ({count} ustawień i plików). Uruchom PS5 ponownie, aby zakończyć.",
 "profile.np.no_backup": "To konto ma ustawienia szablonu np-fake-signin (data urodzenia 1983-04-12, flaga dorosłego offline wyłączona), a na tej PS5 nie ma kopii sprzed, więc aplikacja nie może tego cofnąć. Jeśli PS5 prosi teraz przed otwarciem gier o tymczasowe wyłączenie ograniczeń konsoli: Ustawienia > Rodzina i kontrola rodzicielska > Ograniczenia konsoli PS5 (kod 0000, o ile go nie zmieniono), i tam znieś ograniczenia.",
+"linkdl.lz4_title": "Ten link jest skompresowany LZ4",
+"linkdl.image_title": "Ten link to obraz gry",
+"linkdl.lz4_help": "ps5upload może go rozpakować w trakcie pobierania, więc PS5 otrzyma rozpakowany plik. Na tym komputerze nic nie jest zapisywane, a PS5 potrzebuje miejsca tylko na rozpakowany plik.",
+"linkdl.lz4_unpack": "Rozpakuj po drodze",
+"linkdl.lz4_unpack_hint": "Wyłączone: plik .lz4 zostanie zapisany na PS5 bez zmian.",
+"linkdl.image_hint": "Obraz gry {kind}. ShadowMount+ montuje go bez zmian z folderu, który skanuje, np. homebrew na dysku. Plik pojawi się tam dopiero, gdy będzie kompletny.",
+"pm_add_failed": "Nie udało się zapisać {name} w Payload Manager",
+"pm_catalogue_match": "Katalog: {name}",
+"pm_replace_tooltip": "Payload Manager nie zapisuje wersji payloadu dodanego ręcznie, więc ps5upload nie może stwierdzić, czy ten jest starszy. Zastąpienie zapisze w jego miejscu wydanie z katalogu, zachowując jego miejsce na liście startowej; potem aktualizacje będą proponowane tutaj.",
+"pm_replace_with": "Zastąp wersją {tag}",
+"pm_add_header": "Dodaj do Payload Manager",
+"pm_add_local": "Z tego komputera…",
+"pm_add_catalogue_label": "Pobrany payload z katalogu",
+"pm_add_catalogue_pick": "Payload z katalogu…",
+"pm_add_hint": "Payload Manager trzyma plik na PS5, uruchamia go stąd lub przy starcie i pokazuje w swoim menu. Payload zapisany z katalogu zostanie tu zaproponowany, gdy katalog będzie miał nowsze wydanie.",
 };
 
 export default pl;
