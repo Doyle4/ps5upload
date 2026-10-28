@@ -590,6 +590,106 @@ pub fn profile_clear_slot(addr: &str, slot: i32) -> Result<()> {
     Ok(())
 }
 
+/// What the console says about a user's PlayStation Network sign-in state: whether a backup
+/// from before np-fake-signin ran is kept on it, and the values that decide how the console
+/// treats the account (np-fake-signin writes NP_sub_account 2, NP_offl_acct_adult 0 and an age
+/// from its template). `None` where the registry could not be read.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct NpState {
+    #[serde(default)]
+    pub ok: bool,
+    #[serde(default)]
+    pub slot: i32,
+    #[serde(default)]
+    pub uid: u32,
+    /// A backup from before the first sign-in is on the console.
+    #[serde(default)]
+    pub backup: bool,
+    #[serde(default)]
+    pub backup_slot: i32,
+    #[serde(default)]
+    pub online_id: String,
+    /// NP_date_of_birth; np-fake-signin's template sets 1983-04-12.
+    #[serde(default)]
+    pub dob: String,
+    /// np-fake-signin's NP files are there.
+    #[serde(default)]
+    pub auth_dat: bool,
+    #[serde(default)]
+    pub config_dat: bool,
+    #[serde(default)]
+    pub sub_account: Option<i64>,
+    #[serde(default)]
+    pub offline_adult: Option<i64>,
+    #[serde(default)]
+    pub age: Option<i64>,
+    #[serde(default)]
+    pub login_flag: Option<i64>,
+}
+
+/// The user's sign-in state (`uid` 0 = the foreground user) for account slot `slot`.
+pub fn profile_np_state(addr: &str, slot: i32, uid: u32) -> Result<NpState> {
+    let body = serde_json::to_vec(&serde_json::json!({ "slot": slot, "uid": uid }))?;
+    let resp = round_trip_body(addr, m::PROFILE_NP_STATE, &body, "PROFILE_NP_STATE")?;
+    let st: NpState = serde_json::from_slice(&resp).context("parse PROFILE_NP_STATE ack")?;
+    if !st.ok {
+        bail!("the console could not read this account's sign-in state");
+    }
+    Ok(st)
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct NpBackupResult {
+    #[serde(default)]
+    ok: bool,
+    #[serde(default)]
+    created: bool,
+}
+
+/// Keep, on the console, everything np-fake-signin is about to overwrite for this user (slot 1's
+/// keys and `slot`'s, and its two NP files). A backup already there is kept, since it is the
+/// state from before the first sign-in. Returns whether a new one was written.
+pub fn profile_np_backup(addr: &str, slot: i32, uid: u32) -> Result<bool> {
+    let body = serde_json::to_vec(&serde_json::json!({ "slot": slot, "uid": uid }))?;
+    let resp = round_trip_body(addr, m::PROFILE_NP_BACKUP, &body, "PROFILE_NP_BACKUP")?;
+    let r: NpBackupResult = serde_json::from_slice(&resp)?;
+    if !r.ok {
+        bail!("the console could not keep a copy of this account's sign-in state");
+    }
+    Ok(r.created)
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct NpRestoreResult {
+    #[serde(default)]
+    ok: bool,
+    #[serde(default)]
+    written: i32,
+    #[serde(default)]
+    failed: i32,
+    #[serde(default)]
+    err: String,
+}
+
+/// Put back what [`profile_np_backup`] kept: every registry value and both files as they were
+/// before the sign-in. Returns how many values and files were written.
+pub fn profile_np_restore(addr: &str, uid: u32) -> Result<i32> {
+    let body = serde_json::to_vec(&serde_json::json!({ "uid": uid }))?;
+    let resp = round_trip_body(addr, m::PROFILE_NP_RESTORE, &body, "PROFILE_NP_RESTORE")?;
+    let r: NpRestoreResult = serde_json::from_slice(&resp)?;
+    if !r.ok {
+        if r.err == "np_no_backup" {
+            bail!("np_no_backup: no copy from before the sign-in is kept on this console");
+        }
+        bail!(
+            "the console put back {} values but could not write {} (the copy is kept, try again)",
+            r.written,
+            r.failed
+        );
+    }
+    Ok(r.written)
+}
+
 #[derive(Debug, Clone, Deserialize)]
 struct ApplyAvatarResult {
     #[serde(default)]

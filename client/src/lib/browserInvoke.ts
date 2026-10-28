@@ -746,6 +746,18 @@ export async function browserInvoke<T>(
       return postJson<T>("/api/profile/activate", { addr, slot, id });
     }
 
+    case "profile_np_state":
+    case "profile_np_backup":
+    case "profile_np_restore": {
+      const { addr, slot, uid } = args["req"] as {
+        addr?: string | null;
+        slot?: number;
+        uid?: number;
+      };
+      const route = cmd.slice("profile_np_".length);
+      return postJson<T>(`/api/profile/np/${route}`, { addr, slot: slot ?? 0, uid: uid ?? 0 });
+    }
+
     // ── Jobs ────────────────────────────────────────────────────────────────
 
     case "game_inspect": {

@@ -6,6 +6,14 @@ What's new in ps5upload, written for humans.
 
 ## Unreleased
 
+- **Signing in from Profile can be undone, and says what it can do to the console.** The
+  np-fake-signin payload copies a template account's PlayStation Network settings (a 1983 birth
+  date, the offline-adult flag off) onto yours, and some consoles then ask to "Temporarily
+  Disable PS5 Console Restrictions" before every game. The helper now keeps a copy on the PS5 of
+  every setting and file np-fake-signin changes before it runs, and **Undo sign-in** on Profile
+  puts them back (restart afterwards). The confirmation names the side effect. An account signed in
+  before this version has no copy; Profile recognises it and says where Sony's console
+  restrictions are lifted.
 - **Connection says where Send payload went.** Sending kstuff, etaHEN or any other payload
   moved to Payloads & processes → Send payload; Connection now shows a line and an **Open Send
   payload** button for it, and the README/FAQ say Send helper where they meant the helper.

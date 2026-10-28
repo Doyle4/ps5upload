@@ -1874,9 +1874,21 @@ and can be cancelled. It does not stream anything; use Sony's Remote Play app or
 The PS5 offers Settings › System › Remote Play only to an account signed in to PlayStation
 Network. Open **Profile** › **Sign in to PlayStation Network (offline)**: it checks that the
 signed-in user has an activated account, then fetches earthonion's np-fake-signin and runs it on
-the PS5 with one button. Nothing is sent to Sony. Restart the PS5 afterwards. To undo it:
-Settings › Users and Accounts › Other › Sign out. In the web UI, send np-fake-signin from
-**Payloads** instead.
+the PS5 with one button. Nothing is sent to Sony. Restart the PS5 afterwards. Before it runs, the
+helper keeps a copy on the PS5 of every setting and file np-fake-signin changes; **Undo sign-in**
+on the same card puts them back (restart again afterwards). In the web UI, send np-fake-signin
+from **Payloads** instead (Undo works there too, but nothing is kept unless the desktop app ran
+the sign-in).
+
+**Q: After signing in from Profile, the PS5 asks to "Temporarily Disable PS5 Console
+Restrictions" before games open.**
+np-fake-signin copies a template account's PlayStation Network settings onto yours, among them a
+1983 birth date and an "offline adult" flag that is off, and on some consoles the PS5 then asks for
+that before any game starts (upstream np-fake-signin issue #1 reports the same; its own undo,
+Settings › Users and Accounts › Other › Sign out, can stay greyed out). If the sign-in ran from
+this version of the app, press **Undo sign-in** on Profile and restart. If it ran before, there is
+no copy to put back: the Profile card says so, and Settings › Family and Parental Controls › PS5
+Console Restrictions (passcode 0000 unless you changed it) is where the restrictions are lifted.
 
 **Q: What does the fan curve do?**
 The PS5 has one fan setting: the temperature its fan control works to hold (lower is louder).
