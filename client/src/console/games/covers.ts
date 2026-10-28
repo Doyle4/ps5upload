@@ -40,19 +40,19 @@ function slot<T>(fn: () => Promise<T>): Promise<T> {
   });
 }
 
-/** `blob` drawn down to COVER_PX square as a JPEG data URL; the object URL when that cannot be done. */
-function shrink(blob: Blob): Promise<string> {
+/** `blob` drawn down to `px` square as a JPEG data URL; the object URL when that cannot be done. */
+function shrink(blob: Blob, px: number): Promise<string> {
   const url = URL.createObjectURL(blob);
   return new Promise<string>((resolve) => {
     const img = new Image();
     img.onload = () => {
       try {
         const c = document.createElement("canvas");
-        c.width = COVER_PX;
-        c.height = COVER_PX;
+        c.width = px;
+        c.height = px;
         const g = c.getContext("2d");
         if (!g) throw new Error("no 2d");
-        g.drawImage(img, 0, 0, COVER_PX, COVER_PX);
+        g.drawImage(img, 0, 0, px, px);
         const data = c.toDataURL("image/jpeg", 0.85);
         URL.revokeObjectURL(url);
         resolve(data);
@@ -72,8 +72,8 @@ export function loadCover(titleId: string): Promise<string | null> {
   return loadImage(titleId, [`/user/appmeta/${titleId}/icon0.png`, `/user/app/${titleId}/sce_sys/icon0.png`]);
 }
 
-/** The first of `paths` that reads as a PNG/JPEG, drawn down and cached under `key`; null when none does. */
-export async function loadImage(key: string, paths: string[]): Promise<string | null> {
+/** The first of `paths` that reads as a PNG/JPEG, drawn down to `px` and cached under `key`; null when none does. */
+export async function loadImage(key: string, paths: string[], px: number = COVER_PX): Promise<string | null> {
   const titleId = key;
   const hit = cache.get(titleId);
   if (hit) return hit;
@@ -98,7 +98,7 @@ export async function loadImage(key: string, paths: string[]): Promise<string | 
       return null;
     }
     try {
-      const url = await shrink(b);
+      const url = await shrink(b, px);
       if (cache.size >= CACHE_MAX) {
         const first = cache.keys().next().value;
         if (first !== undefined) cache.delete(first);
@@ -109,6 +109,19 @@ export async function loadImage(key: string, paths: string[]): Promise<string | 
       return null;
     }
   });
+}
+
+/**
+ * One picture at full size (a detail view's cover): an object URL the caller revokes when it is
+ * done with it (never cached: a 512 px icon0.png is up to 1 MiB). Null when it does not read as one.
+ */
+export async function loadFullImage(path: string): Promise<string | null> {
+  try {
+    const b = await slot(() => callBlob("/api/fs/read", { path }));
+    return /^image\/(png|jpeg)$/.test(b.type) ? URL.createObjectURL(b) : null;
+  } catch {
+    return null;
+  }
 }
 
 /** The cover once `ref`'s element has been on screen (at once where IntersectionObserver is missing). */

@@ -200,7 +200,7 @@ static void keep_icon(scan_t *s, const uint8_t *png, size_t n, char *name, size_
 /* ---- items ---- */
 
 static void put_item(scan_t *s, const char *kind, const char *path, const char *name, const pkg_info_t *p,
-                     uint64_t size, const char *icon) {
+                     uint64_t size, const char *icon, int backport) {
     sj_buf_t *b = &s->items;
     if (s->nitems) sj_raw(b, ",");
     sj_raw(b, "{");
@@ -215,7 +215,9 @@ static void put_item(scan_t *s, const char *kind, const char *path, const char *
     sj_kv_str(b, 1, "type", p->category[0] ? pkg_info_kind(p) : "game");
     sj_kv_str(b, 1, "platform", p->platform);
     sj_kv_str(b, 1, "fw", p->fw);
-    sj_fmt(b, ",\"fake\":%s,\"size\":%llu", p->fake ? "true" : "false", (unsigned long long)size);
+    sj_kv_str(b, 1, "sdk", p->sdk);
+    sj_fmt(b, ",\"backport\":%s,\"fake\":%s,\"size\":%llu", backport ? "true" : "false", p->fake ? "true" : "false",
+           (unsigned long long)size);
     sj_kv_str(b, 1, "icon", icon);
     sj_raw(b, "}");
     s->nitems++;
@@ -240,7 +242,7 @@ static void add_pkg(scan_t *s, const char *path, const char *name, uint64_t size
             free(png);
         }
         s->fs->ops->close(s->fs, r.fh);
-        put_item(s, "pkg", path, name, p, size, icon);
+        put_item(s, "pkg", path, name, p, size, icon, 0);
     } else {
         s->fs->ops->close(s->fs, r.fh); /* not a package (a split part, something else named .pkg) */
     }
@@ -253,11 +255,12 @@ static void add_image(scan_t *s, const char *path, const char *name, uint64_t si
     lib_title_id_in(name, p.title_id);
     if (strncmp(p.title_id, "PPSA", 4) == 0) memcpy(p.platform, "ps5", 4);
     else if (strncmp(p.title_id, "CUSA", 4) == 0) memcpy(p.platform, "ps4", 4);
-    put_item(s, "image", path, name, &p, size, "");
+    put_item(s, "image", path, name, &p, size, "", 0);
 }
 
-/* `path` is a folder dump when it holds sce_sys/param.json or param.sfo: listed, 1. 0 when not. */
-static int try_dump(scan_t *s, const char *path) {
+/* `path` is a folder dump when it holds sce_sys/param.json or param.sfo: listed, 1. 0 when not.
+ * `backport`: it also holds a fakelib/ folder (a backported copy). */
+static int try_dump(scan_t *s, const char *path, int backport) {
     char *f = malloc(SMBP_PATH_MAX), *meta_path = malloc(SMBP_PATH_MAX);
     pkg_info_t *p = calloc(1, sizeof *p);
     uint8_t *meta = NULL;
@@ -283,7 +286,7 @@ static int try_dump(scan_t *s, const char *path) {
             png = read_small(s->fs, f, LIB_ICON_MAX, &il);
         if (png) keep_icon(s, png, il, icon, sizeof icon);
         free(png);
-        put_item(s, "folder", path, path[0] ? smbp_base(path) : "", p, 0, icon);
+        put_item(s, "folder", path, path[0] ? smbp_base(path) : "", p, 0, icon, backport);
     }
     found = 1;
 out:
@@ -374,7 +377,13 @@ static void walk(scan_t *s, const char *path, unsigned depth) {
     }
     for (i = 0; i < n; i++)
         if (v[i].kind == XK_DIR && strcmp(v[i].name, "sce_sys") == 0) break;
-    if (i < n && try_dump(s, path)) {
+    if (i < n) {
+        size_t j;
+        int fakelib = 0;
+        for (j = 0; j < n && !fakelib; j++) fakelib = v[j].kind == XK_DIR && strcmp(v[j].name, "fakelib") == 0;
+        if (!try_dump(s, path, fakelib)) i = n;
+    }
+    if (i < n) {
         free_ents(v, n);
         return;
     }

@@ -25,6 +25,10 @@ export interface LibItem {
   type: "game" | "patch" | "dlc" | "app" | "other";
   platform: string;
   fw: string;
+  /** The SDK it was built with ("4.50", param.json sdkVersion / PUBTOOLINFO), "" when unknown (older helpers). */
+  sdk: string;
+  /** A folder holding a fakelib/ folder: a backported copy (older helpers never say). */
+  backport: boolean;
   fake: boolean;
   size: number;
   /** A file name in LIB_DIR/icons, "" without a cover. */
@@ -85,6 +89,8 @@ export function parseScan(text: string): LibScan | null {
       type: (TYPES.has(type) ? type : "other") as LibItem["type"],
       platform: str(r.platform),
       fw: str(r.fw),
+      sdk: str(r.sdk),
+      backport: r.backport === true,
       fake: r.fake === true,
       size: typeof r.size === "number" ? r.size : 0,
       icon: /^[\w-]+\.png$/.test(str(r.icon)) ? str(r.icon) : "",

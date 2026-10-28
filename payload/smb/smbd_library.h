@@ -5,8 +5,8 @@
  *   <dir>/icons/<source>-<stamp>-<n>.png  the covers those items name
  *
  *   item = {"kind":"pkg"|"folder"|"image","path","name","title","title_id","content_id","version",
- *           "category","type":"game"|"patch"|"dlc"|"app"|"other","platform","fw","fake","size",
- *           "icon"} ("icon" is a file name in icons/, "" when there is none; "path" is the path on
+ *           "category","type":"game"|"patch"|"dlc"|"app"|"other","platform","fw","sdk","backport","fake",
+ *           "size","icon"} ("sdk" the SDK it was built with, "backport" a folder holding fakelib/; "icon" is a file name in icons/, "" when there is none; "path" is the path on
  *           the side scanned: share-relative for a share, absolute for the console)
  *
  * What counts as a game:
