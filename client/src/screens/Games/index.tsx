@@ -1,7 +1,15 @@
-import { FolderArchive, Gamepad2, HardDriveDownload, LayoutGrid, Laptop } from "lucide-react";
+import {
+  ArrowLeft,
+  FolderArchive,
+  Gamepad2,
+  HardDriveDownload,
+  Laptop,
+  Settings2,
+} from "lucide-react";
 import { useSearchParams } from "react-router";
 
-import { PageHeader, Tabs } from "../../components";
+import { Button, PageHeader } from "../../components";
+import { OverflowMenu } from "../../components/OverflowMenu";
 import { useTr } from "../../state/lang";
 import CollectionScreen from "../Collection";
 import InstalledAppsScreen from "../InstalledApps";
@@ -11,98 +19,125 @@ import { DumpsView } from "./Dumps";
 import { gamesTabOf, type GamesTab } from "./gamesTab";
 
 /**
- * Games: one place for every game, wherever it is.
+ * Games: every game once, wherever its copies are (AllGames), narrowed by where they are
+ * (`?where=`). A game opens its game page, which holds every action for every copy.
  *
- * - All (`any`, the default): every game once, with where its copies are; a click opens its
- *   game page, which holds every action for every copy.
- * - Installed (`ready`): what the PS5 has registered; Play, Close, uninstall, backport.
- * - On PS5 Storage (`files`): game folders and images on the console's drives; mount,
- *   register, move, edit files.
- * - On This Computer (`all`): the Collection on this computer's drives and shares.
- * - Dumps (`dumps`): installed games dumped to a drive by ps5-app-dumper (Dumps.tsx).
- *
- * The three last views were the whole screen ("On this PS5", "Everything", "Game files"), so a
- * game sat in up to three lists and people had to know which one to look in. All answers
- * "where is my game" in one list; the others are for working on one place at a time.
- *
- * The views are chips (the shared Tabs), selected by `?tab=` so a link, a refresh or Back
- * lands on the same one.
+ * The work that is about one place rather than one game (an installed game's upkeep, the PS5's
+ * drives, the folders and servers this computer reads, dumping) is under Manage, as its own
+ * view (`?tab=ready|files|all|dumps`, the ids of the tabs these views used to be, so every link
+ * to them still lands). They used to be tabs beside the list, each listing the same games again.
  */
 export default function GamesScreen() {
   const tr = useTr();
   const [searchParams, setSearchParams] = useSearchParams();
   const tab = gamesTabOf(searchParams.get("tab"));
-  const setTab = (next: string) => {
+  const show = (next: GamesTab) => {
     if (next === tab) return;
-    // A full view, not a transient filter: push it so Back returns to the
-    // previous one. Other query state the panels own is kept.
+    // A view of its own: pushed, so Back returns to the list.
     const params = new URLSearchParams(searchParams);
-    params.set("tab", next);
+    if (next === "any") params.delete("tab");
+    else params.set("tab", next);
     setSearchParams(params);
   };
 
   const label = tr("games_title", undefined, "Games");
-  const tabLabel: Record<GamesTab, string> = {
-    any: tr("games_tab_any", undefined, "All"),
-    ready: tr("games_tab_installed", undefined, "Installed"),
-    files: tr("games_tab_storage", undefined, "On PS5 Storage"),
-    all: tr("games_tab_computer", undefined, "On This Computer"),
-    dumps: tr("games_tab_dumps", undefined, "Dumps"),
+  const manageLabel: Record<Exclude<GamesTab, "any">, string> = {
+    ready: tr("games_manage_installed", undefined, "Installed games"),
+    files: tr("games_manage_drives", undefined, "Games on the PS5's drives"),
+    all: tr("games_manage_yours", undefined, "Your copies"),
+    dumps: tr("games_manage_dumps", undefined, "Dump games"),
+  };
+  const manage = (
+    <OverflowMenu
+      triggerLabel={tr("games_manage", undefined, "Manage")}
+      triggerIcon={<Settings2 size={14} />}
+      triggerVariant="secondary"
+      align="right"
+      ariaLabel={tr("games_manage", undefined, "Manage")}
+      items={[
+        {
+          label: manageLabel.ready,
+          icon: <Gamepad2 size={14} />,
+          onSelect: () => show("ready"),
+        },
+        {
+          label: manageLabel.files,
+          icon: <FolderArchive size={14} />,
+          onSelect: () => show("files"),
+        },
+        {
+          label: manageLabel.all,
+          icon: <Laptop size={14} />,
+          onSelect: () => show("all"),
+        },
+        {
+          label: manageLabel.dumps,
+          icon: <HardDriveDownload size={14} />,
+          onSelect: () => show("dumps"),
+        },
+      ]}
+    />
+  );
+
+  if (tab === "any") {
+    return (
+      <div className="app-page flex h-full flex-col">
+        <PageHeader
+          icon={Gamepad2}
+          title={label}
+          right={manage}
+          description={tr(
+            "games_one_description",
+            undefined,
+            "Every game you have, once each: installed on the PS5, on its drives, on this computer or a saved server. Open one to see all its copies and what you can do with them.",
+          )}
+        />
+        <AllGames onShow={show} />
+      </div>
+    );
+  }
+
+  const description: Record<Exclude<GamesTab, "any">, string> = {
+    ready: tr(
+      "games_ready_description",
+      undefined,
+      "Games registered on this PS5. Launch, stop, inspect, or uninstall them here.",
+    ),
+    files: tr(
+      "games_files_description",
+      undefined,
+      "Game folders and disk images found in console storage. Mount, register, move, or inspect source files here.",
+    ),
+    all: tr(
+      "games_yours_description",
+      undefined,
+      "The folders and saved servers your copies are read from: add or rescan them, organize and clean up, export the list.",
+    ),
+    dumps: tr(
+      "games_dumps_description",
+      undefined,
+      "Dump installed games, decrypted, to a USB drive or the console with ps5-app-dumper, one at a time or as a queue. Finished dumps open in Files and Workshop.",
+    ),
   };
   return (
     <div className="app-page flex h-full flex-col">
+      <div className="mb-2">
+        <Button
+          variant="ghost"
+          size="sm"
+          leftIcon={<ArrowLeft size={14} className="rtl:rotate-180" />}
+          onClick={() => show("any")}
+        >
+          {tr("games_back_all", undefined, "All games")}
+        </Button>
+      </div>
       <PageHeader
-        icon={Gamepad2}
-        title={label}
-        description={
-          tab === "dumps"
-            ? tr(
-                "games_dumps_description",
-                undefined,
-                "Dump installed games, decrypted, to a USB drive or the console with ps5-app-dumper, one at a time or as a queue. Finished dumps open in Files and Workshop.",
-              )
-            : tab === "any"
-            ? tr(
-                "games_any_description",
-                undefined,
-                "Every game you have, once each: installed on the PS5, on its drives, or on this computer. Open one to see all its copies and what you can do with them.",
-              )
-            : tab === "all"
-            ? tr(
-                "collection.description",
-                undefined,
-                "Every game you keep on this computer's drives, grouped by game: its copies, updates and DLC, duplicates and the space they take. Each item is read from the file itself, wherever it sits.",
-              )
-            : tab === "files"
-            ? tr(
-                "games_files_description",
-                undefined,
-                "Game folders and disk images found in console storage. Mount, register, move, or inspect source files here.",
-              )
-            : tr(
-                "games_ready_description",
-                undefined,
-                "Games registered on this PS5. Launch, stop, inspect, or uninstall them here.",
-              )
-        }
+        title={manageLabel[tab]}
+        right={manage}
+        description={description[tab]}
       />
-      <Tabs
-        ariaLabel={label}
-        value={tab}
-        onChange={setTab}
-        className="mb-6"
-        tabs={[
-          { id: "any", icon: LayoutGrid, label: tabLabel.any },
-          { id: "ready", icon: Gamepad2, label: tabLabel.ready },
-          { id: "files", icon: FolderArchive, label: tabLabel.files },
-          { id: "all", icon: Laptop, label: tabLabel.all },
-          { id: "dumps", icon: HardDriveDownload, label: tabLabel.dumps },
-        ]}
-      />
-      <div role="tabpanel" aria-label={tabLabel[tab]} className="min-h-0 flex-1">
-        {tab === "any" ? (
-          <AllGames onShow={setTab} />
-        ) : tab === "dumps" ? (
+      <div className="min-h-0 flex-1" data-testid={`games-manage-${tab}`}>
+        {tab === "dumps" ? (
           <DumpsView />
         ) : tab === "files" ? (
           <LibraryScreen />
