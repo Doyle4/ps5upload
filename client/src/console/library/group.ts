@@ -121,10 +121,30 @@ function sortParts(parts: Part[]): Part[] {
   });
 }
 
+/**
+ * A file name as a title: "007 First Light - PPSA11386 - v1.18.0 - US.exfat" → "007 First Light",
+ * "PPSA09999 Venus.exfat" → "Venus" (the title id and what follows a " - " after it dropped).
+ */
+export function titleFromFileName(name: string, titleId: string): string {
+  let n = name.replace(/\.(pkg|exfat|ffpkg|ffpfsc?)$/i, "").trim();
+  if (titleId) {
+    const at = n.toUpperCase().indexOf(titleId.toUpperCase());
+    if (at >= 0) {
+      const before = n.slice(0, at);
+      // the name before the id ("Game - PPSA01234 - v1.00"), else after it ("[PPSA01234] Game")
+      n = /[\p{L}\p{N}]/u.test(before) ? before : n.slice(at + titleId.length);
+    }
+  }
+  n = n.replace(/^[\s\-_[\]().]+|[\s\-_[(]+$/g, "").trim();
+  return n || name;
+}
+
 function bestTitle(parts: Part[]): string {
   const base = parts.find((p) => p.role === "base" && p.entry.title);
   const any = base ?? parts.find((p) => p.entry.title && p.role !== "dlc") ?? parts.find((p) => p.entry.title);
-  return any ? any.entry.title : displayName(parts[0].entry);
+  if (any) return any.entry.title;
+  const e = parts[0].entry;
+  return titleFromFileName(e.name, baseTitleId(e)) || displayName(e);
 }
 
 const maxFw = (a: string, b: string) => (!a ? b : !b ? a : compareVersions(a, b) >= 0 ? a : b);

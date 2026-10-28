@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { SECTIONS } from "../sections";
 import { t } from "../strings";
 import { LibraryView, groupSize, type LibraryViewProps } from "./Library";
-import { baseTitleId, compareVersions, filterGroups, formatOf, groupEntries, nameKey, roleOf } from "./group";
+import { baseTitleId, compareVersions, filterGroups, formatOf, groupEntries, nameKey, roleOf, titleFromFileName } from "./group";
 import { copyDest, displayName, entriesOf, filterEntries, parseScan, stagePath, STAGE_DIR, type Entry, type LibItem, type LibScan } from "./model";
 
 const SCAN_JSON = JSON.stringify({
@@ -114,6 +114,10 @@ describe("library grouping (#526)", () => {
 
   it("shows one game once, however many copies, updates, DLC and backports sit next to it", () => {
     expect(groups.map((g) => g.title)).toEqual(["Astro Bot", "Venus Vacation v1.02"]);
+    expect(titleFromFileName("007 First Light - PPSA11386 - v1.18.0 - US.exfat", "PPSA11386")).toBe("007 First Light");
+    expect(titleFromFileName("PPSA09999 Venus.exfat", "PPSA09999")).toBe("Venus");
+    expect(titleFromFileName("[CUSA12345] Game.ffpkg", "CUSA12345")).toBe("Game");
+    expect(titleFromFileName("PPSA09999.exfat", "PPSA09999")).toBe("PPSA09999.exfat");
     const astro = groups[0];
     expect(astro.parts.length).toBe(6);
     expect(astro.titleId).toBe("PPSA01650");
@@ -203,7 +207,7 @@ describe("Library section", () => {
   it("shows one card per game with its platform and format", () => {
     const h = html();
     expect(h).toContain("Astro Bot");
-    expect(h).toContain("PPSA09999 Venus");
+    expect(h).toContain(">Venus<");
     expect(h).toContain(t("cw_lib_kind_folder"));
     expect(h.match(/data-lib-key=/g)?.length).toBe(3);
   });

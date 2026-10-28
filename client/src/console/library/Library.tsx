@@ -49,9 +49,13 @@ const iconPath = (icon: string) => `${LIB_DIR}/icons/${icon}`;
 const loadIcon = (icon: string) => loadImage(`lib:${icon}@${CARD_PX}`, [iconPath(icon)], CARD_PX);
 const noIcon = () => Promise.resolve(null);
 
-function CardCover({ icon }: { icon: string }) {
+/** An installed title's own icon: the cover of a copy the scan found none for (a disk image). */
+const loadAppIcon = (titleId: string) => loadImage(`lib-app:${titleId}@${CARD_PX}`, [`/user/appmeta/${titleId}/icon0.png`], CARD_PX);
+const appIconPath = (titleId: string) => `/user/appmeta/${titleId}/icon0.png`;
+
+function CardCover({ icon, titleId }: { icon: string; titleId: string }) {
   const ref = useRef<HTMLSpanElement>(null);
-  const url = useLazyImage(icon, ref, icon ? loadIcon : noIcon);
+  const url = useLazyImage(icon || titleId, ref, icon ? loadIcon : titleId ? loadAppIcon : noIcon);
   return (
     <span ref={ref} className="cw-gcover" aria-hidden>
       {url ? <img src={url} alt="" /> : <Gamepad2 />}
@@ -60,13 +64,13 @@ function CardCover({ icon }: { icon: string }) {
 }
 
 /** The detail's cover at full size (icon0.png is 512 px), its object URL dropped on close. */
-function BigCover({ icon }: { icon: string }) {
+function BigCover({ icon, titleId }: { icon: string; titleId: string }) {
   const [url, setUrl] = useState<string | null>(null);
   useEffect(() => {
-    if (!icon) return;
+    if (!icon && !titleId) return;
     let live = true;
     let made: string | null = null;
-    void loadFullImage(iconPath(icon)).then((u) => {
+    void loadFullImage(icon ? iconPath(icon) : appIconPath(titleId)).then((u) => {
       made = u;
       if (live) setUrl(u);
       else if (u) URL.revokeObjectURL(u);
@@ -75,7 +79,7 @@ function BigCover({ icon }: { icon: string }) {
       live = false;
       if (made) URL.revokeObjectURL(made);
     };
-  }, [icon]);
+  }, [icon, titleId]);
   return <span className="cw-libview-cover" aria-hidden>{url ? <img src={url} alt="" /> : <Gamepad2 />}</span>;
 }
 
@@ -270,7 +274,7 @@ function Detail({ g, p }: { g: GameGroup; p: LibraryViewProps }) {
         <span>{t("cw_files_close")}</span>
       </button>
       <div className="cw-libview-head">
-        <BigCover icon={g.cover?.icon ?? ""} />
+        <BigCover icon={g.cover?.icon ?? ""} titleId={inst ? g.titleId : ""} />
         <div className="cw-libview-text">
           <h2 className="cw-libview-title">{g.title}</h2>
           <span className="cw-libview-tags">
@@ -330,7 +334,7 @@ function GameCard({ g, p }: { g: GameGroup; p: LibraryViewProps }) {
   return (
     <li className="cw-gcard-item">
       <button type="button" className="cw-focusable cw-gcard cw-libcard" data-lib-key={g.key} onClick={() => p.onOpen(g)}>
-        <CardCover icon={g.cover?.icon ?? ""} />
+        <CardCover icon={g.cover?.icon ?? ""} titleId={inst ? g.titleId : ""} />
         {inst ? (
           <span className="cw-libcard-installed" title={t("cw_lib_installed")}>
             <Check aria-hidden />
