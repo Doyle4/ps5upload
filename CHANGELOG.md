@@ -27,6 +27,8 @@ What's new in ps5upload, written for humans.
   drive.
 - **Tests:** the AVA1 transfer tests no longer fail now and then on a loaded CI runner
   (their 500 ms timeouts were meant for the dead-connection tests only).
+- **Tests:** the browser tests follow 8.7.0's new screen names (Activity & Logs, Send to PS5,
+  Workshop); four of them were waiting on the old ones.
 
 ## 8.7.0
 
