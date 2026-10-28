@@ -6,6 +6,7 @@
 // turns that into pixels on a canvas, sound, and input; the screen only drives it.
 
 import { getEngineUrl } from "../state/engine";
+import { safeGetItem, safeRemoveItem, safeSetItem } from "./safeStorage";
 
 /** Button bits, as the console (and chiaki) number them. */
 export const PadButton = {
@@ -84,6 +85,73 @@ export const DEFAULT_KEYMAP: Record<string, KeyAction> = {
   KeyJ: { stick: "rx", dir: -1 },
   KeyL: { stick: "rx", dir: 1 },
 };
+
+/** The actions a key can be set to, in the order the remap list shows them. */
+export const PAD_ACTIONS: ReadonlyArray<{ id: string; label: string; action: KeyAction }> = [
+  { id: "up", label: "D-pad up", action: { button: PadButton.UP } },
+  { id: "down", label: "D-pad down", action: { button: PadButton.DOWN } },
+  { id: "left", label: "D-pad left", action: { button: PadButton.LEFT } },
+  { id: "right", label: "D-pad right", action: { button: PadButton.RIGHT } },
+  { id: "cross", label: "✕", action: { button: PadButton.CROSS } },
+  { id: "circle", label: "○", action: { button: PadButton.CIRCLE } },
+  { id: "square", label: "□", action: { button: PadButton.SQUARE } },
+  { id: "triangle", label: "△", action: { button: PadButton.TRIANGLE } },
+  { id: "l1", label: "L1", action: { button: PadButton.L1 } },
+  { id: "r1", label: "R1", action: { button: PadButton.R1 } },
+  { id: "l2", label: "L2", action: { trigger: "l2" } },
+  { id: "r2", label: "R2", action: { trigger: "r2" } },
+  { id: "l3", label: "L3", action: { button: PadButton.L3 } },
+  { id: "r3", label: "R3", action: { button: PadButton.R3 } },
+  { id: "options", label: "Options", action: { button: PadButton.OPTIONS } },
+  { id: "create", label: "Create", action: { button: PadButton.SHARE } },
+  { id: "ps", label: "PS button", action: { button: PadButton.PS } },
+  { id: "touchpad", label: "Touchpad press", action: { button: PadButton.TOUCHPAD } },
+  { id: "ls_up", label: "Left stick up", action: { stick: "ly", dir: -1 } },
+  { id: "ls_down", label: "Left stick down", action: { stick: "ly", dir: 1 } },
+  { id: "ls_left", label: "Left stick left", action: { stick: "lx", dir: -1 } },
+  { id: "ls_right", label: "Left stick right", action: { stick: "lx", dir: 1 } },
+  { id: "rs_up", label: "Right stick up", action: { stick: "ry", dir: -1 } },
+  { id: "rs_down", label: "Right stick down", action: { stick: "ry", dir: 1 } },
+  { id: "rs_left", label: "Right stick left", action: { stick: "rx", dir: -1 } },
+  { id: "rs_right", label: "Right stick right", action: { stick: "rx", dir: 1 } },
+];
+
+const sameAction = (a: KeyAction, b: KeyAction) => JSON.stringify(a) === JSON.stringify(b);
+
+/** The keys bound to an action. */
+export function keysFor(keymap: Record<string, KeyAction>, action: KeyAction): string[] {
+  return Object.entries(keymap)
+    .filter(([, a]) => sameAction(a, action))
+    .map(([k]) => k);
+}
+
+/** `keymap` with `code` as the one key for `action` (taken off whatever it did before). */
+export function rebind(keymap: Record<string, KeyAction>, action: KeyAction, code: string): Record<string, KeyAction> {
+  const next: Record<string, KeyAction> = {};
+  for (const [k, a] of Object.entries(keymap)) {
+    if (k !== code && !sameAction(a, action)) next[k] = a;
+  }
+  next[code] = action;
+  return next;
+}
+
+const KEYMAP_KEY = "ps5upload.rp_keymap.v1";
+
+/** The keyboard map in use on this device (the default until changed). */
+export function loadKeymap(): Record<string, KeyAction> {
+  try {
+    const raw = safeGetItem(KEYMAP_KEY);
+    const v = raw ? (JSON.parse(raw) as Record<string, KeyAction>) : null;
+    return v && typeof v === "object" && Object.keys(v).length ? v : DEFAULT_KEYMAP;
+  } catch {
+    return DEFAULT_KEYMAP;
+  }
+}
+
+export function saveKeymap(keymap: Record<string, KeyAction> | null): void {
+  if (keymap) safeSetItem(KEYMAP_KEY, JSON.stringify(keymap));
+  else safeRemoveItem(KEYMAP_KEY);
+}
 
 const clampAxis = (v: number) => Math.max(-32768, Math.min(32767, Math.round(v)));
 

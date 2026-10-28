@@ -1,5 +1,28 @@
 import { describe, expect, it } from "vitest";
-import { avcCodecString, isKeyframe, mergePads, padFromKeys, PadButton, IDLE_PAD } from "./remotePlayStream";
+import {
+  avcCodecString,
+  DEFAULT_KEYMAP,
+  isKeyframe,
+  keysFor,
+  mergePads,
+  padFromKeys,
+  PadButton,
+  IDLE_PAD,
+  rebind,
+} from "./remotePlayStream";
+
+describe("rebind", () => {
+  it("moves an action to a new key and frees the old one", () => {
+    const next = rebind(DEFAULT_KEYMAP, { button: PadButton.CROSS }, "KeyX");
+    expect(keysFor(next, { button: PadButton.CROSS })).toEqual(["KeyX"]);
+    expect(next.Enter).toBeUndefined();
+    expect(padFromKeys(["KeyX"], next).buttons).toBe(PadButton.CROSS);
+  });
+  it("takes the key off whatever it did before", () => {
+    const next = rebind(DEFAULT_KEYMAP, { button: PadButton.CROSS }, "KeyQ");
+    expect(keysFor(next, { button: PadButton.SQUARE })).toEqual([]);
+  });
+});
 
 describe("padFromKeys", () => {
   it("maps buttons, sticks and triggers", () => {

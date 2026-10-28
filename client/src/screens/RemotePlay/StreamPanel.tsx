@@ -12,7 +12,13 @@ import {
   padFromGamepads,
   padFromKeys,
   touchAt,
+  keysFor,
+  loadKeymap,
+  rebind,
+  saveKeymap,
   DEFAULT_KEYMAP,
+  PAD_ACTIONS,
+  type KeyAction,
   type StreamError,
   type StreamPhase,
   type StreamStats,
@@ -78,19 +84,61 @@ function phaseText(tr: Tr, p: StreamPhase): string {
   }
 }
 
-const KEY_HELP: Array<[string, string]> = [
-  ["Arrows", "D-pad"],
-  ["WASD / IJKL", "Left / right stick"],
-  ["Enter, Space", "✕"],
-  ["Backspace, Esc", "○"],
-  ["Q / E", "□ / △"],
-  ["Z / C", "L1 / R1"],
-  ["1 / 3", "L2 / R2"],
-  ["F / G", "L3 / R3"],
-  ["Tab / `", "Options / Create"],
-  ["H / T", "PS / touchpad press"],
-  ["Shift + drag", "Finger on the touchpad"],
-];
+/** A key code as people say it: KeyQ → Q, Digit1 → 1, ArrowUp → ↑. */
+export function keyLabel(code: string): string {
+  const arrows: Record<string, string> = { ArrowUp: "↑", ArrowDown: "↓", ArrowLeft: "←", ArrowRight: "→" };
+  return arrows[code] ?? code.replace(/^Key/, "").replace(/^Digit/, "").replace("Backquote", "`");
+}
+
+/** Change which key does what, saved on this device. */
+function KeyRemap({
+  keymap,
+  onChange,
+}: {
+  keymap: Record<string, KeyAction>;
+  onChange: (k: Record<string, KeyAction> | null) => void;
+}) {
+  const tr = useTr();
+  const [listening, setListening] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!listening) return;
+    const action = PAD_ACTIONS.find((a) => a.id === listening)?.action;
+    const onKey = (e: KeyboardEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setListening(null);
+      // Esc only cancels: the browser keeps it for leaving pointer lock and full screen.
+      if (e.code === "Escape" || !action) return;
+      onChange(rebind(keymap, action, e.code));
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [listening, keymap, onChange]);
+
+  return (
+    <div className="mt-2 space-y-2">
+      <div className="grid grid-cols-1 gap-x-6 gap-y-1 sm:grid-cols-2">
+        {PAD_ACTIONS.map((a) => (
+          <div key={a.id} className="flex items-center justify-between gap-2">
+            <span>{tr(`rp_action_${a.id}`, undefined, a.label)}</span>
+            <span className="flex items-center gap-2">
+              <span className="font-mono text-[var(--color-text)]">
+                {keysFor(keymap, a.action).map(keyLabel).join(", ") || "—"}
+              </span>
+              <Button size="sm" variant="ghost" onClick={() => setListening(a.id)}>
+                {listening === a.id ? tr("rp_press_a_key", undefined, "Press a key…") : tr("rp_set_key", undefined, "Set key")}
+              </Button>
+            </span>
+          </div>
+        ))}
+      </div>
+      <Button size="sm" onClick={() => onChange(null)}>
+        {tr("rp_keys_reset", undefined, "Reset to defaults")}
+      </Button>
+    </div>
+  );
+}
 
 /**
  * Play: stream a console's screen into the app and play it with a controller or the
@@ -111,6 +159,16 @@ export function StreamPanel() {
   const canvas = useRef<HTMLCanvasElement>(null);
   const stream = useRef<RemotePlayStream | null>(null);
   const held = useRef(new Set<string>());
+  const [keymap, setKeymap] = useState<Record<string, KeyAction>>(loadKeymap);
+  // The stream reads the map from outside React (key events, the frame loop).
+  const keymapRef = useRef(keymap);
+  useEffect(() => {
+    keymapRef.current = keymap;
+  }, [keymap]);
+  const changeKeymap = useCallback((k: Record<string, KeyAction> | null) => {
+    saveKeymap(k);
+    setKeymap(k ?? DEFAULT_KEYMAP);
+  }, []);
   const touch = useRef<[number, number] | null>(null);
   const [light, setLight] = useState<[number, number, number] | null>(null);
 
@@ -145,7 +203,7 @@ export function StreamPanel() {
       onError: setError,
       onLight: setLight,
       readPad: () => ({
-        ...mergePads(padFromKeys(held.current), padFromGamepads(navigator.getGamepads?.() ?? [])),
+        ...mergePads(padFromKeys(held.current, keymapRef.current), padFromGamepads(navigator.getGamepads?.() ?? [])),
         touch: touch.current,
       }),
     });
@@ -156,7 +214,7 @@ export function StreamPanel() {
   }, [profile, res]);
 
   const onKey = useCallback((e: React.KeyboardEvent, down: boolean) => {
-    if (!DEFAULT_KEYMAP[e.code]) return;
+    if (!keymapRef.current[e.code]) return;
     e.preventDefault();
     if (down) held.current.add(e.code);
     else held.current.delete(e.code);
@@ -328,19 +386,10 @@ export function StreamPanel() {
           {tr(
             "rp_keys_body",
             undefined,
-            "Click the picture to capture the keyboard and hide the pointer; Esc gives them back. A controller works too: plug it in or pair it with this device.",
+            "Click the picture to capture the keyboard and hide the pointer; Esc gives them back. Shift + drag on the picture is a finger on the touchpad. A controller works too: plug it in or pair it with this device.",
           )}
         </p>
-        <table className="mt-1">
-          <tbody>
-            {KEY_HELP.map(([k, v]) => (
-              <tr key={k}>
-                <td className="pr-4 font-mono">{k}</td>
-                <td>{v}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <KeyRemap keymap={keymap} onChange={changeKeymap} />
       </details>
     </div>
   );
