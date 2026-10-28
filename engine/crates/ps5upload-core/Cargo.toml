@@ -23,7 +23,7 @@ aes = "0.9"
 # Remote Play stream (rp_stream): GMAC tags are AES-GCM with a 16-byte IV, and
 # the stream key exchange is ECDH on secp256k1. Pure Rust, Android-clean.
 aes-gcm = { version = "0.11", default-features = false, features = ["aes"] }
-k256 = { version = "0.13", default-features = false, features = ["ecdh", "arithmetic"] }
+k256 = { version = "0.14", default-features = false, features = ["ecdh", "arithmetic"] }
 cfb-mode = "0.9"
 libc = "0.2"
 serde.workspace = true

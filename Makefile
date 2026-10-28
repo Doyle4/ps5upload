@@ -1017,7 +1017,7 @@ test-payload: payload
 		$(PAYLOAD_DIR)/tests/webui_auth_selftest.c $(PAYLOAD_DIR)/src/webui_auth.c
 	@/tmp/ps5upload-webui-auth-selftest
 	@echo "Running webui server self-test (host build, ~25 s)..."
-	@cc -O2 -Wall -Wextra -Werror -pthread -I$(PAYLOAD_DIR)/include -I$(PAYLOAD_DIR)/ava1 \
+	@cc -O2 -Wall -Wextra -Werror -pthread -I$(PAYLOAD_DIR)/include -I$(AVA1_C) \
 		-o /tmp/ps5upload-webui-server-selftest \
 		$(PAYLOAD_DIR)/tests/webui_server_selftest.c $(PAYLOAD_DIR)/src/webui_server.c \
 		$(PAYLOAD_DIR)/src/webui_http.c $(PAYLOAD_DIR)/src/webui_auth.c
@@ -1112,7 +1112,7 @@ test-payload: payload
 	@/tmp/ps5upload-webui-cheats-store-selftest
 	@echo "✓ a downloaded cheat is stored only under a plain name with its format's extension, through a same-folder temp + rename"
 	@echo "Running AVA1 in-flight RPC gate self-test (host build)..."
-	@cc -O2 -Wall -Wextra -Werror -pthread -I$(PAYLOAD_DIR)/ava1 \
+	@cc -O2 -Wall -Wextra -Werror -pthread -I$(AVA1_C) \
 		-o /tmp/ps5upload-ava1-rpc-gate-selftest \
 		$(PAYLOAD_DIR)/tests/ava1_rpc_gate_selftest.c
 	@/tmp/ps5upload-ava1-rpc-gate-selftest

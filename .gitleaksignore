@@ -15,3 +15,6 @@ d2b76643760bd241d839d6e14168238e2fad50c6:client/src/screens/Connection/WakeSetup
 # A Polish translation, "cw_saves_kind_meta": "szczegóły zapisu" (save details)
 32675e9b9c95013d3c7539e4ef1b73f9e79c0edd:client/src/console/locales/pl.json:generic-api-key:899
 32675e9b9c95013d3c7539e4ef1b73f9e79c0edd:client/src/i18n/locales/pl.ts:generic-api-key:5296
+# Made-up dumper tokens in app_dumper.rs's unit tests (0123456789abcdef...)
+bd80a5d67e447b569ff47b030bdd4842667f34e1:engine/crates/ps5upload-core/src/app_dumper.rs:generic-api-key:248
+bd80a5d67e447b569ff47b030bdd4842667f34e1:engine/crates/ps5upload-core/src/app_dumper.rs:generic-api-key:256
