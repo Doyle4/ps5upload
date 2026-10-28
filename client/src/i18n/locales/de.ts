@@ -5872,6 +5872,12 @@ library_compressed_hint: "Komprimierte Images benötigen ShadowMount+ zum Spiele
 "connection_send_payload_open": "Payload senden öffnen",
 "upload_elf_title": "Das ist ein Payload (.elf), kein Spiel",
 "upload_elf_body": "Hochladen kopiert nur die Datei. ShadowMount+ übernimmt Spielordner (mit eboot.bin und sce_sys) und Spiel-Images, nie eine .elf, sie erscheint also nicht auf dem Startbildschirm. Um sie auszuführen, sende sie stattdessen an den Loader der Konsole. Hochladen solltest du eine Homebrew-App, die als .ffpkg- oder .exfat-Image oder als Ordner mit eboot.bin kommt.",
+"netdoctor.hint.below_test": "Dieser Upload läuft mit {speed}, deutlich unter den {expected}, die der Geschwindigkeitstest gemessen hat.",
+"netdoctor.hint.runs_at": "Dieser Upload läuft mit {speed}.",
+"netdoctor.hint.cause_source": "Ausgebremst wird er durch das Lesen der Dateien auf diesem Computer, nicht durch das Netzwerk: Ein USB-Laufwerk oder eine Festplatte, eine Netzwerkfreigabe (NAS) oder das Entpacken eines Archivs ist langsamer als die Verbindung. Wenn du das Spiel zuerst auf eine interne SSD kopierst oder die Dateien eines Archivs entpackt hochlädst, gibt es volle Geschwindigkeit.",
+"netdoctor.hint.cause_disk": "Ausgebremst wird er durch das Laufwerk der PS5, nicht durch das Netzwerk: Ein externes USB-Laufwerk, ein fast volles Laufwerk oder tausende kleine Dateien (jede kostet eigene Zeit) schreiben langsamer, als die Verbindung liefert. Ein Spiel-Image (.ffpkg oder .exfat) geht als eine Datei.",
+"netdoctor.hint.cause_workers": "Die PS5 schreibt noch, was sie empfangen hat, und wartet nicht auf das Netzwerk. Bei vielen kleinen Dateien kostet jede eigene Zeit; ein Spiel-Image (.ffpkg oder .exfat) geht als eine Datei.",
+"netdoctor.hint.cause_cap": "Ausgebremst wird er durch das Upload-Tempolimit (etwa {cap} MiB/s, auf diesem Bildschirm und in den Einstellungen). Setze es auf 0, um es aufzuheben.",
 };
 
 export default de;

@@ -19,6 +19,10 @@ What's new in ps5upload, written for humans.
 - **Upload says when the file is a payload.** Picking an `.elf` now explains that uploading only
   copies it (ShadowMount+ picks up game folders and images, never an `.elf`) and offers Send
   payload, which runs it.
+- **A slow upload says what holds it back, not only when it is the network.** When an upload
+  runs far below the speed test for half a minute, Upload now names the cause the engine
+  measured: reading the source on this computer (USB/hard drive, NAS, archive unpacking), the
+  PS5's drive or its file writing (many small files), or the upload speed limit you set.
 
 ## 8.5.1
 

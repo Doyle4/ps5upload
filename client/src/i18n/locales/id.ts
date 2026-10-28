@@ -5873,6 +5873,12 @@ library_compressed_hint: "Image terkompresi memerlukan ShadowMount+ untuk bermai
 "connection_send_payload_open": "Buka Kirim payload",
 "upload_elf_title": "Ini payload (.elf), bukan game",
 "upload_elf_body": "Mengunggahnya hanya menyalin file. ShadowMount+ mengambil folder game (berisi eboot.bin dan sce_sys) dan image game, tidak pernah .elf, jadi tidak akan muncul di layar beranda. Untuk menjalankannya, kirim ke loader konsol. Yang perlu diunggah adalah aplikasi homebrew yang berbentuk image .ffpkg atau .exfat, atau folder berisi eboot.bin.",
+"netdoctor.hint.below_test": "Unggahan ini berjalan pada {speed}, jauh di bawah {expected} yang diukur uji kecepatan.",
+"netdoctor.hint.runs_at": "Unggahan ini berjalan pada {speed}.",
+"netdoctor.hint.cause_source": "Yang menahannya adalah membaca file di komputer ini, bukan jaringan: drive USB atau hard disk, folder jaringan (NAS) atau membongkar arsip lebih lambat dari koneksi. Menyalin game ke SSD internal terlebih dahulu, atau mengunggah file arsip setelah dibongkar, memberi kecepatan penuh.",
+"netdoctor.hint.cause_disk": "Yang menahannya adalah drive PS5, bukan jaringan: drive USB eksternal, drive yang hampir penuh, atau ribuan file kecil (masing-masing butuh waktu sendiri) menulis lebih lambat dari yang dikirim koneksi. Image game (.ffpkg atau .exfat) dikirim sebagai satu file.",
+"netdoctor.hint.cause_workers": "PS5 masih menulis apa yang diterimanya, bukan menunggu jaringan. Dengan banyak file kecil, masing-masing butuh waktu sendiri; image game (.ffpkg atau .exfat) dikirim sebagai satu file.",
+"netdoctor.hint.cause_cap": "Yang menahannya adalah batas kecepatan unggah (sekitar {cap} MiB/s, di layar ini dan di Pengaturan). Setel ke 0 untuk menghapusnya.",
 };
 
 export default id;

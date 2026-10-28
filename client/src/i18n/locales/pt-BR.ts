@@ -5881,6 +5881,12 @@ library_compressed_hint: "Imagens compactadas precisam do ShadowMount+ para joga
 "connection_send_payload_open": "Abrir Enviar payload",
 "upload_elf_title": "Isto é um payload (.elf), não um jogo",
 "upload_elf_body": "Enviá-lo apenas copia o arquivo. O ShadowMount+ detecta pastas de jogo (com eboot.bin e sce_sys) e imagens de jogo, nunca um .elf, então ele não aparecerá na tela inicial. Para executá-lo, envie-o ao loader do console. O que deve ser enviado é um app homebrew que venha como imagem .ffpkg ou .exfat, ou como pasta com eboot.bin.",
+"netdoctor.hint.below_test": "Este envio está a {speed}, bem abaixo dos {expected} medidos pelo teste de velocidade.",
+"netdoctor.hint.runs_at": "Este envio está a {speed}.",
+"netdoctor.hint.cause_source": "O que o segura é a leitura dos arquivos neste computador, não a rede: um pendrive ou HD, uma pasta de rede (NAS) ou descompactar um arquivo é mais lento que a conexão. Copiar o jogo antes para um SSD interno, ou enviar os arquivos de um compactado já descompactados, dá a velocidade total.",
+"netdoctor.hint.cause_disk": "O que o segura é a unidade do PS5, não a rede: um HD USB externo, uma unidade quase cheia ou milhares de arquivos pequenos (cada um custa seu próprio tempo) gravam mais devagar do que a conexão entrega. Uma imagem de jogo (.ffpkg ou .exfat) vai como um único arquivo.",
+"netdoctor.hint.cause_workers": "O PS5 ainda está gravando o que recebeu, não está esperando a rede. Com muitos arquivos pequenos cada um custa seu próprio tempo; uma imagem de jogo (.ffpkg ou .exfat) vai como um único arquivo.",
+"netdoctor.hint.cause_cap": "O que o segura é o limite de velocidade de envio (cerca de {cap} MiB/s, nesta tela e em Configurações). Defina-o como 0 para removê-lo.",
 };
 
 export default pt_BR;

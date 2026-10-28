@@ -6179,6 +6179,12 @@ library_compressed_hint: "A tömörített képfájlok futtatásához ShadowMount
 "connection_send_payload_open": "Payload küldése megnyitása",
 "upload_elf_title": "Ez egy payload (.elf), nem játék",
 "upload_elf_body": "A feltöltés csak átmásolja a fájlt. A ShadowMount+ a játékmappákat (eboot.bin és sce_sys fájllal) és a játékképeket veszi fel, .elf fájlt soha, így nem jelenik meg a kezdőképernyőn. A futtatásához inkább küldd el a konzol betöltőjének. Feltölteni olyan homebrew alkalmazást érdemes, amely .ffpkg vagy .exfat képként, vagy eboot.bin fájlt tartalmazó mappaként érkezik.",
+"netdoctor.hint.below_test": "Ez a feltöltés {speed} sebességgel fut, jóval a sebességteszt által mért {expected} alatt.",
+"netdoctor.hint.runs_at": "Ez a feltöltés {speed} sebességgel fut.",
+"netdoctor.hint.cause_source": "Nem a hálózat fogja vissza, hanem a fájlok olvasása ezen a számítógépen: egy USB-meghajtó vagy merevlemez, egy hálózati megosztás (NAS) vagy egy archívum kibontása lassabb a kapcsolatnál. Ha a játékot előbb egy belső SSD-re másolod, vagy az archívum fájljait kibontva töltöd fel, teljes sebességet kapsz.",
+"netdoctor.hint.cause_disk": "Nem a hálózat fogja vissza, hanem a PS5 meghajtója: egy külső USB-meghajtó, egy majdnem tele meghajtó vagy több ezer kis fájl (mindegyik saját időt igényel) lassabban ír, mint amit a kapcsolat szállít. Egy játékkép (.ffpkg vagy .exfat) egyetlen fájlként megy át.",
+"netdoctor.hint.cause_workers": "A PS5 még írja, amit kapott, nem a hálózatra vár. Sok kis fájlnál mindegyik saját időt igényel; egy játékkép (.ffpkg vagy .exfat) egyetlen fájlként megy át.",
+"netdoctor.hint.cause_cap": "A feltöltési sebességkorlát fogja vissza (kb. {cap} MiB/s, ezen a képernyőn és a Beállításokban). Állítsd 0-ra a megszüntetéséhez.",
 };
 
 export default hu;

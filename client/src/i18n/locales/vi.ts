@@ -5866,6 +5866,12 @@ library_compressed_hint: "Ảnh đĩa nén cần ShadowMount+ để chơi. Để
 "connection_send_payload_open": "Mở Gửi payload",
 "upload_elf_title": "Đây là payload (.elf), không phải trò chơi",
 "upload_elf_body": "Tải lên chỉ sao chép tệp. ShadowMount+ chỉ nhận thư mục trò chơi (có eboot.bin và sce_sys) và ảnh trò chơi, không bao giờ nhận tệp .elf, nên nó sẽ không xuất hiện trên màn hình chính. Để chạy nó, hãy gửi nó tới trình nạp của máy. Thứ nên tải lên là ứng dụng homebrew dạng ảnh .ffpkg hoặc .exfat, hoặc thư mục có eboot.bin.",
+"netdoctor.hint.below_test": "Lần tải lên này chạy ở {speed}, thấp hơn nhiều so với {expected} mà bài kiểm tra tốc độ đo được.",
+"netdoctor.hint.runs_at": "Lần tải lên này chạy ở {speed}.",
+"netdoctor.hint.cause_source": "Thứ kìm nó lại là việc đọc tệp trên máy tính này, không phải mạng: ổ USB hoặc ổ cứng, thư mục mạng (NAS) hay việc giải nén một tệp nén đều chậm hơn đường truyền. Sao chép trò chơi vào SSD trong máy trước, hoặc tải lên các tệp sau khi đã giải nén, sẽ cho tốc độ tối đa.",
+"netdoctor.hint.cause_disk": "Thứ kìm nó lại là ổ đĩa của PS5, không phải mạng: ổ USB ngoài, ổ gần đầy hoặc hàng nghìn tệp nhỏ (mỗi tệp tốn thời gian riêng) ghi chậm hơn tốc độ đường truyền mang tới. Ảnh trò chơi (.ffpkg hoặc .exfat) được gửi như một tệp duy nhất.",
+"netdoctor.hint.cause_workers": "PS5 vẫn đang ghi những gì nó nhận được, không phải đang chờ mạng. Với nhiều tệp nhỏ, mỗi tệp tốn thời gian riêng; ảnh trò chơi (.ffpkg hoặc .exfat) được gửi như một tệp duy nhất.",
+"netdoctor.hint.cause_cap": "Thứ kìm nó lại là giới hạn tốc độ tải lên (khoảng {cap} MiB/s, ở màn hình này và trong Cài đặt). Đặt về 0 để bỏ giới hạn.",
 };
 
 export default vi;

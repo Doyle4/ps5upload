@@ -5820,6 +5820,12 @@ library_compressed_hint: "压缩镜像需要 ShadowMount+ 才能游玩。如需�
 "connection_send_payload_open": "打开“发送 Payload”",
 "upload_elf_title": "这是 Payload（.elf），不是游戏",
 "upload_elf_body": "上传只会复制这个文件。ShadowMount+ 只识别游戏文件夹（含 eboot.bin 和 sce_sys）和游戏镜像，从不识别 .elf，所以它不会出现在主屏幕上。要运行它，请改为发送到主机的加载器。应该上传的是以 .ffpkg 或 .exfat 镜像、或含 eboot.bin 的文件夹形式提供的自制应用。",
+"netdoctor.hint.below_test": "此次上传速度为 {speed}，远低于速度测试测得的 {expected}。",
+"netdoctor.hint.runs_at": "此次上传速度为 {speed}。",
+"netdoctor.hint.cause_source": "拖慢速度的是在这台电脑上读取文件，而不是网络：USB 盘或机械硬盘、网络共享（NAS）或解压压缩包都比网络链路慢。先把游戏复制到内置 SSD，或解压后再上传压缩包里的文件，就能跑满速度。",
+"netdoctor.hint.cause_disk": "拖慢速度的是 PS5 的硬盘，而不是网络：外接 USB 硬盘、快满的硬盘或成千上万个小文件（每个都要单独耗时）写入速度低于网络送达的速度。游戏镜像（.ffpkg 或 .exfat）作为一个文件发送。",
+"netdoctor.hint.cause_workers": "PS5 仍在写入已收到的数据，并不是在等网络。小文件很多时，每个文件都要单独耗时；游戏镜像（.ffpkg 或 .exfat）作为一个文件发送。",
+"netdoctor.hint.cause_cap": "拖慢速度的是上传限速（约 {cap} MiB/s，在此页面和设置中）。设为 0 即可取消。",
 };
 
 export default zh_CN;

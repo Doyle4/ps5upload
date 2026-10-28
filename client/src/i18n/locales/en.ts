@@ -6189,6 +6189,12 @@ library_compressed_hint: "Compressed images need ShadowMount+ to play. To edit, 
 "connection_send_payload_open": "Open Send payload",
 "upload_elf_title": "This is a payload (.elf), not a game",
 "upload_elf_body": "Uploading it only copies the file. ShadowMount+ picks up game folders (with eboot.bin and sce_sys) and game images, never an .elf, so it will not appear on the home screen. To run it, send it to the console's loader instead. A homebrew app that comes as a .ffpkg or .exfat image, or as a folder with eboot.bin, is what to upload.",
+"netdoctor.hint.below_test": "This upload runs at {speed}, well below the {expected} the speed test measured.",
+"netdoctor.hint.runs_at": "This upload runs at {speed}.",
+"netdoctor.hint.cause_source": "Reading the files on this computer is what holds it back, not the network: a USB or hard drive, a network share (NAS) or unpacking an archive is slower than the link. Copying the game to an internal SSD first, or uploading an archive's files once unpacked, gives full speed.",
+"netdoctor.hint.cause_disk": "The PS5's drive is what holds it back, not the network: an external USB drive, a nearly full drive or thousands of small files (each costs time of its own) write slower than the link delivers. A game image (.ffpkg or .exfat) goes as one file.",
+"netdoctor.hint.cause_workers": "The PS5 is still writing what it received, not waiting on the network. With many small files each one costs time of its own; a game image (.ffpkg or .exfat) goes as one file.",
+"netdoctor.hint.cause_cap": "The upload speed limit (about {cap} MiB/s, on this screen and in Settings) is what holds it back. Set it to 0 to remove it.",
 };
 
 export default en;

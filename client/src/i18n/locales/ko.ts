@@ -5883,6 +5883,12 @@ library_compressed_hint: "압축 이미지를 플레이하려면 ShadowMount+가
 "connection_send_payload_open": "페이로드 전송 열기",
 "upload_elf_title": "이것은 게임이 아니라 페이로드(.elf)입니다",
 "upload_elf_body": "업로드하면 파일만 복사됩니다. ShadowMount+는 게임 폴더(eboot.bin과 sce_sys 포함)와 게임 이미지만 가져오고 .elf는 절대 가져오지 않으므로 홈 화면에 나타나지 않습니다. 실행하려면 대신 콘솔의 로더로 보내세요. 업로드할 것은 .ffpkg 또는 .exfat 이미지, 또는 eboot.bin이 있는 폴더로 제공되는 홈브루 앱입니다.",
+"netdoctor.hint.below_test": "이 업로드는 {speed}로 진행 중이며, 속도 테스트에서 측정한 {expected}보다 훨씬 느립니다.",
+"netdoctor.hint.runs_at": "이 업로드는 {speed}로 진행 중입니다.",
+"netdoctor.hint.cause_source": "네트워크가 아니라 이 컴퓨터에서 파일을 읽는 것이 속도를 붙잡고 있습니다. USB나 하드 드라이브, 네트워크 공유(NAS), 압축 해제는 연결보다 느립니다. 먼저 게임을 내장 SSD로 복사하거나, 압축을 푼 파일을 업로드하면 최고 속도가 납니다.",
+"netdoctor.hint.cause_disk": "네트워크가 아니라 PS5의 드라이브가 속도를 붙잡고 있습니다. 외장 USB 드라이브, 거의 가득 찬 드라이브, 또는 수천 개의 작은 파일(파일마다 시간이 듭니다)은 연결이 보내는 속도보다 느리게 기록됩니다. 게임 이미지(.ffpkg 또는 .exfat)는 파일 하나로 전송됩니다.",
+"netdoctor.hint.cause_workers": "PS5가 받은 데이터를 아직 기록하는 중이며, 네트워크를 기다리는 것이 아닙니다. 작은 파일이 많으면 파일마다 시간이 듭니다. 게임 이미지(.ffpkg 또는 .exfat)는 파일 하나로 전송됩니다.",
+"netdoctor.hint.cause_cap": "업로드 속도 제한(약 {cap} MiB/s, 이 화면과 설정에서 지정)이 속도를 붙잡고 있습니다. 0으로 설정하면 제한이 사라집니다.",
 };
 
 export default ko;

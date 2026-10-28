@@ -5814,6 +5814,12 @@ library_compressed_hint: "Le immagini compresse richiedono ShadowMount+ per gioc
 "connection_send_payload_open": "Apri Invia payload",
 "upload_elf_title": "Questo è un payload (.elf), non un gioco",
 "upload_elf_body": "Caricarlo copia soltanto il file. ShadowMount+ rileva le cartelle di gioco (con eboot.bin e sce_sys) e le immagini di gioco, mai un .elf, quindi non comparirà nella schermata Home. Per eseguirlo, invialo invece al loader della console. Ciò che va caricato è un'app homebrew fornita come immagine .ffpkg o .exfat, o come cartella con eboot.bin.",
+"netdoctor.hint.below_test": "Questo caricamento va a {speed}, molto al di sotto dei {expected} misurati dal test di velocità.",
+"netdoctor.hint.runs_at": "Questo caricamento va a {speed}.",
+"netdoctor.hint.cause_source": "A rallentarlo è la lettura dei file su questo computer, non la rete: un'unità USB o un disco rigido, una condivisione di rete (NAS) o l'estrazione di un archivio sono più lenti del collegamento. Copiare prima il gioco su un SSD interno, o caricare i file di un archivio dopo averlo estratto, dà la piena velocità.",
+"netdoctor.hint.cause_disk": "A rallentarlo è l'unità della PS5, non la rete: un'unità USB esterna, un'unità quasi piena o migliaia di file piccoli (ognuno costa il suo tempo) scrivono più lentamente di quanto il collegamento fornisca. Un'immagine di gioco (.ffpkg o .exfat) viaggia come un solo file.",
+"netdoctor.hint.cause_workers": "La PS5 sta ancora scrivendo ciò che ha ricevuto, non sta aspettando la rete. Con molti file piccoli ognuno costa il suo tempo; un'immagine di gioco (.ffpkg o .exfat) viaggia come un solo file.",
+"netdoctor.hint.cause_cap": "A rallentarlo è il limite di velocità di caricamento (circa {cap} MiB/s, in questa schermata e nelle Impostazioni). Impostalo a 0 per rimuoverlo.",
 };
 
 export default it;

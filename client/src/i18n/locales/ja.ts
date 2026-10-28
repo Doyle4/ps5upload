@@ -5885,6 +5885,12 @@ library_compressed_hint: "圧縮イメージのプレイには ShadowMount+ が�
 "connection_send_payload_open": "「ペイロード送信」を開く",
 "upload_elf_title": "これはペイロード（.elf）で、ゲームではありません",
 "upload_elf_body": "アップロードしてもファイルがコピーされるだけです。ShadowMount+ が取り込むのはゲームフォルダー（eboot.bin と sce_sys を含むもの）とゲームイメージだけで、.elf は対象外なので、ホーム画面には表示されません。実行するには、代わりに本体のローダーへ送ってください。アップロードすべきなのは、.ffpkg や .exfat イメージ、または eboot.bin を含むフォルダーとして配布される homebrew アプリです。",
+"netdoctor.hint.below_test": "このアップロードは {speed} で動いており、速度テストで測った {expected} を大きく下回っています。",
+"netdoctor.hint.runs_at": "このアップロードは {speed} で動いています。",
+"netdoctor.hint.cause_source": "遅いのはネットワークではなく、このコンピューター上のファイルの読み取りです。USB ドライブやハードディスク、ネットワーク共有（NAS）、アーカイブの展開は回線より遅くなります。先にゲームを内蔵 SSD にコピーするか、アーカイブを展開してからそのファイルをアップロードすると全速が出ます。",
+"netdoctor.hint.cause_disk": "遅いのはネットワークではなく PS5 のドライブです。外付け USB ドライブ、空きの少ないドライブ、何千もの小さなファイル（1 つごとに時間がかかります）は、回線が届ける速さより遅く書き込みます。ゲームイメージ（.ffpkg や .exfat）なら 1 つのファイルとして送られます。",
+"netdoctor.hint.cause_workers": "PS5 は受け取ったデータをまだ書き込んでいる最中で、ネットワーク待ちではありません。小さなファイルが多いと 1 つごとに時間がかかります。ゲームイメージ（.ffpkg や .exfat）なら 1 つのファイルとして送られます。",
+"netdoctor.hint.cause_cap": "遅いのはアップロード速度制限（約 {cap} MiB/s、この画面と設定で指定）のためです。0 にすると制限がなくなります。",
 };
 
 export default ja;

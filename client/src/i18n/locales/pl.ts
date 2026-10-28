@@ -6119,6 +6119,12 @@ library_compressed_hint: "Skompresowane obrazy wymagają ShadowMount+, aby grać
 "connection_send_payload_open": "Otwórz Wyślij payload",
 "upload_elf_title": "To payload (.elf), a nie gra",
 "upload_elf_body": "Przesłanie tylko kopiuje plik. ShadowMount+ wykrywa foldery gier (z eboot.bin i sce_sys) oraz obrazy gier, nigdy plik .elf, więc nie pojawi się on na ekranie głównym. Aby go uruchomić, wyślij go zamiast tego do loadera konsoli. Przesłać należy aplikację homebrew dostarczaną jako obraz .ffpkg lub .exfat albo jako folder z eboot.bin.",
+"netdoctor.hint.below_test": "To przesyłanie działa z prędkością {speed}, znacznie poniżej {expected} zmierzonych w teście prędkości.",
+"netdoctor.hint.runs_at": "To przesyłanie działa z prędkością {speed}.",
+"netdoctor.hint.cause_source": "Hamuje je odczyt plików na tym komputerze, a nie sieć: dysk USB lub twardy, udział sieciowy (NAS) albo rozpakowywanie archiwum są wolniejsze niż łącze. Skopiowanie gry najpierw na wewnętrzny dysk SSD albo przesłanie plików archiwum po rozpakowaniu daje pełną prędkość.",
+"netdoctor.hint.cause_disk": "Hamuje je dysk PS5, a nie sieć: zewnętrzny dysk USB, prawie pełny dysk albo tysiące małych plików (każdy zajmuje własny czas) zapisują wolniej, niż dostarcza łącze. Obraz gry (.ffpkg lub .exfat) idzie jako jeden plik.",
+"netdoctor.hint.cause_workers": "PS5 wciąż zapisuje to, co otrzymała, a nie czeka na sieć. Przy wielu małych plikach każdy zajmuje własny czas; obraz gry (.ffpkg lub .exfat) idzie jako jeden plik.",
+"netdoctor.hint.cause_cap": "Hamuje je limit prędkości przesyłania (około {cap} MiB/s, na tym ekranie i w Ustawieniach). Ustaw go na 0, aby go usunąć.",
 };
 
 export default pl;

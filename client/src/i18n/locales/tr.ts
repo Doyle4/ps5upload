@@ -5871,6 +5871,12 @@ library_compressed_hint: "Sıkıştırılmış kalıpları oynatmak için Shadow
 "connection_send_payload_open": "Payload gönder'i aç",
 "upload_elf_title": "Bu bir oyun değil, bir payload (.elf)",
 "upload_elf_body": "Yüklemek yalnızca dosyayı kopyalar. ShadowMount+ oyun klasörlerini (eboot.bin ve sce_sys içeren) ve oyun imajlarını alır, asla bir .elf'i almaz; bu yüzden ana ekranda görünmez. Çalıştırmak için onu konsolun yükleyicisine gönderin. Yüklenmesi gereken, .ffpkg veya .exfat imajı ya da eboot.bin içeren bir klasör olarak gelen homebrew uygulamasıdır.",
+"netdoctor.hint.below_test": "Bu yükleme {speed} hızında, hız testinin ölçtüğü {expected} değerinin çok altında.",
+"netdoctor.hint.runs_at": "Bu yükleme {speed} hızında.",
+"netdoctor.hint.cause_source": "Onu yavaşlatan ağ değil, bu bilgisayardaki dosyaların okunması: bir USB sürücü ya da sabit disk, bir ağ paylaşımı (NAS) veya bir arşivin açılması bağlantıdan yavaştır. Oyunu önce dahili bir SSD'ye kopyalamak ya da arşivin dosyalarını açtıktan sonra yüklemek tam hız sağlar.",
+"netdoctor.hint.cause_disk": "Onu yavaşlatan ağ değil, PS5'in sürücüsü: harici bir USB sürücü, neredeyse dolu bir sürücü veya binlerce küçük dosya (her biri kendi süresini alır) bağlantının ilettiğinden daha yavaş yazar. Bir oyun imajı (.ffpkg veya .exfat) tek dosya olarak gider.",
+"netdoctor.hint.cause_workers": "PS5 hâlâ aldığını yazıyor, ağı beklemiyor. Çok sayıda küçük dosyada her biri kendi süresini alır; bir oyun imajı (.ffpkg veya .exfat) tek dosya olarak gider.",
+"netdoctor.hint.cause_cap": "Onu yavaşlatan yükleme hızı sınırı (yaklaşık {cap} MiB/sn, bu ekranda ve Ayarlar'da). Kaldırmak için 0 yapın.",
 };
 
 export default tr;

@@ -24,7 +24,11 @@ export function ElfSourceHint({ path }: { path: string }) {
       data-testid="upload-elf-hint"
     >
       <div className="font-medium">
-        {tr("upload_elf_title", undefined, "This is a payload (.elf), not a game")}
+        {tr(
+          "upload_elf_title",
+          undefined,
+          "This is a payload (.elf), not a game",
+        )}
       </div>
       <div className="mt-1 text-[var(--color-muted)]">
         {tr(

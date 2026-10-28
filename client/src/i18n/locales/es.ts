@@ -5814,6 +5814,12 @@ library_compressed_hint: "Las imágenes comprimidas necesitan ShadowMount+ para 
 "connection_send_payload_open": "Abrir Enviar payload",
 "upload_elf_title": "Esto es un payload (.elf), no un juego",
 "upload_elf_body": "Subirlo solo copia el archivo. ShadowMount+ recoge carpetas de juego (con eboot.bin y sce_sys) e imágenes de juego, nunca un .elf, así que no aparecerá en la pantalla de inicio. Para ejecutarlo, envíalo al cargador de la consola. Lo que hay que subir es una app homebrew que venga como imagen .ffpkg o .exfat, o como carpeta con eboot.bin.",
+"netdoctor.hint.below_test": "Esta subida va a {speed}, muy por debajo de los {expected} que midió la prueba de velocidad.",
+"netdoctor.hint.runs_at": "Esta subida va a {speed}.",
+"netdoctor.hint.cause_source": "Lo que la frena es leer los archivos en este equipo, no la red: una unidad USB o un disco duro, una carpeta de red (NAS) o descomprimir un archivo son más lentos que la conexión. Copiar antes el juego a un SSD interno, o subir los archivos de un comprimido ya descomprimidos, da la velocidad completa.",
+"netdoctor.hint.cause_disk": "Lo que la frena es la unidad de la PS5, no la red: una unidad USB externa, una unidad casi llena o miles de archivos pequeños (cada uno cuesta su propio tiempo) escriben más despacio de lo que entrega la conexión. Una imagen de juego (.ffpkg o .exfat) va como un solo archivo.",
+"netdoctor.hint.cause_workers": "La PS5 sigue escribiendo lo que recibió, no está esperando a la red. Con muchos archivos pequeños cada uno cuesta su propio tiempo; una imagen de juego (.ffpkg o .exfat) va como un solo archivo.",
+"netdoctor.hint.cause_cap": "Lo que la frena es el límite de velocidad de subida (unos {cap} MiB/s, en esta pantalla y en Ajustes). Ponlo en 0 para quitarlo.",
 };
 
 export default es;

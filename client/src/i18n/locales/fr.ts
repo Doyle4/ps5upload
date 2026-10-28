@@ -5882,6 +5882,12 @@ library_compressed_hint: "Les images compressées nécessitent ShadowMount+ pour
 "connection_send_payload_open": "Ouvrir Envoyer un payload",
 "upload_elf_title": "C'est un payload (.elf), pas un jeu",
 "upload_elf_body": "L'envoyer ne fait que copier le fichier. ShadowMount+ prend en charge les dossiers de jeu (avec eboot.bin et sce_sys) et les images de jeu, jamais un .elf, il n'apparaîtra donc pas sur l'écran d'accueil. Pour l'exécuter, envoyez-le plutôt au chargeur de la console. Ce qu'il faut envoyer, c'est une app homebrew fournie en image .ffpkg ou .exfat, ou en dossier avec eboot.bin.",
+"netdoctor.hint.below_test": "Cet envoi tourne à {speed}, bien en dessous des {expected} mesurés par le test de vitesse.",
+"netdoctor.hint.runs_at": "Cet envoi tourne à {speed}.",
+"netdoctor.hint.cause_source": "Ce qui le freine, c'est la lecture des fichiers sur cet ordinateur, pas le réseau : une clé ou un disque USB, un disque dur, un partage réseau (NAS) ou la décompression d'une archive est plus lent que la liaison. Copier d'abord le jeu sur un SSD interne, ou envoyer les fichiers d'une archive une fois décompressés, donne la pleine vitesse.",
+"netdoctor.hint.cause_disk": "Ce qui le freine, c'est le stockage de la PS5, pas le réseau : un disque USB externe, un disque presque plein ou des milliers de petits fichiers (chacun prend son propre temps) écrivent plus lentement que ce que la liaison fournit. Une image de jeu (.ffpkg ou .exfat) part en un seul fichier.",
+"netdoctor.hint.cause_workers": "La PS5 écrit encore ce qu'elle a reçu, elle n'attend pas le réseau. Avec beaucoup de petits fichiers, chacun prend son propre temps ; une image de jeu (.ffpkg ou .exfat) part en un seul fichier.",
+"netdoctor.hint.cause_cap": "Ce qui le freine, c'est la limite de vitesse d'envoi (environ {cap} Mio/s, sur cet écran et dans Réglages). Mettez-la à 0 pour la supprimer.",
 };
 
 export default fr;
