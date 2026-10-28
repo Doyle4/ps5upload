@@ -6,6 +6,46 @@ What's new in ps5upload, written for humans.
 
 ## 8.9.0
 
+- **Games is one list.** Every game shows once, wherever its copies are, and each row names
+  the places: Installed, a PS5 drive (ext0, usb0, internal), This computer, or a saved server
+  by name, with how many copies are there. Narrow it with Everywhere, Installed, On PS5 drives
+  or Your copies. An installed game has Play (or Close game) right on its row.
+  - The five tabs are gone. Their tools are under **Manage**: Installed games, Games on the
+    PS5's drives, Your copies (folders, servers, organize, clean up, export) and Dump games.
+    Old links to the tabs still land there.
+  - Play and Close game are now one implementation everywhere. The game page's Play gains what
+    Installed games already had: when the console refuses homebrew (0x80940033) it says why,
+    and repairs a folder that was sent without execute permission.
+- **Dump installed games, decrypted, with ps5-app-dumper.** Under Games → Manage → Dump games:
+  unlock the dumper once with the code your TV shows, then dump a game (or a queue of them) to
+  a USB drive or the console, start a game for it, and open finished dumps in Files or
+  Workshop.
+- **Remote Play in the app (beta).** Turn on beta features to get a Play screen that streams
+  the console to this computer, with keyboard, controller and touchpad input. Accounts has a
+  Play Here button for a console that is set up for Remote Play.
+- **Send to PS5 is shorter.**
+  - Each queue row shows its steps on one line, "Upload ✓ › Install 62%", or Upload › Mount ›
+    Add to Home, with the step that failed or did not take marked.
+  - What was found in a source (game details, folder size, the time estimate) and the rarely
+    used options (speed limit, files to skip) fold to one line each. The folded line still
+    shows the essentials, and says so when files are being skipped.
+  - "From a link or an archive" and "Already on the PS5" fold to their headings.
+- **Send helper wherever it is missing.** Home's console card, Send to PS5 and every screen
+  that needs the helper offer Send helper in place, instead of sending you to Connection.
+- **Connection holds Devices and Health Check** as tabs. The sidebar has two fewer entries.
+- **Shared Folders: deleting syncs without asking.** Deleting a folder no longer waits for a
+  confirmation unless it would empty more than half the drive. Its files go to the other
+  side's trash, and the emptied folders go too. Sync now looks at both sides at once, so a
+  file deleted on the console with Files syncs straight away. The drive's marker file is hidden
+  in Files, with a note on the folder not to move or rename it.
+- **Screenshots and clips show their thumbnails** again (they stayed on a placeholder).
+- **Smaller things.** Files' "What takes space?" moved into the folder's ⋯ menu. The Remote
+  Play account ID field shows the signed-in account's ID. Workshop's compression tiles no longer
+  stretch to the tallest one.
+- **Minion: Fan, Processes and Clean up are one System section**, with a switch under the
+  title like Games. The Rail goes from 9 entries to 7.
+- **Security:** Remote Play's key exchange moves to k256 0.14, which drops crypto-bigint 0.5
+  (RUSTSEC-2026-0387, timing side channels).
 - **AVA1, the transfer protocol, is its own open-source project.** It now lives at
   [github.com/phantomptr/ava1](https://github.com/phantomptr/ava1) (MIT or Apache-2.0), with its
   specification, test vectors, a Rust crate and the C library, so other tools can use it.
