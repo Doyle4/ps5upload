@@ -4,8 +4,39 @@ What's new in ps5upload, written for humans.
 
 ---
 
-## Unreleased
+## 8.6.0
 
+- **Minion's Library: one card per game, and a full-screen page for each (#526).** Copies,
+  updates, DLC and backports of the same game found on your drives and shares now sit on one
+  card with a sharper cover, an Installed mark and Update / DLC / Backport badges. ✕ opens a
+  full-screen page with the size, the firmware the game needs next to this PS5's (with a warning
+  when it needs a newer one), the SDK it was built with, its formats and where each part was
+  found, and Install / Copy to the PS5 / Add to home screen / Show in Files for every part.
+  ○ goes back. Disk images are named after their file and use the installed game's icon.
+- **Back up and restore a game's save on the console.** Minion has a new **Saves** section:
+  pick a user and a game, then **Back up now** (named by date and time; keep as many as you
+  like), **Restore** or **Delete**. Restore asks first, refuses while the game is running
+  (with a Close game button), backs up the current save as "Before a restore", and puts back
+  the system's own file permissions. Backups stay on the PS5 under
+  `/data/ps5upload/save-backups/`. Handy before a game's point of no return.
+- **○ at Minion's Home leaves at the first press.** It used to need two presses once any
+  section had been opened. The Controls screen now shows ○ working too, and points to
+  Accessibility › Custom Button Assignments for anyone who wants ✕ and ○ swapped.
+- **Uploading from a phone into Minion's Files works again.** A phone never got the Upload
+  button; it does now. On the TV, Files has **Upload from a phone**, with a QR code and the
+  steps (and a shortcut to Settings when LAN access is off).
+- **Download to the PS5 from a link, unpacking `.lz4` on the way.** A link to a game image
+  compressed with the `lz4` tool (such as `Game.exfat.lz4`) is unpacked while it downloads, so
+  the PS5 receives the ready-to-mount image and nothing is stored on this computer; the PS5 only
+  needs room for the unpacked file. The link card shows both sizes, has an **Unpack on the way**
+  checkbox (off keeps the `.lz4` as it is) and puts images in the drive's `homebrew` folder
+  ShadowMount+ scans; the file only appears there once it is complete. A download that has to
+  start over downloads again but doesn't resend what the PS5 already has. Folder archives
+  (`.tar.lz4`) are refused with an explanation.
+- **Payload Manager: add payloads from this computer or the catalogue.** The Payload Manager
+  tab can store an `.elf`/`.bin` picked on this computer (in the web UI too) or a downloaded
+  catalogue payload, which it then offers to update. A payload you stored by hand whose name
+  matches a catalogue download gets **Replace with** the catalogue's release.
 - **Signing in from Profile can be undone, and says what it can do to the console.** The
   np-fake-signin payload copies a template account's PlayStation Network settings (a 1983 birth
   date, the offline-adult flag off) onto yours, and some consoles then ask to "Temporarily
