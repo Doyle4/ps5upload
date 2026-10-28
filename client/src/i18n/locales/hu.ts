@@ -2367,7 +2367,6 @@ upload_done_open_library: "Könyvtár megnyitása",
 
 // Profil (avatar + offline fiók felhasználóneve)
 profile: "Profil",
-"profile.title": "Profil",
 "profile.avatar.title": "Avatar",
 "profile.avatar.pick": "Kép kiválasztása…",
 "profile.avatar.imageSize": "Válassz legfeljebb 8 MiB méretű képet.",
@@ -2391,7 +2390,6 @@ profile: "Profil",
   "Lecseréled {user} profilavatárját? A jelenlegi avatar felülíródik.",
 "profile.avatar.noUser":
   "Nem található konzolfelhasználó. Jelentkezz be egy profillal a PS5-ön, majd frissíts.",
-"profile.username.title": "Felhasználónév",
 "profile.username.description":
   "Konzolfelhasználó átnevezése. A PS5 legfeljebb 16 karakteres nevet enged.",
 "profile.username.empty": "Nincsenek konzolfelhasználók",
@@ -2623,7 +2621,6 @@ roster_order_hint: "Ez a sorrend állítja be a konzolfüleket és a választót
   // ── Mentés újraaláírás ───────────────────────────────────────────────
 
   // ── Remote Play ───────────────────────────────────────────────────
-  remotePlay_title: "Remote Play PIN",
   remotePlay_request: "PIN generálása",
   remotePlay_cancel: "Mégse",
   // ── Ventilátorgörbe ─────────────────────────────────────────────────
@@ -3533,9 +3530,6 @@ installed_swap_confirm_title: "Előbb bezárod ezt: {other}?",
 installed_swap_confirm_body: "A(z) {other} fut, és a PS5 egyszerre csak egy játékot futtat. Bezárod, és elindítod ezt: {name}? A(z) {other} nem mentett előrehaladása elvész.",
 installed_swap_confirm_ok: "Bezárás és indítás",
 installed_swap_close_failed: "A(z) {other} még fut, és nem sikerült bezárni, ezért a(z) {name} nem indult el. Zárd be a PS5-ön, majd nyomd meg újra a Lejátszást.",
-remotePlay_np_title: "A PS5 saját Remote Play beállításának bekapcsolása",
-remotePlay_np_body: "A PS5 csak a PlayStation Networkbe bejelentkezett fióknál engedi bekapcsolni a Remote Playt. Az np-fake-signin {version} eléri, hogy a konzol bejelentkezettnek tekintse a fiókodat, valódi PSN-bejelentkezés nélkül. Futtatása után a Settings → System → Remote Play kapcsoló bekapcsolható.",
-remotePlay_np_undo: "Visszavonás: Settings → Users and Accounts → Other → Sign out.",
 remotePlay_np_open_payloads: "Payloads megnyitása",
 library_download_resume: "Letöltés folytatása",
 kept_title: "A ps5upload által tárolt",
@@ -3796,7 +3790,6 @@ connection_payload_engine_unreachable: "Az alkalmazás nem érte el a saját mot
 "engine_problem.web.fix": "Ellenőrizd, hogy a szerver (Docker-konténer) fut-e, majd töltsd újra ezt az oldalt.",
 "engine_problem.web.why": "Ez az oldal elvesztette a kapcsolatot a ps5upload szerverrel, ahonnan betöltődött.",
 gate_engine_down_body_v2: "Ehhez a képernyőhöz kell az alkalmazás motorja, amely nem válaszol. Az ablak tetején lévő értesítés megmondja az okát, és újra tudja indítani.",
-"profile.description_v2": "Módosítsd a konzol profilavatárját és az offline fiók felhasználónevét, és jelentkeztess be egy fiókot offline a PlayStation Networkbe.",
 "profile.np.body": "A PS5 a bejelentkezett fiókot a PlayStation Networkbe bejelentkezettnek tekinti, a Sony megkeresése nélkül. A konzol egyes funkciói csak bejelentkezett fióknak nyílnak meg, köztük a távoli játék. earthonion np-fake-signin programját használja, amelyet a gomb megnyomásakor a projekt oldaláról tölt le.",
 "profile.np.confirm_title": "Bejelentkezteted ezt a fiókot?",
 "profile.np.failed": "A bejelentkezés nem futott le",
@@ -3812,7 +3805,6 @@ gate_engine_down_body_v2: "Ehhez a képernyőhöz kell az alkalmazás motorja, a
 "profile.np.step_activate": "A fióknak fiókazonosító kell. Egy PSN-hez kapcsolt fióknak van; különben aktiváld fent a Fiókok résznél (offline aktiválás).",
 "profile.np.step_run": "Nyomd meg a Bejelentkezés gombot, miközben az a felhasználó be van jelentkezve a PS5-ön. Egyszer lefut, majd kilép.",
 "profile.np.title": "Bejelentkezés a PlayStation Networkbe (offline)",
-remotePlay_np_open_profile: "Bejelentkezés a Profilban",
 "fpkg.image.compress": "Tömörítés .ffpfsc fájlba",
 "fpkg.image.exfat_body": "Olyan játékokhoz, amelyek csak külső meghajtó tartalmaként működnek.",
 "fpkg.image.exfat_choice": ".exfat",
@@ -4725,7 +4717,6 @@ processes_kill_payload_body: "Ez leállítja a(z) „{name}” payloadot (kstuff
 processes_kill_payload_title: "Leállítod a(z) „{name}” payloadot?",
 "profile.np.browser_v2": "A bejelentkezéshez az asztali alkalmazás kell: az letölti az np-fake-signin-t és elküldi a PS5-re, amire a webes felület nem képes.",
 ps5notif_description_v3: "A ps5upload által a tévédre küldött üzenetek (Remote Play, csalások), a konzolon futó segédprogramjából visszaolvasva. Nem a PS5 saját értesítési panelje. 5 másodpercenként frissül.",
-remotePlay_np_profile_hint_v2: "A Profil ellenőrzi a fiókot és lefuttatja helyetted. Utána indítsd újra a PS5-öt.",
 reset_confirm_body_browser: "Ez törli az összes beállítást és mentett állapotot, amelyet ez a böngésző a PS5Upload számára tárol, és az oldal tisztán újratöltődik. A motor saját adatai a kiszolgálón (konzolpárosítások, a Gyűjtemény, mentett kiszolgálók, backport könyvtárak, telepítési előzmények, naplók) érintetlenek maradnak, ahogy a PS5-ön sem változik semmi. Ez nem vonható vissza.",
 reset_confirm_body_v2: "Ez véglegesen törli az ÖSSZES helyi PS5Upload adatot: beállítások, mentett PS5-ök és párosításaik, a Gyűjtemény, mentett kiszolgálók és jelszavaik, backport könyvtárak, telepítési előzmények, feladatok és események, tevékenység-/sorelőzmények, naplók, payload gyorsítótárak és hibajelentések. A PS5-ön NEM változik semmi. Az alkalmazás tiszta állapotban töltődik újra. Ez nem vonható vissza.",
 reset_hint_browser: "Az összes beállítás és mentett állapot törlése, amelyet ez a böngésző a PS5Upload számára tárol, és újrakezdés. Amit a motor a kiszolgálóján tárol (konzolpárosítások, a Gyűjtemény, mentett kiszolgálók, backport könyvtárak, telepítési előzmények, naplók), az érintetlen marad, és a PS5-ön sem változik semmi.",
@@ -4792,8 +4783,6 @@ game_activity_no_console_playtime: "Nincs konzolos játékidő",
 hw_fan_confirm_msg: "A konzol ventilátorvezérlése igyekszik tartani ezt a hőmérsékletet, és a ps5upload minden alkalommal újra beállítja, amikor a segédprogram betöltődik. Az alacsonyabb hangosabb; a magasabb melegebb működést enged a konzolnak.",
 hw_fan_confirm_title: "Beállítod a ventilátor célhőmérsékletét {c} °C-ra?",
 ps5notif_empty_hint_v2: "Amikor a ps5upload üzenetet jelenít meg a tévédre, például egy Remote Play PIN-kódot vagy egy csalás bekapcsolását, az itt megjelenik, hogy újra elolvashasd. Ez nem a PS5 saját értesítési panelje; a konzol nem engedi azt olvasni.",
-remotePlay_check_account_hint_v2: "Ezt a fiókot még soha nem aktiválták, ezért nem tud párosítani. A Profil aktiválhatja egy fiókazonosító megadásával; ez módosítja a fiók adatait, és az utána készült mentések ehhez az azonosítóhoz kötődnek.",
-remotePlay_open_profile: "Profil megnyitása",
 v5_qa_ready: "Kész",
 v5_qa_unavailable: "Nem elérhető",
 "fpkg.stage.pack": "LZ4-erőforrások csomagolása",
@@ -6268,6 +6257,11 @@ library_compressed_hint: "A tömörített képfájlok futtatásához ShadowMount
 "payloads_tab_running": "Futó",
 "payloads_ports_heading": "Használt portok",
 "payloads_description_running": "A PS5-ön éppen futó programok, és a használt portok azzal, ami általában figyel rajtuk. Egy programot leállíthatsz vagy újraindíthatsz; vigyázz a rendszerfolyamatokkal, a rossz leállítása lefagyaszthatja a konzolt.",
+"accounts_title": "Fiókok",
+"accounts_users_title": "Felhasználók",
+"remotePlay_show_accounts": "Fiókok mutatása",
+"accounts_description": "A konzol felhasználói és fiókjai: nevezd át őket, adj egy fióknak azonosítót, cserélj avatart, és állítsd be a Remote Playt.",
+"remotePlay_check_account_hint_v3": "Ezt a fiókot sosem aktiválták, ezért nem tud párosítani. Adj neki fiókazonosítót a fenti fióklistában; ez megváltoztatja a fiók adatait, és az utána készült mentések ehhez az azonosítóhoz kötődnek.",
 };
 
 export default hu;

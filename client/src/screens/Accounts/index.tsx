@@ -27,6 +27,7 @@ import {
 import { useTr } from "../../state/lang";
 import { useConfirm } from "../../components/ConfirmDialog";
 import { NpSignInSection } from "./NpSignInSection";
+import { RemotePlaySection } from "./RemotePlaySection";
 import { useConnectionStore } from "../../state/connection";
 import { mgmtAddr } from "../../lib/addr";
 import { pickPath } from "../../lib/pickPath";
@@ -50,7 +51,19 @@ function userLabel(uidHex: string, username: string): string {
   return username.trim() ? username : uidHex;
 }
 
-export default function ProfileScreen() {
+/** The account list's anchor: Remote Play's "Show accounts" scrolls here. */
+const USERS_ANCHOR = "accounts-users";
+
+/**
+ * Accounts: the console's users and accounts, their avatars, and Remote Play.
+ *
+ * Profile and Remote Play were two screens. Remote Play needs an activated, signed-in account,
+ * so its checklist kept sending people to Profile and back; on one page the order on screen is
+ * the order things are done: the account (name, account ID), its avatar, then Remote Play,
+ * whose sign-in step is Profile's np-fake-signin. Old /profile and /remote-play links land
+ * here (/remote-play on its section).
+ */
+export default function AccountsScreen() {
   const tr = useTr();
   const host = useConnectionStore((s) => s.host);
   const addr = host?.trim() ? mgmtAddr(host) : "";
@@ -59,10 +72,11 @@ export default function ProfileScreen() {
     <div className="app-page">
       <PageHeader
         icon={CircleUserRound}
-        title={tr("profile.title", "Profile")}
+        title={tr("accounts_title", undefined, "Accounts")}
         description={tr(
-          "profile.description_v2",
-          "Change the console's profile avatar and the offline-account username, and sign an account in to PlayStation Network offline.",
+          "accounts_description",
+          undefined,
+          "The console's users and accounts: rename them, give an account its ID, change avatars, and set up Remote Play.",
         )}
       />
       <ConnectionGate require="payload">
@@ -70,13 +84,13 @@ export default function ProfileScreen() {
             state (avatar target uid, picked image, username draft). Without
             the remount, the prior console's targetUid/imagePath leak into the
             new console and an avatar Apply could write to the wrong uid. */}
-        {addr ? <ProfileBody key={addr} addr={addr} /> : null}
+        {addr ? <AccountsBody key={addr} addr={addr} /> : null}
       </ConnectionGate>
     </div>
   );
 }
 
-function ProfileBody({ addr }: { addr: string }) {
+function AccountsBody({ addr }: { addr: string }) {
   const [info, setInfo] = useState<ProfileInfo | null>(null);
   const [loadingInfo, setLoadingInfo] = useState(false);
   const [infoError, setInfoError] = useState<string | null>(null);
@@ -101,14 +115,19 @@ function ProfileBody({ addr }: { addr: string }) {
   return (
     <div className="space-y-6">
       {infoError && <ErrorCard title={infoError} onRetry={() => void refreshInfo()} />}
+      <UsernameSection addr={addr} info={info} onChanged={refreshInfo} />
       <AvatarSection
         addr={addr}
         info={info}
         loadingInfo={loadingInfo}
         onApplied={refreshInfo}
       />
-      <UsernameSection addr={addr} info={info} onChanged={refreshInfo} />
-      <NpSignInSection addr={addr} info={info} />
+      <RemotePlaySection
+        onShowAccounts={() =>
+          document.getElementById(USERS_ANCHOR)?.scrollIntoView?.({ block: "start", behavior: "smooth" })
+        }
+        signIn={<NpSignInSection addr={addr} info={info} />}
+      />
     </div>
   );
 }
@@ -511,11 +530,12 @@ function UsernameSection({
   const slots = info?.slots ?? [];
 
   return (
+    <div id={USERS_ANCHOR} className="scroll-mt-4">
     <Card>
       <div className="mb-1 flex items-center gap-2">
         <UserPen size={16} className="text-[var(--color-accent)]" />
         <h2 className="text-sm font-semibold">
-          {tr("profile.username.title", "Username")}
+          {tr("accounts_users_title", undefined, "Users")}
         </h2>
       </div>
       <p className="mb-4 text-xs text-[var(--color-muted)]">
@@ -597,6 +617,7 @@ function UsernameSection({
         </div>
       )}
     </Card>
+    </div>
   );
 }
 

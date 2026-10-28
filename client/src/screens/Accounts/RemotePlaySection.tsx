@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useLocation } from "react-router";
 import {
   MonitorPlay,
   RefreshCw,
@@ -9,13 +10,7 @@ import {
   Copy,
   Check,
 } from "lucide-react";
-import {
-  PageHeader,
-  Button,
-  ErrorCard,
-  ConnectionGate,
-  Spinner,
-} from "../../components";
+import { Button, ErrorCard, Spinner } from "../../components";
 import { writeClipboard } from "../../lib/clipboard";
 import { useTr } from "../../state/lang";
 import { useConnectionStore } from "../../state/connection";
@@ -33,8 +28,9 @@ import {
   type RemotePlayReadiness,
 } from "../../api/ps5";
 import { humanizePs5Error } from "../../lib/humanizeError";
-import { NpSignInCard } from "./NpSignInCard";
-import { useNavigate } from "react-router";
+
+/** The anchor old /remote-play links land on: /accounts#remote-play scrolls here. */
+export const REMOTE_PLAY_ANCHOR = "remote-play";
 
 /** Firmware magic to a human version, e.g. 0x09600004 -> "9.60".
  *
@@ -58,13 +54,13 @@ export function formatFirmware(magic: number): string {
 function ReadinessPanel({
   readiness,
   onEnable,
-  onOpenProfile,
+  onShowAccounts,
   busy,
   tr,
 }: {
   readiness: RemotePlayReadiness | null;
   onEnable: (scope: "service" | "user") => void;
-  onOpenProfile: () => void;
+  onShowAccounts: () => void;
   busy: boolean;
   tr: ReturnType<typeof useTr>;
 }) {
@@ -120,12 +116,12 @@ function ReadinessPanel({
       ok: activated,
       label: tr("remotePlay_check_account", undefined, "Account is activated"),
       hint: tr(
-        "remotePlay_check_account_hint_v2",
+        "remotePlay_check_account_hint_v3",
         undefined,
-        "This account has never been activated, so it cannot pair. Profile can activate it by giving it an account ID; that changes account data, and saves made afterwards are tied to that ID.",
+        "This account has never been activated, so it cannot pair. Give it an account ID in the account list above; that changes account data, and saves made afterwards are tied to that ID.",
       ),
-      fix: onOpenProfile,
-      fixLabel: tr("remotePlay_open_profile", undefined, "Open Profile"),
+      fix: onShowAccounts,
+      fixLabel: tr("remotePlay_show_accounts", undefined, "Show accounts"),
     },
     {
       key: "service",
@@ -195,14 +191,27 @@ function ReadinessPanel({
   );
 }
 
-export default function RemotePlayScreen() {
+/**
+ * Remote Play, as a section of Accounts: what the console still needs (the checklist, with a
+ * fix on each row), signing the account in (`signIn`, Accounts' np-fake-signin step, which is
+ * what unlocks the console's own Remote Play switch), then the pairing PIN.
+ *
+ * It was its own screen ("Remote Play PIN") that sent people to Profile and back for the
+ * sign-in; both now sit on one page, in the order they are done.
+ */
+export function RemotePlaySection({
+  onShowAccounts,
+  signIn,
+}: {
+  onShowAccounts: () => void;
+  signIn?: ReactNode;
+}) {
   const tr = useTr();
   const host = useConnectionStore((s) => s.host);
   const payloadStatus = useConnectionStore((s) => s.payloadStatus);
   const addr = host ? transferAddr(host) : "";
   const visible = useDocumentVisible();
   const guard = useStaleHostGuard();
-  const navigate = useNavigate();
 
   const [manualAccountId, setManualAccountId] = useState("");
   const [status, setStatus] = useState<RemotePlayStatus | null>(null);
@@ -246,6 +255,16 @@ export default function RemotePlayScreen() {
     },
     [addr],
   );
+
+  // An old /remote-play link lands on /accounts#remote-play: bring the section into view once.
+  const { hash } = useLocation();
+  const sectionRef = useRef<HTMLElement>(null);
+  const scrolled = useRef(false);
+  useEffect(() => {
+    if (hash !== `#${REMOTE_PLAY_ANCHOR}` || scrolled.current) return;
+    scrolled.current = true;
+    sectionRef.current?.scrollIntoView?.({ block: "start", behavior: "smooth" });
+  }, [hash]);
 
   const accountId = status?.account_id;
   const chiakiNumeric = useMemo(
@@ -346,39 +365,51 @@ export default function RemotePlayScreen() {
   }, [addr, refresh, guard]);
 
   return (
-    <div className="app-page space-y-4">
-      <PageHeader
-        icon={MonitorPlay}
-        title={tr("remotePlay_title", undefined, "Remote Play")}
-        description={tr(
-          "remotePlay_subtitle_v2",
-          undefined,
-          "Set this PS5 up for Remote Play and get the PIN that pairs the PS Remote Play app with it.",
-        )}
-        right={
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={refresh}
-            disabled={busy || payloadStatus !== "up" || !addr}
-          >
-            <RefreshCw size={14} />
-          </Button>
-        }
-      />
+    <section
+      ref={sectionRef}
+      id={REMOTE_PLAY_ANCHOR}
+      aria-labelledby="remote-play-heading"
+      className="scroll-mt-4 space-y-4"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h2 id="remote-play-heading" className="flex items-center gap-2 text-base font-semibold">
+            <MonitorPlay size={16} aria-hidden />
+            {tr("remote_play", undefined, "Remote Play")}
+          </h2>
+          <p className="mt-1 text-sm text-[var(--color-muted)]">
+            {tr(
+              "remotePlay_subtitle_v2",
+              undefined,
+              "Set this PS5 up for Remote Play and get the PIN that pairs the PS Remote Play app with it.",
+            )}
+          </p>
+        </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => {
+            void refresh();
+            void refreshReadiness();
+          }}
+          disabled={busy || payloadStatus !== "up" || !addr}
+          aria-label={tr("refresh", undefined, "Refresh")}
+        >
+          <RefreshCw size={14} />
+        </Button>
+      </div>
 
-      <ConnectionGate>
         {error && <ErrorCard title={error} onRetry={() => void refresh()} />}
 
         <ReadinessPanel
           readiness={readiness}
           onEnable={handleEnable}
-          onOpenProfile={() => navigate("/profile")}
+          onShowAccounts={onShowAccounts}
           busy={busy}
           tr={tr}
         />
 
-        <NpSignInCard onOpenProfile={() => navigate("/profile")} />
+        {signIn}
 
         {/* Request form */}
         <div className="surface-panel p-5">
@@ -556,7 +587,6 @@ export default function RemotePlayScreen() {
             )}
           </div>
         )}
-      </ConnectionGate>
-    </div>
+    </section>
   );
 }

@@ -30,7 +30,6 @@ import {
   TerminalSquare,
   LayoutDashboard,
   Bug,
-  MonitorPlay,
   Bell,
   Network,
   Stethoscope,
@@ -169,17 +168,13 @@ export const NAV_ITEMS: NavItem[] = [
     fallback: "Payloads",
     icon: Boxes,
   },
+  // The console's users and accounts, their avatars, and Remote Play (which needs an
+  // activated, signed-in account, so it lives with them).
   {
-    to: "/profile",
-    key: "profile",
-    fallback: "Profile",
+    to: "/accounts",
+    key: "accounts_title",
+    fallback: "Accounts",
     icon: CircleUserRound,
-  },
-  {
-    to: "/remote-play",
-    key: "remote_play",
-    fallback: "Remote Play",
-    icon: MonitorPlay,
   },
 
   // Reaching the console: connecting, the devices that use it, and checking the link.
@@ -281,9 +276,43 @@ export function isPinnableNav(to: string): boolean {
  */
 export function cleanPinned(list: readonly unknown[]): string[] {
   const out: string[] = [];
-  for (const v of list) {
-    if (typeof v !== "string" || out.includes(v) || !isPinnableNav(v)) continue;
+  for (const raw of list) {
+    if (typeof raw !== "string") continue;
+    const v = navMoved(raw);
+    if (out.includes(v) || !isPinnableNav(v)) continue;
     out.push(v);
+  }
+  return out;
+}
+
+/**
+ * Screens folded into another one, by their old route. A pin, a hidden entry or a bookmark
+ * for the old screen carries over to the screen that holds it now.
+ */
+export const NAV_MOVED: Readonly<Record<string, string>> = {
+  "/profile": "/accounts",
+  "/remote-play": "/accounts",
+};
+
+/** The route a screen lives at now: its new home if it was folded into another, else itself. */
+export function navMoved(to: string): string {
+  return NAV_MOVED[to] ?? to;
+}
+
+/**
+ * A stored hidden list made current: old routes become the screen that holds them now. A
+ * screen made from several old ones stays hidden only if the user hid every one of them,
+ * so nothing someone used disappears from the sidebar.
+ */
+export function cleanHidden(list: readonly unknown[]): string[] {
+  const given = new Set(list.filter((v): v is string => typeof v === "string"));
+  const out: string[] = [];
+  for (const v of given) {
+    const to = navMoved(v);
+    if (out.includes(to)) continue;
+    const sources = Object.keys(NAV_MOVED).filter((k) => NAV_MOVED[k] === to);
+    if (to !== v && !sources.every((k) => given.has(k))) continue;
+    out.push(to);
   }
   return out;
 }

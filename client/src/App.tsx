@@ -45,10 +45,9 @@ const GamesScreen = lazyWithReload(() => import("./screens/Games"));
 const VolumesScreen = lazyWithReload(() => import("./screens/Volumes"));
 const FileSystemScreen = lazyWithReload(() => import("./screens/FileSystem"));
 const HardwareScreen = lazyWithReload(() => import("./screens/Hardware"));
-const ProfileScreen = lazyWithReload(() => import("./screens/Profile"));
+const AccountsScreen = lazyWithReload(() => import("./screens/Accounts"));
 const LocalImageScreen = lazyWithReload(() => import("./screens/LocalImage"));
 const HealthScreen = lazyWithReload(() => import("./screens/Health"));
-const RemotePlayScreen = lazyWithReload(() => import("./screens/RemotePlay"));
 const NotificationsScreen = lazyWithReload(() => import("./screens/Notifications"));
 const CheatsScreen = lazyWithReload(() => import("./screens/Cheats"));
 const GameHubScreen = lazyWithReload(() => import("./screens/GameHub"));
@@ -332,13 +331,16 @@ function AppRoutes({ location }: { location: Location }) {
           }
         />
         <Route
-          path="/profile"
+          path="/accounts"
           element={
             <Suspense fallback={<ScreenLoader />}>
-              <ProfileScreen />
+              <AccountsScreen />
             </Suspense>
           }
         />
+        {/* Profile and Remote Play are one Accounts screen now. */}
+        <Route path="/profile" element={<Navigate to="/accounts" replace />} />
+        <Route path="/remote-play" element={<Navigate to="/accounts#remote-play" replace />} />
         <Route path="/backup" element={<Navigate to="/files?view=snapshots" replace />} />
         <Route
           path="/local-image"
@@ -355,14 +357,6 @@ function AppRoutes({ location }: { location: Location }) {
           element={
             <Suspense fallback={<ScreenLoader />}>
               <HealthScreen />
-            </Suspense>
-          }
-        />
-        <Route
-          path="/remote-play"
-          element={
-            <Suspense fallback={<ScreenLoader />}>
-              <RemotePlayScreen />
             </Suspense>
           }
         />

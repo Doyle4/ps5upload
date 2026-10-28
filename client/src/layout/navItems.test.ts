@@ -10,6 +10,9 @@ import {
   groupNavItems,
   filterNavItems,
   cleanPinned,
+  cleanHidden,
+  NAV_MOVED,
+  navMoved,
   pinnedNavItems,
   pinnedFirst,
   MAX_PINNED,
@@ -302,6 +305,28 @@ describe("hasBetaItems", () => {
     expect(hasBetaItems([{ to: "/a", beta: false } as never])).toBe(false);
     expect(hasBetaItems([{ to: "/a", beta: true } as never])).toBe(true);
     expect(hasBetaItems()).toBe(NAV_ITEMS.some((i) => i.beta));
+  });
+});
+
+describe("screens folded into another", () => {
+  it("move to a screen that is in the nav", () => {
+    for (const [from, to] of Object.entries(NAV_MOVED)) {
+      expect(NAV_ITEMS.some((i) => i.to === to), `${from} -> ${to}`).toBe(true);
+      expect(NAV_ITEMS.some((i) => i.to === from), from).toBe(false);
+    }
+    expect(navMoved("/profile")).toBe("/accounts");
+    expect(navMoved("/files")).toBe("/files");
+  });
+
+  it("carry a pin over once, in its place", () => {
+    expect(cleanPinned(["/profile", "/files", "/remote-play"])).toEqual(["/accounts", "/files"]);
+  });
+
+  it("stay hidden only when every screen they replace was hidden", () => {
+    expect(cleanHidden(["/profile", "/files"])).toEqual(["/files"]);
+    expect(cleanHidden(["/remote-play", "/profile", "/files"])).toEqual(["/accounts", "/files"]);
+    expect(cleanHidden(["/accounts"])).toEqual(["/accounts"]);
+    expect(cleanHidden([3, "/files", "/files"])).toEqual(["/files"]);
   });
 });
 

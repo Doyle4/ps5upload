@@ -14,7 +14,7 @@
 
 import { create } from "zustand";
 
-import { cleanPinned, isPinnableNav, MAX_PINNED } from "../layout/navItems";
+import { cleanHidden, cleanPinned, isPinnableNav, MAX_PINNED } from "../layout/navItems";
 import { safeGetItem, safeSetItem } from "../lib/safeStorage";
 import { registerSettingReload } from "../lib/liveSettings";
 
@@ -78,14 +78,14 @@ function moved(list: string[], to: string, index: number): string[] {
 /** The three lists as stored now (lib/sharedPrefs shows another browser's change with it). */
 export function navListsFromStorage(): { hidden: string[]; closedSections: string[]; pinned: string[] } {
   return {
-    hidden: loadList(HIDDEN_KEY),
+    hidden: cleanHidden(loadList(HIDDEN_KEY)),
     closedSections: loadList(CLOSED_KEY),
     pinned: cleanPinned(loadList(PINNED_KEY)),
   };
 }
 
 export const useNavSidebarStore = create<NavSidebarState>((set) => ({
-  hidden: loadList(HIDDEN_KEY),
+  hidden: cleanHidden(loadList(HIDDEN_KEY)),
   closedSections: loadList(CLOSED_KEY),
   pinned: cleanPinned(loadList(PINNED_KEY)),
   toggleHidden: (to) =>
@@ -129,7 +129,7 @@ export const useNavSidebarStore = create<NavSidebarState>((set) => ({
       return { pinned };
     }),
   setAll: (hiddenIn, closedIn, pinnedIn) => {
-    const hidden = strings(hiddenIn);
+    const hidden = cleanHidden(strings(hiddenIn));
     const closedSections = strings(closedIn);
     safeSetItem(HIDDEN_KEY, JSON.stringify(hidden));
     safeSetItem(CLOSED_KEY, JSON.stringify(closedSections));

@@ -2127,7 +2127,6 @@ upload_done_open_library: "Otwórz Bibliotekę",
 
 // Profile (avatar + offline-account username)
 profile: "Profil",
-"profile.title": "Profil",
 "profile.avatar.title": "Awatar",
 "profile.avatar.pick": "Wybierz obraz…",
 "profile.avatar.imageSize": "Wybierz obraz o rozmiarze do 8 MiB.",
@@ -2151,7 +2150,6 @@ profile: "Profil",
   "Zastąpić awatar profilu dla {user}? Obecny awatar zostanie nadpisany.",
 "profile.avatar.noUser":
   "Nie znaleziono użytkownika konsoli. Zaloguj się do profilu na PS5, a następnie odśwież.",
-"profile.username.title": "Nazwa użytkownika",
 "profile.username.description":
   "Zmień nazwę użytkownika konsoli. PS5 ogranicza nazwy do 16 znaków.",
 "profile.username.empty": "Brak użytkowników konsoli",
@@ -2358,7 +2356,6 @@ shortcuts_activate: "Otwórz / aktywuj",
   // ── Save Resign ───────────────────────────────────────────────────
 
   // ── Remote Play ───────────────────────────────────────────────────
-  remotePlay_title: "Kod PIN Gry zdalnej",
   remotePlay_request: "Wygeneruj PIN",
   remotePlay_cancel: "Anuluj",
   // ── Fan Curve ─────────────────────────────────────────────────────
@@ -3473,9 +3470,6 @@ installed_swap_confirm_title: "Najpierw zamknąć {other}?",
 installed_swap_confirm_body: "{other} jest uruchomiona, a PS5 uruchamia jedną grę naraz. Zamknąć ją i uruchomić {name}? Niezapisany postęp w {other} przepadnie.",
 installed_swap_confirm_ok: "Zamknij i uruchom",
 installed_swap_close_failed: "{other} nadal działa i nie udało się jej zamknąć, więc {name} nie została uruchomiona. Zamknij ją na PS5 i naciśnij Graj ponownie.",
-remotePlay_np_title: "Włącz ustawienie Gry zdalnej w samym PS5",
-remotePlay_np_body: "PS5 pozwala włączyć Grę zdalną tylko dla konta zalogowanego w PlayStation Network. np-fake-signin {version} sprawia, że konsola traktuje twoje konto jak zalogowane, bez prawdziwego logowania do PSN. Po jego uruchomieniu można włączyć przełącznik w Settings → System → Remote Play.",
-remotePlay_np_undo: "Aby to cofnąć: Settings → Users and Accounts → Other → Sign out.",
 remotePlay_np_open_payloads: "Otwórz Payloads",
 library_download_resume: "Wznów pobieranie",
 kept_title: "Przechowywane przez ps5upload",
@@ -3736,7 +3730,6 @@ connection_payload_engine_unreachable: "Aplikacja nie mogła połączyć się z 
 "engine_problem.web.fix": "Sprawdź, czy serwer (kontener Docker) działa, i odśwież tę stronę.",
 "engine_problem.web.why": "Ta strona straciła połączenie z serwerem ps5upload, z którego pochodzi.",
 gate_engine_down_body_v2: "Ten ekran potrzebuje silnika aplikacji, który nie odpowiada. Komunikat na górze okna podaje przyczynę i może go zrestartować.",
-"profile.description_v2": "Zmieniaj awatar profilu konsoli i nazwę konta offline oraz loguj konto do PlayStation Network offline.",
 "profile.np.body": "Sprawia, że PS5 traktuje zalogowane konto jak zalogowane do PlayStation Network, bez kontaktu z Sony. Niektóre funkcje konsoli są dostępne tylko dla zalogowanego konta, w tym gra zdalna. Używa np-fake-signin autorstwa earthonion, pobieranego ze strony projektu po naciśnięciu przycisku.",
 "profile.np.confirm_title": "Zalogować to konto?",
 "profile.np.failed": "Logowanie nie zostało wykonane",
@@ -3752,7 +3745,6 @@ gate_engine_down_body_v2: "Ten ekran potrzebuje silnika aplikacji, który nie od
 "profile.np.step_activate": "Konto potrzebuje identyfikatora konta. Konto połączone z PSN go ma; w przeciwnym razie aktywuj je w sekcji Konta powyżej (aktywacja offline).",
 "profile.np.step_run": "Naciśnij Zaloguj, gdy ten użytkownik jest zalogowany na PS5. Program uruchomi się raz i zakończy.",
 "profile.np.title": "Zaloguj do PlayStation Network (offline)",
-remotePlay_np_open_profile: "Zaloguj w Profilu",
 "fpkg.image.compress": "Skompresuj do .ffpfsc",
 "fpkg.image.exfat_body": "Dla gier, które działają tylko jak zawartość dysku zewnętrznego.",
 "fpkg.image.exfat_choice": ".exfat",
@@ -4665,7 +4657,6 @@ processes_kill_payload_body: "To zakończy payload „{name}” (kstuff, etaHEN 
 processes_kill_payload_title: "Zatrzymać payload „{name}”?",
 "profile.np.browser_v2": "Logowanie wymaga aplikacji desktopowej: pobiera ona np-fake-signin i wysyła go na PS5, czego interfejs webowy nie potrafi.",
 ps5notif_description_v3: "Wiadomości, które ps5upload wyświetlił na Twoim telewizorze (Remote Play, kody), odczytane z jego helpera na konsoli. To nie jest panel powiadomień samej PS5. Odświeża się co 5 sekund.",
-remotePlay_np_profile_hint_v2: "Profil sprawdza konto i uruchamia to za Ciebie. Następnie uruchom ponownie PS5.",
 reset_confirm_body_browser: "To wyczyści wszystkie ustawienia i zapisany stan, które ta przeglądarka przechowuje dla PS5Upload, a strona załaduje się od nowa. Dane silnika na serwerze (parowania konsol, Kolekcja, zapisane serwery, biblioteki backportu, historia instalacji, logi) nie są ruszane, podobnie jak nic na Twojej PS5. Tego nie można cofnąć.",
 reset_confirm_body_v2: "To trwale usunie WSZYSTKIE lokalne dane PS5Upload: ustawienia, zapisane PS5 i ich parowania, Kolekcję, zapisane serwery i ich hasła, biblioteki backportu, historię instalacji, zadania i zdarzenia, historię aktywności/kolejki, logi, pamięć podręczną payloadów i raporty awarii. NIE dotyka niczego na Twojej PS5. Aplikacja uruchomi się od nowa. Tego nie można cofnąć.",
 reset_hint_browser: "Wyczyść wszystkie ustawienia i zapisany stan, które ta przeglądarka przechowuje dla PS5Upload, i zacznij od nowa. To, co silnik przechowuje na swoim serwerze (parowania konsol, Kolekcja, zapisane serwery, biblioteki backportu, historia instalacji, logi), nie jest ruszane, a na Twojej PS5 nic się nie zmienia.",
@@ -4732,8 +4723,6 @@ game_activity_no_console_playtime: "Brak czasu gry konsoli",
 hw_fan_confirm_msg: "Sterowanie wentylatorem konsoli będzie dążyć do utrzymania tej temperatury, a ps5upload ustawia ją ponownie przy każdym załadowaniu helpera. Niżej znaczy głośniej; wyżej pozwala konsoli pracować cieplej.",
 hw_fan_confirm_title: "Ustawić docelową temperaturę wentylatora na {c} °C?",
 ps5notif_empty_hint_v2: "Gdy ps5upload wyświetli wiadomość na Twoim telewizorze, np. PIN Remote Play lub włączenie kodu, pojawi się ona tutaj, aby można ją było przeczytać ponownie. To nie jest panel powiadomień samej PS5; konsola nie pozwala go odczytać.",
-remotePlay_check_account_hint_v2: "To konto nigdy nie zostało aktywowane, więc nie może się sparować. Profil może je aktywować, nadając mu ID konta; zmienia to dane konta, a zapisy utworzone później są powiązane z tym ID.",
-remotePlay_open_profile: "Otwórz Profil",
 v5_qa_ready: "Gotowe",
 v5_qa_unavailable: "Niedostępne",
 "fpkg.stage.pack": "Pakowanie zasobów LZ4",
@@ -6208,6 +6197,11 @@ library_compressed_hint: "Skompresowane obrazy wymagają ShadowMount+, aby grać
 "payloads_tab_running": "Uruchomione",
 "payloads_ports_heading": "Zajęte porty",
 "payloads_description_running": "Programy działające teraz na PS5 oraz zajęte porty z tym, co zwykle na nich nasłuchuje. Możesz zatrzymać lub uruchomić ponownie program; uważaj na procesy systemowe, zatrzymanie niewłaściwego może zawiesić konsolę.",
+"accounts_title": "Konta",
+"accounts_users_title": "Użytkownicy",
+"remotePlay_show_accounts": "Pokaż konta",
+"accounts_description": "Użytkownicy i konta konsoli: zmień im nazwy, nadaj kontu jego ID, zmień awatary i skonfiguruj Remote Play.",
+"remotePlay_check_account_hint_v3": "To konto nigdy nie zostało aktywowane, więc nie może się sparować. Nadaj mu ID konta na liście kont powyżej; zmienia to dane konta, a późniejsze zapisy są powiązane z tym ID.",
 };
 
 export default pl;
