@@ -5881,6 +5881,8 @@ library_compressed_hint: "圧縮イメージのプレイには ShadowMount+ が�
 "game_show_in_files": "ファイルで表示",
 "game_search_files": "このゲームのファイルを検索",
 "installed_uninstall_no_copy": "このコンピューター上のコレクションにこのゲームのコピーがありません。アンインストールする前にパッケージをどこかに保管してください。",
+"connection_send_payload_moved": "別のペイロード（kstuff、etaHEN、任意の .elf）を送りますか？それは「ペイロードとプロセス」→「ペイロード送信」にあります。この画面が送るのは PS5Upload ヘルパーだけです。",
+"connection_send_payload_open": "「ペイロード送信」を開く",
 };
 
 export default ja;

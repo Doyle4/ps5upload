@@ -5869,6 +5869,8 @@ library_compressed_hint: "Image terkompresi memerlukan ShadowMount+ untuk bermai
 "game_show_in_files": "Tampilkan di Berkas",
 "game_search_files": "Cari file game ini",
 "installed_uninstall_no_copy": "Koleksi Anda di komputer ini tidak memiliki salinan game ini: simpan paketnya di suatu tempat sebelum menghapus instalasinya.",
+"connection_send_payload_moved": "Ingin mengirim payload lain (kstuff, etaHEN, .elf apa pun)? Itu ada di Payload & proses → Kirim payload. Layar ini hanya mengirim helper PS5Upload.",
+"connection_send_payload_open": "Buka Kirim payload",
 };
 
 export default id;

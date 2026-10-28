@@ -5816,6 +5816,8 @@ library_compressed_hint: "压缩镜像需要 ShadowMount+ 才能游玩。如需�
 "game_show_in_files": "在文件中显示",
 "game_search_files": "搜索此游戏的文件",
 "installed_uninstall_no_copy": "这台电脑上的收藏中没有这款游戏的副本：卸载前请先把它的安装包保存到别处。",
+"connection_send_payload_moved": "要发送其他 Payload（kstuff、etaHEN 或任意 .elf）？请到“载荷与进程”→“发送 Payload”。此页面只发送 PS5Upload 助手。",
+"connection_send_payload_open": "打开“发送 Payload”",
 };
 
 export default zh_CN;

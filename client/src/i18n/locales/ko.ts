@@ -5879,6 +5879,8 @@ library_compressed_hint: "압축 이미지를 플레이하려면 ShadowMount+가
 "game_show_in_files": "파일에서 보기",
 "game_search_files": "이 게임의 파일 검색",
 "installed_uninstall_no_copy": "이 컴퓨터의 컬렉션에 이 게임의 사본이 없습니다. 제거하기 전에 패키지를 다른 곳에 보관하세요.",
+"connection_send_payload_moved": "다른 페이로드(kstuff, etaHEN, 아무 .elf)를 보내려면 페이로드 및 프로세스 → 페이로드 전송에서 하세요. 이 화면은 PS5Upload 도우미만 보냅니다.",
+"connection_send_payload_open": "페이로드 전송 열기",
 };
 
 export default ko;

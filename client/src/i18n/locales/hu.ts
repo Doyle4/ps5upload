@@ -6175,6 +6175,8 @@ library_compressed_hint: "A tömörített képfájlok futtatásához ShadowMount
 "game_show_in_files": "Megjelenítés a Fájlokban",
 "game_search_files": "Keresés a játék fájljai között",
 "installed_uninstall_no_copy": "A számítógépen lévő Gyűjteményedben nincs másolat erről a játékról: az eltávolítás előtt mentsd el valahová a csomagját.",
+"connection_send_payload_moved": "Másik payloadot küldenél (kstuff, etaHEN, bármilyen .elf)? Ez a Payloadok és folyamatok → Payload küldése alatt van. Ez a képernyő csak a PS5Upload segédet küldi.",
+"connection_send_payload_open": "Payload küldése megnyitása",
 };
 
 export default hu;

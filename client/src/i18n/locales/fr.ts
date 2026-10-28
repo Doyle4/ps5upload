@@ -5878,6 +5878,8 @@ library_compressed_hint: "Les images compressées nécessitent ShadowMount+ pour
 "game_show_in_files": "Afficher dans Fichiers",
 "game_search_files": "Rechercher dans les fichiers de ce jeu",
 "installed_uninstall_no_copy": "Votre Collection sur cet ordinateur n’a aucune copie de ce jeu : conservez son package quelque part avant de le désinstaller.",
+"connection_send_payload_moved": "Envoyer un autre payload (kstuff, etaHEN, n'importe quel .elf) ? C'est dans Payloads et processus → Envoyer un payload. Cet écran n'envoie que l'assistant PS5Upload.",
+"connection_send_payload_open": "Ouvrir Envoyer un payload",
 };
 
 export default fr;

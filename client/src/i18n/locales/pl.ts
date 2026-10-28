@@ -6115,6 +6115,8 @@ library_compressed_hint: "Skompresowane obrazy wymagają ShadowMount+, aby grać
 "game_show_in_files": "Pokaż w Plikach",
 "game_search_files": "Szukaj w plikach tej gry",
 "installed_uninstall_no_copy": "Twoja Kolekcja na tym komputerze nie ma kopii tej gry: zachowaj jej pakiet gdzieś, zanim ją odinstalujesz.",
+"connection_send_payload_moved": "Chcesz wysłać inny payload (kstuff, etaHEN, dowolny plik .elf)? Jest to w Payloady i procesy → Wyślij payload. Ten ekran wysyła tylko pomocnika PS5Upload.",
+"connection_send_payload_open": "Otwórz Wyślij payload",
 };
 
 export default pl;

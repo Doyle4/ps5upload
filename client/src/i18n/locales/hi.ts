@@ -5876,6 +5876,8 @@ library_compressed_hint: "संपीड़ित इमेज चलाने 
 "game_show_in_files": "फ़ाइलें में दिखाएँ",
 "game_search_files": "इस गेम की फ़ाइलें खोजें",
 "installed_uninstall_no_copy": "इस कंप्यूटर पर आपके संग्रह में इस गेम की कोई कॉपी नहीं है: अनइंस्टॉल करने से पहले इसका पैकेज कहीं रख लें।",
+"connection_send_payload_moved": "कोई दूसरा पेलोड (kstuff, etaHEN, कोई भी .elf) भेजना है? वह पेलोड और प्रोसेस → पेलोड भेजें में है। यह स्क्रीन केवल PS5Upload हेल्पर भेजती है।",
+"connection_send_payload_open": "पेलोड भेजें खोलें",
 };
 
 export default hi;

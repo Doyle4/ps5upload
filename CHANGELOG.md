@@ -4,6 +4,12 @@ What's new in ps5upload, written for humans.
 
 ---
 
+## Unreleased
+
+- **Connection says where Send payload went.** Sending kstuff, etaHEN or any other payload
+  moved to Payloads & processes → Send payload; Connection now shows a line and an **Open Send
+  payload** button for it, and the README/FAQ say Send helper where they meant the helper.
+
 ## 8.5.1
 
 - **Packages with Windows bookkeeping folders convert to game images again (#523, thanks

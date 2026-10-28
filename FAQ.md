@@ -106,7 +106,7 @@ Connection tab. The app walks you through sending it on first run.
 
 **Q: How do I send the payload?**
 Open ps5upload → **Connection** tab → enter your PS5's IP → click
-**Check**, then **Send payload**. The app waits up to 20 seconds
+**Check**, then **Send helper**. The app waits up to 20 seconds
 for the payload to come up, then unlocks the rest of the tabs.
 
 **Q: Can the app load everything by itself after the console starts?**
@@ -119,7 +119,9 @@ each time the console starts; after rest mode only the helper is sent again. Off
 
 **Q: How do I send a different payload (kstuff, kernel patches,
 plugin scripts, etc)?**
-Open the **Send payload** tab, click **Choose**, pick any `.elf`,
+Open **Payloads & processes → Send payload** (the Connection screen has an **Open Send
+payload** button that goes there; Connection itself only sends the PS5Upload helper), click
+**Choose**, pick any `.elf`,
 `.bin`, `.js`, `.lua`, or `.jar` file, set the port to whatever your
 loader listens on (the screen has a built-in cheat sheet — `.elf` →
 9021, `.js` → 50000, `.lua` → 9026, `.jar` → 9025 for BD-JB / BDJ),
@@ -940,7 +942,7 @@ ping 192.168.88.2
 ```
 
 If ping works, you're done — open ps5upload and use `192.168.88.2`
-as the PS5 address. The payload-send (Connection → Send payload)
+as the PS5 address. The helper send (Connection → Send helper)
 and every transfer afterwards goes over the direct cable.
 
 ### Notes / gotchas

@@ -5862,6 +5862,8 @@ library_compressed_hint: "Ảnh đĩa nén cần ShadowMount+ để chơi. Để
 "game_show_in_files": "Hiện trong Tệp",
 "game_search_files": "Tìm trong tệp của game này",
 "installed_uninstall_no_copy": "Bộ sưu tập trên máy tính này không có bản sao của game này: hãy lưu gói của nó ở đâu đó trước khi gỡ cài đặt.",
+"connection_send_payload_moved": "Muốn gửi payload khác (kstuff, etaHEN, bất kỳ .elf nào)? Mục đó nằm ở Payload và tiến trình → Gửi payload. Màn hình này chỉ gửi trình trợ giúp PS5Upload.",
+"connection_send_payload_open": "Mở Gửi payload",
 };
 
 export default vi;

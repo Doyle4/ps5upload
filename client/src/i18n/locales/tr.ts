@@ -5867,6 +5867,8 @@ library_compressed_hint: "Sıkıştırılmış kalıpları oynatmak için Shadow
 "game_show_in_files": "Dosyalar'da göster",
 "game_search_files": "Bu oyunun dosyalarında ara",
 "installed_uninstall_no_copy": "Bu bilgisayardaki Koleksiyonunuzda bu oyunun kopyası yok: kaldırmadan önce paketini bir yerde saklayın.",
+"connection_send_payload_moved": "Başka bir payload (kstuff, etaHEN, herhangi bir .elf) mı göndereceksiniz? Bu, Payload'lar ve işlemler → Payload gönder altında. Bu ekran yalnızca PS5Upload yardımcısını gönderir.",
+"connection_send_payload_open": "Payload gönder'i aç",
 };
 
 export default tr;

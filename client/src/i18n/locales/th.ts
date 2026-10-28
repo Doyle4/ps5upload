@@ -5869,6 +5869,8 @@ library_compressed_hint: "อิมเมจที่บีบอัดต้อ
 "game_show_in_files": "แสดงในไฟล์",
 "game_search_files": "ค้นหาไฟล์ของเกมนี้",
 "installed_uninstall_no_copy": "คอลเลกชันในคอมพิวเตอร์เครื่องนี้ไม่มีสำเนาของเกมนี้: เก็บแพ็กเกจของเกมไว้ที่อื่นก่อนถอนการติดตั้ง",
+"connection_send_payload_moved": "ต้องการส่งเพย์โหลดอื่น (kstuff, etaHEN หรือไฟล์ .elf ใดก็ได้) ใช่ไหม? อยู่ที่ เพย์โหลดและโปรเซส → ส่งเพย์โหลด หน้าจอนี้ส่งเฉพาะตัวช่วย PS5Upload",
+"connection_send_payload_open": "เปิด ส่งเพย์โหลด",
 };
 
 export default th;

@@ -5860,6 +5860,8 @@ library_compressed_hint: "সংকুচিত ইমেজ চালাতে 
 "game_show_in_files": "ফাইলে দেখান",
 "game_search_files": "এই গেমের ফাইল খুঁজুন",
 "installed_uninstall_no_copy": "এই কম্পিউটারে আপনার সংগ্রহে এই গেমের কোনো কপি নেই: আনইনস্টল করার আগে এর প্যাকেজ কোথাও রেখে দিন।",
+"connection_send_payload_moved": "অন্য কোনো পেলোড (kstuff, etaHEN, যেকোনো .elf) পাঠাতে চান? সেটি আছে পেলোড ও প্রসেস → পেলোড পাঠান-এ। এই স্ক্রিন শুধু PS5Upload হেল্পার পাঠায়।",
+"connection_send_payload_open": "পেলোড পাঠান খুলুন",
 };
 
 export default bn;

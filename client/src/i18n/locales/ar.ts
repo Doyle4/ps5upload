@@ -5860,6 +5860,8 @@ library_compressed_hint: "تحتاج الصور المضغوطة إلى ShadowMo
 "game_show_in_files": "إظهار في الملفات",
 "game_search_files": "البحث في ملفات هذه اللعبة",
 "installed_uninstall_no_copy": "لا توجد في مجموعتك على هذا الكمبيوتر نسخة من هذه اللعبة: احتفظ بحزمتها في مكان ما قبل إلغاء التثبيت.",
+"connection_send_payload_moved": "هل تريد إرسال حمولة أخرى (kstuff أو etaHEN أو أي ملف ‎.elf)؟ ستجد ذلك في الحمولات والعمليات ← إرسال حمولة. هذه الشاشة ترسل مساعد PS5Upload فقط.",
+"connection_send_payload_open": "فتح إرسال حمولة",
 };
 
 export default ar;

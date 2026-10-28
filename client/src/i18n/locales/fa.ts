@@ -6161,6 +6161,8 @@ library_compressed_hint: "برای اجرای ایمیج فشرده به ShadowM
 "game_show_in_files": "نمایش در فایل‌ها",
 "game_search_files": "جستجو در فایل‌های این بازی",
 "installed_uninstall_no_copy": "مجموعهٔ شما در این رایانه نسخه‌ای از این بازی ندارد: پیش از حذف نصب، بستهٔ آن را جایی نگه دارید.",
+"connection_send_payload_moved": "می‌خواهید پی‌لود دیگری (kstuff، etaHEN یا هر فایل ‎.elf) بفرستید؟ این کار در پی‌لودها و فرایندها ← ارسال پی‌لود است. این صفحه فقط دستیار PS5Upload را می‌فرستد.",
+"connection_send_payload_open": "باز کردن ارسال پی‌لود",
 };
 
 export default fa;

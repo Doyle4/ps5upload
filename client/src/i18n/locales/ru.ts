@@ -5810,6 +5810,8 @@ library_compressed_hint: "Для запуска сжатых образов ну
 "game_show_in_files": "Показать в разделе «Файлы»",
 "game_search_files": "Искать в файлах этой игры",
 "installed_uninstall_no_copy": "В вашей Коллекции на этом компьютере нет копии этой игры: сохраните её пакет где-нибудь, прежде чем удалять.",
+"connection_send_payload_moved": "Нужно отправить другой payload (kstuff, etaHEN, любой .elf)? Это в разделе «Пейлоады и процессы» → «Отправить payload». Этот экран отправляет только помощник PS5Upload.",
+"connection_send_payload_open": "Открыть «Отправить payload»",
 };
 
 export default ru;
