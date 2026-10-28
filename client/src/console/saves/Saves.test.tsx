@@ -225,9 +225,9 @@ const view = (over: Partial<SavesViewProps> = {}): SavesViewProps => ({
 const html = (over: Partial<SavesViewProps> = {}) => renderToStaticMarkup(<SavesView {...view(over)} />);
 
 describe("Saves section", () => {
-  it("is in the rail after the Library, and Games can open it at a game", () => {
+  it("is in the rail after Games, and Games can open it at a game", () => {
     const ids = SECTIONS.map((s) => s.id);
-    expect(ids.indexOf("saves")).toBe(ids.indexOf("library") + 1);
+    expect(ids.indexOf("saves")).toBe(ids.indexOf("games") + 1);
     expect(SECTIONS.find((s) => s.id === "saves")?.acceptsParams).toBe(true);
   });
 

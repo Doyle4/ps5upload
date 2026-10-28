@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   ArchiveRestore,
   ArrowDownAZ,
@@ -103,6 +103,8 @@ function lastPlayedText(ms: number | null): string {
 /* ---- view ---- */
 
 export interface GamesViewProps {
+  /** Games' Installed / On Drives & Shares switch, under the title. */
+  switcher?: ReactNode;
   data: Installed | null;
   loadError: string | null;
   query: string;
@@ -333,6 +335,7 @@ export function GamesView(p: GamesViewProps) {
         {t("cw_games_title")}
         {p.data ? <span className="cw-tag">{p.data.games.length}</span> : null}
       </h1>
+      {p.switcher}
       <div className="cw-toolbar">
         <label className="cw-games-search">
           <Search aria-hidden />
@@ -448,7 +451,7 @@ export async function closeGame(
 }
 
 /** The Games section: the console's installed games, launched, closed, hidden or uninstalled from the controller. */
-export function Games({ ctx }: { ctx: SectionContext }) {
+export function Games({ ctx, switcher }: { ctx: SectionContext; switcher?: ReactNode }) {
   const [data, setData] = useState<Installed | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
@@ -651,6 +654,7 @@ export function Games({ ctx }: { ctx: SectionContext }) {
         ask={ask}
         busy={busy}
         askError={askError}
+        switcher={switcher}
         onQuery={setQuery}
         onSort={() => setSort((s) => (s === "recent" ? "name" : "recent"))}
         onShow={() => setShow((s) => (s === "all" ? "hidden" : "all"))}

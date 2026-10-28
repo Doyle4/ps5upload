@@ -536,7 +536,7 @@ export function Home({ ctx }: { ctx: SectionContext }) {
     if (fresh) setUsbNew(fresh);
     else setUsbNew((cur) => (cur && seenDrives.current?.has(cur.path) ? cur : null));
   }, [volumes]);
-  const onFindGames = hasSection("library") ? () => openSection("library", { scan: "1" }) : null;
+  const onFindGames = hasSection("games") ? () => openSection("games", { view: "library", scan: "1" }) : null;
 
   return (
     <HomeView

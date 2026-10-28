@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState, type ReactNode } from "react";
 import { Check, Copy, Download, FolderOpen, Gamepad2, HousePlus, Layers, RefreshCw, Search, Square, Wrench, X } from "lucide-react";
 import { formatBytes } from "../../lib/format";
 import { ApiError, call } from "../api";
@@ -121,6 +121,8 @@ export interface FolderSize {
 }
 
 export interface LibraryViewProps {
+  /** Games' Installed / On Drives & Shares switch, under the title. */
+  switcher?: ReactNode;
   sources: LibSource[];
   scans: ReadonlyMap<string, LibScan | null>;
   loaded: boolean;
@@ -388,6 +390,7 @@ export function LibraryView(p: LibraryViewProps) {
         {t("cw_lib_title")}
         {p.loaded ? <span className="cw-tag">{all.length}</span> : null}
       </h1>
+      {p.switcher}
       <div className="cw-toolbar">
         <label className="cw-games-search">
           <Search aria-hidden />
@@ -682,7 +685,11 @@ async function loadInstalledVersion(titleId: string): Promise<void> {
 }
 
 /** The Library section: one card per game on the saved shares and this console's drives; its detail installs or copies each part. */
-export function Library({ scan = false, ctx }: { scan?: boolean; ctx?: SectionContext } = {}) {
+export function Library({
+  scan = false,
+  ctx,
+  switcher,
+}: { scan?: boolean; ctx?: SectionContext; switcher?: ReactNode } = {}) {
   const [, bump] = useReducer((n: number) => n + 1, 0);
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState<string | null>(null);
@@ -739,6 +746,7 @@ export function Library({ scan = false, ctx }: { scan?: boolean; ctx?: SectionCo
   return (
     <div ref={root}>
       <LibraryView
+        switcher={switcher}
         sources={lib.sources}
         scans={lib.scans}
         loaded={lib.loaded}

@@ -1,5 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
+import { gamesViewOf } from "../games/GamesSection";
 import { SECTIONS } from "../sections";
 import { t } from "../strings";
 import { LibraryView, groupSize, type LibraryViewProps } from "./Library";
@@ -198,10 +199,13 @@ const base = (over: Partial<LibraryViewProps> = {}): LibraryViewProps => ({
 const html = (over: Partial<LibraryViewProps> = {}) => renderToStaticMarkup(<LibraryView {...base(over)} />);
 
 describe("Library section", () => {
-  it("is in the rail right after Games", () => {
+  it("is a view of Games, which opens on it to scan or when asked", () => {
     const ids = SECTIONS.map((s) => s.id);
-    expect(ids.indexOf("library")).toBe(ids.indexOf("games") + 1);
-    expect(SECTIONS.find((s) => s.id === "library")?.labelKey).toBe("cw_lib_title");
+    expect(ids).not.toContain("library");
+    expect(SECTIONS.find((s) => s.id === "games")?.acceptsParams).toBe(true);
+    expect(gamesViewOf({ scan: "1" })).toBe("library");
+    expect(gamesViewOf({ view: "library" })).toBe("library");
+    expect(gamesViewOf(null)).toBe("installed");
   });
 
   it("shows one card per game with its platform and format", () => {

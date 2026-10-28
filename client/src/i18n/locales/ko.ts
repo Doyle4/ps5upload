@@ -4945,7 +4945,6 @@ c2c_test_deep_bad: "4 KiB 테스트 전송이 도착하지 않았습니다: {det
 "cw_procs_stopped": "{name}을(를) 중지했습니다.",
 "cw_procs_err_gone": "이미 중지되어 있었습니다.",
 "cw_procs_err_protected": "이 프로세스는 여기서 중지할 수 없습니다.",
-"cw_tour1_games": "게임: 게임을 시작, 종료, 숨기기 또는 제거합니다.",
 "cw_tour1_processes": "프로세스: 지금 실행 중인 것. 게임이나 페이로드를 중지합니다.",
 "cw_tour1_fan": "팬: 온도와 팬이 얼마나 일찍 빨라지는지.",
 "cw_tour1_cleanup": "정리: 업데이트와 남은 패키지에서 공간을 되찾습니다.",
@@ -5034,7 +5033,6 @@ c2c_test_deep_bad: "4 KiB 테스트 전송이 도착하지 않았습니다: {det
 "cw_saves_err_no_folder": "PS5가 이 게임의 세이브 폴더를 만들지 않았습니다. 게임을 실행해 한 번 저장한 뒤 복원하세요.",
 "cw_saves_where": "이 PS5의 {path}에 보관",
 "cw_games_saves": "세이브 백업",
-"cw_tour1_library": "라이브러리: 네트워크 공유와 드라이브의 게임을 설치하거나 복사합니다.",
 "cw_tour1_saves": "세이브: PS5에서 게임 세이브를 백업하고 나중에 복원합니다.",
 "cw_hint_open": "열기",
 "cw_hint_back": "뒤로",
@@ -5982,6 +5980,9 @@ library_compressed_hint: "압축 이미지를 플레이하려면 ShadowMount+가
 "games_all_storage_unread": "드라이브를 읽고 나면 PS5 드라이브의 게임 폴더와 이미지가 여기에 표시됩니다.",
 "games_any_description": "가진 모든 게임을 한 번씩: PS5에 설치됨, PS5 드라이브에 있음, 또는 이 컴퓨터에 있음. 하나를 열면 모든 사본과 할 수 있는 일이 나옵니다.",
 "games_all_empty_hint": "PS5에 설치된 게임, PS5 드라이브의 게임, 이 컴퓨터 컬렉션의 게임이 모두 여기에 표시됩니다. 게임을 PS5로 보내거나, '이 컴퓨터'에서 컬렉션에 폴더를 추가하세요.",
+"cw_games_view_installed": "설치됨",
+"cw_games_view_library": "드라이브 및 공유 폴더",
+"cw_tour1_games_v2": "게임: 게임을 시작, 종료, 숨기기 또는 제거합니다. '드라이브 및 공유 폴더'에는 네트워크 공유와 드라이브의 게임이 표시되어 설치하거나 복사할 수 있습니다.",
 };
 
 export default ko;

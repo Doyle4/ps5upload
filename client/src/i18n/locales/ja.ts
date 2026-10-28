@@ -4947,7 +4947,6 @@ c2c_test_deep_bad: "4 KiB のテスト送信が届きませんでした: {detail
 "cw_procs_stopped": "{name}を停止しました。",
 "cw_procs_err_gone": "すでに停止していました。",
 "cw_procs_err_protected": "そのプロセスはここから停止できません。",
-"cw_tour1_games": "ゲーム：ゲームの起動、終了、非表示、アンインストール。",
 "cw_tour1_processes": "プロセス：いま動いているもの。ゲームやペイロードを停止。",
 "cw_tour1_fan": "ファン：温度と、ファンが回り始めるタイミング。",
 "cw_tour1_cleanup": "クリーンアップ：アップデートや残ったパッケージの容量を取り戻します。",
@@ -5036,7 +5035,6 @@ c2c_test_deep_bad: "4 KiB のテスト送信が届きませんでした: {detail
 "cw_saves_err_no_folder": "PS5 がこのゲームのセーブフォルダーを作成しませんでした。ゲームを起動して一度セーブしてから復元してください。",
 "cw_saves_where": "この PS5 の {path} に保存",
 "cw_games_saves": "セーブのバックアップ",
-"cw_tour1_library": "ライブラリ: ネットワーク共有とドライブのゲームをインストールまたはコピー。",
 "cw_tour1_saves": "セーブデータ: PS5 上でゲームのセーブをバックアップし、あとで復元します。",
 "cw_hint_open": "開く",
 "cw_hint_back": "戻る",
@@ -5984,6 +5982,9 @@ library_compressed_hint: "圧縮イメージのプレイには ShadowMount+ が�
 "games_all_storage_unread": "ドライブを読み込むと、PS5 のドライブ上のゲームフォルダーとイメージがここに表示されます。",
 "games_any_description": "手持ちのゲームをそれぞれ一度ずつ：PS5 にインストール済み、PS5 のドライブ上、またはこのコンピューター上。開くと、すべてのコピーとできることが表示されます。",
 "games_all_empty_hint": "PS5 にインストール済みのゲーム、PS5 のドライブ上のゲーム、このコンピューターのコレクションのゲームがすべてここに表示されます。ゲームを PS5 に送るか、「このコンピューター」でコレクションにフォルダーを追加してください。",
+"cw_games_view_installed": "インストール済み",
+"cw_games_view_library": "ドライブと共有フォルダー",
+"cw_tour1_games_v2": "ゲーム：ゲームの起動、終了、非表示、アンインストール。「ドライブと共有フォルダー」には、ネットワーク共有やドライブ上のゲームが表示され、インストールやコピーができます。",
 };
 
 export default ja;
