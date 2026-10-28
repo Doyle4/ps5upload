@@ -4,6 +4,32 @@ What's new in ps5upload, written for humans.
 
 ---
 
+## 8.7.0
+
+- **A simpler sidebar: 25 screens became 21, and every feature is still there.** Screens that
+  did overlapping jobs are now one screen each, named by what you do there. Old links,
+  bookmarks, pinned screens and hidden screens carry over by themselves.
+  - **Send to PS5** replaces Upload and Install Package. Drop or pick anything (a game folder,
+    an image, an archive, a package, any file) and the app works out what to do with it,
+    a package's Stream & install included. Below are install from a link or an archive, the
+    queue, and the packages already on the PS5 (USB drives and copies put there before, with
+    Install all).
+  - **Workshop** replaces Convert Games and Game images. Pick a game once; then convert it, or
+    use **Look Inside** to browse an image or package and write an edited copy, or (macOS and
+    Linux) **Open as a Drive**.
+  - **Shared Folders** replaces Network shares and Mesh Drive: your NAS and servers, the shares
+    the PS5 uses, and your Mesh Drives on one page.
+  - **Accounts** replaces Profile and Remote Play: users, account IDs and avatars, then Remote
+    Play's checklist, the sign-in step and the pairing PIN in the order they are done.
+  - **Payloads** (was Payloads & processes): Processes and Ports are one **Running** tab.
+- **Games opens on one list of every game.** **All** shows each game once, wherever its copies
+  are (installed, on the PS5's drives, on this computer), and opens its game page. The other
+  views are named by place: **Installed**, **On PS5 Storage**, **On This Computer**.
+- **Minion: Games and Library are one Games entry,** with an Installed / On Drives & Shares
+  switch.
+- **Home:** Upload and Install PKG are one **Send to PS5** tile; the freed tile sends a payload.
+- Screen names are Title Case in English (Save Data, Clean Up, Activity & Logs, Bug Report).
+
 ## 8.6.1
 
 - **Undo sign-in covers every account slot used.** The copy kept before np-fake-signin now
