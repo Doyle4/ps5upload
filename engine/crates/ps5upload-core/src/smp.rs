@@ -105,12 +105,47 @@ pub struct SmpStatus {
     pub errors: Vec<String>,
 }
 
-// HyperHEN embeds SMP as hyperhen_mount.elf (upstream src/main.c PAYLOAD_NAME).
+// HyperHEN embeds SMP as hyperhen_mount.elf (upstream src/main.c PAYLOAD_NAME); its docs call
+// the embedded build hyperhen_automount.elf, so both names count.
 // The generic HyperHEN process is insufficient: utility-only firmware routes lack automount.
 fn is_mount_process(name: &str) -> bool {
     let name = name.to_ascii_lowercase();
     name.contains(SMP_PROCESS_NAME_HINT)
-        || matches!(name.as_str(), "hyperhen_mount" | "hyperhen_mount.elf")
+        || matches!(
+            name.as_str(),
+            "hyperhen_mount"
+                | "hyperhen_mount.elf"
+                | "hyperhen_automount"
+                | "hyperhen_automount.elf"
+        )
+}
+
+/// HyperHEN's readiness marker for its built-in ShadowMount+: the engine writes its pid here
+/// once its scanner, API and mounts are up, and removes it when it stops or fails
+/// (upstream `HYPERHEN_AUTOMOUNT_READY`). A second signal beside the process name, so a
+/// renamed process does not make a working mount engine look absent (a Discord report: with
+/// HyperHEN the app greyed out Mount for compressed images that mounted fine). A helper older
+/// than this one refuses the path, which reads as "no marker".
+const HYPERHEN_AUTOMOUNT_READY: &str = "/system_tmp/hyperhen/ready/automount";
+
+/// The pid a HyperHEN readiness marker names: the file holds the decimal pid, possibly with
+/// whitespace around it.
+fn marker_pid(bytes: &[u8]) -> Option<i32> {
+    std::str::from_utf8(bytes)
+        .ok()?
+        .trim()
+        .parse::<i32>()
+        .ok()
+        .filter(|pid| *pid > 1)
+}
+
+/// Whether HyperHEN says its mount engine is ready, and that process is still alive: a marker
+/// left behind by a crash names a pid that is gone.
+fn hyperhen_automount_ready(marker: Option<&[u8]>, procs: &[crate::hw::ProcEntry]) -> bool {
+    match marker.and_then(marker_pid) {
+        Some(pid) => procs.iter().any(|p| p.pid == pid),
+        None => false,
+    }
 }
 
 /// Collect a full SMP status snapshot for the PS5 at `addr`
@@ -148,7 +183,20 @@ pub fn collect_status(addr: &str) -> Result<SmpStatus> {
     // substring on lowercased name to handle "shadowmountplus.elf"
     // vs "shadowmountplus" depending on how the kernel records it.
     let running = match proc_list(addr) {
-        Ok(list) => list.procs.iter().any(|p| is_mount_process(&p.name)),
+        Ok(list) => {
+            list.procs.iter().any(|p| is_mount_process(&p.name)) || {
+                let marker = fs_read_with_timeout(
+                    addr,
+                    HYPERHEN_AUTOMOUNT_READY,
+                    0,
+                    64,
+                    Some(RPC_TIMEOUT),
+                    false,
+                )
+                .ok();
+                hyperhen_automount_ready(marker.as_deref(), &list.procs)
+            }
+        }
         Err(e) => {
             errors.push(format!("proc list: {e}"));
             false
@@ -423,6 +471,7 @@ mod mount_process_tests {
             "ShadowMountPlus.elf",
             "hyperhen_mount",
             "hyperhen_mount.elf",
+            "hyperhen_automount.elf",
         ] {
             assert!(is_mount_process(name), "{name}");
         }
@@ -435,5 +484,42 @@ mod mount_process_tests {
         ] {
             assert!(!is_mount_process(name), "{name}");
         }
+    }
+}
+
+#[cfg(test)]
+mod hyperhen_marker_tests {
+    use super::{hyperhen_automount_ready, marker_pid};
+    use crate::hw::ProcEntry;
+
+    fn procs(list: &[(i32, &str)]) -> Vec<ProcEntry> {
+        list.iter()
+            .map(|(pid, name)| ProcEntry {
+                pid: *pid,
+                name: name.to_string(),
+            })
+            .collect()
+    }
+
+    #[test]
+    fn marker_holds_a_decimal_pid() {
+        assert_eq!(marker_pid(b"142"), Some(142));
+        assert_eq!(marker_pid(b" 142\n"), Some(142));
+        assert_eq!(marker_pid(b"1"), None);
+        assert_eq!(marker_pid(b""), None);
+        assert_eq!(marker_pid(b"ready"), None);
+    }
+
+    #[test]
+    fn a_live_marker_counts_whatever_the_process_is_called() {
+        let list = procs(&[(80, "HyperHEN.elf"), (142, "payload.elf")]);
+        assert!(hyperhen_automount_ready(Some(b"142"), &list));
+    }
+
+    #[test]
+    fn a_stale_or_missing_marker_does_not() {
+        let list = procs(&[(80, "HyperHEN.elf")]);
+        assert!(!hyperhen_automount_ready(Some(b"142"), &list));
+        assert!(!hyperhen_automount_ready(None, &list));
     }
 }

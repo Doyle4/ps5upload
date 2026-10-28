@@ -12,7 +12,8 @@ export type ChainPayload = "kstuff" | "shadowmount";
  *  command names, case-insensitively: every kstuff build we have seen
  *  (kstuff.elf, kstuff-lite, Kstuff-NG), shadowmountplus.elf, and HyperHEN's
  *  built-in ShadowMount+ engine, which names itself hyperhen_mount.elf (its
- *  third_party/shadowmountplus/src/main.c PAYLOAD_NAME). HyperHEN's own process
+ *  third_party/shadowmountplus/src/main.c PAYLOAD_NAME; its docs call the embedded
+ *  build hyperhen_automount.elf, so that counts too). HyperHEN's own process
  *  (HyperHEN.elf) is not enough: on FW 13.40/13.42 it runs without automount. */
 export function runningChainPayloads(
   processes: ReadonlyArray<{ name: string; comm?: string }>,
@@ -21,7 +22,12 @@ export function runningChainPayloads(
   for (const p of processes) {
     const names = `${p.name} ${p.comm ?? ""}`.toLowerCase();
     if (names.includes("kstuff")) found.add("kstuff");
-    if (names.includes("shadowmount") || names.includes("hyperhen_mount")) found.add("shadowmount");
+    if (
+      names.includes("shadowmount") ||
+      names.includes("hyperhen_mount") ||
+      names.includes("hyperhen_automount")
+    )
+      found.add("shadowmount");
   }
   return found;
 }

@@ -9,6 +9,9 @@ What's new in ps5upload, written for humans.
 - **Connection says where Send payload went.** Sending kstuff, etaHEN or any other payload
   moved to Payloads & processes → Send payload; Connection now shows a line and an **Open Send
   payload** button for it, and the README/FAQ say Send helper where they meant the helper.
+- **HyperHEN's built-in ShadowMount+ is recognised more reliably.** Besides its process name, the
+  app now reads HyperHEN's own "automount ready" marker, so Mount for compressed images, Play
+  on disc-image titles and the setup wizard stop treating a working ShadowMount+ as missing.
 
 ## 8.5.1
 

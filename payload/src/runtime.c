@@ -2145,6 +2145,24 @@ static int is_disc_read_path(const char *p) {
     return is_disc_lexical(resolved);
 }
 
+/* READ-ONLY exception for HyperHEN's readiness markers: /system_tmp/hyperhen/ready/<name>, one
+ * small file per stage holding the stage's pid ("automount" for its built-in ShadowMount+). The
+ * engine reads them to tell that HyperHEN's own mount engine runs, whatever its process is called.
+ * One flat directory of tokens: no subdirectory, no dot-dot, and the canonical form must stay. */
+static int is_hyperhen_ready_lexical(const char *p) {
+    static const char PRE[] = "/system_tmp/hyperhen/ready/";
+    if (strncmp(p, PRE, sizeof(PRE) - 1) != 0) return 0;
+    const char *name = p + sizeof(PRE) - 1;
+    if (!name[0] || strchr(name, '/') || path_has_dotdot_component(p)) return 0;
+    return 1;
+}
+static int is_hyperhen_ready_read_path(const char *p) {
+    if (!is_hyperhen_ready_lexical(p)) return 0;
+    char resolved[PATH_MAX];
+    if (realpath(p, resolved) == NULL) return errno == ENOENT;
+    return is_hyperhen_ready_lexical(resolved);
+}
+
 /* Validate a path for unsafe read mode. This relaxes the writable-root
  * allowlist so system partitions become readable, but three guards stay:
  *   (1) Path must be absolute, no dotdot, no relative segments.
@@ -9111,7 +9129,7 @@ static runtime_state_t *g_mgmt_fs_state;
  * fs.read may open is one a download may open too (the disc and avatar carve-outs included). */
 int mgmt_fs_read_allowed(const char *path, int unsafe_read) {
     return is_path_allowed(path) || is_profile_avatar_read_path(path) || is_disc_read_path(path) ||
-           (unsafe_read && is_safe_unsafe_read_path(path));
+           is_hyperhen_ready_read_path(path) || (unsafe_read && is_safe_unsafe_read_path(path));
 }
 
 static void mgmt_fs_count(void) {
