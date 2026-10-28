@@ -20,6 +20,7 @@ import {
   FolderTree,
   Cpu,
   CircleUserRound,
+  MonitorPlay,
   Boxes,
   Save,
   Image as ImageIcon,
@@ -160,6 +161,15 @@ export const NAV_ITEMS: NavItem[] = [
   },
   // The console's users and accounts, their avatars, and Remote Play (which needs an
   // activated, signed-in account, so it lives with them).
+  // Remote Play in the app (beta): the console's screen streamed here. Pairing and the console
+  // settings it needs stay in Accounts.
+  {
+    to: "/play",
+    key: "play_title",
+    fallback: "Play",
+    icon: MonitorPlay,
+    beta: true,
+  },
   {
     to: "/accounts",
     key: "accounts_title",

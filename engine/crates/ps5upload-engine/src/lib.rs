@@ -87,6 +87,7 @@ mod profile_image;
 mod remote;
 mod remote_download;
 mod remote_pkg;
+mod rp_stream_api;
 mod save_backup;
 mod settings_backup;
 mod shared_state;
@@ -11250,6 +11251,9 @@ async fn run(cfg: EngineConfig) -> anyhow::Result<()> {
         .route("/api/ps5/power/telemetry", get(ps5_power_telemetry))
         .route("/api/ps5/power/wake", post(ps5_power_wake))
         .route("/api/ps5/power/wake-login", post(ps5_power_wake_login))
+        // Remote Play stream spike (rp_stream_api).
+        .route("/api/ps5/rp/ws", get(rp_stream_api::ws))
+        .route("/rp-player", get(rp_stream_api::player))
         .route("/api/ps5/power/ddp-status", get(ps5_power_ddp_status))
         .route("/api/ps5/power/pair", post(ps5_power_pair))
         .route("/api/ps5/users/create", post(user_create_handler))
