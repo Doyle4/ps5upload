@@ -31,7 +31,6 @@ import {
   LayoutDashboard,
   Bug,
   Bell,
-  Network,
   Stethoscope,
   HardDrive,
   PackagePlus,
@@ -138,12 +137,13 @@ export const NAV_ITEMS: NavItem[] = [
     icon: FolderTree,
   },
   // 8.0.0: a folder kept the same on every device, at home on the console.
-  { to: "/mesh-drive", key: "drive_title", fallback: "Mesh Drive", icon: FolderSync },
+  // Folders reached over the network: your NAS and servers, and Mesh Drives (8.0.0) kept the
+  // same on every device with their home on the console.
   {
-    to: "/connections",
-    key: "network_shares",
-    fallback: "Network Shares",
-    icon: Network,
+    to: "/shared-folders",
+    key: "shared_folders_title",
+    fallback: "Shared Folders",
+    icon: FolderSync,
   },
   { to: "/volumes", key: "volumes", fallback: "Volumes", icon: HardDrive },
   {
@@ -292,6 +292,8 @@ export function cleanPinned(list: readonly unknown[]): string[] {
 export const NAV_MOVED: Readonly<Record<string, string>> = {
   "/profile": "/accounts",
   "/remote-play": "/accounts",
+  "/mesh-drive": "/shared-folders",
+  "/connections": "/shared-folders",
 };
 
 /** The route a screen lives at now: its new home if it was folded into another, else itself. */

@@ -5949,6 +5949,9 @@ library_compressed_hint: "Ảnh đĩa nén cần ShadowMount+ để chơi. Để
 "remotePlay_show_accounts": "Xem tài khoản",
 "accounts_description": "Người dùng và tài khoản của máy: đổi tên, gán ID cho tài khoản, đổi ảnh đại diện và thiết lập Remote Play.",
 "remotePlay_check_account_hint_v3": "Tài khoản này chưa từng được kích hoạt nên không thể ghép đôi. Gán cho nó một ID tài khoản trong danh sách tài khoản bên trên; việc này thay đổi dữ liệu tài khoản, và các bản lưu sau đó gắn với ID đó.",
+"shared_folders_title": "Thư mục chia sẻ",
+"shared_servers_title": "Máy chủ",
+"shared_folders_description": "Các thư mục bạn truy cập qua mạng: NAS và máy chủ của bạn, cùng Ổ đồng bộ luôn giống nhau trên mọi thiết bị.",
 };
 
 export default vi;

@@ -259,20 +259,25 @@ describe("retired screens", () => {
     >,
   )[0];
 
-  it("are not in the navigation, and Connections is", async () => {
+  it("are not in the navigation, and Shared Folders is", async () => {
     const { NAV_ITEMS } = await import("./navItems");
     const paths = NAV_ITEMS.map((i: { to: string }) => i.to);
     expect(paths).not.toContain("/smb-browser");
     expect(paths).not.toContain("/ftp-server");
-    expect(paths).toContain("/connections");
+    expect(paths).toContain("/shared-folders");
+    expect(paths).not.toContain("/connections");
+    expect(paths).not.toContain("/mesh-drive");
   });
 
-  it("send their old links to Connections", () => {
+  it("send their old links to Shared Folders", () => {
     for (const old of ["/smb-browser", "/ftp-server"]) {
       expect(APP).toMatch(
-        new RegExp(`path="${old}"\\s+element=\\{<Navigate to="/connections" replace />\\}`),
+        new RegExp(`path="${old}"\\s+element=\\{<Navigate to="/shared-folders" replace />\\}`),
       );
     }
+    // The screens folded into it keep their query (?add=1, ?edit=<id>) and land on their part.
+    expect(APP).toContain(`path="/connections" element={<MovedTo to="/shared-folders" />}`);
+    expect(APP).toContain(`path="/mesh-drive" element={<MovedTo to="/shared-folders" hash="mesh-drive" />}`);
     expect(APP).not.toMatch(/SmbBrowserScreen|FtpServerScreen/);
   });
 });

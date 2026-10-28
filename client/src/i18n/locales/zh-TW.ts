@@ -5897,6 +5897,9 @@ library_compressed_hint: "壓縮映像需要 ShadowMount+ 才能遊玩。如需�
 "remotePlay_show_accounts": "查看帳戶",
 "accounts_description": "主機的使用者和帳戶：重新命名、為帳戶設定 ID、更換頭像，以及設定遙控遊玩。",
 "remotePlay_check_account_hint_v3": "此帳戶從未啟用，因此無法配對。請在上方帳戶清單中為它設定帳戶 ID；這會變更帳戶資料，之後的存檔會與該 ID 綁定。",
+"shared_folders_title": "共用資料夾",
+"shared_servers_title": "伺服器",
+"shared_folders_description": "透過網路存取的資料夾：你的 NAS 和伺服器，以及在每台裝置上保持一致的同步磁碟。",
 };
 
 export default zh_TW;

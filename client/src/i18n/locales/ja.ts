@@ -5968,6 +5968,9 @@ library_compressed_hint: "圧縮イメージのプレイには ShadowMount+ が�
 "remotePlay_show_accounts": "アカウントを表示",
 "accounts_description": "本体のユーザーとアカウント：名前の変更、アカウントへの ID の付与、アバターの変更、リモートプレイの設定。",
 "remotePlay_check_account_hint_v3": "このアカウントは一度も有効化されていないため、ペアリングできません。上のアカウント一覧でアカウント ID を付与してください。アカウントデータが変わり、以後のセーブはその ID に結び付きます。",
+"shared_folders_title": "共有フォルダー",
+"shared_servers_title": "サーバー",
+"shared_folders_description": "ネットワーク経由で使うフォルダー：NAS やサーバー、そしてどのデバイスでも同じ内容に保たれるメッシュドライブ。",
 };
 
 export default ja;

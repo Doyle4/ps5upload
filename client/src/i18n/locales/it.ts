@@ -5897,6 +5897,9 @@ library_compressed_hint: "Le immagini compresse richiedono ShadowMount+ per gioc
 "remotePlay_show_accounts": "Mostra account",
 "accounts_description": "Gli utenti e gli account della console: rinominali, assegna l'ID a un account, cambia gli avatar e configura Riproduzione remota.",
 "remotePlay_check_account_hint_v3": "Questo account non è mai stato attivato, quindi non può associarsi. Assegnagli un ID account nell'elenco degli account qui sopra; questo modifica i dati dell'account e i salvataggi successivi restano legati a quell'ID.",
+"shared_folders_title": "Cartelle condivise",
+"shared_servers_title": "Server",
+"shared_folders_description": "Le cartelle che raggiungi in rete: il tuo NAS e i server, e le unità Mesh che restano uguali su ogni dispositivo.",
 };
 
 export default it;

@@ -34,7 +34,7 @@ import HomeScreen from "./screens/Home";
 // before the first paint of Home.
 const ConnectionScreen = lazyWithReload(() => import("./screens/Connection"));
 const DevicesScreen = lazyWithReload(() => import("./screens/Devices"));
-const MeshDriveScreen = lazyWithReload(() => import("./screens/MeshDrive"));
+const SharedFoldersScreen = lazyWithReload(() => import("./screens/SharedFolders"));
 const SettingsScreen = lazyWithReload(() => import("./screens/Settings"));
 
 const MoreScreen = lazyWithReload(() => import("./screens/More"));
@@ -51,7 +51,6 @@ const HealthScreen = lazyWithReload(() => import("./screens/Health"));
 const NotificationsScreen = lazyWithReload(() => import("./screens/Notifications"));
 const CheatsScreen = lazyWithReload(() => import("./screens/Cheats"));
 const GameHubScreen = lazyWithReload(() => import("./screens/GameHub"));
-const ConnectionsScreen = lazyWithReload(() => import("./screens/Connections"));
 const PayloadsScreen = lazyWithReload(() => import("./screens/Payloads"));
 const FirstRunScreen = lazyWithReload(() => import("./screens/FirstRun"));
 const SavesScreen = lazyWithReload(() => import("./screens/Saves"));
@@ -85,6 +84,15 @@ function LandingRedirect() {
   // A returning user reopens the screen they were last on.
   const to = hasConsole ? (readLastRoute() ?? "/home") : "/connection";
   return <Navigate to={to} replace />;
+}
+
+/** A screen folded into another: an old link (its query kept, so `?add=1` still opens the
+ *  form) lands on the screen that holds it now, on its section when `hash` names one. */
+function MovedTo({ to, hash }: { to: string; hash?: string }) {
+  const location = useLocation();
+  return (
+    <Navigate to={{ pathname: to, search: location.search, hash: hash ? `#${hash}` : location.hash }} replace />
+  );
 }
 
 /** /activity keeps working for old links (?console=… included) but lands on /tasks. */
@@ -227,13 +235,16 @@ function AppRoutes({ location }: { location: Location }) {
           }
         />
         <Route
-          path="/mesh-drive"
+          path="/shared-folders"
           element={
             <Suspense fallback={<ScreenLoader />}>
-              <MeshDriveScreen />
+              <SharedFoldersScreen />
             </Suspense>
           }
         />
+        {/* Mesh Drive and Network shares are one Shared Folders screen now. */}
+        <Route path="/mesh-drive" element={<MovedTo to="/shared-folders" hash="mesh-drive" />} />
+        <Route path="/connections" element={<MovedTo to="/shared-folders" />} />
         {/* v5: mobile "everything else" hub. A real route (not a sheet)
              so the Android hardware back button and router history treat
              it like any other screen. */}
@@ -384,16 +395,8 @@ function AppRoutes({ location }: { location: Location }) {
         {/* The firmware spoof check is a card on Console now. */}
         <Route path="/fw-spoof" element={<Navigate to="/console#fw-spoof" replace />} />
         {/* SMB Browser and FTP Server were replaced by Connections; old links land there. */}
-        <Route path="/ftp-server" element={<Navigate to="/connections" replace />} />
-        <Route
-          path="/connections"
-          element={
-            <Suspense fallback={<ScreenLoader />}>
-              <ConnectionsScreen />
-            </Suspense>
-          }
-        />
-        <Route path="/smb-browser" element={<Navigate to="/connections" replace />} />
+        <Route path="/ftp-server" element={<Navigate to="/shared-folders" replace />} />
+        <Route path="/smb-browser" element={<Navigate to="/shared-folders" replace />} />
         {/* Legacy deep link / bookmark support for pre-2.12 installs.
             The Payloads tab now owns send functionality under ?tab=send.
             Keep the redirect indefinitely for any external bookmarks. */}

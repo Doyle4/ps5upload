@@ -6202,6 +6202,9 @@ library_compressed_hint: "Skompresowane obrazy wymagają ShadowMount+, aby grać
 "remotePlay_show_accounts": "Pokaż konta",
 "accounts_description": "Użytkownicy i konta konsoli: zmień im nazwy, nadaj kontu jego ID, zmień awatary i skonfiguruj Remote Play.",
 "remotePlay_check_account_hint_v3": "To konto nigdy nie zostało aktywowane, więc nie może się sparować. Nadaj mu ID konta na liście kont powyżej; zmienia to dane konta, a późniejsze zapisy są powiązane z tym ID.",
+"shared_folders_title": "Foldery udostępnione",
+"shared_servers_title": "Serwery",
+"shared_folders_description": "Foldery dostępne przez sieć: Twój NAS i serwery oraz dyski Mesh, które są takie same na każdym urządzeniu.",
 };
 
 export default pl;

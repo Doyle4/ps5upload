@@ -5956,6 +5956,9 @@ library_compressed_hint: "Image terkompresi memerlukan ShadowMount+ untuk bermai
 "remotePlay_show_accounts": "Tampilkan akun",
 "accounts_description": "Pengguna dan akun konsol: ganti namanya, beri akun ID-nya, ubah avatar, dan siapkan Remote Play.",
 "remotePlay_check_account_hint_v3": "Akun ini belum pernah diaktifkan, jadi tidak bisa dipasangkan. Beri ID akun di daftar akun di atas; itu mengubah data akun, dan simpanan setelahnya terikat ke ID itu.",
+"shared_folders_title": "Folder Bersama",
+"shared_servers_title": "Server",
+"shared_folders_description": "Folder yang Anda jangkau lewat jaringan: NAS dan server Anda, serta Drive Mesh yang tetap sama di setiap perangkat.",
 };
 
 export default id;

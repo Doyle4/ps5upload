@@ -5897,6 +5897,9 @@ library_compressed_hint: "Las imágenes comprimidas necesitan ShadowMount+ para 
 "remotePlay_show_accounts": "Ver cuentas",
 "accounts_description": "Los usuarios y cuentas de la consola: cámbiales el nombre, dale a una cuenta su ID, cambia avatares y configura Remote Play.",
 "remotePlay_check_account_hint_v3": "Esta cuenta nunca se activó, así que no puede emparejarse. Dale un ID de cuenta en la lista de cuentas de arriba; eso cambia los datos de la cuenta y las partidas guardadas después quedan ligadas a ese ID.",
+"shared_folders_title": "Carpetas compartidas",
+"shared_servers_title": "Servidores",
+"shared_folders_description": "Carpetas a las que llegas por la red: tu NAS y servidores, y las unidades Mesh que se mantienen iguales en cada dispositivo.",
 };
 
 export default es;

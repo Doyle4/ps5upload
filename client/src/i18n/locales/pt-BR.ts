@@ -5964,6 +5964,9 @@ library_compressed_hint: "Imagens compactadas precisam do ShadowMount+ para joga
 "remotePlay_show_accounts": "Ver contas",
 "accounts_description": "Os usuários e contas do console: renomeie, dê a uma conta o seu ID, troque avatares e configure o Remote Play.",
 "remotePlay_check_account_hint_v3": "Esta conta nunca foi ativada, então não pode parear. Dê a ela um ID de conta na lista de contas acima; isso muda os dados da conta, e os saves feitos depois ficam ligados a esse ID.",
+"shared_folders_title": "Pastas compartilhadas",
+"shared_servers_title": "Servidores",
+"shared_folders_description": "Pastas que você acessa pela rede: seu NAS e servidores, e os drives Mesh que ficam iguais em todos os dispositivos.",
 };
 
 export default pt_BR;

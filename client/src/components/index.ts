@@ -40,6 +40,7 @@ export { Checkbox } from "./Checkbox";
 export { Toggle } from "./Toggle";
 export { Badge } from "./Badge";
 export { Callout } from "./Callout";
+export { SectionHeading } from "./SectionHeading";
 export { SegmentedControl } from "./SegmentedControl";
 export { Tabs } from "./Tabs";
 export { Drawer } from "./Drawer";

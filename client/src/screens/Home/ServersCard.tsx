@@ -99,7 +99,7 @@ export function ServersCard() {
     <ServersCardView
       connections={connections}
       status={status}
-      onAdd={() => navigate("/connections?add=1")}
+      onAdd={() => navigate("/shared-folders?add=1")}
       onBrowse={(c) =>
         browseServer(c, navigate, tr("conn_need_ps5", undefined, "Connect to a PS5 to install."))
       }

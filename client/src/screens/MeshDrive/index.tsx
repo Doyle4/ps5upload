@@ -6,7 +6,7 @@
 // (DriveDialogs.tsx) where every folder is the user's choice and is checked before anything is made.
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router";
+import { useLocation, useNavigate } from "react-router";
 import {
   FolderOpen,
   FolderSync,
@@ -26,7 +26,7 @@ import {
   X,
 } from "lucide-react";
 
-import { Badge, Button, Callout, OverflowMenu, PageHeader, type OverflowMenuItem } from "../../components";
+import { Badge, Button, Callout, OverflowMenu, SectionHeading, type OverflowMenuItem } from "../../components";
 import { useConfirm, usePrompt } from "../../components/ConfirmDialog";
 import { meshDevice, setMeshName } from "../../api/mesh";
 import {
@@ -565,7 +565,15 @@ function DriveCard({
   );
 }
 
-export default function MeshDriveScreen() {
+/** The anchor old /mesh-drive links land on: /shared-folders#mesh-drive scrolls here. */
+export const MESH_DRIVE_ANCHOR = "mesh-drive";
+
+/**
+ * Mesh Drives, as a section of Shared Folders: folders kept the same on every device, with
+ * their home on this console. It was its own screen; servers (NAS, SMB, FTP, SFTP) sit beside
+ * it now, since to a user both are folders reached over the network.
+ */
+export function MeshDriveSection() {
   const tr = useTr();
   const navigate = useNavigate();
   const host = useConnectionStore((s) => s.host);
@@ -639,31 +647,46 @@ export default function MeshDriveScreen() {
     await load();
   };
 
+  // An old /mesh-drive link lands on /shared-folders#mesh-drive: bring the section into view once.
+  const { hash } = useLocation();
+  const sectionRef = useRef<HTMLElement>(null);
+  const scrolled = useRef(false);
+  useEffect(() => {
+    if (hash !== `#${MESH_DRIVE_ANCHOR}` || scrolled.current) return;
+    scrolled.current = true;
+    sectionRef.current?.scrollIntoView?.({ block: "start", behavior: "smooth" });
+  }, [hash]);
+
   const header = (
-    <>
-      <PageHeader
-        icon={FolderSync}
-        title={tr("drive_title", undefined, "Mesh Drive")}
-        description={tr(
-          "drive_subtitle",
-          undefined,
-          "A folder kept the same on your computers, phones and Docker, with its home on this console. Add a file anywhere and it reaches every device in the drive.",
-        )}
-        right={
-          data?.supported ? (
-            <Button variant="primary" leftIcon={<Plus size={16} />} onClick={() => setCreating(true)}>
-              {tr("drive_create", undefined, "New Mesh Drive")}
-            </Button>
-          ) : undefined
-        }
-      />
-    </>
+    <SectionHeading
+      id="mesh-drive-heading"
+      icon={FolderSync}
+      title={tr("drive_title", undefined, "Mesh Drive")}
+      description={tr(
+        "drive_subtitle",
+        undefined,
+        "A folder kept the same on your computers, phones and Docker, with its home on this console. Add a file anywhere and it reaches every device in the drive.",
+      )}
+      right={
+        data?.supported ? (
+          <Button variant="secondary" leftIcon={<Plus size={16} />} onClick={() => setCreating(true)}>
+            {tr("drive_create", undefined, "New Mesh Drive")}
+          </Button>
+        ) : undefined
+      }
+    />
   );
+  const sectionProps = {
+    ref: sectionRef,
+    id: MESH_DRIVE_ANCHOR,
+    "aria-labelledby": "mesh-drive-heading",
+    className: "scroll-mt-4 space-y-4",
+  };
 
   if (!up || data?.supported === false) {
     const engineOld = data?.supported === false && data.engineOld;
     return (
-      <div className="app-page space-y-4">
+      <section {...sectionProps}>
         {header}
         <Callout
           tone="info"
@@ -690,12 +713,12 @@ export default function MeshDriveScreen() {
           )}
         </Callout>
         {!engineOld && <AwayFolders />}
-      </div>
+      </section>
     );
   }
 
   return (
-    <div className="app-page space-y-4">
+    <section {...sectionProps}>
       {header}
       {(error ?? pollError) && (
         <Callout tone="error" title={tr("mesh_failed", undefined, "That didn't work")}>
@@ -840,6 +863,6 @@ export default function MeshDriveScreen() {
           }}
         />
       )}
-    </div>
+    </section>
   );
 }

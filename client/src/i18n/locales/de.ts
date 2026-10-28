@@ -5955,6 +5955,9 @@ library_compressed_hint: "Komprimierte Images benötigen ShadowMount+ zum Spiele
 "remotePlay_show_accounts": "Konten zeigen",
 "accounts_description": "Die Benutzer und Konten der Konsole: umbenennen, einem Konto seine ID geben, Avatare ändern und Remote Play einrichten.",
 "remotePlay_check_account_hint_v3": "Dieses Konto wurde nie aktiviert und kann daher nicht koppeln. Gib ihm oben in der Kontoliste eine Konto-ID; das ändert Kontodaten, und danach erstellte Spielstände sind an diese ID gebunden.",
+"shared_folders_title": "Freigegebene Ordner",
+"shared_servers_title": "Server",
+"shared_folders_description": "Ordner, die du übers Netzwerk erreichst: dein NAS und deine Server sowie Mesh-Laufwerke, die auf jedem Gerät gleich bleiben.",
 };
 
 export default de;

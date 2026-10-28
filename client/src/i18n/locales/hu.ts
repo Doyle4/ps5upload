@@ -6262,6 +6262,9 @@ library_compressed_hint: "A tömörített képfájlok futtatásához ShadowMount
 "remotePlay_show_accounts": "Fiókok mutatása",
 "accounts_description": "A konzol felhasználói és fiókjai: nevezd át őket, adj egy fióknak azonosítót, cserélj avatart, és állítsd be a Remote Playt.",
 "remotePlay_check_account_hint_v3": "Ezt a fiókot sosem aktiválták, ezért nem tud párosítani. Adj neki fiókazonosítót a fenti fióklistában; ez megváltoztatja a fiók adatait, és az utána készült mentések ehhez az azonosítóhoz kötődnek.",
+"shared_folders_title": "Megosztott mappák",
+"shared_servers_title": "Szerverek",
+"shared_folders_description": "Hálózaton elért mappák: a NAS-od és szervereid, valamint a minden eszközön azonos Mesh meghajtók.",
 };
 
 export default hu;

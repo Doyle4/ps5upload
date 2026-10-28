@@ -5965,6 +5965,9 @@ library_compressed_hint: "Les images compressées nécessitent ShadowMount+ pour
 "remotePlay_show_accounts": "Voir les comptes",
 "accounts_description": "Les utilisateurs et comptes de la console : renommez-les, donnez son ID à un compte, changez les avatars et configurez la lecture à distance.",
 "remotePlay_check_account_hint_v3": "Ce compte n'a jamais été activé, il ne peut donc pas être associé. Donnez-lui un ID de compte dans la liste des comptes ci-dessus ; cela modifie les données du compte, et les sauvegardes faites ensuite sont liées à cet ID.",
+"shared_folders_title": "Dossiers partagés",
+"shared_servers_title": "Serveurs",
+"shared_folders_description": "Les dossiers que vous atteignez par le réseau : votre NAS et vos serveurs, et les disques Mesh identiques sur chaque appareil.",
 };
 
 export default fr;

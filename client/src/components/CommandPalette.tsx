@@ -45,6 +45,7 @@ const NAV_KEYWORDS: Record<string, string[]> = {
   "/connection": ["host", "ip", "connect"],
   "/install-package": ["pkg"],
   "/games": ["library", "apps", "installed"],
+  "/shared-folders": ["network shares", "mesh drive", "nas", "smb", "ftp", "sftp", "server", "sync"],
   "/accounts": ["profile", "users", "avatar", "username", "account id", "remote play", "pin", "pair", "sign in"],
   "/captures": ["screenshots", "videos", "clips"],
   "/volumes": ["disk", "drives"],

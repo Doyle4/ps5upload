@@ -5954,6 +5954,9 @@ library_compressed_hint: "Sıkıştırılmış kalıpları oynatmak için Shadow
 "remotePlay_show_accounts": "Hesapları göster",
 "accounts_description": "Konsolun kullanıcıları ve hesapları: adlarını değiştir, bir hesaba kimliğini ver, avatarları değiştir ve Remote Play'i kur.",
 "remotePlay_check_account_hint_v3": "Bu hesap hiç etkinleştirilmemiş, bu yüzden eşleşemez. Yukarıdaki hesap listesinde ona bir hesap kimliği ver; bu hesap verilerini değiştirir ve sonrasında yapılan kayıtlar o kimliğe bağlı olur.",
+"shared_folders_title": "Paylaşılan Klasörler",
+"shared_servers_title": "Sunucular",
+"shared_folders_description": "Ağ üzerinden eriştiğin klasörler: NAS'ın ve sunucuların, ve her cihazda aynı kalan Mesh Sürücüler.",
 };
 
 export default tr;

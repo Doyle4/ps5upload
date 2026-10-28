@@ -5966,6 +5966,9 @@ library_compressed_hint: "압축 이미지를 플레이하려면 ShadowMount+가
 "remotePlay_show_accounts": "계정 보기",
 "accounts_description": "콘솔의 사용자와 계정: 이름 변경, 계정에 ID 부여, 아바타 변경, 리모트 플레이 설정.",
 "remotePlay_check_account_hint_v3": "이 계정은 한 번도 활성화되지 않아 페어링할 수 없습니다. 위의 계정 목록에서 계정 ID를 부여하세요. 계정 데이터가 바뀌고, 이후 저장 데이터는 그 ID에 묶입니다.",
+"shared_folders_title": "공유 폴더",
+"shared_servers_title": "서버",
+"shared_folders_description": "네트워크로 접근하는 폴더: NAS와 서버, 그리고 모든 기기에서 똑같이 유지되는 메시 드라이브.",
 };
 
 export default ko;

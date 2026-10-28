@@ -5956,6 +5956,9 @@ library_compressed_hint: "อิมเมจที่บีบอัดต้อ
 "remotePlay_show_accounts": "แสดงบัญชี",
 "accounts_description": "ผู้ใช้และบัญชีของเครื่อง: เปลี่ยนชื่อ ใส่ ID ให้บัญชี เปลี่ยนอวาตาร์ และตั้งค่า Remote Play",
 "remotePlay_check_account_hint_v3": "บัญชีนี้ยังไม่เคยเปิดใช้งาน จึงจับคู่ไม่ได้ ใส่ ID บัญชีให้ในรายการบัญชีด้านบน การทำเช่นนี้จะเปลี่ยนข้อมูลบัญชี และเซฟหลังจากนั้นจะผูกกับ ID นั้น",
+"shared_folders_title": "โฟลเดอร์ที่แชร์",
+"shared_servers_title": "เซิร์ฟเวอร์",
+"shared_folders_description": "โฟลเดอร์ที่เข้าถึงผ่านเครือข่าย: NAS และเซิร์ฟเวอร์ของคุณ และ เมชไดรฟ์ ที่เหมือนกันทุกอุปกรณ์",
 };
 
 export default th;

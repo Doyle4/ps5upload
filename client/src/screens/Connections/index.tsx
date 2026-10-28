@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import { FolderOpen, Network, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
 
-import { Button, Card, ErrorCard, PageHeader } from "../../components";
+import { Button, Card, ErrorCard, SectionHeading } from "../../components";
 import { useConfirm } from "../../components/ConfirmDialog";
 import { remoteApi, type Connection, type TestResult } from "../../api/remote";
 import { useConnectionsStore, type ConnStatus } from "../../state/connections";
@@ -62,7 +62,12 @@ function StatusDot({ status }: { status: ConnStatus | undefined }) {
   );
 }
 
-export default function ConnectionsScreen() {
+/**
+ * Servers, as a section of Shared Folders: your NAS and servers (SMB, FTP, FTPS, SFTP), then
+ * the shares the PS5 itself uses. It was the Network shares screen; Mesh Drives sit beside it
+ * now.
+ */
+export function ServersSection() {
   const tr = useTr();
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
@@ -209,33 +214,33 @@ export default function ConnectionsScreen() {
     browseServer(c, navigate, tr("conn_need_ps5", undefined, "Connect to a PS5 to install."));
 
   return (
-    <div className="app-page">
+    <section aria-labelledby="servers-heading" className="space-y-4">
       {dialog}
-      <PageHeader
+      <SectionHeading
+        id="servers-heading"
         icon={Network}
-        // "Network shares", not "Connections" (read as the PS5's Connection screen) nor "Servers"
-        // (people did not know which servers): a NAS or a shared folder, over SMB, FTP, SFTP or WebDAV.
-        title={tr("network_shares", undefined, "Network shares")}
+        // "Servers" inside Shared Folders: a NAS or a shared folder, over SMB, FTP, SFTP or WebDAV.
+        title={tr("shared_servers_title", undefined, "Servers")}
         description={tr(
           "servers_subtitle",
           undefined,
           "Your NAS and servers (SMB, FTP, FTPS, SFTP). Anywhere you browse for a game or file, pick from them with the ▾ next to Browse.",
         )}
         right={
-          <div className="flex gap-2">
+          <>
             <Button variant="ghost" onClick={() => void refresh()}>
               <RefreshCw size={16} />
               {tr("refresh", undefined, "Refresh")}
             </Button>
-            <Button variant="primary" onClick={() => openForm(null)}>
+            <Button variant="secondary" onClick={() => openForm(null)}>
               <Plus size={16} />
               {tr("conn_add", undefined, "Add a server")}
             </Button>
-          </div>
+          </>
         }
       />
       {error && (
-        <div className="mb-4">
+        <div>
           <ErrorCard
             title={tr("connections_failed", undefined, "Something went wrong with your servers")}
             detail={error}
@@ -250,7 +255,6 @@ export default function ConnectionsScreen() {
 
       {editing !== null && (
         <Card
-          className="mb-4"
           title={
             editing
               ? tr("conn_edit_title", { name: current?.name ?? "" }, `Edit ${current?.name ?? ""}`)
@@ -344,6 +348,6 @@ export default function ConnectionsScreen() {
         </ul>
       )}
       <ConsoleShares pcServers={connections} />
-    </div>
+    </section>
   );
 }

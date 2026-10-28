@@ -6272,6 +6272,9 @@ library_compressed_hint: "Compressed images need ShadowMount+ to play. To edit, 
 "remotePlay_show_accounts": "Show accounts",
 "accounts_description": "The console's users and accounts: rename them, give an account its ID, change avatars, and set up Remote Play.",
 "remotePlay_check_account_hint_v3": "This account has never been activated, so it cannot pair. Give it an account ID in the account list above; that changes account data, and saves made afterwards are tied to that ID.",
+"shared_folders_title": "Shared Folders",
+"shared_servers_title": "Servers",
+"shared_folders_description": "Folders you reach over the network: your NAS and servers, and Mesh Drives that stay the same on every device.",
 };
 
 export default en;

@@ -5947,6 +5947,9 @@ library_compressed_hint: "تحتاج الصور المضغوطة إلى ShadowMo
 "remotePlay_show_accounts": "عرض الحسابات",
 "accounts_description": "مستخدمو الجهاز وحساباته: أعد تسميتها، وأعطِ الحساب معرّفه، وغيّر الصور الرمزية، وجهّز التشغيل عن بُعد.",
 "remotePlay_check_account_hint_v3": "لم يُفعَّل هذا الحساب قط، لذا لا يمكنه الاقتران. أعطه معرّف حساب في قائمة الحسابات أعلاه؛ هذا يغيّر بيانات الحساب، والحفظ بعد ذلك يرتبط بهذا المعرّف.",
+"shared_folders_title": "المجلدات المشتركة",
+"shared_servers_title": "الخوادم",
+"shared_folders_description": "مجلدات تصل إليها عبر الشبكة: جهاز NAS والخوادم، ومحركات Mesh التي تبقى متطابقة على كل جهاز.",
 };
 
 export default ar;

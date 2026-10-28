@@ -5903,6 +5903,9 @@ library_compressed_hint: "压缩镜像需要 ShadowMount+ 才能游玩。如需�
 "remotePlay_show_accounts": "查看账户",
 "accounts_description": "主机的用户和账户：重命名、为账户设置 ID、更换头像，以及设置遥控游戏。",
 "remotePlay_check_account_hint_v3": "此账户从未激活，因此无法配对。请在上方账户列表中为它设置账户 ID；这会更改账户数据，之后的存档将与该 ID 绑定。",
+"shared_folders_title": "共享文件夹",
+"shared_servers_title": "服务器",
+"shared_folders_description": "通过网络访问的文件夹：你的 NAS 和服务器，以及在每台设备上保持一致的同步盘。",
 };
 
 export default zh_CN;
