@@ -106,7 +106,7 @@ export function routeForTask(task: Task): string {
   if (k.startsWith("pkg-") || k === "install-batch") return "/install-package";
   if (k.startsWith("backup-")) return "/files?view=snapshots";
   if (k.startsWith("save-")) return "/saves";
-  if (k === "fpkg-convert" || k === "ffpfsc-compress") return "/convert";
+  if (k === "fpkg-convert" || k === "ffpfsc-compress") return "/workshop";
   if (k === "backport-patch" || k.startsWith("fakelib-")) return "/games?tab=ready";
   if (k === "bug-report") return "/bug-report";
   if (k.startsWith("library-")) return "/games?tab=files";

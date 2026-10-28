@@ -164,9 +164,9 @@ export function CopyRow({
             label: tr("collection.convert", undefined, "Convert…"),
             onSelect: () => navigate("/convert", { state: { source: loc.absolute_path } }),
             title: tr(
-              "collection.convert_hint",
+              "collection.convert_hint_v2",
               undefined,
-              "Open it in Convert: make an installable package, or a different game image.",
+              "Open it in Workshop: make an installable package, or a different game image.",
             ),
           },
         ]

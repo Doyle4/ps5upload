@@ -2678,9 +2678,9 @@ function LibraryRowImpl({
                 icon: <PackageOpen size={12} />,
                 onSelect: () => openConsoleCopyInConvert(navigate, host, entry.path),
                 title: tr(
-                  "library_convert_hint",
+                  "library_convert_hint_v2",
                   undefined,
-                  "Open it in Convert: an installable package or another game image, made from it here on the PS5.",
+                  "Open it in Workshop: an installable package or another game image, made from it here on the PS5.",
                 ),
               });
             }
@@ -2695,9 +2695,9 @@ function LibraryRowImpl({
                 onSelect: () =>
                   openConsoleCopyInConvert(navigate, host, entry.path, { compress: true }),
                 title: tr(
-                  "library_shrink_hint",
+                  "library_shrink_hint_v2",
                   undefined,
-                  "Open it in Convert set to a compressed game image (.ffpfsc), which replaces this copy on the PS5 and frees the difference. How much depends on the game.",
+                  "Open it in Workshop set to a compressed game image (.ffpfsc), which replaces this copy on the PS5 and frees the difference. How much depends on the game.",
                 ),
               });
             }

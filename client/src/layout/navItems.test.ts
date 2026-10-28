@@ -112,12 +112,12 @@ describe("the sidebar's sections", () => {
     for (const p of browserOnlyHidden) expect(inBrowser).not.toContain(p);
   });
 
-  it("offers Edit image on this computer everywhere (looking inside an image needs no mount, #479)", () => {
-    expect(paths(sidebarGroups([], false, false, true))).toContain("/local-image");
+  it("offers Workshop everywhere (looking inside an image needs no mount, #479)", () => {
+    expect(paths(sidebarGroups([], false, false, true))).toContain("/workshop");
     // Windows or Android desktop app.
-    expect(paths(sidebarGroups([], false, false, false))).toContain("/local-image");
+    expect(paths(sidebarGroups([], false, false, false))).toContain("/workshop");
     // Browser build: the engine reads the image; the screen hides the mount part.
-    expect(paths(sidebarGroups([], false, true, true))).toContain("/local-image");
+    expect(paths(sidebarGroups([], false, true, true))).toContain("/workshop");
   });
 });
 
@@ -282,11 +282,11 @@ describe("retired screens", () => {
   });
 });
 
-// Convert Games left the beta program once its packages installed and played: it shows for
-// everyone, with the beta switch off.
-describe("Convert Games", () => {
+// Convert Games (now Workshop) left the beta program once its packages installed and played:
+// it shows for everyone, with the beta switch off.
+describe("Workshop", () => {
   it("is no longer a beta feature", () => {
-    const convert = NAV_ITEMS.find((i) => i.to === "/convert");
+    const convert = NAV_ITEMS.find((i) => i.to === "/workshop");
     expect(convert).toBeDefined();
     expect(convert?.beta).toBeFalsy();
   });

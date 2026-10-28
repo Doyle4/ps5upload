@@ -211,7 +211,7 @@ export default function HomeScreen() {
                 readiness={readinessFor("browse-console")}
               />
               <ActionTile
-                to="/convert"
+                to="/workshop"
                 icon={PackagePlus}
                 label={tr("v5_qa_convert", "Convert")}
                 readiness={readinessFor("local-only")}

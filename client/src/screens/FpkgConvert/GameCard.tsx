@@ -1,5 +1,6 @@
 // Card ① Game: where the game comes from (drop, pick or type), and what the check found.
 
+import type { ReactNode } from "react";
 import { FolderInput, Gamepad2 } from "lucide-react";
 
 import type { FpkgInspection } from "../../api/fpkg";
@@ -66,6 +67,8 @@ export interface GameCardProps {
   /** A .rar's password, when the source is one; never stored. */
   password: string;
   onPassword: (value: string) => void;
+  /** What else can be done with this source (Workshop's Look Inside, Open as a Drive). */
+  tools?: ReactNode;
 }
 
 export function GameCard(props: GameCardProps) {
@@ -256,6 +259,7 @@ export function GameCard(props: GameCardProps) {
             )}
           </div>
         )}
+        {props.tools}
       </div>
     </Card>
   );

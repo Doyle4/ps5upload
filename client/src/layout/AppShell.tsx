@@ -1150,7 +1150,7 @@ function usePkgAutoRoute() {
               primary: true,
               onClick: () => {
                 viewer.close();
-                navigate("/convert", { state: { source: target.path } });
+                navigate("/workshop", { state: { source: target.path } });
               },
             },
       ]);

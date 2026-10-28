@@ -75,7 +75,7 @@ describe("Sidebar", () => {
     // safeStorage is mocked empty: a first run, nothing hidden.
     const html = render();
     expect(html).toContain('data-collapsed="false"');
-    for (const to of ["/home", "/upload", "/install-package", "/convert", "/files", "/games", "/console", "/settings"]) {
+    for (const to of ["/home", "/upload", "/install-package", "/workshop", "/files", "/games", "/console", "/settings"]) {
       expect(html).toContain(`href="${to}"`);
     }
     expect(html).toContain("Files &amp; Storage");
@@ -86,7 +86,7 @@ describe("Sidebar", () => {
 
   it("offers to hide each screen but Home", () => {
     const html = render();
-    expect(html).toContain('aria-label="Hide Convert Games from the sidebar"');
+    expect(html).toContain('aria-label="Hide Workshop from the sidebar"');
     expect(html).not.toContain('aria-label="Hide Home from the sidebar"');
   });
 
@@ -142,7 +142,7 @@ describe("Sidebar", () => {
     expect(html).not.toContain('data-testid="nav-pinned"');
     expect(html).not.toContain(">Pinned<");
     // Every section row offers a pin, next to its hide button.
-    expect(html).toContain('aria-label="Pin Convert Games"');
+    expect(html).toContain('aria-label="Pin Workshop"');
     expect(html).not.toContain('aria-label="Pin Home"');
   });
 

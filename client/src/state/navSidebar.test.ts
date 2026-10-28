@@ -93,17 +93,17 @@ describe("the sidebar's pinned screens", () => {
 
   it("moves a pin up and down, and by drag to a place, never past the ends", async () => {
     const store = await freshStore();
-    for (const to of ["/files", "/upload", "/convert"]) store.getState().togglePinned(to);
-    store.getState().movePinned("/convert", -1);
-    expect(store.getState().pinned).toEqual(["/files", "/convert", "/upload"]);
+    for (const to of ["/files", "/upload", "/workshop"]) store.getState().togglePinned(to);
+    store.getState().movePinned("/workshop", -1);
+    expect(store.getState().pinned).toEqual(["/files", "/workshop", "/upload"]);
     store.getState().movePinned("/files", -1);
-    expect(store.getState().pinned).toEqual(["/files", "/convert", "/upload"]);
+    expect(store.getState().pinned).toEqual(["/files", "/workshop", "/upload"]);
     store.getState().movePinned("/upload", 1);
-    expect(store.getState().pinned).toEqual(["/files", "/convert", "/upload"]);
+    expect(store.getState().pinned).toEqual(["/files", "/workshop", "/upload"]);
     store.getState().movePinnedTo("/upload", 0);
-    expect(store.getState().pinned).toEqual(["/upload", "/files", "/convert"]);
+    expect(store.getState().pinned).toEqual(["/upload", "/files", "/workshop"]);
     store.getState().movePinnedTo("/upload", 99);
-    expect(store.getState().pinned).toEqual(["/files", "/convert", "/upload"]);
+    expect(store.getState().pinned).toEqual(["/files", "/workshop", "/upload"]);
   });
 
   it("pins at most twelve, and only real screens other than Home and Bug report", async () => {
@@ -145,9 +145,9 @@ describe("the sidebar's pinned screens", () => {
     // A file from before pinning: no `pinned` list.
     store.getState().setAll([], []);
     expect(store.getState().pinned).toEqual(["/files"]);
-    store.getState().setAll([], [], ["/convert", "/gone", "/files"]);
-    expect(store.getState().pinned).toEqual(["/convert", "/files"]);
-    expect(JSON.parse(storage.get(PINNED_KEY)!)).toEqual(["/convert", "/files"]);
+    store.getState().setAll([], [], ["/workshop", "/gone", "/files"]);
+    expect(store.getState().pinned).toEqual(["/workshop", "/files"]);
+    expect(JSON.parse(storage.get(PINNED_KEY)!)).toEqual(["/workshop", "/files"]);
   });
 
   it("counts only the shown pins toward twelve", async () => {

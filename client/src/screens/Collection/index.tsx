@@ -863,9 +863,9 @@ export default function CollectionScreen({ embedded = false }: { embedded?: bool
                 }
               >
                 {tr(
-                  "collection.smaller_go",
+                  "collection.smaller_go_v2",
                   undefined,
-                  "Queue them in Convert",
+                  "Queue them in Workshop",
                 )}
               </Button>
             </div>

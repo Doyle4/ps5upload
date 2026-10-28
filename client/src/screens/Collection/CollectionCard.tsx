@@ -129,9 +129,9 @@ export function GameQuickActions({
       icon: <PackageOpen size={12} />,
       label: tr("collection.convert", undefined, "Convert…"),
       title: tr(
-        "collection.convert_hint",
+        "collection.convert_hint_v2",
         undefined,
-        "Open it in Convert: make an installable package, or a different game image.",
+        "Open it in Workshop: make an installable package, or a different game image.",
       ),
       onSelect: () => openInConvert(navigate, [convertible]),
     });
@@ -141,9 +141,9 @@ export function GameQuickActions({
       icon: <Shrink size={12} />,
       label: tr("collection.shrink", undefined, "Make it smaller…"),
       title: tr(
-        "collection.shrink_hint",
+        "collection.shrink_hint_v2",
         undefined,
-        "Open it in Convert set to a compressed game image (.ffpfsc). How much room it saves depends on the game.",
+        "Open it in Workshop set to a compressed game image (.ffpfsc). How much room it saves depends on the game.",
       ),
       onSelect: () => openInConvert(navigate, [shrink], { compress: true }),
     });

@@ -9,11 +9,11 @@
 import { useMakeWay } from "../../lib/useMakeWay";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { PackagePlus } from "lucide-react";
+import { FolderSearch, HardDrive, Hammer } from "lucide-react";
 
 import { fpkg, type AmprLz4Options, type FpkgEstimates, type FpkgInspection } from "../../api/fpkg";
 import { appLaunch } from "../../api/ps5";
-import { Callout, Card, PageHeader } from "../../components";
+import { Button, Callout, Card, PageHeader } from "../../components";
 import { FakeGameFirmwareNotice } from "../../components/FakeGameFirmwareNotice";
 import { hostOf, transferAddr } from "../../lib/addr";
 import { createLatest } from "../../lib/latest";
@@ -35,11 +35,15 @@ import {
 } from "../../state/fpkgConversion";
 import { useUploadStore } from "../../state/upload";
 import { DEFAULT_IMAGE_SUBPATH } from "../../lib/imageUpload";
-import { useLocation, useNavigate } from "react-router";
+import { useLocation, useNavigate, useSearchParams } from "react-router";
 import { useTr } from "../../state/lang";
 import { pickLocalPath } from "../../state/localPicker";
 import { useTaskStore } from "../../state/tasks";
 import { GameCard } from "./GameCard";
+import { ImageBrowser } from "../LocalImage/ImageBrowser";
+import { isDriveImage, LocalDrivesCard, useLocalDrives } from "../LocalImage/LocalDrives";
+import { BROWSE_IMAGE_EXTENSIONS } from "../LocalImage/imageTypes";
+import { isRemotePath } from "../../lib/remotePath";
 import { MakeCard } from "./MakeCard";
 import { OptionsCard } from "./OptionsCard";
 import { RunCard, lz4Active, type Lz4Choice } from "./RunCard";
@@ -63,8 +67,36 @@ function dirOf(path: string): string {
   return i > 0 ? path.slice(0, i) : path;
 }
 
-export default function FpkgConvertScreen() {
+/** Whether Look Inside can open `path`: a game image or package on the engine's own disk
+ *  (the engine reads it in place), not one on a saved server or on the PS5. */
+function canLookInside(path: string): boolean {
+  const p = path.trim().toLowerCase();
+  return (
+    !p.startsWith("ps5://") && !isRemotePath(path) && BROWSE_IMAGE_EXTENSIONS.some((ext) => p.endsWith(`.${ext}`))
+  );
+}
+
+/**
+ * Workshop: one game source, and everything that can be done with it on this computer —
+ * convert it (a package, an image, a folder), look inside an image or package and write an
+ * edited copy, or open an image as a drive (macOS and Linux).
+ *
+ * Convert Games and Game images were two screens that both began by choosing an image. Now
+ * the source is chosen once (① Game); Look Inside swaps the converting steps for the image's
+ * files (`?view=inside`), and Close brings them back. Old /convert and /local-image links land
+ * here, the latter on Look Inside.
+ */
+export default function WorkshopScreen() {
   const tr = useTr();
+  const [params, setParams] = useSearchParams();
+  const inside = params.get("view") === "inside";
+  const setInside = (on: boolean) => {
+    const next = new URLSearchParams(params);
+    if (on) next.set("view", "inside");
+    else next.delete("view");
+    setParams(next);
+  };
+  const drives = useLocalDrives();
   const host = useConnectionStore((s) => s.host) ?? "";
   const profiles = useRosterStore((s) => s.profiles);
   const payloadUp = useConnectionStore((s) => s.payloadStatus === "up");
@@ -484,16 +516,99 @@ export default function FpkgConvertScreen() {
       }
     : undefined;
 
+  // What else this source can be, besides converted: looked inside, or opened as a drive.
+  const lookable = !locked && canLookInside(source);
+  const mountable = drives.canMount && !locked && isDriveImage(source) && !source.startsWith("ps5://") && !isRemotePath(source);
+  const tools =
+    lookable || mountable ? (
+      <div className="flex flex-wrap gap-2 border-t border-[var(--color-border)] pt-3">
+        {lookable && !inside && (
+          <Button size="sm" variant="secondary" leftIcon={<FolderSearch size={14} />} onClick={() => setInside(true)}>
+            {tr("workshop_look_inside", undefined, "Look Inside")}
+          </Button>
+        )}
+        {mountable && (
+          <Button
+            size="sm"
+            variant="secondary"
+            leftIcon={<HardDrive size={14} />}
+            disabled={drives.busy}
+            onClick={() => void drives.open(source.trim())}
+          >
+            {tr("workshop_open_as_drive", undefined, "Open as a Drive")}
+          </Button>
+        )}
+      </div>
+    ) : undefined;
+
+  const gameCard = (
+    <GameCard
+      source={source}
+      onSourceTyped={(v) => {
+        if (locked) return;
+        reset();
+        // The old check belongs to the old path: drop it until this one is checked.
+        latest.current.invalidate();
+        setInspection(null);
+        setEstimates(null);
+        setChecking(false);
+        setSource(v);
+        setPassword("");
+      }}
+      onCheck={() => void check(source)}
+      onBrowseFolder={() => void browse("folder")}
+      onBrowseImage={() => void browse("file")}
+      onRemotePick={chooseSource}
+      onBrowseConsole={canInstall ? () => void browseConsole() : undefined}
+      onView={
+        inspection && source.trim() && !isArchiveSource(source.trim())
+          ? () => usePackageViewer.getState().open(source.trim())
+          : undefined
+      }
+      canBrowse={canBrowse}
+      inspection={inspection}
+      checking={checking}
+      locked={locked}
+      dropActive={dropActive}
+      password={password}
+      onPassword={setPassword}
+      tools={tools}
+    />
+  );
+
+  if (inside) {
+    return (
+      <div className="app-page flex flex-col gap-4">
+        <PageHeader
+          icon={Hammer}
+          title={tr("workshop_title", undefined, "Workshop")}
+          description={tr(
+            "workshop_inside_description",
+            undefined,
+            "Look inside a game image or package: save files to this computer, or change files and write an edited copy. The image you opened is never changed.",
+          )}
+        />
+        {gameCard}
+        <ImageBrowser
+          source={canLookInside(source) ? source.trim() : null}
+          onChoose={chooseSource}
+          onClose={() => setInside(false)}
+        />
+        <LocalDrivesCard drives={drives} />
+      </div>
+    );
+  }
+
   return (
     <div className="app-page flex flex-col gap-4">
       {makeWayDialog}
       <PageHeader
-        icon={PackagePlus}
-        title={tr("convert_games_title", undefined, "Convert Games")}
+        icon={Hammer}
+        title={tr("workshop_title", undefined, "Workshop")}
         description={tr(
-          "convert_games.subtitle",
+          "workshop_description",
           undefined,
-          "Turn a game folder or game image into an installable package (.pkg), or a game folder into a game image (.exfat, or the smaller .ffpfsc) that ShadowMount+ mounts. The work runs on this computer, not the console.",
+          "Turn a game into a package (.pkg) or a game image (.exfat, .ffpkg, or the smaller .ffpfsc), or look inside an image or package and change its files. The work runs on this computer, not the console.",
         )}
       />
 
@@ -514,37 +629,7 @@ export default function FpkgConvertScreen() {
           ref={stepsRef}
           className={`flex min-w-0 flex-col gap-4 xl:col-start-1 xl:row-start-1 ${runSide === "right" ? "xl:row-span-2" : ""}`}
         >
-          <GameCard
-            source={source}
-            onSourceTyped={(v) => {
-              if (locked) return;
-              reset();
-              // The old check belongs to the old path: drop it until this one is checked.
-              latest.current.invalidate();
-              setInspection(null);
-              setEstimates(null);
-              setChecking(false);
-              setSource(v);
-              setPassword("");
-            }}
-            onCheck={() => void check(source)}
-            onBrowseFolder={() => void browse("folder")}
-            onBrowseImage={() => void browse("file")}
-            onRemotePick={chooseSource}
-            onBrowseConsole={canInstall ? () => void browseConsole() : undefined}
-            onView={
-              inspection && source.trim() && !isArchiveSource(source.trim())
-                ? () => usePackageViewer.getState().open(source.trim())
-                : undefined
-            }
-            canBrowse={canBrowse}
-            inspection={inspection}
-            checking={checking}
-            locked={locked}
-            dropActive={dropActive}
-            password={password}
-            onPassword={setPassword}
-          />
+          {gameCard}
 
           <MakeCard
             make={make}
@@ -709,6 +794,8 @@ export default function FpkgConvertScreen() {
 
         </div>
       </div>
+
+      <LocalDrivesCard drives={drives} quiet />
 
       {/* The queue takes the whole width: its rows are long, and it is the one card that is
           not a step of converting the current game. */}

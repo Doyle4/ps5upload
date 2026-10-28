@@ -33,9 +33,8 @@ import {
   Bell,
   Stethoscope,
   HardDrive,
-  PackagePlus,
+  Hammer,
   WandSparkles,
-  FilePen,
   Eraser,
   MonitorSmartphone,
   FolderSync,
@@ -92,20 +91,15 @@ export const NAV_ITEMS: NavItem[] = [
     fallback: "Install Package",
     icon: PackageOpen,
   },
+  // Everything done to a game on this computer: convert it (package, image, folder), look
+  // inside an image or package and edit it, or open an image as a drive. Offered everywhere:
+  // the engine does the work; only "Open as a Drive" needs a macOS or Linux desktop, and the
+  // screen hides that part by itself (#479).
   {
-    to: "/convert",
-    key: "convert_games_title",
-    fallback: "Convert Games",
-    icon: PackagePlus,
-  },
-  {
-    to: "/local-image",
-    key: "local_image_nav",
-    fallback: "Game Images",
-    icon: FilePen,
-    // Offered everywhere: looking inside an image goes through the engine.
-    // Only the screen's mount ("Open an image") needs a macOS or Linux
-    // desktop, and the screen hides that part by itself (#479).
+    to: "/workshop",
+    key: "workshop_title",
+    fallback: "Workshop",
+    icon: Hammer,
   },
   { to: "/saves", key: "saves", fallback: "Save Data", icon: Save },
   {
@@ -294,6 +288,8 @@ export const NAV_MOVED: Readonly<Record<string, string>> = {
   "/remote-play": "/accounts",
   "/mesh-drive": "/shared-folders",
   "/connections": "/shared-folders",
+  "/convert": "/workshop",
+  "/local-image": "/workshop",
 };
 
 /** The route a screen lives at now: its new home if it was folded into another, else itself. */

@@ -221,9 +221,9 @@ export function ConvertBuildsCard({
             <Hammer size={15} aria-hidden />
           </span>
           {tr(
-            "game_builds_title",
+            "game_builds_title_v2",
             { n: mine.length },
-            "Built with Convert ({n})",
+            "Built in Workshop ({n})",
           )}
         </h2>
         <Button
@@ -231,7 +231,7 @@ export function ConvertBuildsCard({
           variant="secondary"
           onClick={() => navigate("/convert")}
         >
-          {tr("game_builds_open", undefined, "Open Convert")}
+          {tr("open_workshop", undefined, "Open Workshop")}
         </Button>
       </div>
       <ul className="flex flex-col gap-1.5" data-testid="game-builds">

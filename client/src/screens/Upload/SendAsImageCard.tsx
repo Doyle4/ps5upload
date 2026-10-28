@@ -59,9 +59,9 @@ export function SendAsImageCard({
       </div>
       <p className="mt-1 text-xs text-[var(--color-muted)]">
         {tr(
-          "upload_as_image_desc",
+          "upload_as_image_desc_v2",
           undefined,
-          "One image file that ShadowMount+ mounts, instead of thousands of files: far quicker to send, and compressed it takes less space on the PS5. The image is built on this computer first (it needs room here for it), then uploaded into the folder below; progress shows in Convert.",
+          "One image file that ShadowMount+ mounts, instead of thousands of files: far quicker to send, and compressed it takes less space on the PS5. The image is built on this computer first (it needs room here for it), then uploaded into the folder below; progress shows in Workshop.",
         )}
       </p>
       <div className="mt-3 flex flex-wrap items-end gap-3">
@@ -164,7 +164,7 @@ export function SendAsImageCard({
                   : null}
           </span>
           <Button size="sm" onClick={() => navigate("/convert")}>
-            {tr("upload_as_image_open_convert", undefined, "Open Convert")}
+            {tr("open_workshop", undefined, "Open Workshop")}
           </Button>
         </div>
       )}

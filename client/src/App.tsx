@@ -40,13 +40,12 @@ const SettingsScreen = lazyWithReload(() => import("./screens/Settings"));
 const MoreScreen = lazyWithReload(() => import("./screens/More"));
 const UploadScreen = lazyWithReload(() => import("./screens/Upload"));
 const InstallPackageScreen = lazyWithReload(() => import("./screens/InstallPackage"));
-const ConvertScreen = lazyWithReload(() => import("./screens/FpkgConvert"));
+const WorkshopScreen = lazyWithReload(() => import("./screens/FpkgConvert"));
 const GamesScreen = lazyWithReload(() => import("./screens/Games"));
 const VolumesScreen = lazyWithReload(() => import("./screens/Volumes"));
 const FileSystemScreen = lazyWithReload(() => import("./screens/FileSystem"));
 const HardwareScreen = lazyWithReload(() => import("./screens/Hardware"));
 const AccountsScreen = lazyWithReload(() => import("./screens/Accounts"));
-const LocalImageScreen = lazyWithReload(() => import("./screens/LocalImage"));
 const HealthScreen = lazyWithReload(() => import("./screens/Health"));
 const NotificationsScreen = lazyWithReload(() => import("./screens/Notifications"));
 const CheatsScreen = lazyWithReload(() => import("./screens/Cheats"));
@@ -114,13 +113,6 @@ function LogsToTasks() {
  *  a screen with no working affordances. */
 function NativeOnlyRoute({ children }: { children: ReactNode }) {
   if (!isTauriEnv()) return <Navigate to="/connection" replace />;
-  return <>{children}</>;
-}
-
-/** Edit image on this computer: looking inside an image (the engine reads it) works on every
- *  platform and in the browser; only the screen's "Open an image" mount, which uses the OS's
- *  own tools, is for a macOS or Linux desktop, and the screen hides that part itself. */
-function LocalImageRoute({ children }: { children: ReactNode }) {
   return <>{children}</>;
 }
 
@@ -273,13 +265,17 @@ function AppRoutes({ location }: { location: Location }) {
           }
         />
         <Route
-          path="/convert"
+          path="/workshop"
           element={
             <Suspense fallback={<ScreenLoader />}>
-              <ConvertScreen />
+              <WorkshopScreen />
             </Suspense>
           }
         />
+        {/* Convert Games and Game images are one Workshop screen now; Game images is its
+            Look Inside view. */}
+        <Route path="/convert" element={<MovedTo to="/workshop" />} />
+        <Route path="/local-image" element={<Navigate to="/workshop?view=inside" replace />} />
         <Route
           path="/games"
           element={
@@ -353,16 +349,6 @@ function AppRoutes({ location }: { location: Location }) {
         <Route path="/profile" element={<Navigate to="/accounts" replace />} />
         <Route path="/remote-play" element={<Navigate to="/accounts#remote-play" replace />} />
         <Route path="/backup" element={<Navigate to="/files?view=snapshots" replace />} />
-        <Route
-          path="/local-image"
-          element={
-            <LocalImageRoute>
-              <Suspense fallback={<ScreenLoader />}>
-                <LocalImageScreen />
-              </Suspense>
-            </LocalImageRoute>
-          }
-        />
         <Route
           path="/health"
           element={
