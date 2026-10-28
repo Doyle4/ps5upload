@@ -9381,12 +9381,10 @@ async fn link_download_handler(
             Arc<dyn ava1::source::Source>,
             Option<Arc<dyn ava1::seq::SeqSource>>,
         ) = if lz4.is_some() {
-            let s = Arc::new(link_lz4::Lz4LinkSource::new(
-                remote,
-                packed,
-                name.clone(),
-                total,
-            ));
+            let s = Arc::new(
+                link_lz4::Lz4LinkSource::new(remote, packed, name.clone(), total)
+                    .pad_short(lz4.as_ref().is_some_and(|i| i.size_from_image)),
+            );
             (s.clone(), Some(s))
         } else {
             (

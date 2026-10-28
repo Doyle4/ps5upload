@@ -444,6 +444,7 @@ pub fn probe(url: &str, insecure_tls: bool) -> Result<LinkClass, String> {
                         unpacked_name: crate::link_lz4::unpacked_name(&class.filename, None),
                         image: None,
                         unsupported: Some(e),
+                        size_from_image: false,
                     },
                 },
             );

@@ -151,6 +151,9 @@ pub struct Decoder<R: Read> {
     frames: u32,
     /// A legacy stream ended by the next frame's magic, already read.
     pending_magic: Option<u32>,
+    /// The last container was a frame that ended with its end mark. A legacy stream has no end
+    /// mark, so one cut at a block boundary looks like a whole one: this stays false for it.
+    pub closed: bool,
 }
 
 impl<R: Read> Decoder<R> {
@@ -164,6 +167,7 @@ impl<R: Read> Decoder<R> {
             content_size: None,
             frames: 0,
             pending_magic: None,
+            closed: false,
         }
     }
 
@@ -223,6 +227,7 @@ impl<R: Read> Decoder<R> {
                 continue;
             }
             if magic == LEGACY_MAGIC {
+                self.closed = false;
                 self.cur = Some(Container::Legacy);
                 self.frames += 1;
                 return Ok(true);
@@ -279,6 +284,7 @@ impl<R: Read> Decoder<R> {
             });
             self.dict.clear();
             self.frames += 1;
+            self.closed = false;
             return Ok(true);
         }
     }
@@ -331,6 +337,7 @@ impl<R: Read> Decoder<R> {
                             self.need_u32()?;
                         }
                         self.cur = None;
+                        self.closed = true;
                         continue;
                     }
                     let stored = word & 0x8000_0000 != 0;
@@ -396,6 +403,11 @@ pub struct Lz4Info {
     pub image: Option<ImageKind>,
     /// Why it cannot be streamed, in a sentence for the user.
     pub unsupported: Option<String>,
+    /// `unpacked_size` is the image header's size, not the stream's. An image file can end
+    /// before the size its header gives (blocks past the end were never written), so a stream
+    /// that ends cleanly short of it is padded with zeros rather than failed.
+    #[serde(skip)]
+    pub size_from_image: bool,
 }
 
 const IMAGE_EXTS: [&str; 4] = ["exfat", "ffpkg", "ffpfs", "ffpfsc"];
@@ -428,7 +440,19 @@ pub fn inspect_prefix(name: &str, content_size: Option<u64>, decoded: &[u8]) -> 
     let image = sniffed.map(|(k, _)| k);
     let unpacked_name = unpacked_name(name, image);
     // A .ffpfsc is PFS on the outside; keep the name the link gave it.
-    let unpacked_size = content_size.or(sniffed.map(|(_, n)| n));
+    // The probe sees only the first frame: frames that follow may add to its stated size. An
+    // image header that gives more than the first frame wins (several frames, one image).
+    let image_size = sniffed.map(|(_, n)| n);
+    let size_from_image = match (content_size, image_size) {
+        (Some(c), Some(i)) => i > c,
+        (None, Some(_)) => true,
+        _ => false,
+    };
+    let unpacked_size = if size_from_image {
+        image_size
+    } else {
+        content_size
+    };
     let unsupported = if unpacked_size.is_some() {
         None
     } else if is_tar(decoded) {
@@ -451,6 +475,7 @@ pub fn inspect_prefix(name: &str, content_size: Option<u64>, decoded: &[u8]) -> 
         unpacked_name,
         image,
         unsupported,
+        size_from_image,
     }
 }
 
@@ -517,6 +542,8 @@ pub struct Lz4LinkSource {
     compressed: u64,
     name: String,
     size: u64,
+    /// See [`Lz4Info::size_from_image`].
+    pad_short: bool,
 }
 
 impl Lz4LinkSource {
@@ -526,7 +553,14 @@ impl Lz4LinkSource {
             compressed,
             name,
             size,
+            pad_short: false,
         }
+    }
+
+    /// An image whose size came from its own header: a clean end short of it is padded.
+    pub fn pad_short(mut self, pad: bool) -> Self {
+        self.pad_short = pad;
+        self
     }
 }
 
@@ -567,10 +601,13 @@ impl Source for Lz4LinkSource {
 }
 
 /// Decodes the whole stream into `sink`, exactly `size` bytes. Bytes past `size` are
-/// allowed only when they are zeros (an image file padded beyond its volume).
+/// allowed only when they are zeros (an image file padded beyond its volume). With
+/// `pad_short`, a stream whose last frame closed cleanly short of `size` is filled up with
+/// zeros (an image file that ends before its header's size).
 pub fn decode_into<R: Read>(
     r: R,
     size: u64,
+    pad_short: bool,
     sink: &mut dyn EntrySink,
     cancel: &AtomicBool,
 ) -> io::Result<()> {
@@ -590,6 +627,17 @@ pub fn decode_into<R: Read>(
             sink.data(piece)?;
         }
         pos += take as u64;
+    }
+    if pos < size && pad_short && d.closed {
+        let zeros = vec![0u8; SLICE];
+        while pos < size {
+            if cancel.load(Ordering::Relaxed) {
+                return Err(io::Error::other("transfer_cancelled"));
+            }
+            let n = (size - pos).min(SLICE as u64) as usize;
+            sink.data(&zeros[..n])?;
+            pos += n as u64;
+        }
     }
     if pos != size {
         return Err(bad(format!(
@@ -619,7 +667,7 @@ impl SeqSource for Lz4LinkSource {
             cancel: Some(cancel),
             limit: u64::MAX,
         };
-        decode_into(reader, self.size, sink, cancel)?;
+        decode_into(reader, self.size, self.pad_short, sink, cancel)?;
         sink.end()
     }
 
@@ -736,6 +784,46 @@ pub(crate) mod tests {
     }
 
     #[test]
+    fn an_image_ending_before_its_header_size_is_padded_only_when_the_frame_closed() {
+        let data = sample(200_000);
+        let whole = frame(&data, 64 << 10, false, false);
+        // A frame that closed cleanly: the rest of the announced size is zeros.
+        let mut c = Collect::default();
+        decode_into(&whole[..], 300_000, true, &mut c, &AtomicBool::new(false)).unwrap();
+        assert_eq!(c.0.len(), 300_000);
+        assert_eq!(&c.0[..data.len()], &data[..]);
+        assert!(c.0[data.len()..].iter().all(|b| *b == 0));
+        // Without the image's own size it is still an error, and so is a legacy stream, which
+        // has no end mark to tell a whole stream from a cut one.
+        let mut c = Collect::default();
+        assert!(decode_into(&whole[..], 300_000, false, &mut c, &AtomicBool::new(false)).is_err());
+        let mut c = Collect::default();
+        assert!(decode_into(
+            &legacy(&data)[..],
+            300_000,
+            true,
+            &mut c,
+            &AtomicBool::new(false)
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn an_image_bigger_than_the_first_frame_takes_the_image_size() {
+        let mut head = vec![0u8; 120];
+        head[3..11].copy_from_slice(b"EXFAT   ");
+        head[72..80].copy_from_slice(&4096u64.to_le_bytes());
+        head[108] = 9;
+        let info = inspect_prefix("g.exfat.lz4", Some(1000), &head);
+        assert_eq!(info.unpacked_size, Some(4096 * 512));
+        assert!(info.size_from_image);
+        // The stream's own size wins when the image is not bigger.
+        let info = inspect_prefix("g.exfat.lz4", Some(4096 * 512), &head);
+        assert_eq!(info.unpacked_size, Some(4096 * 512));
+        assert!(!info.size_from_image);
+    }
+
+    #[test]
     fn a_cut_stream_is_an_error_not_a_short_file() {
         let s = frame(&sample(200_000), 64 << 10, false, false);
         let mut d = Decoder::new(&s[..s.len() - 1000]);
@@ -796,6 +884,7 @@ pub(crate) mod tests {
         );
     }
 
+    #[derive(Default)]
     struct Collect(Vec<u8>);
     impl EntrySink for Collect {
         fn begin(&mut self, _: &str) -> io::Result<()> {
@@ -816,25 +905,25 @@ pub(crate) mod tests {
         img.extend_from_slice(&[0u8; 70_000]);
         let s = frame(&img, 64 << 10, false, false);
         let mut c = Collect(Vec::new());
-        decode_into(&s[..], 256 * 1024, &mut c, &AtomicBool::new(false)).unwrap();
+        decode_into(&s[..], 256 * 1024, false, &mut c, &AtomicBool::new(false)).unwrap();
         assert_eq!(c.0, img[..256 * 1024]);
 
         let mut img = exfat_image(256 * 1024);
         img.extend_from_slice(&[1u8; 10]);
         let s = frame(&img, 64 << 10, false, false);
         let mut c = Collect(Vec::new());
-        assert!(decode_into(&s[..], 256 * 1024, &mut c, &AtomicBool::new(false)).is_err());
+        assert!(decode_into(&s[..], 256 * 1024, false, &mut c, &AtomicBool::new(false)).is_err());
 
         let s = frame(&exfat_image(128 * 1024), 64 << 10, false, false);
         let mut c = Collect(Vec::new());
-        assert!(decode_into(&s[..], 256 * 1024, &mut c, &AtomicBool::new(false)).is_err());
+        assert!(decode_into(&s[..], 256 * 1024, false, &mut c, &AtomicBool::new(false)).is_err());
     }
 
     #[test]
     fn cancel_stops_the_decode() {
         let s = frame(&sample(300_000), 64 << 10, true, false);
         let mut c = Collect(Vec::new());
-        let r = decode_into(&s[..], 300_000, &mut c, &AtomicBool::new(true));
+        let r = decode_into(&s[..], 300_000, false, &mut c, &AtomicBool::new(true));
         assert!(r.is_err());
         assert!(c.0.is_empty());
     }

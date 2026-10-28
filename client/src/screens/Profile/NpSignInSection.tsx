@@ -136,7 +136,10 @@ export function NpSignInSection({
         ),
       );
       try {
-        await profileNpBackup(readiness.slot, info?.uid ?? 0, addr);
+        // The same account and slot Undo and the state check use: the foreground uid often
+        // reads 0 on 13.60, and npBackupTarget falls back to the only local user then.
+        if (!target) throw new Error("np_backup_no_account");
+        await profileNpBackup(target.slot, target.uid, addr);
       } catch (e) {
         const wrapped = new Error(
           tr(

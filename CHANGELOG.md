@@ -4,6 +4,21 @@ What's new in ps5upload, written for humans.
 
 ---
 
+## 8.6.1
+
+- **Undo sign-in covers every account slot used.** The copy kept before np-fake-signin now
+  also takes a later slot's settings, untouched, when the account moved to another slot since
+  the first copy; Undo puts those back too.
+- **Restoring a save gives back exactly the save backed up.** A save-details folder that was
+  not there at backup time is emptied on restore instead of mixing newer details with the older
+  save (the automatic safety backup keeps them).
+- **A save's own icon shows for games no longer installed** in Minion's Saves.
+- **Download to PS5 from an .lz4 link:** an image that ends before the size its header gives
+  is filled out instead of failing after the whole download, and a stream in several parts
+  announces the image's full size.
+- **"Unpack on the way" switches the folder back and forth again** once the PS5's drives are
+  known.
+
 ## 8.6.0
 
 - **Minion's Library: one card per game, and a full-screen page for each (#526).** Copies,

@@ -395,6 +395,40 @@ static void np_write_rows(FILE *f, uint32_t off) {
     }
 }
 
+/* Adds `slot`'s rows to an existing backup unless it holds them already. The restore takes
+ * each "slot N" line as the slot of the rows after it. Written whole to a temporary copy, then
+ * renamed, so a failed write leaves the old backup as it was. */
+static int np_backup_add_slot(const char *path, int slot) {
+    if (slot <= 1) return 0; /* slot 1's rows are always in the first section */
+    FILE *in = fopen(path, "r");
+    if (!in) return -1;
+    char tmp[176];
+    snprintf(tmp, sizeof(tmp), "%s.tmp", path);
+    FILE *out = fopen(tmp, "w");
+    if (!out) {
+        fclose(in);
+        return -1;
+    }
+    size_t cap = NP_FILE_MAX * 2 + 64;
+    char *line = malloc(cap);
+    int has = 0, rc = line ? 0 : -1;
+    while (rc == 0 && fgets(line, (int)cap, in)) {
+        int s = 0;
+        if (sscanf(line, "slot %d", &s) == 1 && s == slot) has = 1;
+        if (fputs(line, out) == EOF) rc = -1;
+    }
+    free(line);
+    fclose(in);
+    if (rc == 0 && !has) {
+        fprintf(out, "slot %d\n", slot);
+        np_write_rows(out, np_slot_off(slot));
+    }
+    if (fclose(out) != 0) rc = -1;
+    if (rc == 0 && !has && rename(tmp, path) != 0) rc = -1;
+    if (rc != 0 || has) unlink(tmp);
+    return rc;
+}
+
 int profile_np_backup(int slot, uint32_t uid, int *out_created) {
     if (out_created) *out_created = 0;
     if (slot < 1 || slot > PROFILE_SLOT_COUNT || uid == 0) return -1;
@@ -402,8 +436,9 @@ int profile_np_backup(int slot, uint32_t uid, int *out_created) {
     np_backup_path(path, sizeof(path), uid);
     struct stat st;
     /* The first backup is the state from before any sign-in: never replace it, or a second
-     * run would keep the first run's changes as "the original". */
-    if (stat(path, &st) == 0) return 0;
+     * run would keep the first run's changes as "the original". A sign-in from another slot
+     * since then writes that slot's rows too, so they are added once, still untouched. */
+    if (stat(path, &st) == 0) return np_backup_add_slot(path, slot);
     mkdir("/data/ps5upload", 0777);
     mkdir(PROFILE_NP_BACKUP_ROOT, 0777);
     char tmp[176];

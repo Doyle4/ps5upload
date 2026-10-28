@@ -75,11 +75,16 @@ const HEADS_REPORT_EVERY: std::time::Duration = std::time::Duration::from_millis
 /// of opens in flight hides that latency without flooding a hard disk or a network share.
 const FOLDER_HEAD_READERS: usize = 8;
 
-/// The first `len` bytes of `root/path`, as [`FolderSource::read_range`] reads them.
-fn read_folder_head(root: &Path, path: &str, len: usize) -> Result<Vec<u8>> {
-    use std::io::Read;
+/// `len` bytes of `root/path` from `offset`, fewer at the end of the file. Reads until `len` or
+/// the end: a network or FUSE mount may answer short of either, and a short read is not the
+/// end of the file.
+fn read_folder_range(root: &Path, path: &str, offset: u64, len: usize) -> Result<Vec<u8>> {
+    use std::io::{Read, Seek, SeekFrom};
     let io = |e: std::io::Error| Error::Io(std::io::Error::new(e.kind(), format!("{path}: {e}")));
     let mut file = std::fs::File::open(root.join(path)).map_err(io)?;
+    if offset > 0 {
+        file.seek(SeekFrom::Start(offset)).map_err(io)?;
+    }
     let mut buf = vec![0u8; len];
     let mut filled = 0;
     while filled < len {
@@ -127,25 +132,7 @@ impl SourceTree for FolderSource {
     }
 
     fn read_range(&mut self, path: &str, offset: u64, len: usize) -> Result<Vec<u8>> {
-        use std::io::{Read, Seek, SeekFrom};
-        let io =
-            |e: std::io::Error| Error::Io(std::io::Error::new(e.kind(), format!("{path}: {e}")));
-        let mut file = std::fs::File::open(self.root.join(path)).map_err(io)?;
-        file.seek(SeekFrom::Start(offset)).map_err(io)?;
-        // Read until `len` or the end: a network or FUSE mount may answer short of either,
-        // and a short read is not the end of the file.
-        let mut buf = vec![0u8; len];
-        let mut filled = 0;
-        while filled < len {
-            match file.read(&mut buf[filled..]) {
-                Ok(0) => break,
-                Ok(n) => filled += n,
-                Err(e) if e.kind() == std::io::ErrorKind::Interrupted => {}
-                Err(e) => return Err(io(e)),
-            }
-        }
-        buf.truncate(filled);
-        Ok(buf)
+        read_folder_range(&self.root, path, offset, len)
     }
 
     fn read_heads(
@@ -159,7 +146,7 @@ impl SourceTree for FolderSource {
         if paths.len() < 2 {
             let mut out = Vec::with_capacity(paths.len());
             for path in paths {
-                out.push(read_folder_head(&self.root, path, len)?);
+                out.push(read_folder_range(&self.root, path, 0, len)?);
             }
             return Ok(out);
         }
@@ -178,7 +165,7 @@ impl SourceTree for FolderSource {
                     }
                     let i = next.fetch_add(1, Ordering::Relaxed);
                     let Some(path) = paths.get(i) else { break };
-                    let head = read_folder_head(root, path, len);
+                    let head = read_folder_range(root, path, 0, len);
                     let failed = head.is_err();
                     if let Ok(mut r) = results.lock() {
                         r[i] = Some(head);
@@ -217,7 +204,7 @@ impl SourceTree for FolderSource {
                 Some(head) => out.push(head?),
                 None => {
                     // Not read: a reader stopped at an earlier failure.
-                    out.push(read_folder_head(root, &paths[i], len)?);
+                    out.push(read_folder_range(root, &paths[i], 0, len)?);
                 }
             }
         }

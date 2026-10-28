@@ -230,7 +230,9 @@ export async function backupKinds(user: string, titleId: string, backup: string,
 /**
  * Puts `backup` back as `user`'s save of `titleId`: backs up the current save first (its name is
  * returned, null when there was none), then for each folder the backup holds empties the live one
- * and copies the backup's files in.
+ * and copies the backup's files in. A live folder the backup does not hold (it was not there when
+ * the backup was made) is emptied, so the save is the one backed up, not a mix of old and new;
+ * the safety backup keeps what it held. Like the others, the folder itself stays.
  */
 export async function restore(
   user: string,
@@ -262,6 +264,11 @@ export async function restore(
       const mode = modes.get(e.name) ?? (e.kind === "dir" || /\.sfo$/i.test(e.name) ? 0o700 : 0o600);
       await d.call("/api/fs/chmod", { path: dest, mode: `0${mode.toString(8)}` }).catch(() => undefined);
     }
+  }
+  for (const kind of current) {
+    if (kinds.includes(kind)) continue;
+    const live = livePath(user, kind, titleId);
+    for (const e of (await listAll(d.call, live)) ?? []) await runJob(d, "/api/fs/delete", { path: `${live}/${e.name}` });
   }
   return safety;
 }

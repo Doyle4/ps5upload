@@ -74,8 +74,10 @@ const kindText = (k: SaveKind) =>
 function Cover({ titleId, big, fallback }: { titleId: string; big?: boolean; fallback?: string | null }) {
   const ref = useRef<HTMLSpanElement>(null);
   const load = useCallback(
+    // The fallback arrives after the first try, which can already have missed: a key of its
+    // own, or the remembered miss would keep the placeholder for a game no longer installed.
     (id: string) =>
-      loadImage(`save:${id}@${CARD_PX}`, [`/user/appmeta/${id}/icon0.png`, `/user/app/${id}/sce_sys/icon0.png`, ...(fallback ? [fallback] : [])], CARD_PX),
+      loadImage(`save:${id}@${CARD_PX}${fallback ? "+icon" : ""}`, [`/user/appmeta/${id}/icon0.png`, `/user/app/${id}/sce_sys/icon0.png`, ...(fallback ? [fallback] : [])], CARD_PX),
     [fallback],
   );
   const url = useLazyImage(titleId, ref, load);

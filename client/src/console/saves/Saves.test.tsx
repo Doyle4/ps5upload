@@ -160,6 +160,19 @@ describe("save backups: model", () => {
     expect(safetyCopy).toBeLessThan(firstLive);
   });
 
+  it("restores a backup without the meta folder as it was: the newer meta files go, kept in the safety backup", async () => {
+    const c = tree();
+    const d: OpDeps = { call: c.call, wait: async () => undefined, now: at("2026-10-27T10:00:00") };
+    const old = await backUp(U, "PPSA04609", ["savedata_prospero"], {}, d);
+    const later: OpDeps = { ...d, now: at("2026-10-27T11:00:00") };
+    const safety = await restore(U, "PPSA04609", old, ["savedata_prospero", "savedata_prospero_meta"], later);
+    expect(c.files.has(`${HOME}/savedata_prospero_meta/user/PPSA04609/SAVEDATA00.sfo`)).toBe(false);
+    expect(c.dirs.has(`${HOME}/savedata_prospero_meta/user/PPSA04609`)).toBe(true);
+    expect(c.files.has(`${BACKUP_ROOT}/${U}/PPSA04609/${safety}/savedata_prospero_meta/SAVEDATA00.sfo`)).toBe(true);
+    // another game's meta is untouched
+    expect(c.files.has(`${HOME}/savedata_prospero_meta/user/PPSA99999/SAVEDATA00.sfo`)).toBe(true);
+  });
+
   it("finds a save's own icon for a game no longer installed, the system's sce_bu_ copy last", async () => {
     const c = fakeConsole([`${HOME}/savedata_prospero_meta/user/PPSA25411/sce_bu_SYS_icon0.png`, `${HOME}/savedata_prospero_meta/user/PPSA25411/SYS_icon0.png`]);
     expect(await saveIconPath(U, { titleId: "PPSA25411", kinds: ["savedata_prospero", "savedata_prospero_meta"] }, c.call)).toBe(

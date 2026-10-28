@@ -63,8 +63,14 @@ export function LinkDownloadCard({
   const unpacking = canUnpack && unpack;
   // What ShadowMount+ will be handed: the image inside an .lz4 being unpacked, or a plain image.
   const image = unpacking ? lz4?.image ?? null : lz4 ? null : (info.image ?? null);
-  const defaultDir = (h: string) => (image ? defaultImageDir(h) : defaultDownloadDir(h));
-  const [dir, setDir] = useState(() => defaultDir(host));
+  // The default folder depends on the console's drives, known once their list arrives; both the
+  // first guess and the switch below compare against the default for the drives known now.
+  const [volumes, setVolumes] = useState<Parameters<typeof pkgStorageFor>[1]>(null);
+  const defaultDirFor = (img: string | null, v: Parameters<typeof pkgStorageFor>[1]) => {
+    const storage = pkgStorageFor(host, v);
+    return img ? imageDirFor(storage.volume) : storage.dir.replace(/\/pkg_library$/, "/downloads");
+  };
+  const [dir, setDir] = useState(() => defaultDirFor(image, null));
   const linkName = (u: boolean) => (u && lz4 ? lz4.unpacked_name : info.filename);
   const [name, setName] = useState(() => linkName(unpacking));
   // The download belongs to this console and link, not to this card (see state/watchedJobs):
@@ -85,14 +91,8 @@ export function LinkDownloadCard({
     fetchVolumes(transferAddr(host))
       .then((v) => {
         if (!alive.current) return;
-        const storage = pkgStorageFor(host, v);
-        setDir((cur) =>
-          cur !== defaultDir(host)
-            ? cur
-            : image
-              ? imageDirFor(storage.volume)
-              : storage.dir.replace(/\/pkg_library$/, "/downloads"),
-        );
+        setVolumes(v);
+        setDir((cur) => (cur === defaultDirFor(image, null) ? defaultDirFor(image, v) : cur));
       })
       .catch(() => {});
     return () => {
@@ -107,9 +107,9 @@ export function LinkDownloadCard({
   /** Turning unpacking on or off changes the name and folder, unless the user edited them. */
   function toggleUnpack(on: boolean) {
     setName((cur) => (cur === linkName(unpack) ? linkName(on) : cur));
-    const wasDir = defaultDir(host);
+    const wasDir = defaultDirFor(image, volumes);
     const nextImage = on ? lz4?.image ?? null : null;
-    const nextDir = nextImage ? defaultImageDir(host) : defaultDownloadDir(host);
+    const nextDir = defaultDirFor(nextImage, volumes);
     setDir((cur) => (cur === wasDir ? nextDir : cur));
     setUnpack(on);
   }
