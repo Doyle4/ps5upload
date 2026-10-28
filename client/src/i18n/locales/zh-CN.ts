@@ -5818,6 +5818,8 @@ library_compressed_hint: "压缩镜像需要 ShadowMount+ 才能游玩。如需�
 "installed_uninstall_no_copy": "这台电脑上的收藏中没有这款游戏的副本：卸载前请先把它的安装包保存到别处。",
 "connection_send_payload_moved": "要发送其他 Payload（kstuff、etaHEN 或任意 .elf）？请到“载荷与进程”→“发送 Payload”。此页面只发送 PS5Upload 助手。",
 "connection_send_payload_open": "打开“发送 Payload”",
+"upload_elf_title": "这是 Payload（.elf），不是游戏",
+"upload_elf_body": "上传只会复制这个文件。ShadowMount+ 只识别游戏文件夹（含 eboot.bin 和 sce_sys）和游戏镜像，从不识别 .elf，所以它不会出现在主屏幕上。要运行它，请改为发送到主机的加载器。应该上传的是以 .ffpkg 或 .exfat 镜像、或含 eboot.bin 的文件夹形式提供的自制应用。",
 };
 
 export default zh_CN;

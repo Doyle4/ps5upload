@@ -5883,6 +5883,8 @@ library_compressed_hint: "圧縮イメージのプレイには ShadowMount+ が�
 "installed_uninstall_no_copy": "このコンピューター上のコレクションにこのゲームのコピーがありません。アンインストールする前にパッケージをどこかに保管してください。",
 "connection_send_payload_moved": "別のペイロード（kstuff、etaHEN、任意の .elf）を送りますか？それは「ペイロードとプロセス」→「ペイロード送信」にあります。この画面が送るのは PS5Upload ヘルパーだけです。",
 "connection_send_payload_open": "「ペイロード送信」を開く",
+"upload_elf_title": "これはペイロード（.elf）で、ゲームではありません",
+"upload_elf_body": "アップロードしてもファイルがコピーされるだけです。ShadowMount+ が取り込むのはゲームフォルダー（eboot.bin と sce_sys を含むもの）とゲームイメージだけで、.elf は対象外なので、ホーム画面には表示されません。実行するには、代わりに本体のローダーへ送ってください。アップロードすべきなのは、.ffpkg や .exfat イメージ、または eboot.bin を含むフォルダーとして配布される homebrew アプリです。",
 };
 
 export default ja;

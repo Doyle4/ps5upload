@@ -5869,6 +5869,8 @@ library_compressed_hint: "Sıkıştırılmış kalıpları oynatmak için Shadow
 "installed_uninstall_no_copy": "Bu bilgisayardaki Koleksiyonunuzda bu oyunun kopyası yok: kaldırmadan önce paketini bir yerde saklayın.",
 "connection_send_payload_moved": "Başka bir payload (kstuff, etaHEN, herhangi bir .elf) mı göndereceksiniz? Bu, Payload'lar ve işlemler → Payload gönder altında. Bu ekran yalnızca PS5Upload yardımcısını gönderir.",
 "connection_send_payload_open": "Payload gönder'i aç",
+"upload_elf_title": "Bu bir oyun değil, bir payload (.elf)",
+"upload_elf_body": "Yüklemek yalnızca dosyayı kopyalar. ShadowMount+ oyun klasörlerini (eboot.bin ve sce_sys içeren) ve oyun imajlarını alır, asla bir .elf'i almaz; bu yüzden ana ekranda görünmez. Çalıştırmak için onu konsolun yükleyicisine gönderin. Yüklenmesi gereken, .ffpkg veya .exfat imajı ya da eboot.bin içeren bir klasör olarak gelen homebrew uygulamasıdır.",
 };
 
 export default tr;

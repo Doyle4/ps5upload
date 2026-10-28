@@ -16,6 +16,9 @@ What's new in ps5upload, written for humans.
   the start of every file to find executables that need repair; on a big game on Windows that
   took many minutes one file at a time. It now keeps several opens in flight and still shows
   progress and honours Stop.
+- **Upload says when the file is a payload.** Picking an `.elf` now explains that uploading only
+  copies it (ShadowMount+ picks up game folders and images, never an `.elf`) and offers Send
+  payload, which runs it.
 
 ## 8.5.1
 

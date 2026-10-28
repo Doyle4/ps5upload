@@ -6177,6 +6177,8 @@ library_compressed_hint: "A tömörített képfájlok futtatásához ShadowMount
 "installed_uninstall_no_copy": "A számítógépen lévő Gyűjteményedben nincs másolat erről a játékról: az eltávolítás előtt mentsd el valahová a csomagját.",
 "connection_send_payload_moved": "Másik payloadot küldenél (kstuff, etaHEN, bármilyen .elf)? Ez a Payloadok és folyamatok → Payload küldése alatt van. Ez a képernyő csak a PS5Upload segédet küldi.",
 "connection_send_payload_open": "Payload küldése megnyitása",
+"upload_elf_title": "Ez egy payload (.elf), nem játék",
+"upload_elf_body": "A feltöltés csak átmásolja a fájlt. A ShadowMount+ a játékmappákat (eboot.bin és sce_sys fájllal) és a játékképeket veszi fel, .elf fájlt soha, így nem jelenik meg a kezdőképernyőn. A futtatásához inkább küldd el a konzol betöltőjének. Feltölteni olyan homebrew alkalmazást érdemes, amely .ffpkg vagy .exfat képként, vagy eboot.bin fájlt tartalmazó mappaként érkezik.",
 };
 
 export default hu;

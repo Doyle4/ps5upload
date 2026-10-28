@@ -5871,6 +5871,8 @@ library_compressed_hint: "Image terkompresi memerlukan ShadowMount+ untuk bermai
 "installed_uninstall_no_copy": "Koleksi Anda di komputer ini tidak memiliki salinan game ini: simpan paketnya di suatu tempat sebelum menghapus instalasinya.",
 "connection_send_payload_moved": "Ingin mengirim payload lain (kstuff, etaHEN, .elf apa pun)? Itu ada di Payload & proses → Kirim payload. Layar ini hanya mengirim helper PS5Upload.",
 "connection_send_payload_open": "Buka Kirim payload",
+"upload_elf_title": "Ini payload (.elf), bukan game",
+"upload_elf_body": "Mengunggahnya hanya menyalin file. ShadowMount+ mengambil folder game (berisi eboot.bin dan sce_sys) dan image game, tidak pernah .elf, jadi tidak akan muncul di layar beranda. Untuk menjalankannya, kirim ke loader konsol. Yang perlu diunggah adalah aplikasi homebrew yang berbentuk image .ffpkg atau .exfat, atau folder berisi eboot.bin.",
 };
 
 export default id;

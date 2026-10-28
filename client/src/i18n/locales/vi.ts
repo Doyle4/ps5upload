@@ -5864,6 +5864,8 @@ library_compressed_hint: "Ảnh đĩa nén cần ShadowMount+ để chơi. Để
 "installed_uninstall_no_copy": "Bộ sưu tập trên máy tính này không có bản sao của game này: hãy lưu gói của nó ở đâu đó trước khi gỡ cài đặt.",
 "connection_send_payload_moved": "Muốn gửi payload khác (kstuff, etaHEN, bất kỳ .elf nào)? Mục đó nằm ở Payload và tiến trình → Gửi payload. Màn hình này chỉ gửi trình trợ giúp PS5Upload.",
 "connection_send_payload_open": "Mở Gửi payload",
+"upload_elf_title": "Đây là payload (.elf), không phải trò chơi",
+"upload_elf_body": "Tải lên chỉ sao chép tệp. ShadowMount+ chỉ nhận thư mục trò chơi (có eboot.bin và sce_sys) và ảnh trò chơi, không bao giờ nhận tệp .elf, nên nó sẽ không xuất hiện trên màn hình chính. Để chạy nó, hãy gửi nó tới trình nạp của máy. Thứ nên tải lên là ứng dụng homebrew dạng ảnh .ffpkg hoặc .exfat, hoặc thư mục có eboot.bin.",
 };
 
 export default vi;

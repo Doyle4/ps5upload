@@ -110,6 +110,7 @@ import { RunningEngineJobs } from "../../components/RunningEngineJobs";
 import { BottleneckLine, JobLiveNotes, UnsettledLine } from "./Bottleneck";
 import { WhySlowPanel } from "./WhySlow";
 import { SlowTransferHint } from "./SlowTransferHint";
+import { ElfSourceHint } from "./ElfSourceHint";
 import { humanizePs5Error } from "../../lib/humanizeError";
 import { formatBytes } from "../../lib/format";
 import { resumeSummary } from "../../lib/resumeSummary";
@@ -1290,6 +1291,7 @@ function Step2Options(props: {
                 )}
               </div>
             )}
+            <ElfSourceHint path={source.path} />
             {detecting && (
               // Prominent scanning banner. The small inline spinner up
               // top is easy to miss for users staring at the disabled

@@ -5881,6 +5881,8 @@ library_compressed_hint: "압축 이미지를 플레이하려면 ShadowMount+가
 "installed_uninstall_no_copy": "이 컴퓨터의 컬렉션에 이 게임의 사본이 없습니다. 제거하기 전에 패키지를 다른 곳에 보관하세요.",
 "connection_send_payload_moved": "다른 페이로드(kstuff, etaHEN, 아무 .elf)를 보내려면 페이로드 및 프로세스 → 페이로드 전송에서 하세요. 이 화면은 PS5Upload 도우미만 보냅니다.",
 "connection_send_payload_open": "페이로드 전송 열기",
+"upload_elf_title": "이것은 게임이 아니라 페이로드(.elf)입니다",
+"upload_elf_body": "업로드하면 파일만 복사됩니다. ShadowMount+는 게임 폴더(eboot.bin과 sce_sys 포함)와 게임 이미지만 가져오고 .elf는 절대 가져오지 않으므로 홈 화면에 나타나지 않습니다. 실행하려면 대신 콘솔의 로더로 보내세요. 업로드할 것은 .ffpkg 또는 .exfat 이미지, 또는 eboot.bin이 있는 폴더로 제공되는 홈브루 앱입니다.",
 };
 
 export default ko;

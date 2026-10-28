@@ -5862,6 +5862,8 @@ library_compressed_hint: "تحتاج الصور المضغوطة إلى ShadowMo
 "installed_uninstall_no_copy": "لا توجد في مجموعتك على هذا الكمبيوتر نسخة من هذه اللعبة: احتفظ بحزمتها في مكان ما قبل إلغاء التثبيت.",
 "connection_send_payload_moved": "هل تريد إرسال حمولة أخرى (kstuff أو etaHEN أو أي ملف ‎.elf)؟ ستجد ذلك في الحمولات والعمليات ← إرسال حمولة. هذه الشاشة ترسل مساعد PS5Upload فقط.",
 "connection_send_payload_open": "فتح إرسال حمولة",
+"upload_elf_title": "هذه حمولة (‎.elf) وليست لعبة",
+"upload_elf_body": "رفعه ينسخ الملف فقط. يلتقط ShadowMount+‎ مجلدات الألعاب (التي تحتوي على eboot.bin وsce_sys) وصور الألعاب، ولا يلتقط ملف ‎.elf أبدًا، لذا لن يظهر على الشاشة الرئيسية. لتشغيله، أرسله إلى مُحمِّل الجهاز بدلًا من ذلك. ما يجب رفعه هو تطبيق homebrew يأتي كصورة ‎.ffpkg أو ‎.exfat، أو كمجلد يحتوي على eboot.bin.",
 };
 
 export default ar;

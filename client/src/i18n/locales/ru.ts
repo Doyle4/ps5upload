@@ -5812,6 +5812,8 @@ library_compressed_hint: "Для запуска сжатых образов ну
 "installed_uninstall_no_copy": "В вашей Коллекции на этом компьютере нет копии этой игры: сохраните её пакет где-нибудь, прежде чем удалять.",
 "connection_send_payload_moved": "Нужно отправить другой payload (kstuff, etaHEN, любой .elf)? Это в разделе «Пейлоады и процессы» → «Отправить payload». Этот экран отправляет только помощник PS5Upload.",
 "connection_send_payload_open": "Открыть «Отправить payload»",
+"upload_elf_title": "Это payload (.elf), а не игра",
+"upload_elf_body": "Загрузка лишь копирует файл. ShadowMount+ подхватывает папки игр (с eboot.bin и sce_sys) и образы игр, но никогда .elf, поэтому он не появится на главном экране. Чтобы запустить его, отправьте его загрузчику консоли. Загружать нужно homebrew-приложение в виде образа .ffpkg или .exfat либо папки с eboot.bin.",
 };
 
 export default ru;

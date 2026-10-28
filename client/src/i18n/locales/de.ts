@@ -5870,6 +5870,8 @@ library_compressed_hint: "Komprimierte Images benötigen ShadowMount+ zum Spiele
 "installed_uninstall_no_copy": "Deine Sammlung auf diesem Computer enthält keine Kopie dieses Spiels: Bewahre sein Paket irgendwo auf, bevor du es deinstallierst.",
 "connection_send_payload_moved": "Einen anderen Payload senden (kstuff, etaHEN, eine beliebige .elf)? Das geht unter Payloads & Prozesse → Payload senden. Dieser Bildschirm sendet nur den PS5Upload-Helfer.",
 "connection_send_payload_open": "Payload senden öffnen",
+"upload_elf_title": "Das ist ein Payload (.elf), kein Spiel",
+"upload_elf_body": "Hochladen kopiert nur die Datei. ShadowMount+ übernimmt Spielordner (mit eboot.bin und sce_sys) und Spiel-Images, nie eine .elf, sie erscheint also nicht auf dem Startbildschirm. Um sie auszuführen, sende sie stattdessen an den Loader der Konsole. Hochladen solltest du eine Homebrew-App, die als .ffpkg- oder .exfat-Image oder als Ordner mit eboot.bin kommt.",
 };
 
 export default de;

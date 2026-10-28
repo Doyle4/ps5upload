@@ -5880,6 +5880,8 @@ library_compressed_hint: "Les images compressées nécessitent ShadowMount+ pour
 "installed_uninstall_no_copy": "Votre Collection sur cet ordinateur n’a aucune copie de ce jeu : conservez son package quelque part avant de le désinstaller.",
 "connection_send_payload_moved": "Envoyer un autre payload (kstuff, etaHEN, n'importe quel .elf) ? C'est dans Payloads et processus → Envoyer un payload. Cet écran n'envoie que l'assistant PS5Upload.",
 "connection_send_payload_open": "Ouvrir Envoyer un payload",
+"upload_elf_title": "C'est un payload (.elf), pas un jeu",
+"upload_elf_body": "L'envoyer ne fait que copier le fichier. ShadowMount+ prend en charge les dossiers de jeu (avec eboot.bin et sce_sys) et les images de jeu, jamais un .elf, il n'apparaîtra donc pas sur l'écran d'accueil. Pour l'exécuter, envoyez-le plutôt au chargeur de la console. Ce qu'il faut envoyer, c'est une app homebrew fournie en image .ffpkg ou .exfat, ou en dossier avec eboot.bin.",
 };
 
 export default fr;

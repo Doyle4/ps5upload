@@ -5862,6 +5862,8 @@ library_compressed_hint: "সংকুচিত ইমেজ চালাতে 
 "installed_uninstall_no_copy": "এই কম্পিউটারে আপনার সংগ্রহে এই গেমের কোনো কপি নেই: আনইনস্টল করার আগে এর প্যাকেজ কোথাও রেখে দিন।",
 "connection_send_payload_moved": "অন্য কোনো পেলোড (kstuff, etaHEN, যেকোনো .elf) পাঠাতে চান? সেটি আছে পেলোড ও প্রসেস → পেলোড পাঠান-এ। এই স্ক্রিন শুধু PS5Upload হেল্পার পাঠায়।",
 "connection_send_payload_open": "পেলোড পাঠান খুলুন",
+"upload_elf_title": "এটি একটি পেলোড (.elf), গেম নয়",
+"upload_elf_body": "আপলোড করলে শুধু ফাইলটি কপি হয়। ShadowMount+ গেম ফোল্ডার (eboot.bin ও sce_sys সহ) এবং গেম ইমেজ নেয়, কখনো .elf নয়, তাই এটি হোম স্ক্রিনে দেখা যাবে না। চালাতে হলে এটি কনসোলের লোডারে পাঠান। যে homebrew অ্যাপ .ffpkg বা .exfat ইমেজ হিসেবে, বা eboot.bin সহ ফোল্ডার হিসেবে আসে, সেটিই আপলোড করার জিনিস।",
 };
 
 export default bn;
