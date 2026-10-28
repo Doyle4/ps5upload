@@ -15,6 +15,7 @@ import {
   parseBackupName,
   parseUsers,
   restore,
+  saveIconPath,
   type OpDeps,
 } from "./model";
 
@@ -38,7 +39,7 @@ function fakeConsole(paths: string[]) {
       for (const f of files) if (f.startsWith(pre) && !f.slice(pre.length).includes("/")) names.set(f.slice(pre.length), "file");
       return { entries: Array.from(names, ([name, kind]) => ({ name, kind, size: kind === "file" ? 10 : 0 })), more: false };
     }
-    log.push(`${route} ${b.path ?? `${b.src} -> ${b.dest}`}`);
+    log.push(`${route} ${b.path ?? `${b.src} -> ${b.dest}`}${b.mode ? ` ${b.mode}` : ""}`);
     if (route === "/api/fs/mkdir") {
       addDirs(b.path);
       return {};
@@ -56,6 +57,8 @@ function fakeConsole(paths: string[]) {
       for (const d of Array.from(dirs).filter(under(b.path))) dirs.delete(d);
       return { job: "j" };
     }
+    if (route === "/api/fs/stat") return { mode: b.path.endsWith("sdimg_SAVEDATA01") ? 0o700 : 0o600 };
+    if (route === "/api/fs/chmod") return {};
     if (route === "/api/users") return { foreground: 0x1a2b3c4d, users: [{ id: 0x5e6f7a8b, name: "Sam" }, { id: 0x1a2b3c4d, name: "Alex", foreground: true }] };
     throw new ApiError(404, "not_found");
   });
@@ -67,10 +70,13 @@ const HOME = `/user/home/${U}`;
 const tree = () =>
   fakeConsole([
     `${HOME}/savedata_prospero/PPSA04609/sdimg_SAVEDATA00`,
-    `${HOME}/savedata_prospero_meta/PPSA04609/sce_sys/param.sfo`,
-    `${HOME}/savedata_prospero_meta/PPSA99999/sce_sys/param.sfo`,
+    `${HOME}/savedata_prospero/PPSA04609/sdimg_sce_bu_SAVEDATA00`,
+    `${HOME}/savedata_prospero/sce_backup/`,
+    `${HOME}/savedata_prospero_meta/user/PPSA04609/SAVEDATA00.sfo`,
+    `${HOME}/savedata_prospero_meta/user/PPSA99999/SAVEDATA00.sfo`,
     `${HOME}/savedata/CUSA07842/sdimg_SAVE`,
-    `${HOME}/savedata/notatitle/x`,
+    `${HOME}/savedata/sce_backup4/`,
+    `${HOME}/savedata_meta/user/CUSA07842/SAVE.sfo`,
     "/user/home/5e6f7a8b/",
     "/user/home/zzz/",
   ]);
@@ -97,7 +103,7 @@ describe("save backups: model", () => {
     const saves = await loadSaves(U, tree().call);
     expect(saves).toEqual([
       { titleId: "PPSA04609", kinds: ["savedata_prospero", "savedata_prospero_meta"] },
-      { titleId: "CUSA07842", kinds: ["savedata"] },
+      { titleId: "CUSA07842", kinds: ["savedata", "savedata_meta"] },
     ]);
   });
 
@@ -107,7 +113,7 @@ describe("save backups: model", () => {
     const name = await backUp(U, "PPSA04609", ["savedata_prospero", "savedata_prospero_meta"], {}, d);
     const dest = `${BACKUP_ROOT}/${U}/PPSA04609/${name}`;
     expect(c.files.has(`${dest}/savedata_prospero/sdimg_SAVEDATA00`)).toBe(true);
-    expect(c.files.has(`${dest}/savedata_prospero_meta/sce_sys/param.sfo`)).toBe(true);
+    expect(c.files.has(`${dest}/savedata_prospero_meta/SAVEDATA00.sfo`)).toBe(true);
     // a second one in the same second gets the next second's name
     const second = await backUp(U, "PPSA04609", ["savedata_prospero"], {}, d);
     expect(second).not.toBe(name);
@@ -142,6 +148,8 @@ describe("save backups: model", () => {
     expect(c.files.has(`${HOME}/savedata_prospero/PPSA04609/sdimg_SAVEDATA00`)).toBe(true);
     expect(c.files.has(`${HOME}/savedata_prospero/PPSA04609/sdimg_SAVEDATA01`)).toBe(false);
     expect(c.files.has(`${BACKUP_ROOT}/${U}/PPSA04609/${safety}/savedata_prospero/sdimg_SAVEDATA01`)).toBe(true);
+    // the restored files get the system's mode back (a copy comes out 0777)
+    expect(c.log).toContain(`/api/fs/chmod ${HOME}/savedata_prospero/PPSA04609/sdimg_SAVEDATA00 0600`);
     // the live title folder is never deleted itself, only what is in it
     expect(c.log).not.toContain(`/api/fs/delete ${HOME}/savedata_prospero/PPSA04609`);
     expect(c.dirs.has(`${HOME}/savedata_prospero/PPSA04609`)).toBe(true);
@@ -150,6 +158,14 @@ describe("save backups: model", () => {
     const safetyCopy = c.log.findIndex((l) => l.includes(`${safety}/savedata_prospero`));
     expect(safetyCopy).toBeGreaterThanOrEqual(0);
     expect(safetyCopy).toBeLessThan(firstLive);
+  });
+
+  it("finds a save's own icon for a game no longer installed, the system's sce_bu_ copy last", async () => {
+    const c = fakeConsole([`${HOME}/savedata_prospero_meta/user/PPSA25411/sce_bu_SYS_icon0.png`, `${HOME}/savedata_prospero_meta/user/PPSA25411/SYS_icon0.png`]);
+    expect(await saveIconPath(U, { titleId: "PPSA25411", kinds: ["savedata_prospero", "savedata_prospero_meta"] }, c.call)).toBe(
+      `${HOME}/savedata_prospero_meta/user/PPSA25411/SYS_icon0.png`,
+    );
+    expect(await saveIconPath(U, { titleId: "PPSA25411", kinds: ["savedata_prospero"] }, c.call)).toBeNull();
   });
 
   it("deletes only a backup folder by its stamp", async () => {
@@ -174,6 +190,7 @@ const view = (over: Partial<SavesViewProps> = {}): SavesViewProps => ({
   user: U,
   saves: [{ titleId: "PPSA04609", kinds: ["savedata_prospero", "savedata_prospero_meta"] }],
   names: new Map([["PPSA04609", "Hogwarts Legacy"]]),
+  icons: new Map(),
   backups: new Map([["PPSA04609", backups]]),
   sizes: new Map(),
   open: null,

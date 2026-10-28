@@ -3,8 +3,9 @@ import { ArchiveRestore, Gamepad2, HardDriveDownload, RefreshCw, Square, Trash2,
 import { formatBytes } from "../../lib/format";
 import { ApiError, call } from "../api";
 import { errorText, type Message } from "../home/Home";
-import { useLazyCover } from "../games/covers";
+import { loadImage, useLazyImage } from "../games/covers";
 import { parseDbPage } from "../games/model";
+import { CARD_PX } from "../library/Library";
 import { onNavAction } from "../nav";
 import type { SectionContext } from "../sections";
 import { t } from "../strings";
@@ -20,6 +21,8 @@ import {
   loadSaves,
   loadUsers,
   restore,
+  SAVE_KINDS,
+  saveIconPath,
   shallowSize,
   type Backup,
   type SaveKind,
@@ -39,6 +42,8 @@ export interface SavesViewProps {
   user: string | null;
   saves: SaveTitle[] | null;
   names: ReadonlyMap<string, string>;
+  /** A save's own icon by title, for a game no longer installed (no name from app.db). */
+  icons: ReadonlyMap<string, string>;
   /** Backups by title (for the user shown); a title not read yet is missing. */
   backups: ReadonlyMap<string, Backup[]>;
   /** The open title's current save size, and each backup's (by name), once read. */
@@ -63,11 +68,17 @@ export interface SavesViewProps {
 const when = (b: Backup) => new Date(b.when).toLocaleString();
 
 const kindText = (k: SaveKind) =>
-  k === "savedata_prospero" ? t("cw_saves_kind_prospero") : k === "savedata_prospero_meta" ? t("cw_saves_kind_meta") : t("cw_saves_kind_ps4");
+  k === "savedata_prospero" ? t("cw_saves_kind_prospero") : k === "savedata" ? t("cw_saves_kind_ps4") : t("cw_saves_kind_meta");
 
-function Cover({ titleId, big }: { titleId: string; big?: boolean }) {
+/** The game's cover; a game no longer installed shows its save's own icon (`fallback`). */
+function Cover({ titleId, big, fallback }: { titleId: string; big?: boolean; fallback?: string | null }) {
   const ref = useRef<HTMLSpanElement>(null);
-  const url = useLazyCover(titleId, ref);
+  const load = useCallback(
+    (id: string) =>
+      loadImage(`save:${id}@${CARD_PX}`, [`/user/appmeta/${id}/icon0.png`, `/user/app/${id}/sce_sys/icon0.png`, ...(fallback ? [fallback] : [])], CARD_PX),
+    [fallback],
+  );
+  const url = useLazyImage(titleId, ref, load);
   return (
     <span ref={ref} className={`cw-gcover${big ? " is-big" : ""}`} aria-hidden>
       {url ? <img src={url} alt="" /> : <Gamepad2 />}
@@ -94,7 +105,7 @@ function Sheet({ s, p }: { s: SaveTitle; p: SavesViewProps }) {
   return (
     <Modal label={name} className="cw-sheet cw-game-sheet cw-saves-sheet" onBack={close}>
       <div className="cw-game-sheet-head">
-        <Cover titleId={s.titleId} big />
+        <Cover titleId={s.titleId} big fallback={p.icons.get(s.titleId)} />
         <div className="cw-game-text">
           <h2 className="cw-sheet-title">{name}</h2>
           <span className="cw-gcard-tags">
@@ -218,7 +229,7 @@ export function SavesView(p: SavesViewProps) {
         {p.saves.map((s) => (
           <li key={s.titleId} className="cw-gcard-item">
             <button type="button" className="cw-focusable cw-gcard cw-libcard" data-save-key={`${p.user}/${s.titleId}`} onClick={() => p.onOpen(s.titleId)}>
-              <Cover titleId={s.titleId} />
+              <Cover titleId={s.titleId} fallback={p.icons.get(s.titleId)} />
               <span className="cw-libcard-name">{p.names.get(s.titleId) || s.titleId}</span>
               <span className="cw-libcard-meta cw-dim">{backupsText(p.backups.get(s.titleId)) || s.titleId}</span>
             </button>
@@ -298,6 +309,8 @@ export function Saves({ ctx }: { ctx: SectionContext }) {
   const [user, setUser] = useState<string | null>(null);
   const [saves, setSaves] = useState<SaveTitle[] | null>(null);
   const [names, setNames] = useState<Map<string, string>>(new Map());
+  const [icons, setIcons] = useState<Map<string, string>>(new Map());
+  const [namesRead, setNamesRead] = useState(false);
   const [backups, setBackups] = useState<Map<string, Backup[]>>(new Map());
   const [sizes, setSizes] = useState<Map<string, number>>(new Map());
   const [open, setOpen] = useState<string | null>(ctx.params?.title ?? null);
@@ -363,14 +376,35 @@ export function Saves({ ctx }: { ctx: SectionContext }) {
   useEffect(() => {
     void loadUserList();
     loadNames().then(
-      (n) => live.current && setNames(n),
-      () => undefined,
+      (n) => {
+        if (!live.current) return;
+        setNames(n);
+        setNamesRead(true);
+      },
+      () => live.current && setNamesRead(true),
     );
   }, [loadUserList]);
 
   useEffect(() => {
     if (user) void loadUserSaves(user);
   }, [user, loadUserSaves]);
+
+  // Games no longer installed (no name in app.db): their save's own icon as the cover.
+  useEffect(() => {
+    if (!user || !saves || !namesRead) return;
+    let on = true;
+    void (async () => {
+      for (const s of saves) {
+        if (names.has(s.titleId)) continue;
+        const icon = await saveIconPath(user, s).catch(() => null);
+        if (!on) return;
+        if (icon) setIcons((m) => new Map(m).set(s.titleId, icon));
+      }
+    })();
+    return () => {
+      on = false;
+    };
+  }, [user, saves, names, namesRead]);
 
   // The open title's sizes: its current save and each backup.
   const openSave = open && saves ? saves.find((s) => s.titleId === open) ?? null : null;
@@ -386,7 +420,7 @@ export function Saves({ ctx }: { ctx: SectionContext }) {
         const key = sizeKey(openSave.titleId, b.name);
         if (sizes.has(key)) continue;
         let n = 0;
-        for (const k of ["savedata_prospero", "savedata_prospero_meta", "savedata"])
+        for (const k of SAVE_KINDS)
           n += await shallowSize(`${backupsDir(user, openSave.titleId)}/${b.name}/${k}`).catch(() => 0);
         if (on) setSizes((m) => new Map(m).set(key, n));
       }
@@ -501,6 +535,7 @@ export function Saves({ ctx }: { ctx: SectionContext }) {
         user={user}
         saves={saves}
         names={names}
+        icons={icons}
         backups={backups}
         sizes={sizes}
         open={openSave ? open : null}
