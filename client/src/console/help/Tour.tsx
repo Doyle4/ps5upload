@@ -7,7 +7,7 @@ import { Modal } from "../ui/Modal";
 export const TOUR_CARDS: { title: string; lines: string[] }[] = [
   {
     title: "cw_tour1_title",
-    lines: ["cw_tour1_home", "cw_tour1_games", "cw_tour1_library", "cw_tour1_files", "cw_tour1_cheats", "cw_tour1_fan", "cw_tour1_processes", "cw_tour1_cleanup", "cw_tour1_settings"],
+    lines: ["cw_tour1_home", "cw_tour1_games_v2", "cw_tour1_saves", "cw_tour1_files", "cw_tour1_cheats", "cw_tour1_fan", "cw_tour1_processes", "cw_tour1_cleanup", "cw_tour1_settings"],
   },
   {
     title: "cw_tour2_title",

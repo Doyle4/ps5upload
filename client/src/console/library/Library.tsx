@@ -1,15 +1,19 @@
-import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
-import { Copy, Download, Gamepad2, HousePlus, RefreshCw, Search, Square, X } from "lucide-react";
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState, type ReactNode } from "react";
+import { Check, Copy, Download, FolderOpen, Gamepad2, HousePlus, Layers, RefreshCw, Search, Square, Wrench, X } from "lucide-react";
 import { formatBytes } from "../../lib/format";
 import { ApiError, call } from "../api";
 import { errorText, isDrive, volumeLabel, type Message, type Volume } from "../home/Home";
 import { installMessage, installPhaseText, installStoppable, kindText } from "../files/pkg";
 import { watchOp } from "../files/opJob";
+import { startFolderSize, type ListPage } from "../files/folderSize";
 import { listShares, smbCallErrorText, watchSmbJob, type SmbJob } from "../files/smb";
-import { loadImage, useLazyImage } from "../games/covers";
+import { loadFullImage, loadImage, useLazyImage } from "../games/covers";
+import { assemble, loadInfo, loadSources } from "../games/model";
 import { onNavAction } from "../nav";
+import type { SectionContext } from "../sections";
 import { t } from "../strings";
 import { Modal } from "../ui/Modal";
+import { compareVersions, filterGroups, gameSize, groupEntries, newestUpdate, type Format, type GameGroup, type Part, type Role } from "./group";
 import {
   CONSOLE_SOURCE,
   LIB_DIR,
@@ -17,7 +21,6 @@ import {
   copyDest,
   displayName,
   entriesOf,
-  filterEntries,
   readScan,
   stagePath,
   startScan,
@@ -34,131 +37,334 @@ interface Task {
   stoppable: boolean;
 }
 
-const loadIcon = (icon: string) => loadImage(`lib:${icon}`, [`${LIB_DIR}/icons/${icon}`]);
+/** What this console has installed, by title id (its version once the detail asked for it). */
+export interface InstalledTitle {
+  version: string | null;
+}
+
+/** A grid cover is drawn at this size: sharp on a 1080p TV card, still small in memory. */
+export const CARD_PX = 320;
+
+const iconPath = (icon: string) => `${LIB_DIR}/icons/${icon}`;
+const loadIcon = (icon: string) => loadImage(`lib:${icon}@${CARD_PX}`, [iconPath(icon)], CARD_PX);
 const noIcon = () => Promise.resolve(null);
 
-function Cover({ e, big }: { e: Entry; big?: boolean }) {
+/** An installed title's own icon: the cover of a copy the scan found none for (a disk image). */
+const loadAppIcon = (titleId: string) => loadImage(`lib-app:${titleId}@${CARD_PX}`, [`/user/appmeta/${titleId}/icon0.png`], CARD_PX);
+const appIconPath = (titleId: string) => `/user/appmeta/${titleId}/icon0.png`;
+
+function CardCover({ icon, titleId }: { icon: string; titleId: string }) {
   const ref = useRef<HTMLSpanElement>(null);
-  const url = useLazyImage(e.icon, ref, e.icon ? loadIcon : noIcon);
+  const url = useLazyImage(icon || titleId, ref, icon ? loadIcon : titleId ? loadAppIcon : noIcon);
   return (
-    <span ref={ref} className={`cw-gcover${big ? " is-big" : ""}`} aria-hidden>
+    <span ref={ref} className="cw-gcover" aria-hidden>
       {url ? <img src={url} alt="" /> : <Gamepad2 />}
     </span>
   );
 }
 
-const kindLabel = (e: Entry) =>
-  e.kind === "pkg" ? kindText(e.type) : e.kind === "folder" ? t("cw_lib_kind_folder") : t("cw_lib_kind_image");
+/** The detail's cover at full size (icon0.png is 512 px), its object URL dropped on close. */
+function BigCover({ icon, titleId }: { icon: string; titleId: string }) {
+  const [url, setUrl] = useState<string | null>(null);
+  useEffect(() => {
+    if (!icon && !titleId) return;
+    let live = true;
+    let made: string | null = null;
+    void loadFullImage(icon ? iconPath(icon) : appIconPath(titleId)).then((u) => {
+      made = u;
+      if (live) setUrl(u);
+      else if (u) URL.revokeObjectURL(u);
+    });
+    return () => {
+      live = false;
+      if (made) URL.revokeObjectURL(made);
+    };
+  }, [icon, titleId]);
+  return <span className="cw-libview-cover" aria-hidden>{url ? <img src={url} alt="" /> : <Gamepad2 />}</span>;
+}
+
+export function formatText(f: Format): string {
+  switch (f) {
+    case "folder":
+      return t("cw_lib_kind_folder");
+    case "pkg":
+      return t("cw_lib_fmt_pkg");
+    case "fpkg":
+      return t("cw_lib_fake");
+    case "exfat":
+      return t("cw_lib_fmt_exfat");
+    case "ffpkg":
+      return t("cw_lib_fmt_ffpkg");
+    case "ffpfs":
+      return t("cw_lib_fmt_ffpfs");
+    default:
+      return t("cw_lib_kind_image");
+  }
+}
+
+export function roleText(r: Role): string {
+  if (r === "base") return kindText("game");
+  if (r === "update") return kindText("patch");
+  if (r === "backport") return t("cw_lib_role_backport");
+  return kindText(r);
+}
+
+const platformText = (p: string) => (p === "ps4" ? "PS4" : p === "ps5" ? "PS5" : "");
 
 /** A failed call or job as one line. */
 const failText = (e: unknown) => smbCallErrorText(e) ?? errorText(e) ?? "";
 
+/** A folder's counted size: running (bytes so far) or done. */
+export interface FolderSize {
+  bytes: number;
+  done: boolean;
+}
+
 export interface LibraryViewProps {
+  /** Games' Installed / On Drives & Shares switch, under the title. */
+  switcher?: ReactNode;
   sources: LibSource[];
   scans: ReadonlyMap<string, LibScan | null>;
   loaded: boolean;
   query: string;
   task: Task | null;
   message: Message | null;
-  open: Entry | null;
+  /** The game whose detail is open (by group key), or null. */
+  open: string | null;
   drives: Volume[];
   /** The folder a copy just put on the console, for Register. */
   copied: { key: string; path: string } | null;
+  /** This console's titles; null until read (or when they could not be). */
+  installed: ReadonlyMap<string, InstalledTitle> | null;
+  /** The console's firmware ("13.60"), for "needs a newer system software". */
+  firmware: string | null;
+  /** Folder sizes counted so far, by entry key. */
+  sizes: ReadonlyMap<string, FolderSize>;
   onQuery: (q: string) => void;
   onScan: () => void;
   onStop: () => void;
-  onOpen: (e: Entry | null) => void;
+  onOpen: (g: GameGroup | null) => void;
   onInstall: (e: Entry) => void;
   onCopy: (e: Entry, drive: string) => void;
   onRegister: (path: string, name: string) => void;
+  /** Show the folder holding `path` in Files (null: Files cannot be opened from here). */
+  onShowInFiles: ((path: string) => void) | null;
 }
 
-function Sheet({ e, p }: { e: Entry; p: LibraryViewProps }) {
+/** The game's size with the folders counted so far; whether some are still uncounted. */
+export function groupSize(g: GameGroup, sizes: ReadonlyMap<string, FolderSize>): { bytes: number; partial: boolean } {
+  return gameSize(g.parts, sizes);
+}
+
+const parentOf = (path: string) => {
+  const i = path.lastIndexOf("/");
+  return i > 0 ? path.slice(0, i) : path;
+};
+
+function PartRow({ g, part, first, p, onCopyPick }: { g: GameGroup; part: Part; first: boolean; p: LibraryViewProps; onCopyPick: (e: Entry) => void }) {
+  const e = part.entry;
   const busy = p.task !== null;
   const onShare = e.source !== CONSOLE_SOURCE;
-  const rows: [string, string][] = [
-    [t("cw_games_info_title_id"), e.title_id || "—"],
-    [t("cw_games_info_version"), e.version || "—"],
-    [t("cw_lib_info_kind"), kindLabel(e)],
-    [t("cw_games_info_size"), e.size ? formatBytes(e.size) : "—"],
-  ];
-  if (e.fw) rows.push([t("cw_lib_info_fw"), e.fw]);
-  rows.push([t("cw_lib_info_source"), e.sourceName], [t("cw_lib_info_path"), e.path]);
   const registerPath = !onShare && e.kind === "folder" ? e.path : p.copied?.key === e.key ? p.copied.path : null;
+  const counted = p.sizes.get(e.key);
+  const size = e.size > 0 ? formatBytes(e.size) : counted ? (counted.done ? formatBytes(counted.bytes) : t("cw_lib_size_counting", { size: formatBytes(counted.bytes) })) : "—";
+  const meta = [e.version ? `v${e.version}` : "", size, e.sourceName].filter(Boolean).join(" · ");
+  let n = 0;
+  const def = () => (first && n++ === 0 ? "" : undefined);
   return (
-    <Modal label={displayName(e)} className="cw-sheet cw-game-sheet" onBack={() => p.onOpen(null)}>
-      <div className="cw-game-sheet-head">
-        <Cover e={e} big />
-        <div className="cw-game-text">
-          <h2 className="cw-sheet-title">{displayName(e)}</h2>
-          <span className="cw-gcard-tags">
-            <span className="cw-tag">{kindLabel(e)}</span>
-            {e.fake ? <span className="cw-tag">{t("cw_lib_fake")}</span> : null}
-          </span>
-        </div>
+    <li className="cw-libpart">
+      <div className="cw-libpart-text">
+        <span className="cw-libpart-tags">
+          <span className={`cw-tag${part.role === "base" ? " is-on" : ""}`}>{roleText(part.role)}</span>
+          <span className="cw-tag">{formatText(part.format)}</span>
+          {part.role === "dlc" && e.title && e.title !== g.title ? <span className="cw-libpart-name">{e.title}</span> : null}
+        </span>
+        <span className="cw-libpart-meta">{meta}</span>
+        <span className="cw-libpart-path cw-mono cw-dim">{e.path}</span>
       </div>
-      <div className="cw-game-sheet-body">
-        <div>
-          <dl className="cw-info">
-            {rows.map(([k, v]) => (
-              <div key={k}>
-                <dt className="cw-dim">{k}</dt>
-                <dd className="cw-mono">{v}</dd>
-              </div>
-            ))}
-          </dl>
-          {p.task ? <p className="cw-dim" role="status">{p.task.text}</p> : null}
-        </div>
-        <div className="cw-sheet-items">
-          {e.kind === "pkg" ? (
-            <button type="button" className="cw-focusable cw-sheet-item" data-nav-default="" disabled={busy} onClick={() => p.onInstall(e)}>
-              <Download aria-hidden />
-              <span>{t("cw_lib_install")}</span>
+      <span className="cw-libpart-actions">
+        {e.kind === "pkg" ? (
+          <button type="button" className="cw-focusable cw-button is-primary" data-nav-default={def()} disabled={busy} onClick={() => p.onInstall(e)}>
+            <Download aria-hidden />
+            <span>{t("cw_lib_install")}</span>
+          </button>
+        ) : null}
+        {onShare && e.kind !== "pkg" ? (
+          <button type="button" className="cw-focusable cw-button is-primary" data-nav-default={def()} disabled={busy} onClick={() => onCopyPick(e)}>
+            <Copy aria-hidden />
+            <span>{t("cw_lib_copy_here")}</span>
+          </button>
+        ) : null}
+        {registerPath ? (
+          <button type="button" className="cw-focusable cw-button" data-nav-default={def()} disabled={busy} onClick={() => p.onRegister(registerPath, displayName(e))}>
+            <HousePlus aria-hidden />
+            <span>{t("cw_lib_register")}</span>
+          </button>
+        ) : null}
+        {p.onShowInFiles ? (
+          <button type="button" className="cw-focusable cw-button" data-nav-default={def()} onClick={() => p.onShowInFiles?.(parentOf(e.at))}>
+            <FolderOpen aria-hidden />
+            <span>{t("cw_cleanup_show_in_files")}</span>
+          </button>
+        ) : null}
+      </span>
+    </li>
+  );
+}
+
+/** Which drive a copy goes to. */
+function DrivePicker({ e, p, onClose }: { e: Entry; p: LibraryViewProps; onClose: () => void }) {
+  return (
+    <Modal label={t("cw_lib_copy_where")} className="cw-sheet" onBack={onClose}>
+      <h2 className="cw-sheet-title">{t("cw_lib_copy_where")}</h2>
+      <p className="cw-dim">{displayName(e)}</p>
+      <div className="cw-sheet-items">
+        {p.drives.length ? (
+          p.drives.map((d, i) => (
+            <button
+              key={d.path}
+              type="button"
+              className="cw-focusable cw-sheet-item"
+              data-nav-default={i === 0 ? "" : undefined}
+              onClick={() => {
+                onClose();
+                p.onCopy(e, d.path);
+              }}
+            >
+              <Copy aria-hidden />
+              <span>{t("cw_lib_copy_to", { drive: `${volumeLabel(d)} (${formatBytes(d.free_bytes)})` })}</span>
             </button>
-          ) : null}
-          {onShare && e.kind !== "pkg"
-            ? p.drives.map((d, i) => (
-                <button
-                  key={d.path}
-                  type="button"
-                  className="cw-focusable cw-sheet-item"
-                  data-nav-default={i === 0 ? "" : undefined}
-                  disabled={busy}
-                  onClick={() => p.onCopy(e, d.path)}
-                >
-                  <Copy aria-hidden />
-                  <span>{t("cw_lib_copy_to", { drive: `${volumeLabel(d)} (${formatBytes(d.free_bytes)})` })}</span>
-                </button>
-              ))
-            : null}
-          {registerPath ? (
-            <button type="button" className="cw-focusable cw-sheet-item" disabled={busy} onClick={() => p.onRegister(registerPath, displayName(e))}>
-              <HousePlus aria-hidden />
-              <span>{t("cw_lib_register")}</span>
-            </button>
-          ) : null}
-          {p.task?.stoppable ? (
-            <button type="button" className="cw-focusable cw-sheet-item is-danger" onClick={p.onStop}>
-              <Square aria-hidden />
-              <span>{t("cw_lib_stop")}</span>
-            </button>
-          ) : null}
-        </div>
+          ))
+        ) : (
+          <p className="cw-dim">{t("cw_games_loading")}</p>
+        )}
       </div>
       <div className="cw-dialog-buttons">
-        <button type="button" className="cw-focusable cw-button" onClick={() => p.onOpen(null)}>
+        <button type="button" className="cw-focusable cw-button" onClick={onClose}>
           <X aria-hidden />
-          <span>{t("cw_files_close")}</span>
+          <span>{t("cw_dialog_cancel")}</span>
         </button>
       </div>
     </Modal>
   );
 }
 
+/** The game's full-screen detail: its cover, everything known about it, and each part with what can be done with it. */
+function Detail({ g, p }: { g: GameGroup; p: LibraryViewProps }) {
+  const [pick, setPick] = useState<Entry | null>(null);
+  const close = useCallback(() => p.onOpen(null), [p]);
+  const inst = g.titleId ? p.installed?.get(g.titleId) : undefined;
+  const size = groupSize(g, p.sizes);
+  // a PS4 title names a PS4 firmware: nothing to hold against this PS5's
+  const ps5fw = g.platform !== "ps4" && p.firmware ? p.firmware : null;
+  const newer = !!(g.fw && ps5fw && compareVersions(g.fw, ps5fw.replace(/[^0-9.]/g, "")) > 0);
+  const rows: [string, string][] = [];
+  if (g.titleId) rows.push([t("cw_games_info_title_id"), g.titleId]);
+  rows.push([t("cw_games_info_size"), size.partial ? t("cw_lib_size_counting", { size: formatBytes(size.bytes) }) : formatBytes(size.bytes)]);
+  if (g.fw) rows.push([t("cw_lib_info_fw"), ps5fw ? `${g.fw} · ${t("cw_lib_this_fw", { fw: ps5fw })}` : g.fw]);
+  if (g.sdk) rows.push([t("cw_lib_info_sdk"), g.sdk]);
+  rows.push([t("cw_lib_info_formats"), g.formats.map(formatText).join(", ")]);
+  rows.push([t("cw_lib_info_source"), g.places.join(", ")]);
+  let state: string;
+  if (!p.installed || !g.titleId) state = "";
+  else if (inst) state = inst.version ? t("cw_lib_installed_v", { version: inst.version }) : t("cw_lib_installed");
+  else state = t("cw_lib_not_installed");
+  return (
+    <Modal label={g.title} className="cw-libview" onBack={close}>
+      <button type="button" className="cw-focusable cw-button cw-libview-close" onClick={close}>
+        <X aria-hidden />
+        <span>{t("cw_files_close")}</span>
+      </button>
+      <div className="cw-libview-head">
+        <BigCover icon={g.cover?.icon ?? ""} titleId={inst ? g.titleId : ""} />
+        <div className="cw-libview-text">
+          <h2 className="cw-libview-title">{g.title}</h2>
+          <span className="cw-libview-tags">
+            {platformText(g.platform) ? <span className="cw-tag">{platformText(g.platform)}</span> : null}
+            {state ? <span className={`cw-tag${inst ? " is-on" : ""}`}>{inst ? <Check aria-hidden /> : null}{state}</span> : null}
+            {g.updates ? <span className="cw-tag">{t("cw_lib_badge_update", { version: newestUpdate(g) })}</span> : null}
+            {g.dlc ? <span className="cw-tag">{t("cw_lib_badge_dlc", { n: g.dlc })}</span> : null}
+            {g.backports ? <span className="cw-tag">{t("cw_lib_role_backport")}</span> : null}
+          </span>
+          <dl className="cw-info cw-libview-info">
+            {rows.map(([k, v]) => (
+              <div key={k}>
+                <dt className="cw-dim">{k}</dt>
+                <dd>{v}</dd>
+              </div>
+            ))}
+          </dl>
+          {newer ? (
+            <p className="cw-msg is-error">{t("cw_lib_fw_newer", { need: g.fw, have: p.firmware ?? "" })}</p>
+          ) : null}
+          {p.task ? (
+            <p className="cw-msg" role="status">
+              {p.task.text}
+              {p.task.stoppable ? (
+                <button type="button" className="cw-focusable cw-button cw-msg-action is-danger" onClick={p.onStop}>
+                  <Square aria-hidden />
+                  <span>{t("cw_lib_stop")}</span>
+                </button>
+              ) : null}
+            </p>
+          ) : null}
+          {p.message ? (
+            <div className={`cw-msg ${p.message.tone === "error" ? "is-error" : "is-info"}`} role={p.message.tone === "error" ? "alert" : "status"}>
+              {p.message.text}
+            </div>
+          ) : null}
+        </div>
+      </div>
+      <h3 className="cw-libview-h3">
+        <Layers aria-hidden />
+        <span>{t("cw_lib_parts", { n: g.parts.length })}</span>
+      </h3>
+      <ul className="cw-libparts">
+        {g.parts.map((part, i) => (
+          <PartRow key={part.entry.key} g={g} part={part} first={i === 0} p={p} onCopyPick={setPick} />
+        ))}
+      </ul>
+      {pick ? <DrivePicker e={pick} p={p} onClose={() => setPick(null)} /> : null}
+    </Modal>
+  );
+}
+
+function GameCard({ g, p }: { g: GameGroup; p: LibraryViewProps }) {
+  const inst = g.titleId ? p.installed?.has(g.titleId) : false;
+  const size = groupSize(g, p.sizes);
+  const meta = [platformText(g.platform), size.bytes > 0 ? formatBytes(size.bytes) : "", g.formats.map(formatText)[0] ?? ""].filter(Boolean).join(" · ");
+  return (
+    <li className="cw-gcard-item">
+      <button type="button" className="cw-focusable cw-gcard cw-libcard" data-lib-key={g.key} onClick={() => p.onOpen(g)}>
+        <CardCover icon={g.cover?.icon ?? ""} titleId={inst ? g.titleId : ""} />
+        {inst ? (
+          <span className="cw-libcard-installed" title={t("cw_lib_installed")}>
+            <Check aria-hidden />
+          </span>
+        ) : null}
+        <span className="cw-libcard-name">{g.title}</span>
+        <span className="cw-libcard-meta cw-dim">{meta}</span>
+        <span className="cw-gcard-tags">
+          {g.updates ? <span className="cw-tag">{kindText("patch")}</span> : null}
+          {g.dlc ? <span className="cw-tag">{t("cw_lib_badge_dlc", { n: g.dlc })}</span> : null}
+          {g.backports ? (
+            <span className="cw-tag">
+              <Wrench aria-hidden />
+              {t("cw_lib_role_backport")}
+            </span>
+          ) : null}
+          {g.parts.length > 1 && !g.updates && !g.dlc && !g.backports ? <span className="cw-tag">{t("cw_lib_badge_copies", { n: g.parts.length })}</span> : null}
+        </span>
+      </button>
+    </li>
+  );
+}
+
 /** The Library without state: everything comes in through props (tests render it directly). */
 export function LibraryView(p: LibraryViewProps) {
-  const all = useMemo(() => entriesOf(p.sources, p.scans), [p.sources, p.scans]);
-  const shown = useMemo(() => filterEntries(all, p.query), [all, p.query]);
+  const all = useMemo(() => groupEntries(entriesOf(p.sources, p.scans)), [p.sources, p.scans]);
+  const shown = useMemo(() => filterGroups(all, p.query), [all, p.query]);
+  const open = p.open ? all.find((g) => g.key === p.open) ?? null : null;
   const notes: string[] = [];
   for (const s of p.sources) {
     const scan = p.scans.get(s.id);
@@ -172,18 +378,9 @@ export function LibraryView(p: LibraryViewProps) {
     body = <p className="cw-dim">{p.query.trim() ? t("cw_games_no_match", { query: p.query.trim() }) : t("cw_lib_none")}</p>;
   else
     body = (
-      <ul className="cw-games" aria-label={t("cw_lib_title")}>
-        {shown.map((e) => (
-          <li key={e.key} className="cw-gcard-item">
-            <button type="button" className="cw-focusable cw-gcard" data-lib-key={e.key} onClick={() => p.onOpen(e)}>
-              <Cover e={e} />
-              <span className="cw-gcard-name">{displayName(e)}</span>
-              <span className="cw-gcard-tags">
-                <span className="cw-tag">{kindLabel(e)}</span>
-                <span className="cw-tag">{e.sourceName}</span>
-              </span>
-            </button>
-          </li>
+      <ul className="cw-games cw-libgrid" aria-label={t("cw_lib_title")}>
+        {shown.map((g) => (
+          <GameCard key={g.key} g={g} p={p} />
         ))}
       </ul>
     );
@@ -193,6 +390,7 @@ export function LibraryView(p: LibraryViewProps) {
         {t("cw_lib_title")}
         {p.loaded ? <span className="cw-tag">{all.length}</span> : null}
       </h1>
+      {p.switcher}
       <div className="cw-toolbar">
         <label className="cw-games-search">
           <Search aria-hidden />
@@ -207,7 +405,7 @@ export function LibraryView(p: LibraryViewProps) {
             onChange={(ev) => p.onQuery(ev.target.value)}
           />
         </label>
-        {p.task?.stoppable && !p.open ? (
+        {p.task?.stoppable && !open ? (
           <button type="button" className="cw-focusable cw-button" data-action="lib-stop" onClick={p.onStop}>
             <Square aria-hidden />
             <span>{t("cw_lib_stop")}</span>
@@ -220,19 +418,19 @@ export function LibraryView(p: LibraryViewProps) {
         )}
       </div>
       <p className="cw-dim">{p.sources.length > 1 ? t("cw_lib_sources", { n: p.sources.length - 1 }) : t("cw_lib_no_shares")}</p>
-      {p.task && !p.open ? <p className="cw-dim" role="status">{p.task.text}</p> : null}
+      {p.task && !open ? <p className="cw-dim" role="status">{p.task.text}</p> : null}
       {notes.map((n) => (
         <p key={n} className="cw-dim">
           {n}
         </p>
       ))}
-      {p.message ? (
+      {p.message && !open ? (
         <div className={`cw-msg ${p.message.tone === "error" ? "is-error" : "is-info"}`} role={p.message.tone === "error" ? "alert" : "status"}>
           {p.message.text}
         </div>
       ) : null}
       {body}
-      {p.open ? <Sheet e={p.open} p={p} /> : null}
+      {open ? <Detail g={open} p={p} /> : null}
     </div>
   );
 }
@@ -256,9 +454,11 @@ interface LibState {
   task: Task | null;
   message: Message | null;
   copied: { key: string; path: string } | null;
+  installed: Map<string, InstalledTitle> | null;
+  sizes: Map<string, FolderSize>;
 }
 
-const lib: LibState = { sources: [], scans: new Map(), loaded: false, task: null, message: null, copied: null };
+const lib: LibState = { sources: [], scans: new Map(), loaded: false, task: null, message: null, copied: null, installed: null, sizes: new Map() };
 const listeners = new Set<() => void>();
 let stopAsked = false;
 
@@ -268,6 +468,18 @@ function patch(p: Partial<LibState>): void {
 }
 
 const stopped = () => stopAsked;
+
+/** This console's titles (no details: one detail is read when its game opens). Never throws. */
+async function loadInstalledIds(): Promise<void> {
+  try {
+    const { sources } = await loadSources(call);
+    const next = new Map<string, InstalledTitle>();
+    for (const g of assemble(sources)) next.set(g.titleId, { version: lib.installed?.get(g.titleId)?.version ?? null });
+    patch({ installed: next });
+  } catch {
+    // unknown: the cards and the detail say nothing about it
+  }
+}
 
 /** The saved shares, then each source's cached scan; a cache that cannot be read is said so. */
 async function load(): Promise<void> {
@@ -288,6 +500,7 @@ async function load(): Promise<void> {
     }
   }
   patch({ sources: list, scans: next, loaded: true, ...(failed.length ? { message: { tone: "error", text: failed.join(" · ") } } : {}) });
+  void loadInstalledIds();
 }
 
 async function scanAll(): Promise<void> {
@@ -321,7 +534,9 @@ async function scanAll(): Promise<void> {
       failed.push(`${s.name}: ${failText(e)}`);
     }
   }
-  patch({ task: null, ...(failed.length ? { message: { tone: "error", text: t("cw_lib_scan_failed", { list: failed.join(" · ") }) } } : {}) });
+  // a new scan: folder sizes are counted again when asked
+  patch({ task: null, sizes: new Map(), ...(failed.length ? { message: { tone: "error", text: t("cw_lib_scan_failed", { list: failed.join(" · ") }) } } : {}) });
+  void loadInstalledIds();
 }
 
 /** Copies `src` (on a share) to `dest`; true when it finished. */
@@ -381,6 +596,7 @@ async function install(e: Entry): Promise<void> {
     });
     const line = installMessage(end, name, errorText);
     patch({ task: null, message: line ?? lib.message });
+    void loadInstalledIds();
   } catch (err) {
     if (err instanceof ApiError && err.code === "cancelled") patch({ task: null, message: { tone: "info", text: t("cw_pkg_stopped") } });
     else patch({ task: null, message: installMessage({ end: "error", error: err }, name, failText) ?? lib.message });
@@ -416,19 +632,71 @@ async function register(path: string, name: string): Promise<void> {
   try {
     await call("/api/apps/register", { path });
     patch({ task: null, message: { tone: "info", text: t("cw_lib_registered", { name }) } });
+    void loadInstalledIds();
   } catch (err) {
     patch({ task: null, message: { tone: "error", text: failText(err) || (err instanceof ApiError ? err.code : String(err)) } });
   }
 }
 
-/** The Library section: games on the saved shares and this console's drives, installed or copied from the controller. */
-export function Library({ scan = false }: { scan?: boolean } = {}) {
+const listAny = (path: string, offset: number, limit: number) =>
+  call<ListPage>(path.startsWith("smb://") ? "/api/smb/list" : "/api/fs/list", { path, offset, limit });
+
+/**
+ * Counts the size of each folder of `g` that the scan left at 0 (a folder's size is not read
+ * during a scan: that would walk every game), one after the other with the page's one folder walk.
+ * Returns the function that stops it (the detail closed).
+ */
+function countFolders(g: GameGroup): () => void {
+  let cancel: (() => void) | null = null;
+  let over = false;
+  const todo = g.parts.filter((p) => p.entry.kind === "folder" && p.entry.size <= 0 && !lib.sizes.get(p.entry.key)?.done);
+  void (async () => {
+    for (const part of todo) {
+      if (over) return;
+      const key = part.entry.key;
+      const w = startFolderSize(part.entry.at, (c) => patch({ sizes: new Map(lib.sizes).set(key, { bytes: c.bytes, done: false }) }), {
+        list: listAny,
+        now: () => Date.now(),
+      });
+      if (!w) return; // another walk (Files' Info, Disk usage) holds it: sizes stay unknown
+      cancel = w.cancel;
+      const r = await w.done;
+      cancel = null;
+      if (r.end === "done") patch({ sizes: new Map(lib.sizes).set(key, { bytes: r.bytes, done: true }) });
+      else {
+        const s = new Map(lib.sizes);
+        s.delete(key);
+        patch({ sizes: s });
+      }
+    }
+  })();
+  return () => {
+    over = true;
+    cancel?.();
+  };
+}
+
+/** The installed version of `titleId`, read once when its game opens. */
+async function loadInstalledVersion(titleId: string): Promise<void> {
+  if (!lib.installed?.has(titleId) || lib.installed.get(titleId)?.version) return;
+  const info = await loadInfo(call, [titleId]);
+  const v = info.get(titleId)?.version ?? null;
+  if (v && lib.installed?.has(titleId)) patch({ installed: new Map(lib.installed).set(titleId, { version: v }) });
+}
+
+/** The Library section: one card per game on the saved shares and this console's drives; its detail installs or copies each part. */
+export function Library({
+  scan = false,
+  ctx,
+  switcher,
+}: { scan?: boolean; ctx?: SectionContext; switcher?: ReactNode } = {}) {
   const [, bump] = useReducer((n: number) => n + 1, 0);
   const [query, setQuery] = useState("");
-  const [open, setOpen] = useState<Entry | null>(null);
+  const [open, setOpen] = useState<string | null>(null);
   const [drives, setDrives] = useState<Volume[]>([]);
   const live = useRef(true);
   const root = useRef<HTMLDivElement>(null);
+  const stopCount = useRef<(() => void) | null>(null);
 
   // Opened to scan (a USB drive just connected): start one, unless one is running already.
   useEffect(() => {
@@ -443,6 +711,7 @@ export function Library({ scan = false }: { scan?: boolean } = {}) {
     return () => {
       live.current = false;
       listeners.delete(bump);
+      stopCount.current?.();
     };
   }, []);
 
@@ -458,18 +727,26 @@ export function Library({ scan = false }: { scan?: boolean } = {}) {
     [],
   );
 
-  const openEntry = useCallback((e: Entry | null) => {
-    setOpen(e);
-    if (e && e.source !== CONSOLE_SOURCE && e.kind !== "pkg")
+  const openGame = useCallback((g: GameGroup | null) => {
+    stopCount.current?.();
+    stopCount.current = null;
+    setOpen(g ? g.key : null);
+    if (!g) return;
+    stopCount.current = countFolders(g);
+    if (g.titleId) void loadInstalledVersion(g.titleId);
+    if (g.parts.some((p) => p.entry.source !== CONSOLE_SOURCE && p.entry.kind !== "pkg"))
       void call<{ volumes?: unknown }>("/api/volumes").then(
         (r) => live.current && setDrives((Array.isArray(r.volumes) ? (r.volumes as Volume[]) : []).filter((v) => isDrive(v) && v.writable)),
         () => setDrives([]),
       );
   }, []);
 
+  const showInFiles = ctx?.canOpen("files") ? (path: string) => ctx.openSection("files", { path }) : null;
+
   return (
     <div ref={root}>
       <LibraryView
+        switcher={switcher}
         sources={lib.sources}
         scans={lib.scans}
         loaded={lib.loaded}
@@ -479,15 +756,19 @@ export function Library({ scan = false }: { scan?: boolean } = {}) {
         open={open}
         drives={drives}
         copied={lib.copied}
+        installed={lib.installed}
+        firmware={ctx?.status?.firmware ?? null}
+        sizes={lib.sizes}
         onQuery={setQuery}
         onScan={() => void scanAll()}
         onStop={() => {
           stopAsked = true;
         }}
-        onOpen={openEntry}
+        onOpen={openGame}
         onInstall={(e) => void install(e)}
         onCopy={(e, d) => void copy(e, d)}
         onRegister={(path, name) => void register(path, name)}
+        onShowInFiles={showInFiles}
       />
     </div>
   );

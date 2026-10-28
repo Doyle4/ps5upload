@@ -560,7 +560,7 @@ export function LocalPathPicker() {
       onRetry={() => (cwd ? void loadDir(cwd) : void begin())}
       onEditConnection={() => {
         settle(null);
-        if (connectionId) navigate(`/connections?edit=${encodeURIComponent(connectionId)}`);
+        if (connectionId) navigate(`/shared-folders?edit=${encodeURIComponent(connectionId)}`);
       }}
       onInstall={(p) => {
         const act = pending.actions;

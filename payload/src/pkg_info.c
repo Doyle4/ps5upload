@@ -56,6 +56,23 @@ void pkg_info_fw_text(uint32_t v, char *out, size_t cap) {
 
 /* ---- PARAM.SFO ---- */
 
+/* PUBTOOLINFO "c_date=20200101,sdk_ver=05050001,st_type=digital50": sdk_ver's BCD word as "5.05". */
+static void sfo_sdk(const uint8_t *b, size_t len, pkg_info_t *o) {
+    static const char key[] = "sdk_ver=";
+    size_t i, k;
+    for (i = 0; i + sizeof key - 1 + 8 <= len; i++) {
+        uint32_t v = 0;
+        if ((i > 0 && b[i - 1] != ',') || memcmp(b + i, key, sizeof key - 1) != 0) continue;
+        for (k = 0; k < 8; k++) {
+            uint8_t c = b[i + sizeof key - 1 + k];
+            if (c < '0' || c > '9') return;
+            v = (v << 4) | (uint32_t)(c - '0');
+        }
+        pkg_info_fw_text(v, o->sdk, sizeof o->sdk);
+        return;
+    }
+}
+
 static void parse_sfo(const uint8_t *b, size_t n, pkg_info_t *o, uint32_t *sys_ver) {
     uint32_t keys, data, count, i;
     if (n < 20 || memcmp(b, "\0PSF", 4) != 0) return;
@@ -90,6 +107,7 @@ static void parse_sfo(const uint8_t *b, size_t n, pkg_info_t *o, uint32_t *sys_v
         else if (strcmp(key, "APP_VER") == 0) copy_text(o->app_ver, sizeof o->app_ver, b + dabs, len);
         else if (strcmp(key, "CONTENT_ID") == 0 && !o->content_id[0])
             copy_text(o->content_id, sizeof o->content_id, b + dabs, len);
+        else if (strcmp(key, "PUBTOOLINFO") == 0) sfo_sdk(b + dabs, len, o);
     }
 }
 
@@ -268,6 +286,9 @@ static void parse_param_json(const char *s, size_t n, pkg_info_t *o, uint32_t *s
         uint32_t v = hex_fw(fw);
         if (v) *sys_ver = v;
     }
+    fw[0] = '\0';
+    json_str(s, n, 0, n, "sdkVersion", fw, sizeof fw);
+    if (fw[0]) pkg_info_fw_text(hex_fw(fw), o->sdk, sizeof o->sdk);
     loc = find_key(s, n, 0, "localizedParameters");
     if (loc >= n || s[loc] != '{') return;
     end = skip_value(s, n, loc);

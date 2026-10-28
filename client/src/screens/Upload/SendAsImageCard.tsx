@@ -59,9 +59,9 @@ export function SendAsImageCard({
       </div>
       <p className="mt-1 text-xs text-[var(--color-muted)]">
         {tr(
-          "upload_as_image_desc",
+          "upload_as_image_desc_v2",
           undefined,
-          "One image file that ShadowMount+ mounts, instead of thousands of files: far quicker to send, and compressed it takes less space on the PS5. The image is built on this computer first (it needs room here for it), then uploaded into the folder below; progress shows in Convert.",
+          "One image file that ShadowMount+ mounts, instead of thousands of files: far quicker to send, and compressed it takes less space on the PS5. The image is built on this computer first (it needs room here for it), then uploaded into the folder below; progress shows in Workshop.",
         )}
       </p>
       <div className="mt-3 flex flex-wrap items-end gap-3">
@@ -151,20 +151,20 @@ export function SendAsImageCard({
               ? tr(
                   "upload_as_image_building",
                   undefined,
-                  "Building the image. It joins the Upload queue when it is ready.",
+                  "Building the image. It joins the queue when it is ready.",
                 )
               : pipeline.phase === "done"
                 ? tr(
                     "upload_as_image_queued",
                     undefined,
-                    "The image is built and in the Upload queue.",
+                    "The image is built and in the queue.",
                   )
                 : pipeline.phase === "failed"
                   ? pipeline.message
                   : null}
           </span>
           <Button size="sm" onClick={() => navigate("/convert")}>
-            {tr("upload_as_image_open_convert", undefined, "Open Convert")}
+            {tr("open_workshop", undefined, "Open Workshop")}
           </Button>
         </div>
       )}

@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { FilePlus, FolderUp, Square, SquareCheck, X } from "lucide-react";
+import { FilePlus, FolderUp, Settings, Square, SquareCheck, X } from "lucide-react";
 import { formatBytes } from "../../lib/format";
 import { ApiError } from "../api";
 import { errorText } from "../home/Home";
 import { t } from "../strings";
 import { Modal } from "../ui/Modal";
+import { PhoneHandoff } from "../ui/PhoneHandoff";
 import { statOrNull, type ConflictChoice } from "./paste";
 import { makeFolders, uploadFile, uploadItems, type UploadItem } from "./transfer";
 import { runUploads, type UploadProgress, type UploadSummary } from "./uploadRun";
@@ -241,3 +242,38 @@ export function UploadDialog({
   );
 }
 
+
+/**
+ * On the console's own browser there is nothing to pick files from, so Files offers this instead
+ * of Upload: the address of this page for a phone or PC on the same network (QR code), where
+ * Files has Upload. With LAN access off, how to switch it on (and Settings, one press away).
+ */
+export function PhoneUploadDialog({ dir, onOpenSettings, onClose }: { dir: string; onOpenSettings?: () => void; onClose: () => void }) {
+  return (
+    <Modal label={t("cw_files_up_phone")} className="cw-sheet cw-phone-upload" onBack={onClose}>
+      <h2 className="cw-sheet-title">{t("cw_files_up_phone")}</h2>
+      <PhoneHandoff
+        always
+        title={t("cw_files_up_phone_title")}
+        body={t("cw_files_up_phone_body", { path: dir, files: t("cw_nav_files"), upload: t("cw_files_up_title") })}
+        onOff={
+          <div className="cw-msg is-info" data-phone-off="">
+            <p>{t("cw_files_up_phone_lan_off", { setting: t("cw_settings_lan"), settings: t("cw_nav_settings") })}</p>
+            {onOpenSettings ? (
+              <button type="button" className="cw-focusable cw-button is-primary" data-nav-default="" onClick={onOpenSettings}>
+                <Settings aria-hidden />
+                <span>{t("cw_nav_settings")}</span>
+              </button>
+            ) : null}
+          </div>
+        }
+      />
+      <div className="cw-dialog-buttons">
+        <button type="button" className="cw-focusable cw-button" onClick={onClose}>
+          <X aria-hidden />
+          <span>{t("cw_files_close")}</span>
+        </button>
+      </div>
+    </Modal>
+  );
+}

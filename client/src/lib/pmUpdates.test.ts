@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { PayloadReleaseInfo } from "../api/ps5";
-import { isRepoManaged, pmUpdateFor, swapAutoloadKey } from "./pmUpdates";
+import { catalogueMatch, isRepoManaged, pmUpdateFor, swapAutoloadKey } from "./pmUpdates";
 
 const rel = (tag: string, url = "https://x/a.elf"): PayloadReleaseInfo => ({
   payload_id: "nanodns",
@@ -49,5 +49,21 @@ describe("isRepoManaged", () => {
     expect(isRepoManaged({ slot: "", path: "/data/pldmgr/payloads/repo/nanodns@e8cce5d1/nanoDNS_0.4.elf" })).toBe(true);
     expect(isRepoManaged({ slot: "repo/nanodns@x", path: "/data/pldmgr/payloads/repo/x" })).toBe(true);
     expect(isRepoManaged({ slot: "local/nanodns", path: "/data/pldmgr/payloads/local/nanodns/n.elf" })).toBe(false);
+  });
+});
+
+describe("catalogueMatch", () => {
+  const inv = [
+    { payload_id: "kstuff", path: "/cache/kstuff/1.6/kstuff.elf" },
+    { payload_id: "nanodns", path: "C:\\cache\\nanodns\\nanoDNS_0.4.elf" },
+  ];
+  it("matches a hand-stored payload to the catalogue file with the same name", () => {
+    expect(catalogueMatch({ slot: "local/kstuff", path: "/data/pldmgr/payloads/local/kstuff/kstuff.elf", filename: "kstuff.elf" }, inv)).toBe("kstuff");
+    expect(catalogueMatch({ slot: "", path: "/data/pldmgr/payloads/nanodns/NANODNS_0.4.ELF", filename: "NANODNS_0.4.ELF" }, inv)).toBe("nanodns");
+  });
+  it("leaves repository payloads, USB finds and unknown files alone", () => {
+    expect(catalogueMatch({ slot: "repo/kstuff@x", path: "/data/pldmgr/payloads/repo/kstuff@x/kstuff.elf", filename: "kstuff.elf" }, inv)).toBeNull();
+    expect(catalogueMatch({ slot: "", path: "/mnt/usb0/kstuff.elf", filename: "kstuff.elf" }, inv)).toBeNull();
+    expect(catalogueMatch({ slot: "local/x", path: "/data/pldmgr/payloads/local/x/x.elf", filename: "x.elf" }, inv)).toBeNull();
   });
 });

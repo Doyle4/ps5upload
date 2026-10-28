@@ -27,6 +27,7 @@ typedef struct {
     char category[8];   /* PARAM.SFO CATEGORY ("gd", "gp", "ac", ...); a PS5 image's from its flags */
     char app_ver[24];   /* APP_VER, or param.json contentVersion / masterVersion */
     char fw[16];        /* the required system software ("7.50"), "" when the package does not say */
+    char sdk[16];       /* the SDK it was built with ("4.50": param.json sdkVersion, PARAM.SFO PUBTOOLINFO sdk_ver), "" */
     char platform[4];   /* "ps4", "ps5" or "" */
     int fih;            /* a PS5 finalized image (\x7FFIH envelope) */
     int fake;           /* FIH signed byte 0x00: a fake (debug-signed) package */

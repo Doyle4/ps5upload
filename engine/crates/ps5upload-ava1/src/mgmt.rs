@@ -113,6 +113,7 @@ fn is_read_only(method: u16) -> bool {
             | gen::METHOD_FILES_PREFS_GET
             | gen::METHOD_MESH_STATE
             | gen::METHOD_MESH_DOC_GET
+            | gen::METHOD_PROFILE_NP_STATE
     )
 }
 

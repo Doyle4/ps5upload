@@ -872,6 +872,41 @@ pub async fn profile_activate(req: ProfileActivateReq) -> Result<JsonValue, Stri
     post_json(&url, &body).await
 }
 
+/// The PSN sign-in backup (np-fake-signin): the account slot and user (uid 0 = foreground).
+#[derive(Debug, Deserialize)]
+pub struct ProfileNpReq {
+    #[serde(default)]
+    pub addr: Option<String>,
+    #[serde(default)]
+    pub slot: i32,
+    #[serde(default)]
+    pub uid: u32,
+}
+
+/// The user's PSN sign-in state and whether a backup is kept. Proxies `/api/profile/np/state`.
+#[tauri::command]
+pub async fn profile_np_state(req: ProfileNpReq) -> Result<JsonValue, String> {
+    let url = format!("{}/api/profile/np/state", engine::url());
+    let body = serde_json::json!({ "addr": req.addr, "slot": req.slot, "uid": req.uid });
+    post_json(&url, &body).await
+}
+
+/// Keep what np-fake-signin overwrites, before it runs. Proxies `/api/profile/np/backup`.
+#[tauri::command]
+pub async fn profile_np_backup(req: ProfileNpReq) -> Result<JsonValue, String> {
+    let url = format!("{}/api/profile/np/backup", engine::url());
+    let body = serde_json::json!({ "addr": req.addr, "slot": req.slot, "uid": req.uid });
+    post_json(&url, &body).await
+}
+
+/// Put the kept sign-in state back. Proxies `/api/profile/np/restore`.
+#[tauri::command]
+pub async fn profile_np_restore(req: ProfileNpReq) -> Result<JsonValue, String> {
+    let url = format!("{}/api/profile/np/restore", engine::url());
+    let body = serde_json::json!({ "addr": req.addr, "uid": req.uid });
+    post_json(&url, &body).await
+}
+
 /// Create a new local user account.
 /// Proxies `/api/ps5/users/create`.
 #[tauri::command]

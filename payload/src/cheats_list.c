@@ -152,7 +152,7 @@ static int file_summary(const cheats_list_cfg_t *cfg, const char *path, int fmt,
 typedef struct {
     char title[CHEATS_LIST_TITLE_MAX];
     char file[FILE_NAME_MAX];
-    int dir; /* 0 json, 1 shn, 2 mc4 */
+    int dir; /* 0 json, 1 shn, 2 mc4, 3.. xml_dirs[dir - 3] */
     unsigned seq;
 } scan_ent_t;
 
@@ -190,20 +190,27 @@ static void file_version(const char *filename, char *out, size_t cap) {
 /* Collects every cheat file of the three folders. *truncated is set past MAX_SCAN_FILES. */
 static scan_ent_t *scan_all(const cheats_list_cfg_t *cfg, size_t *count, int *truncated) {
     static const char *const exts[3] = {".json", ".shn", ".mc4"};
+    const int ndirs = 3 + CHEATS_LIST_XML_DIRS;
     size_t n = 0, cap = 256;
     unsigned seq = 0;
     scan_ent_t *v = (scan_ent_t *)malloc(cap * sizeof *v);
     *count = 0;
     if (!v) return NULL;
-    for (int d = 0; d < 3; d++) {
-        DIR *dir = cfg->dirs[d] ? opendir(cfg->dirs[d]) : NULL;
+    for (int d = 0; d < ndirs; d++) {
+        const char *dp = d < 3 ? cfg->dirs[d] : cfg->xml_dirs[d - 3];
+        DIR *dir = dp ? opendir(dp) : NULL;
         if (!dir) continue;
         struct dirent *de;
         while ((de = readdir(dir))) {
             const char *nm = de->d_name;
             if (nm[0] == '.') continue;
             const char *ext = strrchr(nm, '.');
-            if (!ext || strcasecmp(ext, exts[d]) != 0) continue;
+            if (!ext || strcasecmp(ext, d < 3 ? exts[d] : ".xml") != 0) continue;
+            if (d >= 3) { /* the same patch file in an earlier XML folder */
+                int dup = 0;
+                for (size_t k = 0; k < n && !dup; k++) dup = v[k].dir >= 3 && strcasecmp(v[k].file, nm) == 0;
+                if (dup) continue;
+            }
             size_t i = 0;
             while (nm[i] && nm[i] != '.' && nm[i] != '_' && i < CHEATS_LIST_TITLE_MAX - 1) i++;
             if (i < 4) continue;                     /* too short to be a title id */
@@ -336,7 +343,7 @@ static void sb_str(sb_t *s, const char *t) {
 }
 
 int cheats_list_build(const cheats_list_cfg_t *cfg, char *buf, size_t cap, size_t *written) {
-    static const char *const fmt_names[4] = {"", "json", "shn", "mc4"};
+    static const char *const fmt_names[5] = {"", "json", "shn", "mc4", "xml"};
     if (!cfg || !buf || cap < 256) return -1;
     size_t cnt = 0;
     int truncated = 0;
@@ -352,16 +359,18 @@ int cheats_list_build(const cheats_list_cfg_t *cfg, char *buf, size_t cap, size_
         while (j < cnt && strcasecmp(v[j].title, v[i].title) == 0) j++;
         const char *title = v[i].title;
 
-        int has_fmt[4] = {0, 0, 0, 0};
+        int has_fmt[5] = {0, 0, 0, 0, 0};
         char name[NAME_KEEP] = "";
         int mods[MAX_FILES_PER_TITLE];
         int nfiles = 0;
         for (size_t k = i; k < j && nfiles < MAX_FILES_PER_TITLE; k++, nfiles++) {
             char path[400], fname[NAME_KEEP];
             int m = -1;
-            has_fmt[v[k].dir + 1] = 1;
-            snprintf(path, sizeof path, "%s/%s", cfg->dirs[v[k].dir], v[k].file);
-            if (file_summary(cfg, path, v[k].dir + 1, fname, &m) == 0 && !name[0] &&
+            int fmt = v[k].dir < 3 ? v[k].dir + 1 : 4;
+            has_fmt[fmt] = 1;
+            snprintf(path, sizeof path, "%s/%s",
+                     v[k].dir < 3 ? cfg->dirs[v[k].dir] : cfg->xml_dirs[v[k].dir - 3], v[k].file);
+            if (file_summary(cfg, path, fmt, fname, &m) == 0 && !name[0] &&
                 (cfg->usable_name ? cfg->usable_name(fname, title) : fname[0] != '\0'))
                 snprintf(name, sizeof name, "%s", fname);
             mods[nfiles] = m;
@@ -391,7 +400,7 @@ int cheats_list_build(const cheats_list_cfg_t *cfg, char *buf, size_t cap, size_
         sb_str(&e, version);
         sb_raw(&e, "\",\"formats\":[");
         int ff = 1;
-        for (int f = 1; f <= 3; f++) {
+        for (int f = 1; f <= 4; f++) {
             if (!has_fmt[f]) continue;
             if (!ff) sb_raw(&e, ",");
             sb_raw(&e, "\"");

@@ -13,6 +13,7 @@ import {
   buttonForEvent,
   buttonState,
   controlsReducer,
+  createPadWatcher,
   INITIAL_CONTROLS,
   pageActsOn,
   startControlsSession,
@@ -142,6 +143,45 @@ describe("Controls screen", () => {
     expect(setInputLogEnabled).toHaveBeenLastCalledWith(false);
     key("Enter", 13);
     expect(pressed).toHaveLength(3);
+  });
+});
+
+describe("Controls screen: a controller the browser reports as a gamepad", () => {
+  const pad = (pressed: number[], mapping = "standard") => ({
+    id: "DualSense Wireless Controller",
+    index: 0,
+    mapping,
+    buttons: Array.from({ length: 17 }, (_, i) => ({ pressed: pressed.includes(i) })),
+  });
+
+  it("lights each button on its press only, as its DualSense button, and names the controller once", () => {
+    const presses: string[] = [];
+    const pads: string[] = [];
+    const watch = createPadWatcher(DEFAULT_INPUT_MAP, {
+      onPress: (b, works) => presses.push(`${b}:${works}`),
+      onUnknown: (x) => presses.push(`?${x}`),
+      onPad: (x) => pads.push(x),
+    });
+    watch([pad([1])]); // ○ down
+    watch([pad([1])]); // still down: nothing new
+    watch([pad([])]);
+    watch([pad([0, 3, 9])]); // ✕, △, OPTIONS
+    expect(presses).toEqual(["circle:true", "cross:true", "triangle:true", "options:false"]);
+    expect(pads).toEqual(["DualSense Wireless Controller (standard)"]);
+  });
+
+  it("reports a controller with another mapping as raw button numbers (nothing guessed)", () => {
+    const presses: string[] = [];
+    const watch = createPadWatcher(DEFAULT_INPUT_MAP, { onPress: (b) => presses.push(b), onUnknown: (x) => presses.push(x) });
+    watch([null, { ...pad([2], ""), index: 1 }]);
+    expect(presses).toEqual(["pad 1 button 2"]);
+  });
+
+  it("keeps the gamepad line and says how a swapped ✕/○ shows", () => {
+    const s = controlsReducer(INITIAL_CONTROLS, { type: "pad", text: "DualSense (standard)" });
+    const html = renderToStaticMarkup(<ControlsView map={DEFAULT_INPUT_MAP} state={s} onClose={() => undefined} />);
+    expect(html).toContain(t("cw_ctl_gamepad", { id: "DualSense (standard)" }));
+    expect(html).toContain(t("cw_ctl_swapped").slice(0, 30));
   });
 });
 

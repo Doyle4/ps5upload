@@ -19,21 +19,17 @@
  * the guard is up (so they take exactly the path ○ takes), else the back
  * action directly.
  *
- * On the PS5 (opts.onRoot) the first screen keeps no guard while the page's
- * history is a single entry, so ○ there is the browser's own: it leaves the
- * page for the PS5's home screen. WebKit closes a page it did not open by
- * script only while its back/forward list holds one entry ("Can't close the
- * window since it was not opened by JavaScript" otherwise; one pushState, even
- * popped again, is enough to refuse it for the page's lifetime: measured in
- * WebKit). The guard used to go up at load, so neither ○ nor window.close()
- * could leave the page from Home (#480). Once a level has added an entry
- * (env.length() > 1), the guard does stay up on the first screen and ○ there
- * calls onRoot (window.close(), which a PS5 browser that allows scripts to
- * close may honour). Escape, Backspace and a gamepad ○ take the same path:
- * requestBack → history.back() while the guard is up, and onRoot directly on
- * the first screen without one (window.close() is allowed then). onRoot runs
- * once until a level opens again: if the page is still open after it, the
- * guard is left down so the next ○ does what the browser does by itself.
+ * On the first screen (Home, no level open) there is never a guard, so ○ there is always the
+ * browser's own: with nothing to go back to it leaves the page for the PS5's home screen. WebKit
+ * closes a page it did not open by script only while its back/forward list holds one entry
+ * ("Can't close the window since it was not opened by JavaScript" otherwise; one pushState, even
+ * popped again, is enough to refuse it for the page's lifetime: measured in WebKit). #480 kept a
+ * guard on the first screen once the history was deep so ○ there could try window.close(); but
+ * that close is exactly the one WebKit refuses, so the first ○ at Home only showed "press the PS
+ * button" and it took a second ○ to leave. A user on 13.20 read that as "○ cannot exit" (Discord).
+ * Escape, Backspace and a gamepad ○ (requestBack, which has no browser Back behind it) still call
+ * onRoot on the first screen (window.close(), allowed while the history is a single entry), once
+ * until a level opens again; after that they run the page's back action.
  *
  * WebKit can fire a popstate as the page loads that pops nothing. Such a pop
  * leaves history on the guard entry (atGuard) and is ignored; and for
@@ -60,12 +56,12 @@ export interface HistoryEnv {
   startsOnGuard(): boolean;
   /** History's current entry is the guard (a popstate that popped nothing). Optional. */
   atGuard?(): boolean;
-  /** history.length: the entries back and forward. Without it the history counts as deep. */
+  /** history.length: the entries back and forward (diagnostics; the guard no longer depends on it). */
   length?(): number;
 }
 
 export interface BackHistoryOptions {
-  /** ○ on the first screen (no level open): the guard stays up there and this runs instead. */
+  /** Escape / Backspace / gamepad ○ on the first screen (no level open): runs instead of the back action, once. */
   onRoot?: () => void;
   /** For this long after start, until noteInput(), a pop only puts the guard back. */
   graceMs?: number;
@@ -93,12 +89,11 @@ export function createBackHistory(env: HistoryEnv, runBack: () => void, opts: Ba
   const startedAt = env.now();
   const graceMs = opts.graceMs ?? 0;
   let userInput = false;
-  /** onRoot ran and the page is still here: no guard on the first screen until a level opens. */
+  /** onRoot ran (a key or gamepad ○ on the first screen) and the page is still here: such a press runs the back action until a level opens. */
   let rootTried = false;
 
-  /** More than one entry: the browser will no longer close the page or leave it on ○ by itself. */
-  const deep = () => (env.length ? env.length() > 1 : true);
-  const wantGuard = () => levels > 0 || (!!opts.onRoot && !rootTried && deep());
+  /** A guard only while a level is open: the first screen leaves ○ to the browser (see the module comment). */
+  const wantGuard = () => levels > 0;
   const sync = () => {
     scheduled = false;
     if (wantGuard() && !guard) {
@@ -138,9 +133,9 @@ export function createBackHistory(env: HistoryEnv, runBack: () => void, opts: Ba
       return;
     }
     lastBackAt = now;
-    if (levels === 0 && opts.onRoot) {
-      rootTried = true;
-      opts.onRoot();
+    if (levels === 0) {
+      // The guard of a level that just closed, popped before it was taken down: nothing to step back from.
+      schedule();
       return;
     }
     runBack();

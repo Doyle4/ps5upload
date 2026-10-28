@@ -70,7 +70,7 @@ describe("Android read-path pickers (issue #278)", () => {
     // Without this, a glob that silently matched nothing would make the
     // assertion above pass forever regardless of the code.
     expect(Object.keys(SOURCES).length).toBeGreaterThan(50);
-    expect(Object.keys(SOURCES)).toContain("../screens/Profile/index.tsx");
+    expect(Object.keys(SOURCES)).toContain("../screens/Accounts/index.tsx");
   });
 
   it("still detects the pattern it is meant to catch", () => {

@@ -72,7 +72,19 @@ const FS_LABEL: Record<ImageBrowseListing["filesystem"], string> = {
 
 /** Look inside any game image or debug package on this computer (#479): list folders with
  *  sizes, save a file or folder to the computer, and (for images) write an edited copy. */
-export function ImageBrowser() {
+export function ImageBrowser({
+  source,
+  onChoose,
+  onClose,
+}: {
+  /** The image to show, chosen elsewhere (Workshop's one game source). */
+  source?: string | null;
+  /** When given, picking another image (or the edited copy) hands it here instead of opening it
+   *  in place, so the screen's one source follows it. */
+  onChoose?: (path: string) => void;
+  /** Shown as a Close button: back to what the screen was doing before looking inside. */
+  onClose?: () => void;
+} = {}) {
   const tr = useTr();
   const [image, setImage] = useState<string | null>(null);
   const [listing, setListing] = useState<ImageBrowseListing | null>(null);
@@ -103,7 +115,7 @@ export function ImageBrowser() {
   }, []);
 
   const openImage = useCallback(
-    async (path?: string) => {
+    async (path?: string, fromSource = false) => {
       const picked =
         path ??
         (await pickPath({
@@ -117,14 +129,24 @@ export function ImageBrowser() {
           ],
         }));
       if (!picked) return;
+      if (onChoose && !fromSource) {
+        onChoose(picked);
+        return;
+      }
       setImage(picked);
       setListing(null);
       setEdits([]);
       setFinished(null);
       await load(picked, "");
     },
-    [load, tr],
+    [load, tr, onChoose],
   );
+
+  // A source chosen on the screen opens here, and a new one replaces it.
+  useEffect(() => {
+    if (source) void openImage(source, true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [source]);
 
   /** Follows a job to its end, updating the progress shown. */
   const follow = useCallback(
@@ -235,17 +257,24 @@ export function ImageBrowser() {
       title={tr("imgbrowse_title", undefined, "Look inside an image")}
       icon={FolderSearch}
       right={
-        <Button
-          variant="secondary"
-          size="sm"
-          leftIcon={<FolderOpen size={13} />}
-          onClick={() => void openImage()}
-          disabled={busy}
-        >
-          {image
-            ? tr("imgbrowse_open_other", undefined, "Open another")
-            : tr("imgbrowse_open", undefined, "Choose an image")}
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            variant="secondary"
+            size="sm"
+            leftIcon={<FolderOpen size={13} />}
+            onClick={() => void openImage()}
+            disabled={busy}
+          >
+            {image
+              ? tr("imgbrowse_open_other", undefined, "Open another")
+              : tr("imgbrowse_open", undefined, "Choose an image")}
+          </Button>
+          {onClose && (
+            <Button variant="ghost" size="sm" leftIcon={<X size={13} />} onClick={onClose} disabled={busy}>
+              {tr("close", undefined, "Close")}
+            </Button>
+          )}
+        </div>
       }
     >
       <p className="mb-3 text-sm text-[var(--color-muted)]">
@@ -355,9 +384,9 @@ export function ImageBrowser() {
           title={tr("imgbrowse_pkg_readonly_title", undefined, "Packages are read-only here")}
         >
           {tr(
-            "imgbrowse_pkg_readonly",
+            "imgbrowse_pkg_readonly_v2",
             undefined,
-            "A package can be looked inside and saved from, not edited. To change one, save it as a folder, change the folder, and build a new package in Convert Games.",
+            "A package can be looked inside and saved from, not edited. To change one, save it as a folder, change the folder, and build a new package from that folder here.",
           )}
         </Callout>
       )}

@@ -67,7 +67,7 @@ describe("console Clean up", () => {
   it("is a section, labelled with its own string", () => {
     const s = SECTIONS.find((x) => x.id === "cleanup");
     expect(s).toBeTruthy();
-    expect(t(s!.labelKey)).toBe("Clean up");
+    expect(t(s!.labelKey)).toBe("Clean Up");
   });
 
   it("lists the groups, ticks the selected item and totals it in the bar", () => {

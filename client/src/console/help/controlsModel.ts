@@ -8,7 +8,7 @@
  * from the input log after a measurement pass.
  */
 import { setInputLogEnabled } from "../inputLog";
-import { bindingForKey, type ButtonAction, type ButtonId, type InputBinding, type InputMap } from "../nav";
+import { bindingForKey, bindingForPad, type ButtonAction, type ButtonId, type InputBinding, type InputMap } from "../nav";
 
 /** The fields read from an event (a real Event has them; tests pass plain objects). */
 export interface PressEvent {
@@ -96,13 +96,16 @@ export interface ControlsState {
   lit: ButtonId | null;
   /** The last key received that the table doesn't list. */
   unknown: string | null;
+  /** A controller the browser reports through the Gamepad API (its id and mapping), or null. */
+  pad: string | null;
 }
 
-export const INITIAL_CONTROLS: ControlsState = { seen: [], works: [], lit: null, unknown: null };
+export const INITIAL_CONTROLS: ControlsState = { seen: [], works: [], lit: null, unknown: null, pad: null };
 
 export type ControlsEvent =
   | { type: "press"; button: ButtonId; works: boolean }
   | { type: "unknown"; text: string }
+  | { type: "pad"; text: string }
   | { type: "fade" };
 
 export function controlsReducer(s: ControlsState, ev: ControlsEvent): ControlsState {
@@ -114,6 +117,8 @@ export function controlsReducer(s: ControlsState, ev: ControlsEvent): ControlsSt
     }
     case "unknown":
       return s.unknown === ev.text ? s : { ...s, unknown: ev.text };
+    case "pad":
+      return s.pad === ev.text ? s : { ...s, pad: ev.text };
     case "fade":
       return s.lit === null ? s : { ...s, lit: null };
   }
@@ -137,8 +142,51 @@ export interface ControlsSessionDeps {
   /** `works`: the page acts on this input today (pageActsOn). */
   onPress: (button: ButtonId, works: boolean) => void;
   onUnknown: (text: string) => void;
+  /** A controller seen through the Gamepad API ("<id> (<mapping>)"). */
+  onPad?: (text: string) => void;
   /** Default: inputLog.setInputLogEnabled. */
   setLog?: (on: boolean) => void;
+  /** The Gamepad API (navigator.getGamepads) and a frame scheduler; absent = not polled. */
+  pads?: { get: () => ArrayLike<PadLike | null>; frame: (fn: () => void) => number; cancel: (id: number) => void };
+}
+
+/** The fields read from a Gamepad (tests pass plain objects). */
+export interface PadLike {
+  id: string;
+  index: number;
+  mapping: string;
+  buttons: ArrayLike<{ pressed: boolean }>;
+}
+
+/**
+ * A reader of the Gamepad API for the Controls screen: each button that went down since the last
+ * read, as its DualSense button (standard mapping) or, with another mapping, an "unknown" line.
+ * A browser that hands the controller to the page this way (some phones and PCs do) shows what it
+ * really sends; the PS5 browser has shown none so far.
+ */
+export function createPadWatcher(map: InputMap, cb: Pick<ControlsSessionDeps, "onPress" | "onUnknown" | "onPad">) {
+  const down = new Map<number, boolean[]>();
+  const named = new Set<number>();
+  return (pads: ArrayLike<PadLike | null>) => {
+    for (let i = 0; i < pads.length; i++) {
+      const pad = pads[i];
+      if (!pad) continue;
+      if (!named.has(pad.index)) {
+        named.add(pad.index);
+        cb.onPad?.(`${pad.id.slice(0, 60)} (${pad.mapping || "-"})`);
+      }
+      const was = down.get(pad.index) ?? [];
+      const now: boolean[] = [];
+      for (let b = 0; b < pad.buttons.length; b++) {
+        now[b] = !!pad.buttons[b]?.pressed;
+        if (!now[b] || was[b]) continue;
+        const hit = pad.mapping === "standard" ? bindingForPad(map, b) : null;
+        if (hit) cb.onPress(hit.binding.button, hit.acts);
+        else cb.onUnknown(`pad ${pad.index} button ${b}`);
+      }
+      down.set(pad.index, now);
+    }
+  };
 }
 
 /**
@@ -162,7 +210,25 @@ export function startControlsSession(deps: ControlsSessionDeps): () => void {
   };
   setLog(true);
   for (const type of LISTENED) deps.target.addEventListener(type, on, true);
+  let frame = 0;
+  let stopped = false;
+  const pads = deps.pads;
+  if (pads) {
+    const watch = createPadWatcher(deps.map, deps);
+    const poll = () => {
+      if (stopped) return;
+      try {
+        watch(pads.get());
+      } catch {
+        // a browser whose Gamepad API throws: nothing to show
+      }
+      frame = pads.frame(poll);
+    };
+    frame = pads.frame(poll);
+  }
   return () => {
+    stopped = true;
+    if (pads && frame) pads.cancel(frame);
     for (const type of LISTENED) deps.target.removeEventListener(type, on, true);
     setLog(false);
   };

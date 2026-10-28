@@ -265,7 +265,7 @@ function fail(stage: PipelineStage, message: string, packagePath: string | null)
     // The install stage's failure is an engine job's ending, which the host announces.
     jobOutcome: stage === "install",
     body: message,
-    link: stage === "install" ? installErrorLink(message) : "/convert",
+    link: stage === "install" ? installErrorLink(message) : "/workshop",
   });
 }
 
@@ -356,7 +356,7 @@ async function runReplace(packagePath: string, host: string, dump: string) {
   installDone(packagePath, startedMs - cur.startedMs, Date.now() - startedMs, r.journal ?? null);
   pushNotification("success", "Installed on the PS5", {
     body: "The old dump is set aside; delete it or keep it on the Convert screen.",
-    link: "/convert",
+    link: "/workshop",
   });
 }
 
@@ -388,7 +388,7 @@ async function runInstall(packagePath: string, host: string | null, method: Inst
     installDone(packagePath, convertMs, Date.now() - startedMs);
     pushNotification("success", "Installed on the PS5", {
       body: packagePath,
-      link: "/convert",
+      link: "/workshop",
       jobOutcome: true,
     });
   } else {
@@ -517,7 +517,7 @@ function poll(jobId: string, install: InstallMethod | null, failures = 0) {
               : cur.mode === "folder"
                 ? "Game folder ready"
                 : "FPKG conversion complete",
-          { body: path, link: "/convert" },
+          { body: path, link: "/workshop" },
         );
       }
       return;

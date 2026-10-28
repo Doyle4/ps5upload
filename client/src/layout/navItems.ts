@@ -15,12 +15,12 @@
 import type { LucideIcon } from "lucide-react";
 import {
   Cable,
-  Upload,
-  PackageOpen,
+  Send as SendIcon,
   Gamepad2,
   FolderTree,
   Cpu,
   CircleUserRound,
+  MonitorPlay,
   Boxes,
   Save,
   Image as ImageIcon,
@@ -30,14 +30,11 @@ import {
   TerminalSquare,
   LayoutDashboard,
   Bug,
-  MonitorPlay,
   Bell,
-  Network,
   Stethoscope,
   HardDrive,
-  PackagePlus,
+  Hammer,
   WandSparkles,
-  FilePen,
   Eraser,
   MonitorSmartphone,
   FolderSync,
@@ -86,30 +83,27 @@ export const NAV_ITEMS: NavItem[] = [
     key: "v5_tab_games",
     fallback: "Games",
     icon: Gamepad2,
-    section: { key: "nav_section_games_mods", fallback: "Games & content" },
+    section: { key: "nav_section_games_mods", fallback: "Games & Content" },
   },
+  // Every way something gets onto the console: from this computer or a server (any file,
+  // folder, image, archive or package), from a link, or what is already on the PS5's drives.
   {
-    to: "/install-package",
-    key: "install_package",
-    fallback: "Install Package",
-    icon: PackageOpen,
+    to: "/send",
+    key: "send_title",
+    fallback: "Send to PS5",
+    icon: SendIcon,
   },
+  // Everything done to a game on this computer: convert it (package, image, folder), look
+  // inside an image or package and edit it, or open an image as a drive. Offered everywhere:
+  // the engine does the work; only "Open as a Drive" needs a macOS or Linux desktop, and the
+  // screen hides that part by itself (#479).
   {
-    to: "/convert",
-    key: "convert_games_title",
-    fallback: "Convert Games",
-    icon: PackagePlus,
+    to: "/workshop",
+    key: "workshop_title",
+    fallback: "Workshop",
+    icon: Hammer,
   },
-  {
-    to: "/local-image",
-    key: "local_image_nav",
-    fallback: "Game images",
-    icon: FilePen,
-    // Offered everywhere: looking inside an image goes through the engine.
-    // Only the screen's mount ("Open an image") needs a macOS or Linux
-    // desktop, and the screen hides that part by itself (#479).
-  },
-  { to: "/saves", key: "saves", fallback: "Save data", icon: Save },
+  { to: "/saves", key: "saves", fallback: "Save Data", icon: Save },
   {
     to: "/cheats",
     key: "cheats_title",
@@ -120,37 +114,33 @@ export const NAV_ITEMS: NavItem[] = [
   {
     to: "/captures",
     key: "captures",
-    fallback: "Screenshots & clips",
+    fallback: "Screenshots & Clips",
     icon: ImageIcon,
   },
 
-  // Move files and look after the drives.
-  {
-    to: "/upload",
-    key: "upload",
-    fallback: "Upload",
-    icon: Upload,
-    section: { key: "nav_section_files", fallback: "Files & storage" },
-  },
+  // Browse the console's files and look after the drives.
+
   {
     to: "/files",
     key: "v5_tab_files",
     fallback: "File System",
     icon: FolderTree,
+    section: { key: "nav_section_files", fallback: "Files & Storage" },
   },
   // 8.0.0: a folder kept the same on every device, at home on the console.
-  { to: "/mesh-drive", key: "drive_title", fallback: "Mesh Drive", icon: FolderSync },
+  // Folders reached over the network: your NAS and servers, and Mesh Drives (8.0.0) kept the
+  // same on every device with their home on the console.
   {
-    to: "/connections",
-    key: "network_shares",
-    fallback: "Network shares",
-    icon: Network,
+    to: "/shared-folders",
+    key: "shared_folders_title",
+    fallback: "Shared Folders",
+    icon: FolderSync,
   },
   { to: "/volumes", key: "volumes", fallback: "Volumes", icon: HardDrive },
   {
     to: "/cleanup",
     key: "cleanup_nav",
-    fallback: "Clean up",
+    fallback: "Clean Up",
     icon: Eraser,
   },
 
@@ -162,24 +152,29 @@ export const NAV_ITEMS: NavItem[] = [
     icon: Cpu,
     section: { key: "nav_section_console", fallback: "Console" },
   },
-  // What gets loaded onto the console, and what runs there (processes and their ports).
+  // What gets loaded onto the console, and what runs there (processes and the ports in use).
   {
     to: "/payloads",
-    key: "payloads_and_processes",
-    fallback: "Payloads & processes",
+    key: "payloads_title",
+    fallback: "Payloads",
     icon: Boxes,
   },
+  // The console's users and accounts, their avatars, and Remote Play (which needs an
+  // activated, signed-in account, so it lives with them).
+  // Remote Play in the app (beta): the console's screen streamed here. Pairing and the console
+  // settings it needs stay in Accounts.
   {
-    to: "/profile",
-    key: "profile",
-    fallback: "Profile",
-    icon: CircleUserRound,
+    to: "/play",
+    key: "play_title",
+    fallback: "Play",
+    icon: MonitorPlay,
+    beta: true,
   },
   {
-    to: "/remote-play",
-    key: "remote_play",
-    fallback: "Remote Play",
-    icon: MonitorPlay,
+    to: "/accounts",
+    key: "accounts_title",
+    fallback: "Accounts",
+    icon: CircleUserRound,
   },
 
   // Reaching the console: connecting, the devices that use it, and checking the link.
@@ -203,7 +198,7 @@ export const NAV_ITEMS: NavItem[] = [
   {
     to: "/tasks",
     key: "activity_logs_title",
-    fallback: "Activity & logs",
+    fallback: "Activity & Logs",
     icon: ActivityIcon,
     section: { key: "nav_section_diagnostics", fallback: "Diagnostics" },
   },
@@ -252,7 +247,7 @@ export const HOME_NAV_ITEM: NavItem = {
 export const BUG_REPORT_NAV_ITEM: NavItem = {
   to: "/bug-report",
   key: "bug_report",
-  fallback: "Bug report",
+  fallback: "Bug Report",
   icon: Bug,
 };
 
@@ -281,9 +276,49 @@ export function isPinnableNav(to: string): boolean {
  */
 export function cleanPinned(list: readonly unknown[]): string[] {
   const out: string[] = [];
-  for (const v of list) {
-    if (typeof v !== "string" || out.includes(v) || !isPinnableNav(v)) continue;
+  for (const raw of list) {
+    if (typeof raw !== "string") continue;
+    const v = navMoved(raw);
+    if (out.includes(v) || !isPinnableNav(v)) continue;
     out.push(v);
+  }
+  return out;
+}
+
+/**
+ * Screens folded into another one, by their old route. A pin, a hidden entry or a bookmark
+ * for the old screen carries over to the screen that holds it now.
+ */
+export const NAV_MOVED: Readonly<Record<string, string>> = {
+  "/profile": "/accounts",
+  "/remote-play": "/accounts",
+  "/mesh-drive": "/shared-folders",
+  "/connections": "/shared-folders",
+  "/convert": "/workshop",
+  "/local-image": "/workshop",
+  "/upload": "/send",
+  "/install-package": "/send",
+};
+
+/** The route a screen lives at now: its new home if it was folded into another, else itself. */
+export function navMoved(to: string): string {
+  return NAV_MOVED[to] ?? to;
+}
+
+/**
+ * A stored hidden list made current: old routes become the screen that holds them now. A
+ * screen made from several old ones stays hidden only if the user hid every one of them,
+ * so nothing someone used disappears from the sidebar.
+ */
+export function cleanHidden(list: readonly unknown[]): string[] {
+  const given = new Set(list.filter((v): v is string => typeof v === "string"));
+  const out: string[] = [];
+  for (const v of given) {
+    const to = navMoved(v);
+    if (out.includes(to)) continue;
+    const sources = Object.keys(NAV_MOVED).filter((k) => NAV_MOVED[k] === to);
+    if (to !== v && !sources.every((k) => given.has(k))) continue;
+    out.push(to);
   }
   return out;
 }

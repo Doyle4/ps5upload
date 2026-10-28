@@ -1,4 +1,4 @@
-import { useEffect, useReducer, type ReactNode } from "react";
+import { useCallback, useEffect, useReducer, useRef, type ReactNode } from "react";
 import type { ButtonId, InputBinding, InputMap } from "../nav";
 import { t } from "../strings";
 import { Modal } from "../ui/Modal";
@@ -146,12 +146,14 @@ export interface ControlsViewProps {
   map: InputMap;
   state: ControlsState;
   onClose: () => void;
+  /** ○ (the browser's Back): lights ○ the first time, closes after. Default: onClose. */
+  onBack?: () => void;
 }
 
 /** The Controls screen without state (tests render it directly). */
-export function ControlsView({ map, state, onClose }: ControlsViewProps) {
+export function ControlsView({ map, state, onClose, onBack }: ControlsViewProps) {
   return (
-    <Modal label={t("cw_ctl_title")} className="cw-controls" onBack={onClose}>
+    <Modal label={t("cw_ctl_title")} className="cw-controls" onBack={onBack ?? onClose}>
       <div className="cw-ctl-head">
         <h2>{t("cw_ctl_title")}</h2>
         <button type="button" className="cw-focusable cw-button" data-action="close-controls" onClick={onClose}>
@@ -168,8 +170,9 @@ export function ControlsView({ map, state, onClose }: ControlsViewProps) {
         <Legend map={map} state={state} />
       </div>
       <p className="cw-dim cw-ctl-foot">
+        {state.pad ? `${t("cw_ctl_gamepad", { id: state.pad })} · ` : ""}
         {state.unknown ? `${t("cw_ctl_other_key", { key: state.unknown })} · ` : ""}
-        {t("cw_ctl_logging")}
+        {t("cw_ctl_swapped")} {t("cw_ctl_logging")}
       </p>
     </Modal>
   );
@@ -178,6 +181,10 @@ export function ControlsView({ map, state, onClose }: ControlsViewProps) {
 /** The Controls screen: lights each button as it arrives; the input log is on while it is open. */
 export function Controls({ map, onClose }: { map: InputMap; onClose: () => void }) {
   const [state, dispatch] = useReducer(controlsReducer, INITIAL_CONTROLS);
+  const seen = useRef(state);
+  useEffect(() => {
+    seen.current = state;
+  }, [state]);
   useEffect(
     () =>
       startControlsSession({
@@ -185,13 +192,29 @@ export function Controls({ map, onClose }: { map: InputMap; onClose: () => void 
         map,
         onPress: (button, works) => dispatch({ type: "press", button, works }),
         onUnknown: (text) => dispatch({ type: "unknown", text }),
+        onPad: (text) => dispatch({ type: "pad", text }),
+        pads:
+          typeof navigator !== "undefined" && typeof navigator.getGamepads === "function" && typeof requestAnimationFrame === "function"
+            ? {
+                get: () => navigator.getGamepads() as ArrayLike<Gamepad | null>,
+                frame: (fn) => requestAnimationFrame(fn),
+                cancel: (id) => cancelAnimationFrame(id),
+              }
+            : undefined,
       }),
     [map],
   );
+  // The PS5 browser's ○ never reaches the page as a key: it is the browser's Back, which arrives
+  // as this screen's back. The first one lights ○ (it works: it is how every screen goes back) and
+  // the screen stays, so ○ can be tested like the other buttons; the next one closes it.
+  const onBack = useCallback(() => {
+    if (seen.current.works.includes("circle")) onClose();
+    else dispatch({ type: "press", button: "circle", works: true });
+  }, [onClose]);
   useEffect(() => {
     if (!state.lit) return;
     const timer = setTimeout(() => dispatch({ type: "fade" }), LIT_MS);
     return () => clearTimeout(timer);
   }, [state.lit, state.seen]);
-  return <ControlsView map={map} state={state} onClose={onClose} />;
+  return <ControlsView map={map} state={state} onClose={onClose} onBack={onBack} />;
 }

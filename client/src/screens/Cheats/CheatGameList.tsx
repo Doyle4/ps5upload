@@ -116,7 +116,7 @@ export function CheatGameList({
           aria-label={tr("cheats_filter_format", undefined, "Format")}
         >
           <option value="">{tr("cheats_filter_format_any", undefined, "Any format")}</option>
-          {["json", "shn", "mc4"].map((f) => (
+          {["json", "shn", "mc4", "xml"].map((f) => (
             <option key={f} value={f}>
               {f.toUpperCase()}
             </option>

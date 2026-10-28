@@ -52,8 +52,8 @@ const html = (over: Partial<GamesViewProps> = {}) => renderToStaticMarkup(<Games
 const run = (appId = 7, pid = 120): RunningGame => ({ appId, pid });
 
 describe("Games section", () => {
-  it("is in the rail after Home, before the Library and Files", () => {
-    expect(SECTIONS.map((s) => s.id).slice(0, 4)).toEqual(["home", "games", "library", "files"]);
+  it("is in the rail after Home, before Saves and Files", () => {
+    expect(SECTIONS.map((s) => s.id).slice(0, 4)).toEqual(["home", "games", "saves", "files"]);
     expect(SECTIONS.find((s) => s.id === "games")?.labelKey).toBe("cw_games_title");
   });
 

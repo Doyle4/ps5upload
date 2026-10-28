@@ -19,6 +19,7 @@ import {
   SquareCheck,
   Star,
   TextCursorInput,
+  Smartphone,
   Upload,
   type LucideIcon,
 } from "lucide-react";
@@ -93,7 +94,7 @@ import { SearchDialog } from "./search/SearchDialog";
 import { UsageDialog } from "./usage/UsageDialog";
 import { keepsPermissions } from "./permissions";
 import { createFile, downloadItem, loadOnOtherDevice, TEXT_SAVE_MAX } from "./transfer";
-import { UploadDialog } from "./UploadDialog";
+import { PhoneUploadDialog, UploadDialog } from "./UploadDialog";
 import { ShareDialog } from "./ShareDialog";
 import {
   isSmbPath,
@@ -140,6 +141,8 @@ export type FilesAsk =
   | { kind: "newfile" }
   /** Upload here, from the phone or PC the page is open on. */
   | { kind: "upload" }
+  /** On the console itself: how to upload here from a phone (its address, or LAN access to switch on). */
+  | { kind: "phoneupload" }
   | { kind: "pick"; op: "copy" | "move"; names: string[] }
   | { kind: "info"; name: string }
   /** `edit`: straight into the text editor. */
@@ -334,6 +337,8 @@ export interface FilesViewProps {
   onDownload?: (path: string) => void;
   /** The page is open on another device: Upload here and Download are offered. */
   remote?: boolean;
+  /** Open Settings (LAN access), from "Upload from a phone" on the console. */
+  onOpenSettings?: () => void;
   /** Saved network shares (null: not read, or a helper without them). */
   shares?: SmbShare[] | null;
   /** A share was added or edited (the dialog closed). */
@@ -767,6 +772,8 @@ function askView(p: FilesViewProps) {
         />
       );
     }
+    case "phoneupload":
+      return <PhoneUploadDialog dir={path} onOpenSettings={p.onOpenSettings} onClose={p.onDismiss} />;
     case "bulkrename":
       return (
         <BulkRenameDialog
@@ -1116,6 +1123,9 @@ export function FilesView(p: FilesViewProps) {
                   ) : null}
                   {p.remote && !smb ? (
                     <ToolButton icon={Upload} label={t("cw_files_up_title")} action="upload" onClick={() => p.onAsk({ kind: "upload" })} />
+                  ) : null}
+                  {!p.remote && !smb ? (
+                    <ToolButton icon={Smartphone} label={t("cw_files_up_phone")} action="phone-upload" onClick={() => p.onAsk({ kind: "phoneupload" })} />
                   ) : null}
                   <ToolButton icon={SquareCheck} label={t("cw_select")} action="select" onClick={p.onToggleSelecting} />
                   {p.onReveal && !smb ? (
@@ -2251,6 +2261,7 @@ export function Files({ ctx }: { ctx: SectionContext }) {
         onNewFile={onNewFile}
         onDownload={remote ? onDownload : undefined}
         remote={remote}
+        onOpenSettings={ctx.hasSection("settings") ? () => ctx.openSection("settings") : undefined}
         onPicked={onPicked}
         onReveal={onReveal}
         shares={shares}

@@ -53,6 +53,8 @@ export function newUsbStick(seen: ReadonlySet<string> | null, volumes: readonly 
 
 /** A USB drive formatted as PS5 extended storage (M.2 is /dev/nvme*). */
 const isUsbExt = (v: Volume) => isExt(v) && v.mount_from.startsWith("/dev/da");
+/** A USB drive files can be written to: a stick, or one formatted as extended storage. */
+export const isWritableUsb = (v: Volume) => v.writable && (isUsbStick(v) || isUsbExt(v));
 
 /** The console's drives: internal, extended/M.2 and USB. Mounted disk images are left out. */
 export function isDrive(v: Volume): boolean {
@@ -536,7 +538,7 @@ export function Home({ ctx }: { ctx: SectionContext }) {
     if (fresh) setUsbNew(fresh);
     else setUsbNew((cur) => (cur && seenDrives.current?.has(cur.path) ? cur : null));
   }, [volumes]);
-  const onFindGames = hasSection("library") ? () => openSection("library", { scan: "1" }) : null;
+  const onFindGames = hasSection("games") ? () => openSection("games", { view: "library", scan: "1" }) : null;
 
   return (
     <HomeView

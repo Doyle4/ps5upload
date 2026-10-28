@@ -130,6 +130,9 @@ tmp/
 .anthropic/
 AGENTS.md
 CLAUDE.local.md
+.opencode/
+opencode.json
+opencode.jsonc
 
 # ─── Per-platform packaging outputs ──────────────────────────────────────
 # .app / .dmg / .msi / .exe / .deb / .AppImage / .rpm all live under

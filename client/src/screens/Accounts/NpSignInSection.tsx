@@ -1,11 +1,15 @@
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router";
-import { KeyRound, LogIn } from "lucide-react";
+import { KeyRound, LogIn, Undo2 } from "lucide-react";
 
 import {
   payloadsDownload,
   payloadsRelease,
+  profileNpBackup,
+  profileNpRestore,
+  profileNpState,
   sendPayload,
+  type NpState,
   type ProfileInfo,
 } from "../../api/ps5";
 import { Button, Card, ErrorCard, SuccessCard } from "../../components";
@@ -13,7 +17,12 @@ import { useConfirm } from "../../components/ConfirmDialog";
 import { hostOf } from "../../lib/addr";
 import { isTauriEnv } from "../../lib/tauriEnv";
 import { useTr } from "../../state/lang";
-import { NP_FAKE_SIGNIN_ID, npSignInReadiness } from "./npSignIn";
+import {
+  NP_FAKE_SIGNIN_ID,
+  npBackupTarget,
+  npSignInReadiness,
+  npUndo,
+} from "./npSignIn";
 
 /** "Sign in to PlayStation Network (offline)": earthonion's np-fake-signin, run from here.
  *
@@ -36,22 +45,113 @@ export function NpSignInSection({
   const [error, setError] = useState<string | null>(null);
   const readiness = npSignInReadiness(info);
   const desktop = isTauriEnv();
+  // np-fake-signin can leave a console asking to "Temporarily Disable PS5 Console
+  // Restrictions" before games open (a Discord report; upstream issue #1), and its own undo
+  // (Sign out) can be greyed out. So the helper keeps a copy of everything it overwrites
+  // before it runs, and Undo puts that copy back.
+  const target = npBackupTarget(info);
+  const [npState, setNpState] = useState<NpState | null>(null);
+  const refreshNpState = useCallback(async () => {
+    if (!target) {
+      setNpState(null);
+      return;
+    }
+    try {
+      setNpState(await profileNpState(target.slot, target.uid, addr));
+    } catch {
+      // An older helper has no such method: nothing to offer, the sign-in section still works.
+      setNpState(null);
+    }
+  }, [addr, target?.slot, target?.uid]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    void refreshNpState();
+  }, [refreshNpState]);
+  const undo = npUndo(npState);
+
+  async function undoSignIn() {
+    if (!target) return;
+    const ok = await confirm({
+      title: tr(
+        "profile.np.undo_confirm_title",
+        undefined,
+        "Undo the sign-in?",
+      ),
+      message: tr(
+        "profile.np.undo_confirm_body",
+        { user: target.username },
+        "Puts {user}'s settings and files back as they were before np-fake-signin ran. Restart the PS5 afterwards. Features that need a signed-in account, Remote Play among them, may stop opening until you sign in again.",
+      ),
+      confirmLabel: tr("profile.np.undo", undefined, "Undo sign-in"),
+    });
+    if (!ok) return;
+    setError(null);
+    setDone(null);
+    setBusy(tr("profile.np.undoing", undefined, "Putting the settings back…"));
+    try {
+      const r = await profileNpRestore(target.uid, addr);
+      setDone(
+        tr(
+          "profile.np.undone",
+          { count: r.written },
+          "Put back ({count} settings and files). Restart the PS5 to finish.",
+        ),
+      );
+      await refreshNpState();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(null);
+    }
+  }
 
   async function signIn() {
     if (readiness.kind !== "ready") return;
     const ok = await confirm({
       title: tr("profile.np.confirm_title", undefined, "Sign this account in?"),
       message: tr(
-        "profile.np.confirm_body",
+        "profile.np.confirm_body_v2",
         { user: readiness.username },
-        "np-fake-signin writes PlayStation Network sign-in files and settings for {user} on the PS5. Nothing is sent to Sony. Restart the PS5 afterwards. To undo it: Settings > Users and Accounts > Other > Sign out.",
-      ),
+        "np-fake-signin writes PlayStation Network sign-in files and settings for {user} on the PS5. Nothing is sent to Sony. Restart the PS5 afterwards.",
+      )
+        .concat("\n\n")
+        .concat(
+          tr(
+            "profile.np.side_effect",
+            undefined,
+            'Known side effect: afterwards some consoles ask to "Temporarily Disable PS5 Console Restrictions" before any game opens, and Settings > Users and Accounts > Other > Sign out can stay greyed out. The app first keeps a copy of everything np-fake-signin changes on the PS5, so Undo sign-in here puts it back.',
+          ),
+        ),
       confirmLabel: tr("profile.np.sign_in", undefined, "Sign in"),
     });
     if (!ok) return;
     setError(null);
     setDone(null);
     try {
+      // The copy comes first: without it there is no way back, so no copy, no sign-in.
+      setBusy(
+        tr(
+          "profile.np.backing_up",
+          undefined,
+          "Keeping a copy of the account's current settings on the PS5…",
+        ),
+      );
+      try {
+        // The same account and slot Undo and the state check use: the foreground uid often
+        // reads 0 on 13.60, and npBackupTarget falls back to the only local user then.
+        if (!target) throw new Error("np_backup_no_account");
+        await profileNpBackup(target.slot, target.uid, addr);
+      } catch (e) {
+        const wrapped = new Error(
+          tr(
+            "profile.np.backup_failed",
+            { error: e instanceof Error ? e.message : String(e) },
+            "The PS5 could not keep a copy of the account's settings, so np-fake-signin was not run. Replace the helper with this app's version and try again. ({error})",
+          ),
+        );
+        // The target is ES2020, so `cause` is assigned, not passed to the constructor.
+        (wrapped as Error & { cause?: unknown }).cause = e;
+        throw wrapped;
+      }
       setBusy(tr("profile.np.fetching", undefined, "Getting np-fake-signin…"));
       const rel = await payloadsRelease(NP_FAKE_SIGNIN_ID);
       const local = await payloadsDownload(
@@ -68,6 +168,7 @@ export function NpSignInSection({
           "np-fake-signin {version} ran on the PS5. Restart the PS5 to finish; the account then shows as signed in, and Settings > System > Remote Play can be turned on.",
         ),
       );
+      await refreshNpState();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -115,9 +216,9 @@ export function NpSignInSection({
         </li>
         <li>
           {tr(
-            "profile.np.step_restart",
+            "profile.np.step_restart_v2",
             undefined,
-            "Restart the PS5. To undo it later: Settings > Users and Accounts > Other > Sign out.",
+            "Restart the PS5. To undo it later, press Undo sign-in here and restart again.",
           )}
         </li>
       </ol>
@@ -157,6 +258,19 @@ export function NpSignInSection({
           )}
       </div>
 
+      {undo === "no_backup" && (
+        <div
+          className="mb-3 rounded-[var(--radius-field)] border border-[var(--color-warn)]/40 px-3 py-2 text-xs"
+          data-testid="profile-np-no-backup"
+        >
+          {tr(
+            "profile.np.no_backup",
+            undefined,
+            "This account carries np-fake-signin's template settings (birth date 1983-04-12, the offline-adult flag off), and no copy from before is kept on this PS5, so the app cannot undo it. If the PS5 now asks to temporarily disable console restrictions before games open: Settings > Family and Parental Controls > PS5 Console Restrictions (passcode 0000 unless you changed it), and lift the restrictions there.",
+          )}
+        </div>
+      )}
+
       {error && (
         <div className="mb-3">
           <ErrorCard
@@ -192,9 +306,32 @@ export function NpSignInSection({
             )}
           </p>
         )}
+        {/* Engine-only, so the web UI offers it too. */}
+        {undo === "restore" && (
+          <Button
+            size="sm"
+            variant="secondary"
+            leftIcon={<Undo2 size={14} />}
+            loading={!!busy}
+            disabled={!!busy}
+            onClick={() => void undoSignIn()}
+            title={tr(
+              "profile.np.undo_hint",
+              undefined,
+              "A copy of this account's settings from before the sign-in is kept on the PS5; this puts it back.",
+            )}
+            data-testid="profile-np-undo"
+          >
+            {tr("profile.np.undo", undefined, "Undo sign-in")}
+          </Button>
+        )}
         {/* Payloads is desktop-only: in the web UI this button led to the Connection screen. */}
         {desktop && (
-          <Button size="sm" variant="ghost" onClick={() => navigate("/payloads")}>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => navigate("/payloads")}
+          >
             {tr("remotePlay_np_open_payloads", undefined, "Open Payloads")}
           </Button>
         )}

@@ -378,9 +378,9 @@ describe("install and launch advice names today's app", () => {
       expect(out).not.toBe(raw);
     });
   }
-  it("points at Games → Game files where a folder or image can be registered", () => {
-    expect(humanizePs5Error("launch_sony_error_0x80941234")).toContain("Games → Game files");
-    expect(humanizePs5Error("0x80A2FF06")).toContain("Games → Game files");
+  it("points at Games → On PS5 Storage where a folder or image can be registered", () => {
+    expect(humanizePs5Error("launch_sony_error_0x80941234")).toContain("Games → On PS5 Storage");
+    expect(humanizePs5Error("0x80A2FF06")).toContain("Games → On PS5 Storage");
   });
 });
 

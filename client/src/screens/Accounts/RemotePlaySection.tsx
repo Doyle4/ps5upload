@@ -1,6 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useLocation, useNavigate } from "react-router";
+import { useBetaFeaturesStore } from "../../state/betaFeatures";
 import {
   MonitorPlay,
+  Gamepad2,
   RefreshCw,
   X,
   KeyRound,
@@ -8,15 +11,8 @@ import {
   User,
   Copy,
   Check,
-  Gamepad2,
 } from "lucide-react";
-import {
-  PageHeader,
-  Button,
-  ErrorCard,
-  ConnectionGate,
-  Spinner,
-} from "../../components";
+import { Button, ErrorCard, Spinner } from "../../components";
 import { writeClipboard } from "../../lib/clipboard";
 import { useTr } from "../../state/lang";
 import { useConnectionStore } from "../../state/connection";
@@ -34,10 +30,9 @@ import {
   type RemotePlayReadiness,
 } from "../../api/ps5";
 import { humanizePs5Error } from "../../lib/humanizeError";
-import { NpSignInCard } from "./NpSignInCard";
-import { StreamPanel } from "./StreamPanel";
-import TabbedShell, { type TabbedShellTab } from "../../layout/TabbedShell";
-import { useNavigate } from "react-router";
+
+/** The anchor old /remote-play links land on: /accounts#remote-play scrolls here. */
+export const REMOTE_PLAY_ANCHOR = "remote-play";
 
 /** Firmware magic to a human version, e.g. 0x09600004 -> "9.60".
  *
@@ -61,13 +56,13 @@ export function formatFirmware(magic: number): string {
 function ReadinessPanel({
   readiness,
   onEnable,
-  onOpenProfile,
+  onShowAccounts,
   busy,
   tr,
 }: {
   readiness: RemotePlayReadiness | null;
   onEnable: (scope: "service" | "user") => void;
-  onOpenProfile: () => void;
+  onShowAccounts: () => void;
   busy: boolean;
   tr: ReturnType<typeof useTr>;
 }) {
@@ -123,12 +118,12 @@ function ReadinessPanel({
       ok: activated,
       label: tr("remotePlay_check_account", undefined, "Account is activated"),
       hint: tr(
-        "remotePlay_check_account_hint_v2",
+        "remotePlay_check_account_hint_v3",
         undefined,
-        "This account has never been activated, so it cannot pair. Profile can activate it by giving it an account ID; that changes account data, and saves made afterwards are tied to that ID.",
+        "This account has never been activated, so it cannot pair. Give it an account ID in the account list above; that changes account data, and saves made afterwards are tied to that ID.",
       ),
-      fix: onOpenProfile,
-      fixLabel: tr("remotePlay_open_profile", undefined, "Open Profile"),
+      fix: onShowAccounts,
+      fixLabel: tr("remotePlay_show_accounts", undefined, "Show accounts"),
     },
     {
       key: "service",
@@ -198,9 +193,21 @@ function ReadinessPanel({
   );
 }
 
-/** Set up: the readiness checklist and the PIN that pairs Sony's PS Remote Play app. As a tab
- *  of Remote Play (`embedded`) the page header is the shell's. */
-export function RemotePlaySetup({ embedded = false }: { embedded?: boolean }) {
+/**
+ * Remote Play, as a section of Accounts: what the console still needs (the checklist, with a
+ * fix on each row), signing the account in (`signIn`, Accounts' np-fake-signin step, which is
+ * what unlocks the console's own Remote Play switch), then the pairing PIN.
+ *
+ * It was its own screen ("Remote Play PIN") that sent people to Profile and back for the
+ * sign-in; both now sit on one page, in the order they are done.
+ */
+export function RemotePlaySection({
+  onShowAccounts,
+  signIn,
+}: {
+  onShowAccounts: () => void;
+  signIn?: ReactNode;
+}) {
   const tr = useTr();
   const host = useConnectionStore((s) => s.host);
   const payloadStatus = useConnectionStore((s) => s.payloadStatus);
@@ -208,6 +215,7 @@ export function RemotePlaySetup({ embedded = false }: { embedded?: boolean }) {
   const visible = useDocumentVisible();
   const guard = useStaleHostGuard();
   const navigate = useNavigate();
+  const betaOn = useBetaFeaturesStore((s) => s.enabled);
 
   const [manualAccountId, setManualAccountId] = useState("");
   const [status, setStatus] = useState<RemotePlayStatus | null>(null);
@@ -251,6 +259,16 @@ export function RemotePlaySetup({ embedded = false }: { embedded?: boolean }) {
     },
     [addr],
   );
+
+  // An old /remote-play link lands on /accounts#remote-play: bring the section into view once.
+  const { hash } = useLocation();
+  const sectionRef = useRef<HTMLElement>(null);
+  const scrolled = useRef(false);
+  useEffect(() => {
+    if (hash !== `#${REMOTE_PLAY_ANCHOR}` || scrolled.current) return;
+    scrolled.current = true;
+    sectionRef.current?.scrollIntoView?.({ block: "start", behavior: "smooth" });
+  }, [hash]);
 
   const accountId = status?.account_id;
   const chiakiNumeric = useMemo(
@@ -350,41 +368,59 @@ export function RemotePlaySetup({ embedded = false }: { embedded?: boolean }) {
     }
   }, [addr, refresh, guard]);
 
-  const refreshButton = (
-    <Button variant="ghost" size="sm" onClick={refresh} disabled={busy || payloadStatus !== "up" || !addr}>
-      <RefreshCw size={14} />
-    </Button>
-  );
-
   return (
-    <div className={embedded ? "space-y-4" : "app-page space-y-4"}>
-      {embedded ? (
-        <div className="flex justify-end">{refreshButton}</div>
-      ) : (
-      <PageHeader
-        icon={MonitorPlay}
-        title={tr("remotePlay_title", undefined, "Remote Play")}
-        description={tr(
-          "remotePlay_subtitle_v2",
-          undefined,
-          "Set this PS5 up for Remote Play and get the PIN that pairs the PS Remote Play app with it.",
+    <section
+      ref={sectionRef}
+      id={REMOTE_PLAY_ANCHOR}
+      aria-labelledby="remote-play-heading"
+      className="scroll-mt-4 space-y-4"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h2 id="remote-play-heading" className="flex items-center gap-2 text-base font-semibold">
+            <MonitorPlay size={16} aria-hidden />
+            {tr("remote_play", undefined, "Remote Play")}
+          </h2>
+          <p className="mt-1 text-sm text-[var(--color-muted)]">
+            {tr(
+              "remotePlay_subtitle_v2",
+              undefined,
+              "Set this PS5 up for Remote Play and get the PIN that pairs the PS Remote Play app with it.",
+            )}
+          </p>
+        </div>
+        <div className="flex shrink-0 gap-2">
+        {betaOn && (
+          <Button variant="secondary" size="sm" leftIcon={<Gamepad2 size={14} />} onClick={() => navigate("/play")}>
+            {tr("play_here", undefined, "Play Here")}
+          </Button>
         )}
-        right={refreshButton}
-      />
-      )}
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => {
+            void refresh();
+            void refreshReadiness();
+          }}
+          disabled={busy || payloadStatus !== "up" || !addr}
+          aria-label={tr("refresh", undefined, "Refresh")}
+        >
+          <RefreshCw size={14} />
+        </Button>
+        </div>
+      </div>
 
-      <ConnectionGate>
         {error && <ErrorCard title={error} onRetry={() => void refresh()} />}
 
         <ReadinessPanel
           readiness={readiness}
           onEnable={handleEnable}
-          onOpenProfile={() => navigate("/profile")}
+          onShowAccounts={onShowAccounts}
           busy={busy}
           tr={tr}
         />
 
-        <NpSignInCard onOpenProfile={() => navigate("/profile")} />
+        {signIn}
 
         {/* Request form */}
         <div className="surface-panel p-5">
@@ -562,52 +598,6 @@ export function RemotePlaySetup({ embedded = false }: { embedded?: boolean }) {
             )}
           </div>
         )}
-      </ConnectionGate>
-    </div>
-  );
-}
-
-type TabId = "play" | "setup";
-
-/**
- * Remote Play (/remote-play): play a console's screen here (Play), or set the console up for
- * Sony's PS Remote Play app (Setup, `?tab=setup`).
- */
-export default function RemotePlayScreen() {
-  const tr = useTr();
-  const tabs: ReadonlyArray<TabbedShellTab<TabId>> = [
-    {
-      id: "play",
-      icon: Gamepad2,
-      key: "rp_tab_play",
-      fallback: "Play",
-      description: tr(
-        "rp_play_description",
-        undefined,
-        "Stream a PS5 into this app and play it with a controller or the keyboard. It wakes a console in rest mode on its own.",
-      ),
-    },
-    {
-      id: "setup",
-      icon: KeyRound,
-      key: "rp_tab_setup",
-      fallback: "Set up",
-      description: tr(
-        "remotePlay_subtitle_v2",
-        undefined,
-        "Set this PS5 up for Remote Play and get the PIN that pairs the PS Remote Play app with it.",
-      ),
-    },
-  ];
-  return (
-    <TabbedShell
-      idPrefix="remote-play"
-      titleIcon={MonitorPlay}
-      titleKey="rp_screen_title"
-      titleFallback="Remote Play"
-      tabs={tabs}
-      defaultTab="play"
-      renderPanel={(id) => (id === "setup" ? <RemotePlaySetup embedded /> : <StreamPanel />)}
-    />
+    </section>
   );
 }

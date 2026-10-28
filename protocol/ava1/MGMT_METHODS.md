@@ -78,6 +78,9 @@ ones (`ava1-ctest/tests/mgmt*.rs`, `ps5upload-ava1/tests/mgmt*.rs`). Methods 119
 | ProfileActivate 154 | 90 `profile.activate` | `MgmtText` | `src/runtime.c` `mgmt_w_profile_activate` | `ps5upload-core/src/profile.rs` |  |
 | ProfileApplyAvatar 156 | 91 `profile.apply_avatar` | `MgmtText` | `src/runtime.c` `mgmt_w_profile_apply_avatar` | `ps5upload-core/src/profile.rs` |  |
 | ProfileClearSlot 158 | 92 `profile.clear_slot` | `MgmtText` | `src/runtime.c` `mgmt_w_profile_clear_slot` | `ps5upload-core/src/profile.rs` |  |
+| ProfileNpState 334 | 182 `profile.np_state` | `MgmtText` {slot, uid} -> sign-in values + whether a backup is kept | `src/runtime.c` `mgmt_w_profile_np_state` (`src/profile.c`) | `ps5upload-core/src/profile.rs` |  |
+| ProfileNpBackup 336 | 183 `profile.np_backup` | `MgmtText` {slot, uid} -> {ok, created}: keep what np-fake-signin overwrites | `src/runtime.c` `mgmt_w_profile_np_backup` (`src/profile.c`) | `ps5upload-core/src/profile.rs` |  |
+| ProfileNpRestore 338 | 184 `profile.np_restore` | `MgmtText` {uid} -> {ok, written, failed}: put the kept copy back | `src/runtime.c` `mgmt_w_profile_np_restore` (`src/profile.c`) | `ps5upload-core/src/profile.rs` |  |
 | ProfileSetLocalUsername 160 | 93 `profile.set_local_username` | `MgmtText` | `src/runtime.c` `mgmt_w_profile_set_local_username` | `ps5upload-core/src/profile.rs` |  |
 | ProcessList 162 | 59 `proc.process_list` | `MgmtText` | `src/runtime.c` `handle_process_list` | `ps5upload-core/src/process_mgr.rs` |  |
 | ProcessKill 164 | 60 `proc.kill` | `MgmtText` | `src/runtime.c` `handle_process_kill` | `ps5upload-core/src/process_mgr.rs` |  |

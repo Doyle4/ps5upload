@@ -110,6 +110,7 @@ import { RunningEngineJobs } from "../../components/RunningEngineJobs";
 import { BottleneckLine, JobLiveNotes, UnsettledLine } from "./Bottleneck";
 import { WhySlowPanel } from "./WhySlow";
 import { SlowTransferHint } from "./SlowTransferHint";
+import { ElfSourceHint } from "./ElfSourceHint";
 import { humanizePs5Error } from "../../lib/humanizeError";
 import { formatBytes } from "../../lib/format";
 import { resumeSummary } from "../../lib/resumeSummary";
@@ -171,7 +172,12 @@ function detectedLabel(
   }
 }
 
-export default function UploadScreen() {
+/**
+ * Sending from this computer (or a saved server): pick or drop anything, and the app works out
+ * what it is and what to do with it. `embedded` is Send to PS5's use: no page header (the
+ * screen has its own) and no queue (Send to PS5 shows the one queue below its other ways in).
+ */
+export default function UploadScreen({ embedded = false }: { embedded?: boolean } = {}) {
   const tr = useTr();
   const {
     source,
@@ -727,7 +733,7 @@ export default function UploadScreen() {
     r.source ? detectedLabel(r.source, tr).label : r.isDir ? tr("upload_kind_folder", "Folder") : "";
 
   return (
-    <div className="app-page">
+    <div className={embedded ? undefined : "app-page"}>
       {pending && (
         <ExistingDestinationDialog
           entryCount={pending.entryCount}
@@ -738,15 +744,17 @@ export default function UploadScreen() {
           onCancel={() => setPending(null)}
         />
       )}
-      <PageHeader
-        icon={UploadIcon}
-        title={tr("upload", undefined, "Upload")}
-        description={tr(
-          "upload_description",
-          undefined,
-          "Drag a game folder, an .exfat image, or any file onto this window — or use the buttons below. ps5upload figures out what to do based on what you drop.",
-        )}
-      />
+      {!embedded && (
+        <PageHeader
+          icon={UploadIcon}
+          title={tr("upload", undefined, "Upload")}
+          description={tr(
+            "upload_description",
+            undefined,
+            "Drag a game folder, an .exfat image, or any file onto this window — or use the buttons below. ps5upload figures out what to do based on what you drop.",
+          )}
+        />
+      )}
 
       <PayloadReadinessBanner />
 
@@ -863,7 +871,7 @@ export default function UploadScreen() {
       )}
 
       <RunningEngineJobs />
-      <QueuePanel host={host?.trim() ? host : undefined} />
+      {!embedded && <QueuePanel host={host?.trim() ? host : undefined} />}
     </div>
   );
 }
@@ -1290,6 +1298,7 @@ function Step2Options(props: {
                 )}
               </div>
             )}
+            <ElfSourceHint path={source.path} />
             {detecting && (
               // Prominent scanning banner. The small inline spinner up
               // top is easy to miss for users staring at the disabled
@@ -1451,7 +1460,7 @@ function Step2Options(props: {
                 <div className="mt-0.5 text-xs text-[var(--color-muted)]">
                   {tr(
                     "upload_register_after_desc",
-                    "Registers the game with the PS5 right after the upload finishes, so it's ready to launch. If this step fails the upload itself is unaffected and you can still register it from Games → Game files.",
+                    "Registers the game with the PS5 right after the upload finishes, so it's ready to launch. If this step fails the upload itself is unaffected and you can still register it from Games → On PS5 Storage.",
                   )}
                 </div>
               </div>
@@ -1599,7 +1608,7 @@ function Step2Options(props: {
                 ? tr(
                     "upload_disabled_queue_running",
                     undefined,
-                    "Upload queue is running — pause the queue to start a one-shot upload, or use 'Add to queue' to append.",
+                    "The queue is running — pause the queue to start a one-shot upload, or use 'Add to queue' to append.",
                   )
                 : undefined
           }
@@ -2239,7 +2248,7 @@ function TransferStatus({ onRetry }: { onRetry: () => void }) {
                 )
               : tr(
                   "upload_done_next_hint",
-                  "Next: open Games → Game files to register or mount it so it shows up on the PS5 home screen.",
+                  "Next: open Games → On PS5 Storage to register or mount it so it shows up on the PS5 home screen.",
                 )}
           </span>
           <div className="ml-auto flex items-center gap-2">
@@ -2250,7 +2259,7 @@ function TransferStatus({ onRetry }: { onRetry: () => void }) {
                 className="shrink-0"
                 onClick={() => navigate("/games?tab=files")}
               >
-                {tr("upload_done_open_library", "Open Game files")}
+                {tr("upload_done_open_library", "Open PS5 Storage")}
               </Button>
             )}
             <Button
@@ -3297,7 +3306,7 @@ function BandwidthCard() {
           : tr(
               "bandwidth_cap_off_hint_v2",
               undefined,
-              "No limit. Set one if uploads saturate your Wi-Fi/LAN and make other devices lag. It applies to every upload from the Upload screen, the queue and Files, from the next one started.",
+              "No limit. Set one if uploads saturate your Wi-Fi/LAN and make other devices lag. It applies to every upload, from Send to PS5, the queue and Files, from the next one started.",
             )}
       </p>
     </section>

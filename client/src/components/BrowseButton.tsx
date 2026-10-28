@@ -196,7 +196,7 @@ export function BrowseButton(props: BrowseButtonProps) {
           onPickServer={(id) => void pick({ connectionId: id })}
           onAdd={() => {
             setOpen(false);
-            navigate("/connections?add=1");
+            navigate("/shared-folders?add=1");
           }}
         />
       )}

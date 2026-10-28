@@ -32,6 +32,7 @@ describe("link + rar package api", () => {
         addr: "10.0.0.5",
         file_name: null,
         insecure_tls: false,
+        unpack: true,
       },
     });
   });

@@ -166,6 +166,13 @@ const ALWAYS_LIVE_KEYCODES: ReadonlySet<number> = new Set([38, 40, 37, 39, 13, 2
 /** Gamepad buttons the page always handled (✕ ○ □ △ L1 R1 and the D-pad). */
 const ALWAYS_LIVE_PADS: ReadonlySet<number> = new Set([0, 1, 2, 3, 4, 5, 12, 13, 14, 15]);
 
+/** The binding Gamepad API button `index` ("standard" mapping) belongs to, and whether the page acts on it. */
+export function bindingForPad(map: InputMap, index: number): { binding: InputBinding; acts: boolean } | null {
+  const b = map.find((x) => x.pad === index);
+  if (!b) return null;
+  return { binding: b, acts: isNavAction(b.action) && (b.verified || ALWAYS_LIVE_PADS.has(index)) };
+}
+
 /** The binding a keydown belongs to: by `key`, else by `keyCode` (a key the browser does not name). Inert entries never match. */
 export function bindingForKey(map: InputMap, key: string, keyCode: number): InputBinding | null {
   for (const b of map) {

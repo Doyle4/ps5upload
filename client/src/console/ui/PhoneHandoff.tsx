@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { call } from "../api";
 import { t } from "../strings";
 import { encodeQr, qrPath } from "./qr";
@@ -61,8 +61,22 @@ export function forgetPhoneUrl(): void {
  * while LAN access is off (the address would not answer), nor when the page is
  * already open on a phone or PC (not at 127.0.0.1).
  */
-export function PhoneHandoff({ host }: { host?: string } = {}) {
-  const here = onConsoleBrowser(host);
+export function PhoneHandoff({
+  host,
+  title,
+  body,
+  onOff,
+  always,
+}: {
+  host?: string;
+  title?: string;
+  body?: string;
+  /** Shown instead while LAN access is off (default: nothing). */
+  onOff?: ReactNode;
+  /** Show it whatever address the page was opened by (the caller knows it is the console's browser). */
+  always?: boolean;
+} = {}) {
+  const here = !!always || onConsoleBrowser(host);
   const [url, setUrl] = useState<string | null>(here ? (cached?.url ?? null) : null);
   useEffect(() => {
     if (!here) return;
@@ -83,7 +97,8 @@ export function PhoneHandoff({ host }: { host?: string } = {}) {
       return null;
     }
   }, [url]);
-  if (!here || !url || !path) return null;
+  if (!here) return null;
+  if (!url || !path) return onOff ?? null;
   return (
     <div className="cw-phone" data-phone="">
       <svg viewBox={`0 0 ${path.n} ${path.n}`} role="img" aria-label={t("cw_phone_qr_label")} shapeRendering="crispEdges">
@@ -91,8 +106,8 @@ export function PhoneHandoff({ host }: { host?: string } = {}) {
         <path d={path.d} fill="#000" />
       </svg>
       <div>
-        <strong>{t("cw_phone_title")}</strong>
-        <p>{t("cw_phone_body")}</p>
+        <strong>{title ?? t("cw_phone_title")}</strong>
+        <p>{body ?? t("cw_phone_body")}</p>
         <code>{url}</code>
       </div>
     </div>

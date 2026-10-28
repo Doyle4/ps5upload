@@ -8,7 +8,7 @@
 import type { CheatRepoEntry } from "../api/ps5";
 
 export interface CheatFilters {
-  /** `json` | `shn` | `mc4`, or "" for all. */
+  /** `json` | `shn` | `mc4` | `xml` (game patches), or "" for all. */
   format: string;
   /** Game version as published (`01.05`), or "" for all. */
   version: string;
@@ -80,7 +80,7 @@ export function cheatFilterOptions(entries: CheatRepoEntry[]): {
  *  the format — that decrypts to the same trainer XML as SHN. The payload now
  *  decrypts and parses it, so it is offered like any other format. (Roughly a
  *  quarter of the published collection is MC4.) */
-export const SUPPORTED_CHEAT_FORMATS = ["json", "shn", "mc4"];
+export const SUPPORTED_CHEAT_FORMATS = ["json", "shn", "mc4", "xml"];
 
 export function isSupportedCheatFormat(format: string | undefined): boolean {
   return SUPPORTED_CHEAT_FORMATS.includes((format ?? "").toLowerCase());

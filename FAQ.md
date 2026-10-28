@@ -106,7 +106,7 @@ Connection tab. The app walks you through sending it on first run.
 
 **Q: How do I send the payload?**
 Open ps5upload → **Connection** tab → enter your PS5's IP → click
-**Check**, then **Send payload**. The app waits up to 20 seconds
+**Check**, then **Send helper**. The app waits up to 20 seconds
 for the payload to come up, then unlocks the rest of the tabs.
 
 **Q: Can the app load everything by itself after the console starts?**
@@ -119,7 +119,9 @@ each time the console starts; after rest mode only the helper is sent again. Off
 
 **Q: How do I send a different payload (kstuff, kernel patches,
 plugin scripts, etc)?**
-Open the **Send payload** tab, click **Choose**, pick any `.elf`,
+Open **Payloads & processes → Send payload** (the Connection screen has an **Open Send
+payload** button that goes there; Connection itself only sends the PS5Upload helper), click
+**Choose**, pick any `.elf`,
 `.bin`, `.js`, `.lua`, or `.jar` file, set the port to whatever your
 loader listens on (the screen has a built-in cheat sheet — `.elf` →
 9021, `.js` → 50000, `.lua` → 9026, `.jar` → 9025 for BD-JB / BDJ),
@@ -940,7 +942,7 @@ ping 192.168.88.2
 ```
 
 If ping works, you're done — open ps5upload and use `192.168.88.2`
-as the PS5 address. The payload-send (Connection → Send payload)
+as the PS5 address. The helper send (Connection → Send helper)
 and every transfer afterwards goes over the direct cable.
 
 ### Notes / gotchas
@@ -1872,9 +1874,21 @@ and can be cancelled. It does not stream anything; use Sony's Remote Play app or
 The PS5 offers Settings › System › Remote Play only to an account signed in to PlayStation
 Network. Open **Profile** › **Sign in to PlayStation Network (offline)**: it checks that the
 signed-in user has an activated account, then fetches earthonion's np-fake-signin and runs it on
-the PS5 with one button. Nothing is sent to Sony. Restart the PS5 afterwards. To undo it:
-Settings › Users and Accounts › Other › Sign out. In the web UI, send np-fake-signin from
-**Payloads** instead.
+the PS5 with one button. Nothing is sent to Sony. Restart the PS5 afterwards. Before it runs, the
+helper keeps a copy on the PS5 of every setting and file np-fake-signin changes; **Undo sign-in**
+on the same card puts them back (restart again afterwards). In the web UI, send np-fake-signin
+from **Payloads** instead (Undo works there too, but nothing is kept unless the desktop app ran
+the sign-in).
+
+**Q: After signing in from Profile, the PS5 asks to "Temporarily Disable PS5 Console
+Restrictions" before games open.**
+np-fake-signin copies a template account's PlayStation Network settings onto yours, among them a
+1983 birth date and an "offline adult" flag that is off, and on some consoles the PS5 then asks for
+that before any game starts (upstream np-fake-signin issue #1 reports the same; its own undo,
+Settings › Users and Accounts › Other › Sign out, can stay greyed out). If the sign-in ran from
+this version of the app, press **Undo sign-in** on Profile and restart. If it ran before, there is
+no copy to put back: the Profile card says so, and Settings › Family and Parental Controls › PS5
+Console Restrictions (passcode 0000 unless you changed it) is where the restrictions are lifted.
 
 **Q: What does the fan curve do?**
 The PS5 has one fan setting: the temperature its fan control works to hold (lower is louder).

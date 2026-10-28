@@ -241,7 +241,8 @@ For per-platform bundles only (no full dev env): `make dist-mac`,
 
 1. Jailbreak the PS5 and keep an ELF loader running on port **9021**.
 2. Launch ps5upload and open **Connection**. Enter the PS5's IP address.
-3. Click **Check**, then **Send payload**. The app launches the helper and connects to it.
+3. Click **Check**, then **Send helper**. The app launches the helper and connects to it. (Other
+   payloads, such as kstuff or etaHEN, are sent from **Payloads & processes → Send payload**.)
 4. Other computers, phones and Docker setups connect to the same helper with no code; the console
    remembers each one (**Devices**). To make new devices type a code shown on the TV first, turn
    on **Ask before a new device can connect** there.

@@ -463,7 +463,7 @@ export default function CatalogPanel() {
             {tr(
               "payloads_fpkg_ppr_note",
               undefined,
-              "Installing fake packages also needs a53_ppr_install_fast.elf, which is not in this list: no download is published for it, and it is built from the source on GitHub. Install Package lists everything fake packages need, in order.",
+              "Installing fake packages also needs a53_ppr_install_fast.elf, which is not in this list: no download is published for it, and it is built from the source on GitHub. Send to PS5 lists everything fake packages need, in order.",
             )}{" "}
             <button
               type="button"

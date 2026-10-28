@@ -171,18 +171,19 @@ static int count_items(const char *json) {
 static void build_tree(void) {
     static const char pj[] =
         "{\"titleId\":\"PPSA01234\",\"contentId\":\"EP0001-PPSA01234_00-GAME000000000000\",\"contentVersion\":\"01.000.002\","
-        "\"requiredSystemSoftwareVersion\":\"0x0750000000000000\",\"localizedParameters\":{\"defaultLanguage\":\"en-US\","
+        "\"requiredSystemSoftwareVersion\":\"0x0750000000000000\",\"sdkVersion\":\"0x0450000000000000\",\"localizedParameters\":{\"defaultLanguage\":\"en-US\","
         "\"en-US\":{\"titleName\":\"Space \\u00c9xplorer\"}}}";
-    static const char *keys[] = { "CATEGORY", "TITLE", "TITLE_ID", "APP_VER" };
-    static const char *vals[] = { "gd", "Old Game", "CUSA00001", "01.00" };
+    static const char *keys[] = { "CATEGORY", "TITLE", "TITLE_ID", "APP_VER", "PUBTOOLINFO" };
+    static const char *vals[] = { "gd", "Old Game", "CUSA00001", "01.00", "c_date=20200101,sdk_ver=05050001,st_type=digital50" };
     uint8_t sfo[4096];
-    size_t sl = build_sfo(sfo, keys, vals, 4);
+    size_t sl = build_sfo(sfo, keys, vals, 5);
     put_pkg("Games/Jak X.pkg");
     put("Games/._Jak X.pkg", "junk", 4);
     put("Games/broken.pkg", "not a package, just text that is long enough to be read as one: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef", 160);
     put("Dumps/PPSA01234-app/sce_sys/param.json", pj, sizeof pj - 1);
     put("Dumps/PPSA01234-app/sce_sys/icon0.png", k_png, sizeof k_png);
     put("Dumps/PPSA01234-app/eboot.bin", "elf", 3);
+    put("Dumps/PPSA01234-app/fakelib/libSceAgc.sprx", "lib", 3); /* a backported copy */
     put_pkg("Dumps/PPSA01234-app/inside/never.pkg"); /* inside a dump: not walked */
     put("Dumps/CUSA00001/sce_sys/param.sfo", sfo, sl);
     put("Images/PPSA09999 Venus Vacation.exfat", "x", 1);
@@ -287,6 +288,10 @@ int main(void) {
               strstr(j, "\"title_id\":\"PPSA01234\"") && strstr(j, "\"version\":\"01.000.002\"") && strstr(j, "\"fw\":\"7.50\"") &&
               strstr(j, "\"name\":\"PPSA01234-app\""));
         CHECK(strstr(j, "\"title\":\"Old Game\"") && strstr(j, "\"title_id\":\"CUSA00001\""));
+        /* the SDK each was built with; the dump holding fakelib/ is a backport, the other is not */
+        CHECK(strstr(j, "\"fw\":\"7.50\",\"sdk\":\"4.50\",\"backport\":true") != NULL);
+        CHECK(strstr(j, "\"sdk\":\"5.05\",\"backport\":false") != NULL);
+        CHECK(!strstr(j, "libSceAgc"));
         CHECK(strstr(j, "\"name\":\"PPSA09999 Venus Vacation.exfat\"") && strstr(j, "\"title_id\":\"PPSA09999\"") &&
               strstr(j, "\"name\":\"other.FFPKG\"") && strstr(j, "\"name\":\"ok.exfat\""));
         CHECK(!strstr(j, "never.pkg") && !strstr(j, "broken") && !strstr(j, "._Jak") && !strstr(j, "hid.exfat") &&

@@ -1,10 +1,11 @@
-import { Navigate, useSearchParams } from "react-router";
+import { Navigate } from "react-router";
+
+import { RUNNING_LINK } from "../Payloads/payloadTabs";
 
 /**
- * The old /processes screen. Processes and Ports are tabs of Payloads & processes now;
- * an old link (`/processes`, `/processes?tab=ports`) opens the matching tab there.
+ * The old /processes screen. Processes and Ports are one Running tab of Payloads now; an old
+ * link (`/processes`, `/processes?tab=ports`) opens it.
  */
 export default function ProcessesScreen() {
-  const [params] = useSearchParams();
-  return <Navigate to={params.get("tab") === "ports" ? "/payloads?tab=ports" : "/payloads?tab=processes"} replace />;
+  return <Navigate to={RUNNING_LINK} replace />;
 }

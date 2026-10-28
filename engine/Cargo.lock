@@ -147,7 +147,7 @@ checksum = "f2032f911046de80f0a198e0901378627c33f59ea0ac00e363d481118bd70a53"
 
 [[package]]
 name = "ava1"
-version = "8.5.1"
+version = "8.8.0"
 dependencies = [
  "ava1-chaos",
  "blake2 0.11.0",
@@ -165,14 +165,14 @@ dependencies = [
 
 [[package]]
 name = "ava1-chaos"
-version = "8.5.1"
+version = "8.8.0"
 dependencies = [
  "tokio",
 ]
 
 [[package]]
 name = "ava1-ctest"
-version = "8.5.1"
+version = "8.8.0"
 dependencies = [
  "anyhow",
  "ava1",
@@ -188,7 +188,7 @@ dependencies = [
 
 [[package]]
 name = "ava1-gen"
-version = "8.5.1"
+version = "8.8.0"
 dependencies = [
  "serde",
  "toml",
@@ -2181,7 +2181,7 @@ dependencies = [
 
 [[package]]
 name = "ps5-dump-forge-pfs"
-version = "8.5.1"
+version = "8.8.0"
 dependencies = [
  "flate2",
  "ps5-dump-forge-ufs2",
@@ -2190,7 +2190,7 @@ dependencies = [
 
 [[package]]
 name = "ps5-dump-forge-ufs2"
-version = "8.5.1"
+version = "8.8.0"
 dependencies = [
  "ps5upload-fpkg",
  "ps5upload-pkg",
@@ -2199,7 +2199,7 @@ dependencies = [
 
 [[package]]
 name = "ps5upload-ava1"
-version = "8.5.1"
+version = "8.8.0"
 dependencies = [
  "anyhow",
  "ava1",
@@ -2220,7 +2220,7 @@ dependencies = [
 
 [[package]]
 name = "ps5upload-core"
-version = "8.5.1"
+version = "8.8.0"
 dependencies = [
  "aes 0.9.3",
  "aes-gcm 0.11.1",
@@ -2244,7 +2244,7 @@ dependencies = [
 
 [[package]]
 name = "ps5upload-engine"
-version = "8.5.1"
+version = "8.8.0"
 dependencies = [
  "aes-gcm 0.11.1",
  "anyhow",
@@ -2256,6 +2256,7 @@ dependencies = [
  "blake3",
  "getrandom 0.4.3",
  "image",
+ "lz4_flex 0.14.0",
  "mime_guess",
  "ps5-dump-forge-pfs",
  "ps5-dump-forge-ufs2",
@@ -2287,7 +2288,7 @@ dependencies = [
 
 [[package]]
 name = "ps5upload-fpkg"
-version = "8.5.1"
+version = "8.8.0"
 dependencies = [
  "aes 0.9.3",
  "blake3",
@@ -2310,7 +2311,7 @@ dependencies = [
 
 [[package]]
 name = "ps5upload-lab"
-version = "8.5.1"
+version = "8.8.0"
 dependencies = [
  "anyhow",
  "ava1",
@@ -2328,7 +2329,7 @@ dependencies = [
 
 [[package]]
 name = "ps5upload-pkg"
-version = "8.5.1"
+version = "8.8.0"
 dependencies = [
  "aes 0.9.3",
  "blake3",
@@ -2340,7 +2341,7 @@ dependencies = [
 
 [[package]]
 name = "ps5upload-tests"
-version = "8.5.1"
+version = "8.8.0"
 dependencies = [
  "anyhow",
  "ava1",

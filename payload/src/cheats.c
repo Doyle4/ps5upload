@@ -48,6 +48,8 @@
 #include "aes.h" /* tiny-AES, vendored — MC4 cheat decryption */
 #include "xml_encoding.h" /* UTF-16 → UTF-8 for SHN/MC4 trainer XML (#317) */
 #include "cheats_plan.h"
+#include "game_patch.h" /* PS-Game-Patch XML game patches (#527) */
+#include "content_db.h"
 #include "kernel_rw_lock.h"
 
 #include <ps5/mdbg.h>
@@ -63,11 +65,25 @@ int kernel_proc_getpaddr(int pid, unsigned long vaddr, unsigned long *paddr, uns
 #define CHEATS_JSON_DIR  CHEATS_ROOT "/json"
 #define CHEATS_SHN_DIR   CHEATS_ROOT "/shn"
 #define CHEATS_MC4_DIR   CHEATS_ROOT "/mc4"
+#define CHEATS_XML_DIR   CHEATS_ROOT "/xml"
 #define PATCHES_ROOT     "/data/ps5upload/patches"
 #define PATCHES_JSON_DIR PATCHES_ROOT "/json"
 #define PATCHES_SHN_DIR  PATCHES_ROOT "/shn"
 #define PATCHES_MC4_DIR  PATCHES_ROOT "/mc4"
 #define CHEATS_STATE_DIR CHEATS_ROOT "/state"
+
+/* XML game patches (#527): our own folder first, then the folders the other patch tools keep them
+ * in, so patches a player already has for GoldHEN / CheatRunner / elf-arsenal show up too. Those
+ * are read, never deleted. Files are named <TITLEID>.xml; the same name in two folders is listed
+ * once (the first folder wins). */
+static const char *const XML_DIRS[] = {
+    CHEATS_XML_DIR,
+    "/data/cheatrunner/patches/xml_prospero",
+    "/data/cheatrunner/patches/xml",
+    "/data/elf-arsenal/patches/xml",
+    "/data/GoldHEN/patches/xml",
+};
+#define N_XML_DIRS ((int)(sizeof XML_DIRS / sizeof XML_DIRS[0]))
 
 #define MAX_CHEAT_FILEPATH  300
 #define MAX_TITLE_ID        16
@@ -494,6 +510,35 @@ static int phys_write_allowed(pid_t pid, intptr_t addr, size_t len, char *why, s
     return verdict;
 }
 
+/* A loaded module of the process by dynlib handle: its load address, mapped size and path. The
+ * same list walk as phys_write_allowed. 0, or -1 when the handle is not loaded. */
+static int module_info(pid_t pid, uint32_t handle, uint64_t *base, uint64_t *size, char *path,
+                       size_t path_cap) {
+    int found = -1;
+    if (path && path_cap) path[0] = '\0';
+    pthread_mutex_lock(&kernel_rw_lock);
+    unsigned long kproc = (unsigned long)kernel_get_proc(pid);
+    unsigned long obj = 0;
+    if (kproc && kernel_copyout(kproc + 0x3e8, &obj, sizeof(obj)) == 0) {
+        for (int guard = 0; guard < 1024; guard++) {
+            if (kernel_copyout(obj, &obj, sizeof(obj)) != 0 || !obj) break;
+            dynlib_head_t h;
+            if (kernel_copyout(obj, &h, sizeof(h)) != 0) break;
+            if (h.handle != handle) continue;
+            *base = h.mapbase;
+            *size = h.mapsize;
+            if (path && path_cap > 1 && h.path) {
+                if (kernel_copyout(h.path, path, path_cap - 1) != 0) path[0] = '\0';
+                path[path_cap - 1] = '\0';
+            }
+            found = 0;
+            break;
+        }
+    }
+    pthread_mutex_unlock(&kernel_rw_lock);
+    return found;
+}
+
 typedef struct {
     pid_t pid;
 } game_mem_ctx_t;
@@ -551,6 +596,11 @@ typedef struct {
     char        module_name[128];
     int         enabled;        /* persisted toggle state */
     int         incomplete;     /* the file had more than the parser could hold: never apply */
+    /* An XML game patch entry (format 4): its file and <Metadata> index. Its lines are read
+     * from the file when it is applied (there can be hundreds), not held in mem[]. */
+    char        xml_path[MAX_CHEAT_FILEPATH];
+    int         xml_entry;
+    char        xml_ver[32];    /* the entry's AppVer */
     mem_entry_t mem[MAX_MEM_ENTRIES];
     int         mem_count;
 } cheat_mod_t;
@@ -560,7 +610,7 @@ typedef struct {
     char        game_name[MAX_CHEAT_NAME];
     char        process[128];
     char        filepath[MAX_CHEAT_FILEPATH];
-    int         format;         /* 1=json, 2=shn, 3=mc4 */
+    int         format;         /* 1=json, 2=shn, 3=mc4, 4=xml game patch */
     cheat_mod_t mods[MAX_MODS_PER_FILE];
     int         mod_count;
 } cheat_file_t;
@@ -949,7 +999,8 @@ static int filename_matches_title(const char *filename, const char *title_id) {
 
 typedef struct {
     char path[MAX_CHEAT_FILEPATH];
-    int  format;  /* 1=json, 2=shn, 3=mc4 */
+    int  format;  /* 1=json, 2=shn, 3=mc4, 4=xml */
+    int  ours;    /* in a ps5upload folder (another tool's patch folder is never deleted from) */
 } found_file_t;
 
 /* Scan all cheat directories for files matching the title_id.
@@ -984,6 +1035,32 @@ static int find_cheat_files(const char *title_id,
             snprintf(out[count].path, sizeof(out[count].path),
                      "%s/%s", dirs[d], de->d_name);
             out[count].format = fmt;
+            out[count].ours = 1;
+            count++;
+        }
+        closedir(dir);
+    }
+    /* XML game patches are toggled like cheats (a file often holds alternatives, such as a 30 and
+     * a 60 fps cap), so they are never auto-applied from the patches folder. Appended after the
+     * other formats so the flat numbering of existing cheats does not move. */
+    for (int d = 0; !is_patches && d < N_XML_DIRS && count < max_out; d++) {
+        DIR *dir = opendir(XML_DIRS[d]);
+        if (!dir) continue;
+        struct dirent *de;
+        while ((de = readdir(dir)) && count < max_out) {
+            if (de->d_name[0] == '.') continue;
+            const char *ext = strrchr(de->d_name, '.');
+            if (!ext || strcasecmp(ext, ".xml") != 0) continue;
+            if (!filename_matches_title(de->d_name, title_id)) continue;
+            int dup = 0;
+            for (int k = 0; k < count && !dup; k++) {
+                const char *b = strrchr(out[k].path, '/');
+                dup = out[k].format == 4 && b && strcasecmp(b + 1, de->d_name) == 0;
+            }
+            if (dup) continue;
+            snprintf(out[count].path, sizeof(out[count].path), "%s/%s", XML_DIRS[d], de->d_name);
+            out[count].format = 4;
+            out[count].ours = (d == 0);
             count++;
         }
         closedir(dir);
@@ -1080,6 +1157,42 @@ static int parse_mc4_file(const char *encoded, size_t enc_len, cheat_file_t *cf)
     return rc;
 }
 
+/* An XML game patch file (#527): one switchable mod per <Metadata> entry. The lines stay in the
+ * file and are read again when the entry is applied. `xml` is modified (comments blanked). */
+static int parse_xml_file(char *xml, cheat_file_t *cf) {
+    gp_strip_comments(xml);
+    int n = gp_count(xml);
+    if (n <= 0) return -1;
+    const char *base = strrchr(cf->filepath, '/');
+    base = base ? base + 1 : cf->filepath;
+    size_t tl = strcspn(base, "._");
+    if (tl >= sizeof(cf->title_id)) tl = sizeof(cf->title_id) - 1;
+    memcpy(cf->title_id, base, tl);
+    cf->title_id[tl] = '\0';
+    for (int i = 0; i < n && cf->mod_count < MAX_MODS_PER_FILE; i++) {
+        gp_meta_t m;
+        if (gp_meta(xml, i, &m) != 0) continue;
+        cheat_mod_t *mod = &cf->mods[cf->mod_count++];
+        if (!cf->game_name[0]) snprintf(cf->game_name, sizeof(cf->game_name), "%s", m.title);
+        const char *nm = m.name[0] ? m.name : "Patch";
+        if (m.app_ver[0] && !gp_version_ok(m.app_ver, "", ""))
+            snprintf(mod->name, sizeof(mod->name), "%s (%s)", nm, m.app_ver);
+        else
+            snprintf(mod->name, sizeof(mod->name), "%s", nm);
+        if (m.note[0] && m.author[0])
+            snprintf(mod->hint, sizeof(mod->hint), "%s - by %s", m.note, m.author);
+        else if (m.author[0])
+            snprintf(mod->hint, sizeof(mod->hint), "by %s", m.author);
+        else
+            snprintf(mod->hint, sizeof(mod->hint), "%s", m.note);
+        snprintf(mod->type, sizeof(mod->type), "checkbox");
+        snprintf(mod->xml_path, sizeof(mod->xml_path), "%s", cf->filepath);
+        mod->xml_entry = i;
+        snprintf(mod->xml_ver, sizeof(mod->xml_ver), "%s", m.app_ver);
+    }
+    return cf->mod_count > 0 ? 0 : -1;
+}
+
 /* Load and parse a cheat file from disk. Returns 0 on success. */
 static int load_cheat_file(const char *path, int format, cheat_file_t *cf) {
     int fd = open(path, O_RDONLY);
@@ -1118,6 +1231,11 @@ static int load_cheat_file(const char *path, int format, cheat_file_t *cf) {
     } else if (format == 3) {
         /* MC4 = base64 + AES-256-CBC over SHN-shaped XML. */
         rc = parse_mc4_file(buf, (size_t)rd, cf);
+    } else if (format == 4) {
+        size_t clen = 0;
+        char *conv = xml_to_utf8(buf, (size_t)rd, &clen);
+        rc = parse_xml_file(conv ? conv : buf, cf);
+        free(conv);
     }
 
     free(buf);
@@ -1288,6 +1406,409 @@ static int resolve_mod_locs(pid_t pid, intptr_t base, const cheat_mod_t *mod, ch
     return n;
 }
 
+/* ── XML game patches (#527) ─────────────────────────────────────── */
+
+/* The game's version as the console reports it: appinfo.db's CONTENT_VERSION ("01.004.000") and
+ * APP_VER ("01.04"), else the installed param.json's contentVersion. */
+typedef struct {
+    char content[32];
+    char app[32];
+} game_ver_t;
+
+static int game_ver_row(void *ctx, int ncol, const char *const *vals) {
+    game_ver_t *v = (game_ver_t *)ctx;
+    if (ncol < 2 || !vals[0] || !vals[1]) return 0;
+    if (strcmp(vals[0], "CONTENT_VERSION") == 0) snprintf(v->content, sizeof v->content, "%s", vals[1]);
+    else if (strcmp(vals[0], "APP_VER") == 0) snprintf(v->app, sizeof v->app, "%s", vals[1]);
+    return 0;
+}
+
+static void game_versions(const char *title, game_ver_t *v) {
+    memset(v, 0, sizeof *v);
+    size_t n = title ? strlen(title) : 0;
+    if (n < 4 || n > 12) return;
+    for (size_t i = 0; i < n; i++)
+        if (!((title[i] >= 'A' && title[i] <= 'Z') || (title[i] >= '0' && title[i] <= '9'))) return;
+    char sql[200];
+    snprintf(sql, sizeof sql,
+             "SELECT key, val FROM tbl_appinfo WHERE titleId='%s' AND key IN ('CONTENT_VERSION','APP_VER')",
+             title);
+    (void)content_db_select_text(CONTENT_DB_APPINFO, sql, 8, v, game_ver_row);
+    if (v->content[0] || v->app[0]) return;
+    char path[128];
+    snprintf(path, sizeof path, "/system_ex/app/%s/sce_sys/param.json", title);
+    int fd = open(path, O_RDONLY);
+    if (fd < 0) return;
+    char buf[8192];
+    ssize_t rd = read(fd, buf, sizeof buf - 1);
+    close(fd);
+    if (rd <= 0) return;
+    buf[rd] = '\0';
+    json_str(buf, "contentVersion", v->content, sizeof v->content);
+}
+
+/* What an applied entry wrote, so it can be put back: an entry's pattern lines cannot be found
+ * again once their bytes are patched. Kept per game session (pid); under g_apply_lock. Turning an
+ * entry off that is not here means it was never applied to this session, so there is nothing to
+ * undo. */
+typedef struct {
+    intptr_t addr;
+    int      len;
+    size_t   at; /* into data: len bytes written, then len original bytes */
+} xml_rec_t;
+
+typedef struct {
+    pid_t      pid;
+    char       path[MAX_CHEAT_FILEPATH];
+    int        entry;
+    int        n;
+    xml_rec_t *rec;
+    uint8_t   *data;
+} xml_applied_t;
+
+#define XML_APPLIED_MAX 64
+static xml_applied_t g_xml_applied[XML_APPLIED_MAX];
+
+static void xml_applied_free(xml_applied_t *a) {
+    free(a->rec);
+    free(a->data);
+    memset(a, 0, sizeof *a);
+}
+
+static xml_applied_t *xml_applied_find(pid_t pid, const char *path, int entry) {
+    for (int i = 0; i < XML_APPLIED_MAX; i++) {
+        xml_applied_t *a = &g_xml_applied[i];
+        if (a->rec && a->pid != pid) xml_applied_free(a); /* an earlier game session */
+    }
+    for (int i = 0; i < XML_APPLIED_MAX; i++) {
+        xml_applied_t *a = &g_xml_applied[i];
+        if (a->rec && a->entry == entry && strcmp(a->path, path) == 0) return a;
+    }
+    return NULL;
+}
+
+static int xml_applied_add(pid_t pid, const char *path, int entry, const cheat_loc_t *locs, int n) {
+    xml_applied_t *a = NULL;
+    for (int i = 0; i < XML_APPLIED_MAX && !a; i++)
+        if (!g_xml_applied[i].rec) a = &g_xml_applied[i];
+    if (!a) return -1;
+    size_t total = 0;
+    for (int i = 0; i < n; i++) total += 2 * (size_t)locs[i].len;
+    a->rec = (xml_rec_t *)malloc((size_t)n * sizeof *a->rec);
+    a->data = (uint8_t *)malloc(total ? total : 1);
+    if (!a->rec || !a->data) {
+        xml_applied_free(a);
+        return -1;
+    }
+    size_t at = 0;
+    for (int i = 0; i < n; i++) {
+        a->rec[i].addr = locs[i].addr;
+        a->rec[i].len = locs[i].len;
+        a->rec[i].at = at;
+        memcpy(a->data + at, locs[i].on, (size_t)locs[i].len);
+        memcpy(a->data + at + (size_t)locs[i].len, locs[i].off, (size_t)locs[i].len);
+        at += 2 * (size_t)locs[i].len;
+    }
+    a->pid = pid;
+    snprintf(a->path, sizeof a->path, "%s", path);
+    a->entry = entry;
+    a->n = n;
+    return 0;
+}
+
+#define XML_SCAN_CHUNK (1024 * 1024)
+#define XML_SCAN_PAGE  0x4000
+
+/* One pass over the module [start, start + size): the first match of every pattern the lines
+ * need (site[i] for a line's own pattern, tgt[i] for a jump32 cave), or -1. The scan never leaves
+ * the module's mapping, and a chunk that cannot be read whole is read page by page, searching
+ * only the pages that could be read. */
+static void xml_scan(pid_t pid, uint64_t start, uint64_t size, const gp_line_t *l, int n,
+                     int64_t *site, int64_t *tgt) {
+    int pending = 0, maxlen = 1;
+    for (int i = 0; i < n; i++) {
+        site[i] = tgt[i] = -1;
+        if (l[i].by_pattern) {
+            pending++;
+            if (l[i].pat_len > maxlen) maxlen = l[i].pat_len;
+        }
+        if (l[i].kind == GP_JUMP32) {
+            pending++;
+            if (l[i].tpat_len > maxlen) maxlen = l[i].tpat_len;
+        }
+    }
+    if (!pending || !size) return;
+    uint8_t *buf = (uint8_t *)malloc(XML_SCAN_CHUNK + (size_t)maxlen);
+    if (!buf) return;
+    for (uint64_t pos = 0; pos < size && pending > 0; pos += XML_SCAN_CHUNK) {
+        size_t want = XML_SCAN_CHUNK + (size_t)maxlen - 1;
+        if (pos + want > size) want = (size_t)(size - pos);
+        /* readable runs of this chunk: [rs[k], re[k]) */
+        size_t rs[XML_SCAN_CHUNK / XML_SCAN_PAGE + 2], re[XML_SCAN_CHUNK / XML_SCAN_PAGE + 2];
+        int runs = 0;
+        if (game_mem_read(pid, (intptr_t)(start + pos), buf, want) == 0) {
+            rs[0] = 0;
+            re[0] = want;
+            runs = 1;
+        } else {
+            for (size_t p = 0; p < want; p += XML_SCAN_PAGE) {
+                size_t len = want - p < XML_SCAN_PAGE ? want - p : XML_SCAN_PAGE;
+                if (game_mem_read(pid, (intptr_t)(start + pos + p), buf + p, len) != 0) continue;
+                if (runs > 0 && re[runs - 1] == p) {
+                    re[runs - 1] = p + len;
+                } else if (runs < (int)(sizeof rs / sizeof rs[0])) {
+                    rs[runs] = p;
+                    re[runs] = p + len;
+                    runs++;
+                }
+            }
+        }
+        for (int k = 0; k < runs; k++) {
+            for (int i = 0; i < n; i++) {
+                if (l[i].by_pattern && site[i] < 0) {
+                    long at = gp_find(buf + rs[k], re[k] - rs[k], l[i].pat, l[i].wild, l[i].pat_len);
+                    if (at >= 0) {
+                        site[i] = (int64_t)(start + pos + rs[k] + (size_t)at);
+                        pending--;
+                    }
+                }
+                if (l[i].kind == GP_JUMP32 && tgt[i] < 0) {
+                    long at = gp_find(buf + rs[k], re[k] - rs[k], l[i].tpat, l[i].twild, l[i].tpat_len);
+                    if (at >= 0) {
+                        tgt[i] = (int64_t)(start + pos + rs[k] + (size_t)at);
+                        pending--;
+                    }
+                }
+            }
+        }
+    }
+    free(buf);
+}
+
+/* Add bytes at addr as one or more locations (each at most CHEAT_PLAN_MAX_BYTES). */
+static int xml_push(cheat_loc_t **locs, int *n, int *cap, intptr_t addr, const uint8_t *b, int len) {
+    for (int done = 0; done < len;) {
+        int part = len - done < CHEAT_PLAN_MAX_BYTES ? len - done : CHEAT_PLAN_MAX_BYTES;
+        if (*n >= CHEAT_PLAN_MAX_APPLY) return -1;
+        if (*n == *cap) {
+            int nc = *cap ? *cap * 2 : 64;
+            cheat_loc_t *g = (cheat_loc_t *)realloc(*locs, (size_t)nc * sizeof *g);
+            if (!g) return -1;
+            *locs = g;
+            *cap = nc;
+        }
+        cheat_loc_t *l = &(*locs)[(*n)++];
+        memset(l, 0, sizeof *l);
+        l->addr = addr + done;
+        l->len = part;
+        memcpy(l->on, b + done, (size_t)part);
+        done += part;
+    }
+    return 0;
+}
+
+/* The whole file as a NUL-terminated UTF-8 string with comments blanked, or NULL. */
+static char *xml_load_text(const char *path) {
+    int fd = open(path, O_RDONLY);
+    if (fd < 0) return NULL;
+    struct stat st;
+    if (fstat(fd, &st) != 0 || st.st_size <= 0 || st.st_size > CHEAT_FILE_MAX) {
+        close(fd);
+        return NULL;
+    }
+    char *buf = (char *)malloc((size_t)st.st_size + 1);
+    ssize_t rd = buf ? read(fd, buf, (size_t)st.st_size) : -1;
+    close(fd);
+    if (rd <= 0) {
+        free(buf);
+        return NULL;
+    }
+    buf[rd] = '\0';
+    size_t clen = 0;
+    char *conv = xml_to_utf8(buf, (size_t)rd, &clen);
+    if (conv) {
+        free(buf);
+        buf = conv;
+    }
+    gp_strip_comments(buf);
+    return buf;
+}
+
+/* Turn an XML game patch entry on or off: every line or none (cheat_plan_apply), only for the
+ * game version and executable it names, only inside its module. Call with g_apply_lock held. */
+static int xml_apply_locked(pid_t pid, cheat_mod_t *mod, int turn_on, const cheat_range_t *keep,
+                            int n_keep, char *err, size_t err_cap) {
+    if (err && err_cap) err[0] = '\0';
+    game_mem_ctx_t ctx = { .pid = pid };
+    cheat_mem_ops_t ops = { .ctx = &ctx, .write = game_mem_write, .alive = game_alive };
+    xml_applied_t *a = xml_applied_find(pid, mod->xml_path, mod->xml_entry);
+
+    if (!turn_on || a) {
+        if (turn_on || !a) return 0; /* already on / never applied to this game session */
+        cheat_loc_t *locs = (cheat_loc_t *)calloc((size_t)a->n, sizeof *locs);
+        if (!locs) {
+            if (err) snprintf(err, err_cap, "out of memory");
+            return -1;
+        }
+        int rc = 0;
+        for (int i = 0; i < a->n && rc == 0; i++) {
+            locs[i].addr = a->rec[i].addr;
+            locs[i].len = a->rec[i].len;
+            memcpy(locs[i].on, a->data + a->rec[i].at, (size_t)a->rec[i].len);
+            memcpy(locs[i].off, a->data + a->rec[i].at + (size_t)a->rec[i].len, (size_t)a->rec[i].len);
+            if (game_mem_read(pid, locs[i].addr, locs[i].cur, (size_t)locs[i].len) != 0) {
+                if (err) snprintf(err, err_cap, "location 0x%lx cannot be read", (unsigned long)locs[i].addr);
+                rc = -1;
+            }
+        }
+        if (rc == 0) rc = cheat_plan_apply(locs, a->n, 0, keep, n_keep, &ops, err, err_cap);
+        if (rc == 0) xml_applied_free(a);
+        free(locs);
+        return rc;
+    }
+
+    char title[MAX_TITLE_ID] = "";
+    intptr_t b0 = 0;
+    if (get_running_game_cached(title, sizeof title, &b0) != pid) {
+        if (err) snprintf(err, err_cap, "no game is currently running");
+        return -1;
+    }
+    char *x = xml_load_text(mod->xml_path);
+    gp_meta_t m;
+    if (!x || gp_meta(x, mod->xml_entry, &m) != 0) {
+        free(x);
+        if (err) snprintf(err, err_cap, "the patch file cannot be read");
+        return -1;
+    }
+    game_ver_t gv;
+    game_versions(title, &gv);
+    if (!gp_version_ok(m.app_ver, gv.content, gv.app)) {
+        free(x);
+        if (err) {
+            if (gv.content[0] || gv.app[0])
+                snprintf(err, err_cap, "this patch is for game version %s; the game is %s",
+                         m.app_ver[0] ? m.app_ver : "(none)", gv.content[0] ? gv.content : gv.app);
+            else
+                snprintf(err, err_cap, "the game's version cannot be read; this patch is for %s",
+                         m.app_ver[0] ? m.app_ver : "(none)");
+        }
+        return -1;
+    }
+    char exe[256] = "";
+    uint64_t mbase = 0, msize = 0;
+    (void)module_info(pid, 0, &mbase, &msize, exe, sizeof exe);
+    if (!gp_elf_is_module(m.app_elf) && !gp_elf_ok(m.app_elf, exe)) {
+        free(x);
+        const char *b = strrchr(exe, '/');
+        if (err) snprintf(err, err_cap, "this patch is for %s; the game runs %s", m.app_elf, b ? b + 1 : exe);
+        return -1;
+    }
+    uint32_t handle = 0;
+    if (gp_elf_is_module(m.app_elf) && (kernel_dynlib_handle(pid, m.app_elf, &handle) != 0 || !handle)) {
+        free(x);
+        if (err) snprintf(err, err_cap, "%s is not loaded by the game", m.app_elf);
+        return -1;
+    }
+    if (module_info(pid, handle, &mbase, &msize, NULL, 0) != 0 || !mbase || !msize) {
+        free(x);
+        if (err) snprintf(err, err_cap, "the game's code is not loaded yet; try again");
+        return -1;
+    }
+
+    gp_line_t *lines = NULL;
+    int nl = gp_lines(x, mod->xml_entry, &lines, err, err_cap);
+    free(x);
+    if (nl <= 0) return -1;
+    int64_t *site = (int64_t *)malloc((size_t)nl * sizeof(int64_t));
+    int64_t *tgt = (int64_t *)malloc((size_t)nl * sizeof(int64_t));
+    cheat_loc_t *locs = NULL;
+    int n = 0, cap = 0, rc = 0;
+    if (!site || !tgt) {
+        if (err) snprintf(err, err_cap, "out of memory");
+        rc = -1;
+    } else {
+        xml_scan(pid, mbase, msize, lines, nl, site, tgt);
+    }
+    uint8_t *site_b = (uint8_t *)malloc(GP_PATTERN_MAX), *cave_b = (uint8_t *)malloc(GP_VALUE_MAX + 5);
+    if (rc == 0 && (!site_b || !cave_b)) {
+        if (err) snprintf(err, err_cap, "out of memory");
+        rc = -1;
+    }
+    for (int i = 0; i < nl && rc == 0; i++) {
+        const gp_line_t *l = &lines[i];
+        if (l->by_pattern && site[i] < 0) {
+            if (err) snprintf(err, err_cap, "line %d: its pattern is not in the game (another game version?); nothing was written", i + 1);
+            rc = -1;
+            break;
+        }
+        intptr_t addr = l->by_pattern ? (intptr_t)(site[i] + l->match_offset) : (intptr_t)(mbase + l->offset);
+        if (l->kind == GP_WRITE || l->kind == GP_MASK) {
+            rc = xml_push(&locs, &n, &cap, addr, l->value, l->value_len);
+        } else if (l->kind == GP_CALL) {
+            uint8_t call[5];
+            if (game_mem_read(pid, addr, call, 5) != 0 || (call[0] != 0xE8 && call[0] != 0xE9)) {
+                if (err) snprintf(err, err_cap, "line %d: no call at 0x%lx; nothing was written", i + 1, (unsigned long)addr);
+                rc = -1;
+                break;
+            }
+            int32_t rel;
+            memcpy(&rel, call + 1, 4);
+            rc = xml_push(&locs, &n, &cap, addr + 5 + rel, l->value, l->value_len);
+        } else if (l->kind == GP_JUMP32) {
+            if (tgt[i] < 0 || gp_jump32((uint64_t)addr, (uint64_t)tgt[i], l->jump_size, l->value, l->value_len, site_b, cave_b) != 0) {
+                if (err) snprintf(err, err_cap, "line %d: its code cave is not in the game; nothing was written", i + 1);
+                rc = -1;
+                break;
+            }
+            /* the cave first: the planner keeps file order, so nothing jumps there before it is filled */
+            rc = xml_push(&locs, &n, &cap, (intptr_t)tgt[i], cave_b, l->value_len + 5);
+            if (rc == 0) rc = xml_push(&locs, &n, &cap, addr, site_b, l->jump_size);
+        }
+        if (rc != 0 && err && !err[0]) snprintf(err, err_cap, "patch is too large for the engine");
+    }
+    free(site_b);
+    free(cave_b);
+    free(site);
+    free(tgt);
+    free(lines);
+
+    for (int i = 0; i < n && rc == 0; i++) {
+        cheat_loc_t *l = &locs[i];
+        uint64_t a0 = (uint64_t)l->addr;
+        if (!cheat_addr_ok(l->addr, l->len) || a0 < mbase || a0 + (uint64_t)l->len > mbase + msize) {
+            if (err) snprintf(err, err_cap, "a line writes outside %s (0x%lx); nothing was written",
+                              m.app_elf[0] ? m.app_elf : "the game's code", (unsigned long)l->addr);
+            rc = -1;
+            break;
+        }
+        if (!use_mdbg()) {
+            char why[160] = "";
+            if (!phys_write_allowed(pid, l->addr, (size_t)l->len, why, sizeof why)) {
+                if (err) snprintf(err, err_cap, "0x%lx is not the game's own memory (%s); nothing was written",
+                                  (unsigned long)l->addr, why);
+                rc = -1;
+                break;
+            }
+        }
+        if (game_mem_read(pid, l->addr, l->cur, (size_t)l->len) != 0) {
+            if (err) snprintf(err, err_cap, "0x%lx cannot be read; nothing was written", (unsigned long)l->addr);
+            rc = -1;
+            break;
+        }
+        memcpy(l->off, l->cur, (size_t)l->len); /* the original is whatever is there now */
+    }
+    if (rc == 0 && n == 0) {
+        if (err) snprintf(err, err_cap, "patch has no lines");
+        rc = -1;
+    }
+    if (rc == 0) rc = cheat_plan_apply(locs, n, 1, NULL, 0, &ops, err, err_cap);
+    if (rc == 0 && xml_applied_add(pid, mod->xml_path, mod->xml_entry, locs, n) != 0)
+        fprintf(stderr, "[cheats] %s #%d applied but not recorded; restart the game to remove it\n",
+                mod->xml_path, mod->xml_entry);
+    free(locs);
+    return rc;
+}
+
 /* Apply or remove one cheat, all of its locations or none of them (cheat_plan_apply does the
  * checking, ordering and rollback). `keep` lists the locations of the title's other enabled
  * cheats, so turning this one off leaves a code cave they share alone.
@@ -1300,6 +1821,7 @@ static int resolve_mod_locs(pid_t pid, intptr_t base, const cheat_mod_t *mod, ch
  * Returns 0 when the cheat is in the asked-for state (including "it already was"). */
 static int apply_mod_locked(pid_t pid, intptr_t base, cheat_mod_t *mod, int turn_on,
                             const cheat_range_t *keep, int n_keep, char *err, size_t err_cap) {
+    if (mod->xml_path[0]) return xml_apply_locked(pid, mod, turn_on, keep, n_keep, err, err_cap);
     /* "button" type always writes "on" regardless of turn_on */
     int write_on = (strcmp(mod->type, "button") == 0) ? 1 : turn_on;
 
@@ -1524,6 +2046,7 @@ void cheats_init(void) {
     ensure_dir(CHEATS_JSON_DIR);
     ensure_dir(CHEATS_SHN_DIR);
     ensure_dir(CHEATS_MC4_DIR);
+    ensure_dir(CHEATS_XML_DIR);
     ensure_dir(PATCHES_ROOT);
     ensure_dir(PATCHES_JSON_DIR);
     ensure_dir(PATCHES_SHN_DIR);
@@ -1582,6 +2105,7 @@ int cheats_list_titles(char *buf, size_t cap, size_t *written) {
     cfg.dirs[0] = CHEATS_JSON_DIR;
     cfg.dirs[1] = CHEATS_SHN_DIR;
     cfg.dirs[2] = CHEATS_MC4_DIR;
+    for (int d = 0; d < N_XML_DIRS && d < CHEATS_LIST_XML_DIRS; d++) cfg.xml_dirs[d] = XML_DIRS[d];
     cfg.state_dir = CHEATS_STATE_DIR;
     cfg.load = list_load_file;
     cfg.usable_name = is_usable_game_name;
@@ -1615,6 +2139,8 @@ int cheats_list_mods(const char *title_id, char *buf, size_t cap,
 
     int flat = 0;
     int first = 1;
+    game_ver_t gv;
+    int have_gv = 0;
 
     for (int fi = 0; fi < n; fi++) {
         cheat_file_t *cf = (cheat_file_t *)malloc(sizeof(cheat_file_t));
@@ -1634,9 +2160,21 @@ int cheats_list_mods(const char *title_id, char *buf, size_t cap,
             jb_str(&jb, m->name);
             JB_PRINTF(&jb, "\",\"desc\":\"");
             jb_str(&jb, m->hint);
-            JB_PRINTF(&jb, "\",\"type\":\"%s\",\"on\":%s}",
+            /* An XML game patch entry made for another version than the installed one: the
+             * apps mark it, and turning it on is refused (xml_apply_locked). */
+            int other = 0;
+            if (m->xml_path[0] && m->xml_ver[0]) {
+                if (!have_gv) {
+                    game_versions(title_id, &gv);
+                    have_gv = 1;
+                }
+                other = (gv.content[0] || gv.app[0]) && !gp_version_ok(m->xml_ver, gv.content, gv.app);
+            }
+            JB_PRINTF(&jb, "\",\"type\":\"%s\",\"on\":%s%s%s}",
                       m->type,
-                      m->enabled ? "true" : "false");
+                      m->enabled ? "true" : "false",
+                      m->xml_path[0] ? ",\"format\":\"xml\"" : "",
+                      other ? ",\"other_version\":true" : "");
             flat++;
         }
         free(cf);
@@ -1648,7 +2186,7 @@ int cheats_list_mods(const char *title_id, char *buf, size_t cap,
     return 0;
 }
 
-#define KEEP_RANGES_MAX 1024
+#define KEEP_RANGES_MAX 8192 /* XML game patches can have hundreds of locations */
 
 /* Every location of the title's enabled cheats other than `skip_flat`, as byte ranges.
  * Returns the count, or -1 when the list could not be made complete (out of memory, a cheat
@@ -1670,6 +2208,17 @@ static int collect_enabled_ranges(pid_t pid, intptr_t base, const char *title_id
             if (load_cheat_file(files[fi].path, files[fi].format, cf) != 0) { count = -1; break; }
             for (int mi = 0; mi < cf->mod_count && count >= 0; mi++, flat++) {
                 if (flat == skip_flat || !state_has(state, flat)) continue;
+                if (cf->mods[mi].xml_path[0]) {
+                    /* what it wrote this session, if anything (it cannot be resolved again) */
+                    xml_applied_t *a = xml_applied_find(pid, cf->mods[mi].xml_path, cf->mods[mi].xml_entry);
+                    for (int k = 0; a && k < a->n && count >= 0; k++) {
+                        if (count >= max) { count = -1; break; }
+                        out[count].addr = a->rec[k].addr;
+                        out[count].len = a->rec[k].len;
+                        count++;
+                    }
+                    continue;
+                }
                 intptr_t mb = base;
                 if (cf->mods[mi].module_name[0])
                     mb = resolve_module_base(pid, cf->mods[mi].module_name);
@@ -1706,7 +2255,7 @@ int cheats_toggle(const char *title_id, int mod_index, int turn_on,
     int n = find_cheat_files(title_id, files, 16, 0);
     if (n == 0) {
         if (err) snprintf(err, err_cap,
-                          "no cheat file for %s. Drop a .json/.shn/.mc4 into "
+                          "no cheat file for %s. Drop a .json/.shn/.mc4 or game patch .xml into "
                           CHEATS_ROOT,
                           title_id);
         return -1;
@@ -1857,7 +2406,7 @@ int cheats_delete(const char *title_id, char *err, size_t err_cap) {
     }
 
     for (int i = 0; i < n; i++) {
-        unlink(files[i].path);
+        if (files[i].ours) unlink(files[i].path); /* never another tool's patch folder */
     }
 
     /* Also delete sidecar state */

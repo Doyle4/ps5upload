@@ -144,7 +144,7 @@ export function TraceCard({
                   cache: formatBytes(profile.summary?.decoded_cache_bytes ?? 0),
                   workers: profile.summary?.runtime_workers ?? 0,
                 },
-                "Profile built {date} from {n} sessions: {files} files packed, {cache} decoded cache, {workers} workers. Convert uses it for this game's LZ4 image.",
+                "Profile built {date} from {n} sessions: {files} files packed, {cache} decoded cache, {workers} workers. Workshop uses it for this game's LZ4 image.",
               )}
             </p>
           )}

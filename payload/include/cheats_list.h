@@ -14,10 +14,14 @@
  * Kept free of the ptrace / Sony code in cheats.c so it builds and tests on the host. */
 
 #define CHEATS_LIST_TITLE_MAX 16 /* MAX_TITLE_ID in cheats.c */
+#define CHEATS_LIST_XML_DIRS  6  /* XML game patch folders (format 4), searched in order */
 
 typedef struct {
     /* json, shn, mc4 folders (format 1, 2, 3) */
     const char *dirs[3];
+    /* XML game patch folders, format 4 (NULL entries are skipped). A file name already seen in an
+     * earlier XML folder is the same patch and is listed once, as cheats.c applies it once. */
+    const char *xml_dirs[CHEATS_LIST_XML_DIRS];
     /* sidecar folder holding <TITLE>.json enabled-state files */
     const char *state_dir;
     /* Parses one cheat file: raw game name and mod count. 0 on success. */

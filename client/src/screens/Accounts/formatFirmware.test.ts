@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { formatFirmware } from "./index";
+import { formatFirmware } from "./RemotePlaySection";
 
 describe("formatFirmware", () => {
   it("decodes BCD rather than binary", () => {

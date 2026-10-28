@@ -39,4 +39,8 @@ describe("runningChainPayloads", () => {
       runningChainPayloads([{ name: "HyperHEN.elf" }, { name: "hyperhen_elfldr.elf" }]).size,
     ).toBe(0);
   });
+
+  it("counts the embedded build under the name HyperHEN's docs give it", () => {
+    expect([...runningChainPayloads([{ name: "hyperhen_automount.elf" }])]).toEqual(["shadowmount"]);
+  });
 });

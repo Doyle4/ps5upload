@@ -37,7 +37,7 @@ describe("source pickers reach saved servers", () => {
     "screens/Logs/AppLogsPanel.tsx",
     "screens/Activity/StatsPanel.tsx",
     "screens/Saves/index.tsx",
-    "screens/LocalImage/index.tsx",
+    "screens/LocalImage/LocalDrives.tsx",
     "screens/Upload/FfpkgInspectorPanel.tsx",
   ])("%s keeps local pickers", (file) => {
     expect(remoteButtons(src(file))).toBe(0);

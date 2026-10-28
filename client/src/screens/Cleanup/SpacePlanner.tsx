@@ -505,7 +505,7 @@ export function SpacePlanner({
     if (!r) return;
     if (r.kind === "pkg") {
       void pkgLibraryStore(host).getState().install(r.path, host);
-      navigate("/install-package");
+      navigate("/send");
     } else navigate(r.to);
   }
 

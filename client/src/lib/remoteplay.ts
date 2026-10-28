@@ -11,7 +11,7 @@
  * are that uint64. Reading the base64 high byte first gave pxplay a
  * different account's number, and it answered 403.
  *
- * No BigInt (it breaks the bundle on old WebViews — see Profile/index.tsx)
+ * No BigInt (it breaks the bundle on old WebViews — see Accounts/index.tsx)
  * and no Number (it rounds above 2^53): every conversion is on digit strings.
  */
 

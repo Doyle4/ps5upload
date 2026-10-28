@@ -16,11 +16,11 @@ const shim = read("../../lib/browserInvoke.ts");
 
 describe("Payloads in the browser build", () => {
   it("keeps every tab on the desktop", () => {
-    expect(payloadTabsFor(true)).toEqual(["catalog", "send", "ps5", "processes", "ports"]);
+    expect(payloadTabsFor(true)).toEqual(["catalog", "send", "ps5", "running"]);
   });
 
-  it("offers browser payload sending alongside On your PS5, Processes and Ports", () => {
-    expect(payloadTabsFor(false)).toEqual(["send", "ps5", "processes", "ports"]);
+  it("offers browser payload sending alongside On your PS5 and Running", () => {
+    expect(payloadTabsFor(false)).toEqual(["send", "ps5", "running"]);
   });
 
   it("opens on On your PS5 once a console is connected", () => {
@@ -55,8 +55,13 @@ describe("old Payloads links", () => {
     expect(legacyPayloadsTarget("nanodns")).toBe("/payloads?tab=ps5&open=nanodns");
   });
 
+  it("open Running for the old Processes and Ports tabs", () => {
+    expect(legacyPayloadsTarget("processes")).toBe("/payloads?tab=running");
+    expect(legacyPayloadsTarget("ports")).toBe("/payloads?tab=running");
+  });
+
   it("leave current tabs alone", () => {
-    for (const t of [null, "catalog", "send", "ps5", "processes", "ports", "nonsense"]) {
+    for (const t of [null, "catalog", "send", "ps5", "running", "nonsense"]) {
       expect(legacyPayloadsTarget(t)).toBeNull();
     }
   });
@@ -73,8 +78,8 @@ describe("old Payloads links", () => {
     ]) {
       expect(app, from).toContain(`path="${from}" element={<Navigate to={payloadCardLink("${card}")} replace />}`);
     }
-    expect(app).toContain(`path="/payloads/ports" element={<Navigate to="/payloads?tab=ports" replace />}`);
-    expect(app).toContain(`path="/ports" element={<Navigate to="/payloads?tab=ports" replace />}`);
+    expect(app).toContain(`path="/payloads/ports" element={<Navigate to={RUNNING_LINK} replace />}`);
+    expect(app).toContain(`path="/ports" element={<Navigate to={RUNNING_LINK} replace />}`);
     expect(payloadCardLink("payload-manager")).toBe("/payloads?tab=ps5&open=payload-manager");
   });
 });

@@ -206,16 +206,16 @@ describe("slowTransferHint", () => {
     bandwidthCapMbps: 0,
   };
 
-  it("needs the engine to blame the network, for half a minute, with no speed limit", () => {
-    expect(slowTransferHint(base)).toEqual({ expectedBps: null });
-    expect(slowTransferHint({ ...base, bottleneck: "disk" })).toBeNull();
+  it("needs a measured cause, for half a minute", () => {
+    expect(slowTransferHint(base)).toEqual({ cause: "network", expectedBps: null });
     expect(slowTransferHint({ ...base, bottleneck: null })).toBeNull();
     expect(slowTransferHint({ ...base, sustainedMs: 10_000 })).toBeNull();
-    expect(slowTransferHint({ ...base, bandwidthCapMbps: 5 })).toBeNull();
+    expect(slowTransferHint({ ...base, bytesPerSec: 0 })).toBeNull();
   });
 
   it("compares with the speed test when there is one, and stays quiet near it", () => {
     expect(slowTransferHint({ ...base, speedTestUploadBps: 100 * MIB })).toEqual({
+      cause: "network",
       expectedBps: 100 * MIB,
     });
     expect(
@@ -224,4 +224,33 @@ describe("slowTransferHint", () => {
     // Without a test, only below what even a 100 Mb/s link carries.
     expect(slowTransferHint({ ...base, bytesPerSec: 20 * MIB })).toBeNull();
   });
+
+  // The Discord report: a gigabit speed test (82.8 MiB/s) and uploads at 4-5 MiB/s. When the
+  // network is not the limit, the hint names what is.
+  it("names the source, the console's drive or its workers when they hold it back", () => {
+    const slow = { ...base, bytesPerSec: 4.5 * MIB, speedTestUploadBps: 82.8 * MIB };
+    for (const cause of ["source", "disk", "workers"] as const) {
+      expect(slowTransferHint({ ...slow, bottleneck: cause })).toEqual({
+        cause,
+        expectedBps: 82.8 * MIB,
+      });
+    }
+    expect(slowTransferHint({ ...slow, bytesPerSec: 60 * MIB, bottleneck: "source" })).toBeNull();
+    // A full receive window alone does not say what to change.
+    expect(slowTransferHint({ ...slow, bottleneck: "memory" })).toBeNull();
+  });
+
+  it("blames a speed limit only when the upload runs at it and the link could do more", () => {
+    const capped = { ...base, bottleneck: null, bandwidthCapMbps: 5 };
+    expect(slowTransferHint({ ...capped, bytesPerSec: 5 * MIB, speedTestUploadBps: 80 * MIB })).toEqual({
+      cause: "cap",
+      expectedBps: 80 * MIB,
+    });
+    expect(slowTransferHint({ ...capped, bytesPerSec: 5 * MIB })).toEqual({ cause: "cap", expectedBps: null });
+    // Well under the limit: something else holds it back, which a limit does not explain.
+    expect(slowTransferHint({ ...capped, bytesPerSec: 1 * MIB, speedTestUploadBps: 80 * MIB })).toBeNull();
+    // The link itself is no faster than the limit.
+    expect(slowTransferHint({ ...capped, bytesPerSec: 5 * MIB, speedTestUploadBps: 6 * MIB })).toBeNull();
+  });
 });
+

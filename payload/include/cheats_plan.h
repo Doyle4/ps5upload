@@ -14,6 +14,8 @@
 
 #define CHEAT_PLAN_MAX_BYTES 256
 #define CHEAT_PLAN_MAX_LOCS  32  /* MAX_MEM_ENTRIES in cheats.c */
+/* An XML game patch (game_patch.h) can have hundreds of lines, each one location or more. */
+#define CHEAT_PLAN_MAX_APPLY 8192
 
 /* One location of a cheat, with the bytes read from the game before anything is written. */
 typedef struct {

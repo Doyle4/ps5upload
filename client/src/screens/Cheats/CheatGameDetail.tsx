@@ -33,6 +33,7 @@ import { useToast } from "../../state/toasts";
 function sourceName(repoId: string): string {
   if (repoId === "etahen") return "etaHEN";
   if (repoId === "henmix") return "HENmix";
+  if (repoId === "psgamepatch") return "PS-Game-Patch";
   return repoId;
 }
 
@@ -307,6 +308,11 @@ export function CheatGameDetail({
                     label={m.name || `Cheat #${m.index}`}
                     hint={m.desc || undefined}
                   />
+                  {m.other_version && (
+                    <span className="shrink-0 rounded-full bg-[var(--color-surface-2)] px-2 py-0.5 text-[11px] text-[var(--color-muted)]">
+                      {tr("cheats_other_version", undefined, "Other game version")}
+                    </span>
+                  )}
                   {toggling === m.index && <Spinner size={14} />}
                 </li>
               ))}

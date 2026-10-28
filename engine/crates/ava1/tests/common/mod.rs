@@ -20,6 +20,18 @@ pub fn fast() -> Timing {
     }
 }
 
+/// For tests of what a transfer does, not of how fast a dead peer is noticed: fast pings, but a
+/// dead-after and handshake an instrumented (coverage) build on a loaded CI runner cannot miss.
+/// fast()'s 500 ms ended healthy uploads there with "the session ended" (data_rust, 8.7.0's CI).
+#[allow(dead_code)]
+pub fn transfer() -> Timing {
+    Timing {
+        dead_after: Duration::from_secs(5),
+        handshake: Duration::from_secs(5),
+        ..fast()
+    }
+}
+
 pub fn node_info_rpc(name: &'static str) -> RpcHandler {
     Box::new(move |method, _| {
         if method == gen::METHOD_NODE_INFO {

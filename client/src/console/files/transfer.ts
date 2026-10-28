@@ -10,6 +10,7 @@
  * itself there is nothing to pick files from and nowhere to save them.
  */
 import { ApiError, call, callRaw, sendWithProgress } from "../api";
+import { isPs5Browser } from "../backHistory";
 import { onConsoleBrowser } from "../ui/PhoneHandoff";
 import { joinPath } from "./move";
 
@@ -25,26 +26,22 @@ export interface FileStamp {
 }
 
 /**
- * Is the page open on another device (a phone or PC over the LAN), not the console's own browser? The
- * console's browser can open the page by its LAN address too: `consoleAddr` (/api/settings "addr")
- * counts as the console. Unknown (null) is not another device: nothing is offered until it is known.
+ * Is the page open on another device (a phone or PC over the LAN), not the console's own browser?
+ * `host` is location.hostname: the address the page was opened BY, which on a phone is the
+ * console's own LAN address, so it cannot tell the two apart (it used to be compared with that
+ * address, and Upload never showed on a phone). The console's browser is told by its user agent
+ * ("PlayStation") or by opening the page at 127.0.0.1 (the home-screen tile).
  */
 export function onOtherDevice(
-  consoleAddr: string | null,
   host: string = typeof location !== "undefined" ? location.hostname : "",
+  ua: string = typeof navigator !== "undefined" ? navigator.userAgent : "",
 ): boolean {
-  if (consoleAddr == null) return false;
-  return host !== "" && !onConsoleBrowser(host) && host !== consoleAddr;
+  return host !== "" && !onConsoleBrowser(host) && !isPs5Browser(ua);
 }
 
-/** onOtherDevice for this page: reads the console's LAN address once (false until it answers). */
-export async function loadOnOtherDevice(): Promise<boolean> {
-  try {
-    const s = await call<{ addr?: unknown }>("/api/settings");
-    return onOtherDevice(typeof s?.addr === "string" ? s.addr : "");
-  } catch {
-    return false;
-  }
+/** onOtherDevice for this page (a promise, as Files has always read it). */
+export function loadOnOtherDevice(): Promise<boolean> {
+  return Promise.resolve(onOtherDevice());
 }
 
 /** The bytes a save writes: the editor's text (a file that used CRLF keeps CRLF), or why it cannot be saved. */

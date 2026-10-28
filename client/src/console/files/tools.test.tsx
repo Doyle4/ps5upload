@@ -12,6 +12,7 @@ import { ApiError } from "../api";
 import type { Volume } from "../home/Home";
 import { t } from "../strings";
 import { FilesView, type FilesViewProps } from "./Files";
+import { PhoneUploadDialog } from "./UploadDialog";
 import { SearchDialog, SearchView, indexText, resultsText } from "./search/SearchDialog";
 import { INITIAL_SEARCH, type SearchState } from "./search/search";
 import type { DirState, Entry } from "./useDir";
@@ -69,6 +70,26 @@ function props(over: Partial<FilesViewProps> = {}): FilesViewProps {
     ...over,
   };
 }
+
+describe("uploading from a phone", () => {
+  it("a phone or PC gets Upload here; the console's own browser gets Upload from a phone instead", () => {
+    const remote = renderToStaticMarkup(<>{FilesView(props({ remote: true }))}</>);
+    expect(remote).toContain('data-action="upload"');
+    expect(remote).not.toContain('data-action="phone-upload"');
+    const tv = renderToStaticMarkup(<>{FilesView(props())}</>);
+    expect(tv).toContain('data-action="phone-upload"');
+    expect(tv).not.toContain('data-action="upload"');
+  });
+
+  it("Upload from a phone shows how: the folder and, with LAN access off, Settings one press away", () => {
+    const onOpenSettings = vi.fn();
+    const d = find(FilesView(props({ ask: { kind: "phoneupload" }, onOpenSettings })), PhoneUploadDialog);
+    expect(d.props.dir).toBe("/data/games/Astro");
+    expect(d.props.onOpenSettings).toBe(onOpenSettings);
+    const html = renderToStaticMarkup(<PhoneUploadDialog dir="/data/games/Astro" onOpenSettings={onOpenSettings} onClose={vi.fn()} />);
+    expect(html).toContain(t("cw_files_up_phone"));
+  });
+});
 
 describe("search page", () => {
   it("is a Files tool: the toolbar button, and the dialog for the folder shown", () => {

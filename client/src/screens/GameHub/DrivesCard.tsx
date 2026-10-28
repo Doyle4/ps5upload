@@ -104,9 +104,9 @@ export function DrivesCard({
                 })
               }
               title={tr(
-                "collection.convert_hint",
+                "collection.convert_hint_v2",
                 undefined,
-                "Open it in Convert: make an installable package, or a different game image.",
+                "Open it in Workshop: make an installable package, or a different game image.",
               )}
             >
               {tr("collection.convert", undefined, "Convert…")}

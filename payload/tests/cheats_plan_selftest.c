@@ -327,7 +327,42 @@ static void test_apply_mock(void) {
     CHECK(all_in_state(&m, locs + 1, N_SYN - 1, 0));
 }
 
+/* An XML game patch (#527) is one "cheat" with hundreds of locations: past the 32 the JSON/SHN
+ * formats hold, still all or nothing, and a failure late in the run puts every earlier one back. */
+static void test_apply_many(void) {
+    static mock_t m;
+    enum { N = 300 };
+    static cheat_loc_t locs[N];
+    cheat_mem_ops_t ops = {&m, mock_write, mock_alive};
+    char err[256];
+    memset(&m, 0, sizeof m);
+    memset(m.mem, 0x90, sizeof m.mem);
+    memset(locs, 0, sizeof locs);
+    for (int i = 0; i < N; i++) {
+        locs[i].addr = MOCK_BASE + 0x10 * i;
+        locs[i].len = 4;
+        memset(locs[i].on, 0xA0 + (i & 0xF), 4);
+        memset(locs[i].off, 0x90, 4);
+    }
+    mock_read_cur(&m, locs, N);
+    CHECK(cheat_plan_apply(locs, N, 1, NULL, 0, &ops, err, sizeof err) == 0);
+    CHECK(all_in_state(&m, locs, N, 1));
+    mock_read_cur(&m, locs, N);
+    CHECK(cheat_plan_apply(locs, N, 0, NULL, 0, &ops, err, sizeof err) == 0);
+    CHECK(all_in_state(&m, locs, N, 0));
+
+    m.calls = 0;
+    m.fail_call = 250;
+    mock_read_cur(&m, locs, N);
+    CHECK(cheat_plan_apply(locs, N, 1, NULL, 0, &ops, err, sizeof err) == -1);
+    CHECK(all_in_state(&m, locs, N, 0));
+    CHECK(strstr(err, "left as it was") != NULL);
+    m.fail_call = 0;
+    CHECK(cheat_plan_apply(locs, CHEAT_PLAN_MAX_APPLY + 1, 1, NULL, 0, &ops, err, sizeof err) == -1);
+}
+
 int main(void) {
+    test_apply_many();
     test_parse();
     test_state();
     test_order_max_resources();

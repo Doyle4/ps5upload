@@ -70,6 +70,7 @@ mod image_build;
 mod inspect;
 mod install;
 mod link;
+mod link_lz4;
 mod local_fs;
 mod log_dedup;
 mod mesh_api;
@@ -2053,6 +2054,9 @@ struct LinkDownloadReq {
     insecure_tls: bool,
     #[serde(default)]
     bandwidth_cap_mbps: Option<f64>,
+    /// An `.lz4` link is unpacked on the way (the default); false keeps the `.lz4` as it is.
+    #[serde(default = "default_true")]
+    unpack: bool,
 }
 
 /// `/api/rar/packages` request. Desktop-only, same gate as the handler.
@@ -7471,6 +7475,17 @@ struct ProfileLocalUsernameReq {
     name: String,
 }
 
+/// The PSN sign-in backup routes: the account slot np-fake-signin matches the user to, and the
+/// user (0 or absent = the foreground user).
+#[derive(Deserialize)]
+struct ProfileNpReq {
+    addr: Option<String>,
+    #[serde(default)]
+    slot: i32,
+    #[serde(default)]
+    uid: u32,
+}
+
 #[derive(Deserialize)]
 struct ProfileActivateReq {
     addr: Option<String>,
@@ -7688,6 +7703,70 @@ async fn profile_activate_handler(
         Ok(id) => (
             StatusCode::OK,
             Json(serde_json::json!({ "ok": true, "id": id })),
+        )
+            .into_response(),
+        Err(e) => json_err(StatusCode::BAD_GATEWAY, format!("{e:#}")).into_response(),
+    }
+}
+
+/// POST /api/profile/np/state — the user's sign-in state and whether a backup is kept.
+async fn profile_np_state_handler(Json(req): Json<ProfileNpReq>) -> impl IntoResponse {
+    let Some(addr) = required_console_addr(req.addr) else {
+        return missing_console_addr();
+    };
+    let (slot, uid) = (req.slot, req.uid);
+    let r = tokio::task::spawn_blocking(move || {
+        ps5upload_core::profile::profile_np_state(&addr, slot, uid)
+    })
+    .await
+    .map_err(anyhow::Error::from)
+    .and_then(|r| r);
+    match r {
+        Ok(v) => (StatusCode::OK, Json(v)).into_response(),
+        Err(e) => json_err(StatusCode::BAD_GATEWAY, format!("{e:#}")).into_response(),
+    }
+}
+
+/// POST /api/profile/np/backup — keep what np-fake-signin overwrites, before it runs.
+async fn profile_np_backup_handler(Json(req): Json<ProfileNpReq>) -> impl IntoResponse {
+    let Some(addr) = required_console_addr(req.addr) else {
+        return missing_console_addr();
+    };
+    let (slot, uid) = (req.slot, req.uid);
+    crate::log_info!("profile_np_backup: addr={addr} slot={slot} uid={uid}");
+    let r = tokio::task::spawn_blocking(move || {
+        ps5upload_core::profile::profile_np_backup(&addr, slot, uid)
+    })
+    .await
+    .map_err(anyhow::Error::from)
+    .and_then(|r| r);
+    match r {
+        Ok(created) => (
+            StatusCode::OK,
+            Json(serde_json::json!({ "ok": true, "created": created })),
+        )
+            .into_response(),
+        Err(e) => json_err(StatusCode::BAD_GATEWAY, format!("{e:#}")).into_response(),
+    }
+}
+
+/// POST /api/profile/np/restore — put the kept sign-in state back (undo np-fake-signin).
+async fn profile_np_restore_handler(Json(req): Json<ProfileNpReq>) -> impl IntoResponse {
+    let Some(addr) = required_console_addr(req.addr) else {
+        return missing_console_addr();
+    };
+    let uid = req.uid;
+    crate::log_info!("profile_np_restore: addr={addr} uid={uid}");
+    let r = tokio::task::spawn_blocking(move || {
+        ps5upload_core::profile::profile_np_restore(&addr, uid)
+    })
+    .await
+    .map_err(anyhow::Error::from)
+    .and_then(|r| r);
+    match r {
+        Ok(written) => (
+            StatusCode::OK,
+            Json(serde_json::json!({ "ok": true, "written": written })),
         )
             .into_response(),
         Err(e) => json_err(StatusCode::BAD_GATEWAY, format!("{e:#}")).into_response(),
@@ -9183,12 +9262,31 @@ async fn link_download_handler(
         )
         .into_response();
     }
+    // An .lz4 link is unpacked on the way: the console gets the image, not the .lz4.
+    let lz4 = class.lz4.clone().filter(|_| req.unpack);
+    let packed = total;
+    let (default_name, total) = match &lz4 {
+        Some(info) => match (info.unpacked_size, &info.unsupported) {
+            (Some(n), None) if n > 0 => (info.unpacked_name.clone(), n),
+            (_, why) => {
+                return (
+                    StatusCode::UNPROCESSABLE_ENTITY,
+                    Json(serde_json::json!({
+                        "error": why.clone().unwrap_or_else(|| "this .lz4 cannot be unpacked on the way".into()),
+                        "reason": "lz4_not_streamable",
+                    })),
+                )
+                    .into_response();
+            }
+        },
+        None => (class.filename.clone(), total),
+    };
     let name = req
         .file_name
         .as_deref()
         .map(link::sanitize_name)
         .filter(|n| !n.is_empty())
-        .unwrap_or_else(|| class.filename.clone());
+        .unwrap_or(default_name);
     let dest_path = format!("{dest_dir}/{name}");
 
     let job_id = Uuid::new_v4();
@@ -9202,7 +9300,12 @@ async fn link_download_handler(
         .and_then(|u| u.host().map(str::to_string))
         .unwrap_or_default();
     crate::log_info!(
-        "link_download: job={job_id} addr={addr} host={host} dest={dest_path} bytes={total}"
+        "link_download: job={job_id} addr={addr} host={host} dest={dest_path} bytes={total}{}",
+        if lz4.is_some() {
+            format!(" lz4_packed={packed}")
+        } else {
+            String::new()
+        }
     );
     let progress = Arc::new(AtomicU64::new(0));
     let progress_files = Arc::new(AtomicU64::new(0));
@@ -9271,9 +9374,25 @@ async fn link_download_handler(
         cfg.progress_live = Some(live_notes_for(job_id));
         apply_per_request_bandwidth(&mut cfg, req.bandwidth_cap_mbps);
         let remote = Arc::new(crate::remote_pkg::RemoteSource::new_with_options(
-            url, total, insecure,
+            url, packed, insecure,
         ));
-        let source = Arc::new(link::LinkSource::new(remote, name.clone(), total));
+        // A plain file is read at any offset (resume continues where the console stopped); an
+        // .lz4 is decoded forward on one thread and its decoded bytes are what is sent.
+        let (source, seq): (
+            Arc<dyn ava1::source::Source>,
+            Option<Arc<dyn ava1::seq::SeqSource>>,
+        ) = if lz4.is_some() {
+            let s = Arc::new(
+                link_lz4::Lz4LinkSource::new(remote, packed, name.clone(), total)
+                    .pad_short(lz4.as_ref().is_some_and(|i| i.size_from_image)),
+            );
+            (s.clone(), Some(s))
+        } else {
+            (
+                Arc::new(link::LinkSource::new(remote, name.clone(), total)),
+                None,
+            )
+        };
         let result = ava1::manifest::single(source.as_ref(), &name)
             .map_err(anyhow::Error::from)
             .and_then(|manifest| {
@@ -9290,6 +9409,7 @@ async fn link_download_handler(
                 loop {
                     let mut opts = ava1::send::SendOptions::upload(&dest_path);
                     opts.flags = ava1::gen::JF_SINGLE_FILE;
+                    opts.seq = seq.clone();
                     let r = ps5upload_ava1::upload::upload_with(
                         &cfg.addr,
                         tx_id,
@@ -11114,6 +11234,10 @@ async fn run(cfg: EngineConfig) -> anyhow::Result<()> {
         .route("/api/ps5/pldmgr/delete", post(pldmgr_api::delete))
         .route("/api/ps5/pldmgr/autoload", post(pldmgr_api::autoload))
         .route("/api/ps5/pldmgr/store", post(pldmgr_api::store))
+        .route(
+            "/api/ps5/pldmgr/upload",
+            post(pldmgr_api::upload).layer(axum::extract::DefaultBodyLimit::max(128 * 1024 * 1024)),
+        )
         .merge(hearbridge_api::routes())
         .route("/api/ps5/elfldr/ensure", post(ps5_elfldr_ensure))
         .route("/api/ps5/process/kill", post(ps5_process_kill))
@@ -11293,6 +11417,9 @@ async fn run(cfg: EngineConfig) -> anyhow::Result<()> {
             post(profile_local_username_handler),
         )
         .route("/api/profile/activate", post(profile_activate_handler))
+        .route("/api/profile/np/state", post(profile_np_state_handler))
+        .route("/api/profile/np/backup", post(profile_np_backup_handler))
+        .route("/api/profile/np/restore", post(profile_np_restore_handler))
         .route(
             "/api/profile/avatar",
             post(profile_avatar_handler)

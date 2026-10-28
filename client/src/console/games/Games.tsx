@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
+  ArchiveRestore,
   ArrowDownAZ,
   Clock,
   Eye,
@@ -102,6 +103,8 @@ function lastPlayedText(ms: number | null): string {
 /* ---- view ---- */
 
 export interface GamesViewProps {
+  /** Games' Installed / On Drives & Shares switch, under the title. */
+  switcher?: ReactNode;
   data: Installed | null;
   loadError: string | null;
   query: string;
@@ -129,6 +132,8 @@ export interface GamesViewProps {
   onAsk: (a: GameAsk) => void;
   onConfirm: () => void;
   onDismiss: () => void;
+  /** Open the game's save backups (the Saves section); absent: no button. */
+  onSaves?: (g: Game) => void;
 }
 
 function Cover({ titleId, big }: { titleId: string; big?: boolean }) {
@@ -223,6 +228,12 @@ function GameSheet({ g, p }: { g: Game; p: GamesViewProps }) {
             >
               <Square aria-hidden />
               <span>{t("cw_home_close_game")}</span>
+            </button>
+          ) : null}
+          {p.onSaves ? (
+            <button type="button" className="cw-focusable cw-sheet-item" data-game-action="saves" onClick={() => p.onSaves?.(g)}>
+              <ArchiveRestore aria-hidden />
+              <span>{t("cw_games_saves")}</span>
             </button>
           ) : null}
           {g.hidden !== null ? (
@@ -324,6 +335,7 @@ export function GamesView(p: GamesViewProps) {
         {t("cw_games_title")}
         {p.data ? <span className="cw-tag">{p.data.games.length}</span> : null}
       </h1>
+      {p.switcher}
       <div className="cw-toolbar">
         <label className="cw-games-search">
           <Search aria-hidden />
@@ -439,7 +451,7 @@ export async function closeGame(
 }
 
 /** The Games section: the console's installed games, launched, closed, hidden or uninstalled from the controller. */
-export function Games({ ctx }: { ctx: SectionContext }) {
+export function Games({ ctx, switcher }: { ctx: SectionContext; switcher?: ReactNode }) {
   const [data, setData] = useState<Installed | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
@@ -642,6 +654,7 @@ export function Games({ ctx }: { ctx: SectionContext }) {
         ask={ask}
         busy={busy}
         askError={askError}
+        switcher={switcher}
         onQuery={setQuery}
         onSort={() => setSort((s) => (s === "recent" ? "name" : "recent"))}
         onShow={() => setShow((s) => (s === "all" ? "hidden" : "all"))}
@@ -658,6 +671,7 @@ export function Games({ ctx }: { ctx: SectionContext }) {
           setAsk(a);
         }}
         onConfirm={() => void onConfirm()}
+        onSaves={ctx.canOpen("saves") ? (g) => ctx.openSection("saves", { title: g.titleId }) : undefined}
         onDismiss={() => {
           if (!busy) {
             setAsk(null);

@@ -326,11 +326,17 @@ export function diagnose(input: DoctorInput): Finding[] {
   return rankFindings(all.filter((f): f is Finding => f !== null));
 }
 
-/** What a running upload must look like before the Upload screen suggests the doctor:
- *  the engine says the network holds it back, it has been so for half a minute, no speed
- *  limit is set, and it runs well below what the speed test measured (or, with no test,
- *  below what even a 100 Mb/s link carries). Conservative on purpose: it must never nag. */
+/** What a running upload must look like before the Upload screen explains why it is slow:
+ *  the engine names what holds it back, it has been so for half a minute, and it runs well
+ *  below what the speed test measured (or, with no test, below what even a 100 Mb/s link
+ *  carries). The network is one cause; the source on this computer, the console's drive and
+ *  its file-creating workers are the others, and the speed test says nothing about those —
+ *  a Discord report had a gigabit speed test at 82.8 MiB/s and uploads at 4–5 MiB/s, and the
+ *  app only said so when the network was the limit. A speed limit the user set is a cause of
+ *  its own. Conservative on purpose: it must never nag. */
 export const HINT_AFTER_MS = 30_000;
+
+export type SlowCause = Exclude<BottleneckCause, "memory"> | "cap";
 
 export function slowTransferHint(input: {
   bytesPerSec: number;
@@ -339,15 +345,25 @@ export function slowTransferHint(input: {
   sustainedMs: number;
   speedTestUploadBps: number | null;
   bandwidthCapMbps: number;
-}): { expectedBps: number | null } | null {
-  if (input.bandwidthCapMbps > 0) return null;
-  if (input.bottleneck !== "network") return null;
+}): { cause: SlowCause; expectedBps: number | null } | null {
   if (!(input.bytesPerSec > 0) || input.sustainedMs < HINT_AFTER_MS) return null;
-  const tested = input.speedTestUploadBps;
-  if (tested && tested > 0) {
-    return input.bytesPerSec < tested * 0.4 ? { expectedBps: tested } : null;
+  const tested = input.speedTestUploadBps && input.speedTestUploadBps > 0 ? input.speedTestUploadBps : null;
+  if (input.bandwidthCapMbps > 0) {
+    // The limit is in MiB/s despite the setting's name (the Upload card and Settings say
+    // "about {n} MiB/s"), so compare loosely: running at it, while the link could do clearly
+    // more, means the limit is what holds it back.
+    const capBps = input.bandwidthCapMbps * MIB;
+    const atCap = input.bytesPerSec >= capBps * 0.7 && input.bytesPerSec <= capBps * 1.3;
+    const linkFaster = tested === null || tested > capBps * 1.5;
+    return atCap && linkFaster ? { cause: "cap", expectedBps: tested } : null;
   }
-  return input.bytesPerSec < linkBps(100) ? { expectedBps: null } : null;
+  // "console memory" is AVA1's full receive window, which on its own says too little (a slow
+  // link fills it too) to tell anyone what to change.
+  if (!input.bottleneck || input.bottleneck === "memory") return null;
+  if (tested) {
+    return input.bytesPerSec < tested * 0.4 ? { cause: input.bottleneck, expectedBps: tested } : null;
+  }
+  return input.bytesPerSec < linkBps(100) ? { cause: input.bottleneck, expectedBps: null } : null;
 }
 
 /** Whether a running upload meets the hint's condition right now (before the time test). */

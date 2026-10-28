@@ -4,6 +4,132 @@ What's new in ps5upload, written for humans.
 
 ---
 
+## 8.8.0
+
+- **XML game patches, without CheatRunner (#527).** Cheats now also takes game patches in the
+  PS-Game-Patch `.xml` format (the one GoldHEN, etaHEN and CheatRunner read): 60 fps unlocks,
+  resolution and debug-menu patches and the like.
+  - Find them in the cheat browser under **PS-Game-Patch**: the latest release of the repo, one
+    file per game. They download to `/data/ps5upload/cheats/xml/`, or import your own
+    `<TITLE ID>.xml` with Import.
+  - Patches you already have for other tools show up too, from `/data/cheatrunner/patches/xml`
+    and `xml_prospero`, `/data/elf-arsenal/patches/xml` and `/data/GoldHEN/patches/xml`. The app
+    only reads those folders; removing a game's cheats never deletes from them.
+  - Each patch in a file is its own switch, off until you turn it on, and turned back on when
+    the game starts again. A patch only goes on for the game version and executable it was
+    made for; one for another version is marked and refused. Pattern-scan (`mask`) patches
+    and `mask_jump32` detours are supported. As with cheats, a patch is written whole or not
+    at all, and only into the game's own code.
+- **Minion: back up saves to a USB drive (#528).** With a USB drive plugged in, Saves offers
+  **Backups on: Internal drive / USB drive**. Backups, the list of them, Restore and Delete
+  follow the place you pick, so a stick can carry backups off the console and back; you still
+  pick which backup to restore. The save a restore replaces is always kept on the internal
+  drive.
+- **Tests:** the AVA1 transfer tests no longer fail now and then on a loaded CI runner
+  (their 500 ms timeouts were meant for the dead-connection tests only).
+- **Tests:** the browser tests follow 8.7.0's new screen names (Activity & Logs, Send to PS5,
+  Workshop); four of them were waiting on the old ones.
+
+## 8.7.0
+
+- **A simpler sidebar: 25 screens became 21, and every feature is still there.** Screens that
+  did overlapping jobs are now one screen each, named by what you do there. Old links,
+  bookmarks, pinned screens and hidden screens carry over by themselves.
+  - **Send to PS5** replaces Upload and Install Package. Drop or pick anything (a game folder,
+    an image, an archive, a package, any file) and the app works out what to do with it,
+    a package's Stream & install included. Below are install from a link or an archive, the
+    queue, and the packages already on the PS5 (USB drives and copies put there before, with
+    Install all).
+  - **Workshop** replaces Convert Games and Game images. Pick a game once; then convert it, or
+    use **Look Inside** to browse an image or package and write an edited copy, or (macOS and
+    Linux) **Open as a Drive**.
+  - **Shared Folders** replaces Network shares and Mesh Drive: your NAS and servers, the shares
+    the PS5 uses, and your Mesh Drives on one page.
+  - **Accounts** replaces Profile and Remote Play: users, account IDs and avatars, then Remote
+    Play's checklist, the sign-in step and the pairing PIN in the order they are done.
+  - **Payloads** (was Payloads & processes): Processes and Ports are one **Running** tab.
+- **Games opens on one list of every game.** **All** shows each game once, wherever its copies
+  are (installed, on the PS5's drives, on this computer), and opens its game page. The other
+  views are named by place: **Installed**, **On PS5 Storage**, **On This Computer**.
+- **Minion: Games and Library are one Games entry,** with an Installed / On Drives & Shares
+  switch.
+- **Home:** Upload and Install PKG are one **Send to PS5** tile; the freed tile sends a payload.
+- Screen names are Title Case in English (Save Data, Clean Up, Activity & Logs, Bug Report).
+
+## 8.6.1
+
+- **Undo sign-in covers every account slot used.** The copy kept before np-fake-signin now
+  also takes a later slot's settings, untouched, when the account moved to another slot since
+  the first copy; Undo puts those back too.
+- **Restoring a save gives back exactly the save backed up.** A save-details folder that was
+  not there at backup time is emptied on restore instead of mixing newer details with the older
+  save (the automatic safety backup keeps them).
+- **A save's own icon shows for games no longer installed** in Minion's Saves.
+- **Download to PS5 from an .lz4 link:** an image that ends before the size its header gives
+  is filled out instead of failing after the whole download, and a stream in several parts
+  announces the image's full size.
+- **"Unpack on the way" switches the folder back and forth again** once the PS5's drives are
+  known.
+
+## 8.6.0
+
+- **Minion's Library: one card per game, and a full-screen page for each (#526).** Copies,
+  updates, DLC and backports of the same game found on your drives and shares now sit on one
+  card with a sharper cover, an Installed mark and Update / DLC / Backport badges. ✕ opens a
+  full-screen page with the size, the firmware the game needs next to this PS5's (with a warning
+  when it needs a newer one), the SDK it was built with, its formats and where each part was
+  found, and Install / Copy to the PS5 / Add to home screen / Show in Files for every part.
+  ○ goes back. Disk images are named after their file and use the installed game's icon.
+- **Back up and restore a game's save on the console.** Minion has a new **Saves** section:
+  pick a user and a game, then **Back up now** (named by date and time; keep as many as you
+  like), **Restore** or **Delete**. Restore asks first, refuses while the game is running
+  (with a Close game button), backs up the current save as "Before a restore", and puts back
+  the system's own file permissions. Backups stay on the PS5 under
+  `/data/ps5upload/save-backups/`. Handy before a game's point of no return.
+- **○ at Minion's Home leaves at the first press.** It used to need two presses once any
+  section had been opened. The Controls screen now shows ○ working too, and points to
+  Accessibility › Custom Button Assignments for anyone who wants ✕ and ○ swapped.
+- **Uploading from a phone into Minion's Files works again.** A phone never got the Upload
+  button; it does now. On the TV, Files has **Upload from a phone**, with a QR code and the
+  steps (and a shortcut to Settings when LAN access is off).
+- **Download to the PS5 from a link, unpacking `.lz4` on the way.** A link to a game image
+  compressed with the `lz4` tool (such as `Game.exfat.lz4`) is unpacked while it downloads, so
+  the PS5 receives the ready-to-mount image and nothing is stored on this computer; the PS5 only
+  needs room for the unpacked file. The link card shows both sizes, has an **Unpack on the way**
+  checkbox (off keeps the `.lz4` as it is) and puts images in the drive's `homebrew` folder
+  ShadowMount+ scans; the file only appears there once it is complete. A download that has to
+  start over downloads again but doesn't resend what the PS5 already has. Folder archives
+  (`.tar.lz4`) are refused with an explanation.
+- **Payload Manager: add payloads from this computer or the catalogue.** The Payload Manager
+  tab can store an `.elf`/`.bin` picked on this computer (in the web UI too) or a downloaded
+  catalogue payload, which it then offers to update. A payload you stored by hand whose name
+  matches a catalogue download gets **Replace with** the catalogue's release.
+- **Signing in from Profile can be undone, and says what it can do to the console.** The
+  np-fake-signin payload copies a template account's PlayStation Network settings (a 1983 birth
+  date, the offline-adult flag off) onto yours, and some consoles then ask to "Temporarily
+  Disable PS5 Console Restrictions" before every game. The helper now keeps a copy on the PS5 of
+  every setting and file np-fake-signin changes before it runs, and **Undo sign-in** on Profile
+  puts them back (restart afterwards). The confirmation names the side effect. An account signed in
+  before this version has no copy; Profile recognises it and says where Sony's console
+  restrictions are lifted.
+- **Connection says where Send payload went.** Sending kstuff, etaHEN or any other payload
+  moved to Payloads & processes → Send payload; Connection now shows a line and an **Open Send
+  payload** button for it, and the README/FAQ say Send helper where they meant the helper.
+- **HyperHEN's built-in ShadowMount+ is recognised more reliably.** Besides its process name, the
+  app now reads HyperHEN's own "automount ready" marker, so Mount for compressed images, Play
+  on disc-image titles and the setup wizard stop treating a working ShadowMount+ as missing.
+- **Check source opens several files at once when converting a game folder.** The step reads
+  the start of every file to find executables that need repair; on a big game on Windows that
+  took many minutes one file at a time. It now keeps several opens in flight and still shows
+  progress and honours Stop.
+- **Upload says when the file is a payload.** Picking an `.elf` now explains that uploading only
+  copies it (ShadowMount+ picks up game folders and images, never an `.elf`) and offers Send
+  payload, which runs it.
+- **A slow upload says what holds it back, not only when it is the network.** When an upload
+  runs far below the speed test for half a minute, Upload now names the cause the engine
+  measured: reading the source on this computer (USB/hard drive, NAS, archive unpacking), the
+  PS5's drive or its file writing (many small files), or the upload speed limit you set.
+
 ## 8.5.1
 
 - **Packages with Windows bookkeeping folders convert to game images again (#523, thanks

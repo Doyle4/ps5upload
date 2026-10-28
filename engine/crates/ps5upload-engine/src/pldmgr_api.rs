@@ -175,3 +175,81 @@ pub(crate) async fn store(
         Err(e) => bad(format!("{e}")),
     }
 }
+
+#[derive(Deserialize)]
+pub(crate) struct UploadParams {
+    host: String,
+    filename: String,
+    #[serde(default)]
+    confirmed: bool,
+}
+
+/// Payload Manager stores payloads by file name; only an ELF or a raw `.bin` payload.
+fn payload_file_ok(name: &str, bytes: &[u8]) -> Result<(), String> {
+    let lower = name.to_ascii_lowercase();
+    if !(lower.ends_with(".elf") || lower.ends_with(".bin")) {
+        return Err(format!(
+            "{name}: Payload Manager keeps .elf and .bin payloads"
+        ));
+    }
+    if lower.ends_with(".elf") && !bytes.starts_with(b"\x7fELF") {
+        return Err(format!("{name} is not an ELF file"));
+    }
+    if bytes.is_empty() {
+        return Err(format!("{name} is empty"));
+    }
+    Ok(())
+}
+
+/// POST /api/ps5/pldmgr/upload?host=&filename=&confirmed= with the payload as the raw body:
+/// [`store`] for a file the caller holds (a browser picking a local ELF has no path the engine
+/// can read). Same confirm rule: storing into an existing folder answers `needs_confirm` first.
+pub(crate) async fn upload(
+    State(_s): State<crate::AppState>,
+    Query(q): Query<UploadParams>,
+    body: axum::body::Bytes,
+) -> Response {
+    let h = host(&q.host);
+    crate::log_info!(
+        "pldmgr upload: host={h} filename={} bytes={} confirmed={}",
+        q.filename,
+        body.len(),
+        q.confirmed
+    );
+    if let Err(e) = payload_file_ok(&q.filename, &body) {
+        return crate::json_err(axum::http::StatusCode::BAD_REQUEST, e).into_response();
+    }
+    let r = tokio::task::spawn_blocking(move || -> Result<serde_json::Value, String> {
+        let check = pm::check(&h, &q.filename)?;
+        if check.folder_exists && !q.confirmed {
+            return Ok(serde_json::json!({
+                "ok": false,
+                "needs_confirm": true,
+                "folder": check.folder,
+                "file_exists": check.file_exists,
+            }));
+        }
+        pm::store(&h, &q.filename, &body)?;
+        Ok(serde_json::json!({ "ok": true, "folder": check.folder, "bytes": body.len() }))
+    })
+    .await;
+    match r {
+        Ok(Ok(v)) => Json(v).into_response(),
+        Ok(Err(e)) => bad(e),
+        Err(e) => bad(format!("{e}")),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::payload_file_ok;
+
+    #[test]
+    fn only_elf_and_bin_payloads_are_stored() {
+        assert!(payload_file_ok("a.elf", b"\x7fELF\x02").is_ok());
+        assert!(payload_file_ok("A.BIN", b"\x01\x02").is_ok());
+        assert!(payload_file_ok("a.elf", b"MZ").is_err());
+        assert!(payload_file_ok("a.txt", b"\x7fELF").is_err());
+        assert!(payload_file_ok("a.bin", b"").is_err());
+    }
+}

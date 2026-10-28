@@ -10,9 +10,9 @@ import {
   CheckCircle2,
   FolderTree,
   Gamepad2,
-  PackageOpen,
   PackagePlus,
   Power,
+  Rocket,
   Save,
   Upload,
   WifiOff,
@@ -181,16 +181,18 @@ export default function HomeScreen() {
               className="grid grid-cols-1 gap-3 @sm:grid-cols-2 @xl:grid-cols-3"
             >
               <ActionTile
-                to="/upload"
+                to="/send"
                 icon={Upload}
-                label={tr("v5_qa_upload", "Upload files")}
+                label={tr("send_title", undefined, "Send to PS5")}
                 readiness={readinessFor("upload")}
               />
               <ActionTile
-                to="/install-package"
-                icon={PackageOpen}
-                label={tr("v5_qa_install", "Install package")}
-                readiness={readinessFor("install-package")}
+                to="/payloads?tab=send"
+                icon={Rocket}
+                label={tr("v5_qa_send_payload", undefined, "Send Payload")}
+                // A payload goes to the console's loader, not the helper: it is often what
+                // gets the helper (or kstuff) running in the first place.
+                readiness={readinessFor("local-only")}
               />
               <ActionTile
                 to="/games"
@@ -211,9 +213,9 @@ export default function HomeScreen() {
                 readiness={readinessFor("browse-console")}
               />
               <ActionTile
-                to="/convert"
+                to="/workshop"
                 icon={PackagePlus}
-                label={tr("v5_qa_convert", "Convert")}
+                label={tr("workshop_title", undefined, "Workshop")}
                 readiness={readinessFor("local-only")}
               />
             </section>

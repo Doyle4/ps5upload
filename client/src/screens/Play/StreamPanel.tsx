@@ -253,7 +253,7 @@ export function StreamPanel() {
         {tr(
           "rp_no_webcodecs_body",
           undefined,
-          "Remote Play here decodes video with WebCodecs, which this browser does not have. Use the desktop app or a current Chrome, Edge or Safari.",
+          "Remote Play here decodes video with WebCodecs, which this browser does not have. Use a current Chrome, Edge or Safari, or the desktop app on Windows or macOS.",
         )}
       </Callout>
     );

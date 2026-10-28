@@ -12,3 +12,6 @@ c14782944de606395e43c21c55eec1c518e46a59:client/src/screens/Connection/WakeSetup
 26ba1fe054bbfb8f4423411e3c9001ee262422df:client/src/screens/Connection/WakeSetup.tsx:generic-api-key:20
 # Its made-up replacement (00112233…eeff)
 d2b76643760bd241d839d6e14168238e2fad50c6:client/src/screens/Connection/WakeSetup.tsx:generic-api-key:29
+# A Polish translation, "cw_saves_kind_meta": "szczegóły zapisu" (save details)
+32675e9b9c95013d3c7539e4ef1b73f9e79c0edd:client/src/console/locales/pl.json:generic-api-key:899
+32675e9b9c95013d3c7539e4ef1b73f9e79c0edd:client/src/i18n/locales/pl.ts:generic-api-key:5296

@@ -39,8 +39,64 @@ pub trait SourceTree: Send {
         &[]
     }
 
+    /// The first `len` bytes of each file in `paths`, in the same order. `progress` is told
+    /// how many are done now and then and returns `false` to stop, which ends in
+    /// [`Error::Cancelled`]. One after another by default; a folder reads several at once.
+    fn read_heads(
+        &mut self,
+        paths: &[String],
+        len: usize,
+        progress: &mut dyn FnMut(usize) -> bool,
+    ) -> Result<Vec<Vec<u8>>> {
+        let mut out = Vec::with_capacity(paths.len());
+        let mut last = std::time::Instant::now();
+        for (i, path) in paths.iter().enumerate() {
+            if last.elapsed() >= HEADS_REPORT_EVERY {
+                last = std::time::Instant::now();
+                if !progress(i) {
+                    return Err(Error::Cancelled);
+                }
+            }
+            out.push(self.read_range(path, 0, len)?);
+        }
+        Ok(out)
+    }
+
     /// One line for logs: what the source is and where it came from.
     fn describe(&self) -> String;
+}
+
+/// How often [`SourceTree::read_heads`] reports progress (and can be stopped).
+const HEADS_REPORT_EVERY: std::time::Duration = std::time::Duration::from_millis(250);
+
+/// How many files a folder opens at once in [`SourceTree::read_heads`]. Opening a file costs
+/// far more than reading its first bytes, most of all on Windows, where an antivirus scans
+/// each open: a 156 GiB game took ~14 minutes at Check source one file at a time. A handful
+/// of opens in flight hides that latency without flooding a hard disk or a network share.
+const FOLDER_HEAD_READERS: usize = 8;
+
+/// `len` bytes of `root/path` from `offset`, fewer at the end of the file. Reads until `len` or
+/// the end: a network or FUSE mount may answer short of either, and a short read is not the
+/// end of the file.
+fn read_folder_range(root: &Path, path: &str, offset: u64, len: usize) -> Result<Vec<u8>> {
+    use std::io::{Read, Seek, SeekFrom};
+    let io = |e: std::io::Error| Error::Io(std::io::Error::new(e.kind(), format!("{path}: {e}")));
+    let mut file = std::fs::File::open(root.join(path)).map_err(io)?;
+    if offset > 0 {
+        file.seek(SeekFrom::Start(offset)).map_err(io)?;
+    }
+    let mut buf = vec![0u8; len];
+    let mut filled = 0;
+    while filled < len {
+        match file.read(&mut buf[filled..]) {
+            Ok(0) => break,
+            Ok(n) => filled += n,
+            Err(e) if e.kind() == std::io::ErrorKind::Interrupted => {}
+            Err(e) => return Err(io(e)),
+        }
+    }
+    buf.truncate(filled);
+    Ok(buf)
 }
 
 /// A game folder on the filesystem.
@@ -76,25 +132,83 @@ impl SourceTree for FolderSource {
     }
 
     fn read_range(&mut self, path: &str, offset: u64, len: usize) -> Result<Vec<u8>> {
-        use std::io::{Read, Seek, SeekFrom};
-        let io =
-            |e: std::io::Error| Error::Io(std::io::Error::new(e.kind(), format!("{path}: {e}")));
-        let mut file = std::fs::File::open(self.root.join(path)).map_err(io)?;
-        file.seek(SeekFrom::Start(offset)).map_err(io)?;
-        // Read until `len` or the end: a network or FUSE mount may answer short of either,
-        // and a short read is not the end of the file.
-        let mut buf = vec![0u8; len];
-        let mut filled = 0;
-        while filled < len {
-            match file.read(&mut buf[filled..]) {
-                Ok(0) => break,
-                Ok(n) => filled += n,
-                Err(e) if e.kind() == std::io::ErrorKind::Interrupted => {}
-                Err(e) => return Err(io(e)),
+        read_folder_range(&self.root, path, offset, len)
+    }
+
+    fn read_heads(
+        &mut self,
+        paths: &[String],
+        len: usize,
+        progress: &mut dyn FnMut(usize) -> bool,
+    ) -> Result<Vec<Vec<u8>>> {
+        use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+        use std::sync::Mutex;
+        if paths.len() < 2 {
+            let mut out = Vec::with_capacity(paths.len());
+            for path in paths {
+                out.push(read_folder_range(&self.root, path, 0, len)?);
+            }
+            return Ok(out);
+        }
+        let next = AtomicUsize::new(0);
+        let done = AtomicUsize::new(0);
+        let stop = AtomicBool::new(false);
+        let results: Mutex<Vec<Option<Result<Vec<u8>>>>> =
+            Mutex::new((0..paths.len()).map(|_| None).collect());
+        let root = self.root.as_path();
+        let workers = FOLDER_HEAD_READERS.min(paths.len());
+        let cancelled = std::thread::scope(|scope| {
+            for _ in 0..workers {
+                scope.spawn(|| loop {
+                    if stop.load(Ordering::Relaxed) {
+                        break;
+                    }
+                    let i = next.fetch_add(1, Ordering::Relaxed);
+                    let Some(path) = paths.get(i) else { break };
+                    let head = read_folder_range(root, path, 0, len);
+                    let failed = head.is_err();
+                    if let Ok(mut r) = results.lock() {
+                        r[i] = Some(head);
+                    }
+                    done.fetch_add(1, Ordering::Relaxed);
+                    if failed {
+                        // The first error is what the build reports; the rest is wasted work.
+                        stop.store(true, Ordering::Relaxed);
+                        break;
+                    }
+                });
+            }
+            // This thread only reports, so a stop is seen within a tick.
+            loop {
+                let n = done.load(Ordering::Relaxed);
+                if n >= paths.len() || stop.load(Ordering::Relaxed) {
+                    return false;
+                }
+                std::thread::sleep(std::time::Duration::from_millis(50));
+                if !progress(done.load(Ordering::Relaxed)) {
+                    stop.store(true, Ordering::Relaxed);
+                    return true;
+                }
+            }
+        });
+        if cancelled {
+            return Err(Error::Cancelled);
+        }
+        let results = results
+            .into_inner()
+            .map_err(|_| crate::Error::Format("a header reader panicked".into()))?;
+        // In path order, so the error reported is the first failing file's, as one at a time.
+        let mut out = Vec::with_capacity(paths.len());
+        for (i, r) in results.into_iter().enumerate() {
+            match r {
+                Some(head) => out.push(head?),
+                None => {
+                    // Not read: a reader stopped at an earlier failure.
+                    out.push(read_folder_range(root, &paths[i], 0, len)?);
+                }
             }
         }
-        buf.truncate(filled);
-        Ok(buf)
+        Ok(out)
     }
 
     fn describe(&self) -> String {
@@ -927,6 +1041,80 @@ pub fn readiness(tree: &mut dyn SourceTree) -> Readiness {
 
 #[cfg(test)]
 mod tests {
+    use super::SourceTree;
+
+    /// A folder's headers come back in the order asked, the same as one file at a time, and
+    /// the progress callback sees the count climb to the total.
+    #[test]
+    fn folder_heads_match_one_at_a_time_and_keep_order() {
+        let dir = std::env::temp_dir().join(format!("fpkg-heads-{}", std::process::id()));
+        std::fs::remove_dir_all(&dir).ok();
+        std::fs::create_dir_all(dir.join("sub")).unwrap();
+        let mut paths = Vec::new();
+        for i in 0..300u32 {
+            let name = format!("sub/f{i:03}.bin");
+            let body: Vec<u8> = (0..(i % 50) as u8).map(|b| b ^ (i as u8)).collect();
+            std::fs::write(dir.join(&name), &body).unwrap();
+            paths.push(name);
+        }
+        let mut tree = super::FolderSource::open(&dir).unwrap();
+        let mut seen = 0usize;
+        let heads = tree
+            .read_heads(&paths, 0x20, &mut |n| {
+                seen = seen.max(n);
+                true
+            })
+            .unwrap();
+        let one_by_one: Vec<Vec<u8>> = paths
+            .iter()
+            .map(|p| tree.read_range(p, 0, 0x20).unwrap())
+            .collect();
+        std::fs::remove_dir_all(&dir).ok();
+        assert_eq!(heads, one_by_one);
+        assert!(seen <= paths.len());
+    }
+
+    /// A file that cannot be opened fails the read with its own name, as before.
+    #[test]
+    fn folder_heads_name_the_missing_file() {
+        let dir = std::env::temp_dir().join(format!("fpkg-heads-miss-{}", std::process::id()));
+        std::fs::remove_dir_all(&dir).ok();
+        std::fs::create_dir_all(&dir).unwrap();
+        for i in 0..40 {
+            std::fs::write(
+                dir.join(format!("f{i}.bin")),
+                b"0123456789abcdef0123456789abcdef",
+            )
+            .unwrap();
+        }
+        let mut tree = super::FolderSource::open(&dir).unwrap();
+        let mut paths: Vec<String> = (0..40).map(|i| format!("f{i}.bin")).collect();
+        paths.insert(20, "gone.bin".into());
+        let err = tree.read_heads(&paths, 0x20, &mut |_| true).unwrap_err();
+        std::fs::remove_dir_all(&dir).ok();
+        assert!(err.to_string().contains("gone.bin"), "{err}");
+    }
+
+    /// Stop while the headers are read ends the walk as cancelled.
+    #[test]
+    fn folder_heads_stop_when_asked() {
+        let dir = std::env::temp_dir().join(format!("fpkg-heads-stop-{}", std::process::id()));
+        std::fs::remove_dir_all(&dir).ok();
+        std::fs::create_dir_all(&dir).unwrap();
+        let paths: Vec<String> = (0..2000).map(|i| format!("f{i}.bin")).collect();
+        for p in &paths {
+            std::fs::write(dir.join(p), [7u8; 64]).unwrap();
+        }
+        let mut tree = super::FolderSource::open(&dir).unwrap();
+        let r = tree.read_heads(&paths, 0x20, &mut |_| false);
+        std::fs::remove_dir_all(&dir).ok();
+        // A fast disk may finish before the first progress tick; otherwise it is cancelled.
+        match r {
+            Ok(heads) => assert_eq!(heads.len(), paths.len()),
+            Err(e) => assert!(matches!(e, crate::Error::Cancelled), "{e}"),
+        }
+    }
+
     #[cfg(unix)]
     #[test]
     fn symlinks_count_as_their_targets() {

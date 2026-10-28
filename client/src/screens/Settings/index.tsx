@@ -805,7 +805,7 @@ export default function SettingsScreen() {
               hint={tr(
                 "always_overwrite_hint_v2",
                 undefined,
-                "On the Upload screen, skip the confirmation when the destination already has files. Leave off to see the Override / Resume / Cancel prompt.",
+                "Skip the confirmation when the destination of an upload already has files. Leave off to see the Override / Resume / Cancel prompt.",
               )}
             />
 
@@ -820,7 +820,7 @@ export default function SettingsScreen() {
               hint={tr(
                 "show_file_list_hint_v2",
                 undefined,
-                "On the Upload screen, list the files being sent beneath the progress bar. Turn off if the list feels noisy on folders with thousands of files — you'll still see overall progress, speed, and ETA.",
+                "List the files being uploaded beneath the progress bar. Turn off if the list feels noisy on folders with thousands of files — you'll still see overall progress, speed, and ETA.",
               )}
             />
 
@@ -1629,7 +1629,7 @@ function BandwidthControl({
           : tr(
               "bandwidth_cap_off_hint_v2",
               undefined,
-              "No limit. Set one if uploads saturate your Wi-Fi/LAN and make other devices lag. It applies to every upload from the Upload screen, the queue and Files, from the next one started.",
+              "No limit. Set one if uploads saturate your Wi-Fi/LAN and make other devices lag. It applies to every upload, from Send to PS5, the queue and Files, from the next one started.",
             )}
       </div>
     </div>

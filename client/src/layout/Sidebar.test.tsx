@@ -75,10 +75,10 @@ describe("Sidebar", () => {
     // safeStorage is mocked empty: a first run, nothing hidden.
     const html = render();
     expect(html).toContain('data-collapsed="false"');
-    for (const to of ["/home", "/upload", "/install-package", "/convert", "/files", "/games", "/console", "/settings"]) {
+    for (const to of ["/home", "/send", "/workshop", "/files", "/games", "/console", "/settings"]) {
       expect(html).toContain(`href="${to}"`);
     }
-    expect(html).toContain("Files &amp; storage");
+    expect(html).toContain("Files &amp; Storage");
     expect(html).toContain('href="/more"');
     // The old favorites hint is gone.
     expect(html).not.toContain("Star screens in More");
@@ -86,7 +86,7 @@ describe("Sidebar", () => {
 
   it("offers to hide each screen but Home", () => {
     const html = render();
-    expect(html).toContain('aria-label="Hide Convert Games from the sidebar"');
+    expect(html).toContain('aria-label="Hide Workshop from the sidebar"');
     expect(html).not.toContain('aria-label="Hide Home from the sidebar"');
   });
 
@@ -142,7 +142,7 @@ describe("Sidebar", () => {
     expect(html).not.toContain('data-testid="nav-pinned"');
     expect(html).not.toContain(">Pinned<");
     // Every section row offers a pin, next to its hide button.
-    expect(html).toContain('aria-label="Pin Convert Games"');
+    expect(html).toContain('aria-label="Pin Workshop"');
     expect(html).not.toContain('aria-label="Pin Home"');
   });
 
@@ -196,11 +196,11 @@ describe("Sidebar", () => {
     expect(inGroup).not.toContain("<button");
     expect(inGroup).not.toContain("draggable");
     // Above the sections' icons.
-    expect(html.indexOf('data-testid="nav-pinned"')).toBeLessThan(html.indexOf('href="/upload"'));
+    expect(html.indexOf('data-testid="nav-pinned"')).toBeLessThan(html.indexOf('href="/send"'));
   });
 
   it("offers no drag in the Windows app, whose window takes every drag", async () => {
-    const Win = await withLists([], [], ["/files", "/upload"], false, true);
+    const Win = await withLists([], [], ["/files", "/send"], false, true);
     const html = render(<Win />);
     expect(html).toContain('data-testid="nav-pinned"');
     expect(html).not.toContain("draggable");

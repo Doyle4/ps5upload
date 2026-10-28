@@ -40,3 +40,23 @@ fn live_henmix_title_id_search_resolves() {
     assert!(hit.filename.starts_with("CUSA00002"));
     assert_eq!(hit.format, "json");
 }
+
+#[test]
+#[ignore = "hits the network (GitHub)"]
+fn live_ps_game_patch_lists_demons_souls() {
+    // Demon's Souls (PPSA01339) has XML game patches in the PS-Game-Patch release.
+    let res = cheats_repo_search("PPSA01339").expect("search failed");
+    let hit = res
+        .entries
+        .iter()
+        .find(|e| e.repo_id == "psgamepatch")
+        .expect("no PS-Game-Patch entry for PPSA01339");
+    println!(
+        "psgamepatch hit: {} {} ({})",
+        hit.filename, hit.game_title, hit.format
+    );
+    assert_eq!(hit.filename, "PPSA01339.xml");
+    assert_eq!(hit.format, "xml");
+    assert_eq!(hit.title_id, "PPSA01339");
+    assert!(!hit.game_title.is_empty());
+}

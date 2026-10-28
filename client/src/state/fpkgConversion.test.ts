@@ -332,6 +332,33 @@ describe("fpkg pipeline", () => {
     }
   });
 
+  // A Discord report (on a build before 7.1.14): a game kept as a .rar could not become a
+  // compressed image ("Make compressed image" greyed, the queue said "Skipped: 1"). A .rar is
+  // unpacked first, then written straight into a .ffpfsc named after the archive.
+  it("makes a compressed image from a .rar: unpacked first, named after the archive", async () => {
+    const buildImage = vi.fn().mockResolvedValue({ job_id: "i7" });
+    const { fpkg } = await import("../api/fpkg");
+    (fpkg as unknown as { buildImage: unknown }).buildImage = buildImage;
+    const game = "/out/.ps5upload-extract-x1/PPSA99999-app";
+    jobStatus
+      .mockResolvedValueOnce({ status: "done", dest: game, bytes_sent: 10 })
+      .mockResolvedValueOnce({ status: "done", dest: "/out/My Game.ffpfsc", bytes_sent: 4 });
+    await useFpkgConversion
+      .getState()
+      .buildImage("/dl/My Game.part1.rar", "/out", true, "ffpkg", undefined, undefined, "pw");
+    expect(useFpkgConversion.getState().pipeline).toMatchObject({ phase: "running", stage: "extract" });
+    expect(extract).toHaveBeenCalledWith("/dl/My Game.part1.rar", "/out", "pw");
+    await tick();
+    expect(buildImage).toHaveBeenCalledWith(game, "/out", "ffpkg", true, undefined, 8192, false, "My Game", "balanced");
+    await tick();
+    expect(useFpkgConversion.getState().pipeline).toMatchObject({
+      phase: "done",
+      mode: "image",
+      packagePath: "/out/My Game.ffpfsc",
+    });
+    expect(cleanupExtract).toHaveBeenCalledWith(game);
+  });
+
   it("makes a game image from a folder, showing the bytes written", async () => {
     const buildImage = vi.fn().mockResolvedValue({ job_id: "i1" });
     const { fpkg } = await import("../api/fpkg");

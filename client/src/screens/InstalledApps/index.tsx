@@ -1857,7 +1857,7 @@ export default function InstalledAppsScreen() {
                 hint={tr(
                   "installed_section_disc_hint_v2",
                   undefined,
-                  "Registered games that run from a disk image. They mount and launch only while ShadowMount+ is running. The image files themselves are under Game files.",
+                  "Registered games that run from a disk image. They mount and launch only while ShadowMount+ is running. The image files themselves are under On PS5 Storage.",
                 )}
                 count={discs.length}
               >

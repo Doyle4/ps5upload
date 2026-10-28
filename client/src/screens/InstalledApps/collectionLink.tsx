@@ -98,7 +98,7 @@ export function useCollectionItems(
       "info",
       tr("collection.queued", { n }, "{n} packages queued for install"),
       {
-        link: "/install-package",
+        link: "/send",
       },
     );
   };
