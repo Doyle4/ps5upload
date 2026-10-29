@@ -506,9 +506,11 @@ jobs:
       - name: cargo check engine
         run: cargo check -p ps5upload-engine ${{ matrix.target_args }}
 
-      # The RAR helper ships next to the engine on every desktop target.
-      - name: cargo check RAR helper
-        run: cargo check -p ps5upload-unrar ${{ matrix.target_args }}
+      # The RAR helper ships next to the engine on every desktop target. Built, not only
+      # checked: a check never links, and on Windows UnRAR needs advapi32 at link time (9.0.0's
+      # first release build failed there).
+      - name: cargo build RAR helper
+        run: cargo build -p ps5upload-unrar ${{ matrix.target_args }}
 
   # ─────────────────────────────────────────────────────────────────────
   # Rust desktop shell (client/src-tauri). Uses its own workspace so

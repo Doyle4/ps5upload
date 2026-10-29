@@ -144,6 +144,13 @@ impl<W: Write> Out<W> {
     }
 }
 
+// UnRAR's Windows code calls the registry, token and crypto functions in advapi32. The engine
+// used to pull that library in through its other dependencies; this program has none of them,
+// so it names it itself.
+#[cfg(windows)]
+#[link(name = "advapi32")]
+extern "system" {}
+
 fn main() {
     if std::env::args().nth(1).as_deref() == Some("--version") {
         println!("ps5upload-unrar {}", env!("CARGO_PKG_VERSION"));
