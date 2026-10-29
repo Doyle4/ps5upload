@@ -5,6 +5,7 @@
  * - Desktop app: an always-on-top popup the main window opens (`window.open("")`, answered by
  *   src-tauri/src/pip_window.rs). It shares this page's JavaScript, so the one stream keeps
  *   running here and only its canvas moves into the popup: no second session, no hand-over.
+ *   When that window does not open, the system's video picture in picture below instead.
  * - Browser with Document Picture-in-Picture (Chrome, Edge 116+): the same, in the browser's
  *   own always-on-top window.
  * - Other browsers with video picture in picture (Safari): the canvas as a video. Picture only:
@@ -42,19 +43,22 @@ function documentPip(): DocumentPip | null {
   return (window as unknown as { documentPictureInPicture?: DocumentPip }).documentPictureInPicture ?? null;
 }
 
+/** Whether this page can show the canvas as a picture-in-picture video. */
+function videoPipAvailable(): boolean {
+  return (
+    typeof document !== "undefined" &&
+    !!document.pictureInPictureEnabled &&
+    typeof HTMLCanvasElement !== "undefined" &&
+    "captureStream" in HTMLCanvasElement.prototype
+  );
+}
+
 /** How this device can show the picture in picture, or null (phones, Firefox). */
 export function pipSupport(): PipKind | null {
   if (typeof window === "undefined" || isMobile()) return null;
   if (isTauriEnv()) return "popup";
   if (documentPip()) return "document";
-  if (
-    typeof document !== "undefined" &&
-    document.pictureInPictureEnabled &&
-    typeof HTMLCanvasElement !== "undefined" &&
-    "captureStream" in HTMLCanvasElement.prototype
-  ) {
-    return "video";
-  }
+  if (videoPipAvailable()) return "video";
   return null;
 }
 
@@ -169,37 +173,7 @@ export async function openPip(opts: { title: string; onBack: () => void }): Prom
   if (!stream || !kind) return false;
   if (open) return true;
 
-  if (kind === "video") {
-    const video = document.createElement("video");
-    video.muted = true;
-    video.playsInline = true;
-    video.style.cssText = "position:fixed;right:0;bottom:0;width:2px;height:2px;opacity:0;pointer-events:none;";
-    video.srcObject = stream.canvas.captureStream(60);
-    document.body.appendChild(video);
-    const cur = { kind, win: null, root: null, video, cleanups: [] as Array<() => void> };
-    open = cur;
-    try {
-      await video.play();
-      await video.requestPictureInPicture();
-    } catch {
-      // Safari's own call, for a stream it will not take through the standard one.
-      const v = video as HTMLVideoElement & { webkitSetPresentationMode?: (m: string) => void };
-      if (!v.webkitSetPresentationMode) {
-        if (open === cur) closePip(false);
-        return false;
-      }
-      v.webkitSetPresentationMode("picture-in-picture");
-    }
-    const onLeave = () => open === cur && closePip(false);
-    video.addEventListener("leavepictureinpicture", onLeave);
-    video.addEventListener("webkitpresentationmodechanged", () => {
-      const mode = (video as HTMLVideoElement & { webkitPresentationMode?: string }).webkitPresentationMode;
-      if (mode === "inline") onLeave();
-    });
-    store.setPip("video");
-    watchStreamEnd(cur);
-    return true;
-  }
+  if (kind === "video") return openVideoPip(stream.canvas);
 
   let win: Window | null = null;
   try {
@@ -207,22 +181,27 @@ export async function openPip(opts: { title: string; onBack: () => void }): Prom
       kind === "document"
         ? await documentPip()!.requestWindow({ width: PIP_WIDTH, height: PIP_HEIGHT })
         : window.open("", "_blank", `width=${PIP_WIDTH},height=${PIP_HEIGHT}`);
-  } catch {
+  } catch (e) {
+    console.warn(`[pip] the ${kind} window did not open:`, e);
     win = null;
   }
-  if (!win) return false;
+  if (!win) {
+    if (kind === "popup") console.warn("[pip] window.open gave no window");
+    return fallBackToVideo(kind, stream.canvas);
+  }
   let host: HTMLElement;
   try {
     host = prepareDocument(win, opts.title);
-  } catch {
+  } catch (e) {
     // Not a window this page can draw in (the desktop app did not hand it over).
+    console.warn("[pip] cannot draw in the new window:", e);
     try {
       win.close();
     } catch {
       // Nothing to close.
     }
     if (kind === "popup") void closeTauriPopups();
-    return false;
+    return fallBackToVideo(kind, stream.canvas);
   }
   const cur = { kind, win, root: createRoot(host), video: null, cleanups: [] as Array<() => void> };
   open = cur;
@@ -254,6 +233,47 @@ export async function openPip(opts: { title: string; onBack: () => void }): Prom
       }}
     />,
   );
+  watchStreamEnd(cur);
+  return true;
+}
+
+/** A window of its own did not open (the desktop app on macOS, a browser that refused it): the
+ *  system's video picture in picture instead, picture only, when this page has it. */
+function fallBackToVideo(kind: PipKind, canvas: HTMLCanvasElement): Promise<boolean> | false {
+  if (kind === "video" || !videoPipAvailable()) return false;
+  console.warn("[pip] showing the picture as a video instead");
+  return openVideoPip(canvas);
+}
+
+/** The canvas as a picture-in-picture video (Safari, and the fallback). */
+async function openVideoPip(canvas: HTMLCanvasElement): Promise<boolean> {
+  const video = document.createElement("video");
+  video.muted = true;
+  video.playsInline = true;
+  video.style.cssText = "position:fixed;right:0;bottom:0;width:2px;height:2px;opacity:0;pointer-events:none;";
+  video.srcObject = canvas.captureStream(60);
+  document.body.appendChild(video);
+  const cur = { kind: "video" as const, win: null, root: null, video, cleanups: [] as Array<() => void> };
+  open = cur;
+  try {
+    await video.play();
+    await video.requestPictureInPicture();
+  } catch {
+    // Safari's own call, for a stream it will not take through the standard one.
+    const v = video as HTMLVideoElement & { webkitSetPresentationMode?: (m: string) => void };
+    if (!v.webkitSetPresentationMode) {
+      if (open === cur) closePip(false);
+      return false;
+    }
+    v.webkitSetPresentationMode("picture-in-picture");
+  }
+  const onLeave = () => open === cur && closePip(false);
+  video.addEventListener("leavepictureinpicture", onLeave);
+  video.addEventListener("webkitpresentationmodechanged", () => {
+    const mode = (video as HTMLVideoElement & { webkitPresentationMode?: string }).webkitPresentationMode;
+    if (mode === "inline") onLeave();
+  });
+  useRemotePlayStore.getState().setPip("video");
   watchStreamEnd(cur);
   return true;
 }

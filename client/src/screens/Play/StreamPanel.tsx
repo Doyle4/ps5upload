@@ -491,6 +491,9 @@ export function StreamPanel() {
   const [pipFailed, setPipFailed] = useState(false);
   const [profileId, setProfileId] = useState<string>(activeId ?? profiles[0]?.id ?? "");
   const [settingsOpen, setSettingsOpen] = useState(false);
+  useEffect(() => {
+    if (settingsOpen) settingsBox.current?.scrollIntoView?.({ block: "nearest", behavior: "smooth" });
+  }, [settingsOpen]);
   const [full, setFull] = useState(false);
   const [chrome, setChrome] = useState(true);
   // Touch-sized player (phones, tablets, a narrow window): the bar under the picture and, in
@@ -510,6 +513,7 @@ export function StreamPanel() {
   const lastPointer = useRef("mouse");
   const [elsewhere, setElsewhere] = useState<string | null>(null);
   const stage = useRef<HTMLDivElement>(null);
+  const settingsBox = useRef<HTMLDivElement>(null);
   const canvasHost = useRef<HTMLDivElement>(null);
   const hideTimer = useRef(0);
   const touchFirst = useTouchFirst(prefs.touchControls);
@@ -865,7 +869,7 @@ export function StreamPanel() {
           className={`group relative overflow-hidden bg-black outline-none ${
             full
               ? "fixed inset-0 z-[200] h-[100dvh] w-screen touch-none select-none overscroll-none [-webkit-touch-callout:none]"
-              : "aspect-video w-full rounded-[var(--radius-card)] shadow-[var(--shadow-2)] focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]"
+              : "mx-auto aspect-video w-full max-w-[calc((100dvh_-_12rem)*16/9)] rounded-[var(--radius-card)] shadow-[var(--shadow-2)] focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]"
           } ${playing && !chrome && !(compact && full) ? "cursor-none" : ""}`}
           data-full={full ? (compact ? "immersive" : "bar") : undefined}
           data-testid="rp-stage"
@@ -1261,6 +1265,13 @@ export function StreamPanel() {
         </Callout>
       )}
 
+      {/* Settings open above the picture: below it, a wide window put them out of sight. */}
+      {settingsOpen && (
+        <div ref={settingsBox} className="scroll-mt-4">
+          <SettingsPanel running={running} />
+        </div>
+      )}
+
       {full ? createPortal(stageView, document.body) : stageView}
 
       {/* Touch-sized player, on the page: the bar is under the picture, never on it, so every
@@ -1325,7 +1336,6 @@ export function StreamPanel() {
         </div>
       )}
 
-      {settingsOpen && <SettingsPanel running={running} />}
 
       {!settingsOpen && compact && !running && (
         <p className="text-xs text-[var(--color-muted)]">
