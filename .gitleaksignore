@@ -18,3 +18,5 @@ d2b76643760bd241d839d6e14168238e2fad50c6:client/src/screens/Connection/WakeSetup
 # Made-up dumper tokens in app_dumper.rs's unit tests (0123456789abcdef...)
 bd80a5d67e447b569ff47b030bdd4842667f34e1:engine/crates/ps5upload-core/src/app_dumper.rs:generic-api-key:248
 bd80a5d67e447b569ff47b030bdd4842667f34e1:engine/crates/ps5upload-core/src/app_dumper.rs:generic-api-key:256
+# Made-up Remote Play key in the remote-play e2e test's mocked roster (00112233...eeff)
+3696e55a7035f016f614e370e6c1179fceaa32c9:client/e2e/remote-play.spec.ts:generic-api-key:19

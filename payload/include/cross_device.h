@@ -30,6 +30,7 @@
  *
  *   src/activity.c        1  dir    play-time file: tmp -> final
  *   src/cheats.c          1  dir    cheat state: tmp -> final
+ *   src/app_dump_core.c   2  dir    a dump's decrypted file and its fself: <name>.part -> <name> (same folder)
  *   src/main.c            1  dir    stderr.log -> stderr.log.old
  *   src/notif.c           1  dir    notification store: tmp -> final
  *   src/mgmt_fs.c         2  1 guard (fs.rename), 1 dir (fs.write tmp -> final)
