@@ -4,6 +4,15 @@ What's new in ps5upload, written for humans.
 
 ---
 
+## 9.2.2
+
+- **Remote Play Settings always show.** On a wide window the picture grew taller than the
+  screen and Settings opened below it, out of sight, so the button seemed to do nothing. The
+  picture now fits the window height and Settings open above it.
+- **Picture in picture opens in the Mac app.** When the app's own picture-in-picture window
+  didn't open ("Picture in picture did not open"), it now uses the system's picture in picture
+  instead: the picture only, and the controller plays while the app is in front.
+
 ## 9.2.1
 
 - **Send helper also updates the copy your PS5 starts at boot** (#540, #541). If Payload Manager,
