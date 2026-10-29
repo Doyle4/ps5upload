@@ -37,6 +37,7 @@
 
 #include <ps5/kernel.h>
 
+#include "kernel_rw_lock.h"
 #include "ptrace_remote.h"
 #include "runtime.h"
 #include "shellui_rpc.h"
@@ -175,10 +176,12 @@ static intptr_t resolve_in_target(pid_t pid, const char *sym_name) {
     };
     for (size_t i = 0; i < sizeof(libs)/sizeof(libs[0]); i++) {
         uint32_t handle = 0;
-        if (kernel_dynlib_handle(pid, libs[i].basename, &handle) != 0) {
-            continue;
-        }
-        intptr_t addr = kernel_dynlib_dlsym(pid, handle, sym_name);
+        intptr_t addr = 0;
+        /* Kernel reads: inside the shared kernel-R/W lock (innermost; kernel_rw_lock.h). */
+        pthread_mutex_lock(&kernel_rw_lock);
+        if (kernel_dynlib_handle(pid, libs[i].basename, &handle) == 0)
+            addr = kernel_dynlib_dlsym(pid, handle, sym_name);
+        pthread_mutex_unlock(&kernel_rw_lock);
         if (addr != 0) return addr;
     }
     return 0;

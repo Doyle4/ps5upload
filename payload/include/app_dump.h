@@ -133,4 +133,8 @@ int app_dump_op(void *arg, struct ava1_op_ctx *c, const uint8_t *args, size_t n)
 /* Registers JOB_OP_APP_DUMP with ava1_op.c (next to archive_extract_register). */
 void app_dump_register(void);
 
+/* From a fatal-signal handler: if a decryption had the kernel's vnode pager swapped for the self
+ * pager, put it back (async-signal-safe; no-op otherwise). */
+void app_dump_pager_emergency_restore(void);
+
 #endif

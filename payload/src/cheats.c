@@ -50,9 +50,28 @@
 #include "cheats_plan.h"
 #include "game_patch.h" /* PS-Game-Patch XML game patches (#527) */
 #include "content_db.h"
+#include "fw_spoof.h"
 #include "kernel_rw_lock.h"
 
 #include <ps5/mdbg.h>
+
+/* The SDK's kernel reads below share one kernel-R/W window with every other kernel access in the
+ * payload, the dumper's pager swap included: each runs inside kernel_rw_lock (kernel_rw_lock.h). */
+static intptr_t locked_mapbase(pid_t pid, uint32_t handle) {
+    intptr_t v;
+    pthread_mutex_lock(&kernel_rw_lock);
+    v = kernel_dynlib_mapbase_addr(pid, handle);
+    pthread_mutex_unlock(&kernel_rw_lock);
+    return v;
+}
+
+static int locked_dynlib_handle(pid_t pid, const char *name, uint32_t *handle) {
+    int rc;
+    pthread_mutex_lock(&kernel_rw_lock);
+    rc = kernel_dynlib_handle(pid, name, handle);
+    pthread_mutex_unlock(&kernel_rw_lock);
+    return rc;
+}
 
 /* Defined by the payload's own build of the SDK startup code (third_party/sdk-crt), which every
  * payload links: the kernel direct-map base and the process page-table walk. */
@@ -316,7 +335,7 @@ static pid_t find_running_game(char *title_out, size_t title_cap,
                 snprintf(title_out, title_cap, "%s", tid);
             }
             if (base_out) {
-                *base_out = kernel_dynlib_mapbase_addr(pid, 0);
+                *base_out = locked_mapbase(pid, 0);
             }
         }
         ptr += ki_structsize;
@@ -399,7 +418,7 @@ static void invalidate_rg_cache(void) {
 
 static int use_mdbg(void) {
     static int fw = 0;
-    if (!fw) fw = (int)(kernel_get_fw_version() >> 16);
+    if (!fw) fw = (int)(fw_safe_kernel_version() >> 16);
     return fw <= 0x820;
 }
 
@@ -570,13 +589,13 @@ static int game_alive(void *opaque) {
  * NULL or empty → eboot base (handle 0). */
 static intptr_t resolve_module_base(pid_t pid, const char *module_name) {
     if (!module_name || !module_name[0]) {
-        return kernel_dynlib_mapbase_addr(pid, 0);
+        return locked_mapbase(pid, 0);
     }
     uint32_t handle = 0;
-    if (kernel_dynlib_handle(pid, module_name, &handle) != 0 || !handle) {
+    if (locked_dynlib_handle(pid, module_name, &handle) != 0 || !handle) {
         return 0;
     }
-    return kernel_dynlib_mapbase_addr(pid, handle);
+    return locked_mapbase(pid, handle);
 }
 
 /* ── In-memory mod representation ────────────────────────────────── */
@@ -1387,7 +1406,7 @@ static int resolve_mod_locs(pid_t pid, intptr_t base, const cheat_mod_t *mod, ch
         if (e->absolute) {
             l->addr = (intptr_t)off;
         } else if (e->section > 0) {
-            intptr_t sec_base = kernel_dynlib_mapbase_addr(pid, (uint32_t)e->section);
+            intptr_t sec_base = locked_mapbase(pid, (uint32_t)e->section);
             if (sec_base <= 0) {
                 if (err) snprintf(err, err_cap, "location %d: module %d is not loaded",
                                   i + 1, e->section);
@@ -1704,7 +1723,7 @@ static int xml_apply_locked(pid_t pid, cheat_mod_t *mod, int turn_on, const chea
         return -1;
     }
     uint32_t handle = 0;
-    if (gp_elf_is_module(m.app_elf) && (kernel_dynlib_handle(pid, m.app_elf, &handle) != 0 || !handle)) {
+    if (gp_elf_is_module(m.app_elf) && (locked_dynlib_handle(pid, m.app_elf, &handle) != 0 || !handle)) {
         free(x);
         if (err) snprintf(err, err_cap, "%s is not loaded by the game", m.app_elf);
         return -1;

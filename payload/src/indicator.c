@@ -1,3 +1,6 @@
+#include <pthread.h>
+
+#include "kernel_rw_lock.h"
 #include "indicator.h"
 
 #include <errno.h>
@@ -26,7 +29,11 @@ typedef int (*icc_int_fn)(int);
 /* A resolved libkernel function is a userland address. A failed lookup comes back as a small
  * number or a kernel errno, and calling that would take the helper down with it. */
 static icc_int_fn resolve(const char *sym) {
-    intptr_t p = kernel_dynlib_dlsym(getpid(), LIBKERNEL_HANDLE, sym);
+    intptr_t p;
+    /* A kernel read: inside the shared kernel-R/W lock (kernel_rw_lock.h). */
+    pthread_mutex_lock(&kernel_rw_lock);
+    p = kernel_dynlib_dlsym(getpid(), LIBKERNEL_HANDLE, sym);
+    pthread_mutex_unlock(&kernel_rw_lock);
     if (p <= 0x10000 || (uint64_t)p >= 0x0000800000000000ull) return NULL;
     return (icc_int_fn)p;
 }

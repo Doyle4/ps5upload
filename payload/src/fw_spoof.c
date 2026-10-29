@@ -1,3 +1,6 @@
+#include <pthread.h>
+
+#include "kernel_rw_lock.h"
 #include "fw_spoof.h"
 
 #include <stdio.h>
@@ -64,7 +67,10 @@ unsigned int fw_safe_kernel_version(void) {
     sigaction(SIGBUS,  &sa, &old_bus);
     sigaction(SIGILL,  &sa, &old_ill);
 
+    /* The SDK's kernel-R/W window is shared and not thread-safe: the read runs inside the payload's
+     * innermost lock (kernel_rw_lock.h), released on the fault path too. */
     volatile unsigned int fw = 0;
+    pthread_mutex_lock(&kernel_rw_lock);
     if (sigsetjmp(g_fsg_jmp, 1) == 0) {
         g_fsg_armed = 1;
         fw = kernel_get_fw_version();
@@ -73,6 +79,7 @@ unsigned int fw_safe_kernel_version(void) {
         g_fsg_armed = 0;
         fw = 0;
     }
+    pthread_mutex_unlock(&kernel_rw_lock);
 
     sigaction(SIGSEGV, &old_segv, NULL);
     sigaction(SIGBUS,  &old_bus,  NULL);

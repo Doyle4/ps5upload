@@ -34,6 +34,7 @@
 
 #include <ps5/kernel.h>
 
+#include "kernel_rw_lock.h"
 #include "hw_info.h"
 #include "hw_guard.h"
 #include "fan_servo.h"
@@ -410,7 +411,10 @@ int hw_info_get_text(char *out, size_t out_cap, size_t *out_written,
                  * kfw=0 (string-parse fallback) instead of dropping the
                  * helper. volatile temp for the longjmp path. */
                 volatile uint32_t fw = 0;
+                /* Inside the shared kernel-R/W lock (kernel_rw_lock.h); HW_GUARD returns on a fault. */
+                pthread_mutex_lock(&kernel_rw_lock);
                 HW_GUARD("kernel_get_fw_version", fw = kernel_get_fw_version());
+                pthread_mutex_unlock(&kernel_rw_lock);
                 kfw = fw;
                 fprintf(stderr,
                         "[hw_info] PS5UPLOAD_PRECISE_FW=1 — "

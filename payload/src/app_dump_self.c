@@ -26,6 +26,7 @@
 
 #include <errno.h>
 #include <pthread.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -121,10 +122,16 @@ static int sp_init(void) {
         pthread_mutex_lock(&kernel_rw_lock);
         g_vnodepagerops = kernel_getlong(g_pagertab + pagertab_vnodepagerops_index * 8);
         g_selfpagerops = kernel_getlong(g_pagertab + pagertab_selfpagerops_index * 8);
+        /* Every entry of the table a kernel address: a wrong offset that happens to land on two
+         * kernel pointers is far less likely to pass this than the two entries alone. */
+        int all_kernel = 1;
+        for (int k = 0; k < 8; k++)
+            if (!kaddr_ok((uint64_t)kernel_getlong(g_pagertab + k * 8))) all_kernel = 0;
         pthread_mutex_unlock(&kernel_rw_lock);
         /* Both pointers kernel addresses, and different: a vnode slot that already holds the self
          * pager (a swap left behind) would be "restored" to the self pager for good. */
-        if (kaddr_ok(g_vnodepagerops) && kaddr_ok(g_selfpagerops) && g_vnodepagerops != g_selfpagerops)
+        if (all_kernel && kaddr_ok(g_vnodepagerops) && kaddr_ok(g_selfpagerops) &&
+            g_vnodepagerops != g_selfpagerops)
             g_state = 1;
         else
             fprintf(stderr, "app_dump: pagertab entries look wrong (fw %04x); decryption is off\n", g_fwver);
@@ -133,28 +140,63 @@ static int sp_init(void) {
     return g_state;
 }
 
+/* Set while the vnode pager slot may hold the self pager: the fatal-signal handler puts it back
+ * (app_dump_pager_emergency_restore) before the process exits, since every file mmap on the
+ * console would go through the self pager after that. */
+static volatile sig_atomic_t g_swapped = 0;
+
+/* Put the vnode pager back and check it. 0 when it reads back right. */
+static int restore_vnode_pager(intptr_t slot) {
+    int tries;
+    for (tries = 0; tries < 5; tries++) {
+        if (kernel_setlong(slot, g_vnodepagerops) == 0 && kernel_getlong(slot) == g_vnodepagerops) return 0;
+    }
+    return -1;
+}
+
+void app_dump_pager_emergency_restore(void) {
+    if (!g_swapped) return;
+    /* A crash elsewhere while a swap was open: one write, no checks, no locks (async-signal). */
+    (void)kernel_setlong(g_pagertab + pagertab_vnodepagerops_index * 8, g_vnodepagerops);
+    g_swapped = 0;
+}
+
 /* mmap() with the vnode pager swapped for the self pager, for as short as possible. */
 static void *mmap_self(void *addr, size_t len, int prot, int flags, int fd, off_t offset) {
     const intptr_t slot = g_pagertab + pagertab_vnodepagerops_index * 8;
     void *res;
-    int err, tries;
+    int err, restored;
     if (sp_init() != 1) {
         errno = ENOSYS;
         return MAP_FAILED;
     }
     pthread_mutex_lock(&kernel_rw_lock);
+    g_swapped = 1;
     if (kernel_setlong(slot, g_selfpagerops) != 0) {
+        /* The write may have landed in part: put the vnode pager back either way. */
+        restored = restore_vnode_pager(slot);
+        if (restored == 0) g_swapped = 0;
         pthread_mutex_unlock(&kernel_rw_lock);
+        if (restored != 0) {
+            fprintf(stderr, "app_dump: CRITICAL: the vnode pager was not restored\n");
+            g_state = -1;
+        }
         errno = EIO;
         return MAP_FAILED;
     }
     res = mmap(addr, len, prot, flags, fd, offset);
     err = errno;
-    for (tries = 0; tries < 5; tries++) {
-        if (kernel_setlong(slot, g_vnodepagerops) == 0 && kernel_getlong(slot) == g_vnodepagerops) break;
-    }
+    restored = restore_vnode_pager(slot);
+    if (restored == 0) g_swapped = 0;
     pthread_mutex_unlock(&kernel_rw_lock);
-    if (tries == 5) fprintf(stderr, "app_dump: CRITICAL: the vnode pager was not restored\n");
+    if (restored != 0) {
+        /* Not back: no more swaps this run, and nothing read through a mapping made then. */
+        fprintf(stderr, "app_dump: CRITICAL: the vnode pager was not restored\n");
+        g_state = -1;
+        if (res != MAP_FAILED) munmap(res, len);
+        errno = EIO;
+        return MAP_FAILED;
+    }
     errno = err;
     return res;
 }
@@ -270,6 +312,8 @@ static int sp_supported(void) { return sp_init() == 1; }
 app_dump_platform_t app_dump_platform = {sp_fw_version, sp_supported, sp_decrypt};
 
 #else /* the host build: no kernel, nothing to decrypt with */
+
+void app_dump_pager_emergency_restore(void) {}
 
 static uint32_t sp_fw_version(void) { return 0; }
 static int sp_supported(void) { return 0; }

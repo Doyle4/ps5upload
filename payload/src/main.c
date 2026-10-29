@@ -10,6 +10,7 @@
 #include <pthread.h>
 #include <dlfcn.h>
 #include <ps5/kernel.h>
+#include "app_dump.h"
 #include "activity.h"
 #include "instance_verdict.h"
 #include "config.h"
@@ -271,6 +272,9 @@ static void handle_fatal(int sig) {
          * an external kill for what was actually our own crash. */
         unlink(g_state->ownership_path);
     }
+    /* A dump decrypting right now may have the kernel's vnode pager swapped: put it back, or
+     * every file mmap on the console keeps going through the self pager after we are gone. */
+    app_dump_pager_emergency_restore();
     /* Exit, don't re-raise. Re-raising with SIG_DFL hands the process to the
      * console's core dump, and on FW 13.60 that left it wedged for good (#417,
      * reproduced on a CFI-7019): ~125 MB resident, SIGKILL ignored, AVA1 port 9120
