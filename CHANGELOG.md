@@ -38,10 +38,11 @@ What's new in ps5upload, written for humans.
   ShadowMount, for example), downloads from there were refused; reading it is allowed again.
 - **The app fills the window.** Screens no longer sit in a narrow column on a wide monitor;
   long lists of cards flow into more columns. Phones are unchanged.
-- **AVA1 1.0.3**, the transfer protocol's first releases as a standalone library: fixes for a
+- **AVA1 1.0.4**, the transfer protocol's first releases as a standalone library: fixes for a
   download retried right as it finished, a manifest that never arrives, and duplicate
-  small-file records, plus faster resumes. A resumed 7z or RAR transfer now reports the data it
-  skips.
+  small-file records, plus faster resumes. A transfer cancelled and resumed straight away could
+  send everything and then never finish; it now does. A resumed 7z or RAR transfer now reports
+  the data it skips.
 - **Licenses.** RAR extraction now runs in its own small program (`ps5upload-unrar`) next to the
   engine, so UnRAR's license no longer applies to the rest of the engine. The credits in the
   README say what each project contributes (included, ported, library, fetched, reference),

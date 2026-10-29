@@ -173,10 +173,13 @@ async fn scenario(tag: &str, c_receiver: bool) {
         .unwrap_or_else(|e| panic!("resume failed: {e:#}"));
     assert!(r.bytes_sent as usize <= TOTAL, "{}", r.bytes_sent);
     // Cancel keeps the durable state: a resume continues from it and never resends it.
+    // `r.bytes_sent` is what this run put on the wire; the progress counter (`sent2`) also
+    // counts what the resume skipped, so it reads TOTAL when the first run had already
+    // finished every file before the cancel landed (it sends 3 MiB chunks).
     assert!(
-        sent2.load(Ordering::Relaxed) + durable_at_cancel <= TOTAL as u64,
+        r.bytes_sent + durable_at_cancel <= TOTAL as u64,
         "resent durable data: sent {} after {} durable",
-        sent2.load(Ordering::Relaxed),
+        r.bytes_sent,
         durable_at_cancel
     );
     let root = if c_receiver {
