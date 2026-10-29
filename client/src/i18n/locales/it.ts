@@ -6075,6 +6075,7 @@ library_compressed_hint: "Le immagini compresse richiedono ShadowMount+ per gioc
 "dump_err_not_running": "Il gioco non si è avviato, quindi i suoi file non sono stati letti. Avvialo sulla PS5 e riprova.",
 "dump_err_busy": "La PS5 sta già facendo il dump di un gioco.",
 "dump_err_other": "Il dump si è interrotto.",
+"dump_err_closed": "Il gioco si è chiuso prima che i suoi file fossero copiati. Lascialo aperto (sulla schermata iniziale) finché il dump non finisce.",
 };
 
 export default it;

@@ -6134,6 +6134,7 @@ library_compressed_hint: "Image terkompresi memerlukan ShadowMount+ untuk bermai
 "dump_err_not_running": "Game tidak berjalan, jadi berkasnya tidak bisa dibaca. Jalankan di PS5 lalu coba lagi.",
 "dump_err_busy": "PS5 sedang melakukan dump game.",
 "dump_err_other": "Dump berhenti.",
+"dump_err_closed": "Game tertutup sebelum file-nya tersalin. Biarkan tetap berjalan (di layar awal) sampai dump selesai.",
 };
 
 export default id;

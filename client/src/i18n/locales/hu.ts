@@ -6439,6 +6439,7 @@ library_compressed_hint: "A tömörített képfájlok futtatásához ShadowMount
 "dump_err_not_running": "A játék nem indult el, így a fájljai nem olvashatók. Indítsd el a PS5-ön, és próbáld újra.",
 "dump_err_busy": "A PS5 már dumpol egy játékot.",
 "dump_err_other": "A dump leállt.",
+"dump_err_closed": "A játék bezárult, mielőtt a fájljai átmásolódtak. Hagyd futni (a kezdőképernyőn), amíg a dump elkészül.",
 };
 
 export default hu;

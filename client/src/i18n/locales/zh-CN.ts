@@ -6081,6 +6081,7 @@ library_compressed_hint: "压缩镜像需要 ShadowMount+ 才能游玩。如需�
 "dump_err_not_running": "游戏未启动，无法读取其文件。请在 PS5 上启动游戏后重试。",
 "dump_err_busy": "PS5 正在转储一个游戏。",
 "dump_err_other": "转储已停止。",
+"dump_err_closed": "游戏在文件复制完成前关闭了。请保持游戏运行(停在开始画面)直到转储完成。",
 };
 
 export default zh_CN;

@@ -6127,6 +6127,7 @@ library_compressed_hint: "Ảnh đĩa nén cần ShadowMount+ để chơi. Để
 "dump_err_not_running": "Game không khởi động nên không đọc được tệp. Hãy mở game trên PS5 rồi thử lại.",
 "dump_err_busy": "PS5 đang dump một game.",
 "dump_err_other": "Quá trình dump đã dừng.",
+"dump_err_closed": "Trò chơi đã đóng trước khi tệp được sao chép. Hãy để nó chạy (ở màn hình bắt đầu) cho đến khi dump xong.",
 };
 
 export default vi;

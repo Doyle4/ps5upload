@@ -6143,6 +6143,7 @@ library_compressed_hint: "압축 이미지를 플레이하려면 ShadowMount+가
 "dump_err_not_running": "게임이 시작되지 않아 파일을 읽을 수 없습니다. PS5에서 게임을 시작한 뒤 다시 시도하세요.",
 "dump_err_busy": "PS5가 이미 게임을 덤프하는 중입니다.",
 "dump_err_other": "덤프가 중지되었습니다.",
+"dump_err_closed": "파일을 복사하기 전에 게임이 종료되었습니다. 덤프가 끝날 때까지 (시작 화면에서) 실행 상태로 두세요.",
 };
 
 export default ko;

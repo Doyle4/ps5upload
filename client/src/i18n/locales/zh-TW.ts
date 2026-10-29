@@ -6075,6 +6075,7 @@ library_compressed_hint: "壓縮映像需要 ShadowMount+ 才能遊玩。如需�
 "dump_err_not_running": "遊戲未啟動，無法讀取其檔案。請在 PS5 上啟動遊戲後再試一次。",
 "dump_err_busy": "PS5 正在傾印一個遊戲。",
 "dump_err_other": "傾印已停止。",
+"dump_err_closed": "遊戲在檔案複製完成前關閉了。請保持遊戲執行(停在開始畫面)直到傾印完成。",
 };
 
 export default zh_TW;

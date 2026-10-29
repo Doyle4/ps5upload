@@ -6145,6 +6145,7 @@ library_compressed_hint: "圧縮イメージのプレイには ShadowMount+ が�
 "dump_err_not_running": "ゲームが起動しなかったため、ファイルを読み取れませんでした。PS5 で起動してからもう一度お試しください。",
 "dump_err_busy": "PS5 はすでにゲームをダンプ中です。",
 "dump_err_other": "ダンプが停止しました。",
+"dump_err_closed": "ファイルのコピー前にゲームが終了しました。ダンプが終わるまで(タイトル画面で)起動したままにしてください。",
 };
 
 export default ja;

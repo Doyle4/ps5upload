@@ -105,6 +105,8 @@ export function dumpErrorKey(error: string): { key: string; fallback: string } {
     return { key: "dump_err_exists", fallback: "A dump of this game is already in that folder. Delete or rename it first." };
   if (error.includes("dump_no_space"))
     return { key: "dump_err_space", fallback: "Not enough free space on that drive." };
+  if (error.includes("dump_game_closed"))
+    return { key: "dump_err_closed", fallback: "The game closed before its files were copied. Keep it running (on its start screen) until the dump finishes." };
   if (error.includes("dump_not_running"))
     return { key: "dump_err_not_running", fallback: "The game did not start, so its files could not be read. Start it on the PS5 and try again." };
   if (error.includes("dump_busy") || error.includes("BUSY"))

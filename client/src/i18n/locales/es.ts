@@ -6075,6 +6075,7 @@ library_compressed_hint: "Las imágenes comprimidas necesitan ShadowMount+ para 
 "dump_err_not_running": "El juego no se inició, así que no se pudieron leer sus archivos. Inícialo en la PS5 y vuelve a intentarlo.",
 "dump_err_busy": "La PS5 ya está volcando un juego.",
 "dump_err_other": "El volcado se detuvo.",
+"dump_err_closed": "El juego se cerró antes de copiar sus archivos. Mantenlo abierto (en su pantalla de inicio) hasta que termine el volcado.",
 };
 
 export default es;

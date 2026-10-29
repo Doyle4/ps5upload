@@ -6379,6 +6379,7 @@ library_compressed_hint: "Skompresowane obrazy wymagają ShadowMount+, aby grać
 "dump_err_not_running": "Gra się nie uruchomiła, więc nie udało się odczytać jej plików. Uruchom ją na PS5 i spróbuj ponownie.",
 "dump_err_busy": "PS5 już zrzuca grę.",
 "dump_err_other": "Zrzut został zatrzymany.",
+"dump_err_closed": "Gra zamknęła się przed skopiowaniem plików. Zostaw ją uruchomioną (na ekranie startowym), aż zrzut się zakończy.",
 };
 
 export default pl;

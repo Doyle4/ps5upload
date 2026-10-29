@@ -6132,6 +6132,7 @@ library_compressed_hint: "Sıkıştırılmış kalıpları oynatmak için Shadow
 "dump_err_not_running": "Oyun başlamadı, bu yüzden dosyaları okunamadı. PS5'te başlatıp tekrar deneyin.",
 "dump_err_busy": "PS5 zaten bir oyunu döküyor.",
 "dump_err_other": "Döküm durdu.",
+"dump_err_closed": "Oyun dosyaları kopyalanmadan kapandı. Döküm bitene kadar (başlangıç ekranında) açık tutun.",
 };
 
 export default tr;

@@ -115,7 +115,15 @@ pub async fn dump(Json(req): Json<DumpReq>) -> Response {
         // Marks the console busy for the job: a helper stop is refused meanwhile.
         let _busy = helper_stop::enter(&addr);
         ensure_running(&addr, &x.title_id)?;
-        ps5upload_core::fs_ops::app_dump(&addr, &x, op_id, DUMP_DEADLINE)
+        // It was mounted a moment ago: a refusal now means the game closed (some apps exit
+        // on their own) rather than that it never started.
+        ps5upload_core::fs_ops::app_dump(&addr, &x, op_id, DUMP_DEADLINE).map_err(|e| {
+            if format!("{e:#}").contains("dump_not_running") {
+                anyhow::anyhow!("dump_game_closed: the game closed before its files were copied")
+            } else {
+                e
+            }
+        })
     })
     .await
     .map_err(anyhow::Error::from)

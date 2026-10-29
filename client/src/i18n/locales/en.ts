@@ -6449,6 +6449,7 @@ library_compressed_hint: "Compressed images need ShadowMount+ to play. To edit, 
 "dump_err_not_running": "The game did not start, so its files could not be read. Start it on the PS5 and try again.",
 "dump_err_busy": "The PS5 is already dumping a game.",
 "dump_err_other": "The dump stopped.",
+"dump_err_closed": "The game closed before its files were copied. Keep it running (on its start screen) until the dump finishes.",
 };
 
 export default en;
