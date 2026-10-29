@@ -863,6 +863,7 @@ fn usage() -> ! {
     eprintln!("  register     SRC_PATH      register a game folder");
     eprintln!("  unregister   TITLE_ID      reverse registration");
     eprintln!("  launch       TITLE_ID      sceLncUtilLaunchApp");
+    eprintln!("  dump TITLE_ID DEST [--decrypt] [--fself] [--no-dlc]  dump a running title to DEST on the console");
     eprintln!("  power        tick|standby|reboot|shutdown  (tick = keep-awake)");
     eprintln!("  apps                       list titles present in app.db");
     eprintln!(
@@ -975,6 +976,56 @@ fn do_processes(addr: &str) -> Result<()> {
             ""
         }
     );
+    Ok(())
+}
+
+/// `dump TITLE_ID DEST [--decrypt] [--fself] [--no-dlc]`: JOB_OP_APP_DUMP, its progress polled
+/// once a second by op id while the job runs; Ctrl-C leaves the job running on the console.
+fn do_dump(addr: &str, title_id: &str, dest: &str, flags: &[String]) -> Result<()> {
+    let mut req = ps5upload_core::fs_ops::AppDumpRequest {
+        title_id: title_id.to_string(),
+        dest: dest.to_string(),
+        decrypt: false,
+        fself: false,
+        dlc: true,
+    };
+    for f in flags {
+        match f.as_str() {
+            "--decrypt" => req.decrypt = true,
+            "--fself" => req.fself = true,
+            "--no-dlc" => req.dlc = false,
+            other => bail!("dump: unknown flag {other}"),
+        }
+    }
+    let op_id = (u64::from(std::process::id()) << 16) | 0xd0;
+    let done = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let poller = {
+        let done = done.clone();
+        let addr = addr.to_string();
+        std::thread::spawn(move || {
+            while !done.load(std::sync::atomic::Ordering::Relaxed) {
+                std::thread::sleep(std::time::Duration::from_secs(1));
+                if let Ok(Some(Some(p))) = ps5upload_core::mgmt::op_progress(&addr, op_id) {
+                    println!(
+                        "progress: files {}/{} bytes {}/{} MiB",
+                        p.files_done,
+                        p.files_total,
+                        p.bytes_done >> 20,
+                        p.bytes_total >> 20
+                    );
+                }
+            }
+        })
+    };
+    let res = ps5upload_core::fs_ops::app_dump(
+        addr,
+        &req,
+        op_id,
+        std::time::Duration::from_secs(24 * 3600),
+    );
+    done.store(true, std::sync::atomic::Ordering::Relaxed);
+    let _ = poller.join();
+    println!("{}", serde_json::to_string_pretty(&res?)?);
     Ok(())
 }
 
@@ -1140,6 +1191,12 @@ fn main() -> Result<()> {
         "launch" => {
             let title_id = rest.get(1).map(|s| s.as_str()).unwrap_or_else(|| usage());
             do_launch(addr, title_id)
+        }
+        "dump" => {
+            if rest.len() < 3 {
+                usage();
+            }
+            do_dump(addr, &rest[1], &rest[2], &rest[3..])
         }
         "apps" => do_apps(addr),
         // processes: detailed process manager enumerate (pid/comm/title/mem/

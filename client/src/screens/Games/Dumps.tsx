@@ -1,509 +1,488 @@
-import { useCallback, useEffect, useState } from "react";
-import { ExternalLink, FolderOpen, HardDrive, KeyRound, Package, Play, Square, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import {
+  FolderOpen,
+  HardDriveDownload,
+  RefreshCw,
+  ShieldAlert,
+  Square,
+  Trash2,
+} from "lucide-react";
 import { useNavigate } from "react-router";
 
+import { listDumps, type DumpRecord } from "../../api/appDump";
+import { listVolumes, type Volume } from "../../api/ps5";
 import {
-  dumperApi,
-  DumperError,
-  dumpPath,
-  jobEta,
-  jobFraction,
-  jobRunning,
-  type DumperDevices,
-  type DumperDumps,
-  type DumperLibrary,
-  type DumperOverview,
-} from "../../api/dumper";
-import { Badge, Button, Callout, Card, EmptyState, Input, ProgressBar, Select, Spinner } from "../../components";
-import { useConfirm } from "../../components/ConfirmDialog";
-import { hostOf } from "../../lib/addr";
-import { consoleSource } from "../../lib/collectionActions";
+  Badge,
+  Button,
+  Callout,
+  Card,
+  EmptyState,
+  ProgressBar,
+  Select,
+  Spinner,
+  Toggle,
+} from "../../components";
+import { transferAddr } from "../../lib/addr";
 import { formatBytes } from "../../lib/format";
-import { openExternalUrl } from "../../lib/openExternalUrl";
-import { useDocumentVisible } from "../../lib/visibility";
+import {
+  dumpErrorKey,
+  useAppDumpStore,
+  type DumpJob,
+} from "../../state/appDump";
 import { useConnectionStore } from "../../state/connection";
 import { openInFileSystem } from "../../state/fsNavigation";
+import { useInstalledTitles } from "../../state/installedTitles";
 import { useTr } from "../../state/lang";
 
-const POLL_MS = 2_000;
+/** Dumps go in this folder on the chosen drive, one `<ID>-app` folder each. */
+const DUMP_FOLDER = "ps5upload-dumps";
 
-function eta(s: number | null): string {
-  if (s == null) return "";
-  const m = Math.floor(s / 60);
-  return m > 0 ? `${m} min ${s % 60} s` : `${s} s`;
+/** Drives a dump can go to: USB and extended storage first, the internal drive last. */
+function dumpDrives(vols: Volume[]): Volume[] {
+  const rank = (p: string) =>
+    p.startsWith("/mnt/usb")
+      ? 0
+      : p.startsWith("/mnt/ext")
+        ? 1
+        : p === "/data"
+          ? 2
+          : 3;
+  return vols
+    .filter(
+      (v) =>
+        (v.path.startsWith("/mnt/usb") ||
+          v.path.startsWith("/mnt/ext") ||
+          v.path === "/data") &&
+        v.total_bytes > 0,
+    )
+    .sort((a, b) => rank(a.path) - rank(b.path));
+}
+
+function JobRow({ job }: { job: DumpJob }) {
+  const tr = useTr();
+  const navigate = useNavigate();
+  const cancel = useAppDumpStore((s) => s.cancel);
+  const frac = job.total > 0 ? job.done / job.total : null;
+  const err = job.error ? dumpErrorKey(job.error) : null;
+  return (
+    <li
+      className="space-y-2 rounded-[var(--radius-card)] border border-[var(--color-border)] p-3"
+      data-testid="dump-job"
+    >
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="min-w-0 flex-1 truncate font-medium">
+          {job.name}{" "}
+          <span className="font-mono text-xs text-[var(--color-muted)]">
+            {job.req.titleId}
+          </span>
+        </span>
+        {job.req.decrypt && (
+          <Badge tone="warn">
+            {tr("dump_badge_decrypt", undefined, "Decrypt")}
+          </Badge>
+        )}
+        {job.state === "waiting" && (
+          <Badge>{tr("dump_waiting", undefined, "Waiting")}</Badge>
+        )}
+        {job.state === "done" && (
+          <Badge tone="good">{tr("dump_done", undefined, "Done")}</Badge>
+        )}
+        {job.state === "failed" && (
+          <Badge tone="bad">{tr("dump_failed", undefined, "Failed")}</Badge>
+        )}
+        {job.state === "cancelled" && (
+          <Badge>{tr("dump_cancelled", undefined, "Stopped")}</Badge>
+        )}
+        {(job.state === "running" || job.state === "waiting") && (
+          <Button
+            size="sm"
+            variant="ghost"
+            leftIcon={<Square size={12} />}
+            disabled={job.stopping}
+            onClick={() => cancel(job.id)}
+          >
+            {tr("dump_stop", undefined, "Stop")}
+          </Button>
+        )}
+        {job.state === "done" && job.result?.path && (
+          <Button
+            size="sm"
+            variant="ghost"
+            leftIcon={<FolderOpen size={12} />}
+            onClick={() => openInFileSystem(navigate, job.result!.path)}
+          >
+            {tr("dump_open", undefined, "Open in Files")}
+          </Button>
+        )}
+      </div>
+      {job.state === "running" && (
+        <>
+          <ProgressBar value={frac} />
+          <p className="text-xs text-[var(--color-muted)]">
+            {job.copying
+              ? tr(
+                  "dump_progress",
+                  {
+                    done: formatBytes(job.done),
+                    total: formatBytes(job.total),
+                  },
+                  `${formatBytes(job.done)} of ${formatBytes(job.total)}`,
+                )
+              : tr(
+                  "dump_starting_game",
+                  undefined,
+                  "Starting the game so its files can be read…",
+                )}
+          </p>
+        </>
+      )}
+      {job.state === "done" && job.result && (
+        <p className="text-xs text-[var(--color-muted)]">
+          {tr(
+            "dump_done_line",
+            {
+              n: job.result.files,
+              size: formatBytes(job.result.bytes),
+              path: job.result.path,
+            },
+            `${job.result.files} files, ${formatBytes(job.result.bytes)}, in ${job.result.path}`,
+          )}
+          {job.req.decrypt &&
+            (job.result.decrypt_skipped
+              ? " · " +
+                tr(
+                  "dump_decrypt_skipped",
+                  undefined,
+                  "Decryption was skipped: this firmware is not supported.",
+                )
+              : " · " +
+                tr(
+                  "dump_decrypt_counts",
+                  { ok: job.result.decrypted, bad: job.result.decrypt_failed },
+                  `${job.result.decrypted} decrypted, ${job.result.decrypt_failed} failed`,
+                ))}
+        </p>
+      )}
+      {err && (
+        <p className="text-xs text-[var(--color-danger)]">
+          {tr(err.key, undefined, err.fallback)}
+          <span className="ms-1 font-mono text-[var(--color-muted)]">
+            {job.error}
+          </span>
+        </p>
+      )}
+    </li>
+  );
 }
 
 /**
- * Games → Dumps: dumping installed games with EchoStretch's ps5-app-dumper (GPLv3), which runs on
- * the console and copies the running game, decrypted, to a drive. The app finds it, asks for the
- * code the TV shows once, and then starts a dump of the running game, starts a game to dump it,
- * runs a queue, follows the progress and lists finished dumps, which open in Files or Workshop.
- * The dumper's own settings (decrypt, FSELF, backport) stay on its own page.
+ * Dump games: an installed game's files copied to a drive by ps5upload's own helper (a port of
+ * ps5-app-dumper, payload/src/app_dump.c). A plain copy is the default. Decrypting the game's
+ * executables is offered on its own, with why it is riskier: the helper briefly points a pager
+ * the whole kernel uses at its own while it reads each one, and a game reading files right then
+ * could freeze the console.
  */
 export function DumpsView() {
   const tr = useTr();
   const navigate = useNavigate();
-  const { confirm, dialog } = useConfirm();
-  const host = useConnectionStore((s) => s.host?.trim() ?? "");
-  const up = useConnectionStore((s) => s.payloadStatus === "up");
-  const visible = useDocumentVisible();
-  const [ov, setOv] = useState<DumperOverview | null>(null);
-  const [devices, setDevices] = useState<DumperDevices | null>(null);
-  const [library, setLibrary] = useState<DumperLibrary | null>(null);
-  const [dumps, setDumps] = useState<DumperDumps | null>(null);
-  const [target, setTarget] = useState("");
-  const [queue, setQueue] = useState<string[]>([]);
-  const [code, setCode] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const host = useConnectionStore((s) => s.host);
+  const titles = useInstalledTitles(host || undefined);
+  const allJobs = useAppDumpStore((s) => s.jobs);
+  const jobs = useMemo(
+    () => allJobs.filter((j) => j.host === host),
+    [allJobs, host],
+  );
+  const add = useAppDumpStore((s) => s.add);
+  const clearFinished = useAppDumpStore((s) => s.clearFinished);
+  const [vols, setVols] = useState<Volume[] | null>(null);
+  const [drive, setDrive] = useState("");
+  const [titleId, setTitleId] = useState("");
+  const [decrypt, setDecrypt] = useState(false);
+  const [fself, setFself] = useState(false);
+  const [dlc, setDlc] = useState(true);
+  const [dumps, setDumps] = useState<DumpRecord[] | null>(null);
+  const [reload, setReload] = useState(0);
 
-  const present = ov?.present === true;
-  const unlocked = present && (!ov.required || ov.unlocked);
-
-  const poll = useCallback(async () => {
-    if (!host || !up) return;
-    try {
-      const o = await dumperApi.overview(host);
-      setOv(o);
-      if (!o.present) return;
-      const [d, l] = await Promise.all([
-        dumperApi.read<DumperDevices>(host, "devices"),
-        dumperApi.read<DumperLibrary>(host, "library"),
-      ]);
-      setDevices(d);
-      setLibrary(l);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    }
-  }, [host, up]);
-
-  const loadDumps = useCallback(async () => {
-    if (!host || !up) return;
-    try {
-      setDumps(await dumperApi.read<DumperDumps>(host, "dumps"));
-    } catch {
-      /* the list is a convenience; the job card says what went wrong */
-    }
-  }, [host, up]);
+  const games = useMemo(
+    () =>
+      (titles ?? [])
+        .filter((t) => !t.system)
+        .sort((a, b) => a.titleName.localeCompare(b.titleName)),
+    [titles],
+  );
+  const drives = useMemo(() => dumpDrives(vols ?? []), [vols]);
+  const root = drive ? `${drive}/${DUMP_FOLDER}` : "";
 
   useEffect(() => {
-    setOv(null);
-    setDevices(null);
-    setLibrary(null);
-    setDumps(null);
-    setQueue([]);
+    if (!host) return;
+    let live = true;
+    listVolumes(transferAddr(host))
+      .then((v) => live && setVols(v))
+      .catch(() => live && setVols([]));
+    return () => {
+      live = false;
+    };
   }, [host]);
-
   useEffect(() => {
-    void poll();
-    void loadDumps();
-    if (!visible) return;
-    const id = window.setInterval(() => void poll(), POLL_MS);
-    return () => window.clearInterval(id);
-  }, [poll, loadDumps, visible]);
-
-  // A drive that can take a dump: the first USB drive, else the console's own.
-  const writable = (devices?.targets ?? []).filter((t) => t.writable);
+    if (!drive && drives[0]) setDrive(drives[0].path);
+  }, [drive, drives]);
+  // Finished jobs show up in the list of dumps.
+  const finished = jobs.filter((j) => j.state === "done").length;
   useEffect(() => {
-    if (writable.length && !writable.some((t) => t.mount === target)) {
-      setTarget((writable.find((t) => !t.internal) ?? writable[0]).mount);
-    }
-  }, [writable, target]);
+    if (!host || !root) return;
+    let live = true;
+    setDumps(null);
+    void listDumps(transferAddr(host), root).then((d) => live && setDumps(d));
+    return () => {
+      live = false;
+    };
+  }, [host, root, reload, finished]);
 
-  const job = present ? ov.status?.job : undefined;
-  const q = present ? ov.status?.queue : undefined;
-  const working = !!job && jobRunning(job);
-  const queueActive = !!q?.active;
-  // When a dump ends, the finished list is read again.
-  const ended = job ? `${job.state}:${job.finished}` : "";
-  useEffect(() => {
-    if (ended) void loadDumps();
-  }, [ended, loadDumps]);
-
-  const run = async (f: () => Promise<unknown>) => {
-    setBusy(true);
-    setError(null);
-    try {
-      await f();
-      await poll();
-    } catch (e) {
-      if (e instanceof DumperError && e.locked) setOv((o) => (o?.present ? { ...o, unlocked: false } : o));
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const dump = (app: string, overwrite = false): Promise<void> =>
-    run(async () => {
-      try {
-        await dumperApi.call(host, "/api/dump", { app, target, overwrite });
-      } catch (e) {
-        if (e instanceof DumperError && e.body.exists === true && !overwrite) {
-          const ok = await confirm({
-            title: tr("dumps_exists_title", undefined, "Replace the dump that is there?"),
-            message: e.message,
-            confirmLabel: tr("dumps_replace", undefined, "Replace"),
-            destructive: true,
-          });
-          if (ok) await dumperApi.call(host, "/api/dump", { app, target, overwrite: true });
-          return;
-        }
-        throw e;
-      }
-    });
-
-  const launch = (titleId: string): Promise<void> =>
-    run(async () => {
-      try {
-        await dumperApi.call(host, "/api/launch", { title: titleId });
-      } catch (e) {
-        if (e instanceof DumperError && e.body.needsClose === true) {
-          const ok = await confirm({
-            title: tr("dumps_close_running_title", undefined, "Close the game that is running?"),
-            message: tr(
-              "dumps_close_running_body",
-              undefined,
-              "A PS5 runs one game at a time. Starting this one closes the game that is running now.",
-            ),
-            confirmLabel: tr("dumps_close_and_start", undefined, "Close and Start"),
-          });
-          if (ok) await dumperApi.call(host, "/api/launch", { title: titleId, force: true });
-          return;
-        }
-        throw e;
-      }
-    });
-
-  if (!host || !up) {
+  if (!host) {
     return (
       <EmptyState
-        icon={HardDrive}
-        title={tr("dumps_need_console", undefined, "Connect to a PS5 to dump its games")}
+        icon={HardDriveDownload}
+        title={tr("dump_no_console", undefined, "Choose a PS5 first")}
       />
     );
   }
-  if (ov === null) {
-    return (
-      <div className="flex items-center gap-2 text-sm text-[var(--color-muted)]">
-        <Spinner size={14} /> {tr("dumps_looking", undefined, "Looking for ps5-app-dumper on the PS5…")}
-      </div>
-    );
-  }
-  if (!present) {
-    return (
-      <Card>
-        <div className="flex flex-col items-start gap-3">
-          <h2 className="text-base font-semibold">{tr("dumps_absent_title", undefined, "ps5-app-dumper isn't running")}</h2>
-          <p className="max-w-2xl text-sm text-[var(--color-muted)]">
-            {tr(
-              "dumps_absent_body",
-              undefined,
-              "Dumping is done on the PS5 by EchoStretch's ps5-app-dumper, an open-source payload. It copies the running game, decrypted, to a USB drive or the console's own drive. Send it from Payloads, then come back here.",
-            )}
-          </p>
-          <div className="flex flex-wrap gap-2">
-            <Button variant="primary" leftIcon={<Package size={14} />} onClick={() => navigate("/payloads?tab=catalog")}>
-              {tr("dumps_open_payloads", undefined, "Open Payloads")}
-            </Button>
-            <Button variant="ghost" onClick={() => void poll()}>
-              {tr("refresh", undefined, "Refresh")}
-            </Button>
-          </div>
-        </div>
-      </Card>
-    );
-  }
 
-  const pageUrl = `http://${hostOf(host)}:${ov.port}/`;
-  const running = devices?.apps ?? [];
-  const titles = (library?.titles ?? []).filter((t) => !running.some((a) => a.titleId === t.titleId));
-  const frac = job ? jobFraction(job) : null;
+  const game = games.find((g) => g.titleId === titleId);
+  const freeOn = drives.find((d) => d.path === drive);
+  const start = () => {
+    if (!game || !root) return;
+    add(host, game.titleName || game.titleId, {
+      titleId: game.titleId,
+      dest: root,
+      decrypt,
+      fself: decrypt && fself,
+      dlc,
+    });
+  };
 
   return (
-    <div className="flex flex-col gap-4">
-      {dialog}
-      <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-[var(--color-muted)]">
-        <span>{tr("dumps_found", { version: ov.version, port: ov.port }, "ps5-app-dumper {version}, port {port}")}</span>
-        <Button variant="ghost" size="sm" leftIcon={<ExternalLink size={14} />} onClick={() => void openExternalUrl(pageUrl)}>
-          {tr("dumps_open_page", undefined, "Its Settings Page")}
-        </Button>
+    <div className="space-y-5">
+      <div data-testid="dump-form">
+        <Card className="space-y-4 p-4">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Select
+              label={tr("dump_game", undefined, "Game")}
+              value={titleId}
+              onChange={(e) => setTitleId(e.target.value)}
+              disabled={titles === null}
+              options={[
+                {
+                  value: "",
+                  label:
+                    titles === null
+                      ? tr(
+                          "dump_loading_games",
+                          undefined,
+                          "Reading installed games…",
+                        )
+                      : tr("dump_pick_game", undefined, "Choose a game"),
+                },
+                ...games.map((g) => ({
+                  value: g.titleId,
+                  label: `${g.titleName || g.titleId} (${g.titleId})`,
+                })),
+              ]}
+            />
+            <Select
+              label={tr("dump_drive", undefined, "Drive")}
+              value={drive}
+              onChange={(e) => setDrive(e.target.value)}
+              disabled={drives.length === 0}
+              hint={
+                freeOn
+                  ? tr(
+                      "dump_drive_free",
+                      { free: formatBytes(freeOn.free_bytes) },
+                      `${formatBytes(freeOn.free_bytes)} free`,
+                    )
+                  : undefined
+              }
+              options={
+                drives.length
+                  ? drives.map((d) => ({ value: d.path, label: d.path }))
+                  : [
+                      {
+                        value: "",
+                        label:
+                          vols === null
+                            ? "…"
+                            : tr("dump_no_drive", undefined, "No drive found"),
+                      },
+                    ]
+              }
+            />
+          </div>
+          <p className="text-xs text-[var(--color-muted)]">
+            {tr(
+              "dump_how",
+              { folder: root || `…/${DUMP_FOLDER}` },
+              `The game's files are copied to ${root || `…/${DUMP_FOLDER}`}. Its files exist only while it runs, so it is started if it is not running; leave it running until the dump finishes.`,
+            )}
+          </p>
+          <div className="space-y-2">
+            <Toggle
+              checked={dlc}
+              onChange={setDlc}
+              label={tr("dump_dlc", undefined, "Include installed DLC")}
+            />
+            <Toggle
+              checked={decrypt}
+              onChange={setDecrypt}
+              label={tr(
+                "dump_decrypt",
+                undefined,
+                "Decrypt the game's executables",
+              )}
+              hint={tr(
+                "dump_decrypt_hint",
+                undefined,
+                "Needed to run the dump as a folder game or to backport it. Off: a plain copy.",
+              )}
+            />
+            {decrypt && (
+              <Callout
+                tone="warn"
+                title={tr(
+                  "dump_decrypt_risk",
+                  undefined,
+                  "Decrypting can freeze the console",
+                )}
+              >
+                {tr(
+                  "dump_decrypt_risk_body",
+                  undefined,
+                  "To decrypt, the helper briefly swaps a part of the system every program uses for each executable. If the game reads a file at that moment the console can freeze and need a hard power-off. Stay on the game's start screen while it runs. Firmware up to 13.60 only; on newer firmware the dump is a plain copy.",
+                )}
+              </Callout>
+            )}
+            {decrypt && (
+              <Toggle
+                checked={fself}
+                onChange={setFself}
+                label={tr(
+                  "dump_fself",
+                  undefined,
+                  "Also make fake-signed copies (for backporting)",
+                )}
+              />
+            )}
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="primary"
+              leftIcon={<HardDriveDownload size={14} />}
+              disabled={!game || !root}
+              onClick={start}
+              data-testid="dump-start"
+            >
+              {tr("dump_start", undefined, "Dump")}
+            </Button>
+            {decrypt && (
+              <ShieldAlert
+                size={16}
+                className="text-[var(--color-warn)]"
+                aria-hidden
+              />
+            )}
+          </div>
+        </Card>
       </div>
 
-      {error && (
-        <Callout tone="error" title={tr("dumps_failed", undefined, "That didn't work")}>
-          {error}
-        </Callout>
-      )}
-
-      {!unlocked && (
-        <Card>
-          <div className="flex flex-col gap-3">
-            <h2 className="flex items-center gap-2 text-base font-semibold">
-              <KeyRound size={16} aria-hidden /> {tr("dumps_code_title", undefined, "Enter the code from the TV")}
+      {jobs.length > 0 && (
+        <section className="space-y-2">
+          <div className="flex items-center gap-2">
+            <h2 className="flex-1 text-sm font-semibold">
+              {tr("dump_jobs", undefined, "This session")}
             </h2>
-            <p className="text-sm text-[var(--color-muted)]">
-              {tr(
-                "dumps_code_body",
-                undefined,
-                "ps5-app-dumper lets a phone or PC start, stop or delete something only after the six-digit code it shows on the TV is entered once. This app keeps what it gets for this console.",
-              )}
-            </p>
-            <div className="flex flex-wrap items-end gap-2">
-              <div className="w-40">
-                <Input
-                  id="dumps-code"
-                  inputMode="numeric"
-                  autoComplete="one-time-code"
-                  maxLength={6}
-                  value={code}
-                  onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
-                  placeholder="000000"
-                  aria-label={tr("dumps_code_title", undefined, "Enter the code from the TV")}
-                />
-              </div>
+            {jobs.some(
+              (j) => j.state !== "running" && j.state !== "waiting",
+            ) && (
               <Button
-                variant="primary"
-                disabled={busy || code.length !== 6}
-                onClick={() => void run(() => dumperApi.unlock(host, code)).then(() => setCode(""))}
-              >
-                {tr("dumps_unlock", undefined, "Unlock")}
-              </Button>
-              <Button variant="ghost" disabled={busy} onClick={() => void run(() => dumperApi.showCode(host))}>
-                {tr("dumps_show_code", undefined, "Show the Code on the TV")}
-              </Button>
-            </div>
-          </div>
-        </Card>
-      )}
-
-      {(working || queueActive) && job && (
-        <Card>
-          <div className="flex flex-col gap-2">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="min-w-0">
-                <div className="truncate font-medium">{job.title || job.titleId || tr("dumps_preparing", undefined, "Preparing…")}</div>
-                <div className="truncate text-xs text-[var(--color-muted)]">
-                  {job.stage}
-                  {job.currentFile ? ` · ${job.currentFile}` : ""}
-                </div>
-              </div>
-              <Button
-                variant="danger"
                 size="sm"
-                leftIcon={<Square size={14} />}
-                disabled={busy || !unlocked}
-                onClick={() => void run(() => dumperApi.call(host, "/api/abort"))}
+                variant="ghost"
+                leftIcon={<Trash2 size={12} />}
+                onClick={clearFinished}
               >
-                {queueActive
-                  ? tr("dumps_stop_queue", undefined, "Stop the Queue")
-                  : tr("dumps_stop", undefined, "Stop")}
+                {tr("dump_clear", undefined, "Clear finished")}
               </Button>
-            </div>
-            <ProgressBar value={frac ?? undefined} />
-            <div className="text-xs tabular-nums text-[var(--color-muted)]">
-              {formatBytes(job.copiedBytes)} / {formatBytes(job.totalBytes)}
-              {jobEta(job) != null ? ` · ${tr("dumps_eta", { t: eta(jobEta(job)) }, "about {t} left")}` : ""}
-              {queueActive && q ? ` · ${tr("dumps_queue_pos", { n: q.current + 1, total: q.items.length }, "queue {n} of {total}")}` : ""}
-            </div>
+            )}
           </div>
-        </Card>
+          <ul className="space-y-2">
+            {jobs.map((j) => (
+              <JobRow key={j.id} job={j} />
+            ))}
+          </ul>
+        </section>
       )}
 
-      {job && !working && job.state !== "idle" && job.message && (
-        <Callout tone={job.state === "done" ? "success" : "warn"} title={job.title || job.titleId}>
-          {job.message}
-        </Callout>
-      )}
-
-      <Card>
-        <div className="flex flex-col gap-3">
-          <div className="flex flex-wrap items-end justify-between gap-3">
-            <h2 className="text-base font-semibold">{tr("dumps_dump_title", undefined, "Dump a Game")}</h2>
-            <div className="w-72 max-w-full">
-              <Select
-                id="dumps-target"
-                label={tr("dumps_to", undefined, "To")}
-                value={target}
-                onChange={(e) => setTarget(e.target.value)}
-                options={writable.map((t) => ({
-                  value: t.mount,
-                  label: `${t.internal ? tr("dumps_console_drive", undefined, "This PS5") : t.mount} · ${tr("dumps_free", { size: formatBytes(t.freeBytes) }, "{size} free")}`,
-                }))}
-              />
-            </div>
-          </div>
-          {writable.length === 0 && (
-            <p className="text-sm text-[var(--color-warn)]">
-              {tr("dumps_no_drive", undefined, "No drive can take a dump. Plug a USB drive into the PS5.")}
-            </p>
-          )}
-
-          {running.map((a) => (
-            <div key={a.dir} className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-[var(--color-border)] p-3">
-              <div className="min-w-0">
-                <div className="truncate font-medium">{a.title}</div>
-                <div className="flex flex-wrap items-center gap-1.5 text-xs text-[var(--color-muted)]">
-                  <span className="font-mono">{a.titleId}</span>
-                  <span>{a.version}</span>
-                  <Badge tone="good">{tr("installed_badge_playing", undefined, "Playing")}</Badge>
-                  {a.installing && <Badge tone="warn">{tr("dumps_installing", { n: a.installed }, "Installing {n}%")}</Badge>}
-                </div>
-              </div>
-              <Button
-                variant="primary"
-                size="sm"
-                disabled={busy || working || queueActive || !unlocked || !target || a.installing}
-                onClick={() => void dump(a.dir)}
+      <section className="space-y-2">
+        <div className="flex items-center gap-2">
+          <h2 className="flex-1 text-sm font-semibold">
+            {tr("dump_list", { folder: root }, `Dumps in ${root}`)}
+          </h2>
+          <Button
+            size="sm"
+            variant="ghost"
+            leftIcon={<RefreshCw size={12} />}
+            onClick={() => setReload((n) => n + 1)}
+          >
+            {tr("dump_refresh", undefined, "Refresh")}
+          </Button>
+        </div>
+        {dumps === null ? (
+          <Spinner size={14} />
+        ) : dumps.length === 0 ? (
+          <p className="text-sm text-[var(--color-muted)]">
+            {tr("dump_none", undefined, "No dumps on this drive yet.")}
+          </p>
+        ) : (
+          <ul className="divide-y divide-[var(--color-border)] rounded-[var(--radius-card)] border border-[var(--color-border)]">
+            {dumps.map((d) => (
+              <li
+                key={d.folder}
+                className="flex flex-wrap items-center gap-2 px-3 py-2 text-sm"
+                data-testid="dump-record"
               >
-                {tr("dumps_dump", undefined, "Dump")}
-              </Button>
-            </div>
-          ))}
-          {running.length === 0 && (
-            <p className="text-sm text-[var(--color-muted)]">
-              {tr(
-                "dumps_none_running",
-                undefined,
-                "The dumper copies the game that is running. Start one below (or on the console), or tick several and dump them in a queue.",
-              )}
-            </p>
-          )}
-
-          {titles.length > 0 && (
-            <ul className="flex max-h-96 flex-col divide-y divide-[var(--color-border)] overflow-y-auto rounded-md border border-[var(--color-border)]">
-              {titles.map((t) => (
-                <li key={t.titleId} className="flex items-center gap-3 px-3 py-2">
-                  <input
-                    type="checkbox"
-                    className="h-4 w-4"
-                    aria-label={tr("dumps_add_to_queue", { title: t.title }, "Add {title} to the queue")}
-                    checked={queue.includes(t.titleId)}
-                    disabled={t.installing}
-                    onChange={(e) =>
-                      setQueue((qq) => (e.target.checked ? [...qq, t.titleId] : qq.filter((x) => x !== t.titleId)))
-                    }
-                  />
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm">{t.title}</span>
-                    <span className="flex gap-1.5 text-xs text-[var(--color-muted)]">
-                      <span className="font-mono">{t.titleId}</span>
-                      {t.media === "disc" && <span>{t.discIn ? "DISC" : tr("dumps_disc_out", undefined, "DISC OUT")}</span>}
-                    </span>
-                  </span>
-                  {library?.canLaunch && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      leftIcon={<Play size={13} />}
-                      disabled={busy || working || queueActive || !unlocked}
-                      onClick={() => void launch(t.titleId)}
-                    >
-                      {tr("dumps_start_game", undefined, "Start")}
-                    </Button>
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
-          {queue.length > 0 && (
-            <div className="flex flex-wrap items-center gap-2">
-              <Button
-                variant="primary"
-                disabled={busy || working || queueActive || !unlocked || !target}
-                onClick={() =>
-                  void run(async () => {
-                    const discs = queue.filter((id) => library?.titles.find((t) => t.titleId === id)?.media === "disc");
-                    await dumperApi.call(host, "/api/queue/start", {
-                      target,
-                      titles: queue.join(","),
-                      discs: discs.join(","),
-                    });
-                    setQueue([]);
-                  })
-                }
-              >
-                {tr("dumps_queue_start", { n: queue.length }, "Dump {n} in a Queue")}
-              </Button>
-              <span className="text-xs text-[var(--color-muted)]">
-                {tr(
-                  "dumps_queue_hint",
-                  undefined,
-                  "Each game is started (which closes the one before it), given time to load, then dumped.",
+                <span className="min-w-0 flex-1 truncate font-mono text-xs">
+                  {d.folder.split("/").pop()}
+                </span>
+                {d.incomplete && (
+                  <Badge tone="warn">
+                    {tr("dump_incomplete", undefined, "Incomplete")}
+                  </Badge>
                 )}
-              </span>
-            </div>
-          )}
-        </div>
-      </Card>
-
-      <Card>
-        <div className="flex flex-col gap-3">
-          <h2 className="text-base font-semibold">{tr("dumps_finished_title", undefined, "Dumps")}</h2>
-          {(dumps?.dumps ?? []).length === 0 ? (
-            <p className="text-sm text-[var(--color-muted)]">{tr("dumps_finished_none", undefined, "No dumps on the PS5's drives yet.")}</p>
-          ) : (
-            <ul className="flex flex-col divide-y divide-[var(--color-border)]">
-              {dumps!.dumps.map((d) => {
-                const path = dumpPath(d);
-                return (
-                  <li key={path} className="flex flex-wrap items-center gap-3 py-2">
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-medium">{d.title}</span>
-                      <span className="flex flex-wrap items-center gap-1.5 text-xs text-[var(--color-muted)]">
-                        <span className="font-mono">{d.titleId}</span>
-                        <span>{formatBytes(d.bytes)}</span>
-                        <span>{d.internal ? tr("dumps_console_drive", undefined, "This PS5") : d.mount}</span>
-                        {d.state !== "done" && <Badge tone="warn">{tr("dumps_unfinished", undefined, "Unfinished")}</Badge>}
-                        {d.fself > 0 && <Badge tone="neutral">{tr("dumps_fself", undefined, "FSELF")}</Badge>}
-                      </span>
-                    </span>
-                    <Button variant="ghost" size="sm" leftIcon={<FolderOpen size={13} />} onClick={() => openInFileSystem(navigate, path)}>
-                      {tr("dumps_show_in_files", undefined, "Show in Files")}
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      disabled={d.state !== "done"}
-                      onClick={() => navigate("/workshop", { state: { source: consoleSource(host, path) } })}
-                    >
-                      {tr("open_workshop", undefined, "Open Workshop")}
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      leftIcon={<Trash2 size={13} />}
-                      disabled={busy || d.inUse || !unlocked}
-                      aria-label={tr("dumps_delete", { title: d.title }, "Delete the dump of {title}")}
-                      onClick={() =>
-                        void (async () => {
-                          const ok = await confirm({
-                            title: tr("dumps_delete", { title: d.title }, "Delete the dump of {title}"),
-                            message: path,
-                            confirmLabel: tr("delete", undefined, "Delete"),
-                            destructive: true,
-                          });
-                          if (ok)
-                            await run(async () => {
-                              // the dumper deletes only what it is told twice: confirm repeats the folder (its own page does the same)
-                              await dumperApi.call(host, "/api/dumps/remove", {
-                                mount: d.mount,
-                                dir: d.dir,
-                                folder: d.folder,
-                                confirm: d.folder,
-                              });
-                              await loadDumps();
-                            });
-                        })()
-                      }
-                    />
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </div>
-      </Card>
+                {!!d.decrypted && (
+                  <Badge>
+                    {tr(
+                      "dump_badge_decrypted",
+                      { n: d.decrypted },
+                      `${d.decrypted} decrypted`,
+                    )}
+                  </Badge>
+                )}
+                {!!d.bytes && (
+                  <span className="text-xs text-[var(--color-muted)]">
+                    {formatBytes(d.bytes)}
+                  </span>
+                )}
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  leftIcon={<FolderOpen size={12} />}
+                  onClick={() => openInFileSystem(navigate, d.folder)}
+                >
+                  {tr("dump_open", undefined, "Open in Files")}
+                </Button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
     </div>
   );
 }

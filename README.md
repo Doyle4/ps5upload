@@ -446,6 +446,8 @@ This software builds on the following open-source projects:
 * [libsmb2](https://github.com/sahlberg/libsmb2) (LGPL-2.1-or-later) — network shares on the console's own Files page; **vendored** at [`payload/third_party/libsmb2`](payload/third_party/libsmb2) and built into a separate on-demand daemon (`payload/smb/`), never into the helper
 * [7-Zip](https://7-zip.org) (Igor Pavlov; LGPL-2.1-or-later, parts BSD-3-Clause) — the decoders of the on-console archive extractor; the files it needs are **vendored** at [`payload/third_party/7zip`](payload/third_party/7zip) (no RAR code), built into a separate on-demand payload (`payload/extractor/`), never into the helper
 * [libarchive](https://github.com/libarchive/libarchive) (BSD-2-Clause) — that extractor's RAR and RAR5 readers, **vendored** at [`payload/third_party/libarchive`](payload/third_party/libarchive)
+* [ps5-app-dumper](https://github.com/EchoStretch/ps5-app-dumper) (EchoStretch, slopmaster33; GPL-3.0-or-later) — the on-console game dump: its dumper, package, PFS, decrypt and elf2fself code is **ported** into `payload/src/app_dump_*.c` (with Brad Conte's public-domain SHA-256 it carries)
+* [ps5-self-pager](https://github.com/idlesauce/ps5-self-pager) (idlesauce; The Unlicense) — the self-pager SELF decryption and its firmware table, in `payload/src/app_dump_self.c`
 
 ## Thanks
 

@@ -320,6 +320,80 @@ pub fn archive_extract(
     }
 }
 
+/// What [`app_dump`] asks for: the title (its `<ID>-app0` must be mounted, i.e. the game is
+/// running) and the folder the dump is written under (`<dest>/<ID>-app`, DLC folders beside it).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AppDumpRequest {
+    pub title_id: String,
+    pub dest: String,
+    /// Decrypt the SELFs (.elf/.self/.prx/.sprx/.bin) of the dump on the console.
+    #[serde(default)]
+    pub decrypt: bool,
+    /// With `decrypt`: rewrite each decrypted ELF as a fake-signed SELF (the plain ELF is kept
+    /// under `<out>/decrypted/`).
+    #[serde(default)]
+    pub fself: bool,
+    /// Also dump the title's mounted DLC (`-ac` folders).
+    #[serde(default = "default_true")]
+    pub dlc: bool,
+}
+
+fn default_true() -> bool {
+    true
+}
+
+/// What [`app_dump`] wrote. `decrypt_skipped` is empty, or why no file was decrypted (the
+/// payload's token, e.g. `dump_decrypt_unsupported_fw`); `fw` is the console's firmware as
+/// hex (`0x13600000`), empty when it could not be read.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AppDumpResult {
+    #[serde(default)]
+    pub path: String,
+    #[serde(default)]
+    pub files: u64,
+    #[serde(default)]
+    pub bytes: u64,
+    #[serde(default)]
+    pub decrypted: u64,
+    #[serde(default)]
+    pub decrypt_failed: u64,
+    #[serde(default)]
+    pub decrypt_skipped: String,
+    #[serde(default)]
+    pub dlc: Vec<String>,
+    #[serde(default)]
+    pub fw: String,
+}
+
+/// Dump an installed, running title to a drive on the console (`JOB_OP_APP_DUMP`): its files,
+/// the sce_sys extras of its package and appmeta, its DLC, optionally decrypted. Refused (the
+/// payload's token as cause): `dump_not_running` (not mounted: launch it first), `dump_exists`,
+/// `dump_no_space`. `op_id` keys `/api/ps5/fs/op-status` and `op-cancel`; a stopped dump leaves
+/// its partial folder with a `dump-incomplete.txt` in it.
+pub fn app_dump(
+    addr: &str,
+    req: &AppDumpRequest,
+    op_id: u64,
+    io_timeout: std::time::Duration,
+) -> Result<AppDumpResult> {
+    let body = serde_json::to_vec(req).context("serialize app_dump")?;
+    match mgmt::run_op(
+        addr,
+        mgmt::ops::APP_DUMP,
+        &format!("APP_DUMP({})", req.title_id),
+        &body,
+        &mgmt::JobCall {
+            op_id,
+            subject: &req.title_id,
+            deadline: io_timeout,
+        },
+    ) {
+        Ok(resp) => serde_json::from_slice(&resp).context("decode APP_DUMP result"),
+        Err(e) if is_cancel(&e, "dump_cancelled") => bail!("cancelled"),
+        Err(e) => Err(e),
+    }
+}
+
 // ─── FS_READ ────────────────────────────────────────────────────────────────
 
 /// Ask the payload for up to `limit` bytes of a file on the PS5 starting at
@@ -1430,6 +1504,49 @@ fn blake3_file(path: &std::path::Path) -> Result<String> {
 #[cfg(test)]
 mod tests {
     use super::UnregisterOutcome;
+
+    /// The request is the payload's args JSON as-is: snake_case keys, `dlc` on unless said.
+    #[test]
+    fn app_dump_request_is_the_payloads_args() {
+        let req = super::AppDumpRequest {
+            title_id: "PPSA01234".into(),
+            dest: "/mnt/usb0/ps5upload-dumps".into(),
+            decrypt: false,
+            fself: false,
+            dlc: true,
+        };
+        assert_eq!(
+            serde_json::to_string(&req).unwrap(),
+            r#"{"title_id":"PPSA01234","dest":"/mnt/usb0/ps5upload-dumps","decrypt":false,"fself":false,"dlc":true}"#
+        );
+        let sparse: super::AppDumpRequest =
+            serde_json::from_str(r#"{"title_id":"CUSA00001","dest":"/mnt/ext0"}"#).unwrap();
+        assert!(!sparse.decrypt && !sparse.fself && sparse.dlc);
+    }
+
+    /// The payload's result decodes whole, and an older or partial one still decodes.
+    #[test]
+    fn app_dump_result_decodes_the_payloads_reply() {
+        let r: super::AppDumpResult = serde_json::from_str(
+            r#"{"path":"/mnt/usb0/d/PPSA01234-app","files":12,"bytes":3456,"decrypted":3,
+                "decrypt_failed":1,"decrypt_skipped":"","dlc":["EP0001-PPSA01234_00-DLC1-ac"],
+                "fw":"0x13600000"}"#,
+        )
+        .unwrap();
+        assert_eq!(r.path, "/mnt/usb0/d/PPSA01234-app");
+        assert_eq!(
+            (r.files, r.bytes, r.decrypted, r.decrypt_failed),
+            (12, 3456, 3, 1)
+        );
+        assert_eq!(r.dlc, vec!["EP0001-PPSA01234_00-DLC1-ac".to_string()]);
+        assert_eq!(r.fw, "0x13600000");
+        let skipped: super::AppDumpResult = serde_json::from_str(
+            r#"{"path":"/x","decrypt_skipped":"dump_decrypt_unsupported_fw"}"#,
+        )
+        .unwrap();
+        assert_eq!(skipped.decrypt_skipped, "dump_decrypt_unsupported_fw");
+        assert!(skipped.dlc.is_empty() && skipped.fw.is_empty() && skipped.files == 0);
+    }
 
     /// A Sony refusal must not read as a clean uninstall. The payload
     /// reports `sceAppInstUtilAppUninstall`'s rc in the ACK body; a

@@ -102,9 +102,9 @@ export default function GamesScreen() {
       "Game folders and disk images found in console storage. Mount, register, move, or inspect source files here.",
     ),
     dumps: tr(
-      "games_dumps_description",
+      "games_dumps_description2",
       undefined,
-      "Dump installed games, decrypted, to a USB drive or the console with ps5-app-dumper, one at a time or as a queue. Finished dumps open in Files and Workshop.",
+      "Copy installed games to a USB drive or the console, one at a time or as a queue. A plain copy by default; decrypting the executables is an option.",
     ),
   };
   return (

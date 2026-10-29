@@ -36,6 +36,7 @@ import {
   Wrench,
   Search,
   Bug,
+  HardDriveDownload,
 } from "lucide-react";
 import clsx from "clsx";
 
@@ -76,6 +77,7 @@ const kindIconMap: Record<TaskKind, typeof Upload> = {
   "fs-rename": FolderInput,
   "fs-unpack": FolderInput,
   "fs-extract": Archive,
+  "app-dump": HardDriveDownload,
   "pkg-install": Package,
   "pkg-dpi-install": Package,
   "save-backup": Save,

@@ -499,7 +499,7 @@ fn request(
 
 /// One plain HTTP/1.1 request to another small server on the console (`addr` is
 /// `ip:port`), `Connection: close`; status and body. For the console's other web payloads
-/// (`crate::app_dumper`), which need no request marker.
+/// (which need no request marker).
 pub fn http_request(
     addr: &str,
     method: &str,

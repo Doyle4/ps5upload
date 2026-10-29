@@ -45,6 +45,8 @@ export type TaskKind =
   | "fs-rename"
   | "fs-unpack"
   | "fs-extract"
+  // an installed game dumped to a drive
+  | "app-dump"
   // installs (engine + payload bgft_install_status)
   | "pkg-install"
   | "pkg-dpi-install"

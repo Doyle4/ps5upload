@@ -36,6 +36,7 @@
 
 mod activity;
 mod ampr_trace;
+mod app_dump_api;
 mod ava1_api;
 mod browser_payload;
 mod bundled_payload;
@@ -53,7 +54,6 @@ mod console_snapshot;
 mod convert_source;
 mod disk_usage;
 mod download_relay;
-mod dumper_api;
 mod elfldr_guard;
 mod engine_log;
 mod event_journal;
@@ -11113,6 +11113,7 @@ async fn run(cfg: EngineConfig) -> anyhow::Result<()> {
         .route("/api/ps5/fs/move", post(ps5_fs_move))
         .route("/api/ps5/fs/unpack", post(ps5_fs_unpack))
         .route("/api/ps5/fs/extract", post(ps5_fs_extract))
+        .route("/api/ps5/dump", post(app_dump_api::dump))
         .route("/api/ps5/fs/copy", post(ps5_fs_copy))
         .route("/api/ps5/fs/op-status", get(ps5_fs_op_status))
         .route("/api/ps5/fs/op-cancel", post(ps5_fs_op_cancel))
@@ -11230,11 +11231,6 @@ async fn run(cfg: EngineConfig) -> anyhow::Result<()> {
             "/api/ampr/profile",
             get(ampr_trace::profile_get).delete(ampr_trace::profile_delete),
         )
-        .route("/api/ps5/dumper", get(dumper_api::overview))
-        .route("/api/ps5/dumper/read", get(dumper_api::read))
-        .route("/api/ps5/dumper/unlock", post(dumper_api::unlock))
-        .route("/api/ps5/dumper/show-code", post(dumper_api::show_code))
-        .route("/api/ps5/dumper/call", post(dumper_api::call))
         .route("/api/ps5/pldmgr", get(pldmgr_api::overview))
         .route("/api/ps5/pldmgr/launch", post(pldmgr_api::launch))
         .route("/api/ps5/pldmgr/delete", post(pldmgr_api::delete))

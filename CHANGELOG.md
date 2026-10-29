@@ -6,6 +6,34 @@ What's new in ps5upload, written for humans.
 
 ## 8.10.0
 
+- **Games is one grid.** The list and its Everywhere / Installed / On PS5 drives / Your copies
+  views are gone: Games is the cover grid that "Your copies" was, plus the games the selected
+  PS5 has installed that you have no copy of ("On the PS5 only"). An **Installed** filter sits
+  beside Not installed, Update and DLC. Installed games, PS5 drives and Dump games stay under
+  Manage.
+- **Remote Play** (renamed from Play) keeps playing when you leave its screen: a bar on every
+  other screen leads back to it or stops it, and closing or reloading the window keeps the
+  session for a minute (setting) to come back to. A dropped connection to the engine
+  reconnects by itself, and stopping no longer says "The connection to the engine dropped".
+  Two windows can show it; the one you look at takes the picture.
+  - Less delay: the picture never queues behind a slow page (it skips ahead instead) and
+    sound is sent ahead of the picture.
+  - Cleaner sound: it plays at the console's 48 kHz through one steady buffer, late packets
+    are put back in order, and a lost one is covered instead of clicking. The buffer is a
+    setting (Lowest delay / Balanced / Steady on Wi-Fi).
+  - Full screen (double-click or the button; Esc leaves), a toolbar on the picture with stats
+    on/off, mute, settings and Stop, and a settings panel: picture, frame rate, sound, how long
+    to keep playing, pointer capture, vibration, the on-screen controller and your keys.
+  - An on-screen controller on phones and tablets (sticks, D-pad, buttons, touchpad); it hides
+    when a controller connects.
+- **Send to PS5 says it installs packages.** It opens with its three jobs: Install a package
+  (.pkg/.fpkg, streamed or uploaded), Copy a game or files, and Install from a link or a drive.
+- **Dumping is built in.** Games → Manage → Dump games copies an installed game (and its DLC)
+  to a USB drive or the console with ps5upload's own helper; ps5-app-dumper is no longer
+  needed. The game is started for it. A plain copy is the default; decrypting the executables
+  (and fake-signed copies for backporting) is an option that says what it risks, for firmware
+  up to 13.60. Based on ps5-app-dumper (EchoStretch, slopmaster33) and ps5-self-pager
+  (idlesauce).
 - **Send to PS5's Upload goes through the queue.** Upload adds the item to the console's
   queue and starts it, like Upload & install always did for a package. Its progress, install,
   mount and result show on its queue row with the rest, and a running queue no longer blocks
@@ -15,6 +43,7 @@ What's new in ps5upload, written for humans.
   80% full it is the card's main button.
 - **Minion: the running game's Saves.** Home's "Now running" card has Saves beside Close game
   and Cheats, to back up (or restore) that game's save.
+- CI: a payload self-test that hangs now fails by name after 4 minutes, with its stacks.
 
 ## 8.9.0
 

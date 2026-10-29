@@ -357,6 +357,7 @@ job_ops! {
     (SDK_SCAN, 9, "SDK_SCAN", "sdk_scan"),
     (FFPFSC_UNPACK, 10, "FFPFSC_UNPACK", "fs_unpack"),
     (ARCHIVE_EXTRACT, 12, "ARCHIVE_EXTRACT", "fs_extract"),
+    (APP_DUMP, 13, "APP_DUMP", "app_dump"),
 }
 
 /// How one long operation is run and followed.

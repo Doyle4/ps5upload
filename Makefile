@@ -1141,6 +1141,14 @@ test-payload: payload
 		$(PAYLOAD_DIR)/tests/game_patch_selftest.c
 	@$(RUN_LIMITED) /tmp/ps5upload-game-patch-selftest
 	@echo "✓ PS-Game-Patch XML entries parse to the addresses, patterns and bytes GoldHEN would write"
+	@echo "Running title dump self-test (host build)..."
+	@cc -O2 -Wall -Wextra -Werror -I$(PAYLOAD_DIR)/include -I$(AVA1_C) -I$(AVA1_C)/gen -I$(PAYLOAD_DIR)/gen \
+		-o /tmp/ps5upload-app-dump-selftest \
+		$(PAYLOAD_DIR)/tests/app_dump_selftest.c $(PAYLOAD_DIR)/src/app_dump_core.c $(PAYLOAD_DIR)/src/app_dump_pkg.c \
+		$(PAYLOAD_DIR)/src/app_dump_fself.c $(PAYLOAD_DIR)/src/app_dump_self.c $(PAYLOAD_DIR)/src/app_dump_sha256.c \
+		$(PAYLOAD_DIR)/src/webui_codec.c $(AVA1_C)/gen/ava1_gen.c $(PAYLOAD_DIR)/gen/ava1_app_gen.c $(AVA1_C)/ava1_wire.c
+	@$(RUN_LIMITED) /tmp/ps5upload-app-dump-selftest
+	@echo "✓ a running title dumps with its package entries, appmeta, trophy and DLC; a stop leaves dump-incomplete.txt; decryption failures are counted, an unknown firmware keeps the plain copy"
 	@echo "Running console clean-up rules self-test (host build)..."
 	@cc -O2 -Wall -Wextra -Werror -I$(PAYLOAD_DIR)/include \
 		-o /tmp/ps5upload-cleanup-rules-selftest \

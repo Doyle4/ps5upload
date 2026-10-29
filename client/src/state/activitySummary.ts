@@ -63,6 +63,8 @@ export function shortLabel(kind: TaskKind): string {
       return "Decompress";
     case "fs-extract":
       return "Extract";
+    case "app-dump":
+      return "Dump";
     case "pkg-install":
     case "pkg-dpi-install":
       return "Install";
