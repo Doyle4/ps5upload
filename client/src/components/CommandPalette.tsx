@@ -148,7 +148,7 @@ function useCommands(close: () => void, open: boolean): Command[] {
   const games = useMemo(
     () =>
       paletteGames(
-        library ? Object.values(library.games) : [],
+        library?.games ? Object.values(library.games) : [],
         installed,
         (h) => profileNameForHost(h, profiles),
         tr,

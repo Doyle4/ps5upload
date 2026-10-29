@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useNavigate } from "react-router";
 import {
   BarChart3,
@@ -459,7 +460,8 @@ export function StreamPanel() {
     return () => {
       if (stream.canvas.parentElement === host) host.removeChild(stream.canvas);
     };
-  }, [stream]);
+    // Full screen moves the stage (a portal), so the canvas follows it.
+  }, [stream, full]);
 
   // A stream this page does not show (a reload, another window): offer it here.
   useEffect(() => {
@@ -500,6 +502,10 @@ export function StreamPanel() {
     };
     document.addEventListener("fullscreenchange", onChange);
     return () => document.removeEventListener("fullscreenchange", onChange);
+  }, [full]);
+  // Into or out of full screen the stage is a new element: keep the keyboard on it.
+  useEffect(() => {
+    if (full) stage.current?.focus();
   }, [full]);
   // Leaving the screen leaves full screen.
   useEffect(() => () => void setWindowFullscreen(false), []);
@@ -591,6 +597,119 @@ export function StreamPanel() {
   const elsewhereProfile = elsewhere ? profiles.find((p) => p.host === elsewhere) : null;
   const showBar = !playing || chrome || settingsOpen;
   const muted = prefs.muted || prefs.volume === 0;
+
+  const stageView = (
+        <div
+          ref={stage}
+          tabIndex={0}
+          onKeyDown={(e) => onKey(e, true)}
+          onKeyUp={(e) => onKey(e, false)}
+          onBlur={() => {
+            rpInput.held.clear();
+            stream?.sendPad();
+          }}
+          onClick={running ? (e) => !e.shiftKey && capture() : undefined}
+          onDoubleClick={running ? toggleFull : undefined}
+          onPointerDown={(e) => onPointer(e, "down")}
+          onPointerMove={(e) => onPointer(e, "move")}
+          onPointerUp={(e) => onPointer(e, "up")}
+          onPointerLeave={(e) => onPointer(e, "up")}
+          className={`group relative overflow-hidden bg-black outline-none ${
+            full
+              ? "fixed inset-0 z-[200] h-[100dvh] w-screen"
+              : "aspect-video w-full rounded-[var(--radius-card)] shadow-[var(--shadow-2)] focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]"
+          } ${playing && !chrome ? "cursor-none" : ""}`}
+          data-testid="rp-stage"
+        >
+          <div ref={canvasHost} className="absolute inset-0 flex items-center justify-center" />
+
+          {running && phase !== "playing" && phase !== "moved" && (
+            <div className="absolute inset-0 flex items-center justify-center gap-2 bg-black/40 text-sm text-white/85">
+              <Spinner size={16} tone="inherit" />
+              {phaseText(tr, phase)}
+            </div>
+          )}
+          {phase === "moved" && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/70 text-sm text-white/85">
+              <MonitorPlay size={28} />
+              {tr("rp_moved", undefined, "Playing in another window.")}
+              <Button size="sm" variant="primary" onClick={() => stream?.takeOver()}>
+                {tr("rp_play_here", undefined, "Play here")}
+              </Button>
+            </div>
+          )}
+          {!running && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-sm text-white/60">
+              <Gamepad2 size={28} />
+              {tr("rp_idle", undefined, "Press Start to play this PS5 here.")}
+            </div>
+          )}
+          {playing && prefs.showStats && stats && <StatsLine stats={stats} light={light} />}
+
+          {running && (
+            <div
+              className={`absolute inset-x-0 top-0 flex items-center gap-2 bg-gradient-to-b from-black/70 to-transparent px-3 pb-6 pt-[max(0.75rem,env(safe-area-inset-top))] transition-opacity duration-200 ${
+                showBar ? "opacity-100" : "pointer-events-none opacity-0"
+              }`}
+              onClick={(e) => e.stopPropagation()}
+              onDoubleClick={(e) => e.stopPropagation()}
+              data-testid="rp-toolbar"
+            >
+              <span className="min-w-0 flex-1 truncate text-sm font-medium text-white">
+                <span className="me-2 inline-block h-2 w-2 rounded-full bg-[var(--color-success,#22c55e)] align-middle" />
+                {target?.name}
+              </span>
+              <BarButton
+                label={tr("rp_show_stats_short", undefined, "Stats")}
+                active={prefs.showStats}
+                onClick={() => setPrefs({ showStats: !prefs.showStats })}
+                testId="rp-toggle-stats"
+              >
+                <BarChart3 size={16} />
+              </BarButton>
+              <BarButton
+                label={muted ? tr("rp_unmute", undefined, "Sound on") : tr("rp_mute", undefined, "Mute")}
+                active={muted}
+                onClick={() => setPrefs({ muted: !prefs.muted, volume: prefs.volume || 1 })}
+              >
+                {muted ? <VolumeX size={16} /> : <Volume2 size={16} />}
+              </BarButton>
+              <BarButton
+                label={tr("rp_settings", undefined, "Settings")}
+                active={settingsOpen}
+                onClick={() => {
+                  if (full) exitFull();
+                  setSettingsOpen((v) => !v);
+                }}
+              >
+                <Settings2 size={16} />
+              </BarButton>
+              <BarButton
+                label={full ? tr("rp_exit_fullscreen", undefined, "Leave full screen") : tr("rp_fullscreen", undefined, "Full screen")}
+                active={full}
+                onClick={toggleFull}
+                testId="rp-fullscreen"
+              >
+                {full ? <Minimize size={16} /> : <Expand size={16} />}
+              </BarButton>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (full) exitFull();
+                  stopStream();
+                }}
+                className="flex h-9 items-center gap-1.5 rounded-full bg-[var(--color-danger,#dc2626)] px-3 text-sm font-medium text-white hover:brightness-110"
+                data-testid="rp-stop"
+              >
+                <Square size={13} />
+                {tr("rp_stop", undefined, "Stop")}
+              </button>
+            </div>
+          )}
+          {running && touchFirst && <TouchControls stream={stream} />}
+        </div>
+  );
 
   return (
     <div className="space-y-3">
@@ -697,116 +816,7 @@ export function StreamPanel() {
 
       {error && <Callout tone="error" title={streamErrorMessage(tr, error)}>{error.detail}</Callout>}
 
-      <div
-        ref={stage}
-        tabIndex={0}
-        onKeyDown={(e) => onKey(e, true)}
-        onKeyUp={(e) => onKey(e, false)}
-        onBlur={() => {
-          rpInput.held.clear();
-          stream?.sendPad();
-        }}
-        onClick={running ? (e) => !e.shiftKey && capture() : undefined}
-        onDoubleClick={running ? toggleFull : undefined}
-        onPointerDown={(e) => onPointer(e, "down")}
-        onPointerMove={(e) => onPointer(e, "move")}
-        onPointerUp={(e) => onPointer(e, "up")}
-        onPointerLeave={(e) => onPointer(e, "up")}
-        className={`group relative overflow-hidden bg-black outline-none ${
-          full
-            ? "fixed inset-0 z-[200] h-[100dvh] w-screen"
-            : "aspect-video w-full rounded-[var(--radius-card)] shadow-[var(--shadow-2)] focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]"
-        } ${playing && !chrome ? "cursor-none" : ""}`}
-        data-testid="rp-stage"
-      >
-        <div ref={canvasHost} className="absolute inset-0 flex items-center justify-center" />
-
-        {running && phase !== "playing" && phase !== "moved" && (
-          <div className="absolute inset-0 flex items-center justify-center gap-2 bg-black/40 text-sm text-white/85">
-            <Spinner size={16} tone="inherit" />
-            {phaseText(tr, phase)}
-          </div>
-        )}
-        {phase === "moved" && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/70 text-sm text-white/85">
-            <MonitorPlay size={28} />
-            {tr("rp_moved", undefined, "Playing in another window.")}
-            <Button size="sm" variant="primary" onClick={() => stream?.takeOver()}>
-              {tr("rp_play_here", undefined, "Play here")}
-            </Button>
-          </div>
-        )}
-        {!running && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-sm text-white/60">
-            <Gamepad2 size={28} />
-            {tr("rp_idle", undefined, "Press Start to play this PS5 here.")}
-          </div>
-        )}
-        {playing && prefs.showStats && stats && <StatsLine stats={stats} light={light} />}
-
-        {running && (
-          <div
-            className={`absolute inset-x-0 top-0 flex items-center gap-2 bg-gradient-to-b from-black/70 to-transparent px-3 pb-6 pt-[max(0.75rem,env(safe-area-inset-top))] transition-opacity duration-200 ${
-              showBar ? "opacity-100" : "pointer-events-none opacity-0"
-            }`}
-            onClick={(e) => e.stopPropagation()}
-            onDoubleClick={(e) => e.stopPropagation()}
-            data-testid="rp-toolbar"
-          >
-            <span className="min-w-0 flex-1 truncate text-sm font-medium text-white">
-              <span className="me-2 inline-block h-2 w-2 rounded-full bg-[var(--color-success,#22c55e)] align-middle" />
-              {target?.name}
-            </span>
-            <BarButton
-              label={tr("rp_show_stats_short", undefined, "Stats")}
-              active={prefs.showStats}
-              onClick={() => setPrefs({ showStats: !prefs.showStats })}
-              testId="rp-toggle-stats"
-            >
-              <BarChart3 size={16} />
-            </BarButton>
-            <BarButton
-              label={muted ? tr("rp_unmute", undefined, "Sound on") : tr("rp_mute", undefined, "Mute")}
-              active={muted}
-              onClick={() => setPrefs({ muted: !prefs.muted, volume: prefs.volume || 1 })}
-            >
-              {muted ? <VolumeX size={16} /> : <Volume2 size={16} />}
-            </BarButton>
-            <BarButton
-              label={tr("rp_settings", undefined, "Settings")}
-              active={settingsOpen}
-              onClick={() => {
-                if (full) exitFull();
-                setSettingsOpen((v) => !v);
-              }}
-            >
-              <Settings2 size={16} />
-            </BarButton>
-            <BarButton
-              label={full ? tr("rp_exit_fullscreen", undefined, "Leave full screen") : tr("rp_fullscreen", undefined, "Full screen")}
-              active={full}
-              onClick={toggleFull}
-              testId="rp-fullscreen"
-            >
-              {full ? <Minimize size={16} /> : <Expand size={16} />}
-            </BarButton>
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                if (full) exitFull();
-                stopStream();
-              }}
-              className="flex h-9 items-center gap-1.5 rounded-full bg-[var(--color-danger,#dc2626)] px-3 text-sm font-medium text-white hover:brightness-110"
-              data-testid="rp-stop"
-            >
-              <Square size={13} />
-              {tr("rp_stop", undefined, "Stop")}
-            </button>
-          </div>
-        )}
-        {running && touchFirst && <TouchControls stream={stream} />}
-      </div>
+      {full ? createPortal(stageView, document.body) : stageView}
 
       {settingsOpen && <SettingsPanel running={running} />}
 

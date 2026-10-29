@@ -148,11 +148,11 @@ export function TouchControls({ stream }: { stream: RemotePlayStream | null }) {
           })
         }
         {...handlers}
-        className="pointer-events-auto relative h-28 w-28 touch-none rounded-full border border-white/25 bg-black/25 backdrop-blur-sm"
+        className="pointer-events-auto relative h-24 w-24 touch-none rounded-full border border-white/25 bg-black/25 backdrop-blur-sm"
       >
         <div
-          className="absolute left-1/2 top-1/2 h-12 w-12 rounded-full bg-white/50"
-          style={{ transform: `translate(calc(-50% + ${(x / STICK_RANGE) * 32}px), calc(-50% + ${(y / STICK_RANGE) * 32}px))` }}
+          className="absolute left-1/2 top-1/2 h-10 w-10 rounded-full bg-white/50"
+          style={{ transform: `translate(calc(-50% + ${(x / STICK_RANGE) * 28}px), calc(-50% + ${(y / STICK_RANGE) * 28}px))` }}
         />
       </div>
     );
@@ -165,42 +165,42 @@ export function TouchControls({ stream }: { stream: RemotePlayStream | null }) {
         aria-label={tr("rp_touch_touchpad", undefined, "Touchpad")}
         onPointerDown={(e) => down(e, (el) => ({ kind: "touchpad", rect: el.getBoundingClientRect() }))}
         {...handlers}
-        className="pointer-events-auto absolute left-1/2 top-14 h-12 w-[34%] -translate-x-1/2 touch-none rounded-xl border border-white/20 bg-black/15"
+        className="pointer-events-auto absolute left-1/2 top-14 h-10 w-[30%] -translate-x-1/2 touch-none rounded-xl border border-white/20 bg-black/15"
       />
       {/* Shoulders. */}
-      <div className="absolute left-3 top-14 flex flex-col gap-2">
+      <div className="absolute left-3 top-14 flex gap-2">
         {trig("L2", "l2")}
         {btn("L1", PadButton.L1, "h-9 w-16 rounded-lg")}
       </div>
-      <div className="absolute right-3 top-14 flex flex-col items-end gap-2">
-        {trig("R2", "r2")}
+      <div className="absolute right-3 top-14 flex gap-2">
         {btn("R1", PadButton.R1, "h-9 w-16 rounded-lg")}
+        {trig("R2", "r2")}
       </div>
       {/* Left: D-pad above the stick. Right: face buttons above the stick. */}
-      <div className="absolute bottom-4 left-4 flex flex-col items-center gap-3">
+      <div className="absolute bottom-3 left-4 flex flex-col items-center gap-2">
         <div className="grid grid-cols-3 grid-rows-3 gap-0.5">
           <span />
-          {btn("↑", PadButton.UP, "h-10 w-10 rounded-md")}
+          {btn("↑", PadButton.UP, "h-9 w-9 rounded-md")}
           <span />
-          {btn("←", PadButton.LEFT, "h-10 w-10 rounded-md")}
+          {btn("←", PadButton.LEFT, "h-9 w-9 rounded-md")}
           <span />
-          {btn("→", PadButton.RIGHT, "h-10 w-10 rounded-md")}
+          {btn("→", PadButton.RIGHT, "h-9 w-9 rounded-md")}
           <span />
-          {btn("↓", PadButton.DOWN, "h-10 w-10 rounded-md")}
+          {btn("↓", PadButton.DOWN, "h-9 w-9 rounded-md")}
           <span />
         </div>
         {stick("l")}
       </div>
-      <div className="absolute bottom-4 right-4 flex flex-col items-center gap-3">
+      <div className="absolute bottom-3 right-4 flex flex-col items-center gap-2">
         <div className="grid grid-cols-3 grid-rows-3 gap-0.5">
           <span />
-          {btn("△", PadButton.TRIANGLE, "h-11 w-11")}
+          {btn("△", PadButton.TRIANGLE, "h-10 w-10")}
           <span />
-          {btn("□", PadButton.SQUARE, "h-11 w-11")}
+          {btn("□", PadButton.SQUARE, "h-10 w-10")}
           <span />
-          {btn("○", PadButton.CIRCLE, "h-11 w-11")}
+          {btn("○", PadButton.CIRCLE, "h-10 w-10")}
           <span />
-          {btn("✕", PadButton.CROSS, "h-11 w-11")}
+          {btn("✕", PadButton.CROSS, "h-10 w-10")}
           <span />
         </div>
         {stick("r")}

@@ -189,7 +189,8 @@ export async function setCollectionRefresh(secs: number | null): Promise<void> {
 export function collectionGames(
   lib: CollectionLibrary | null,
 ): CollectionGame[] {
-  return lib ? Object.values(lib.games) : [];
+  // A library read before its first scan (or from an older engine) may have no games map.
+  return lib?.games ? Object.values(lib.games) : [];
 }
 
 /** Reads what `host` has for every game in the collection. */
