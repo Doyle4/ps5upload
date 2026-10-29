@@ -1779,7 +1779,6 @@ queue_strategy_resume: "Wznów",
 logged_error_one: "1 zarejestrowany błąd",
 logged_error_many: "Zarejestrowane błędy ({count})",
 queue_disabled_oneshot_in_flight: "Trwa jednorazowe przesyłanie — poczekaj na jego zakończenie przed uruchomieniem kolejki.",
-upload_disabled_queue_running: "Kolejka przesyłania jest uruchomiona — wstrzymaj kolejkę, aby rozpocząć przesyłanie jednorazowe, lub użyj 'Dodaj do kolejki', aby dopisać plik.",
 fs_bulk_rename_conflict_title: "Zmiana nazwy nadpisałaby pliki",
 fs_bulk_rename_conflict_body: "Te nazwy docelowe kolidują ze sobą i zniszczyłyby istniejące pliki — żadne nazwy plików nie zostały zmienione:",
 first_run_cancel: "Anuluj",
@@ -6329,6 +6328,7 @@ library_compressed_hint: "Skompresowane obrazy wymagają ShadowMount+, aby grać
 "gate_helper_stopped_body_v2": "Ten ekran potrzebuje pomocnika. Wyślij go ponownie, gdy będzie potrzebny.",
 "gate_payload_down_body_v2": "Konsola jest skonfigurowana, ale pomocnik ps5upload nie odpowiada — wyłącza się przy każdym restarcie i trybie spoczynku. Wyślij go ponownie, aby kontynuować.",
 "cw_system_title": "System",
+"upload_after_running": "Zacznie się po tym, co kolejka wysyła teraz",
 };
 
 export default pl;

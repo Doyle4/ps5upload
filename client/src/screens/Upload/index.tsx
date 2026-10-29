@@ -443,7 +443,6 @@ export default function UploadScreen({
   // the live numbers change every poll (500 ms) and belong to TransferStatus,
   // so the whole screen does not re-render with each tick.
   const transferKind = useTransferStore((s) => phaseForHost(s, host).kind);
-  const startTransfer = useTransferStore((s) => s.start);
   const resetTransfer = useTransferStore((s) => s.reset);
   const alwaysOverwrite = useUploadSettingsStore((s) => s.alwaysOverwrite);
   const reconcileMode = useUploadSettingsStore((s) => s.reconcileMode);
@@ -627,22 +626,20 @@ export default function UploadScreen({
     };
   }, [host]);
 
-  const beginUpload = async (strategy: UploadStrategy) => {
-    if (!source) return;
-    if (!pending) return;
+  /** Upload now: the item goes into this console's queue and starts at once, so its
+   *  progress, install, mount and result show on its queue row like every other send
+   *  (anything else waiting keeps waiting for Start). There is one way things go to the
+   *  console: the one-shot transfer this replaced showed the same progress in a card of
+   *  its own and could not run beside the queue. */
+  const sendNow = (strategy: "overwrite" | "resume") => {
+    const id = handleAddToQueue(strategy);
+    if (id && host) void queueStartHost(host, { onlyIds: [id] });
+  };
+
+  const beginUpload = (strategy: UploadStrategy) => {
+    if (!source || !pending) return;
     setPending(null);
-    await startTransfer({
-      sourceKind: source.kind,
-      srcPath: source.path,
-      dest: pending.dest,
-      addr: pending.addr,
-      strategy,
-      reconcileMode,
-      excludes: activeExcludes,
-      mountAfterUpload: source.kind === "image" && mountAfterUpload,
-      mountReadOnly,
-      registerAfterUpload: source.kind === "game-folder" && registerAfterUpload,
-    });
+    sendNow(strategy === "resume" ? "resume" : "overwrite");
   };
 
   const handleUpload = async () => {
@@ -671,8 +668,7 @@ export default function UploadScreen({
       return;
     }
     if (source.kind === "pkg") {
-      const id = handleAddToQueue("overwrite");
-      if (id) void queueStartHost(host, { onlyIds: [id] });
+      sendNow("overwrite");
       return;
     }
     // Archives extract into a directory, so the pre-flight probe treats them
@@ -694,18 +690,7 @@ export default function UploadScreen({
     // just go. If yes, the user needs to pick Override / Resume / Cancel
     // (unless they've set "always overwrite" in Settings).
     if (alwaysOverwrite) {
-      await startTransfer({
-        sourceKind: source.kind,
-        srcPath: source.path,
-        dest,
-        addr,
-        strategy: "overwrite",
-        excludes: activeExcludes,
-        mountAfterUpload: source.kind === "image" && mountAfterUpload,
-        mountReadOnly,
-        registerAfterUpload:
-          source.kind === "game-folder" && registerAfterUpload,
-      });
+      sendNow("overwrite");
       return;
     }
     setPreflightBusy(true);
@@ -1281,11 +1266,11 @@ function Step2Options(props: {
   // the user confirms the destination console.
   const rosterProfiles = useRosterStore((s) => s.profiles);
   const multiConsole = rosterProfiles.length > 1;
-  // No separate install check: an install leaves the helper alone (the
-  // installer daemon runs beside it), and it runs as a console-queue item,
-  // so `queueRunning` already covers it and Add to queue stays open.
+  // Upload adds to the queue and starts it, so a running queue does not block it: the item
+  // goes after what is running. Only a one-shot transfer from before 8.10 still in flight
+  // (`inFlight`) holds it, since the two share the console's transfer port.
   const uploadDisabled =
-    detecting || inFlight || preflightBusy || queueRunning || !!detectError;
+    detecting || inFlight || preflightBusy || !!detectError;
 
   return (
     <>
@@ -1739,12 +1724,7 @@ function Step2Options(props: {
           type="button"
           onClick={() => onAddToQueue("overwrite")}
           disabled={detecting || preflightBusy || !!detectError}
-          // While the queue runs, Upload is disabled and this is the way forward.
-          className={
-            queueRunning && source.kind !== "pkg"
-              ? ACTION_PRIMARY
-              : ACTION_PLAIN
-          }
+          className={ACTION_PLAIN}
           title={
             detecting
               ? tr(
@@ -1773,18 +1753,16 @@ function Step2Options(props: {
                 )
               : queueRunning
                 ? tr(
-                    "upload_disabled_queue_running",
+                    "upload_after_running",
                     undefined,
-                    "The queue is running — pause the queue to start a one-shot upload, or use 'Add to queue' to append.",
+                    "Starts after what the queue is sending now",
                   )
                 : undefined
           }
           className={
             // For a package, Stream & install (on its card) is the main
             // action; uploading it first is the fallback.
-            source.kind === "pkg" || queueRunning
-              ? ACTION_PLAIN
-              : ACTION_PRIMARY
+            source.kind === "pkg" ? ACTION_PLAIN : ACTION_PRIMARY
           }
         >
           {preflightBusy

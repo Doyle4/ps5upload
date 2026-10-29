@@ -1371,7 +1371,6 @@ hw_load_avg_hint_ncpu: "このPS 5の全負荷≈ {ncpu}.00",
 hw_fw_precise: "FW （カーネル）",
 hw_fw_precise_hint: "カーネルR/W （ kstuff/etaHEN ）を介して読み取ります。正確なポイントリリース。",
 queue_disabled_oneshot_in_flight: "1回限りのアップロードが実行中です。キューを開始する前に完了するまでお待ちください。",
-upload_disabled_queue_running: "アップロードキューが実行中です。キューを一時停止してワンショットアップロードを開始するか、[キューに追加]を使用して追加します。",
 connection_port_closed: "ポート {port} は {host} で開いていません",
 connection_enter_ip_first: "先に PS5 の IP アドレスを入力してください。",
 connection_checking: "{target}:{port} を確認中…",
@@ -6095,6 +6094,7 @@ library_compressed_hint: "圧縮イメージのプレイには ShadowMount+ が�
 "gate_helper_stopped_body_v2": "この画面にはヘルパーが必要です。必要なときに再送信してください。",
 "gate_payload_down_body_v2": "本体は設定済みですが、ps5upload ヘルパーが応答しません。再起動やレストモードのたびに止まります。続けるには再送信してください。",
 "cw_system_title": "システム",
+"upload_after_running": "キューが今送っているものの後に始まります",
 };
 
 export default ja;

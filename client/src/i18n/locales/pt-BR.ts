@@ -1370,7 +1370,6 @@ hw_load_avg_hint_ncpu: "Carga total neste PS5 ≈ {ncpu}.00",
 hw_fw_precise: "FW (kernel)",
 hw_fw_precise_hint: "Ler via kernel R/W (kstuff/etaHEN). Liberação precisa do ponto.",
 queue_disabled_oneshot_in_flight: "Um upload único está em andamento — aguarde até que ele termine antes de iniciar a fila.",
-upload_disabled_queue_running: "A fila de upload está em execução — pause a fila para iniciar um upload único ou use \"Adicionar à fila\" para anexar.",
 connection_port_closed: "A porta {port} não está aberta em {host}",
 connection_enter_ip_first: "Digite primeiro o endereço IP do seu PS5.",
 connection_checking: "Verificando {target}:{port}…",
@@ -6091,6 +6090,7 @@ library_compressed_hint: "Imagens compactadas precisam do ShadowMount+ para joga
 "gate_helper_stopped_body_v2": "Esta tela precisa do helper. Envie de novo quando precisar.",
 "gate_payload_down_body_v2": "Seu console está configurado, mas o helper do ps5upload não responde — ele para a cada reinício ou modo de descanso. Envie de novo para continuar.",
 "cw_system_title": "Sistema",
+"upload_after_running": "Começa depois do que a fila está enviando agora",
 };
 
 export default pt_BR;

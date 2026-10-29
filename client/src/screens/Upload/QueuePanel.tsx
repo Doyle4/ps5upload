@@ -860,6 +860,7 @@ export function QueueRow({
   return (
     <li
       ref={rowRef}
+      data-testid="queue-row"
       className={`rounded-[var(--radius-card)] border text-sm shadow-[var(--edge-highlight),var(--shadow-1)] transition-colors ${
         isActive ? "px-4 py-3.5" : "px-4 py-3"
       } ${

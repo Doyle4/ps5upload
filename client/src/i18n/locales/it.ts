@@ -1370,7 +1370,6 @@ hw_load_avg_hint_ncpu: "Carico completo su questa PS5 ≈ {ncpu}.00",
 hw_fw_precise: "FW (kernel)",
 hw_fw_precise_hint: "Lettura tramite kernel R/W (kstuff/etaHEN). Rilascio preciso del punto.",
 queue_disabled_oneshot_in_flight: "È in corso un caricamento one-shot: attendi che finisca prima di iniziare la coda.",
-upload_disabled_queue_running: "La coda di caricamento è in esecuzione: metti in pausa la coda per avviare un caricamento one-shot o utilizza \"Aggiungi alla coda\" per aggiungere.",
 connection_port_closed: "La porta {port} non è aperta su {host}",
 connection_enter_ip_first: "Inserisci prima l'indirizzo IP della tua PS5.",
 connection_checking: "Verifica di {target}:{port}…",
@@ -6025,6 +6024,7 @@ library_compressed_hint: "Le immagini compresse richiedono ShadowMount+ per gioc
 "gate_helper_stopped_body_v2": "Questa schermata ha bisogno dell'helper. Invialo di nuovo quando ti serve.",
 "gate_payload_down_body_v2": "La console è configurata ma l'helper di ps5upload non risponde: si ferma a ogni riavvio o modalità di riposo. Invialo di nuovo per continuare.",
 "cw_system_title": "Sistema",
+"upload_after_running": "Parte dopo ciò che la coda sta inviando ora",
 };
 
 export default it;

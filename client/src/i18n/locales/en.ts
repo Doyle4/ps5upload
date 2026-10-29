@@ -2227,7 +2227,6 @@ queue_strategy_resume: "Resume",
 logged_error_one: "1 logged error",
 logged_error_many: "{count} logged errors",
 queue_disabled_oneshot_in_flight: "A one-shot upload is in flight — wait for it to finish before starting the queue.",
-upload_disabled_queue_running: "The queue is running — pause the queue to start a one-shot upload, or use 'Add to queue' to append.",
 fs_bulk_rename_conflict_title: "Rename would overwrite files",
 fs_bulk_rename_conflict_body: "These target names collide and would destroy existing files — no files were renamed:",
 first_run_cancel: "Cancel",
@@ -6399,6 +6398,7 @@ library_compressed_hint: "Compressed images need ShadowMount+ to play. To edit, 
 "gate_helper_stopped_body_v2": "This screen needs the helper. Send it again when you need it.",
 "gate_payload_down_body_v2": "Your console is configured but the ps5upload helper isn't answering — it drops on every reboot or rest mode. Send it again to carry on.",
 "cw_system_title": "System",
+"upload_after_running": "Starts after what the queue is sending now",
 };
 
 export default en;

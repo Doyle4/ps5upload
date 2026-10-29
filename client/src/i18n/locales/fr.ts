@@ -1370,7 +1370,6 @@ hw_load_avg_hint_ncpu: "Charge complète sur cette PS5 ≈ {ncpu}.00",
 hw_fw_precise: "FW (noyau)",
 hw_fw_precise_hint: "Lire via kernel R/W (kstuff/etaHEN). Libération ponctuelle précise.",
 queue_disabled_oneshot_in_flight: "Un téléchargement unique est en cours — attendez qu'il se termine avant de commencer la file d'attente.",
-upload_disabled_queue_running: "La file d'attente de téléchargement est en cours d'exécution — mettez la file d'attente en pause pour démarrer un téléchargement unique ou utilisez « Ajouter à la file d'attente » pour ajouter.",
 connection_port_closed: "Le port {port} n'est pas ouvert sur {host}",
 connection_enter_ip_first: "Saisissez d'abord l'adresse IP de votre PS5.",
 connection_checking: "Vérification de {target}:{port}…",
@@ -6092,6 +6091,7 @@ library_compressed_hint: "Les images compressées nécessitent ShadowMount+ pour
 "gate_helper_stopped_body_v2": "Cet écran a besoin de l'assistant. Renvoyez-le quand vous en avez besoin.",
 "gate_payload_down_body_v2": "Votre console est configurée mais l'assistant ps5upload ne répond pas — il s'arrête à chaque redémarrage ou mise en veille. Renvoyez-le pour continuer.",
 "cw_system_title": "Système",
+"upload_after_running": "Démarre après ce que la file envoie en ce moment",
 };
 
 export default fr;

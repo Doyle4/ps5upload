@@ -1370,7 +1370,6 @@ hw_load_avg_hint_ncpu: "โหลดเต็มรูปแบบสำหร�
 hw_fw_precise: "FW (เคอร์เนล)",
 hw_fw_precise_hint: "อ่านผ่านเคอร์เนล R/W (kstuff/etaHEN) การปล่อยจุดที่แม่นยำ",
 queue_disabled_oneshot_in_flight: "อัพโหลดเพียงนัดเดียวรอให้เสร็จก่อนถึงคิว",
-upload_disabled_queue_running: "คิวอัปโหลดกำลังทำงาน — หยุดคิวชั่วคราวเพื่อเริ่มการอัปโหลดแบบนัดเดียวหรือใช้ 'เพิ่มไปยังคิว' เพื่อผนวก",
 connection_port_closed: "พอร์ต {port} ไม่ได้เปิดอยู่บน {host}",
 connection_enter_ip_first: "กรุณาป้อนที่อยู่ IP ของ PS5 ของคุณก่อน",
 connection_checking: "กำลังตรวจสอบ {target}:{port}…",
@@ -6083,6 +6082,7 @@ library_compressed_hint: "อิมเมจที่บีบอัดต้อ
 "gate_helper_stopped_body_v2": "หน้าจอนี้ต้องใช้ตัวช่วย ส่งอีกครั้งเมื่อคุณต้องการ",
 "gate_payload_down_body_v2": "ตั้งค่าเครื่องแล้ว แต่ตัวช่วย ps5upload ไม่ตอบสนอง — มันหยุดทุกครั้งที่รีบูตหรือเข้าโหมดพัก ส่งอีกครั้งเพื่อดำเนินการต่อ",
 "cw_system_title": "ระบบ",
+"upload_after_running": "เริ่มหลังจากสิ่งที่คิวกำลังส่งอยู่",
 };
 
 export default th;

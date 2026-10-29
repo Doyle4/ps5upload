@@ -1372,7 +1372,6 @@ hw_load_avg_hint_ncpu: "Tải đầy trên PS5 này ≈ {ncpu}.00",
 hw_fw_precise: "FW (hạt nhân)",
 hw_fw_precise_hint: "Đọc qua kernel R/W (kstuff/etaHEN). Giải phóng điểm chính xác.",
 queue_disabled_oneshot_in_flight: "Quá trình tải lên một lần đang diễn ra — hãy đợi quá trình hoàn tất trước khi bắt đầu hàng đợi.",
-upload_disabled_queue_running: "Đang chạy hàng đợi tải lên — tạm dừng hàng đợi để bắt đầu tải lên một lần hoặc sử dụng 'Thêm vào hàng đợi' để thêm vào.",
 connection_port_closed: "Cổng {port} không mở trên {host}",
 connection_enter_ip_first: "Hãy nhập địa chỉ IP của PS5 của bạn trước.",
 connection_checking: "Đang kiểm tra {target}:{port}…",
@@ -6077,6 +6076,7 @@ library_compressed_hint: "Ảnh đĩa nén cần ShadowMount+ để chơi. Để
 "gate_helper_stopped_body_v2": "Màn hình này cần helper. Gửi lại khi bạn cần.",
 "gate_payload_down_body_v2": "Máy đã được thiết lập nhưng helper ps5upload không phản hồi — nó dừng sau mỗi lần khởi động lại hoặc chế độ nghỉ. Gửi lại để tiếp tục.",
 "cw_system_title": "Hệ thống",
+"upload_after_running": "Bắt đầu sau những gì hàng đợi đang gửi",
 };
 
 export default vi;

@@ -1370,7 +1370,6 @@ hw_load_avg_hint_ncpu: "Bu PS5 üzerinde tam yük ≈ {ncpu}.00",
 hw_fw_precise: "FW (çekirdek)",
 hw_fw_precise_hint: "Çekirdek R/W (kstuff/etaHEN) aracılığıyla okuyun. Hassas nokta bırakma.",
 queue_disabled_oneshot_in_flight: "Tek seferlik yükleme uçuşta — kuyruğa başlamadan önce bitmesini bekleyin.",
-upload_disabled_queue_running: "Yükleme kuyruğu çalışıyor — tek seferlik bir yükleme başlatmak için kuyruğu duraklatın veya eklemek için 'Kuyruğa ekle'yi kullanın.",
 connection_port_closed: "{host} üzerinde {port} bağlantı noktası açık değil",
 connection_enter_ip_first: "Önce PS5'inizin IP adresini girin.",
 connection_checking: "{target}:{port} kontrol ediliyor…",
@@ -6082,6 +6081,7 @@ library_compressed_hint: "Sıkıştırılmış kalıpları oynatmak için Shadow
 "gate_helper_stopped_body_v2": "Bu ekranın yardımcıya ihtiyacı var. Gerektiğinde yeniden gönderin.",
 "gate_payload_down_body_v2": "Konsolunuz yapılandırılmış ancak ps5upload yardımcısı yanıt vermiyor — her yeniden başlatmada veya dinlenme modunda kapanır. Devam etmek için yeniden gönderin.",
 "cw_system_title": "Sistem",
+"upload_after_running": "Kuyruğun şu an gönderdiğinden sonra başlar",
 };
 
 export default tr;

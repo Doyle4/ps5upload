@@ -1370,7 +1370,6 @@ hw_load_avg_hint_ncpu: "الحمولة الكاملة على جهاز PS5 ≈ {n
 hw_fw_precise: "FW (النواة)",
 hw_fw_precise_hint: "اقرأ عبر kernel R/W (kstuff/etaHEN). تحرير نقطي دقيق.",
 queue_disabled_oneshot_in_flight: "يوجد تحميل لمرة واحدة في الرحلة — انتظر حتى تنتهي قبل بدء قائمة الانتظار.",
-upload_disabled_queue_running: "قائمة انتظار التحميل قيد التشغيل — أوقف قائمة الانتظار مؤقتًا لبدء التحميل مرة واحدة، أو استخدم \"إضافة إلى قائمة الانتظار\" لإلحاقها.",
 connection_port_closed: "المنفذ {port} غير مفتوح على {host}",
 connection_enter_ip_first: "أدخل أولاً عنوان IP الخاص بجهاز PS5 لديك.",
 connection_checking: "جارٍ التحقق من {target}:{port}…",
@@ -6075,6 +6074,7 @@ library_compressed_hint: "تحتاج الصور المضغوطة إلى ShadowMo
 "gate_helper_stopped_body_v2": "تحتاج هذه الشاشة إلى المساعد. أرسله مرة أخرى عندما تحتاجه.",
 "gate_payload_down_body_v2": "جهازك مُعدّ لكن مساعد ps5upload لا يستجيب — فهو يتوقف عند كل إعادة تشغيل أو وضع راحة. أرسله مرة أخرى للمتابعة.",
 "cw_system_title": "النظام",
+"upload_after_running": "يبدأ بعد ما ترسله قائمة الانتظار الآن",
 };
 
 export default ar;

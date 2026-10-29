@@ -2007,7 +2007,6 @@ queue_strategy_resume: "Folytatás",
 logged_error_one: "1 naplózott hiba",
 logged_error_many: "{count} naplózott hiba",
 queue_disabled_oneshot_in_flight: "Egy egyszeri feltöltés folyamatban van — várd meg, amíg befejeződik, mielőtt elindítod a várólistát.",
-upload_disabled_queue_running: "A feltöltési várólista fut — szüneteltesd a várólistát egy egyszeri feltöltés indításához, vagy használd a „Hozzáadás a várólistához” gombot.",
 fs_bulk_rename_conflict_title: "Az átnevezés felülírna fájlokat",
 fs_bulk_rename_conflict_body: "Ezek a célnevek ütköznek, és megsemmisítenék a meglévő fájlokat — egy fájl sem lett átnevezve:",
 first_run_cancel: "Mégse",
@@ -6389,6 +6388,7 @@ library_compressed_hint: "A tömörített képfájlok futtatásához ShadowMount
 "gate_helper_stopped_body_v2": "Ehhez a képernyőhöz kell a segéd. Küldd el újra, amikor szükséged van rá.",
 "gate_payload_down_body_v2": "A konzol be van állítva, de a ps5upload segéd nem válaszol — minden újraindításkor és pihenő módban leáll. Küldd el újra a folytatáshoz.",
 "cw_system_title": "Rendszer",
+"upload_after_running": "Azután indul, amit a sor most küld",
 };
 
 export default hu;

@@ -1370,7 +1370,6 @@ hw_load_avg_hint_ncpu: "Muatan penuh pada PS5 ini ≈ {ncpu}.00",
 hw_fw_precise: "FW (kernel)",
 hw_fw_precise_hint: "Baca melalui kernel R/W (kstuff/etaHEN). Pelepasan titik yang tepat.",
 queue_disabled_oneshot_in_flight: "Unggahan satu foto sedang dalam penerbangan — tunggu hingga selesai sebelum memulai antrean.",
-upload_disabled_queue_running: "Antrean unggahan sedang berjalan — hentikan sementara antrean untuk memulai unggahan satu foto, atau gunakan 'Tambahkan ke antrean' untuk menambahkan.",
 connection_port_closed: "Port {port} tidak terbuka di {host}",
 connection_enter_ip_first: "Masukkan dulu alamat IP PS5 Anda.",
 connection_checking: "Memeriksa {target}:{port}…",
@@ -6084,6 +6083,7 @@ library_compressed_hint: "Image terkompresi memerlukan ShadowMount+ untuk bermai
 "gate_helper_stopped_body_v2": "Layar ini memerlukan helper. Kirim lagi saat Anda membutuhkannya.",
 "gate_payload_down_body_v2": "Konsol Anda sudah diatur tetapi helper ps5upload tidak merespons — helper berhenti setiap kali reboot atau mode istirahat. Kirim lagi untuk melanjutkan.",
 "cw_system_title": "Sistem",
+"upload_after_running": "Dimulai setelah yang sedang dikirim antrean",
 };
 
 export default id;

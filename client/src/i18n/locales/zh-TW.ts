@@ -1371,7 +1371,6 @@ hw_load_avg_hint_ncpu: "此PS5滿載≈ {ncpu}.00",
 hw_fw_precise: "FW （內核）",
 hw_fw_precise_hint: "透過kernel R/W (kstuff/etaHEN)讀取。準確的單點釋放。",
 queue_disabled_oneshot_in_flight: "正在進行一次性上傳，請等候上傳完成後再開始排隊。",
-upload_disabled_queue_running: "上傳佇列正在執行中：暫停佇列以開始單次上傳，或使用「新增到佇列」追加。",
 connection_port_closed: "{host} 上的連接埠 {port} 未開放",
 connection_enter_ip_first: "請先輸入您的 PS5 的 IP 位址。",
 connection_checking: "正在檢查 {target}:{port}…",
@@ -6025,6 +6024,7 @@ library_compressed_hint: "壓縮映像需要 ShadowMount+ 才能遊玩。如需�
 "gate_helper_stopped_body_v2": "此頁面需要助手。需要時再傳送一次。",
 "gate_payload_down_body_v2": "主機已設定，但 ps5upload 助手沒有回應——每次重新開機或進入休眠模式都會停止。再傳送一次即可繼續。",
 "cw_system_title": "系統",
+"upload_after_running": "在佇列目前傳送的內容之後開始",
 };
 
 export default zh_TW;

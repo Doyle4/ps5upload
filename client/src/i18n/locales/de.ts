@@ -1371,7 +1371,6 @@ hw_load_avg_hint_ncpu: "Volllast auf dieser PS5 ≈ {ncpu}.00",
 hw_fw_precise: "FW (Kernel)",
 hw_fw_precise_hint: "Lesen über Kernel R/W (kstuff/etaHEN). Präzise Punktfreigabe.",
 queue_disabled_oneshot_in_flight: "Ein One-Shot-Upload ist im Flug — warten Sie, bis er abgeschlossen ist, bevor Sie mit der Warteschlange beginnen.",
-upload_disabled_queue_running: "Die Upload-Warteschlange wird ausgeführt — unterbrechen Sie die Warteschlange, um einen One-Shot-Upload zu starten, oder verwenden Sie \"Zur Warteschlange hinzufügen\", um sie anzuhängen.",
 connection_port_closed: "Port {port} ist auf {host} nicht offen",
 connection_enter_ip_first: "Geben Sie zuerst die IP-Adresse Ihrer PS5 ein.",
 connection_checking: "Prüfe {target}:{port}…",
@@ -6083,6 +6082,7 @@ library_compressed_hint: "Komprimierte Images benötigen ShadowMount+ zum Spiele
 "gate_helper_stopped_body_v2": "Diese Ansicht braucht den Helfer. Sende ihn wieder, wenn du ihn brauchst.",
 "gate_payload_down_body_v2": "Deine Konsole ist eingerichtet, aber der ps5upload-Helfer antwortet nicht — er endet bei jedem Neustart und im Ruhemodus. Sende ihn wieder, um weiterzumachen.",
 "cw_system_title": "System",
+"upload_after_running": "Startet nach dem, was die Warteschlange gerade sendet",
 };
 
 export default de;

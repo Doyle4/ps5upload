@@ -1371,7 +1371,6 @@ hw_load_avg_hint_ncpu: "इस PS5 ≈ {ncpu}.00 पर पूरा लोड",
 hw_fw_precise: "FW (कर्नेल)",
 hw_fw_precise_hint: "कर्नेल R/W (kstuff/etaHEN) के माध्यम से पढ़ें। सटीक पॉइंट रिलीज़।",
 queue_disabled_oneshot_in_flight: "एक शॉट वाला अपलोड फ़्लाइट में है — कतार शुरू करने से पहले उसके खत्म होने का इंतज़ार करें।",
-upload_disabled_queue_running: "अपलोड कतार चल रही है — एक - शॉट अपलोड शुरू करने के लिए कतार को रोकें, या जोड़ने के लिए 'कतार में जोड़ें' का उपयोग करें।",
 connection_port_closed: "{host} पर पोर्ट {port} खुला नहीं है",
 connection_enter_ip_first: "पहले अपने PS5 का IP पता दर्ज करें।",
 connection_checking: "{target}:{port} जाँच रहे हैं…",
@@ -6090,6 +6089,7 @@ library_compressed_hint: "संपीड़ित इमेज चलाने 
 "gate_helper_stopped_body_v2": "इस स्क्रीन को हेल्पर चाहिए। ज़रूरत हो तब इसे फिर से भेजें।",
 "gate_payload_down_body_v2": "आपका कंसोल सेट है पर ps5upload हेल्पर जवाब नहीं दे रहा — हर रीबूट या रेस्ट मोड पर यह बंद हो जाता है। जारी रखने के लिए इसे फिर से भेजें।",
 "cw_system_title": "सिस्टम",
+"upload_after_running": "कतार अभी जो भेज रही है उसके बाद शुरू होगा",
 };
 
 export default hi;

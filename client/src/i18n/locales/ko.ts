@@ -1371,7 +1371,6 @@ hw_load_avg_hint_ncpu: "이 PS5의 풀로드 ≈ {ncpu}.00",
 hw_fw_precise: "FW (커널)",
 hw_fw_precise_hint: "커널 R/W (kstuff/etaHEN) 를 통해 읽습니다. 정확한 포인트 릴리스.",
 queue_disabled_oneshot_in_flight: "원샷 업로드가 진행 중입니다. 대기열을 시작하기 전에 업로드가 완료될 때까지 기다리세요.",
-upload_disabled_queue_running: "업로드 대기열이 실행 중입니다. 대기열을 일시 중지하여 원샷 업로드를 시작하거나 '대기열에 추가' 를 사용하여 추가합니다.",
 connection_port_closed: "{host}에서 포트 {port}가 열려 있지 않습니다",
 connection_enter_ip_first: "먼저 PS5의 IP 주소를 입력하세요.",
 connection_checking: "{target}:{port} 확인 중…",
@@ -6093,6 +6092,7 @@ library_compressed_hint: "압축 이미지를 플레이하려면 ShadowMount+가
 "gate_helper_stopped_body_v2": "이 화면에는 헬퍼가 필요합니다. 필요할 때 다시 보내세요.",
 "gate_payload_down_body_v2": "콘솔은 설정되어 있지만 ps5upload 헬퍼가 응답하지 않습니다. 재부팅하거나 휴식 모드에 들어갈 때마다 멈춥니다. 계속하려면 다시 보내세요.",
 "cw_system_title": "시스템",
+"upload_after_running": "대기열이 지금 보내는 항목 다음에 시작됩니다",
 };
 
 export default ko;

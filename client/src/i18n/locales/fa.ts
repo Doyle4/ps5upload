@@ -2071,7 +2071,6 @@ queue_strategy_resume: "ادامه",
 logged_error_one: "۱ خطای ثبت‌شده",
 logged_error_many: "{count} خطای ثبت‌شده",
 queue_disabled_oneshot_in_flight: "یک بارگذاری یک‌شات در حال اجراست — قبل از شروع صف منتظر پایانش بمانید.",
-upload_disabled_queue_running: "صف بارگذاری در حال اجراست — برای شروع بارگذاری یک‌شات صف را متوقف کنید، یا از «افزودن به صف» استفاده کنید تا ضمیمه شود.",
 fs_bulk_rename_conflict_title: "تغییر نام فایل‌ها را بازنویسی می‌کند",
 fs_bulk_rename_conflict_body: "این نام‌های هدف برخورد می‌کنند و فایل‌های موجود را نابود می‌کنند — هیچ فایلی تغییر نام نیافت:",
 first_run_cancel: "لغو",
@@ -6375,6 +6374,7 @@ library_compressed_hint: "برای اجرای ایمیج فشرده به ShadowM
 "gate_helper_stopped_body_v2": "این صفحه به دستیار نیاز دارد. هر وقت لازم بود دوباره آن را بفرستید.",
 "gate_payload_down_body_v2": "کنسول شما پیکربندی شده اما دستیار ps5upload پاسخ نمی‌دهد — با هر راه‌اندازی دوباره یا حالت استراحت متوقف می‌شود. برای ادامه دوباره آن را بفرستید.",
 "cw_system_title": "سیستم",
+"upload_after_running": "پس از آنچه صف اکنون می‌فرستد شروع می‌شود",
 };
 
 export default fa;

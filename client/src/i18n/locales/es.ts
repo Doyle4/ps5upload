@@ -1370,7 +1370,6 @@ hw_load_avg_hint_ncpu: "Carga completa en esta PS5 ≈ {ncpu}.00",
 hw_fw_precise: "FW (kernel)",
 hw_fw_precise_hint: "Leer a través del núcleo R/W (kstuff/etaHEN). Liberación puntual precisa.",
 queue_disabled_oneshot_in_flight: "Una carga de un solo disparo está en vuelo: espere a que termine antes de comenzar la cola.",
-upload_disabled_queue_running: "La cola de subida se está ejecutando: pause la cola para iniciar una subida de una sola vez o use 'Añadir a cola' para adjuntar.",
 connection_port_closed: "El puerto {port} no está abierto en {host}",
 connection_enter_ip_first: "Introduce primero la dirección IP de tu PS5.",
 connection_checking: "Comprobando {target}:{port}…",
@@ -6025,6 +6024,7 @@ library_compressed_hint: "Las imágenes comprimidas necesitan ShadowMount+ para 
 "gate_helper_stopped_body_v2": "Esta pantalla necesita el asistente. Vuelve a enviarlo cuando lo necesites.",
 "gate_payload_down_body_v2": "Tu consola está configurada, pero el asistente de ps5upload no responde: se detiene con cada reinicio o modo de reposo. Vuelve a enviarlo para continuar.",
 "cw_system_title": "Sistema",
+"upload_after_running": "Empieza después de lo que la cola está enviando ahora",
 };
 
 export default es;
