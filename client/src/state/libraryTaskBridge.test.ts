@@ -32,7 +32,7 @@ describe("library task bridge", () => {
     });
     const t = () =>
       useTaskStore.getState().tasks.find((x) => x.label === "Move Game.exfat");
-    expect(t()).toMatchObject({ kind: "library-op", status: "running" });
+    expect(t()).toMatchObject({ kind: "library-move", status: "running" });
     useActivityHistoryStore.getState().update(id, { bytes: 40 });
     expect(t()?.progress).toMatchObject({ current: 40, total: 100 });
     useActivityHistoryStore.getState().finish(id, "done");

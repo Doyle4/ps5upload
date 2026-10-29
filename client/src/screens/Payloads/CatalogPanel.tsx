@@ -461,9 +461,9 @@ export default function CatalogPanel() {
           </p>
           <p className="mt-1 text-xs text-[var(--color-muted)]">
             {tr(
-              "payloads_fpkg_ppr_note",
+              "payloads_fpkg_ppr_note_v2",
               undefined,
-              "Installing fake packages also needs a53_ppr_install_fast.elf, which is not in this list: no download is published for it, and it is built from the source on GitHub. Send to PS5 lists everything fake packages need, in order.",
+              "Installing fake packages also needs a53_ppr_install_fast.elf, which is not in this list: no download is published for it, and it is built from the source on GitHub. Upload & Install lists everything fake packages need, in order.",
             )}{" "}
             <button
               type="button"

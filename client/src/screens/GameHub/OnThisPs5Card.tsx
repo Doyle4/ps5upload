@@ -3,6 +3,7 @@ import {
   Eye,
   EyeOff,
   Gamepad2,
+  HardDriveDownload,
   Layers,
   Pause,
   Play,
@@ -41,6 +42,7 @@ import { useTr } from "../../state/lang";
 import { pushNotification } from "../../state/notifications";
 import { withConsolePrefix } from "../../state/roster";
 import { BackportPanel } from "../Backport/BackportPanel";
+import { DumpThisGame, isDumpable, useTitleDumpJobs } from "./DumpThisGame";
 import { useCollectionItems, useCollectionLoaded } from "./collectionLink";
 import { InstalledKindBadge, installedKindOf } from "./installedKind";
 import { readRunningApps } from "./runningAppsRead";
@@ -64,8 +66,8 @@ function noCopyWarning(t: InstalledTitle, tr: ReturnType<typeof useTr>): string 
 /**
  * The game as the connected PS5 has it installed: how it got there, and the upkeep that is
  * about this console's copy (hide its icon, fix its folder's permissions, backport it, copy it
- * to the Collection, suspend or resume it while it runs, uninstall it). Play and Close game are
- * on its console row above.
+ * to the Collection, dump it to a drive, suspend or resume it while it runs, uninstall it).
+ * Play and Close game are on its console row above.
  */
 export function OnThisPs5Card({
   host,
@@ -103,6 +105,12 @@ export function OnThisPs5Card({
   const [sdk, setSdk] = useState<SdkScanResponse>({ titles: [] });
   const [backportOpen, setBackportOpen] = useState(false);
   const [corpus, setCorpus] = useState<FakelibCorpus>(EMPTY_CORPUS);
+  const [dumpOpen, setDumpOpen] = useState(false);
+  const dumpable = isDumpable(title);
+  // One dump of a game at a time: while one is queued or running, its row says so.
+  const dumping = useTitleDumpJobs(host, title.titleId).some(
+    (j) => j.state === "waiting" || j.state === "running",
+  );
   useCollectionLoaded();
   const copyItems = useCollectionItems(host, title, { copyOnly: true });
 
@@ -430,6 +438,24 @@ export function OnThisPs5Card({
             {it.label}
           </Button>
         ))}
+        {dumpable && (
+          <Button
+            size="sm"
+            variant="secondary"
+            leftIcon={<HardDriveDownload size={13} />}
+            aria-expanded={dumpOpen}
+            disabled={dumping}
+            title={tr(
+              "dump_this_game_hint",
+              undefined,
+              "Copy this game's files to a USB drive or the console, as a plain copy or with its executables decrypted.",
+            )}
+            onClick={() => setDumpOpen((o) => !o)}
+            data-testid="dump-this-game"
+          >
+            {tr("dump_this_game", undefined, "Dump this game")}
+          </Button>
+        )}
         {hidden !== undefined && !title.system && (
           <Button
             size="sm"
@@ -472,6 +498,14 @@ export function OnThisPs5Card({
           {tr("installed_uninstall", undefined, "Uninstall")}
         </Button>
       </div>
+      {dumpable && (
+        <DumpThisGame
+          host={host}
+          title={title}
+          open={dumpOpen && !dumping}
+          onStarted={() => setDumpOpen(false)}
+        />
+      )}
     </Card>
   );
 }

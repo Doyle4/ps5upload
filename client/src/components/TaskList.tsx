@@ -37,6 +37,8 @@ import {
   Search,
   Bug,
   HardDriveDownload,
+  Send,
+  ListOrdered,
 } from "lucide-react";
 import clsx from "clsx";
 
@@ -98,6 +100,10 @@ const kindIconMap: Record<TaskKind, typeof Upload> = {
   "fakelib-import": FolderInput,
   "install-batch": Package,
   "bug-report": Bug,
+  "library-move": FolderInput,
+  "helper-send": Send,
+  "payload-playlist": ListOrdered,
+  "app-update": Download,
 };
 
 /** Status → icon element for the row's left badge. */

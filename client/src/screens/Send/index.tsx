@@ -4,17 +4,19 @@ import { ConsoleChip, PageHeader } from "../../components";
 import { useConnectionStore } from "../../state/connection";
 import { useTr } from "../../state/lang";
 import InstallPackageScreen from "../InstallPackage";
+import { FpkgNote } from "../InstallPackage/FpkgNote";
 import UploadScreen from "../Upload";
-import { SendIntro } from "./SendIntro";
 
 /**
- * Send to PS5: every way something gets onto the console, on one page, top to bottom. It
- * opens with the three jobs it does (SendIntro): install a package, copy a game or files,
- * install from a link or a drive.
+ * Upload & Install (route /send): every way something gets onto the console, on one page, top
+ * to bottom.
  *
- * 1. From this computer or a saved server: pick or drop anything (a game folder, an image, an
- *    archive, a package, any file); the app works out what it is and offers what fits it, a
- *    package's Stream & install included.
+ * 0. The fake-package (FPKG) note, first: PS5 fake packages do not run on firmware later than
+ *    11.60 yet, which matters before anything is sent.
+ * 1. From this computer or a saved server: the drop zone is the one way in. Pick or drop
+ *    anything (a package, a game folder or dump, an image, an archive, any file); the app works
+ *    out what it is and offers what fits it, a package's Stream & install included. It also
+ *    opens the link and on-PS5 installs below.
  * 2. From a link, or an archive of packages.
  * 3. The one queue, for this console.
  * 4. Already on the PS5: packages on a USB drive and package copies put there before.
@@ -30,7 +32,7 @@ export default function SendScreen() {
     <div className="app-page">
       <PageHeader
         icon={SendIcon}
-        title={tr("send_title", undefined, "Send to PS5")}
+        title={tr("send_title_v2", undefined, "Upload & Install")}
         description={tr(
           "send_description2",
           undefined,
@@ -38,7 +40,7 @@ export default function SendScreen() {
         )}
         right={<ConsoleChip addr={host} />}
       />
-      <SendIntro />
+      <FpkgNote />
       <UploadScreen embedded />
       <InstallPackageScreen embedded />
     </div>

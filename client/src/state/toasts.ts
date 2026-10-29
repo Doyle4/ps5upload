@@ -42,7 +42,24 @@ interface ToastStore {
   dismissAll: () => void;
 }
 
-export const useToastStore = create<ToastStore>((set) => ({
+/**
+ * Auto-dismiss timers, one per non-sticky toast, started when the toast is
+ * pushed. Expiry lives here rather than in the rendered toast: the Toaster
+ * shows only the newest few, and a toast waiting behind them must still
+ * expire on schedule instead of surfacing minutes later with a fresh timer
+ * (or never, behind a sticky one).
+ */
+const timers = new Map<string, ReturnType<typeof setTimeout>>();
+
+function clearTimer(id: string) {
+  const t = timers.get(id);
+  if (t !== undefined) {
+    clearTimeout(t);
+    timers.delete(id);
+  }
+}
+
+export const useToastStore = create<ToastStore>((set, get) => ({
   toasts: [],
   push: (opts) => {
     const id = nextId();
@@ -55,11 +72,22 @@ export const useToastStore = create<ToastStore>((set) => ({
       action: opts.action,
     };
     set((s) => ({ toasts: [...s.toasts, toast] }));
+    if (toast.duration !== null) {
+      timers.set(
+        id,
+        setTimeout(() => get().dismiss(id), toast.duration),
+      );
+    }
     return id;
   },
-  dismiss: (id) =>
-    set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
-  dismissAll: () => set({ toasts: [] }),
+  dismiss: (id) => {
+    clearTimer(id);
+    set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) }));
+  },
+  dismissAll: () => {
+    for (const id of [...timers.keys()]) clearTimer(id);
+    set({ toasts: [] });
+  },
 }));
 
 /**

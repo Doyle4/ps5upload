@@ -7,6 +7,7 @@ import { ChevronDown, FolderOpen, HardDrive, Plus, Server } from "lucide-react";
 
 import type { Connection } from "../api/remote";
 import { pickPath, pickPaths, type PickPathOptions } from "../lib/pickPath";
+import { isMobile } from "../lib/platform";
 import { displayPath, isRemotePath } from "../lib/remotePath";
 import { useConnectionsStore, type ConnStatus } from "../state/connections";
 import { Spinner } from "./Spinner";
@@ -68,7 +69,9 @@ export function BrowseMenu(props: {
     >
       <button type="button" role="menuitem" className={item} onClick={props.onLocal}>
         <HardDrive size={14} className="text-[var(--color-muted)]" />
-        {tr("browse_this_computer", undefined, "This computer…")}
+        {isMobile()
+          ? tr("browse_this_device", undefined, "This device…")
+          : tr("browse_this_computer", undefined, "This computer…")}
       </button>
       {props.connections.length > 0 && <div className="my-1 border-t border-[var(--color-border)]" />}
       {props.connections.map((c) => {

@@ -1,9 +1,11 @@
-// Card ④ Queue: several games converted one after another on this computer; each finished
-// package is handed to the console queue when it should install. What each game becomes, and
-// what happens after, is the one choice made under ③.
+// Card ⑤ Queue: several games made one after another on this computer. Games are added under
+// ① (several picked, or a folder of games) or with ④'s "Add this game to the queue"; this card
+// only lists them. Each takes ②–④'s choices as they were when it was added. A game that should
+// install or upload is handed to Upload & Install's queue once it is made: the transfer is
+// that screen's, never a second one here.
 
 import { useState } from "react";
-import { ArrowDown, ArrowUp, FolderPlus, ListPlus, SlidersHorizontal, X } from "lucide-react";
+import { ArrowDown, ArrowUp, Send, SlidersHorizontal, X } from "lucide-react";
 
 import { Button, Card } from "../../components";
 import { buildExtension, type ConvertItem, type ConvertItemChange } from "../../state/convertQueue";
@@ -13,12 +15,8 @@ import { QueueItemOptions } from "./QueueItemOptions";
 export interface QueueCardProps {
   items: ConvertItem[];
   running: boolean;
-  /** Add the games in one folder (or the folder, when it is a game). */
-  onScanFolder: () => void;
-  /** Tick several game folders in one picker. */
-  onPickFolders: () => void;
-  /** Tick several images or archives in one picker. */
-  onPickFiles: () => void;
+  /** Open Upload & Install, where a made game installs or uploads. */
+  onOpenUpload: () => void;
   onStart: () => void;
   onStop: () => void;
   onRemove: (id: string) => void;
@@ -49,11 +47,15 @@ export function QueueCard(p: QueueCardProps) {
   };
   const pending = p.items.filter((i) => i.status === "pending").length;
   const finished = p.items.some((i) => i.status === "done" || i.status === "failed" || i.status === "handed");
+  const sent = p.items.some((i) => i.status === "handed" || i.status === "installing");
+  // Nothing queued: no card. ① says how games get here.
+  if (p.items.length === 0) return null;
+  const send = tr("send_title_v2", undefined, "Upload & Install");
   return (
     <Card>
       <div className="flex flex-col gap-3">
-        <div className="flex items-center justify-between gap-2">
-          <div className="text-sm font-medium">{tr("cq_title", undefined, "④ Queue")}</div>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="text-sm font-medium">{tr("cq_title_v2", undefined, "⑤ Queue")}</div>
           <div className="flex gap-2">
             {p.running ? (
               <Button size="sm" onClick={p.onStop}>
@@ -72,30 +74,26 @@ export function QueueCard(p: QueueCardProps) {
           </div>
         </div>
 
-        <div className="-mt-1 text-xs text-[var(--color-muted)]">
+        <div className="-mt-1 text-xs text-[var(--color-muted)]" data-testid="cq-about">
           {tr(
-            "cq_uses_choices",
+            "cq_about",
             undefined,
-            "Each game is made, and then kept, installed or uploaded, as chosen under ③.",
+            "Made one after another on this computer, each as ②, ③ and ④ were set when it was added. Add more under ①, even while the queue runs; change a waiting game with its options button.",
           )}{" "}
           {tr(
-            "cq_edit_hint",
-            undefined,
-            "Games can be added while the queue runs; change a waiting game's choices with its options button.",
+            "cq_then_send",
+            { send },
+            "A game set to install or upload goes on to {send}'s queue once it is made.",
           )}
         </div>
 
-        <div className="flex flex-wrap gap-2">
-          <Button size="sm" variant="ghost" leftIcon={<ListPlus size={14} />} onClick={p.onScanFolder}>
-            {tr("batch_scan", undefined, "Add games from a folder…")}
-          </Button>
-          <Button size="sm" variant="ghost" leftIcon={<FolderPlus size={14} />} onClick={p.onPickFolders}>
-            {tr("cq_pick_folders", undefined, "Pick game folders…")}
-          </Button>
-          <Button size="sm" variant="ghost" leftIcon={<ListPlus size={14} />} onClick={p.onPickFiles}>
-            {tr("cq_pick_files", undefined, "Pick packages, images or archives…")}
-          </Button>
-        </div>
+        {sent && (
+          <div>
+            <Button size="sm" variant="secondary" leftIcon={<Send size={14} />} onClick={p.onOpenUpload}>
+              {tr("cq_open_send", { send }, "Open {send}")}
+            </Button>
+          </div>
+        )}
 
         {p.items.length > 0 && (
           <ul className="divide-y divide-[var(--color-border)] rounded-[var(--radius-card)] border border-[var(--glass-edge)]">

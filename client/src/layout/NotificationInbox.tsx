@@ -1,151 +1,118 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router";
-import {
-  Bell,
-  X,
-  CheckCircle2,
-  AlertTriangle,
-  XCircle,
-  Info,
-  ArrowRight,
-  Trash2,
-} from "lucide-react";
-import {
-  useNotificationsStore,
-  type Notification,
-  type NotificationLevel,
-} from "../state/notifications";
+import { ArrowRight, Bell, Tv, X } from "lucide-react";
+
+import { useNotificationsStore } from "../state/notifications";
 import { useTr } from "../state/lang";
-import { formatDate } from "../lib/formatDate";
 import { useFitOnScreen } from "../components/useFitOnScreen";
+import { NotificationItem, useSeenWhileOpen } from "./notificationList";
 
 /**
  * Which Tailwind anchor class the panel gets for a given alignment.
  *
  * Exported so the one thing that actually broke on Android is assertable
- * without rendering an open panel: `left-0` in the mobile More footer —
- * which sits at the bottom RIGHT of the screen — grew a 320px panel off the
- * edge of the display. The width clamp on the panel caps its size but never
- * moves its anchor, so only this can fix it.
+ * without rendering an open panel: `left-0` for a bell at the RIGHT edge of
+ * the window grew a 320px panel off the edge of the display. The width clamp
+ * on the panel caps its size but never moves its anchor, so only this can fix
+ * it. (Below md the panel is a full-width sheet instead; see PANEL_SHEET.)
  */
 export function panelAnchorClass(align: "left" | "right"): string {
   return align === "right" ? "right-0" : "left-0";
 }
 
-/** Which way the panel opens from the bell: up from a footer, down from the
- *  desktop top bar. */
+/** Which way the panel opens from the bell: up from a footer, down from a
+ *  top bar. */
 export function panelPlacementClass(placement: "above" | "below"): string {
   return placement === "below" ? "top-full mt-2" : "bottom-full mb-1";
 }
 
+/** Below md (a phone) the panel is not hung from the bell at all: it is a
+ *  sheet fixed under the top bar, 8px from each side, within the safe area,
+ *  and never taller than the screen above the tab bar (its list scrolls).
+ *  Wherever the bell sits, nothing can be cut off. */
+export const PANEL_SHEET =
+  "max-md:fixed max-md:inset-x-2 max-md:top-[calc(env(safe-area-inset-top)+3.75rem)] max-md:bottom-auto max-md:m-0 max-md:w-auto max-md:max-w-none max-md:max-h-[calc(100vh-env(safe-area-inset-top)-env(safe-area-inset-bottom)-10rem)]";
+
+/** How many of the latest notifications the bell shows; the rest are on the
+ *  Notifications screen. */
+export const PEEK_COUNT = 8;
+
+/** The unread ids among the entries the bell shows (the newest PEEK_COUNT). */
+export function peekUnreadIds(entries: readonly { id: string; read: boolean }[]): string[] {
+  return entries
+    .slice(0, PEEK_COUNT)
+    .filter((e) => !e.read)
+    .map((e) => e.id);
+}
+
 /**
- * Notification inbox — sidebar bell + slide-out panel.
+ * The bell: a peek at this app's latest notifications.
  *
- * The bell is a single button that lives in the sidebar footer. It
- * shows an unread badge sourced from the store. Clicking it opens
- * a side panel that lists every notification newest-first; opening
- * the panel marks all entries as read.
- *
- * Why it lives next to the theme toggle: both are persistent
- * affordances that aren't tied to any one screen, and putting the
- * bell anywhere else (header, status bar) would steal pixels from
- * surfaces that already work.
+ * It lists the same notifications as the "This app" tab of the Notifications
+ * screen (the newest few), and "See all" opens that tab. Opening it marks the ones
+ * it shows read (not older unread ones it does not show), as showing that tab does (see layout/notificationList.tsx). The badge
+ * counts this app's unread notifications only: the messages put on the PS5's
+ * screen are read from the console, which the bell does not poll; a link at
+ * the bottom goes to them.
  */
 export default function NotificationInbox({
   align = "left",
   placement = "above",
   variant = "plain",
 }: {
-  /**
-   * Which edge of the bell the panel is anchored to — i.e. which way it
-   * grows. This cannot be inferred from the component, because the same
-   * bell is rendered in two places that sit on opposite sides of the
-   * window: the desktop sidebar footer (bottom-LEFT, so the panel must
-   * grow rightward) and the mobile More footer (bottom-RIGHT, where
-   * growing rightward puts a 320px panel off the edge of the screen).
-   *
-   * `max-w-[calc(100vw-2rem)]` below caps the panel's WIDTH but does not
-   * move its anchor, which is why the mobile case needed a real fix
-   * rather than a tighter clamp.
-   */
+  /** Which edge of the bell the panel is anchored to on desktop — which way
+   *  it grows. Pick the side away from the nearest window edge. */
   align?: "left" | "right";
-  /** Opens up (footers, the default) or down (the desktop top bar). */
+  /** Opens up (footers, the default) or down (a top bar). */
   placement?: "above" | "below";
-  /** "plain" is the quiet footer bell; "orb" the white round button of the
-   *  desktop top bar. */
+  /** "plain" is the quiet bell of the phone top bar; "orb" the white round
+   *  button of the desktop top bar. */
   variant?: "plain" | "orb";
 } = {}) {
   const tr = useTr();
   const navigate = useNavigate();
   const entries = useNotificationsStore((s) => s.entries);
-  const markAllRead = useNotificationsStore((s) => s.markAllRead);
+  const markRead = useNotificationsStore((s) => s.markRead);
   const remove = useNotificationsStore((s) => s.remove);
-  const clear = useNotificationsStore((s) => s.clear);
   const [open, setOpen] = useState(false);
-  // "Unread only" filter — useful when the inbox accumulates over
-  // a long session and the user wants to see what's actually new.
-  // Resets each time the panel reopens so a stale filter doesn't
-  // hide entries from a fresh session.
-  const [unreadOnly, setUnreadOnly] = useState(false);
-  // Snapshot of which entry ids were unread when the panel opened.
-  // Stored in state (not ref) because the toggle button conditionally
-  // renders based on this set's size — refs can't be read during
-  // render per react-hooks/refs.
-  const [unreadIdsAtOpen, setUnreadIdsAtOpen] = useState<Set<string>>(
-    () => new Set(),
-  );
   const wrapperRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const fit = useFitOnScreen(panelRef, open);
 
-  // Filter-in-render is fine here: the render already subscribes to
-  // the full `entries` array (visibleEntries below needs it), so a
-  // separate derived-count selector wouldn't save any re-renders —
-  // it would just add a second subscription over the same data.
   const unread = entries.filter((e) => !e.read).length;
-  const visibleEntries = unreadOnly
-    ? entries.filter((e) => unreadIdsAtOpen.has(e.id))
-    : entries;
+  const peek = entries.slice(0, PEEK_COUNT);
+  // Only what the bell shows is marked read: unread entries past the newest
+  // PEEK_COUNT stay unread (and keep the badge) until the Notifications screen
+  // shows them.
+  const seen = useSeenWhileOpen(open, peekUnreadIds(entries), markRead);
 
   useEffect(() => {
     if (!open) return;
     function onClick(e: MouseEvent) {
-      if (
-        wrapperRef.current &&
-        !wrapperRef.current.contains(e.target as Node)
-      ) {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
         setOpen(false);
       }
     }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpen(false);
+    }
     document.addEventListener("mousedown", onClick, true);
-    return () => document.removeEventListener("mousedown", onClick, true);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onClick, true);
+      document.removeEventListener("keydown", onKey);
+    };
   }, [open]);
 
-  // Snapshot which entries were unread at the open transition — the
-  // "unread only" filter uses this so the user's view doesn't shrink
-  // to nothing 200 ms in when markAllRead fires. Reads `entries` via
-  // `useNotificationsStore.getState()` (instead of the closed-over
-  // value from `entries`) so the snapshot reflects state at the exact
-  // open instant even if a re-render is in flight.
-  useEffect(() => {
-    if (!open) return;
-    const fresh = useNotificationsStore
-      .getState()
-      .entries.filter((e) => !e.read)
-      .map((e) => e.id);
-    setUnreadIdsAtOpen(new Set(fresh));
-    setUnreadOnly(false);
-  }, [open]);
-
-  // Mark-as-read while the panel is open. Re-runs whenever `unread`
-  // changes — so notifications that arrive AFTER the panel was opened
-  // get marked read too (previous version closed over the initial
-  // `unread` count and missed those, leaving them perpetually unread).
-  useEffect(() => {
-    if (!open || unread === 0) return;
-    const id = window.setTimeout(() => markAllRead(), 200);
-    return () => window.clearTimeout(id);
-  }, [open, unread, markAllRead]);
+  const go = (to: string) => {
+    setOpen(false);
+    navigate(to);
+  };
+  const unreadLabel = tr(
+    unread === 1 ? "notifications_unread_one" : "notifications_unread_many",
+    { count: unread },
+    `${unread} unread notification${unread === 1 ? "" : "s"}`,
+  );
 
   return (
     <div ref={wrapperRef} className="relative">
@@ -153,27 +120,21 @@ export default function NotificationInbox({
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-label={tr("notifications_open", undefined, "Open notifications")}
-        // 28px is fine for a mouse but under the 44px touch floor
-        // (mobile-design §4.1). Grow the hit area below md — the same
-        // breakpoint the rest of the app uses to mean "mobile" — so the
-        // dense desktop sidebar footer is left alone.
+        aria-expanded={open}
+        aria-haspopup="dialog"
+        // Under md the hit area grows to the 44px touch floor.
         className={
           variant === "orb"
             ? "icon-orb-button relative"
             : "relative flex items-center justify-center rounded-full p-1.5 text-[var(--color-muted)] transition-colors hover:bg-[var(--color-surface-3)] hover:text-[var(--color-text)] max-md:h-11 max-md:w-11"
         }
       >
-        <Bell size={variant === "orb" ? 18 : 14} />
+        <Bell size={18} />
         {unread > 0 && (
           <span
+            data-testid="notifications-badge"
             className="absolute -right-0.5 -top-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--color-bad)] px-1 text-[10px] font-semibold tabular-nums text-[var(--color-accent-contrast)]"
-            title={tr(
-              unread === 1
-                ? "notifications_unread_one"
-                : "notifications_unread_many",
-              { count: unread },
-              `${unread} unread notification${unread === 1 ? "" : "s"}`,
-            )}
+            title={unreadLabel}
           >
             {unread > 9 ? "9+" : unread}
           </span>
@@ -182,165 +143,80 @@ export default function NotificationInbox({
 
       {open && (
         <div
-          // Anchored per the `align` prop — see its doc comment. Whichever
-          // edge of the bell it pins to, it grows AWAY from the nearest
-          // window edge, and max-w-[calc(100vw-2rem)] keeps narrow windows
-          // safe on the other side.
           ref={panelRef}
-          className={`anim-rise glass-float elev-2 absolute flex w-80 max-w-[calc(100vw-1rem)] flex-col overflow-hidden rounded-[var(--radius-card)] ${panelPlacementClass(placement)} ${panelAnchorClass(align)}`}
+          role="dialog"
+          aria-label={tr("notifications_title", undefined, "Notifications")}
+          data-testid="notifications-panel"
+          className={`anim-rise glass-float elev-2 absolute flex w-[22rem] max-w-[calc(100vw-1rem)] flex-col overflow-hidden rounded-[var(--radius-card)] ${panelPlacementClass(placement)} ${panelAnchorClass(align)} ${PANEL_SHEET}`}
           style={{ zIndex: 60, ...fit }}
         >
-          <header className="flex items-center justify-between border-b border-[var(--color-border)] px-3 py-2">
-            <h3 className="text-xs font-semibold">
+          <header className="flex shrink-0 items-center justify-between gap-2 border-b border-[var(--color-border)] px-3 py-2">
+            <h3 className="min-w-0 truncate text-sm font-semibold">
               {tr("notifications_title", undefined, "Notifications")}
+              <span className="ms-1.5 text-xs font-normal text-[var(--color-muted)]">
+                {tr("notif_tab_app", undefined, "This app")}
+              </span>
             </h3>
-            <div className="flex items-center gap-1">
-              {unreadIdsAtOpen.size > 0 && (
-                <button
-                  type="button"
-                  onClick={() => setUnreadOnly((v) => !v)}
-                  className={`rounded px-1.5 py-0.5 text-xs ${
-                    unreadOnly
-                      ? "bg-[var(--color-accent-soft)] text-[var(--color-accent)]"
-                      : "text-[var(--color-muted)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-text)]"
-                  }`}
-                  title={tr(
-                    "notifications_unread_only_tooltip",
-                    undefined,
-                    "Show only entries that were unread when this panel opened",
-                  )}
-                >
-                  {tr("notifications_unread_only", undefined, "Unread")}
-                </button>
-              )}
-              {entries.length > 0 && (
-                <button
-                  type="button"
-                  onClick={clear}
-                  aria-label={tr("notifications_clear", undefined, "Clear all")}
-                  className="rounded-full p-1.5 text-[var(--color-muted)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-text)]"
-                  title={tr("notifications_clear", undefined, "Clear all")}
-                >
-                  <Trash2 size={12} />
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={() => setOpen(false)}
-                aria-label={tr("close", undefined, "Close")}
-                title={tr("close", undefined, "Close")}
-                className="rounded-full p-1.5 text-[var(--color-muted)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-text)]"
-              >
-                <X size={12} />
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              aria-label={tr("close", undefined, "Close")}
+              title={tr("close", undefined, "Close")}
+              className="rounded-full p-1.5 text-[var(--color-muted)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-text)] max-md:p-2.5"
+            >
+              <X size={14} />
+            </button>
           </header>
-          <div className="max-h-96 min-h-0 flex-1 overflow-y-auto">
-            {visibleEntries.length === 0 ? (
-              <div className="px-3 py-6 text-center text-xs text-[var(--color-muted)]">
-                {unreadOnly
-                  ? tr(
-                      "notifications_no_unread",
-                      undefined,
-                      "No unread entries. Untoggle 'Unread' to see history.",
-                    )
-                  : tr(
-                      "notifications_empty",
-                      undefined,
-                      "No notifications yet. Successful uploads, install errors, and update offers will appear here.",
-                    )}
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain md:max-h-96">
+            {peek.length === 0 ? (
+              <div className="px-4 py-6 text-center text-xs text-[var(--color-muted)]">
+                {tr(
+                  "notifications_empty",
+                  undefined,
+                  "No notifications yet. Successful uploads, install errors, and update offers will appear here.",
+                )}
               </div>
             ) : (
               <ul>
-                {visibleEntries.map((e) => (
-                  <NotificationRow
+                {peek.map((e) => (
+                  <NotificationItem
                     key={e.id}
-                    entry={e}
-                    onJump={(link) => {
-                      navigate(link);
-                      setOpen(false);
-                    }}
+                    compact
+                    level={e.level}
+                    title={e.title}
+                    body={e.body}
+                    ts={e.ts}
+                    isNew={seen.has(e.id)}
+                    link={e.link}
+                    onJump={go}
                     onRemove={() => remove(e.id)}
                   />
                 ))}
               </ul>
             )}
           </div>
+          <footer className="flex shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-[var(--color-border)] px-3 py-2 text-xs">
+            <button
+              type="button"
+              onClick={() => go("/notifications")}
+              className="inline-flex min-h-8 items-center gap-1 font-medium text-[var(--color-accent)] hover:underline max-md:min-h-11"
+            >
+              {entries.length > PEEK_COUNT
+                ? tr("notif_see_all_count", { count: entries.length }, `See all ${entries.length}`)
+                : tr("notif_see_all", undefined, "See all")}
+              <ArrowRight size={12} className="rtl:rotate-180" />
+            </button>
+            <button
+              type="button"
+              onClick={() => go("/notifications?tab=ps5")}
+              className="inline-flex min-h-8 items-center gap-1 text-[var(--color-muted)] hover:text-[var(--color-text)] max-md:min-h-11"
+            >
+              <Tv size={12} aria-hidden />
+              {tr("notif_tab_ps5", undefined, "On the PS5")}
+            </button>
+          </footer>
         </div>
       )}
     </div>
-  );
-}
-
-function NotificationRow({
-  entry,
-  onJump,
-  onRemove,
-}: {
-  entry: Notification;
-  onJump: (link: string) => void;
-  onRemove: () => void;
-}) {
-  const tr = useTr();
-  const ts = new Date(entry.ts);
-  return (
-    <li className="group border-b border-[var(--color-border)] px-3 py-2 text-xs last:border-0">
-      <div className="flex items-start gap-2">
-        <LevelIcon level={entry.level} />
-        <div className="min-w-0 flex-1">
-          <div className="font-medium">{entry.title}</div>
-          {entry.body && (
-            <div className="mt-0.5 break-words text-[var(--color-muted)]">
-              {entry.body}
-            </div>
-          )}
-          <div className="mt-1 flex items-center gap-2 text-xs text-[var(--color-muted)]">
-            <span>{formatDate(ts)}</span>
-            {entry.link && (
-              <button
-                type="button"
-                onClick={() => onJump(entry.link!)}
-                className="inline-flex items-center gap-0.5 text-[var(--color-accent)] hover:underline"
-              >
-                {tr("notifications_jump", undefined, "open")}
-                <ArrowRight size={9} className="rtl:rotate-180" />
-              </button>
-            )}
-          </div>
-        </div>
-        <button
-          type="button"
-          onClick={onRemove}
-          className="opacity-0 transition-opacity group-hover:opacity-100 [@media(hover:none)]:opacity-100"
-          aria-label={tr("notifications_remove", undefined, "Dismiss")}
-        >
-          <X size={11} className="text-[var(--color-muted)]" />
-        </button>
-      </div>
-    </li>
-  );
-}
-
-function LevelIcon({ level }: { level: NotificationLevel }) {
-  if (level === "success")
-    return (
-      <CheckCircle2
-        size={12}
-        className="mt-0.5 shrink-0 text-[var(--color-good)]"
-      />
-    );
-  if (level === "warning")
-    return (
-      <AlertTriangle
-        size={12}
-        className="mt-0.5 shrink-0 text-[var(--color-warn)]"
-      />
-    );
-  if (level === "error")
-    return (
-      <XCircle size={12} className="mt-0.5 shrink-0 text-[var(--color-bad)]" />
-    );
-  return (
-    <Info size={12} className="mt-0.5 shrink-0 text-[var(--color-muted)]" />
   );
 }

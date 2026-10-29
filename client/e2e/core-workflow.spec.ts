@@ -12,7 +12,7 @@ test("guides a disconnected user through primary navigation and recovery", async
   // until the user hides it.
   const primary = page.getByRole("navigation", { name: "Primary" });
   await expect(primary.getByRole("link", { name: "Home" })).toBeVisible();
-  for (const shown of ["Games", "Files", "Console", "Activity & Logs", "Send to PS5", "Workshop"]) {
+  for (const shown of ["Games", "Files", "Console", "Activity & Logs", "Upload & Install", "Workshop"]) {
     await expect(primary.getByRole("link", { name: shown, exact: true })).toBeVisible();
   }
 
@@ -26,7 +26,7 @@ test("guides a disconnected user through primary navigation and recovery", async
   // offline.", so an unanchored filter can match other tiles — a strict-mode
   // violation whenever the engine probe happens to land as offline.
   await expect(
-    page.locator('[aria-disabled="true"]').filter({ hasText: /^Send to PS5/ }),
+    page.locator('[aria-disabled="true"]').filter({ hasText: /^Upload & Install/ }),
   ).toBeVisible();
 
   // More lists every screen too (and is where hidden ones come back). Scoped to the
@@ -45,16 +45,16 @@ test("guides a disconnected user through primary navigation and recovery", async
 
   await page.getByRole("link", { name: "More" }).click();
   await expect(page.getByRole("heading", { name: "More" })).toBeVisible();
-  await expect(body.getByRole("link", { name: "Send to PS5" })).toBeVisible();
+  await expect(body.getByRole("link", { name: "Upload & Install" })).toBeVisible();
   await expect(body.getByRole("link", { name: "Settings" })).toBeVisible();
 
   // Regression: Install Package used to draw its entire staging UI with no console
-  // connected. It is part of Send to PS5 now (/install-package lands there): with no
+  // connected. It is part of Upload & Install now (/install-package lands there): with no
   // helper the page says why (Upload's banner) and the install parts stay out of it.
-  // Send to PS5 is lazily imported, and each Playwright run gets a cold vite server that
+  // Upload & Install is lazily imported, and each Playwright run gets a cold vite server that
   // has to transform the chunk on first request — well over the 5s default expect timeout.
   await page.goto("/install-package", { waitUntil: "domcontentloaded" });
-  await expect(page.getByRole("heading", { name: "Send to PS5" })).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByRole("heading", { name: "Upload & Install" })).toBeVisible({ timeout: 20_000 });
   await expect(page).toHaveURL(/\/send$/);
   await expect(page.getByText(/helper status unknown|helper isn't reachable|in rest mode/i)).toBeVisible();
   await expect(page.getByText("How installing works")).toHaveCount(0);

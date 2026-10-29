@@ -1621,7 +1621,7 @@ export const useUploadQueueStore = create<QueueState>((rawSet, get) => {
               recordPkgInstalled(hostOf(item.addr), finalDest);
               if (r.mayNotLaunch) {
                 mountWarnings.push(
-                  "Installed, but it may not launch on this firmware — re-install it from Send to PS5 if it won't start.",
+                  "Installed, but it may not launch on this firmware — re-install it from Upload & Install if it won't start.",
                 );
               }
               // Free the staging copy on success (default on). Best-effort —
@@ -2243,8 +2243,8 @@ export const useUploadQueueStore = create<QueueState>((rawSet, get) => {
             trStatic("queue_links_cleared_title", "Queued links were cleared"),
             {
               body: trStatic(
-                "queue_links_cleared_body",
-                "{n} install link(s) weren't kept after restart — links are never saved to disk. Add them again from Send to PS5.",
+                "queue_links_cleared_body_v2",
+                "{n} install link(s) weren't kept after restart — links are never saved to disk. Add them again from Upload & Install.",
               ).replace("{n}", String(dropped)),
             },
           );

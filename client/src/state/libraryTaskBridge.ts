@@ -19,6 +19,7 @@ const SKIP: ReadonlySet<string> = new Set(["library-install"]);
 
 function kindFor(kind: string): TaskKind {
   if (kind === "library-download") return "download";
+  if (kind === "library-move") return "library-move";
   return (SPECIFIC.has(kind) ? kind : "library-op") as TaskKind;
 }
 

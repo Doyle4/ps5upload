@@ -1,11 +1,13 @@
-// Card ① Game: where the game comes from (drop, pick or type), and what the check found.
+// Card ① Game: the one place games are added (drop, pick or type; one is checked here, several
+// go into the queue), and what the check found.
 
 import type { ReactNode } from "react";
 import { FolderInput, Gamepad2 } from "lucide-react";
 
 import type { FpkgInspection } from "../../api/fpkg";
 import { Button, Card, Input } from "../../components";
-import { BrowseButton, PathLabel } from "../../components/BrowseButton";
+import { AddSources, GAME_FILE_FILTERS } from "../../components/AddSources";
+import { PathLabel } from "../../components/BrowseButton";
 import { isRemotePath } from "../../lib/remotePath";
 import { isArchiveSource } from "../../state/fpkgConversion";
 import { useTr } from "../../state/lang";
@@ -50,10 +52,14 @@ export interface GameCardProps {
   source: string;
   onSourceTyped: (value: string) => void;
   onCheck: () => void;
-  onBrowseFolder: () => void;
-  onBrowseImage: () => void;
+  /** Games picked on this computer: one becomes the game here, several go into the queue. */
+  onAdd: (sources: { path: string; isDir: boolean }[]) => void;
+  /** A folder that holds games: its games go into the queue. */
+  onScanFolder: (folder: string) => void;
   /** A folder or image picked on a saved server. */
-  onRemotePick: (path: string) => void;
+  onRemotePick: (path: string, isDir: boolean) => void;
+  /** Picking could not open (not a cancel): the screen shows why. */
+  onPickError?: (message: string) => void;
   /** Open the chosen game in the package viewer; absent when there's nothing to show. */
   onView?: () => void;
   /** Browse the connected console for a game; absent when no console answers. */
@@ -93,38 +99,42 @@ export function GameCard(props: GameCardProps) {
             {tr("fpkg.dropHere", undefined, "Drop a game folder, image or archive here")}
           </div>
           {props.canBrowse && (
-            <div className="flex flex-wrap justify-center gap-2">
-              <BrowseButton
-                mode="folder"
-                remote
-                label={tr("fpkg.browseFolder", undefined, "Folder…")}
-                title={tr("fpkg.pickFolder", undefined, "Choose the game folder")}
-                disabled={props.locked || props.checking}
-                onMainClick={props.onBrowseFolder}
-                onPick={props.onRemotePick}
-              />
-              <BrowseButton
-                mode="file"
-                remote
-                label={tr("fpkg.browseImage", undefined, "Image or archive…")}
-                title={tr("fpkg.pickImage", undefined, "Choose a game image or archive")}
-                filters={[{ name: "Game image, package or archive", extensions: ["exfat", "ffpkg", "ffpfs", "ffpfsc", "pkg", "zip", "7z", "rar"] }]}
-                disabled={props.locked || props.checking}
-                onMainClick={props.onBrowseImage}
-                onPick={props.onRemotePick}
-              />
-              {props.onBrowseConsole && (
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  leftIcon={<Gamepad2 size={14} />}
-                  disabled={props.locked || props.checking}
-                  onClick={props.onBrowseConsole}
-                >
-                  {tr("fpkg.browseConsole", undefined, "On the PS5…")}
-                </Button>
-              )}
-            </div>
+            <>
+              <AddSources
+                fileFilters={GAME_FILE_FILTERS}
+                disabled={props.checking}
+                onFiles={(paths) => props.onAdd(paths.map((path) => ({ path, isDir: false })))}
+                onFolders={(paths) => props.onAdd(paths.map((path) => ({ path, isDir: true })))}
+                onRemote={props.onRemotePick}
+                onScanFolder={props.onScanFolder}
+                onError={props.onPickError}
+              >
+                {props.onBrowseConsole && (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    leftIcon={<Gamepad2 size={14} />}
+                    disabled={props.locked || props.checking}
+                    onClick={props.onBrowseConsole}
+                  >
+                    {tr("fpkg.browseConsole", undefined, "On the PS5…")}
+                  </Button>
+                )}
+              </AddSources>
+              <div className="text-xs text-[var(--color-muted)]" data-testid="add-sources-hint">
+                {props.locked
+                  ? tr(
+                      "workshop_add_locked",
+                      undefined,
+                      "A game is being made: games picked now wait in the queue.",
+                    )
+                  : tr(
+                      "workshop_add_hint",
+                      undefined,
+                      "Pick one game to check it here. Several games, or a folder of games, go into the queue and are made one after another.",
+                    )}
+              </div>
+            </>
           )}
         </div>
         <div className="flex gap-2">

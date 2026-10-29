@@ -3,8 +3,7 @@ import {
   type StreamSelectionItem,
 } from "../../lib/streamSelection";
 import { invoke } from "../../lib/invokeLogged";
-import { openExternalUrl } from "../../lib/openExternalUrl";
-import { PPR_PATCH_REPO } from "../../lib/fpkgPrereqs";
+import { FpkgNote } from "./FpkgNote";
 import { formatDate } from "../../lib/formatDate";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -36,7 +35,6 @@ import {
   FileText,
   Clock3,
   MapPin,
-  ChevronDown,
   Gamepad2,
 } from "lucide-react";
 
@@ -610,9 +608,9 @@ const installedIdsCache = new Map<string, Set<string>>();
 /* ─── Screen ──────────────────────────────────────────────────────────── */
 /**
  * Installing packages: from a link or an archive of packages, and from the packages already on
- * the PS5 (copies put there before, and USB drives). `embedded` is Send to PS5's use: those
+ * the PS5 (copies put there before, and USB drives). `embedded` is Upload & Install's use: those
  * parts only, in its order (link and archive, the queue, then what is on the PS5). A package
- * file on this computer is picked or dropped in Send to PS5's own picker there, so this part
+ * file on this computer is picked or dropped in Upload & Install's own picker there, so this part
  * leaves dropped files to it.
  */
 export default function InstallPackageScreen({
@@ -850,7 +848,7 @@ export default function InstallPackageScreen({
   // Webview drag-drop — accept install packages, but keep mountable UFS images
   // (.ffpkg/.ffpfs) in the File System flow.
   useEffect(() => {
-    // Embedded in Send to PS5, whose own picker takes every drop (a package included).
+    // Embedded in Upload & Install, whose own picker takes every drop (a package included).
     if (!host || embedded) return;
     // A dropped file is a path on this device; a remote engine can't open it.
     if (!engineIsOnThisDevice()) return;
@@ -1534,7 +1532,7 @@ export default function InstallPackageScreen({
     );
   };
 
-  // The parts Send to PS5 shows (embedded) and this screen shows in its own order.
+  // The parts Upload & Install shows (embedded) and this screen shows in its own order.
   const noticesEl = (
     <>
       {pickError && (
@@ -1919,81 +1917,6 @@ export default function InstallPackageScreen({
       </section>
     </>
   );
-  const fpkgNoteEl = (
-    <>
-      <details className="group mb-4 rounded-[var(--radius-field)] border border-[color-mix(in_srgb,var(--color-warn)_40%,transparent)] bg-[var(--color-warn)]/5 text-[12px] text-[var(--color-muted)]">
-        <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2 font-medium text-[var(--color-warn)] [&::-webkit-details-marker]:hidden">
-          <AlertTriangle size={13} className="shrink-0" />
-          <span className="flex-1">
-            {tr(
-              "pkglib.fpkgsupport.title",
-              "Installing a fake package (FPKG)?",
-            )}
-          </span>
-          <ChevronDown
-            size={14}
-            className="shrink-0 transition-transform group-open:rotate-180"
-          />
-        </summary>
-        <div className="px-3 pb-3">
-          <div className="flex flex-col gap-1.5">
-            <div>
-              {tr(
-                "pkglib.fpkgsupport.lead",
-                "A PS5 fake package only installs when fake-package support is already loaded on the console. Load all three, in this order, before installing:",
-              )}
-            </div>
-            <ol className="ml-4 flex list-decimal flex-col gap-1">
-              <li>
-                <strong className="text-[var(--color-text)]">kstuff</strong>{" "}
-                {tr(
-                  "pkglib.fpkgsupport.kstuff",
-                  "— the build with PS5 fake-package support",
-                )}
-              </li>
-              <li>
-                <strong className="text-[var(--color-text)]">
-                  a53_ppr_install_fast.elf
-                </strong>{" "}
-                {tr(
-                  "pkglib.fpkgsupport.ppr",
-                  "— applies the PPR plaintext / no-auth patch",
-                )}{" "}
-                {tr(
-                  "pkglib.fpkgsupport.ppr_where",
-                  "No download is published for it: it is built from the source on GitHub,",
-                )}{" "}
-                <button
-                  type="button"
-                  className="underline"
-                  onClick={() => void openExternalUrl(PPR_PATCH_REPO)}
-                >
-                  {"drakmor/ppr-patch"}
-                </button>
-                .
-              </li>
-              <li>
-                <strong className="text-[var(--color-text)]">
-                  shadowmountplus.elf
-                </strong>{" "}
-                {tr(
-                  "pkglib.fpkgsupport.smp",
-                  "— the mount layer that registers the installed title",
-                )}
-              </li>
-            </ol>
-            <div>
-              {tr(
-                "pkglib.fpkgsupport.tail",
-                "Without them the console refuses the install, or takes it and then fails to mount the game. Retail and debug packages need none of this — if that is what you are installing, ignore this note.",
-              )}
-            </div>
-          </div>
-        </div>
-      </details>
-    </>
-  );
-
   const packagePanel = (
     <PackagePanel
       path={
@@ -2081,7 +2004,6 @@ export default function InstallPackageScreen({
             {onPs5El}
           </FoldSection>
         )}
-        {helperUp && fpkgNoteEl}
         {dialog}
       </>
     );
@@ -2353,7 +2275,7 @@ export default function InstallPackageScreen({
             the reader decide whether it applies to them. */}
         {/* A disclosure, not a standing callout: it matters only to someone
             installing a fake package, and they recognise the question. */}
-        {fpkgNoteEl}
+        <FpkgNote />
         {dialog}
       </ConnectionGate>
     </div>

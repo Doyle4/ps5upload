@@ -74,7 +74,15 @@ export type TaskKind =
   | "fakelib-import"
   // a batch of installs driven by Install All (its installs are their own tasks)
   | "install-batch"
-  | "bug-report";
+  | "bug-report"
+  // a Games-row Move (copy on the console, then remove the source)
+  | "library-move"
+  // sending the helper to a console and waiting for it to answer
+  | "helper-send"
+  // a payload playlist (or the auto-loader) sending its steps
+  | "payload-playlist"
+  // this app downloading its own update
+  | "app-update";
 
 export type TaskStatus =
   | "queued"
@@ -265,6 +273,65 @@ function newTaskId(): string {
 }
 
 // ---------------------------------------------------------------------------
+// Speed and time left for jobs that report bytes but no speed
+// ---------------------------------------------------------------------------
+
+/** One job's last byte sample and its smoothed speed. Memory only: a speed is never persisted. */
+interface RateSample {
+  at: number;
+  current: number;
+  bytesPerSec: number;
+}
+
+const rateSamples = new Map<string, RateSample>();
+/** A sample this close to the previous one says little about speed; wait for the next. */
+const MIN_SAMPLE_MS = 400;
+/** Weight of the newest sample in the smoothed speed. */
+const RATE_ALPHA = 0.3;
+
+/** Many jobs (library moves, downloads, file copies, watched engine jobs) report bytes moved
+ *  but no speed, so the activity bar could show a percentage and nothing about how fast or how
+ *  long. Derive both from successive byte samples, smoothed so one bursty poll does not swing
+ *  the figure. A reporter that sends its own `rate` keeps it. Pure apart from `samples`. */
+export function deriveRate(
+  samples: Map<string, RateSample>,
+  id: string,
+  progress: TaskProgress | undefined,
+  now: number,
+): { rate: TaskRate; eta?: number } | null {
+  if (!progress || progress.unit !== "bytes") return null;
+  const prev = samples.get(id);
+  // First sample, or the job started a new leg (bytes went backwards): start over.
+  if (!prev || progress.current < prev.current) {
+    samples.set(id, { at: now, current: progress.current, bytesPerSec: 0 });
+    return null;
+  }
+  const dt = now - prev.at;
+  if (dt < MIN_SAMPLE_MS) {
+    return prev.bytesPerSec > 0 ? withEta(prev.bytesPerSec, progress) : null;
+  }
+  const instant = ((progress.current - prev.current) * 1000) / dt;
+  const bytesPerSec =
+    prev.bytesPerSec > 0 ? prev.bytesPerSec + RATE_ALPHA * (instant - prev.bytesPerSec) : instant;
+  samples.set(id, { at: now, current: progress.current, bytesPerSec });
+  return bytesPerSec > 0 ? withEta(bytesPerSec, progress) : null;
+}
+
+function withEta(bytesPerSec: number, p: TaskProgress): { rate: TaskRate; eta?: number } {
+  const left = Math.max(0, p.total - p.current);
+  return { rate: { bytesPerSec }, ...(p.total > 0 ? { eta: left / bytesPerSec } : {}) };
+}
+
+function sampleRate(
+  id: string,
+  patch: { progress?: TaskProgress; rate?: TaskRate },
+  now: number,
+): Partial<Pick<Task, "rate" | "eta">> {
+  if (!patch.progress || patch.rate) return {};
+  return deriveRate(rateSamples, id, patch.progress, now) ?? {};
+}
+
+// ---------------------------------------------------------------------------
 // Store
 // ---------------------------------------------------------------------------
 
@@ -368,10 +435,12 @@ export const useTaskStore = create<TaskState>((set, get) => ({
       if (idx < 0) return s;
       const existing = s.tasks[idx];
       if (isTerminal(existing.status)) return s;
+      const now = Date.now();
       const updated: Task = {
         ...existing,
         ...patch,
-        updatedAtMs: Date.now(),
+        ...sampleRate(id, patch, now),
+        updatedAtMs: now,
       };
       const tasks = [...s.tasks];
       tasks[idx] = updated;
@@ -388,6 +457,7 @@ export const useTaskStore = create<TaskState>((set, get) => ({
       const existing = s.tasks[idx];
       if (isTerminal(existing.status)) return s;
       const now = Date.now();
+      rateSamples.delete(id);
       const updated: Task = {
         ...existing,
         ...extras,

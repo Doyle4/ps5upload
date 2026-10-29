@@ -184,7 +184,7 @@ export default function HomeScreen() {
               <ActionTile
                 to="/send"
                 icon={Upload}
-                label={tr("send_title", undefined, "Send to PS5")}
+                label={tr("send_title_v2", undefined, "Upload & Install")}
                 readiness={readinessFor("upload")}
               />
               <ActionTile

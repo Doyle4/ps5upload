@@ -87,8 +87,8 @@ export const NAV_ITEMS: NavItem[] = [
   // folder, image, archive or package), from a link, or what is already on the PS5's drives.
   {
     to: "/send",
-    key: "send_title",
-    fallback: "Send to PS5",
+    key: "send_title_v2",
+    fallback: "Upload & Install",
     icon: SendIcon,
   },
   // Everything done to a game on this computer: convert it (package, image, folder), look

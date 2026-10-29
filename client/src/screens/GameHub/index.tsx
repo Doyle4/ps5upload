@@ -1051,14 +1051,14 @@ function PackagesTab({
         <p className="text-sm text-[var(--color-muted)]">
           {isAddons
             ? tr(
-                "game_hub_no_addons",
+                "game_hub_no_addons_v2",
                 undefined,
-                "No DLC packages staged for this title. Send one from Send to PS5.",
+                "No DLC packages staged for this title. Send one from Upload & Install.",
               )
             : tr(
-                "game_hub_no_updates",
+                "game_hub_no_updates_v2",
                 undefined,
-                "No update packages staged for this title. Send one from Send to PS5.",
+                "No update packages staged for this title. Send one from Upload & Install.",
               )}
         </p>
       ) : (
@@ -1108,7 +1108,7 @@ function PackagesTab({
       )}
       <div className="mt-4">
         <Button variant="ghost" size="sm" onClick={() => navigate("/send")}>
-          {tr("game_hub_open_install", undefined, "Open Send to PS5")}
+          {tr("game_hub_open_install_v2", undefined, "Open Upload & Install")}
         </Button>
       </div>
       {connected && driveOffers(view, host ?? "", kind).length > 0 && (

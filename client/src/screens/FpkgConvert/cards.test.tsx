@@ -249,8 +249,8 @@ describe("GameCard archive source", () => {
     source,
     onSourceTyped: () => {},
     onCheck: () => {},
-    onBrowseFolder: () => {},
-    onBrowseImage: () => {},
+    onAdd: () => {},
+    onScanFolder: () => {},
     onRemotePick: () => {},
     canBrowse: true,
     inspection: null,
@@ -282,6 +282,24 @@ describe("GameCard archive source", () => {
       </MemoryRouter>,
     );
     expect(folder).not.toContain("unpacked");
+  });
+
+  it("is the one place games are added, with the same buttons as Upload & Install", () => {
+    const html = renderToStaticMarkup(
+      <MemoryRouter>
+        <GameCard {...props("")} />
+      </MemoryRouter>,
+    );
+    expect(html).toContain("Choose file");
+    expect(html).toContain("Choose folder");
+    expect(html).toContain("Add games from a folder…");
+    expect(html).toContain("Several games, or a folder of games, go into the queue");
+    const locked = renderToStaticMarkup(
+      <MemoryRouter>
+        <GameCard {...props("/games/g")} locked />
+      </MemoryRouter>,
+    );
+    expect(locked).toContain("games picked now wait in the queue");
   });
 });
 
@@ -327,9 +345,7 @@ describe("QueueCard adding", () => {
       <QueueCard
         items={items}
         running={false}
-        onScanFolder={noop}
-        onPickFolders={noop}
-        onPickFiles={noop}
+        onOpenUpload={noop}
         onStart={noop}
         onStop={noop}
         onRemove={noop}
@@ -341,17 +357,31 @@ describe("QueueCard adding", () => {
       />,
     );
 
-  it("adds a folder of games, several game folders, or several images and archives", () => {
-    const html = card();
-    expect(html).toContain("Add games from a folder…");
-    expect(html).toContain("Pick game folders…");
-    expect(html).toContain("Pick packages, images or archives…");
+  const waiting = (status: ConvertItem["status"] = "pending"): ConvertItem => ({
+    id: "w",
+    source: "/games/w",
+    compression: "balanced",
+    then: "stream",
+    host: "192.168.1.20",
+    status,
   });
 
-  it("takes what to make and what to do after from ③, with no second set of choices", () => {
-    const html = card();
+  it("is not shown while nothing is queued: games are added under ①", () => {
+    expect(card()).toBe("");
+  });
+
+  it("has no add buttons and no second set of choices of its own", () => {
+    const html = card([waiting()]);
+    expect(html).not.toContain("Add games from a folder…");
+    expect(html).not.toContain("Choose file");
     expect(html).not.toContain("<select");
-    expect(html).toContain("as chosen under ③");
+    expect(html).toContain("⑤ Queue");
+    expect(html).toContain("Add more under ①");
+  });
+
+  it("offers Upload & Install once a made game has been handed to its queue", () => {
+    expect(card([waiting()])).not.toContain("Open Upload &amp; Install");
+    expect(card([waiting("handed")])).toContain("Open Upload &amp; Install");
   });
 
   it("says which file each queued game becomes", () => {

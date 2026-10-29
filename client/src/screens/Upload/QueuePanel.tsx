@@ -10,6 +10,7 @@ import {
   Square,
   Trash2,
   ScanSearch,
+  Hammer,
   RotateCcw,
   ListOrdered,
   X,
@@ -83,6 +84,9 @@ import { RarPasswordPrompt } from "./RarPasswordPrompt";
 import { rarPasswordProblem } from "../../lib/rarPassword";
 import { partialUploadPath } from "../../lib/partialUpload";
 import { isStreamUnreachableError } from "../../lib/networkFix";
+import { streamInstallFailHelp } from "../../lib/streamInstallHint";
+import { convertFirstState, type WorkshopHandOver } from "../../lib/convertFirst";
+import { useInRouterContext, useNavigate } from "react-router";
 import { NetworkFixActions } from "../InstallPackage/NetworkFixActions";
 
 /** One console's slice of the queue, in first-seen order. */
@@ -791,6 +795,15 @@ export function QueueRow({
     }
   }, [isPendingRow, artSize, item.estimatedBytes, item.id, noteSourceSize]);
   const isInstall = item.sourceKind === "install";
+  const streamHelp = streamInstallFailHelp(item);
+  // A game, folder or image not sent yet (waiting, or failed) can go to the Workshop first.
+  const inRouter = useInRouterContext();
+  const convertState =
+    inRouter && (item.status === "pending" || item.status === "failed")
+      ? convertFirstState([
+          { path: item.sourcePath, isDir: item.sourceKind !== "image", kind: item.sourceKind },
+        ])
+      : null;
   const viewPath = queueItemViewPath(item);
   // A running install can be stopped (here, or after cancelling it on the PS5, which the app
   // cannot see): the PS5 just stops getting the package.
@@ -1055,6 +1068,7 @@ export function QueueRow({
               </button>
             </>
           )}
+          {convertState && <ConvertFirstButton state={convertState} />}
           {viewPath && (
             <button
               type="button"
@@ -1355,6 +1369,18 @@ export function QueueRow({
           />
         )}
 
+      {streamHelp.hint && (
+        <p
+          className="mt-2 text-xs leading-relaxed text-[var(--color-muted)]"
+          data-testid="stream-fail-hint"
+        >
+          {tr(
+            "queue_stream_fail_hint",
+            undefined,
+            "Stream & install has the PS5 fetch the package from this computer. If it keeps failing, allow ps5upload through this computer's firewall on the local network so the PS5 can reach it, or use Retry via upload, which copies the package to the PS5 first and then installs it.",
+          )}
+        </p>
+      )}
       {item.status === "failed" && isInstall && (
         <div className="mt-2 flex flex-wrap gap-2">
           <Button
@@ -1365,9 +1391,9 @@ export function QueueRow({
           >
             {tr("task_retry", undefined, "Retry")}
           </Button>
-          {item.fallbackToUpload && (
+          {(item.fallbackToUpload || streamHelp.retryViaUpload) && (
             <Button
-              variant="primary"
+              variant={item.fallbackToUpload ? "primary" : "secondary"}
               size="sm"
               leftIcon={<UploadCloud size={12} />}
               onClick={onRetryViaUpload}
@@ -1378,6 +1404,25 @@ export function QueueRow({
         </div>
       )}
     </li>
+  );
+}
+
+/** "Convert first" on a queue row: opens the Workshop with this game, folder or image. */
+function ConvertFirstButton({ state }: { state: WorkshopHandOver }) {
+  const tr = useTr();
+  const navigate = useNavigate();
+  const label = tr("upload_convert_first", undefined, "Convert first");
+  return (
+    <button
+      type="button"
+      onClick={() => navigate("/workshop", { state })}
+      title={label}
+      aria-label={label}
+      data-testid="queue-convert-first"
+      className="rounded-full p-1.5 text-[var(--color-muted)] hover:bg-[var(--color-surface-3)]"
+    >
+      <Hammer size={14} />
+    </button>
   );
 }
 

@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   useTaskStore,
@@ -267,5 +267,46 @@ describe("bounded task history", () => {
       MAX_TASK_HISTORY - 1,
     );
     expect(trimmed[0].id).toBe("0");
+  });
+});
+
+describe("deriveRate", () => {
+  it("derives a smoothed speed and time left from byte samples", async () => {
+    const { deriveRate } = await import("./tasks");
+    const samples = new Map();
+    const p = (current: number) => ({ current, total: 10_000, unit: "bytes" as const });
+    // The first sample only sets the baseline.
+    expect(deriveRate(samples, "a", p(0), 0)).toBeNull();
+    // 1000 bytes in a second.
+    expect(deriveRate(samples, "a", p(1000), 1000)).toEqual({ rate: { bytesPerSec: 1000 }, eta: 9 });
+    // A sample too close to the last keeps the speed and updates the time left.
+    expect(deriveRate(samples, "a", p(1100), 1100)).toMatchObject({ rate: { bytesPerSec: 1000 } });
+    // Next second: 3000 bytes/s; smoothed, 1000 + 0.3 × 2000.
+    const next = deriveRate(samples, "a", p(4000), 2000);
+    expect(next?.rate.bytesPerSec).toBeCloseTo(1600);
+    expect(next?.eta).toBeCloseTo(6000 / 1600);
+    // Bytes went backwards (a new leg): start over.
+    expect(deriveRate(samples, "a", p(10), 3000)).toBeNull();
+    // Counts of files or items have no speed.
+    expect(deriveRate(samples, "b", { current: 1, total: 2, unit: "files" }, 0)).toBeNull();
+  });
+
+  it("fills in speed for an update that reports only bytes, and never overrides one that has a speed", async () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(10_000);
+      const { useTaskStore } = await import("./tasks");
+      const s = useTaskStore.getState();
+      const id = s.registerTask({ kind: "download", origin: "t", label: "x", consoleId: "h" });
+      s.updateTask(id, { progress: { current: 0, total: 4000, unit: "bytes" } });
+      vi.setSystemTime(11_000);
+      s.updateTask(id, { progress: { current: 2000, total: 4000, unit: "bytes" } });
+      expect(useTaskStore.getState().getTask(id)).toMatchObject({ rate: { bytesPerSec: 2000 }, eta: 1 });
+      vi.setSystemTime(12_000);
+      s.updateTask(id, { progress: { current: 3000, total: 4000, unit: "bytes" }, rate: { bytesPerSec: 7 } });
+      expect(useTaskStore.getState().getTask(id)?.rate).toEqual({ bytesPerSec: 7 });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

@@ -47,25 +47,69 @@ it("allows removing a waiting pick without touching the active pick", async () =
 
 it("pauses before overwriting a destination created while a pick waited", async () => {
   const e = engine();
-  pauseFsUploadQueue(host);
+  enqueueFsUpload(request("one"), e.deps, []);
   enqueueFsUpload(request("new.bin"), e.deps, []);
+  pauseFsUploadQueue(host);
+  e.release();
+  await vi.waitFor(() => expect(fsUploadQueueFor(host).items).toHaveLength(1));
   e.deps.listDir = async () => [{ name: "new.bin", kind: "file", size: 8 }];
   resumeFsUploadQueue(host, e.deps);
   await vi.waitFor(() => expect(fsUploadQueueFor(host).error).toContain("Destination changed"));
-  expect(e.startFile).not.toHaveBeenCalled();
+  expect(e.startFile).toHaveBeenCalledTimes(1);
   expect(fsUploadQueueFor(host).items).toHaveLength(1);
   expect(fsUploadQueueFor(host).paused).toBe(true);
 });
 
-it("does not start a paused queue until explicitly resumed", async () => {
+it("holds waiting picks while paused until explicitly resumed", async () => {
   const e = engine();
-  pauseFsUploadQueue(host);
   enqueueFsUpload(request("one"), e.deps, []);
-  await drainFsUploadQueue(host, e.deps);
-  expect(e.startFile).not.toHaveBeenCalled();
+  enqueueFsUpload(request("two"), e.deps, []);
+  pauseFsUploadQueue(host);
   e.release();
+  await vi.waitFor(() => expect(fsUploadQueueFor(host).running).toBe(false));
+  await drainFsUploadQueue(host, e.deps);
+  expect(e.startFile).toHaveBeenCalledTimes(1);
+  expect(fsUploadQueueFor(host).items.map((i) => i.request.steps?.[0])).toMatchObject([{ name: "two" }]);
   resumeFsUploadQueue(host, e.deps);
   await vi.waitFor(() => expect(fsUploadQueueFor(host).items).toHaveLength(0));
+  expect(e.startFile).toHaveBeenCalledTimes(2);
+});
+
+it("starts the first drop at once when a pause outlived the picks it held", async () => {
+  // A cancelled or failed copy pauses the queue; once nothing waits, the next pick must run.
+  const e = engine();
+  e.release();
+  pauseFsUploadQueue(host);
+  enqueueFsUpload(request("next.bin"), e.deps, []);
+  await vi.waitFor(() => expect(e.startFile).toHaveBeenCalledTimes(1));
+  await vi.waitFor(() => expect(fsUploadQueueFor(host).items).toHaveLength(0));
+  expect(fsUploadQueueFor(host).paused).toBe(false);
+});
+
+it("starts the first drop after a restart that left an empty, paused queue", async () => {
+  // The user's report: a saved slot (empty after the last session's copies) came back paused,
+  // so the first drop of the session showed Queue · 1 with Resume instead of copying.
+  const saved = new Map<string, string>([
+    ["ps5upload.fsUploadQueue.v1", JSON.stringify({ [host]: { items: [], running: false, paused: true, error: null } })],
+  ]);
+  vi.stubGlobal("window", {
+    localStorage: { getItem: (k: string) => saved.get(k) ?? null, setItem: (k: string, v: string) => saved.set(k, v) },
+  });
+  try {
+    vi.resetModules();
+    const fresh = await import("./fsUploadQueue");
+    const freshUpload = await import("./fsUpload");
+    expect(fresh.fsUploadQueueFor(host).paused).toBe(false);
+    const startFile = vi.fn<FsUploadDeps["startFile"]>(async () => "job");
+    const deps: FsUploadDeps = {
+      pathKind: async () => "file", startFile, startDir: startFile,
+      jobStatus: async () => ({ status: "done" }), jobCancel: async () => {}, sleep: async () => {}, listDir: async () => [],
+    };
+    fresh.enqueueFsUpload(request("Resident Evil 2.pkg", "/mnt/usb0"), deps, []);
+    await vi.waitFor(() => expect(startFile).toHaveBeenCalledTimes(1));
+    await vi.waitFor(() => expect(fresh.fsUploadQueueFor(host).items).toHaveLength(0));
+    expect(freshUpload.fsUploadForHost(freshUpload.useFsUploadStore.getState(), host).active).toBeFalsy();
+  } finally { vi.unstubAllGlobals(); }
 });
 
 it("restores waiting picks paused and leaves the interrupted pick to Resume", async () => {

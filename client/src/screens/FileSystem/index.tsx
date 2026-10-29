@@ -2071,7 +2071,7 @@ export default function FileSystemScreen() {
       const next = await extractedNext(addr, into);
       if (next.packages > 0)
         extra.push(
-          tr("fs_extract_next_pkgs", { n: next.packages }, `It holds ${next.packages} package(s): install them from Send to PS5, or from their row here.`),
+          tr("fs_extract_next_pkgs_v2", { n: next.packages }, `It holds ${next.packages} package(s): install them from Upload & Install, or from their row here.`),
         );
       else if (next.game)
         extra.push(tr("fs_extract_next_game", undefined, "It is a game folder: open the game in Games and use Add to home screen to put it on the PS5's home screen."));

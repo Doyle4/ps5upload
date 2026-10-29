@@ -808,9 +808,9 @@ export default function ConnectionScreen() {
             <AllowPairing host={host.trim()} />
             <p className="mb-4 text-sm leading-relaxed text-[var(--color-muted)]">
               {tr(
-                "connection_step3_hint_v2",
+                "connection_step3_hint_v3",
                 undefined,
-                "Open Send to PS5 and drop in a game folder, a .exfat or .ffpkg image, or a .pkg package. Images and folders you send are listed in the game's page in Games, where Mount puts them on the PS5's home screen.",
+                "Open Upload & Install and drop in a game folder, a .exfat or .ffpkg image, or a .pkg package. Images and folders you send are listed in the game's page in Games, where Mount puts them on the PS5's home screen.",
               )}
             </p>
             <Button
@@ -819,7 +819,7 @@ export default function ConnectionScreen() {
               rightIcon={<ArrowRight size={14} className="rtl:rotate-180" />}
               onClick={() => navigate("/send")}
             >
-              {tr("connection_go_upload", undefined, "Open Send to PS5")}
+              {tr("connection_go_upload_v2", undefined, "Open Upload & Install")}
             </Button>
           </StepCard>
         )}

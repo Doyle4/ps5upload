@@ -5,7 +5,7 @@ import { ChevronRight } from "lucide-react";
 
 /**
  * A section that folds to its heading line, for ways of doing something that most visits do
- * not need (Send to PS5's "From a link" and "Already on the PS5"). The heading line still says
+ * not need (Upload & Install's "From a link" and "Already on the PS5"). The heading line still says
  * what is inside (`summary`), and whether it is open is remembered per section in this browser.
  */
 export function FoldSection({
@@ -42,7 +42,7 @@ export function FoldSection({
       return !o;
     });
   };
-  // Opened from elsewhere on the page (Send to PS5's intro): open and come into view.
+  // Opened from elsewhere on the page (Upload & Install's drop zone): open and come into view.
   const ref = useRef<HTMLElement>(null);
   useEffect(() => {
     const onOpen = (e: Event) => {

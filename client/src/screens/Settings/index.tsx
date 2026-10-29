@@ -17,7 +17,6 @@ import {
   MoonStar,
   Sunrise,
   Gauge,
-  Bell,
   Zap,
   Trash2,
   ExternalLink,
@@ -55,7 +54,7 @@ import { clearIconMemoryCache } from "../../lib/iconMemoryCache";
 import { useConfirm } from "../../components/ConfirmDialog";
 
 import { useKeepAwakeStore } from "../../state/keepAwake";
-import { useNotificationsStore } from "../../state/notifications";
+import { NotificationSettingsPanel } from "../Notifications/NotificationSettings";
 import { useLangStore, useTr, LANGUAGES } from "../../state/lang";
 import { useUploadSettingsStore } from "../../state/uploadSettings";
 import { useEngineStore, DEFAULT_ENGINE_URL, setLiveEngineUrl } from "../../state/engine";
@@ -78,10 +77,6 @@ import type { LanguageCode } from "../../i18n";
 // Keeping the imports static eliminates the warning + avoids the
 // per-call promise overhead.
 import { useScheduleStore } from "../../state/schedules";
-import {
-  getNotifPruneDays,
-  setNotifPruneDays,
-} from "../../state/notifications";
 import { formatDate } from "../../lib/formatDate";
 import { applyBundle, backupBeforeChange, buildBundle } from "../../lib/settingsBackup";
 import { SettingsBackups } from "./SettingsBackups";
@@ -489,8 +484,6 @@ function SavePathSection() {
 export default function SettingsScreen() {
   const { enabled, supported, lastError, setEnabled, syncFromBackend } =
     useKeepAwakeStore();
-  const osNotifyEnabled = useNotificationsStore((s) => s.osNotifyEnabled);
-  const setOsNotifyEnabled = useNotificationsStore((s) => s.setOsNotifyEnabled);
   const lang = useLangStore((s) => s.lang);
   const setLang = useLangStore((s) => s.setLang);
   const tr = useTr();
@@ -934,27 +927,7 @@ export default function SettingsScreen() {
 
         {/* The band's only card: full width, not half a row with nothing beside it. */}
         <Section title={tr("notifications", undefined, "Notifications")} full>
-          {show.osNotifications && (
-            <>
-              <Toggle
-                checked={osNotifyEnabled}
-                onChange={(checked) => setOsNotifyEnabled(checked)}
-                label={
-                  <span className="inline-flex items-center gap-2 font-medium">
-                    <Bell size={14} />
-                    {tr("os_notify_label", undefined, "Show system notifications")}
-                  </span>
-                }
-                hint={tr(
-                  "os_notify_hint",
-                  undefined,
-                  "Mirror in-app notifications (transfer done, errors, etc.) to your operating system's notification center — but only when the app is in the background, so you're not notified twice. You may be asked to grant notification permission.",
-                )}
-              />
-              <div className="my-3 border-t border-[var(--color-border)]" />
-            </>
-          )}
-          <NotifPrunePanel />
+          <NotificationSettingsPanel />
         </Section>
 
         {trayPossible() && (
@@ -1204,53 +1177,6 @@ function SchedulesPanel() {
         >
           {tr("schedules_add", undefined, "Add daily")}
         </Button>
-      </div>
-    </div>
-  );
-}
-
-/** Lets the user choose how long notifications are kept. Default 30
- *  days; 0 disables auto-prune. Pruning runs at app start + every 6h
- *  (wired in AppShell). Setting changes take effect on the next tick
- *  — instant pruning isn't worth the surprise of "I changed it to 1
- *  day and lost everything." */
-function NotifPrunePanel() {
-  const tr = useTr();
-  const [days, setDays] = useState<number>(() => getNotifPruneDays());
-
-  function pickDays(d: number) {
-    setNotifPruneDays(d);
-    setDays(d);
-  }
-
-  const options: Array<{ days: number; labelKey: string; labelFallback: string }> = [
-    { days: 7, labelKey: "settings_retention_7", labelFallback: "7 days" },
-    { days: 30, labelKey: "settings_retention_30", labelFallback: "30 days" },
-    { days: 90, labelKey: "settings_retention_90", labelFallback: "90 days" },
-    { days: 0, labelKey: "settings_retention_never", labelFallback: "Never (keep all)" },
-  ];
-
-  return (
-    <div className="space-y-2 text-sm">
-      <div className="text-xs text-[var(--color-muted)]">
-        {tr(
-          "notif_prune_hint",
-          undefined,
-          "Notifications older than this are auto-deleted. Runs at startup and every 6 hours.",
-        )}
-      </div>
-      <div className="flex flex-wrap gap-2">
-        {options.map((o) => (
-          <button
-            key={o.days}
-            type="button"
-            onClick={() => pickDays(o.days)}
-            aria-pressed={days === o.days}
-            className="chip min-h-8 px-3.5 text-xs max-md:min-h-11 max-md:px-4"
-          >
-            {tr(o.labelKey, o.labelFallback)}
-          </button>
-        ))}
       </div>
     </div>
   );
@@ -1627,9 +1553,9 @@ function BandwidthControl({
               `All uploads together are held to about ${value} MB/s, from the next upload started. Set to 0 to remove the limit.`,
             )
           : tr(
-              "bandwidth_cap_off_hint_v2",
+              "bandwidth_cap_off_hint_v3",
               undefined,
-              "No limit. Set one if uploads saturate your Wi-Fi/LAN and make other devices lag. It applies to every upload, from Send to PS5, the queue and Files, from the next one started.",
+              "No limit. Set one if uploads saturate your Wi-Fi/LAN and make other devices lag. It applies to every upload, from Upload & Install, the queue and Files, from the next one started.",
             )}
       </div>
     </div>

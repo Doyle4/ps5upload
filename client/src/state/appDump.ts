@@ -26,7 +26,8 @@ interface DumpStore {
   jobs: DumpJob[];
   add: (host: string, name: string, req: AppDumpRequest) => void;
   cancel: (id: number) => void;
-  clearFinished: () => void;
+  /** Drop one finished job from the list (a running or waiting one stays). */
+  dismiss: (id: number) => void;
 }
 
 const patch = (id: number, p: Partial<DumpJob>) =>
@@ -94,8 +95,10 @@ export const useAppDumpStore = create<DumpStore>(() => ({
       void fsOpCancel(transferAddr(job.host), id).catch(() => {});
     }
   },
-  clearFinished() {
-    useAppDumpStore.setState((s) => ({ jobs: s.jobs.filter((j) => j.state === "waiting" || j.state === "running") }));
+  dismiss(id) {
+    useAppDumpStore.setState((s) => ({
+      jobs: s.jobs.filter((j) => j.id !== id || j.state === "waiting" || j.state === "running"),
+    }));
   },
 }));
 

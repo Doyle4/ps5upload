@@ -23,14 +23,30 @@ export interface FinishedRow {
   agoMs: number;
 }
 
+/** Work waiting in a queue that has not started yet (the console queue, the Convert queue). It
+ *  is not a task until it starts, so it comes from the queue stores (see queuedWork). */
+export interface QueuedRow {
+  id: string;
+  owner: "upload-queue" | "convert-queue";
+  kind: TaskKind;
+  label: string;
+  consoleId: string;
+  /** The screen that owns the queue. */
+  route: string;
+  /** Known size in bytes, or null. */
+  sizeBytes: number | null;
+}
+
 export interface ActivitySummary {
   /** Running first (oldest first), then queued / waiting / paused. */
   running: ActivityRow[];
-  /** At most three jobs for the one-line summary. */
-  headline: { short: string; pct: number | null }[];
-  /** How many running jobs the headline leaves out. */
-  more: number;
-  /** This session's finished jobs, newest first, at most five. */
+  /** The job the strip shows: one that is moving and says how far, the oldest such first. */
+  primary: ActivityRow | null;
+  /** Everything else live: the other running jobs and the queued work. */
+  others: number;
+  /** Queued work that has not started, in queue order. */
+  queued: QueuedRow[];
+  /** This session's finished jobs, newest first, at most eight. */
   finished: FinishedRow[];
   /** Failed jobs of this session the panel has not shown yet. */
   failedUnseen: number;
@@ -38,8 +54,7 @@ export interface ActivitySummary {
   flash: { short: string; label: string; outcome: "done" | "failed" } | null;
 }
 
-const HEADLINE = 3;
-const FINISHED = 5;
+const FINISHED = 8;
 const STALE_MS = 60_000;
 const FLASH_MS = 5_000;
 
@@ -94,9 +109,30 @@ export function shortLabel(kind: TaskKind): string {
       return "Cheats";
     case "icon-fetch":
       return "Artwork";
+    case "library-move":
+      return "Move";
+    case "library-mount":
+      return "Mount";
+    case "library-register":
+      return "Register";
+    case "library-unregister":
+      return "Unregister";
+    case "library-launch":
+      return "Launch";
+    case "helper-send":
+      return "Send helper";
+    case "payload-playlist":
+      return "Payloads";
+    case "app-update":
+      return "App update";
     default:
       return "Library";
   }
+}
+
+/** The translation key of `shortLabel(kind)`; `shortLabel` is its English text. */
+export function shortLabelKey(kind: TaskKind): string {
+  return `activity_kind_${kind.replace(/-/g, "_")}`;
 }
 
 /** The screen a job belongs to, opened when its row is clicked. Real routes only: a redirect
@@ -111,14 +147,34 @@ export function routeForTask(task: Task): string {
   if (k === "fpkg-convert" || k === "ffpfsc-compress") return "/workshop";
   if (k === "backport-patch" || k.startsWith("fakelib-")) return "/games";
   if (k === "bug-report") return "/bug-report";
-  if (k.startsWith("library-")) return "/games";
+  if (k.startsWith("library-") || k === "app-dump") return "/games";
   if (k === "cheat-download") return "/cheats";
+  if (k === "helper-send") return "/connection";
+  if (k === "payload-playlist") return "/payloads";
+  if (k === "app-update") return "/settings";
   return "/tasks";
 }
 
 function pctOf(task: Task): number | null {
   const p = task.progress;
   return p && p.total > 0 ? Math.min(100, (p.current / p.total) * 100) : null;
+}
+
+/** The job the strip names. Stable while the work goes on, so the line does not jump between
+ *  jobs: a running job that still reports, then one that says how far it is, then the oldest. */
+export function pickPrimary(running: readonly ActivityRow[]): ActivityRow | null {
+  let best: ActivityRow | null = null;
+  let bestScore = -1;
+  for (const r of running) {
+    const score =
+      (r.task.status === "running" ? 4 : 0) + (r.staleMin == null ? 2 : 0) + (r.pct != null ? 1 : 0);
+    // `running` is already oldest first, so the first of the best score wins.
+    if (score > bestScore) {
+      best = r;
+      bestScore = score;
+    }
+  }
+  return best;
 }
 
 export function summarize(
@@ -129,6 +185,8 @@ export function summarize(
     seen: ReadonlySet<string>;
     /** Jobs this start-up interrupted; they count as ending when the session began. */
     interruptedAtLoad?: ReadonlySet<string>;
+    /** Queued work from the queue stores (queuedWork). */
+    queued?: readonly QueuedRow[];
   },
 ): ActivitySummary {
   const { now, sessionStart, seen } = opts;
@@ -169,10 +227,13 @@ export function summarize(
     (newest.status === "done" || newest.status === "failed")
       ? { short: shortLabel(newest.kind), label: newest.label, outcome: newest.status }
       : null;
+  const queued = [...(opts.queued ?? [])];
+  const primary = pickPrimary(running);
   return {
     running,
-    headline: running.slice(0, HEADLINE).map((r) => ({ short: r.short, pct: r.pct })),
-    more: Math.max(0, running.length - HEADLINE),
+    primary,
+    queued,
+    others: running.length + queued.length - (primary ? 1 : 0),
     finished: ended.slice(0, FINISHED).map((t) => ({
       id: t.id,
       task: t,
@@ -182,4 +243,23 @@ export function summarize(
     failedUnseen: ended.filter((t) => t.status === "failed" && !seen.has(t.id)).length,
     flash,
   };
+}
+
+/**
+ * Whether the activity clock must tick: while the panel is open (its "Just finished" rows say
+ * how long ago each ended, which must not freeze at the last tick), while a job runs (it can go
+ * stale), and for a few seconds after one ends (the strip's brief note). `clock` is the clock's
+ * last reading, `latest` the newest task stamp.
+ */
+export function needsClock(
+  tasks: readonly Task[],
+  clock: number,
+  latest: number,
+  panelOpen: boolean,
+): boolean {
+  if (panelOpen) return true;
+  const now = Math.max(clock, latest);
+  return tasks.some(
+    (t) => !isTerminal(t.status) || (t.endedAtMs != null && now - t.endedAtMs < FLASH_MS + 1000),
+  );
 }

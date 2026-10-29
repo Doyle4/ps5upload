@@ -45,7 +45,7 @@ describe("NAV_ITEMS", () => {
     expect(grouped).toHaveLength(NAV_ITEMS.length);
   });
 
-  it("keeps Send to PS5 directly reachable", () => {
+  it("keeps Upload & Install directly reachable", () => {
     expect(NAV_ITEMS.map((item) => item.to)).toContain("/send");
   });
 

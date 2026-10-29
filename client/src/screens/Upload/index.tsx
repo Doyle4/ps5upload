@@ -1,5 +1,5 @@
 import BrowserFilePicker from "./BrowserFilePicker";
-import { SEND_CHOOSE_PACKAGE } from "../Send/sendEvents";
+import { OPEN_FOLD } from "../Send/sendEvents";
 import { consoleAddr } from "../../lib/addr";
 import { useEffect, useMemo, useState } from "react";
 import { PackagePanel } from "../../components/PackagePanel";
@@ -16,15 +16,13 @@ import {
   X,
   Plus,
   type LucideIcon,
-  ListPlus,
   Moon,
+  Link2,
 } from "lucide-react";
 import clsx from "clsx";
-import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { isAndroid, isMobile } from "../../lib/platform";
 import { pkgKindLabel } from "./pkgKind";
-import { pickLocalPath, pickLocalPaths } from "../../state/localPicker";
 import { isTauriEnv, safeUnlisten } from "../../lib/tauriEnv";
 import { engineIsOnThisDevice } from "../../state/engine";
 import { localFileSrc } from "../../lib/fileSrc";
@@ -86,7 +84,8 @@ import {
 import { localFs } from "../../api/localFs";
 import FfpkgInspectorPanel from "./FfpkgInspectorPanel";
 import FolderDiffPanel from "./FolderDiffPanel";
-import { BrowseButton } from "../../components/BrowseButton";
+import { AddSources } from "../../components/AddSources";
+import { convertFirstState } from "../../lib/convertFirst";
 import { isRemotePath } from "../../lib/remotePath";
 import { useUploadSettingsStore } from "../../state/uploadSettings";
 import { useUploadQueueStore } from "../../state/uploadQueue";
@@ -184,8 +183,8 @@ function detectedLabel(
 
 /**
  * Sending from this computer (or a saved server): pick or drop anything, and the app works out
- * what it is and what to do with it. `embedded` is Send to PS5's use: no page header (the
- * screen has its own) and no queue (Send to PS5 shows the one queue below its other ways in).
+ * what it is and what to do with it. `embedded` is Upload & Install's use: no page header (the
+ * screen has its own) and no queue (Upload & Install shows the one queue below its other ways in).
  */
 export default function UploadScreen({
   embedded = false,
@@ -339,28 +338,29 @@ export default function UploadScreen({
     batch.add(entries);
   };
 
-  const handleScanFolder = async () => {
+  // What AddSources picked (components/AddSources: the same buttons as the Workshop's). Several
+  // things, or anything while a review list is open, go to the review list; one goes straight to
+  // its options. A .pkg is a first-class "pkg" source of pickFile (upload → install → clean up).
+  const handlePickedPaths = async (list: string[], isDir: boolean) => {
     try {
-      const folder =
-        isMobile() || !isTauriEnv()
-          ? await pickLocalPath({
-              mode: "folder",
-              title: tr(
-                "batch_scan_pick",
-                undefined,
-                "Choose the folder that holds your games",
-              ),
-            })
-          : await openDialog({
-              directory: true,
-              multiple: false,
-              title: tr(
-                "batch_scan_pick",
-                undefined,
-                "Choose the folder that holds your games",
-              ),
-            });
-      if (typeof folder !== "string") return;
+      if (list.length === 0) return;
+      if (list.length > 1 || useUploadBatch.getState().rows.length > 0) {
+        addToBatch(list.map((path) => ({ path, isDir })));
+        return;
+      }
+      await (isDir ? pickFolder(list[0]) : pickFile(list[0]));
+    } catch (e) {
+      // A throw would otherwise surface only as an uncategorized unhandled rejection — log which
+      // gesture failed for the bug bundle.
+      log.warn(
+        "upload",
+        `${isDir ? "folder" : "file"} pick failed: ${e instanceof Error ? e.message : String(e)}`,
+      );
+    }
+  };
+
+  const handleScanFolder = async (folder: string) => {
+    try {
       addToBatch(await scanChildren(folder));
     } catch (e) {
       log.warn(
@@ -370,89 +370,9 @@ export default function UploadScreen({
     }
   };
 
-  const handleChooseFile = async (opts?: { packages?: boolean }) => {
-    try {
-      // Android: the native dialog returns content:// URIs the engine
-      // can't read, so browse the real filesystem in-app instead. Browser
-      // (no Tauri): there's no native dialog at all, and it would browse
-      // the wrong machine anyway (the browser's, not the engine's) — same
-      // in-app browser, pointed at the engine's filesystem instead (see
-      // api/localFs.ts).
-      const selected =
-        isMobile() || !isTauriEnv()
-          ? await pickLocalPaths({ mode: "file" })
-          : await openDialog({
-              directory: false,
-              multiple: true,
-              // Send to PS5's "Install a package": packages first (the dialog can still show all).
-              filters: opts?.packages
-                ? [
-                    { name: "PS4/PS5 packages", extensions: ["pkg", "fpkg", "ffpkg"] },
-                    { name: "All files", extensions: ["*"] },
-                  ]
-                : undefined,
-            });
-      const list = Array.isArray(selected)
-        ? selected
-        : typeof selected === "string"
-          ? [selected]
-          : [];
-      if (list.length === 0) return;
-      if (list.length > 1 || useUploadBatch.getState().rows.length > 0) {
-        addToBatch(list.map((path) => ({ path, isDir: false })));
-        return;
-      }
-      const [one] = list;
-      // .pkg is handled as a first-class "pkg" source by pickFile (it becomes a
-      // queue item that uploads → installs → cleans up). No special redirect.
-      await pickFile(one);
-    } catch (e) {
-      // A picker/dialog throw would otherwise surface only as an uncategorized
-      // unhandled rejection — log which gesture failed for the bug bundle.
-      log.warn(
-        "upload",
-        `file picker failed: ${e instanceof Error ? e.message : String(e)}`,
-      );
-    }
-  };
-
-  // Send to PS5's "Install a package" opens this screen's picker.
-  useEffect(() => {
-    const onAsk = () => void handleChooseFile({ packages: true });
-    window.addEventListener(SEND_CHOOSE_PACKAGE, onAsk);
-    return () => window.removeEventListener(SEND_CHOOSE_PACKAGE, onAsk);
-  });
-
-  const handleChooseFolder = async () => {
-    try {
-      // Android: directory:true is a no-op in plugin-dialog; use the
-      // in-app real-path browser so folder upload works. Browser (no
-      // Tauri): same in-app browser, pointed at the engine's own
-      // filesystem instead — see handleChooseFile above.
-      const selected =
-        isMobile() || !isTauriEnv()
-          ? await pickLocalPaths({ mode: "folder" })
-          : await openDialog({ directory: true, multiple: true });
-      const list = Array.isArray(selected)
-        ? selected
-        : typeof selected === "string"
-          ? [selected]
-          : [];
-      if (list.length === 0) return;
-      if (list.length > 1 || useUploadBatch.getState().rows.length > 0) {
-        addToBatch(list.map((path) => ({ path, isDir: true })));
-        return;
-      }
-      await pickFolder(list[0]);
-    } catch (e) {
-      log.warn(
-        "upload",
-        `folder picker failed: ${e instanceof Error ? e.message : String(e)}`,
-      );
-    }
-  };
-
   const host = useConnectionStore((s) => s.host);
+  const payloadStatus = useConnectionStore((s) => s.payloadStatus);
+  const navigate = useNavigate();
 
   // Per-console one-shot phase: bind to THIS console's slot so switching tabs
   // shows the right upload (and a one-shot on another console never appears
@@ -860,19 +780,17 @@ export default function UploadScreen({
       <Step1Picker
         active={!source}
         dropActive={dropActive}
-        onFile={() => void handleChooseFile()}
-        onFolder={handleChooseFolder}
-        onRemoteFile={(p) =>
+        onFiles={(paths) => void handlePickedPaths(paths, false)}
+        onFolders={(paths) => void handlePickedPaths(paths, true)}
+        onRemote={(p, isDir) =>
           batchRows.length > 0
-            ? addToBatch([{ path: p, isDir: false }])
-            : void pickFile(p)
+            ? addToBatch([{ path: p, isDir }])
+            : void (isDir ? pickFolder(p) : pickFile(p))
         }
-        onRemoteFolder={(p) =>
-          batchRows.length > 0
-            ? addToBatch([{ path: p, isDir: true }])
-            : void pickFolder(p)
-        }
-        onScanFolder={() => void handleScanFolder()}
+        onScanFolder={(folder) => void handleScanFolder(folder)}
+        // Upload & Install's link and on-PS5 installs live further down the page and need the
+        // helper, like the folds they open.
+        otherWays={embedded && payloadStatus === "up" && !!host?.trim()}
       />
 
       {batchRows.length > 0 && (
@@ -943,6 +861,7 @@ export default function UploadScreen({
           onInclude={(id, v) => batch.setInclude(id, v)}
           onPassword={(id, pw) => batch.setPassword(id, pw)}
           onClear={() => batch.clear()}
+          onConvert={(state) => navigate("/workshop", { state })}
         />
       )}
 
@@ -1001,20 +920,21 @@ export default function UploadScreen({
 function Step1Picker({
   active,
   dropActive,
-  onFile,
-  onFolder,
-  onRemoteFile,
-  onRemoteFolder,
+  onFiles,
+  onFolders,
+  onRemote,
   onScanFolder,
+  otherWays,
 }: {
   active: boolean;
   dropActive: boolean;
-  onFile: () => void;
-  onFolder: () => void;
-  onRemoteFile: (path: string) => void;
-  onRemoteFolder: (path: string) => void;
+  onFiles: (paths: string[]) => void;
+  onFolders: (paths: string[]) => void;
+  onRemote: (path: string, isDir: boolean) => void;
   /** Add a folder's games (its immediate children) to the review list. */
-  onScanFolder: () => void;
+  onScanFolder: (folder: string) => void;
+  /** Offer the page's other installs (from a link, already on the PS5 or USB). */
+  otherWays?: boolean;
 }) {
   const tr = useTr();
   return (
@@ -1039,51 +959,69 @@ function Step1Picker({
       <div className="relative text-base font-semibold tracking-[-0.01em]">
         {isMobile()
           ? tr(
-              "upload_pick_here_mobile2",
+              "upload_pick_here_mobile3",
               undefined,
-              "Pick a package to install, or a file or folder to copy",
+              "Choose packages, games, disk images, archives or any file",
             )
           : tr(
-              "upload_drop_here2",
+              "upload_drop_here3",
               undefined,
-              "Drop a package to install it, or a game folder, image or file to copy it",
+              "Drop or choose packages, games, disk images, archives or any file",
             )}
       </div>
-      <div className="relative mt-5 flex flex-wrap items-center justify-center gap-2">
-        {/* Native OS dialogs can't offer "file or folder" in one prompt, so there are two
-            pickers — but drag-drop above needs no choice at all (it stats the path and
-            auto-detects). The ▾ on each picks from a saved server instead. */}
-        <BrowseButton
-          mode="file"
-          remote
-          icon={<FileIcon size={14} />}
-          label={tr("upload_choose_file", undefined, "Choose file")}
-          onMainClick={onFile}
-          onPick={onRemoteFile}
-        />
-        <BrowseButton
-          mode="folder"
-          remote
-          label={tr("upload_choose_folder", undefined, "Choose folder")}
-          onMainClick={onFolder}
-          onPick={onRemoteFolder}
-        />
-        <Button
-          variant="ghost"
-          leftIcon={<ListPlus size={14} />}
-          onClick={onScanFolder}
-        >
-          {tr("batch_scan", undefined, "Add games from a folder…")}
-        </Button>
-      </div>
-      <p className="relative mx-auto mt-5 max-w-md text-xs leading-relaxed text-[var(--color-muted)]">
-        {tr(
-          "upload_picker_hint2",
-          undefined,
-          "Packages (.pkg, .fpkg) install on the PS5 as a game, update or DLC: streamed straight to the installer, or uploaded first. Game folders are found by sce_sys/param.sfo and can go on the home screen; .exfat and .ffpfs images can be mounted.",
-        )}
-      </p>
-      <p className="relative mx-auto mt-1 max-w-md text-xs leading-relaxed text-[var(--color-muted)]">
+      {/* Drag-drop needs no choice at all (it stats the path and works out what it is); the
+          buttons are the Workshop's too. The ▾ on each picks from a saved server instead. */}
+      <AddSources
+        className="relative mt-5"
+        onFiles={onFiles}
+        onFolders={onFolders}
+        onRemote={onRemote}
+        onScanFolder={onScanFolder}
+      />
+      {/* What each kind becomes: the drop zone is the page's one way in, so it says it all. */}
+      <ul
+        className="relative mx-auto mt-5 flex max-w-lg flex-col gap-1 text-start text-xs leading-relaxed text-[var(--color-muted)]"
+        data-testid="send-drop-kinds"
+      >
+        {(
+          [
+            ["upload_drop_kind_pkg", "Packages (.pkg, .fpkg): installed as a game, update or DLC, streamed from here or uploaded first."],
+            ["upload_drop_kind_game", "Game folders and game dumps: copied to the PS5; they can go on the home screen."],
+            ["upload_drop_kind_image", "Disk images (.exfat, .ffpkg, .ffpfs, .ffpfsc): copied to the PS5; they can be mounted."],
+            ["upload_drop_kind_archive", "Archives (.zip, .7z, .rar): extracted onto the PS5."],
+            ["upload_drop_kind_other", "Any other file or folder: copied as it is."],
+          ] as const
+        ).map(([key, text]) => (
+          <li key={key} className="flex gap-2">
+            <span aria-hidden className="text-[var(--color-accent-bright)]">
+              •
+            </span>
+            <span className="min-w-0">{tr(key, undefined, text)}</span>
+          </li>
+        ))}
+      </ul>
+      {otherWays && (
+        <div className="relative mt-4 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-xs text-[var(--color-muted)]">
+          <span>{tr("upload_other_ways", undefined, "Or install a package:")}</span>
+          <Button
+            size="sm"
+            variant="ghost"
+            leftIcon={<Link2 size={12} />}
+            onClick={() => window.dispatchEvent(new CustomEvent(OPEN_FOLD, { detail: "send-more" }))}
+          >
+            {tr("send_choice_link_btn", undefined, "From a link")}
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            leftIcon={<HardDrive size={12} />}
+            onClick={() => window.dispatchEvent(new CustomEvent(OPEN_FOLD, { detail: "send-on-ps5" }))}
+          >
+            {tr("send_choice_drive_btn", undefined, "On the PS5 or USB")}
+          </Button>
+        </div>
+      )}
+      <p className="relative mx-auto mt-3 max-w-md text-xs leading-relaxed text-[var(--color-muted)]">
         {tr(
           "upload_picker_from_ps5_hint",
           undefined,
@@ -1166,6 +1104,10 @@ function Step2Options(props: {
   // The .pkg source is open in the package viewer.
   const [viewingPkg, setViewingPkg] = useState(false);
   const tr = useTr();
+  const navigate = useNavigate();
+  const convertState = convertFirstState([
+    { path: source.path, isDir: source.kind !== "image", kind: source.kind },
+  ]);
 
   // Multi-part archive detection. `Game.part01.zip` … `Game.part06.zip` are
   // SEPARATE self-contained archives (unlike a rar volume set, which UnRAR
@@ -1735,6 +1677,17 @@ function Step2Options(props: {
         <button type="button" onClick={onClear} className={ACTION_PLAIN}>
           {tr("upload_change_source", undefined, "Change source")}
         </button>
+        {/* A game, folder or image can be made into a package, image or folder first. */}
+        {convertState && (
+          <button
+            type="button"
+            onClick={() => navigate("/workshop", { state: convertState })}
+            className={ACTION_PLAIN}
+            data-testid="convert-first"
+          >
+            {tr("upload_convert_first", undefined, "Convert first")}
+          </button>
+        )}
         {/* Add-to-queue: capture the current source + options into the
             persisted upload queue without starting the transfer. The
             Resume variant only makes sense for folders (single files
@@ -3499,9 +3452,9 @@ function BandwidthCard() {
               `All uploads together are held to about ${cap} MiB/s, from the next upload started. Set to 0 to remove the limit.`,
             )
           : tr(
-              "bandwidth_cap_off_hint_v2",
+              "bandwidth_cap_off_hint_v3",
               undefined,
-              "No limit. Set one if uploads saturate your Wi-Fi/LAN and make other devices lag. It applies to every upload, from Send to PS5, the queue and Files, from the next one started.",
+              "No limit. Set one if uploads saturate your Wi-Fi/LAN and make other devices lag. It applies to every upload, from Upload & Install, the queue and Files, from the next one started.",
             )}
       </p>
     </section>

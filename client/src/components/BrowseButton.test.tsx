@@ -10,6 +10,11 @@ vi.mock("../state/lang", () => ({
     },
 }));
 vi.mock("react-router", () => ({ useNavigate: () => () => {} }));
+const platform = vi.hoisted(() => ({ mobile: false }));
+vi.mock("../lib/platform", async (orig) => ({
+  ...(await orig<typeof import("../lib/platform")>()),
+  isMobile: () => platform.mobile,
+}));
 
 import type { Connection } from "../api/remote";
 import { BrowseButton, BrowseMenu, PathLabelView } from "./BrowseButton";
@@ -64,6 +69,26 @@ describe("BrowseButton", () => {
     expect(out).toContain("(SFTP)");
     expect(out).toContain("not reachable");
     expect(out).toContain("Add a connection");
+  });
+
+  it("calls the local entry This device on a phone (#534)", () => {
+    platform.mobile = true;
+    try {
+      const out = renderToStaticMarkup(
+        <BrowseMenu
+          connections={[c("nas-1", "NAS", "smb")]}
+          status={{}}
+          onLocal={noop}
+          onPickServer={noop}
+          onAdd={noop}
+        />,
+      );
+      expect(out).toContain("This device");
+      expect(out).not.toContain("This computer");
+      expect(out).toContain("NAS");
+    } finally {
+      platform.mobile = false;
+    }
   });
 
   it("shows a remote path by its server's name, and a local path as is", () => {

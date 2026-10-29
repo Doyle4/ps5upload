@@ -543,7 +543,7 @@ function ImageUpload({
         </span>
         {onOpen && (
           <Button size="sm" onClick={onOpen}>
-            {tr("fpkg.openUpload", undefined, "Open Send to PS5")}
+            {tr("fpkg.openUpload_v2", undefined, "Open Upload & Install")}
           </Button>
         )}
       </div>

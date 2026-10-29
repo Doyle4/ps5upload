@@ -15,23 +15,29 @@ export interface PendingFsUpload {
 interface Slot { items: PendingFsUpload[]; paused: boolean; running: boolean; error: string | null }
 const IDLE: Slot = { items: [], paused: false, running: false, error: null };
 const KEY = "ps5upload.fsUploadQueue.v1";
+/** "Paused" holds back picks that are WAITING. With nothing waiting there is nothing to hold:
+ *  a pause (a failure, a Cancel, a restart) never outlives the picks it held, so the next drop
+ *  into an empty queue starts at once instead of sitting behind a Resume nobody asked for. */
+function settle(s: Slot): Slot {
+  return s.items.length === 0 ? { ...s, paused: false, error: null } : s;
+}
 function load(): Record<string, Slot> {
   try {
     const saved = JSON.parse(safeGetItem(KEY) ?? "{}") as Record<string, Slot>;
-    return Object.fromEntries(Object.entries(saved).filter(([, s]) => s && Array.isArray(s.items)).map(([host, s]) => [host, {
+    return Object.fromEntries(Object.entries(saved).filter(([, s]) => s && Array.isArray(s.items)).map(([host, s]) => [host, settle({
       ...s,
       // The transfer store restores an in-flight pick as a resumable stopped run.
       // Leave its progress/resume there instead of sending the original pick twice.
       items: s.items.filter((item) => item.id !== fsUploadForHost(useFsUploadStore.getState(), host).stopped?.queueId),
       running: false, paused: true,
-    }]));
+    })]));
   } catch { return {}; }
 }
 export const useFsUploadQueue = create<{ byHost: Record<string, Slot> }>(() => ({ byHost: load() }));
 export const fsUploadQueueFor = (host: string) => useFsUploadQueue.getState().byHost[hostOf(host)] ?? IDLE;
 function patch(host: string, p: Partial<Slot>) {
   const key = hostOf(host);
-  useFsUploadQueue.setState((s) => ({ byHost: { ...s.byHost, [key]: { ...(s.byHost[key] ?? IDLE), ...p } } }));
+  useFsUploadQueue.setState((s) => ({ byHost: { ...s.byHost, [key]: settle({ ...(s.byHost[key] ?? IDLE), ...p }) } }));
   safeSetItem(KEY, JSON.stringify(useFsUploadQueue.getState().byHost));
 }
 function names(req: FsUploadRequest): string[] {

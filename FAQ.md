@@ -13,8 +13,10 @@ finds a word or an error code (for example `0x80B2116F`) in any answer.
 **Q: Where did a screen go?**
 The sidebar is shorter; old links still land. **Collection**, **Installed games** and **Game
 files** are all **Games** now: one grid with every game once, and each game's page holds
-everything you can do with it. **Upload** and **Install Package** are **Send to PS5**, **Convert
-Games** is **Workshop**, **Network shares** and **Mesh Drive** are **Shared Folders**,
+everything you can do with it; **Manage → Dump games** is **Dump this game** on each installed
+game's page. **Upload** and **Install Package** (later **Send to PS5**) are **Upload & Install**,
+**Convert Games** is **Workshop**, the PS5's **On-screen messages** are the **On the PS5** tab of
+**Notifications**, **Network shares** and **Mesh Drive** are **Shared Folders**,
 **Profile** and the Remote Play PIN screen are **Accounts**, and **Play** is **Remote Play**.
 Game Activity's play time is in **Games**; **Search**, **Disk usage** ("What takes space?") and
 **Console snapshots** are in **Files**; processes and ports are the **Running** tab of
@@ -78,15 +80,16 @@ again.
 
 **Q: Which payloads must be running before I install a package?**
 In this order: **kstuff** (the build with PS5 fake-package support), **a53_ppr_install_fast.elf**
-(needed for PS5 fake packages) and **ShadowMount+**, plus the ps5upload helper. **Install
-Package** shows the same list next to its Install button. Many setups also run **nanoDNS** (keeps
+(needed for PS5 fake packages) and **ShadowMount+**, plus the ps5upload helper. **Upload &
+Install** shows the same list in its fake-package note at the top. Many setups also run **nanoDNS** (keeps
 the console away from PSN and update servers) and **ftpsrv-ps5**; send those from **Payloads**.
 ps5upload itself does not use ftpsrv-ps5. If an install is refused, first check that kstuff is
 running.
 
 **Q: Which firmware limits apply to what I install?**
 - **PS5 fake *game* packages install above firmware 11.60 (including 13.60) but are not
-  playable.** PS4 fake packages work and PS5 homebrew apps launch. The app warns you. See "My
+  playable.** PS4 fake packages work and PS5 homebrew apps launch. The note at the top of
+  **Upload & Install** says so before you send anything. See "My
   uploaded game won't launch" for the folder-dump route.
 - On **13.60**, Stream & install is the dependable route.
 
@@ -99,11 +102,11 @@ running.
    something already loads kstuff, send only ps5upload.
 5. Wait for the `helper` dot to turn green. (If you turned on **Ask before a new device can
    connect** in Devices, a new device types the 6-digit code the console shows, once.)
-6. Open **Send to PS5**, drop or choose your game, pick the drive and click **Start**. The
+6. Open **Upload & Install**, drop or choose your game, pick the drive and click **Start**. The
    free-space check runs before anything is sent.
 7. Open **Games** to see it, and open the game for its actions (**On the PS5's drives** on its
-   page). For a `.pkg`, use **Send to PS5 → Install a package**. If it will not launch, see "My
-   uploaded game won't launch".
+   page). A `.pkg` goes in the same drop zone: choose **Stream & install** or **Upload &
+   install** on its card. If it will not launch, see "My uploaded game won't launch".
 
 ---
 
@@ -285,11 +288,10 @@ phone or another computer?" below walks through it from start to finish.
 - **Upload works**, but the file picker browses the **engine's** disk, not your browser machine's.
   Mount your games into the container (`-v /host/games:/pkgs:ro`) and set
   `PS5UPLOAD_BROWSE_ROOTS=/pkgs` (comma-separated for several) so the picker opens there.
-  In **Send to PS5**, **From this device…** stages files from your browser machine on the
+  In **Upload & Install**, **From this device…** stages files from your browser machine on the
   engine, then opens the normal review before sending to the PS5. Keep the tab open until
   staging finishes. This needs free space on the engine; temporary uploads expire after seven
-  days. For a package, **Stream & install → From this device** stages it for immediate
-  installation.
+  days. A package staged this way offers **Stream & install** on its card like any other.
 - An upload keeps running when you close the tab; reopening shows it. Only one tab runs the queue.
 - **Payloads → Send payload** accepts an ELF from your browser machine and forwards it through
   the engine to the selected console's loader (9021 by default). Sending bytes does not confirm
@@ -343,7 +345,8 @@ volumes:
   install hands the PS5 an address inside Docker that it cannot reach.
 - `/pkgs` is what the web UI's file picker shows: change `/Users/you/PS5` to the folder that holds
   your `.pkg` files and games. The picker browses this computer, not your phone. To send a package
-  that is on the phone itself, use **Send to PS5 → Stream & install → From this device**.
+  that is on the phone itself, use **Upload & Install → From this device…**, then **Stream &
+  install** on its card.
 - `ps5upload-data` holds the engine's pairing key and saved settings. Don't delete it, or the PS5
   sees a new device and you pair again.
 - Quit the PS5Upload desktop app on this computer first: it also uses port 19113.
@@ -698,7 +701,7 @@ files** for PS5Upload, come back and tap **Retry**. You can also grant it in **A
 → Apps → PS5Upload → Permissions → All files access**.
 
 **Q: How do I upload a big game from my phone?**
-**Send to PS5 → Choose folder** (or **Choose file** for a `.zip`), pick it in the in-app browser,
+**Upload & Install → Choose folder** (or **Choose file** for a `.zip`), pick it in the in-app browser,
 choose the destination and **Start**. The file is read in place, nothing is copied first.
 
 **Q: The `helper` dot at the bottom of the app is red.**
@@ -995,7 +998,8 @@ the desktop, Finder, Explorer or your Linux file manager to copy them to this co
 drag fetches them; keep holding the mouse button and the drop happens when they are ready, or let
 go and drag again once the app says they are ready. One drag fetches up to 4 GB; for more, right-click
 → **Download**. Drag files or folders from your computer into Files to copy them into the open
-folder. To move items into another folder on the PS5 instead, hold **Alt** (**⌥ Option** on a
+folder; the copy starts as soon as you drop (9.1.0 fixed the first drop of a session waiting for
+**Resume**). To move items into another folder on the PS5 instead, hold **Alt** (**⌥ Option** on a
 Mac) while you drag them onto that folder or a part of the path at the top. In the browser web UI
 you can drop files (not folders) onto Files; they go to the server first, then to the PS5. The
 Android and iPhone apps have no drag and drop.
@@ -1010,9 +1014,9 @@ Press **Stop** (⊘) on the install in the queue: ps5upload stops sending the pa
 row goes within a few seconds. After a minute with no data asked for, the row says so.
 
 **Q: How do I send a game from the Collection?**
-Open the game and press **Send to PS5**. Pick the copy, how to send a game folder (as it is, or
-as one compressed image that is faster to send and smaller on the PS5), the drive and folder,
-then **Send**. It starts right away; other uploads waiting in the queue keep waiting.
+Open the game and press **Send to PS5** on its page. Pick the copy, how to send a game folder
+(as it is, or as one compressed image that is faster to send and smaller on the PS5), the drive
+and folder, then **Send**. It starts right away; other uploads waiting in the queue keep waiting.
 
 **Q: How do I stop my PS5 from going into rest mode?**
 **Settings → Upload → Keep the PS5 awake** has three modes: **Off**; **During uploads and
@@ -1036,7 +1040,7 @@ Health Check** offers to delete. **Volumes** shows what is likely to fit after t
 **Kept by ps5upload** lists everything the app itself wrote.
 
 **Q: Can I send a game folder as one compressed image instead of thousands of files?**
-Yes. In **Send to PS5**, pick the game folder: under its options, **Or send it as one game image**
+Yes. In **Upload & Install**, pick the game folder: under its options, **Or send it as one game image**
 builds a compressed `.ffpfsc` (or a `.ffpkg` / `.exfat`) on this computer, checks it, and then
 puts it in the upload queue by itself, into the destination folder you chose (`homebrew`, which
 ShadowMount+ watches, by default). One file is much quicker to send than many small ones, and
@@ -1097,7 +1101,7 @@ of it back.
 
 So on internal storage, plan for a game to need about 1.2 times its size. **Volumes** shows this
 as **safe for new uploads**, which is what is likely to fit, not the raw free number. When an
-upload is over that but its bytes would still fit, **Send to PS5** says it **may not fit** and
+upload is over that but its bytes would still fit, **Upload & Install** says it **may not fit** and
 lets you go ahead; it is an estimate, so it never blocks you. If the console does run out part-way,
 the partial upload is kept: free some space and press Resume. An M.2, extended or USB drive does
 not have this overhead.
@@ -1130,7 +1134,7 @@ list under the Games grid). The payload attaches the image via `/dev/lvd*` and m
 Unmount button.
 
 **Q: Can I upload a compressed `.zip` of a game?**
-Yes, and the files arrive **already extracted**. Drop the `.zip` on **Send to PS5**; ps5upload
+Yes, and the files arrive **already extracted**. Drop the `.zip` on **Upload & Install**; ps5upload
 decompresses it on your computer while sending, with no manual unzip. The screen previews
 `zipped → extracted`, the file count and any embedded game. The destination folder is named after
 the archive. Resume, excludes and the bandwidth cap work as for a folder. Only standard "Deflate"
@@ -1161,13 +1165,12 @@ game folder inside it. A folder of a game the PS5 also has installed from a pack
 **Also installed**: it is a second copy you can delete (or copy to your Collection first).
 
 **Q: Can I queue several uploads to run back-to-back?**
-Yes — **Send to PS5** has a queue panel below the single-shot
-controls. Each row shows live progress, current speed, and ETA
-while running; the wall-clock-average MiB/s after it completes.
-The runner processes one item at a time, and the queue persists across app restarts so a
-queued item interrupted by a crash picks up cleanly when you
-press Start again. Tick **Continue on failure** to keep going
-when one item fails instead of stopping the whole batch.
+Yes. **Upload & Install** has one queue for the console, below the drop zone: uploads and
+installs, including what Workshop and a game's page hand to it. Each row shows live progress,
+current speed and time left while running, and the average speed after it completes. The queue
+runs one item at a time and persists across app restarts, so an item interrupted by a crash
+picks up cleanly when you press Start again. Tick **Continue on failure** to keep going when one
+item fails instead of stopping the whole batch.
 
 **Q: How do I jump between volumes in the File System screen?**
 The **Volume** dropdown above the breadcrumb lists every writable volume with its free space.
@@ -1177,11 +1180,21 @@ Pick one to jump to its root.
 Yes, per console. The PS5 IP is remembered too.
 
 **Q: Where can I see what is running across screens?**
-The strip at the bottom of the window shows every in-flight operation (uploads, downloads, copy,
-paste, delete, game actions) with elapsed time, progress and speed. Copy and paste, Add files
-and "Finishing on the console" show progress and an ETA, and **Cancel copy** stops a console copy
-and cleans up only what it created. Click the strip for **Activity & logs → Tasks**; its **History**
-and **Stats** views cover the last 100 operations.
+In the progress bar at the bottom of the window (on phones, a pill above the tab bar). It names
+the running job with its percentage, speed and time left, and how many more are running or
+waiting: uploads, installs, downloads, copies, game actions and dumps, but also helper sends,
+payload playlists, cheat downloads and the app's own update. Click it for a panel with
+**Running**, **Waiting** and **Just finished**: **Cancel** or **Retry** a job there, **Open its
+screen** to go to the screen it belongs to, or **See all activity** for **Activity & Logs →
+Tasks**, whose **History** and **Stats** views cover the last 100 operations. **Cancel copy**
+stops a console copy and cleans up only what it created.
+
+**Q: Where are my notifications?**
+Under the bell at the top (on phones too). It previews the newest of what ps5upload has told you
+(uploads and installs finishing or failing, updates); **See all** opens **Notifications**, which
+has three tabs: **This app** (that list), **On the PS5** (messages ps5upload has put on the PS5's
+screen, such as a Remote Play PIN or a cheat switched on, read back from the helper; not the PS5's
+own notification panel) and **Settings**. Looking at a list marks it read.
 
 **Q: My big upload stopped partway through. What now?**
 A dropped connection, a helper restart or rest mode no longer ends the job: the app waits for the
@@ -1283,7 +1296,7 @@ until you convert or re-create the image.
 | `.exfat` | ShadowMount+ or compatible integrated mount service | Game page → On the PS5's drives → Edit files; or mount locally on a supported OS |
 | `.ffpkg`, `.ffpfs` | ShadowMount+ or compatible integrated mount service | Game page → On the PS5's drives → Edit files, when the console permits a writable mount |
 | `.ffpfsc` | ShadowMount+ or compatible integrated mount service | Open its folder in Files → Decompress to .exfat; edit the extracted image, then recompress on the computer if desired |
-| `.pkg` | Send to PS5 | Workshop supports unpacking packages made with the debug key; arbitrary encrypted retail packages are not editable sources |
+| `.pkg` | Upload & Install | Workshop supports unpacking packages made with the debug key; arbitrary encrypted retail packages are not editable sources |
 
 Compressed images are listed under **On the PS5's drives** alongside uncompressed images.
 Decompression keeps the original file and requires space for the full extracted image. The
@@ -1304,11 +1317,11 @@ In Files, Add files and Add folder remain available while a copy runs. Further p
 their destination and conflict choices in the queue; a failure or cancellation pauses it.
 Pending picks can be removed. After an app restart, review the saved queue and press Resume.
 
-Workshop → Queue → Add games from a folder accepts `PS5 Games/<game>/game.pkg`, alongside
+Workshop → ① Game → **Add games from a folder…** accepts `PS5 Games/<game>/game.pkg`, alongside
 actual game folders and supported images/archives. Generic `game.pkg` outputs use the parent
 folder's name. Review the queue before starting; unsupported/encrypted inputs fail individually,
-and existing output files are not overwritten. Stream & install accepts multiple packages
-(from this computer, a saved server, a phone, or **From this device** in the browser), reads
+and existing output files are not overwritten. **Upload & Install** accepts multiple packages
+(from this computer, a saved server, a phone, or **From this device…** in the browser), reads
 their headers first, and queues bases before updates and DLC. Each queued item shows the game's
 icon and name from the moment it is added, and the queue header says how much is waiting and
 whether it fits on the drive it installs to (an estimate; each install still checks).
@@ -1393,8 +1406,13 @@ refuses to start the title. Check these in order.
 **Q: What does the Games screen show?**
 One grid with every game once: your copies on this computer and saved servers (the Collection),
 the games the selected PS5 has installed, and the games on its drives. Chips filter it by what is
-on that PS5: **Installed**, **Not installed**, **Update available**, **DLC missing**, **On the
-PS5's drives**, **Never seen played** and **Needs newer firmware**.
+on that PS5: **Installed**, **Not installed**, **Updates & DLC to install** (installed games for
+which this computer has a newer update, or DLC the PS5 doesn't have yet), **On the PS5's
+drives**, **Never seen played** and **Needs newer firmware**. Hover a chip for what it counts.
+
+A game the PS5 has installed has **Play** on its card (and in the table view), or **Close** while
+it runs, so you can start it without opening its page. Play waits for ShadowMount+ when the game
+runs from a disk image.
 
 Open a game for everything you can do with it:
 
@@ -1402,7 +1420,9 @@ Open a game for everything you can do with it:
   and **Install** or **Send to PS5** where it is missing.
 - **On <console>**: the installed game's upkeep: **Suspend** and **Resume** while it runs,
   **Uninstall**, **Hide from home screen** / **Show on home screen**, **Fix permissions**,
-  **Backport** and **Copy to Collection**. It warns when the game needs ShadowMount+ running.
+  **Backport**, **Copy to Collection** and **Dump this game** (copy it to a USB drive or the
+  console, a plain copy or with its executables decrypted; its progress shows on the page and in
+  the progress bar). It warns when the game needs ShadowMount+ running.
 - **On the PS5's drives**: each folder and image the game is in, with **Play**, **Mount**,
   **Unmount**, **Edit files**, **Details**, and in **⋯**: **Add to home screen** (and **patch
   DRM**), **Remove from home screen**, **Backup to folder…**, **Permission 777**, **Convert…**,
@@ -1412,7 +1432,8 @@ Open a game for everything you can do with it:
 
 Game files on the PS5 that no game links to yet (an image nothing was registered from, a folder
 whose title ID can't be read) are counted in a line under the grid; **Show them** lists them
-with the same actions. **Manage → Dump games** copies installed games to a drive.
+with the same actions. To dump an installed game to a drive, open it and use **Dump this game**
+under **On <console>**.
 
 **Q: What is the Collection?**
 It is what the **Games** grid shows of this computer: every game you keep on its drives and
@@ -1447,8 +1468,8 @@ details, **Keep the largest copy, free …** moves the others to the Trash.
 
 **Q: Can it install games on my PS5?**
 Yes. With a console connected, every card shows whether that PS5 has the game ("Installed ·
-1.04") or a newer update the collection holds, and the chips filter to games it lacks, can
-update or is missing DLC for. A game's details offer **Install on this PS5** (with its update
+1.04") or a newer update the collection holds, and the chips filter to games it lacks (**Not
+installed**) or has updates and DLC to install for (**Updates & DLC to install**). A game's details offer **Install on this PS5** (with its update
 and DLC), **Install update**, **Install DLC**, and **⋯ → Bring this PS5 up to date** queues every
 newer update and missing DLC at once. Installs go through the normal install queue (base, then
 update, then DLC), streamed from this computer. A game kept only as a folder, image or archive is
@@ -1547,18 +1568,22 @@ from a package cannot be copied this way: its installed files are encrypted.
 ## Install a package
 
 **Q: Can I install fake packages from the desktop?**
-Yes, in **Send to PS5** (**Install a package**). It has two tabs, for the two ways a package can
-reach the PS5:
+Yes, in **Upload & Install**. Drop or choose a PS4 `.pkg` or a PS5 `.fpkg` (a fake package
+often keeps the ordinary `.pkg` extension) in the same drop zone as everything else; its card
+offers the two ways a package can reach the PS5:
 
-- **Stream & install**: the PS5 installs straight from this computer or from a link. No copy is
+- **Stream & install** (recommended): the PS5 installs straight from this computer. No copy is
   put on the PS5 first, so it needs no spare space there. This is the most reliable way.
 - **Upload & install**: the package is copied to the PS5 first
   (`/user/data/ps5upload/pkg_library/`), then installed from that copy. The copies stay listed
-  with cover art and size, and each has **Install**, **Reinstall** and **Delete**.
+  under **Already on the PS5**, each with **Install**, **Reinstall** and **Delete**.
 
-Pick a PS4 `.pkg` or a PS5 `.fpkg` (a fake package often keeps the ordinary `.pkg` extension).
-What is installing or waiting shows in the queue at the top of the screen and in **Tasks**, and
-keeps going when you open another screen.
+The note at the top of the screen lists the payloads fake packages need, and says that **PS5
+fake packages are not supported on firmware later than 11.60**: they install, but the game does
+not start. PS4 fake packages are fine. What is installing or waiting shows in the screen's queue
+and in the progress bar, and keeps going when you open another screen. Installs from a link or
+an archive (**From a Link or an Archive**) and from the PS5 or a USB drive (**Already on the
+PS5**) are in the small "Or install a package" row under the drop zone.
 
 **Q: Stream & install or Upload & install: which one?**
 Use **Stream & install** unless you have a reason not to. Use **Upload & install** when the PS5
@@ -1567,7 +1592,8 @@ install from a phone, or when you want to keep packages on the PS5 to reinstall 
 computer. Upload needs free space on the PS5 for the copy as well as for the installed game.
 
 **Q: How do I install from a download link, and which of the three ways do I pick?**
-On the **Stream & install** tab, paste a direct link to a `.pkg` under **Install from a link**.
+In **Upload & Install**, open **From a Link or an Archive** (or **From a link** under the drop
+zone) and paste a direct link to a `.pkg` under **Install from a link**.
 A link that serves a package installs even without ".pkg" in its address. Then choose who fetches
 it:
 
@@ -1592,7 +1618,7 @@ the right one. Recent links are kept per console; use one again with **Use**, re
 remove it.
 
 **Q: Can I install packages that are inside a ZIP, 7z or RAR?**
-Yes: **Upload & install → Install packages from an archive**. Only the `.pkg` files in the
+Yes: **Upload & Install → From a Link or an Archive → Install packages from an archive**. Only the `.pkg` files in the
 archive are unpacked, straight to the PS5 (nothing is extracted on your computer), and installed
 one by one: the base game first, then its update, then DLC. If an install fails, the unpacked
 files stay on the PS5 so you can retry.
@@ -1611,24 +1637,44 @@ is reported done only once the console has pulled the whole package and the resu
 A link that serves a `.pkg` installs even without ".pkg" in the URL.
 
 **Q: Stream install fails before the PS5 downloads anything?**
-The PS5 pulls the package from your computer, so it must be able to reach it. Allow ps5upload
-through the firewall (on Windows, for both Private and Public networks), keep both on the same
-network with any VPN off, and set the PS5's Proxy Server to "Do Not Use" (Settings → Network →
-Settings → Set Up Internet Connection → your connection → Advanced Settings). On Windows the app
-names the network adapter and whether Windows treats it as Public, with one-click fixes.
-**Upload & install** works without this connection.
+Also asked as: **Stream & install doesn't work for a PS4 package, but file transfer works.**
+Uploads and file transfers are connections from this computer to the PS5. **Stream & install**
+is the other way round: the PS5 connects back to this computer and downloads the package from
+the engine, on port **19113** by default. So a stream install can fail where everything else
+works. Check, in this order:
+
+- **The firewall.** Allow ps5upload through this computer's firewall; on Windows, for both
+  **Private and Public** networks (Windows often treats a home network as Public). On Windows a
+  failed install names the network adapter and whether Windows treats it as Public, with
+  one-click fixes. In Docker, publish port 19113 and set `PS5UPLOAD_PKG_HOST_IP`.
+- **The same network**, with any **VPN off** on this computer.
+- **The PS5's proxy** set to **Do Not Use** (Settings → Network → Settings → Set Up Internet
+  Connection → your connection → Advanced Settings).
+- **The ELF loader on port 9021** still running: the app sends its on-console installer through
+  it when the installer is not already running.
+
+To test the connection, open **Connection › Health Check**: its **PS5 can reach this computer**
+row has the PS5 try to connect to this computer and says why it could not. A failed stream install in the queue explains this and
+offers **Retry via upload**, which is **Upload & install**: it copies the package to the PS5
+first and installs from that copy, so it works without the PS5 reaching this computer (it needs
+free space on the PS5 for the copy).
 
 **Q: How do I turn a game folder into an installable package? (Workshop)**
-Open **Workshop**, pick a decrypted game folder or an `.exfat` / `.ffpkg` image. The app
-checks it has what a launchable package needs and builds a fake package on your computer,
-compressed the way Sony's packages are. It reads games from the console through the helper, so
-ftpsrv is not needed. Then choose **Stream install** or **Upload & install**, or keep the package.
+Open **Workshop** (or press **Convert first** on a game, folder or image in **Upload &
+Install**). Workshop is one column, top to bottom: **① Game** (the only place games are added),
+**② What to make**, **③ Options**, **④ Build & install** and **⑤ Queue**. Pick a decrypted game
+folder or an `.exfat` / `.ffpkg` image under ①. The app checks it has what a launchable package
+needs and builds a fake package on your computer, compressed the way Sony's packages are. It
+reads games from the console through the helper, so ftpsrv is not needed. Then choose **Stream
+install** or **Upload & install**, or keep the package. Several games, or a folder of games, go
+into the queue and are made one after another; a game set to install or upload goes on to
+**Upload & Install**'s queue once it is made.
 Before installing it, load the payloads under "Which payloads must be running before I install a
 package?". Keep the game files you converted from.
 
 **Q: How do I turn a game folder into a game image (`.ffpkg`, `.exfat`, `.ffpfs` or `.ffpfsc`)?**
-Open **Workshop**, pick the game folder on your computer, and under "Or make a game image
-instead of a package" choose the format, then **Make game image**:
+Open **Workshop**, pick the game folder on your computer under **① Game**, choose **A game
+image** under **② What to make** and the format under **③ Options**, then **Make game image**:
 
 - **.ffpkg (UFS2), recommended**: what ShadowMount+ recommends for most games.
 - **.exfat**: for the games that only work like content on an external drive.
@@ -1658,7 +1704,7 @@ the file data (about 1%) is compared byte for byte with the source. Only then do
 name. Tick **Full verification** to re-read every byte of the output instead; it takes longer.
 
 Nothing is installed. Copy the image to a folder ShadowMount+ watches on the PS5 (for example
-`/data/homebrew`, with **Send to PS5**), and ShadowMount+ mounts it and puts the game on the home
+`/data/homebrew`, with **Upload & Install**), and ShadowMount+ mounts it and puts the game on the home
 screen. The `.ffpkg` and `.ffpfs` writers and the streaming `.ffpfsc` container come from quer3q's
 PS5 Dump Forge; the `.exfat` writer is ps5upload's own. On a PS5 on firmware 13.60 with
 ShadowMount+ 1.7, a game image made by the app in each of `.exfat`, `.ffpkg`, `.ffpfs` and a
@@ -1666,12 +1712,12 @@ compressed `.ffpfsc` mounted, registered and ran its game. A folder that is on t
 a saved server cannot be made into an image from here; copy it to this computer first.
 
 **Q: Can I install a package that is already on a USB drive?**
-Yes. Plug the drive into the PS5; packages on it show in **Send to PS5 → Install from USB /
-external drive** with an **Install** button. The app first copies the package to internal storage on the console
+Yes. Plug the drive into the PS5; packages on it show in **Upload & Install → Already on the PS5**
+(or **On the PS5 or USB** under the drop zone) with an **Install** button. The app first copies the package to internal storage on the console
 (drive to drive, fast), because Sony's installer cannot read the exFAT USB mount directly.
 
 **Q: What is the difference between `.pkg`, `.fpkg`, and `.ffpkg` here?**
-`.pkg` and `.fpkg` are accepted by **Send to PS5**. The app validates their
+`.pkg` and `.fpkg` are accepted by **Upload & Install**. The app validates their
 actual header instead of trusting the suffix: PS4-style packages use a CNT
 container, while a finalized PS5 package uses an FIH envelope with an embedded
 CNT. `.ffpkg` and `.ffpfs` are UFS filesystem images and remain in the mount /
@@ -1755,7 +1801,7 @@ Open your phone's Files app → Downloads and look for the title ID/game name.
 **Save to USB** is a separate action using the configured PS5 USB backup path.
 
 **Q: Can I install a split package (`*.0`, `*.1`, …)?**
-Not through Send to PS5: it installs a single package file. Pick the single lead `.pkg`.
+Not through Upload & Install: it installs a single package file. Pick the single lead `.pkg`.
 
 **Q: Where do uploaded packages live, and are they cleaned up?**
 At `/user/data/ps5upload/pkg_library/<ContentID>.pkg`, and they stay so you can reinstall. Remove
@@ -1853,7 +1899,7 @@ Firmware notes:
   tools newer than the console's firmware reads, or one that is not a
   fake-signed (FPKG) build. Use a package made for your firmware (a backport),
   or install the game without the installer: copy its game folder, or a game
-  image for ShadowMount+, with **Send to PS5**.
+  image for ShadowMount+, with **Upload & Install**.
 - **`E2-80B22410`.** An error code the PS5's own installer or system software
   shows; ps5upload does not generate it and we have no confirmed single cause.
   It has been reported on packages the console would not accept as built.
@@ -2174,9 +2220,11 @@ your other devices already agreed on: it takes theirs.
 **Q: Are my settings backed up?**
 Yes (8.0.1). Once a day, and before a sync from your other devices or a restore changes several
 settings at once, the app saves a copy. The engine keeps the last 14 (in Docker, in its `/data`
-volume); each console you use keeps every app's latest copy. Open **Settings › Backup** to see
-both lists, press **Back up now**, or **Restore** one: the app keeps a copy of the settings it
-replaces first, then reloads. A wiped or new device can restore another device's copy from the
+volume); each console you use keeps every app's latest copy. Open **Settings › Backup / restore** to
+see both lists, press **Back up now**, or **Restore** one: the app keeps a copy of the settings
+it replaces first, then reloads. Each list is grouped by the device that made the copies;
+back-to-back copies that are alike fold into one row (Restore uses the newest), and the newest
+three rows show, with **Show all** for the rest. A wiped or new device can restore another device's copy from the
 console list. **Export bundle** still saves everything to a file you keep.
 
 **Q: What is Mesh Drive?**
@@ -2336,9 +2384,18 @@ single vendor's flag is a false positive; please report it to that vendor (and t
 The app checks GitHub once per launch and shows a dot on the Settings entry when a newer version
 exists. **Settings → Updates → Download** saves it to your Downloads folder. Where the app can
 replace itself (Windows, macOS when the app's folder is writable, a Linux AppImage) the button
-becomes **Install and restart**: the app quits, the new version takes its place and opens. A
-`.deb` / `.rpm` shows the command to run instead. Then press **Send helper** in the banner if
+becomes **Install and restart**: the app quits, the new version takes its place and opens. On
+Windows the setup itself starts (9.1.0): it shows a progress bar, closes the app, installs over
+it and starts the new version, and if something goes wrong it says so. A `.deb` / `.rpm` shows
+the command to run instead. Then press **Send helper** in the banner if
 the app says the helper is older.
+
+**Q: On Windows, "Install and restart" closed the app and nothing was installed.**
+Fixed in 9.1.0 (#533). From 8.6.1 to 9.0.1 the update ran the setup through a hidden PowerShell
+script, which security software or a group policy can block (and which broke on user folders
+with non-English letters); by then the app had quit, so nothing was installed or shown. Install
+9.1.0 by hand once: download the Windows setup from the release on GitHub and run it. From then
+on, Install and restart starts the setup directly.
 
 **Q: "Install and restart" froze the app on my Mac.**
 Fixed in 8.3.0. Quitting could wait forever on its clean-up, so the old app sat "not responding"

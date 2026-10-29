@@ -1641,6 +1641,10 @@ export default function AppShell() {
         <NavigationControls />
         <AppLogo size={28} />
         <span className="text-base font-semibold tracking-[-0.02em]">PS5Upload</span>
+        {/* The bell on a phone too: its panel is a full-width sheet there. */}
+        <div className="ms-auto">
+          <NotificationInbox align="right" placement="below" variant="orb" />
+        </div>
       </div>
       <HelperVersionBanner />
       <SessionBanner />

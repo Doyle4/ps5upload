@@ -3,6 +3,7 @@
     "missing": [],
     "stale": [],
     "untranslated": [
+      "activity_others_short",
       "br_issue_link_placeholder",
       "br_payloads_placeholder",
       "br_where_discord",
@@ -17,6 +18,7 @@
     "missing": [],
     "stale": [],
     "untranslated": [
+      "activity_others_short",
       "br_issue_link_placeholder",
       "br_payloads_placeholder",
       "br_where_discord",
@@ -34,6 +36,10 @@
     "missing": [],
     "stale": [],
     "untranslated": [
+      "activity_kind_backport_patch",
+      "activity_kind_cheat_download",
+      "activity_kind_payload_playlist",
+      "activity_others_short",
       "br_issue_link_placeholder",
       "br_payloads_placeholder",
       "br_where_discord",
@@ -56,6 +62,9 @@
     "missing": [],
     "stale": [],
     "untranslated": [
+      "activity_kind_backport_patch",
+      "activity_kind_payload_playlist",
+      "activity_others_short",
       "br_issue_link_placeholder",
       "br_payloads_placeholder",
       "br_where_discord",
@@ -74,6 +83,7 @@
     "missing": [],
     "stale": [],
     "untranslated": [
+      "activity_others_short",
       "br_issue_link_placeholder",
       "br_payloads_placeholder",
       "br_where_discord",
@@ -88,6 +98,9 @@
     "missing": [],
     "stale": [],
     "untranslated": [
+      "activity_kind_app_dump",
+      "activity_kind_payload_playlist",
+      "activity_others_short",
       "br_issue_link_placeholder",
       "br_payloads_placeholder",
       "br_where_discord",
@@ -104,6 +117,7 @@
     "missing": [],
     "stale": [],
     "untranslated": [
+      "activity_others_short",
       "br_issue_link_placeholder",
       "br_payloads_placeholder",
       "br_where_discord",
@@ -121,6 +135,8 @@
     "missing": [],
     "stale": [],
     "untranslated": [
+      "activity_kind_backport_patch",
+      "activity_others_short",
       "br_issue_link_placeholder",
       "br_payloads_placeholder",
       "br_where_discord",
@@ -142,6 +158,8 @@
     "missing": [],
     "stale": [],
     "untranslated": [
+      "activity_kind_backport_patch",
+      "activity_others_short",
       "br_issue_link_placeholder",
       "br_payloads_placeholder",
       "br_where_discord",
@@ -162,6 +180,11 @@
     "missing": [],
     "stale": [],
     "untranslated": [
+      "activity_kind_app_dump",
+      "activity_kind_backport_patch",
+      "activity_kind_backup_snapshot",
+      "activity_kind_download",
+      "activity_others_short",
       "br_issue_link_placeholder",
       "br_payloads_placeholder",
       "br_where_discord",
@@ -183,6 +206,7 @@
     "missing": [],
     "stale": [],
     "untranslated": [
+      "activity_others_short",
       "br_issue_link_placeholder",
       "br_payloads_placeholder",
       "br_where_discord",
@@ -197,6 +221,7 @@
     "missing": [],
     "stale": [],
     "untranslated": [
+      "activity_others_short",
       "br_issue_link_placeholder",
       "br_payloads_placeholder",
       "br_where_discord",
@@ -212,6 +237,8 @@
     "missing": [],
     "stale": [],
     "untranslated": [
+      "activity_kind_backport_patch",
+      "activity_others_short",
       "br_issue_link_placeholder",
       "br_payloads_placeholder",
       "br_where_discord",
@@ -230,6 +257,11 @@
     "missing": [],
     "stale": [],
     "untranslated": [
+      "activity_kind_app_dump",
+      "activity_kind_backport_patch",
+      "activity_kind_backup_snapshot",
+      "activity_kind_payload_playlist",
+      "activity_others_short",
       "br_issue_link_placeholder",
       "br_payloads_placeholder",
       "br_where_discord",
@@ -248,6 +280,7 @@
     "missing": [],
     "stale": [],
     "untranslated": [
+      "activity_others_short",
       "br_issue_link_placeholder",
       "br_payloads_placeholder",
       "br_where_discord",
@@ -268,6 +301,7 @@
     "missing": [],
     "stale": [],
     "untranslated": [
+      "activity_others_short",
       "br_issue_link_placeholder",
       "br_payloads_placeholder",
       "br_where_discord",
@@ -285,6 +319,7 @@
     "missing": [],
     "stale": [],
     "untranslated": [
+      "activity_others_short",
       "br_issue_link_placeholder",
       "br_payloads_placeholder",
       "br_where_discord",
@@ -305,6 +340,8 @@
     "missing": [],
     "stale": [],
     "untranslated": [
+      "activity_kind_backport_patch",
+      "activity_others_short",
       "br_issue_link_placeholder",
       "br_payloads_placeholder",
       "br_where_discord",
@@ -323,6 +360,7 @@
     "missing": [],
     "stale": [],
     "untranslated": [
+      "activity_others_short",
       "br_issue_link_placeholder",
       "br_payloads_placeholder",
       "br_where_discord",
@@ -337,6 +375,7 @@
     "missing": [],
     "stale": [],
     "untranslated": [
+      "activity_others_short",
       "br_issue_link_placeholder",
       "br_payloads_placeholder",
       "br_where_discord",

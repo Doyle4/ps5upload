@@ -10,7 +10,7 @@ vi.mock("../state/lang", () => ({
     },
 }));
 
-import { summarize, type ActivitySummary } from "../state/activitySummary";
+import { summarize, type ActivitySummary, type QueuedRow } from "../state/activitySummary";
 import type { Task } from "../state/tasks";
 import { ActivityPanelView, ActivitySummaryLine } from "./ActivitySummary";
 
@@ -39,8 +39,15 @@ function task(p: Partial<Task>): Task {
 const sum = (tasks: Task[], seen: string[] = []) =>
   summarize(tasks, { now: NOW, sessionStart: NOW - 3_600_000, seen: new Set(seen) });
 const empty: ActivitySummary = sum([]);
-const summaryWith = (count: number) =>
-  sum(Array.from({ length: count }, () => task({ progress: { current: 1, total: 2, unit: "bytes" } })));
+const queuedRow = (id: string): QueuedRow => ({
+  id,
+  owner: "upload-queue",
+  kind: "pkg-install",
+  label: `Queued ${id}`,
+  consoleId: "h",
+  route: "/send",
+  sizeBytes: 4 * 1024 ** 3,
+});
 const summaryWithRows = () =>
   sum([
     task({ id: "a", kind: "fpkg-convert", label: "Convert Spider-Man 2", stage: "Compress" }),
@@ -62,13 +69,29 @@ const summaryWithRows = () =>
   ]);
 
 describe("ActivitySummaryLine", () => {
-  it("summarises running jobs on one line", () => {
+  it("names the job it shows, how far, how fast and how long, and counts the rest", () => {
+    const s = sum([
+      task({
+        label: "Spider-Man 2.pkg",
+        stage: "Sending",
+        progress: { current: 1, total: 2, unit: "bytes" },
+        rate: { bytesPerSec: 50 * 1024 * 1024 },
+        eta: 125,
+      }),
+      task({}),
+      task({}),
+    ]);
     const out = renderToStaticMarkup(
-      <ActivitySummaryLine summary={summaryWith(4)} open={false} onToggle={noop} />,
+      <ActivitySummaryLine summary={{ ...s, queued: [queuedRow("q")], others: 3 }} open={false} onToggle={noop} />,
     );
-    expect(out).toContain("4 running");
-    expect(out).toContain("Upload 50%");
-    expect(out).toContain("+1 more");
+    expect(out).toContain("Upload");
+    expect(out).toContain("Spider-Man 2.pkg");
+    expect(out).toContain("50% · 50.0 MiB/s · 2m 5s left");
+    // The step and byte counts are in the spoken label.
+    expect(out).toContain("Sending, 50%, 1 B of 2 B");
+    expect(out).toContain("+3");
+    // The slim bar: half full.
+    expect(out).toContain("width:50%");
   });
 
   it("says nothing is running, and badges unseen failures", () => {
@@ -77,6 +100,37 @@ describe("ActivitySummaryLine", () => {
     );
     expect(out).toContain("Nothing running");
     expect(out).toContain("2 failed");
+  });
+
+  it("says the step once every byte is sent, and the phone pill keeps only how far and how long", () => {
+    const finishing = sum([
+      task({ stage: "Finishing on the PS5", progress: { current: 2, total: 2, unit: "bytes" }, rate: { bytesPerSec: 9 } }),
+    ]);
+    const strip = renderToStaticMarkup(<ActivitySummaryLine summary={finishing} open={false} onToggle={noop} />);
+    expect(strip).toContain(">100% · Finishing on the PS5</span>");
+    const busy = sum([
+      task({ progress: { current: 1, total: 4, unit: "bytes" }, rate: { bytesPerSec: 1024 }, eta: 30 }),
+    ]);
+    const pill = renderToStaticMarkup(
+      <ActivitySummaryLine summary={busy} open={false} onToggle={noop} variant="pill" />,
+    );
+    expect(pill).toContain("25% · 30s left");
+  });
+
+  it("counts queued work when nothing has started", () => {
+    const out = renderToStaticMarkup(
+      <ActivitySummaryLine summary={{ ...empty, queued: [queuedRow("a"), queuedRow("b")] }} open={false} onToggle={noop} />,
+    );
+    expect(out).toContain("2 waiting");
+  });
+
+  it("says a job that went quiet has gone quiet", () => {
+    const out = renderToStaticMarkup(
+      <ActivitySummaryLine summary={summaryWithRows()} open={false} onToggle={noop} />,
+    );
+    // The Convert row still reports (fresh), so it is the one named.
+    expect(out).toContain("Convert Spider-Man 2");
+    expect(out).toContain("+1");
   });
 
   it("flashes a job that just finished", () => {
@@ -127,6 +181,39 @@ describe("ActivityPanelView", () => {
     expect(out).toContain("USB gone");
     expect(out).toContain("1 min ago");
     expect((out.match(/>Retry</g) ?? []).length).toBe(1);
+  });
+});
+
+describe("ActivityPanelView details", () => {
+  it("lists running, waiting and finished work with figures and controls", () => {
+    const s = sum([
+      task({ label: "Big.exfat", progress: { current: 1024 ** 3, total: 4 * 1024 ** 3, unit: "bytes" } }),
+      task({ status: "done", label: "Old", endedAtMs: NOW - 10_000 }),
+    ]);
+    const removed: string[] = [];
+    const out = renderToStaticMarkup(
+      <ActivityPanelView
+        summary={{ ...s, queued: [queuedRow("q1")] }}
+        now={NOW}
+        onOpen={noop}
+        onCancel={noop}
+        onRetry={noop}
+        onClose={noop}
+        onRemoveQueued={(r) => removed.push(r.id)}
+        canCancel={() => true}
+        canRetry={() => false}
+        consoleOf={() => "Pro"}
+      />,
+    );
+    expect(out).toContain("Running");
+    expect(out).toContain("Waiting");
+    expect(out).toContain("1 running · 1 waiting");
+    expect(out).toContain("25% · 1.00 GiB of 4.00 GiB");
+    expect(out).toContain("Queued q1");
+    expect(out).toContain("4.00 GiB");
+    expect(out).toContain(">Remove<");
+    expect(out).toContain("→ Pro");
+    expect(out).toContain('aria-label="Close"');
   });
 });
 

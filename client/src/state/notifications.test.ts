@@ -91,3 +91,28 @@ describe("notifications → OS notification mirror", () => {
     expect(mockSend).toHaveBeenCalledWith("error", "Install failed", "refused");
   });
 });
+
+describe("markRead", () => {
+  beforeEach(() => {
+    useNotificationsStore.setState({ entries: [], osNotifyEnabled: false });
+  });
+
+  it("marks only the given ids read and leaves the rest unread", () => {
+    const s = useNotificationsStore.getState();
+    const a = s.push("info", "a");
+    const b = s.push("info", "b");
+    const c = s.push("info", "c");
+    useNotificationsStore.getState().markRead([b, c]);
+    const byId = Object.fromEntries(useNotificationsStore.getState().entries.map((e) => [e.id, e.read]));
+    expect(byId).toEqual({ [a]: false, [b]: true, [c]: true });
+    expect(useNotificationsStore.getState().unreadCount()).toBe(1);
+  });
+
+  it("does not replace the entries when nothing changes", () => {
+    const id = useNotificationsStore.getState().push("info", "a");
+    useNotificationsStore.getState().markRead([id]);
+    const before = useNotificationsStore.getState().entries;
+    useNotificationsStore.getState().markRead([id, "unknown"]);
+    expect(useNotificationsStore.getState().entries).toBe(before);
+  });
+});

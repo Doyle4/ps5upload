@@ -8,6 +8,7 @@ import { Button, Toggle } from "../../components";
 import { formatBytes } from "../../lib/format";
 import type { BatchCheck } from "../../lib/uploadBatch";
 import type { BatchRow } from "../../state/uploadBatch";
+import { convertFirstState, type WorkshopHandOver } from "../../lib/convertFirst";
 import { useTr } from "../../state/lang";
 
 export interface BatchReviewProps {
@@ -31,6 +32,8 @@ export interface BatchReviewProps {
   onInclude: (id: string, include: boolean) => void;
   onPassword: (id: string, password: string) => void;
   onClear: () => void;
+  /** Hand the listed games, folders and images to the Workshop to convert first. */
+  onConvert?: (state: WorkshopHandOver) => void;
 }
 
 function PasswordField({ onSubmit }: { onSubmit: (pw: string) => void }) {
@@ -62,6 +65,11 @@ function PasswordField({ onSubmit }: { onSubmit: (pw: string) => void }) {
 export function BatchReview(p: BatchReviewProps) {
   const tr = useTr();
   const inspecting = p.rows.filter((r) => r.status === "inspecting").length;
+  const convertState = convertFirstState(
+    p.rows
+      .filter((r) => r.include)
+      .map((r) => ({ path: r.path, isDir: r.isDir, kind: r.source?.kind })),
+  );
   return (
     <section className="mb-6 grid gap-4">
       <div className="rounded-[var(--radius-panel)] border border-[var(--glass-edge)] bg-[var(--color-surface-raised)] shadow-[var(--edge-highlight),var(--shadow-1)]">
@@ -74,9 +82,26 @@ export function BatchReview(p: BatchReviewProps) {
               </span>
             )}
           </div>
-          <Button size="sm" variant="ghost" onClick={p.onClear}>
-            {tr("batch_clear", undefined, "Clear list")}
-          </Button>
+          <div className="flex flex-wrap items-center justify-end gap-1">
+            {p.onConvert && convertState && (
+              <Button
+                size="sm"
+                variant="ghost"
+                data-testid="batch-convert-first"
+                title={tr(
+                  "batch_convert_first_hint",
+                  undefined,
+                  "Open the ticked games, folders and images in Workshop, to make packages, images or folders of them first",
+                )}
+                onClick={() => p.onConvert!(convertState)}
+              >
+                {tr("upload_convert_first", undefined, "Convert first")}
+              </Button>
+            )}
+            <Button size="sm" variant="ghost" onClick={p.onClear}>
+              {tr("batch_clear", undefined, "Clear list")}
+            </Button>
+          </div>
         </header>
         <ul className="divide-y divide-[var(--color-border)]">
           {p.rows.map((r) => {

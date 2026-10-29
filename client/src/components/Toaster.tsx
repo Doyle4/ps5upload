@@ -1,4 +1,3 @@
-import { useEffect } from "react";
 import { AlertTriangle, CheckCircle, Info, X, XCircle } from "lucide-react";
 
 import { useToastStore, type Toast, type ToastTone } from "../state/toasts";
@@ -21,12 +20,8 @@ function ToastItem({ toast }: { toast: Toast }) {
   const motion = useAccessibilityStore((s) => s.resolvedMotion)();
   const { color, Icon, role } = TONE_CONFIG[toast.tone];
 
-  // Auto-dismiss after duration (unless sticky / critical).
-  useEffect(() => {
-    if (toast.duration === null) return;
-    const t = setTimeout(() => dismiss(toast.id), toast.duration);
-    return () => clearTimeout(t);
-  }, [toast.id, toast.duration, dismiss]);
+  // Auto-dismiss is timed by the store from the moment the toast is pushed
+  // (state/toasts.ts), so it runs whether or not this toast is on screen.
 
   const animCls =
     motion === "none"
@@ -50,7 +45,7 @@ function ToastItem({ toast }: { toast: Toast }) {
         className="mt-0.5 shrink-0"
         style={{ color }}
       />
-      <div className="min-w-0 flex-1">
+      <div className="min-w-0 flex-1 [overflow-wrap:anywhere]">
         <p className="text-sm text-[var(--color-text)]">{toast.message}</p>
         {toast.action && (
           <button
@@ -84,9 +79,13 @@ function ToastItem({ toast }: { toast: Toast }) {
  *   - Desktop: bottom-right stack
  *   - Mobile: top stack (below status bar), full-width
  *
- * Each toast self-dismisses after its duration (critical = sticky).
+ * Each toast expires after its duration from when it was pushed, shown or
+ * not (critical = sticky; state/toasts.ts times it).
  * Animations respect the accessibility motion setting.
  */
+/** How many toasts show at once; older ones wait until these go. */
+export const MAX_SHOWN = 3;
+
 export function Toaster() {
   const toasts = useToastStore((s) => s.toasts);
   return (
@@ -95,11 +94,13 @@ export function Toaster() {
       className={[
         "pointer-events-none fixed z-[70] flex flex-col gap-2",
         // Desktop: bottom-right; Mobile (pointer coarse): top, full-width
-        "bottom-4 right-4 max-w-sm",
-        "max-[767px]:bottom-auto max-[767px]:right-0 max-[767px]:left-0 max-[767px]:top-[calc(44px+env(safe-area-inset-top)+0.5rem)] max-[767px]:max-w-none max-[767px]:px-2",
+        "bottom-4 right-4 max-w-[min(24rem,calc(100vw-2rem))]",
+        // Mobile: a full-width stack under the top bar, inside the safe area.
+        "max-[767px]:bottom-auto max-[767px]:right-0 max-[767px]:left-0 max-[767px]:top-[calc(44px+env(safe-area-inset-top)+0.5rem)] max-[767px]:w-auto max-[767px]:max-w-none max-[767px]:pl-[max(0.5rem,env(safe-area-inset-left))] max-[767px]:pr-[max(0.5rem,env(safe-area-inset-right))]",
       ].join(" ")}
     >
-      {toasts.map((t) => (
+      {/* The newest few: a burst cannot stack past the bottom of a phone. */}
+      {toasts.slice(-MAX_SHOWN).map((t) => (
         <ToastItem key={t.id} toast={t} />
       ))}
     </div>

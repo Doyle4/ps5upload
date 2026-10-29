@@ -60,17 +60,44 @@ export const COLLECTION_SORTS: CollectionSort[] = [
   "played-desc",
 ];
 
-/** What a game is to the selected console. `drives`: it has game files on the console's drives
- *  (a folder, or an image it comes from); `unplayed`: installed and never seen played. */
+/** What a game is to the selected console. `addons`: installed, and this computer has a newer
+ *  update or DLC the console lacks (one filter: "Update available" and "DLC missing" read as
+ *  the console's own store state, which they are not); `drives`: it has game files on the
+ *  console's drives (a folder, or an image it comes from); `unplayed`: installed and never seen
+ *  played. */
 export type ConsoleFilter =
   | "any"
   | "installed"
   | "missing"
-  | "update"
-  | "dlc"
+  | "addons"
   | "firmware"
   | "drives"
   | "unplayed";
+
+const CONSOLE_FILTERS: ConsoleFilter[] = [
+  "any",
+  "installed",
+  "missing",
+  "addons",
+  "firmware",
+  "drives",
+  "unplayed",
+];
+
+/** A console filter by name, for links: the old `update` and `dlc` are `addons` now; anything
+ *  unknown is null. */
+export function consoleFilterOf(v: string | null | undefined): ConsoleFilter | null {
+  if (v === "update" || v === "dlc") return "addons";
+  return CONSOLE_FILTERS.find((f) => f === v) ?? null;
+}
+
+/** Per-filter counts for the chips, and the two halves of `addons` for the catch-up banner. */
+export type ConsoleCounts = Record<Exclude<ConsoleFilter, "any">, number> & {
+  /** Installed games with a newer update here. */
+  update: number;
+  /** Installed games with DLC here the console lacks. */
+  dlc: number;
+};
 
 /** What the filters and sorts look at beyond the games themselves. */
 export interface CollectionContext {
@@ -115,8 +142,7 @@ export function matchesConsole(
   if (f === "unplayed")
     return st.installed && !((ctx.playSeconds?.(g.game_id) ?? 0) > 0);
   if (f === "missing") return !st.installed;
-  if (f === "update") return !!st.installed && !!st.update;
-  return st.installed && st.dlc_missing.length > 0;
+  return st.installed && (!!st.update || st.dlc_missing.length > 0);
 }
 
 export function consoleCounts(
@@ -124,10 +150,11 @@ export function consoleCounts(
   states: Map<string, GameConsoleState> | undefined,
   consoleFw?: string | null,
   ctx: Pick<CollectionContext, "driveIds" | "playSeconds"> = {},
-): Record<Exclude<ConsoleFilter, "any">, number> {
-  const out = {
+): ConsoleCounts {
+  const out: ConsoleCounts = {
     installed: 0,
     missing: 0,
+    addons: 0,
     update: 0,
     dlc: 0,
     firmware: 0,
@@ -146,8 +173,10 @@ export function consoleCounts(
   for (const g of games) {
     if (matchesConsole(g, "installed", states)) out.installed += 1;
     if (matchesConsole(g, "missing", states)) out.missing += 1;
-    if (matchesConsole(g, "update", states)) out.update += 1;
-    if (matchesConsole(g, "dlc", states)) out.dlc += 1;
+    if (matchesConsole(g, "addons", states)) out.addons += 1;
+    const st = states.get(g.game_id);
+    if (st?.installed && st.update) out.update += 1;
+    if (st?.installed && st.dlc_missing.length > 0) out.dlc += 1;
   }
   return out;
 }

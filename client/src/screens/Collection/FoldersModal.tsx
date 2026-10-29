@@ -1,6 +1,7 @@
 import { formatDate } from "../../lib/formatDate";
 import { useEffect, useState } from "react";
-import { FolderPlus, Server, Trash2 } from "lucide-react";
+import { useNavigate } from "react-router";
+import { FolderPlus, Plus, Server, Trash2 } from "lucide-react";
 
 import { remoteApi, type Connection } from "../../api/remote";
 import { pickPath } from "../../lib/pickPath";
@@ -26,6 +27,7 @@ export function FoldersModal({
   onAdd: () => void;
 }) {
   const tr = useTr();
+  const navigate = useNavigate();
   const [servers, setServers] = useState<Connection[]>([]);
   useEffect(() => {
     if (!open) return;
@@ -152,6 +154,18 @@ export function FoldersModal({
             )}
           </Button>
         ))}
+        {/* A NAS not saved yet: save it under Shared Folders first, then add its folder here. */}
+        <Button
+          size="sm"
+          variant="ghost"
+          leftIcon={<Plus size={14} />}
+          onClick={() => {
+            onClose();
+            navigate("/shared-folders?add=1");
+          }}
+        >
+          {tr("browse_add_connection", undefined, "Add a connection…")}
+        </Button>
       </div>
       <p className="mt-1 text-xs text-[var(--color-muted)]">
         {servers.length > 0

@@ -7,7 +7,13 @@
 //!
 //! What can be replaced this way:
 //!
-//! * Windows, installed: the setup `.exe` runs silently (`/S`, NSIS) into the same folder.
+//! * Windows, installed: the setup `.exe` is started directly in Tauri's update mode
+//!   (`WINDOWS_SETUP_ARGS`): it closes this app itself (Restart Manager), shows its progress
+//!   bar, installs over the same folder and starts the new version. No script: until 9.0.1 a
+//!   hidden `powershell -ExecutionPolicy Bypass -File %TEMP%\….ps1` ran the setup with `/S`,
+//!   a pattern security software and execution-policy group policy can block; the app had
+//!   already quit by then, so nothing was installed, nothing restarted and nothing was shown
+//!   (#533, Windows; the exact cause there is not known). If the setup fails now, it says so.
 //! * Windows, portable: the zip holds one `PS5Upload.exe`, which replaces the running one.
 //! * macOS: the `.app` in the `.dmg` replaces the running bundle, if its folder is writable.
 //! * Linux, portable: the zip's `PS5Upload.AppImage` (and launcher) replace the running
@@ -21,10 +27,16 @@ use std::path::{Path, PathBuf};
 
 use tauri::AppHandle;
 
+/// How the Windows setup is started for an update: `/P` passive (a progress bar, no
+/// questions; it closes the running app through the Restart Manager), `/R` start the app once
+/// installed, `/UPDATE` install over the existing copy without uninstalling it first or
+/// touching its shortcuts. The same flags tauri-plugin-updater passes to a Tauri NSIS setup.
+pub const WINDOWS_SETUP_ARGS: [&str; 3] = ["/P", "/R", "/UPDATE"];
+
 /// What an install replaces, and with what.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Plan {
-    /// Run the Windows setup silently, then start `exe` (it installs over it).
+    /// Run the Windows setup in update mode (`WINDOWS_SETUP_ARGS`); it starts `exe` again.
     WindowsSetup { installer: PathBuf, exe: PathBuf },
     /// Replace the portable `exe` with the zip's `PS5Upload.exe`.
     WindowsZip { zip: PathBuf, exe: PathBuf },
@@ -85,9 +97,9 @@ fn ps_quote(s: &str) -> String {
 }
 
 /// The script that carries `plan` out once process `pid` has quit. Every path ends by starting
-/// the app, new or old.
-pub fn script_for(plan: &Plan, pid: u32) -> String {
-    match plan {
+/// the app, new or old. None for the Windows setup, which is started directly.
+pub fn script_for(plan: &Plan, pid: u32) -> Option<String> {
+    Some(match plan {
         Plan::MacDmg { dmg, bundle } => {
             let dmg = sh_quote(&dmg.to_string_lossy());
             let app = sh_quote(&bundle.to_string_lossy());
@@ -153,25 +165,7 @@ nohup "$target" >/dev/null 2>&1 &
 "#
             )
         }
-        Plan::WindowsSetup { installer, exe } => {
-            let installer = ps_quote(&installer.to_string_lossy());
-            let exe = ps_quote(&exe.to_string_lossy());
-            format!(
-                r#"# PS5Upload update: run the installer silently, then start the app.
-$ErrorActionPreference = 'Continue'
-$installer = {installer}
-$exe = {exe}
-Wait-Process -Id {pid} -Timeout 30 -ErrorAction SilentlyContinue
-# Still running after 30 s: it hung on the way out.
-Get-Process -Id {pid} -ErrorAction SilentlyContinue | Where-Object {{ $_.Path -eq $exe }} | Stop-Process -Force -ErrorAction SilentlyContinue
-# The engine beside the app holds its .exe open; the installer cannot replace it while it runs.
-$dir = Split-Path -Parent $exe
-Get-Process -ErrorAction SilentlyContinue | Where-Object {{ $_.Path -and $_.Path.StartsWith($dir, [System.StringComparison]::OrdinalIgnoreCase) }} | Stop-Process -Force -ErrorAction SilentlyContinue
-try {{ Start-Process -FilePath $installer -ArgumentList '/S' -Wait }} catch {{ }}
-Start-Process -FilePath $exe
-"#
-            )
-        }
+        Plan::WindowsSetup { .. } => return None,
         Plan::WindowsZip { zip, exe } => {
             let zip = ps_quote(&zip.to_string_lossy());
             let exe = ps_quote(&exe.to_string_lossy());
@@ -200,6 +194,18 @@ Start-Process -FilePath $exe
 "#
             )
         }
+    })
+}
+
+/// The bytes written to the script file. Windows PowerShell 5.1 reads a `.ps1` without a
+/// byte-order mark in the ANSI code page, so a UTF-8 path with any non-ASCII letter (a user
+/// name like `José`, a localised Downloads folder) came out mangled: the update was not found
+/// and the app was not started again. The BOM makes it read the file as UTF-8.
+fn script_file_contents(windows: bool, script: &str) -> String {
+    if windows {
+        format!("\u{FEFF}{script}")
+    } else {
+        script.to_string()
     }
 }
 
@@ -236,7 +242,8 @@ fn spawn_detached(plan: &Plan, script: &str) -> Result<(), String> {
         std::process::id(),
         if windows { "ps1" } else { "sh" }
     ));
-    std::fs::write(&path, script).map_err(|e| format!("write {}: {e}", path.display()))?;
+    std::fs::write(&path, script_file_contents(windows, script))
+        .map_err(|e| format!("write {}: {e}", path.display()))?;
     let mut cmd;
     if windows {
         cmd = std::process::Command::new("powershell.exe");
@@ -275,6 +282,25 @@ fn spawn_detached(plan: &Plan, script: &str) -> Result<(), String> {
         .map_err(|e| format!("start the update: {e}"))
 }
 
+/// Start the Windows setup on its own, detached, so it outlives the app.
+fn spawn_setup(installer: &Path) -> Result<(), String> {
+    let mut cmd = std::process::Command::new(installer);
+    cmd.args(WINDOWS_SETUP_ARGS);
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const DETACHED_PROCESS: u32 = 0x0000_0008;
+        const CREATE_NEW_PROCESS_GROUP: u32 = 0x0000_0200;
+        cmd.creation_flags(DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP);
+    }
+    cmd.stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .map(|_| ())
+        .map_err(|e| format!("start the update setup {}: {e}", installer.display()))
+}
+
 /// Whether `update_install` can install `path` on this copy.
 pub fn can_install(path: &str) -> bool {
     plan(Path::new(path)).is_some()
@@ -293,7 +319,13 @@ pub async fn update_install(app: AppHandle, path: String) -> Result<(), String> 
     let plan = plan(&download).ok_or_else(|| {
         "this copy cannot install updates by itself; install the download by hand".to_string()
     })?;
-    spawn_detached(&plan, &script_for(&plan, std::process::id()))?;
+    match script_for(&plan, std::process::id()) {
+        Some(script) => spawn_detached(&plan, &script)?,
+        None => match &plan {
+            Plan::WindowsSetup { installer, .. } => spawn_setup(installer)?,
+            _ => return Err("no way to install this update".into()),
+        },
+    }
     // Let the reply reach the window before the app goes.
     tokio::time::sleep(std::time::Duration::from_millis(300)).await;
     // The update waits for this process to end: it must end. The orderly exit is bounded
@@ -428,7 +460,7 @@ mod tests {
             dmg: "/Users/o'neil/Downloads/PS5Upload.dmg".into(),
             bundle: "/Applications/PS5Upload.app".into(),
         };
-        let s = script_for(&plan, 42);
+        let s = script_for(&plan, 42).unwrap();
         assert!(s.contains("pid=42"));
         // An app that hangs on the way out is ended, not waited on forever.
         assert!(s.contains(r#"then kill -9 "$pid""#));
@@ -439,7 +471,7 @@ mod tests {
             zip: r"C:\Users\o'neil\Downloads\PS5Upload.zip".into(),
             exe: r"C:\Apps\PS5Upload.exe".into(),
         };
-        let s = script_for(&plan, 7);
+        let s = script_for(&plan, 7).unwrap();
         assert!(s.contains(r"$zip = 'C:\Users\o''neil\Downloads\PS5Upload.zip'"));
         assert!(s.contains("Wait-Process -Id 7"));
         assert!(s.contains("Get-Process -Id 7 -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $exe } | Stop-Process -Force"));
@@ -449,17 +481,31 @@ mod tests {
             installer: r"C:\d\setup.exe".into(),
             exe: r"C:\Apps\PS5Upload.exe".into(),
         };
-        let s = script_for(&plan, 7);
-        assert!(s.contains("-ArgumentList '/S' -Wait"));
-        assert!(s.trim_end().ends_with("Start-Process -FilePath $exe"));
+        // #533: the setup is started directly (no PowerShell), in Tauri's update mode.
+        assert_eq!(script_for(&plan, 7), None);
+        assert_eq!(WINDOWS_SETUP_ARGS, ["/P", "/R", "/UPDATE"]);
 
         let plan = Plan::LinuxAppImage {
             zip: "/d/x.zip".into(),
             appimage: "/home/me/PS5Upload.AppImage".into(),
         };
         assert!(script_for(&plan, 9)
+            .unwrap()
             .trim_end()
             .ends_with(r#"nohup "$target" >/dev/null 2>&1 &"#));
+    }
+
+    #[test]
+    fn powershell_scripts_carry_a_bom_so_non_ascii_paths_survive() {
+        let plan = Plan::WindowsZip {
+            zip: r"C:\Users\José\Downloads\PS5Upload-9.0.1-win-x64.zip".into(),
+            exe: r"C:\Users\José\Apps\PS5Upload.exe".into(),
+        };
+        let file = script_file_contents(true, &script_for(&plan, 7).unwrap());
+        assert!(file.as_bytes().starts_with(&[0xEF, 0xBB, 0xBF]));
+        assert!(file.contains("José"));
+        // A shell script must not get one: `#!` has to be the first two bytes.
+        assert!(script_file_contents(false, "#!/bin/sh\n").starts_with("#!"));
     }
 
     #[cfg(unix)]
@@ -478,7 +524,7 @@ mod tests {
             let out = std::process::Command::new("/bin/sh")
                 .arg("-n")
                 .arg("-c")
-                .arg(script_for(&plan, 42))
+                .arg(script_for(&plan, 42).unwrap())
                 .output()
                 .unwrap();
             assert!(

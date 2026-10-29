@@ -6,6 +6,7 @@ import { firmwareShortfall } from "../../lib/collectionInsights";
 import { formatPlayTime } from "../../state/playTime";
 import { useTr } from "../../state/lang";
 import { GameQuickActions } from "./CollectionCard";
+import { PlayControl, type PlayState } from "./PlayControl";
 
 export function CollectionTable({
   games,
@@ -18,6 +19,9 @@ export function CollectionTable({
   selecting,
   selected,
   onToggleSelect,
+  playOf,
+  onPlay,
+  onStop,
 }: {
   games: CollectionGame[];
   onOpen: (gameId: string) => void;
@@ -29,8 +33,35 @@ export function CollectionTable({
   selecting?: boolean;
   selected?: Set<string>;
   onToggleSelect?: (gameId: string) => void;
+  /** Play / Close game for a game installed on the selected console that can start there. */
+  playOf?: (gameId: string) => PlayState | undefined;
+  onPlay?: (gameId: string) => void;
+  onStop?: (gameId: string) => void;
 }) {
   const tr = useTr();
+  // Play first, so a phone (where the table scrolls sideways) sees it without scrolling. Its
+  // own clicks and keys stay in it rather than opening the game.
+  const play =
+    !selecting && playOf && onPlay && onStop
+      ? [
+          {
+            key: "play",
+            header: "",
+            cell: (g: CollectionGame) => {
+              const st = playOf(g.game_id);
+              return st ? (
+                <PlayControl
+                  variant="row"
+                  state={st}
+                  title={g.title}
+                  onPlay={() => onPlay(g.game_id)}
+                  onStop={() => onStop(g.game_id)}
+                />
+              ) : null;
+            },
+          },
+        ]
+      : [];
   const pick = selecting
     ? [
         {
@@ -57,6 +88,7 @@ export function CollectionTable({
       }
       columns={[
         ...pick,
+        ...play,
         {
           key: "title",
           header: tr("collection.col.title", undefined, "Title"),

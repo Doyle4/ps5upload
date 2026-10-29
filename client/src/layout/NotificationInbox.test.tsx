@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { panelAnchorClass, panelPlacementClass } from "./NotificationInbox";
+import { PEEK_COUNT, panelAnchorClass, panelPlacementClass, peekUnreadIds } from "./NotificationInbox";
 
 /**
  * The Android bug this pins: the bell renders in two places that sit on
@@ -34,5 +34,17 @@ describe("panelPlacementClass", () => {
     expect(panelPlacementClass("above")).toContain("bottom-full");
     expect(panelPlacementClass("below")).toContain("top-full");
     expect(panelPlacementClass("below")).not.toContain("bottom-full");
+  });
+});
+
+describe("peekUnreadIds", () => {
+  it("lists only the unread entries the bell shows, never older hidden ones", () => {
+    // Newest first, as the store keeps them: 12 unread, one read among the newest.
+    const entries = Array.from({ length: PEEK_COUNT + 4 }, (_, i) => ({ id: `n${i}`, read: i === 1 }));
+    const ids = peekUnreadIds(entries);
+    expect(ids).toHaveLength(PEEK_COUNT - 1);
+    expect(ids).not.toContain("n1");
+    expect(ids).not.toContain(`n${PEEK_COUNT}`);
+    expect(ids).toContain(`n${PEEK_COUNT - 1}`);
   });
 });

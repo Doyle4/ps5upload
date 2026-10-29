@@ -26,10 +26,12 @@ import {
   IDLE_DOWNLOAD,
 } from "./fsBulkOp";
 import { installLibraryTaskBridge } from "./libraryTaskBridge";
+import { installTaskBridges } from "./taskBridges";
 import { useTransferStore, IDLE_PHASE } from "./transfer";
 import { isUploadItem, useUploadQueueStore } from "./uploadQueue";
 import { useTaskStore, type TaskKind } from "./tasks";
 import { hostOf } from "../lib/addr";
+import { trStatic } from "../lib/trStatic";
 
 /** The speed and time left a transfer row shows, for its task too: the Tasks view had the bar
  *  but no speed or ETA, which only the Files queue row showed (#444). */
@@ -41,6 +43,17 @@ export function speedAndEta(
   if (!bytesPerSec || bytesPerSec <= 0) return {};
   const left = total > sent ? total - sent : 0;
   return { rate: { bytesPerSec }, ...(total > 0 ? { eta: left / bytesPerSec } : {}) };
+}
+
+const fillVars = (text: string, vars: Record<string, string>) =>
+  text.replace(/\{(\w+)\}/g, (m, k: string) => vars[k] ?? m);
+
+/** What a running queue upload is doing: sending bytes, or (all bytes sent) waiting while the
+ *  PS5 commits them, which for many small files can take minutes at 100%. */
+export function queueStage(sent: number, total: number): string {
+  return total > 0 && sent >= total
+    ? trStatic("activity_stage_finishing", "Finishing on the PS5")
+    : trStatic("activity_stage_sending", "Sending");
 }
 
 let installed = false;
@@ -176,7 +189,13 @@ export function installTaskWiring() {
         const id = useTaskStore.getState().registerTask({
           kind,
           origin: "uploadQueue",
-          label: `Queue: ${item.displayName}`,
+          label:
+            item.sourceKind === "ps5" && item.fromConsole
+              ? fillVars(trStatic("activity_queue_copy_label", "{name} from {from}"), {
+                  name: item.displayName,
+                  from: hostOf(item.fromConsole),
+                })
+              : item.displayName,
           detail: item.resolvedDest,
           consoleId: hostOf(item.addr),
           status: "running",
@@ -208,6 +227,7 @@ export function installTaskWiring() {
               total: item.totalBytes,
               unit: "bytes",
             },
+            stage: queueStage(item.bytesSent, item.totalBytes),
             ...speedAndEta(item.bytesSent, item.totalBytes, item.bytesPerSec),
           });
         }
@@ -432,4 +452,7 @@ export function installTaskWiring() {
 
   // ── Library actions (activity log only) ───────────────────────────
   installLibraryTaskBridge();
+
+  // ── Helper sends, payload playlists, the app's own update ─────────
+  installTaskBridges();
 }

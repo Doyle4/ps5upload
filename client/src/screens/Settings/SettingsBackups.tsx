@@ -3,8 +3,8 @@
 // settings it replaces (or says it could not), then reloads: the running stores would otherwise
 // write their in-memory state back over what was restored.
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { History, HardDrive, Monitor, RotateCcw, Save } from "lucide-react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { ChevronDown, History, HardDrive, Monitor, RotateCcw, Save } from "lucide-react";
 
 import { Button } from "../../components";
 import { useConfirm } from "../../components/ConfirmDialog";
@@ -28,6 +28,7 @@ import { useConnectionStore } from "../../state/connection";
 import { useTr, type Translator } from "../../state/lang";
 import { meshFor, useMeshStore } from "../../state/mesh";
 import { useToastStore } from "../../state/toasts";
+import { BACKUP_ROWS_SHOWN, groupBackups, type BackupDeviceGroup } from "./backupGroups";
 
 function reasonText(tr: Translator, r: string): string {
   switch (r) {
@@ -137,97 +138,226 @@ export function SettingsBackups() {
 
   const when = (ms: number) => new Date(ms).toLocaleString();
 
+  const engineGroups = groupBackups(
+    (local ?? []).map((b) => ({
+      device: b.device || tr("backup_device_unnamed", undefined, "Unnamed device"),
+      at: b.at,
+      sig: `${b.reason}|${b.keys}|${b.bytes}`,
+      item: b,
+    })),
+  );
+  const consoleGroups = groupBackups(
+    (onConsole ?? []).map((c) => ({
+      device: c.name || tr("mesh_another_device", undefined, "Another device"),
+      at: c.at,
+      sig: `${c.app === me}|${c.keys}|${JSON.stringify(c.bundle.local_storage).length}`,
+      item: c,
+    })),
+  );
+
   return (
     <div className="space-y-3 text-sm">
       {dialog}
       <p className="text-xs text-[var(--color-muted)]">
         {tr(
-          "backup_auto_hint",
+          "backup_auto_hint_v2",
           undefined,
-          "The app backs up its settings once a day, and before a sync from your other devices or a restore changes them. The engine keeps the last 14; each console you use keeps this device's latest, so a wiped device can get its set-up back from there.",
+          "Backed up daily and before a sync or restore. This app keeps its last 14; each console keeps every device's latest.",
         )}
       </p>
       <Button size="sm" variant="secondary" loading={busy} leftIcon={<Save size={12} />} onClick={() => void backUpNow()}>
         {tr("backup_now", undefined, "Back up now")}
       </Button>
 
-      <section className="space-y-1">
-        <p className="flex items-center gap-1.5 text-xs font-medium">
-          <Monitor size={12} aria-hidden />
-          {tr("backup_on_engine", undefined, "Kept by this app")}
-        </p>
-        {local?.length === 0 && (
-          <p className="text-xs text-[var(--color-muted)]">{tr("backup_none", undefined, "None yet.")}</p>
+      <BackupSection
+        testId="backups-engine"
+        icon={<Monitor size={12} aria-hidden />}
+        title={tr("backup_on_engine", undefined, "Kept by this app")}
+        groups={list(engineGroups, local)}
+        busy={busy}
+        when={when}
+        detail={(b) => (
+          <>
+            {reasonText(tr, b.reason)} · {tr("backup_keys", { count: b.keys }, `Settings: ${b.keys}`)} · {formatBytes(b.bytes)}
+          </>
         )}
-        <ul className="divide-y divide-[var(--color-border)] rounded-[var(--radius-input,0.5rem)] border border-[var(--color-border)] empty:hidden">
-          {(local ?? []).map((b) => (
-            <li key={b.id} className="flex items-center gap-2 px-3 py-1.5">
-              <History size={12} className="shrink-0 text-[var(--color-muted)]" aria-hidden />
-              <div className="min-w-0 flex-1 text-xs">
-                <p className="truncate">
-                  {when(b.at)} · {reasonText(tr, b.reason)}
-                </p>
-                <p className="truncate text-[var(--color-muted)]">
-                  {tr("backup_keys", { count: b.keys }, `Settings: ${b.keys}`)} · {formatBytes(b.bytes)}
-                  {b.device ? ` · ${b.device}` : ""}
-                </p>
-              </div>
-              <Button
-                size="sm"
-                variant="ghost"
-                disabled={busy}
-                leftIcon={<RotateCcw size={12} />}
-                onClick={() => void restore(() => getEngineBackup(b.id), when(b.at))}
-              >
-                {tr("backup_restore", undefined, "Restore")}
-              </Button>
-            </li>
-          ))}
-        </ul>
-      </section>
+        onRestore={(b, device) => void restore(() => getEngineBackup(b.id), `${device}, ${when(b.at)}`)}
+      />
 
       {consoleOk && (
-        <section className="space-y-1">
-          <p className="flex items-center gap-1.5 text-xs font-medium">
-            <HardDrive size={12} aria-hidden />
-            {tr("backup_on_console", undefined, "Kept by this console")}
-          </p>
-          {onConsole?.length === 0 && (
-            <p className="text-xs text-[var(--color-muted)]">{tr("backup_none", undefined, "None yet.")}</p>
+        <BackupSection
+          testId="backups-console"
+          icon={<HardDrive size={12} aria-hidden />}
+          title={tr("backup_on_console", undefined, "Kept by this console")}
+          groups={list(consoleGroups, onConsole)}
+          busy={busy}
+          when={when}
+          detail={(c) => (
+            <>
+              {c.app === me && (
+                <span className="text-[var(--color-accent-bright)]">{tr("drive_you", undefined, "you")} · </span>
+              )}
+              {tr("backup_keys", { count: c.keys }, `Settings: ${c.keys}`)}
+              {c.bundle.meta?.dropped?.length
+                ? ` · ${tr("backup_trimmed", { count: c.bundle.meta.dropped.length }, `Large items left out: ${c.bundle.meta.dropped.length}`)}`
+                : ""}
+            </>
           )}
-          <ul className="divide-y divide-[var(--color-border)] rounded-[var(--radius-input,0.5rem)] border border-[var(--color-border)] empty:hidden">
-            {(onConsole ?? []).map((c) => (
-              <li key={c.slot} className="flex items-center gap-2 px-3 py-1.5">
-                <History size={12} className="shrink-0 text-[var(--color-muted)]" aria-hidden />
-                <div className="min-w-0 flex-1 text-xs">
-                  <p className="truncate">
-                    {c.name || tr("mesh_another_device", undefined, "Another device")}
-                    {c.app === me && (
-                      <span className="text-[var(--color-accent-bright)]"> · {tr("drive_you", undefined, "you")}</span>
-                    )}
-                  </p>
-                  <p className="truncate text-[var(--color-muted)]">
-                    {when(c.at)} · {tr("backup_keys", { count: c.keys }, `Settings: ${c.keys}`)}
-                    {c.bundle.meta?.dropped?.length
-                      ? ` · ${tr("backup_trimmed", { count: c.bundle.meta.dropped.length }, `Large items left out: ${c.bundle.meta.dropped.length}`)}`
-                      : ""}
-                  </p>
-                </div>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  disabled={busy}
-                  leftIcon={<RotateCcw size={12} />}
-                  onClick={() => void restore(() => Promise.resolve(c.bundle), `${c.name}, ${when(c.at)}`)}
-                >
-                  {tr("backup_restore", undefined, "Restore")}
-                </Button>
-              </li>
-            ))}
-          </ul>
-        </section>
+          onRestore={(c, device) => void restore(() => Promise.resolve(c.bundle), `${device}, ${when(c.at)}`)}
+        />
       )}
       {error && <p className="text-xs text-[var(--color-bad)]">{error}</p>}
     </div>
+  );
+}
+
+/** null while loading (nothing shown), [] once known to be empty. */
+function list<T>(groups: BackupDeviceGroup<T>[], raw: unknown[] | null): BackupDeviceGroup<T>[] | null {
+  return raw === null ? null : groups;
+}
+
+/** One list of copies: the newest few rows, grouped under the device that made them, and
+ *  "Show all" for the rest. A row that stands for several look-alike copies says how many;
+ *  its Restore uses the newest, and its ×N badge unfolds the others, each with its own Restore
+ *  (look-alike is not identical, so every copy must stay restorable). */
+function BackupSection<T>({
+  testId,
+  icon,
+  title,
+  groups,
+  busy,
+  when,
+  detail,
+  onRestore,
+}: {
+  testId: string;
+  icon: ReactNode;
+  title: string;
+  groups: BackupDeviceGroup<T>[] | null;
+  busy: boolean;
+  when: (ms: number) => string;
+  detail: (item: T) => ReactNode;
+  onRestore: (item: T, device: string) => void;
+}) {
+  const tr = useTr();
+  const [all, setAll] = useState(false);
+  const [unfolded, setUnfolded] = useState<ReadonlySet<string>>(() => new Set());
+  const toggleRow = (key: string) =>
+    setUnfolded((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  const short = (ms: number) => new Date(ms).toLocaleString(undefined, { dateStyle: "short", timeStyle: "short" });
+  const rowCount = (groups ?? []).reduce((n, g) => n + g.rows.length, 0);
+  let budget = all ? Infinity : BACKUP_ROWS_SHOWN;
+  const shown = (groups ?? [])
+    .map((g) => {
+      const rows = g.rows.slice(0, Math.max(0, budget));
+      budget -= rows.length;
+      return { ...g, rows };
+    })
+    .filter((g) => g.rows.length > 0);
+  return (
+    <section className="space-y-1" data-testid={testId}>
+      <p className="flex items-center gap-1.5 text-xs font-medium">
+        {icon}
+        {title}
+      </p>
+      {groups?.length === 0 && (
+        <p className="text-xs text-[var(--color-muted)]">{tr("backup_none", undefined, "None yet.")}</p>
+      )}
+      {shown.length > 0 && (
+        <div className="divide-y divide-[var(--color-border)] rounded-[var(--radius-input,0.5rem)] border border-[var(--color-border)]">
+          {shown.map((g) => (
+            <div key={g.device}>
+              <p className="flex items-center gap-1.5 truncate px-3 pt-1.5 text-[11px] font-medium text-[var(--color-muted)]">
+                {g.device}
+              </p>
+              <ul>
+                {g.rows.map((r) => {
+                  const key = `${g.device}|${r.newest.at}|${r.newest.sig}`;
+                  const open = unfolded.has(key);
+                  const restoreButton = (item: T) => (
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      className="shrink-0"
+                      disabled={busy}
+                      leftIcon={<RotateCcw size={12} />}
+                      aria-label={tr("backup_restore", undefined, "Restore")}
+                      onClick={() => onRestore(item, g.device)}
+                    >
+                      {/* Icon-only on a phone: the label would squeeze the date out. */}
+                      <span className="max-sm:hidden">{tr("backup_restore", undefined, "Restore")}</span>
+                    </Button>
+                  );
+                  return (
+                    <li key={key} data-testid="backup-row">
+                      <div className="flex items-center gap-2 px-3 py-1.5">
+                        <History size={12} className="shrink-0 text-[var(--color-muted)]" aria-hidden />
+                        <div className="min-w-0 flex-1 text-xs">
+                          <p className="flex min-w-0 items-center gap-1.5">
+                            <span className="truncate">{short(r.newest.at)}</span>
+                            {r.count > 1 && (
+                              <button
+                                type="button"
+                                data-testid="backup-alike-toggle"
+                                aria-expanded={open}
+                                onClick={() => toggleRow(key)}
+                                className="inline-flex shrink-0 items-center gap-0.5 rounded-full border border-[var(--color-border)] px-1.5 text-[10px] text-[var(--color-muted)] hover:bg-[var(--color-surface-3)] hover:text-[var(--color-text)] max-md:min-h-6"
+                                title={tr(
+                                  "backup_alike_toggle",
+                                  { count: r.count, since: when(r.oldestAt) },
+                                  `${r.count} alike copies since ${when(r.oldestAt)}. Show each to restore an older one.`,
+                                )}
+                              >
+                                ×{r.count}
+                                <ChevronDown
+                                  size={10}
+                                  aria-hidden
+                                  className={open ? "rotate-180 transition-transform" : "transition-transform"}
+                                />
+                              </button>
+                            )}
+                          </p>
+                          <p className="truncate text-[var(--color-muted)]">{detail(r.newest.item)}</p>
+                        </div>
+                        {restoreButton(r.newest.item)}
+                      </div>
+                      {open && (
+                        <ul className="border-t border-[var(--color-border)] bg-[var(--color-surface-2)]">
+                          {r.copies.slice(1).map((c) => (
+                            <li
+                              key={`${c.at}|${c.sig}`}
+                              data-testid="backup-copy"
+                              className="flex items-center gap-2 py-1 pe-3 ps-8"
+                            >
+                              <div className="min-w-0 flex-1 text-xs">
+                                <p className="truncate">{short(c.at)}</p>
+                                <p className="truncate text-[var(--color-muted)]">{detail(c.item)}</p>
+                              </div>
+                              {restoreButton(c.item)}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ))}
+        </div>
+      )}
+      {rowCount > BACKUP_ROWS_SHOWN && (
+        <Button size="sm" variant="ghost" onClick={() => setAll((v) => !v)}>
+          {all
+            ? tr("backup_show_fewer", undefined, "Show fewer")
+            : tr("backup_show_all", { count: rowCount }, `Show all (${rowCount})`)}
+        </Button>
+      )}
+    </section>
   );
 }

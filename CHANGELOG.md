@@ -4,6 +4,46 @@ What's new in ps5upload, written for humans.
 
 ---
 
+## 9.1.0
+
+- **Upload & Install** (was Send to PS5). One drop zone takes everything: packages (installed as
+  a game, update or DLC), game folders and dumps, disk images, archives and any other file.
+  Installs from a link or from the PS5 and USB drives are a small row in it. **Convert first**
+  sends a game, folder or image to Workshop. The note about fake packages is at the top: PS5 fake
+  packages do not start on firmware later than 11.60; PS4 fake packages are fine. A failed
+  Stream & install says what to check (the PS5 has to reach this computer) and offers Retry via
+  upload.
+- **Play from the Games grid.** Every installed game's card has Play (or Close while it runs),
+  on phones too; the table view has a Play column.
+- **Dump this game** is on the game's own page, with its options and progress there. The Manage
+  menu and the Dump games view are gone.
+- **Clearer Games filters.** "Update available" and "DLC missing" are one chip, **Updates & DLC
+  to install** (a newer update or DLC on this computer for a game the PS5 has), and every chip
+  says what it counts.
+- **The progress bar shows what is happening**: the running job, its percentage, speed and time
+  left. Click it for everything running, waiting and just finished, with Cancel and Retry and a
+  link to each one's screen. Phones get it as a pill above the tab bar. Helper sends, playlists,
+  the app's own update, cheat downloads, moves and queued items now show there too.
+- **Notifications** are one feature: the bell (now on phones as well) shows the newest of
+  **This app**'s list; the Notifications screen has This app, On the PS5 and Settings. Looking at
+  a list marks it read. The bell and messages stay inside the screen on phones.
+- **Workshop** is one column. Games are added in one place, and its queue hands installs and
+  uploads to Upload & Install's queue instead of repeating its controls.
+- **Files: a drop starts right away.** The first drop of a session used to wait for Resume.
+- **Settings › Backups** is shorter: grouped by device, repeated copies folded into one row,
+  the newest three shown.
+- **Windows: Install and restart works** (#533). The update used to go through a hidden
+  PowerShell script that security software can block (and that broke on user folders with
+  non-English letters), so the app closed and nothing installed. The installer now starts
+  directly, with a progress bar and its own error if something goes wrong, and starts the new
+  version. On 8.6.1–9.0.1, install this update by hand once (download the setup from the release).
+- **Games on a NAS from the phone** (#534). Adding a games folder offers your saved servers
+  (NAS, SMB, FTP, SFTP, WebDAV) right away, on Android too: before, a phone with no folder yet
+  could only pick one on the phone. Their games show with covers and install from the game's page.
+- AVA1 1.0.5 (the protocol library's history in one commit; no code changes).
+- README: Remote Play section; credits without license names.
+- Translations: every new string in all 21 languages.
+
 ## 9.0.1
 
 The first 9.0 release. (9.0.0 was tagged, but its Windows build failed to link the new RAR

@@ -1,4 +1,5 @@
 import { renderToStaticMarkup } from "react-dom/server";
+import { MemoryRouter } from "react-router";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
@@ -78,6 +79,35 @@ describe("Queue panel", () => {
         onRetryViaUpload={noop}
       />,
     );
+
+  it("offers Convert first on a waiting game folder, not on a package install", () => {
+    const folderRow = item({
+      id: "f",
+      sourceKind: "game-folder",
+      sourcePath: "/Users/me/Games/PPSA00001-app",
+      displayName: "PPSA00001-app",
+      addr: "10.0.0.2:9113",
+      status: "pending",
+    });
+    const inRouter = (it: QueueItem) =>
+      renderToStaticMarkup(
+        <MemoryRouter>
+          <QueueRow
+            item={it}
+            onMoveUp={noop}
+            onMoveDown={noop}
+            onRemove={noop}
+            onCancel={noop}
+            onRetry={noop}
+            onRetryViaUpload={noop}
+          />
+        </MemoryRouter>,
+      );
+    expect(inRouter(folderRow)).toContain('data-testid="queue-convert-first"');
+    expect(inRouter(waitingLibrary)).not.toContain('data-testid="queue-convert-first"');
+    // Outside a router (a bare render) the row still draws, without the button.
+    expect(row(folderRow)).not.toContain('data-testid="queue-convert-first"');
+  });
 
   it("shows only the given console's items", () => {
     const items = [failedStream, waitingLibrary, otherConsole];

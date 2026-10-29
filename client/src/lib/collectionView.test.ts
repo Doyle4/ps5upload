@@ -4,6 +4,7 @@ import type { CollectionGame, CollectionLocation } from "../api/collection";
 import {
   addOnCount,
   consoleCounts,
+  consoleFilterOf,
   extraCopies,
   filterCounts,
   formatCollectionBytes,
@@ -163,23 +164,31 @@ describe("the console overlay", () => {
     ["PPSA05555", st({ game_id: "PPSA05555" })],
   ]);
 
-  it("filters games the console lacks, can update, or misses DLC for", () => {
-    const ids = (c: "missing" | "update" | "dlc") =>
+  it("filters games the console lacks, or has an update or DLC here to install", () => {
+    const ids = (c: "missing" | "addons") =>
       viewGames(games, q({ console: c, consoleStates: states })).map(
         (g) => g.game_id,
       );
     expect(ids("missing")).toEqual(["PPSA05555"]);
-    expect(ids("update")).toEqual(["CUSA00900"]);
-    expect(ids("dlc")).toEqual(["PPSA01234"]);
+    expect(ids("addons").sort()).toEqual(["CUSA00900", "PPSA01234"]);
     expect(consoleCounts(games, states)).toEqual({
       installed: 2,
       missing: 1,
+      addons: 2,
       update: 1,
       dlc: 1,
       firmware: 0,
       drives: 0,
       unplayed: 2,
     });
+  });
+
+  it("reads old filter names as the merged one", () => {
+    expect(consoleFilterOf("update")).toBe("addons");
+    expect(consoleFilterOf("dlc")).toBe("addons");
+    expect(consoleFilterOf("installed")).toBe("installed");
+    expect(consoleFilterOf("bogus")).toBeNull();
+    expect(consoleFilterOf(null)).toBeNull();
   });
 
   it("does not filter at all without a console", () => {

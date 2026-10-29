@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 
-import { routeForTask, shortLabel, summarize } from "./activitySummary";
+import {
+  needsClock,
+  pickPrimary,
+  routeForTask,
+  shortLabel,
+  shortLabelKey,
+  summarize,
+  type QueuedRow,
+} from "./activitySummary";
 import type { Task } from "./tasks";
 
 const NOW = 1_000_000_000;
@@ -26,17 +34,34 @@ function task(p: Partial<Task>): Task {
 const opts = (seen: string[] = []) => ({ now: NOW, sessionStart: NOW - 3_600_000, seen: new Set(seen) });
 
 describe("summarize", () => {
-  it("names at most three running jobs and counts the rest", () => {
+  it("names one job and counts every other live one, queued work included", () => {
     const tasks = [
       ...Array.from({ length: 12 }, (_, i) =>
         task({ kind: "upload-file", progress: { current: i, total: 12, unit: "files" } }),
       ),
       task({ kind: "pkg-dpi-install" }),
     ];
-    const s = summarize(tasks, opts());
+    const queued: QueuedRow[] = [
+      { id: "q1", owner: "upload-queue", kind: "pkg-install", label: "Game", consoleId: "h", route: "/send", sizeBytes: null },
+    ];
+    const s = summarize(tasks, { ...opts(), queued });
     expect(s.running).toHaveLength(13);
-    expect(s.headline).toHaveLength(3);
-    expect(s.more).toBe(10);
+    expect(s.primary?.id).toBe(tasks[0].id);
+    expect(s.queued).toEqual(queued);
+    expect(s.others).toBe(13);
+    expect(summarize([], opts())).toMatchObject({ primary: null, others: 0, queued: [] });
+  });
+
+  it("keeps the strip on a job that is moving, not one that went quiet or only waits", () => {
+    const quiet = task({ updatedAtMs: NOW - 300_000, progress: { current: 1, total: 9, unit: "bytes" } });
+    const waiting = task({ status: "queued" });
+    const silent = task({ kind: "backup-snapshot" });
+    const moving = task({ progress: { current: 5, total: 10, unit: "bytes" } });
+    const s = summarize([quiet, waiting, silent, moving], opts());
+    expect(s.primary?.id).toBe(moving.id);
+    // Without one that reports progress, the oldest live job that still answers.
+    expect(summarize([quiet, waiting, silent], opts()).primary?.id).toBe(silent.id);
+    expect(pickPrimary([])).toBeNull();
   });
 
   it("marks a job with no update for a minute as stale", () => {
@@ -48,13 +73,13 @@ describe("summarize", () => {
     expect(summarize([task({})], opts()).running[0].staleMin).toBeNull();
   });
 
-  it("lists this session's finished jobs, newest first, five at most", () => {
-    const done = Array.from({ length: 7 }, (_, i) =>
+  it("lists this session's finished jobs, newest first, eight at most", () => {
+    const done = Array.from({ length: 10 }, (_, i) =>
       task({ status: "done", endedAtMs: NOW - (i + 1) * 60_000 }),
     );
     const old = task({ status: "done", endedAtMs: NOW - 7_200_000 });
     const s = summarize([...done, old], opts());
-    expect(s.finished).toHaveLength(5);
+    expect(s.finished).toHaveLength(8);
     expect(s.finished[0].agoMs).toBe(60_000);
   });
 
@@ -89,6 +114,12 @@ describe("labels and routes", () => {
     expect(routeForTask(task({ kind: "library-op" }))).toBe("/games");
     expect(routeForTask(task({ kind: "fs-delete" }))).toBe("/files");
     expect(routeForTask(task({ kind: "backport-patch" }))).toBe("/games");
+    expect(routeForTask(task({ kind: "library-move" }))).toBe("/games");
+    expect(routeForTask(task({ kind: "helper-send" }))).toBe("/connection");
+    expect(routeForTask(task({ kind: "payload-playlist" }))).toBe("/payloads");
+    expect(routeForTask(task({ kind: "app-dump" }))).toBe("/games");
+    expect(shortLabel("library-move")).toBe("Move");
+    expect(shortLabelKey("pkg-dpi-install")).toBe("activity_kind_pkg_dpi_install");
   });
 
   it("never calls a job stale that has no progress to report", () => {
@@ -109,5 +140,22 @@ describe("labels and routes", () => {
     expect(s.finished.map((r) => r.id)).toEqual([cut.id]);
     expect(s.finished[0]).toMatchObject({ outcome: "interrupted", agoMs: 60_000 });
     expect(s.failedUnseen).toBe(0);
+  });
+});
+
+describe("needsClock", () => {
+  const ended = task({ status: "done", endedAtMs: NOW - 3_600_000, updatedAtMs: NOW - 3_600_000 });
+  it("ticks while the panel is open, so an old finished job does not read 'just now'", () => {
+    expect(needsClock([ended], NOW - 3_590_000, ended.updatedAtMs, true)).toBe(true);
+    expect(needsClock([], 0, 0, true)).toBe(true);
+  });
+  it("stops when closed and nothing runs or has just ended", () => {
+    expect(needsClock([ended], NOW - 3_590_000, ended.updatedAtMs, false)).toBe(false);
+  });
+  it("ticks while a job runs, and for a few seconds after one ends", () => {
+    expect(needsClock([task({})], 0, NOW, false)).toBe(true);
+    const just = task({ status: "done", endedAtMs: NOW, updatedAtMs: NOW });
+    expect(needsClock([just], NOW + 2000, NOW, false)).toBe(true);
+    expect(needsClock([just], NOW + 7000, NOW, false)).toBe(false);
   });
 });

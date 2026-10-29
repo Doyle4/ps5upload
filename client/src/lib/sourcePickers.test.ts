@@ -14,9 +14,23 @@ const src = (p: string) => {
   if (text === undefined) throw new Error(`no source ${p}`);
   return text;
 };
-const remoteButtons = (text: string) => (text.match(/<BrowseButton[^>]*?\bremote\b/gs) ?? []).length;
+const direct = (text: string) => (text.match(/<BrowseButton[^>]*?\bremote\b/gs) ?? []).length;
+// The shared picker (components/AddSources.tsx) is a "Choose file" and a "Choose folder", both
+// reaching servers: a screen that renders it gets those two.
+const ADD_SOURCES = (
+  import.meta.glob("../components/AddSources.tsx", { query: "?raw", import: "default", eager: true }) as Record<
+    string,
+    string
+  >
+)["../components/AddSources.tsx"];
+const remoteButtons = (text: string) =>
+  direct(text) + (text.match(/<AddSources\b/g) ?? []).length * direct(ADD_SOURCES ?? "");
 
 describe("source pickers reach saved servers", () => {
+  it("the shared picker offers servers on both of its buttons", () => {
+    expect(direct(ADD_SOURCES ?? "")).toBe(2);
+  });
+
   it.each([
     ["screens/Upload/index.tsx", 2],
     ["screens/InstallPackage/index.tsx", 1],

@@ -1,15 +1,9 @@
 import { useCallback, useEffect, useMemo } from "react";
-import {
-  ArrowLeft,
-  Gamepad2,
-  HardDriveDownload,
-  Settings2,
-} from "lucide-react";
+import { Gamepad2 } from "lucide-react";
 import { useSearchParams } from "react-router";
 
-import { Button, PageHeader, WarningCard } from "../../components";
+import { PageHeader, WarningCard } from "../../components";
 import EditSessionBanner from "../../components/EditSessionBanner";
-import { OverflowMenu } from "../../components/OverflowMenu";
 import { playFor, useTrackedPlay } from "../../lib/trackedPlay";
 import { useLibraryScan } from "../../lib/useLibraryScan";
 import { useCollectionStore } from "../../state/collection";
@@ -22,97 +16,42 @@ import { useRunningTitleIds } from "../../state/runningApps";
 import CollectionScreen from "../Collection";
 import { installedKindOf } from "../GameHub/installedKind";
 import { SmpNeededWarning, useSmpState } from "../GameHub/SmpNeeded";
-import { DumpsView } from "./Dumps";
-import { gamesTabOf, legacyConsoleFilter } from "./gamesTab";
+import { legacyGamesLink } from "./gamesTab";
 import { recentlyPlayed, RecentlyPlayedStrip } from "./RecentlyPlayed";
 import { UnlinkedFiles } from "./UnlinkedFiles";
 
 /**
  * Games: one grid, every game once (CollectionScreen): your copies, what the selected PS5 has
  * installed, and the games on its drives, each once. Its filters narrow it to what is or isn't
- * on that console. A game opens its game page, which holds every action for every copy: the
- * installed game's upkeep and its files on the PS5's drives included.
+ * on that console; an installed game's card has Play. A game opens its game page, which holds
+ * every action for every copy: the installed game's upkeep, dumping it to a drive, and its
+ * files on the PS5's drives included.
  *
- * Dumping is about the console rather than one game, so it is a view of its own under Manage
- * (`?tab=dumps`). Links to the views the grid replaced (`?tab=ready`, `?tab=files`,
- * `unplayed=1`) open the grid with the filter that shows the same games.
+ * Links to the views the grid replaced (`?tab=ready`, `?tab=files`, `unplayed=1`, and
+ * `?tab=dumps`, now on each game's page) open the grid, with the filter that shows the same
+ * games where there is one.
  */
 export default function GamesScreen() {
   const tr = useTr();
   const [searchParams, setSearchParams] = useSearchParams();
-  const tab = gamesTabOf(searchParams.get("tab"));
-  const showDumps = (on: boolean) => {
-    // A view of its own: pushed, so Back returns to the list.
-    const params = new URLSearchParams(searchParams);
-    if (on) params.set("tab", "dumps");
-    else params.delete("tab");
-    setSearchParams(params);
-  };
 
   // An old link: the grid, filtered to what that view listed, and the link put away.
   useEffect(() => {
-    const filter = legacyConsoleFilter(searchParams);
-    if (!filter) return;
-    useCollectionStore.getState().set({ consoleFilter: filter });
+    const { filter, strip } = legacyGamesLink(searchParams);
+    if (filter) useCollectionStore.getState().set({ consoleFilter: filter });
+    if (!strip) return;
     const params = new URLSearchParams(searchParams);
     params.delete("tab");
     params.delete("unplayed");
+    params.delete("console");
     setSearchParams(params, { replace: true });
   }, [searchParams, setSearchParams]);
 
-  const label = tr("games_title", undefined, "Games");
-  const manage = (
-    <OverflowMenu
-      triggerLabel={tr("games_manage", undefined, "Manage")}
-      triggerIcon={<Settings2 size={14} />}
-      triggerVariant="secondary"
-      align="right"
-      ariaLabel={tr("games_manage", undefined, "Manage")}
-      items={[
-        {
-          label: tr("games_manage_dumps", undefined, "Dump games"),
-          icon: <HardDriveDownload size={14} />,
-          onSelect: () => showDumps(true),
-        },
-      ]}
-    />
-  );
-
-  if (tab === "dumps") {
-    return (
-      <div className="app-page flex h-full flex-col">
-        <div className="mb-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            leftIcon={<ArrowLeft size={14} className="rtl:rotate-180" />}
-            onClick={() => showDumps(false)}
-          >
-            {tr("games_back_all", undefined, "All games")}
-          </Button>
-        </div>
-        <PageHeader
-          title={tr("games_manage_dumps", undefined, "Dump games")}
-          right={manage}
-          description={tr(
-            "games_dumps_description2",
-            undefined,
-            "Copy installed games to a USB drive or the console, one at a time or as a queue. A plain copy by default; decrypting the executables is an option.",
-          )}
-        />
-        <div className="min-h-0 flex-1" data-testid="games-manage-dumps">
-          <DumpsView />
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="app-page flex h-full flex-col">
+    <div className="app-page flex min-h-full flex-col">
       <PageHeader
         icon={Gamepad2}
-        title={label}
-        right={manage}
+        title={tr("games_title", undefined, "Games")}
         description={tr(
           "games_grid_description2",
           undefined,
