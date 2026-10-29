@@ -6527,6 +6527,10 @@ library_compressed_hint: "A tömörített képfájlok futtatásához ShadowMount
 "rp_more": "Továbbiak",
 "rp_touch_in_full": "A képernyős kontroller Teljes képernyőn a kép alatt van. Fordítsd el a telefont fekvőbe a legnagyobb képért.",
 "rp_touch_hint": "Fordítsd el a telefont fekvőbe, vagy koppints a „Teljes képernyő” gombra a képernyő kitöltéséhez. Ott a fenti kis ⋯ nyitja meg a menüt; a képre koppintás játékbevitel, és sosem lép ki a teljes képernyőből. A Vissza kilép a teljes képernyőből.",
+"rp_fit": "Képméret",
+"rp_fit_fit": "Illesztés (teljes kép)",
+"rp_fit_fill": "Kitöltés (a szélek levágva)",
+"rp_fit_stretch": "Nyújtás",
 };
 
 export default hu;

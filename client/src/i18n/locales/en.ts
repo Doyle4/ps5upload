@@ -6535,6 +6535,10 @@ library_compressed_hint: "Compressed images need ShadowMount+ to play. To edit, 
 "rp_more": "More",
 "rp_touch_in_full": "The on-screen controller is in Full screen, under the picture. Turn the phone sideways for the biggest picture.",
 "rp_touch_hint": "Turn the phone sideways, or tap Full screen, to fill the screen. There, the small ⋯ at the top opens the menu; taps on the picture are play and never leave full screen. Back leaves full screen.",
+"rp_fit": "Picture size",
+"rp_fit_fit": "Fit (whole picture)",
+"rp_fit_fill": "Fill (crop the edges)",
+"rp_fit_stretch": "Stretch",
 };
 
 export default en;

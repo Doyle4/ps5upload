@@ -1,0 +1,243 @@
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { expect, test, type Browser, type Page } from "@playwright/test";
+
+// #538: the whole picture shows, whatever the window, display scaling, codec or the size the
+// console really sends. A real H.264/HEVC frame goes through the app's own decode and draw path
+// (the engine socket is faked), then the stage is screenshotted and its four corner markers
+// looked for where the picture should be.
+//
+// Fixtures: one frame, grey with a marker in each corner (red, green, blue, white; each 1/8 of
+// the height), made with ffmpeg:
+//   -f lavfi -i color=c=0x404040:s=WxH -frames:v 1 -vf drawbox... -c:v libx264|libx265
+// The 1080p H.264 one is coded 1920x1088 with the bottom 8 rows cropped in its SPS.
+
+const fixture = (name: string) =>
+  new Uint8Array(readFileSync(fileURLToPath(new URL(`./fixtures/remote-play/${name}`, import.meta.url))));
+
+/** Split an Annex-B stream into its parameter sets (the "video header") and the picture. */
+function split(stream: Uint8Array, hevc: boolean): { header: Uint8Array; au: Uint8Array } {
+  for (let i = 0; i + 3 < stream.length; i++) {
+    if (stream[i] !== 0 || stream[i + 1] !== 0 || stream[i + 2] !== 1) continue;
+    const t = hevc ? (stream[i + 3] >> 1) & 0x3f : stream[i + 3] & 0x1f;
+    const isSlice = hevc ? t < 32 : t >= 1 && t <= 5;
+    if (!isSlice) continue;
+    const start = i > 0 && stream[i - 1] === 0 ? i - 1 : i;
+    return { header: stream.slice(0, start), au: stream.slice(start) };
+  }
+  throw new Error("no picture in the fixture");
+}
+
+const record = (kind: number, payload: Uint8Array) => {
+  const b = Buffer.alloc(payload.length + 1);
+  b[0] = kind;
+  b.set(payload, 1);
+  return b;
+};
+
+type Fit = "fit" | "fill" | "stretch";
+
+interface Case {
+  dpr: number;
+  /** The stream's own size (the app asks for 1080p). */
+  size: "1920x1080" | "1280x720";
+  /** Force H.264 (hide HEVC from the page), else whatever the page picks. */
+  h264?: boolean;
+  fit?: Fit;
+  full?: boolean;
+}
+
+async function open(browser: Browser, c: Case): Promise<{ page: Page; close: () => Promise<void> }> {
+  const ctx = await browser.newContext({ viewport: { width: 1919, height: 1040 }, deviceScaleFactor: c.dpr });
+  const page = await ctx.newPage();
+  await page.addInitScript(
+    ({ fit, h264 }) => {
+      window.localStorage.setItem("ps5upload.host", "192.168.1.100");
+      window.localStorage.setItem(
+        "ps5upload.roster.v1",
+        JSON.stringify({
+          active_id: "p1",
+          profiles: [
+            {
+              id: "p1",
+              name: "Living room",
+              host: "192.168.1.100",
+              wake_regist_key: "00112233",
+              wake_rp_key: "00112233445566778899aabbccddeeff",
+            },
+          ],
+        }),
+      );
+      window.localStorage.setItem("ps5upload.rp_prefs.v1", JSON.stringify({ fit }));
+      if (h264 && typeof VideoDecoder !== "undefined") {
+        const orig = VideoDecoder.isConfigSupported.bind(VideoDecoder);
+        VideoDecoder.isConfigSupported = (cfg: VideoDecoderConfig) =>
+          /^(hev1|hvc1)/.test(cfg.codec) ? Promise.resolve({ supported: false, config: cfg }) : orig(cfg);
+      }
+    },
+    { fit: c.fit ?? "fit", h264: !!c.h264 },
+  );
+  await page.route(
+    (url) => url.pathname.startsWith("/api/"),
+    async (route) => {
+      const path = new URL(route.request().url()).pathname;
+      let body: unknown = {};
+      if (path === "/api/version") body = { version: "9.2.0", caps: {} };
+      if (path === "/api/ps5/rp/session") body = { host: null };
+      await route.fulfill({ contentType: "application/json", body: JSON.stringify(body) });
+    },
+  );
+  await page.routeWebSocket(/\/api\/ps5\/rp\/ws/, (ws) => {
+    ws.onMessage((m) => {
+      if (typeof m !== "string") return;
+      const msg = JSON.parse(m) as { host?: string; codec?: string };
+      if (!msg.host) return;
+      const hevc = msg.codec === "h265";
+      const { header, au } = split(fixture(hevc ? `hevc_${c.size}.hevc` : `h264_${c.size}.h264`), hevc);
+      ws.send(JSON.stringify({ stage: "first_frame" }));
+      ws.send(record(0, header));
+      // The same keyframe a few times: a decoder may hold the first picture back.
+      for (let i = 0; i < 6; i++) ws.send(record(1, au));
+    });
+  });
+  await page.goto("/play", { waitUntil: "domcontentloaded" });
+  await expect(page.getByRole("heading", { name: "Remote Play" })).toBeVisible({ timeout: 30_000 });
+  return { page, close: () => ctx.close() };
+}
+
+const MARKERS = [
+  { name: "top-left", fx: 0, fy: 0, rgb: [255, 0, 0] },
+  { name: "top-right", fx: 1, fy: 0, rgb: [0, 255, 0] },
+  { name: "bottom-left", fx: 0, fy: 1, rgb: [0, 0, 255] },
+  { name: "bottom-right", fx: 1, fy: 1, rgb: [255, 255, 255] },
+] as const;
+
+/** Colours at points of the stage (CSS px from its top-left), read off a real screenshot. */
+async function colorsAt(page: Page, shot: Buffer, w: number, pts: Array<[number, number]>) {
+  return page.evaluate(
+    async ({ b64, w, pts }) => {
+      const img = new Image();
+      img.src = `data:image/png;base64,${b64}`;
+      await img.decode();
+      const k = img.naturalWidth / w;
+      const cv = document.createElement("canvas");
+      cv.width = img.naturalWidth;
+      cv.height = img.naturalHeight;
+      const g = cv.getContext("2d")!;
+      g.drawImage(img, 0, 0);
+      return pts.map(([x, y]) => Array.from(g.getImageData(Math.floor(x * k), Math.floor(y * k), 1, 1).data.slice(0, 3)));
+    },
+    { b64: shot.toString("base64"), w, pts },
+  );
+}
+
+const near = (a: number[], b: readonly number[]) => a.every((v, i) => Math.abs(v - b[i]) <= 48);
+
+async function checkPicture(page: Page, c: Case) {
+  const [W, H] = c.size.split("x").map(Number);
+  const stage = page.getByTestId("rp-stage").filter({ visible: true });
+  const canvas = stage.getByTestId("rp-canvas");
+  // The canvas takes the frame's own size, not the size asked for.
+  await expect.poll(() => canvas.evaluate((el: HTMLCanvasElement) => `${el.width}x${el.height}`), { timeout: 20_000 }).toBe(c.size);
+  await expect(canvas).toHaveAttribute("data-fit", c.fit ?? "fit");
+  // Nothing drawn over the picture while it is measured.
+  await page.addStyleTag({ content: '[data-testid="rp-stage"] > :not(:first-child) { visibility: hidden !important; }' });
+
+  const sb = (await stage.boundingBox())!;
+  const cb = (await canvas.boundingBox())!;
+  // The canvas box never leaves the stage, whatever its pixel size.
+  expect(cb.x).toBeGreaterThanOrEqual(sb.x - 1);
+  expect(cb.y).toBeGreaterThanOrEqual(sb.y - 1);
+  expect(cb.x + cb.width).toBeLessThanOrEqual(sb.x + sb.width + 1);
+  expect(cb.y + cb.height).toBeLessThanOrEqual(sb.y + sb.height + 1);
+
+  // Where the picture should be inside the canvas box, for this fit.
+  const fit = c.fit ?? "fit";
+  const sx = fit === "stretch" ? cb.width / W : fit === "fill" ? Math.max(cb.width / W, cb.height / H) : Math.min(cb.width / W, cb.height / H);
+  const sy = fit === "stretch" ? cb.height / H : sx;
+  const px = cb.x - sb.x + (cb.width - W * sx) / 2;
+  const py = cb.y - sb.y + (cb.height - H * sy) / 2;
+  const m = H / 8; // marker side, frame px
+  const pts: Array<[number, number]> = MARKERS.map(({ fx, fy }) => [
+    px + (fx ? W - m / 2 : m / 2) * sx,
+    py + (fy ? H - m / 2 : m / 2) * sy,
+  ]);
+  // And a point on the stage's left edge, halfway down: a bar with Fit when the stage is wider
+  // than the picture, picture with Fill and Stretch.
+  pts.push([2, sb.height / 2]);
+  for (const [x, y] of pts.slice(0, 4)) {
+    expect(x).toBeGreaterThan(0);
+    expect(y).toBeGreaterThan(0);
+    expect(x).toBeLessThan(sb.width);
+    expect(y).toBeLessThan(sb.height);
+  }
+
+  const shot = await stage.screenshot({ animations: "disabled" });
+  const got = await colorsAt(page, shot, sb.width, pts);
+  MARKERS.forEach((mk, i) => expect(near(got[i], mk.rgb), `${mk.name} marker at ${pts[i]} is ${got[i]}`).toBe(true));
+  const wider = sb.width / sb.height > W / H + 0.01;
+  if (wider) {
+    const edge = got[4];
+    if (fit === "fit") expect(near(edge, [0, 0, 0]), `bar ${edge}`).toBe(true);
+    else expect(near(edge, [0x40, 0x40, 0x40]), `edge ${edge}`).toBe(true);
+  }
+}
+
+async function startAndCheck(browser: Browser, c: Case) {
+  const { page, close } = await open(browser, c);
+  try {
+    await page.getByTestId("rp-start").click();
+    await expect(page.getByTestId("rp-toolbar")).toContainText("Living room");
+    if (c.full) {
+      await page.getByTestId("rp-stage").filter({ visible: true }).dblclick();
+      await expect(page.locator('[data-testid="rp-stage"][data-full]')).toBeVisible();
+    }
+    await checkPicture(page, c);
+  } finally {
+    await close();
+  }
+}
+
+for (const dpr of [1, 1.25, 1.5, 2]) {
+  test(`Remote Play shows the whole 1080p H.264 picture at ${dpr * 100}% scaling`, async ({ browser }) => {
+    await startAndCheck(browser, { dpr, size: "1920x1080", h264: true });
+  });
+}
+
+test("Remote Play shows the whole picture with the codec the page picks (HEVC where it decodes)", async ({ browser }) => {
+  await startAndCheck(browser, { dpr: 1.5, size: "1920x1080" });
+});
+
+test("Remote Play shows a 720p stream whole when 1080p was asked for", async ({ browser }) => {
+  await startAndCheck(browser, { dpr: 1.25, size: "1280x720", h264: true });
+});
+
+for (const fit of ["fit", "fill", "stretch"] as const) {
+  test(`Remote Play full screen, ${fit}`, async ({ browser }) => {
+    await startAndCheck(browser, { dpr: 1.5, size: "1920x1080", h264: true, fit, full: true });
+  });
+}
+
+test("Remote Play picture size is a setting that applies while playing", async ({ browser }) => {
+  const { page, close } = await open(browser, { dpr: 1, size: "1920x1080", h264: true });
+  try {
+    await page.getByTestId("rp-start").click();
+    const canvas = page.getByTestId("rp-stage").filter({ visible: true }).getByTestId("rp-canvas");
+    await expect(canvas).toHaveAttribute("data-fit", "fit");
+    const toolbar = page.getByTestId("rp-toolbar");
+    await toolbar.hover();
+    await toolbar.getByRole("button", { name: "Settings" }).click();
+    const select = page.getByTestId("rp-fit");
+    await expect(select).toBeEnabled();
+    await select.selectOption("fill");
+    await expect(canvas).toHaveAttribute("data-fit", "fill");
+    await expect(canvas).toHaveCSS("object-fit", "cover");
+    await select.selectOption("stretch");
+    await expect(canvas).toHaveCSS("object-fit", "fill");
+    await expect
+      .poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("ps5upload.rp_prefs.v1") ?? "{}").fit))
+      .toBe("stretch");
+  } finally {
+    await close();
+  }
+});

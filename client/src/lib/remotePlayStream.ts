@@ -279,6 +279,24 @@ export async function chooseCodec(width: number, height: number): Promise<"h265"
   return (await supportedHevc(width, height)) ? "h265" : "h264";
 }
 
+/** How the picture fills the place it is shown in: the whole picture with black bars (fit),
+ *  no bars with the edges cut off (fill), or no bars with the picture pulled out of shape
+ *  (stretch). */
+export type PictureFit = "fit" | "fill" | "stretch";
+
+const FIT_CLASS: Record<PictureFit, string> = {
+  fit: "object-contain",
+  fill: "object-cover",
+  stretch: "object-fill",
+};
+
+/** The canvas's classes for a fit. The canvas never grows past the place it is in: its box is
+ *  that place's, whatever its own pixel size, and object-fit decides the picture in it. It never
+ *  takes a pointer: presses belong to the stage it is on and to the controls drawn over it. */
+export function canvasClass(fit: PictureFit): string {
+  return `pointer-events-none block h-full w-full min-h-0 min-w-0 max-h-full max-w-full ${FIT_CLASS[fit] ?? FIT_CLASS.fit}`;
+}
+
 /** True when this device can play a stream at all. */
 export function canStream(): boolean {
   return typeof VideoDecoder !== "undefined" && typeof WebSocket !== "undefined";
@@ -332,6 +350,8 @@ export interface StreamOptions {
   audioBufferMs?: number;
   /** Join the session the engine already runs for this console; never start one. */
   attach?: boolean;
+  /** How the picture fills the place it is shown in (default: the whole picture). */
+  fit?: PictureFit;
   /** False: the console's rumble is not played on the controllers. */
   rumble?: () => boolean;
   onPhase: (p: StreamPhase) => void;
@@ -484,10 +504,21 @@ export class RemotePlayStream {
 
   constructor(private readonly o: StreamOptions) {
     this.canvas = document.createElement("canvas");
-    this.canvas.className = "h-full w-full object-contain";
     this.canvas.dataset.testid = "rp-canvas";
-    // desynchronized: frames go to the screen without waiting on the page's compositor.
-    this.ctx = this.canvas.getContext("2d", { alpha: false, desynchronized: true });
+    this.setFit(o.fit ?? "fit");
+    // Not `desynchronized`: Chromium honours it only on Windows and ChromeOS, where the canvas
+    // is presented through its own swap chain/overlay instead of the page's compositor. The
+    // Windows app (only there) showed the picture enlarged from the top-left corner, cropped on
+    // the right and bottom (#538): the canvas's CSS size and object-fit were not applied. The
+    // page's compositor, as on every other platform, scales it to its box.
+    this.ctx = this.canvas.getContext("2d", { alpha: false });
+  }
+
+  /** How the picture fills the place it is shown in (see PictureFit). */
+  setFit(fit: PictureFit): void {
+    const f: PictureFit = fit in FIT_CLASS ? fit : "fit";
+    this.canvas.className = canvasClass(f);
+    this.canvas.dataset.fit = f;
   }
 
   get host(): string {
@@ -844,6 +875,8 @@ export class RemotePlayStream {
           this.decodeMs = performance.now() - t;
           this.sentAt.delete(frame.timestamp);
         }
+        // The canvas is the picture's own size (its visible part, at the display aspect), taken
+        // from each frame, never from the size asked for: the console may send another.
         const c = this.canvas;
         if (c.width !== frame.displayWidth || c.height !== frame.displayHeight) {
           c.width = frame.displayWidth;
@@ -864,21 +897,28 @@ export class RemotePlayStream {
       },
     });
     this.video = video;
-    const cfg = { optimizeForLatency: true, hardwareAcceleration: "prefer-hardware" as const };
-    const configure = (codec: string) => {
+    const configure = async (codec: string) => {
+      // The hardware decoder when there is one. "prefer-hardware" is a demand, not a wish: where
+      // the device has none for this codec, configure() fails and no picture ever comes.
+      let cfg: VideoDecoderConfig = { codec, optimizeForLatency: true, hardwareAcceleration: "prefer-hardware" };
+      try {
+        if (!(await VideoDecoder.isConfigSupported(cfg)).supported) cfg = { codec, optimizeForLatency: true };
+      } catch {
+        cfg = { codec, optimizeForLatency: true };
+      }
       if (video !== this.video) return;
       this.codec = codec;
-      video.configure({ codec, ...cfg });
+      video.configure(cfg);
       for (const q of this.queued) video.decode(q);
       this.queued = [];
     };
     if (this.hevc) {
       void supportedHevc(this.o.width, this.o.height).then((c) => {
-        if (c) configure(c);
+        if (c) void configure(c);
         else this.o.onError({ code: "decode", detail: "This device cannot decode HEVC." });
       });
     } else if (this.header) {
-      configure(avcCodecString(this.header));
+      void configure(avcCodecString(this.header));
     }
   }
 

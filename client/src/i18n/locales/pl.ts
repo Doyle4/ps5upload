@@ -6469,6 +6469,10 @@ library_compressed_hint: "Skompresowane obrazy wymagają ShadowMount+, aby grać
 "rp_more": "Więcej",
 "rp_touch_in_full": "Kontroler na ekranie jest w trybie Pełny ekran, pod obrazem. Obróć telefon poziomo, aby uzyskać największy obraz.",
 "rp_touch_hint": "Obróć telefon poziomo albo dotknij „Pełny ekran”, aby wypełnić ekran. Tam małe ⋯ u góry otwiera menu; dotknięcia obrazu to sterowanie grą i nigdy nie opuszczają pełnego ekranu. Wstecz opuszcza pełny ekran.",
+"rp_fit": "Rozmiar obrazu",
+"rp_fit_fit": "Dopasuj (cały obraz)",
+"rp_fit_fill": "Wypełnij (przycina krawędzie)",
+"rp_fit_stretch": "Rozciągnij",
 };
 
 export default pl;

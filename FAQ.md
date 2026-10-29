@@ -1974,7 +1974,10 @@ goes full screen by itself (turn it back to return to the page); the only contro
 **⋯** handle at the top. Taps on the picture or the controller are always play: they never leave
 full screen or stop the stream. Back leaves full screen and keeps playing; **Stop** is in the ⋯
 menu. The screen stays awake while you play, and Settings has the controller's size and opacity.
-In the Android app the system bars may stay visible in full screen.
+In the Android app, full screen hides the status and navigation bars (swipe from an edge to see them) and holds the phone in landscape.
+
+**Q: Part of the Remote Play picture is cut off, or it looks stretched.**
+Remote Play › Settings › **Picture size** decides how the picture fits its box: **Fit** shows the whole picture with black bars where the shapes differ (the default), **Fill** fills the box and crops the edges, **Stretch** fills it without cropping. Before 9.2.0, the Windows app could show the picture enlarged with its right and bottom cut off (#538); update to fix it.
 
 **Q: What is Remote Play, and how do I set it up?**
 Remote Play streams a PS5 into the app (desktop, web UI and Android) and lets you play it with a

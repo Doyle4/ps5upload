@@ -6228,6 +6228,10 @@ library_compressed_hint: "Sıkıştırılmış kalıpları oynatmak için Shadow
 "rp_more": "Daha fazla",
 "rp_touch_in_full": "Ekran kumandası Tam ekranda, görüntünün altında. En büyük görüntü için telefonu yan çevirin.",
 "rp_touch_hint": "Ekranı doldurmak için telefonu yan çevirin veya “Tam ekran”a dokunun. Orada üstteki küçük ⋯ menüyü açar; görüntüye dokunmak oyun girdisidir ve asla tam ekrandan çıkmaz. Geri tam ekrandan çıkar.",
+"rp_fit": "Görüntü boyutu",
+"rp_fit_fit": "Sığdır (tüm görüntü)",
+"rp_fit_fill": "Doldur (kenarlar kırpılır)",
+"rp_fit_stretch": "Uzat",
 };
 
 export default tr;

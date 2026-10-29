@@ -6229,6 +6229,10 @@ library_compressed_hint: "Komprimierte Images benötigen ShadowMount+ zum Spiele
 "rp_more": "Mehr",
 "rp_touch_in_full": "Der Bildschirm-Controller ist im Vollbild unter dem Bild. Dreh das Telefon quer für das größte Bild.",
 "rp_touch_hint": "Dreh das Telefon quer oder tippe auf „Vollbild“, um den Bildschirm zu füllen. Dort öffnet das kleine ⋯ oben das Menü; Tippen auf das Bild ist Spieleingabe und verlässt das Vollbild nie. „Zurück“ verlässt das Vollbild.",
+"rp_fit": "Bildgröße",
+"rp_fit_fit": "Einpassen (ganzes Bild)",
+"rp_fit_fill": "Füllen (Ränder abschneiden)",
+"rp_fit_stretch": "Strecken",
 };
 
 export default de;

@@ -591,6 +591,8 @@ pub fn run() {
             commands::keep_awake_state,
             commands::keep_awake_acquire, // refcounted hold by reason (auto: active transfer)
             commands::keep_awake_release,
+            // Remote Play full screen on Android: hide the system bars, hold landscape.
+            commands::android_system_ui,
             commands::user_config_load, // ~/.ps5upload/settings.json read
             commands::user_config_save, // ~/.ps5upload/settings.json atomic write
             commands::user_config_path_resolved, // show-the-path for the Settings UI

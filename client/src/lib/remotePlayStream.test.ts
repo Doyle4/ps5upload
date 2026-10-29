@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   avcCodecString,
+  canvasClass,
   DEFAULT_KEYMAP,
   isKeyframe,
   keysFor,
@@ -61,5 +62,19 @@ describe("isKeyframe", () => {
 describe("avcCodecString", () => {
   it("reads profile, constraints and level from the SPS", () => {
     expect(avcCodecString(new Uint8Array([0, 0, 0, 1, 0x67, 0x4d, 0x40, 0x32, 0x99]))).toBe("avc1.4d4032");
+  });
+});
+
+describe("canvasClass", () => {
+  it("keeps the canvas inside its place and maps each fit to object-fit", () => {
+    for (const fit of ["fit", "fill", "stretch"] as const) {
+      const c = canvasClass(fit).split(" ");
+      for (const k of ["pointer-events-none", "h-full", "w-full", "max-h-full", "max-w-full", "min-h-0", "min-w-0"]) expect(c).toContain(k);
+    }
+    expect(canvasClass("fit")).toContain("object-contain");
+    expect(canvasClass("fill")).toContain("object-cover");
+    expect(canvasClass("stretch")).toContain("object-fill");
+    // A stored value from elsewhere falls back to the whole picture.
+    expect(canvasClass("zoom" as never)).toContain("object-contain");
   });
 });

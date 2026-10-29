@@ -12,6 +12,7 @@ import {
   saveKeymap,
   type KeyAction,
   type PadState,
+  type PictureFit,
   type StreamError,
   type StreamPhase,
   type StreamStats,
@@ -22,6 +23,8 @@ import { safeGetItem, safeSetItem } from "../lib/safeStorage";
 export interface RpPrefs {
   res: "1920x1080" | "1280x720";
   fps: 60 | 30;
+  /** How the picture fills its place: whole with black bars, cropped, or stretched. */
+  fit: PictureFit;
   /** fps, bitrate and delay over the picture. */
   showStats: boolean;
   volume: number;
@@ -44,6 +47,7 @@ export interface RpPrefs {
 export const DEFAULT_RP_PREFS: RpPrefs = {
   res: "1920x1080",
   fps: 60,
+  fit: "fit",
   showStats: false,
   volume: 1,
   muted: false,
@@ -176,6 +180,7 @@ export const useRemotePlayStore = create<RpState>((set, get) => ({
       keepAliveS: prefs.keepAliveS,
       audioBufferMs: prefs.audioBufferMs,
       attach: opts?.attach,
+      fit: prefs.fit,
       rumble: () => get().prefs.rumble,
       onPhase: (p) => {
         if (get().stream !== stream) return;
@@ -208,6 +213,7 @@ export const useRemotePlayStore = create<RpState>((set, get) => ({
     if (s) {
       s.setVolume(prefs.muted ? 0 : prefs.volume);
       s.setAudioBuffer(prefs.audioBufferMs);
+      s.setFit(prefs.fit);
     }
   },
 

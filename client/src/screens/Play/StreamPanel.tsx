@@ -47,6 +47,7 @@ import {
   COMPACT_QUERY,
   docFullscreen,
   holdPageStill,
+  inAndroidApp,
   isPhoneSized,
   lockLandscape,
   PHONE_LANDSCAPE_QUERY,
@@ -302,6 +303,19 @@ function SettingsPanel({ running }: { running: boolean }) {
             options={[
               { value: "60", label: tr("rp_fps_60", undefined, "60 fps (smooth)") },
               { value: "30", label: tr("rp_fps_30", undefined, "30 fps (light network)") },
+            ]}
+          />
+          <Select
+            label={tr("rp_fit", undefined, "Picture size")}
+            block={false}
+            className="w-48"
+            value={prefs.fit}
+            onChange={(e) => setPrefs({ fit: e.target.value as RpPrefs["fit"] })}
+            data-testid="rp-fit"
+            options={[
+              { value: "fit", label: tr("rp_fit_fit", undefined, "Fit (whole picture)") },
+              { value: "fill", label: tr("rp_fit_fill", undefined, "Fill (crop the edges)") },
+              { value: "stretch", label: tr("rp_fit_stretch", undefined, "Stretch") },
             ]}
           />
         </div>
@@ -585,6 +599,9 @@ export function StreamPanel() {
         void setWindowFullscreen(true).then(() => {
           if (coarse && isPhoneSized()) lockLandscape();
         });
+      } else if (inAndroidApp()) {
+        // The app needs no touch to hide the system bars; the turn back still leaves.
+        void setWindowFullscreen(true);
       }
       if (compact && !backEntry.current) {
         // Same state as the page's own entry: the router sees no navigation.
@@ -851,7 +868,9 @@ export function StreamPanel() {
         >
           <div
             ref={canvasHost}
-            className="absolute inset-0 flex items-center justify-center"
+            // The picture layer, under everything drawn over it. It never takes a pointer: the
+            // stage's handlers get every press, and controls over it are hit first everywhere.
+            className="pointer-events-none absolute inset-0 z-0 flex items-center justify-center"
             style={
               portraitFull
                 ? { top: PICTURE_TOP, bottom: "auto", height: "56.25vw" }
@@ -867,13 +886,13 @@ export function StreamPanel() {
           />
 
           {running && phase !== "playing" && phase !== "moved" && (
-            <div className="absolute inset-0 flex items-center justify-center gap-2 bg-black/40 text-sm text-white/85">
+            <div className="absolute inset-0 z-10 flex items-center justify-center gap-2 bg-black/40 text-sm text-white/85">
               <Spinner size={16} tone="inherit" />
               {phaseText(tr, phase)}
             </div>
           )}
           {running && phase === "moved" && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/70 text-sm text-white/85">
+            <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-black/70 text-sm text-white/85">
               <MonitorPlay size={28} />
               {tr("rp_moved", undefined, "Playing in another window.")}
               <Button size="sm" variant="primary" onClick={() => stream?.takeOver()}>
@@ -883,7 +902,7 @@ export function StreamPanel() {
           )}
           {running && pip && (
             <div
-              className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/80 px-6 text-center text-sm text-white/85"
+              className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-black/80 px-6 text-center text-sm text-white/85"
               data-testid="rp-pip-on"
             >
               <PictureInPicture2 size={28} />
@@ -913,7 +932,7 @@ export function StreamPanel() {
             </div>
           )}
           {!running && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-sm text-white/60">
+            <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 text-sm text-white/60">
               <Gamepad2 size={28} />
               {tr("rp_idle", undefined, "Press Start to play this PS5 here.")}
             </div>

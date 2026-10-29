@@ -6174,6 +6174,10 @@ library_compressed_hint: "Le immagini compresse richiedono ShadowMount+ per gioc
 "rp_more": "Altro",
 "rp_touch_in_full": "Il controller su schermo è in Schermo intero, sotto l'immagine. Ruota il telefono in orizzontale per l'immagine più grande.",
 "rp_touch_hint": "Ruota il telefono in orizzontale, o tocca «Schermo intero», per riempire lo schermo. Lì, il piccolo ⋯ in alto apre il menu; i tocchi sull'immagine sono comandi di gioco e non escono mai dallo schermo intero. Indietro esce dallo schermo intero.",
+"rp_fit": "Dimensione immagine",
+"rp_fit_fit": "Adatta (immagine intera)",
+"rp_fit_fill": "Riempi (bordi tagliati)",
+"rp_fit_stretch": "Allunga",
 };
 
 export default it;

@@ -6237,6 +6237,10 @@ library_compressed_hint: "Les images compressées nécessitent ShadowMount+ pour
 "rp_more": "Plus",
 "rp_touch_in_full": "La manette à l’écran est en Plein écran, sous l’image. Tournez le téléphone à l’horizontale pour la plus grande image.",
 "rp_touch_hint": "Tournez le téléphone à l’horizontale, ou touchez « Plein écran », pour remplir l’écran. Là, le petit ⋯ en haut ouvre le menu ; les touchers sur l’image servent au jeu et ne quittent jamais le plein écran. Retour quitte le plein écran.",
+"rp_fit": "Taille de l'image",
+"rp_fit_fit": "Ajuster (image entière)",
+"rp_fit_fill": "Remplir (bords rognés)",
+"rp_fit_stretch": "Étirer",
 };
 
 export default fr;

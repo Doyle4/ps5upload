@@ -6230,6 +6230,10 @@ library_compressed_hint: "Image terkompresi memerlukan ShadowMount+ untuk bermai
 "rp_more": "Lainnya",
 "rp_touch_in_full": "Kontroler di layar ada di Layar penuh, di bawah gambar. Putar ponsel ke samping untuk gambar terbesar.",
 "rp_touch_hint": "Putar ponsel ke samping, atau ketuk “Layar penuh”, untuk memenuhi layar. Di sana, ⋯ kecil di atas membuka menu; ketukan pada gambar adalah input permainan dan tidak pernah keluar dari layar penuh. Kembali keluar dari layar penuh.",
+"rp_fit": "Ukuran gambar",
+"rp_fit_fit": "Pas (seluruh gambar)",
+"rp_fit_fill": "Penuhi (tepi terpotong)",
+"rp_fit_stretch": "Regangkan",
 };
 
 export default id;

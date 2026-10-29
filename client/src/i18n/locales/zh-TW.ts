@@ -6174,6 +6174,10 @@ library_compressed_hint: "壓縮映像需要 ShadowMount+ 才能遊玩。如需�
 "rp_more": "更多",
 "rp_touch_in_full": "螢幕控制器在全螢幕模式下位於畫面下方。將手機橫放可獲得最大的畫面。",
 "rp_touch_hint": "將手機橫放，或點按「全螢幕」，即可填滿螢幕。在全螢幕中，頂端的小 ⋯ 會開啟選單；點按畫面是遊戲操作，絕不會離開全螢幕。返回鍵會離開全螢幕。",
+"rp_fit": "畫面大小",
+"rp_fit_fit": "符合（完整畫面）",
+"rp_fit_fill": "填滿（裁切邊緣）",
+"rp_fit_stretch": "延展",
 };
 
 export default zh_TW;

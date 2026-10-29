@@ -6236,6 +6236,10 @@ library_compressed_hint: "Imagens compactadas precisam do ShadowMount+ para joga
 "rp_more": "Mais",
 "rp_touch_in_full": "O controle na tela fica em Tela cheia, abaixo da imagem. Vire o celular de lado para a maior imagem.",
 "rp_touch_hint": "Vire o celular de lado, ou toque em “Tela cheia”, para preencher a tela. Lá, o pequeno ⋯ no topo abre o menu; toques na imagem são jogadas e nunca saem da tela cheia. Voltar sai da tela cheia.",
+"rp_fit": "Tamanho da imagem",
+"rp_fit_fit": "Ajustar (imagem inteira)",
+"rp_fit_fill": "Preencher (corta as bordas)",
+"rp_fit_stretch": "Esticar",
 };
 
 export default pt_BR;

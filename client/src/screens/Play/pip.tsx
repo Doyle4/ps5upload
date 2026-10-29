@@ -316,7 +316,7 @@ function MiniPlayer({ win, onBack }: { win: Window; onBack: () => void }) {
       className="group relative h-full w-full overflow-hidden bg-black outline-none"
       data-testid="rp-pip-player"
     >
-      <div ref={canvasHost} className="absolute inset-0 flex items-center justify-center" />
+      <div ref={canvasHost} className="pointer-events-none absolute inset-0 z-0 flex items-center justify-center" />
       {waiting && (
         <div className="absolute inset-0 flex items-center justify-center gap-2 bg-black/40 text-sm text-white/85">
           <Spinner size={16} tone="inherit" />
@@ -328,7 +328,7 @@ function MiniPlayer({ win, onBack }: { win: Window; onBack: () => void }) {
         </div>
       )}
       <div
-        className="absolute inset-x-0 bottom-0 flex items-center gap-2 bg-gradient-to-t from-black/75 to-transparent px-2 pb-2 pt-6 opacity-0 transition-opacity duration-200 focus-within:opacity-100 group-hover:opacity-100"
+        className="absolute inset-x-0 bottom-0 z-10 flex items-center gap-2 bg-gradient-to-t from-black/75 to-transparent px-2 pb-2 pt-6 opacity-0 transition-opacity duration-200 focus-within:opacity-100 group-hover:opacity-100"
         onKeyDown={(e) => e.stopPropagation()}
         onKeyUp={(e) => e.stopPropagation()}
       >

@@ -23,6 +23,14 @@ What's new in ps5upload, written for humans.
     the on-screen controller has a size and an opacity setting. Create, the touchpad and Options
     sit in a row at the top, as on the controller.
   - Desktop: double-click full screen works again.
+  - **Android app:** full screen hides the status and navigation bars (swipe from an edge to see
+    them) and holds the phone in landscape; leaving full screen brings both back.
+- **The whole Remote Play picture shows on Windows** (#538). The picture was enlarged from its
+  top-left corner, cutting off the right and bottom, because Windows drew it through a
+  low-latency path that skipped scaling it to the window. It is now drawn like on the other
+  systems and always fits its box. New **Picture size** in Remote Play › Settings: Fit (the whole
+  picture, the default), Fill (no bars, edges cropped) or Stretch. Devices without a hardware
+  video decoder showed no picture at all; they now fall back to the default decoder.
 - **The queue runs the whole queue** (#536). Adding a package used to start only that install and
   leave the games queued before it waiting. Now one setting decides: **Start the queue when you add
   something** (on by default) runs the console's whole queue from the top, in order; turned off,

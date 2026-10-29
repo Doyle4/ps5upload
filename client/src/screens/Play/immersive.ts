@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
-import { isMobile } from "../../lib/platform";
+import { invoke } from "../../lib/invokeLogged";
+import { isAndroid, isMobile } from "../../lib/platform";
 import { isTauriEnv } from "../../lib/tauriEnv";
 
 /**
@@ -11,7 +12,8 @@ import { isTauriEnv } from "../../lib/tauriEnv";
  * system bars on top of that where the platform allows it. iPhone Safari has no element full
  * screen at all, so there the immersive layout is all there is; on Android the system back
  * gesture can drop the browser's full screen at any time, and the layout stays immersive and
- * asks again on the next touch.
+ * asks again on the next touch. The Android app's WebView refuses the page's full screen, so
+ * there the app hides the system bars and turns the screen itself (`android_system_ui`).
  */
 
 /** A media query, live. */
@@ -58,9 +60,45 @@ export function canDocFullscreen(): boolean {
   );
 }
 
-/** The window (desktop app) or the screen (browser, phone app) given to the picture. */
+/** The Android app: the system bars and the orientation are the app's own to set. */
+export function inAndroidApp(): boolean {
+  return isTauriEnv() && isAndroid();
+}
+
+/** What the Android app was last asked for; repeats (a touch on the picture asks again) are
+ *  dropped here instead of crossing to the native side. */
+const androidUi = { immersive: false, landscape: false };
+
+function setAndroidUi(immersive: boolean, landscape: boolean): Promise<void> {
+  if (androidUi.immersive === immersive && androidUi.landscape === landscape)
+    return Promise.resolve();
+  androidUi.immersive = immersive;
+  androidUi.landscape = landscape;
+  return invoke("android_system_ui", { immersive, landscape }).then(
+    () => {},
+    () => {
+      // Not hidden this time: the picture still fills the window; ask again next time.
+      androidUi.immersive = false;
+      androidUi.landscape = false;
+    },
+  );
+}
+
+/** Test hook: forget what the Android app was asked for. */
+export function resetAndroidUiForTest(): void {
+  androidUi.immersive = false;
+  androidUi.landscape = false;
+}
+
+/** The window (desktop app) or the screen (browser, phone app) given to the picture. In the
+ *  Android app this hides the status and navigation bars (a swipe shows them for a moment);
+ *  leaving also gives the orientation back. */
 export async function setWindowFullscreen(on: boolean): Promise<void> {
   try {
+    if (inAndroidApp()) {
+      await setAndroidUi(on, on && androidUi.landscape);
+      return;
+    }
     if (isTauriEnv() && !isMobile()) {
       const { getCurrentWindow } = await import("@tauri-apps/api/window");
       await getCurrentWindow().setFullscreen(on);
@@ -89,6 +127,10 @@ type LockableOrientation = ScreenOrientation & {
 
 /** Turn the picture sideways and keep it there (Android in full screen; not iOS). */
 export function lockLandscape(): void {
+  if (inAndroidApp()) {
+    void setAndroidUi(androidUi.immersive, true);
+    return;
+  }
   try {
     const o = screen.orientation as LockableOrientation | undefined;
     void o?.lock?.("landscape")?.catch?.(() => {});
@@ -98,6 +140,10 @@ export function lockLandscape(): void {
 }
 
 export function unlockOrientation(): void {
+  if (inAndroidApp()) {
+    void setAndroidUi(androidUi.immersive, false);
+    return;
+  }
   try {
     screen.orientation?.unlock?.();
   } catch {

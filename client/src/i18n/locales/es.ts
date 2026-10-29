@@ -6174,6 +6174,10 @@ library_compressed_hint: "Las imágenes comprimidas necesitan ShadowMount+ para 
 "rp_more": "Más",
 "rp_touch_in_full": "El mando en pantalla está en Pantalla completa, debajo de la imagen. Gira el teléfono en horizontal para ver la imagen más grande.",
 "rp_touch_hint": "Gira el teléfono en horizontal o toca «Pantalla completa» para llenar la pantalla. Allí, el pequeño ⋯ de arriba abre el menú; los toques en la imagen son de juego y nunca salen de la pantalla completa. Atrás sale de la pantalla completa.",
+"rp_fit": "Tamaño de la imagen",
+"rp_fit_fit": "Ajustar (imagen completa)",
+"rp_fit_fill": "Rellenar (recorta los bordes)",
+"rp_fit_stretch": "Estirar",
 };
 
 export default es;

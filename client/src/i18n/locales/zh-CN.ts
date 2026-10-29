@@ -6180,6 +6180,10 @@ library_compressed_hint: "压缩镜像需要 ShadowMount+ 才能游玩。如需�
 "rp_more": "更多",
 "rp_touch_in_full": "屏幕手柄在全屏模式下位于画面下方。将手机横过来可获得最大的画面。",
 "rp_touch_hint": "将手机横过来，或点按“全屏”，即可铺满屏幕。在全屏中，顶部的小 ⋯ 会打开菜单；点按画面是游戏操作，永远不会退出全屏。返回键会退出全屏。",
+"rp_fit": "画面大小",
+"rp_fit_fit": "适应（完整画面）",
+"rp_fit_fill": "填充（裁剪边缘）",
+"rp_fit_stretch": "拉伸",
 };
 
 export default zh_CN;

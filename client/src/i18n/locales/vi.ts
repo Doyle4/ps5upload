@@ -6223,6 +6223,10 @@ library_compressed_hint: "Ảnh đĩa nén cần ShadowMount+ để chơi. Để
 "rp_more": "Thêm",
 "rp_touch_in_full": "Tay cầm trên màn hình nằm trong Toàn màn hình, bên dưới hình. Xoay ngang điện thoại để có hình lớn nhất.",
 "rp_touch_hint": "Xoay ngang điện thoại, hoặc chạm “Toàn màn hình”, để lấp đầy màn hình. Ở đó, dấu ⋯ nhỏ ở trên cùng mở menu; chạm vào hình là thao tác chơi và không bao giờ thoát toàn màn hình. Nút Quay lại thoát toàn màn hình.",
+"rp_fit": "Kích thước hình",
+"rp_fit_fit": "Vừa khung (toàn bộ hình)",
+"rp_fit_fill": "Lấp đầy (cắt mép)",
+"rp_fit_stretch": "Kéo giãn",
 };
 
 export default vi;
