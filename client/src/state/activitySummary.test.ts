@@ -86,9 +86,9 @@ describe("labels and routes", () => {
     expect(shortLabel("fpkg-convert")).toBe("Convert");
     expect(routeForTask(task({ kind: "fpkg-convert" }))).toBe("/workshop");
     expect(routeForTask(task({ kind: "pkg-dpi-install" }))).toBe("/send");
-    expect(routeForTask(task({ kind: "library-op" }))).toBe("/games?tab=files");
+    expect(routeForTask(task({ kind: "library-op" }))).toBe("/games");
     expect(routeForTask(task({ kind: "fs-delete" }))).toBe("/files");
-    expect(routeForTask(task({ kind: "backport-patch" }))).toBe("/games?tab=ready");
+    expect(routeForTask(task({ kind: "backport-patch" }))).toBe("/games");
   });
 
   it("never calls a job stale that has no progress to report", () => {

@@ -4,8 +4,8 @@ use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::time::Duration;
 
-use ava1::send::Progress;
-use ps5upload_core::transfer::TransferConfig;
+use ava1::send::{Progress, PHASE_SKIP};
+use ps5upload_core::transfer::{TransferConfig, LIVE_PHASE_SKIPPING};
 
 /// Copies AVA1 progress into `cfg`'s counters every 200 ms until dropped, and once
 /// more on drop (the final values, so a caller asserting progress right after the
@@ -60,8 +60,11 @@ impl Counters {
             let p = &self.p;
             l.bottleneck
                 .store(p.bottleneck.load(Ordering::Relaxed), Ordering::Relaxed);
-            l.phase
-                .store(p.phase.load(Ordering::Relaxed), Ordering::Relaxed);
+            let phase = match p.phase.load(Ordering::Relaxed) {
+                PHASE_SKIP => LIVE_PHASE_SKIPPING,
+                _ => 0,
+            };
+            l.phase.store(phase, Ordering::Relaxed);
             l.skip_done_bytes
                 .store(p.skip_done_bytes.load(Ordering::Relaxed), Ordering::Relaxed);
             l.skip_total_bytes.store(
@@ -130,7 +133,6 @@ pub fn bottleneck_name(b: u8) -> &'static str {
 #[cfg(test)]
 mod live_tests {
     use super::*;
-    use ps5upload_core::transfer::LIVE_PHASE_SKIPPING;
 
     #[tokio::test]
     async fn the_bridge_copies_the_live_notes_while_running_and_once_more_on_drop() {
@@ -140,7 +142,7 @@ mod live_tests {
         cfg.progress_live = Some(live.clone());
         let bridge = Bridge::start(p.clone(), &cfg);
         p.bottleneck.store(crate::gen::BN_DISK, Ordering::Relaxed);
-        p.phase.store(1, Ordering::Relaxed);
+        p.phase.store(PHASE_SKIP, Ordering::Relaxed);
         p.skip_done_bytes.store(5, Ordering::Relaxed);
         p.skip_total_bytes.store(20, Ordering::Relaxed);
         p.settling.store(true, Ordering::Relaxed);

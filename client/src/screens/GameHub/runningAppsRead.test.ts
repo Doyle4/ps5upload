@@ -1,10 +1,9 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 
 import { useConnectionStore } from "../../state/connection";
 import { useRunningAppsStore } from "../../state/runningApps";
-import { captureHostProbe } from "../../lib/staleHostGuard";
 import type { RunningGame } from "../../lib/runningGames";
-import { readRunningApps, refreshRunningApps, type RunningAppsDeps } from "./runningAppsRead";
+import { readRunningApps, type RunningAppsDeps } from "./runningAppsRead";
 
 const ADDR = "192.168.1.50:9200";
 
@@ -49,42 +48,5 @@ describe("readRunningApps", () => {
     );
     expect(r.titleIds).toBeNull();
     expect(r.rows).toEqual([{ app_id: 7, title_id: null, name: null }]);
-  });
-});
-
-describe("refreshRunningApps", () => {
-  it("keeps the shared running set when the title read failed", async () => {
-    const onRows = vi.fn();
-    await refreshRunningApps({
-      addr: ADDR,
-      probe: captureHostProbe(),
-      appdb: null,
-      onRows,
-      deps: deps({ fetchRunningGames: async () => Promise.reject(new Error("down")) }),
-    });
-    expect(onRows).toHaveBeenCalled();
-    expect([...useRunningAppsStore.getState().titleIds]).toEqual(["CUSA00001"]);
-  });
-
-  it("drops a reply that lands after a console switch", async () => {
-    const onRows = vi.fn();
-    const probe = captureHostProbe();
-    const pending = refreshRunningApps({
-      addr: ADDR,
-      probe,
-      appdb: null,
-      onRows,
-      deps: deps(),
-    });
-    useConnectionStore.setState({ host: "10.0.0.2" });
-    await pending;
-    expect(onRows).not.toHaveBeenCalled();
-    expect([...useRunningAppsStore.getState().titleIds]).toEqual(["CUSA00001"]);
-  });
-
-  it("publishes the running set on a good read", async () => {
-    const onRows = vi.fn();
-    await refreshRunningApps({ addr: ADDR, probe: captureHostProbe(), appdb: null, onRows, deps: deps() });
-    expect([...useRunningAppsStore.getState().titleIds]).toEqual(["PPSA01234"]);
   });
 });

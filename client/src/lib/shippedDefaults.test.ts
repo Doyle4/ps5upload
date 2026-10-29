@@ -37,12 +37,12 @@ function read(rel: string): string {
  */
 describe("shipped defaults are usable as-is", () => {
   it("Backport ships the approved SDK target", () => {
-    const src = read("InstalledApps/BackportPanel.tsx");
+    const src = read("Backport/BackportPanel.tsx");
     expect(src).toContain('sdkPatch(titleId, "0x04000031"');
   });
 
   it("Backport keeps the risky libc patch opt-in", () => {
-    const src = read("InstalledApps/BackportPanel.tsx");
+    const src = read("Backport/BackportPanel.tsx");
     expect(src).toContain("useState(false)");
   });
 

@@ -76,6 +76,10 @@ export interface HelperSendDeps<P extends HelperProbe = HelperProbe> {
   onNotPaired: (host: string, error: string) => void;
   /** How many times the helper is asked before giving up (one a second). Default 20. */
   maxAttempts?: number;
+  /** Whether an answering helper is the one just sent. The helper being replaced keeps
+   *  answering for a moment after the send, and counting that as up ended a replace with the
+   *  old version still running. Default: any answer counts. */
+  isNew?: (probe: P) => boolean;
 }
 
 /** The step's messages, bound to the user's language when Send is pressed. */
@@ -136,7 +140,7 @@ export async function runHelperSend<P extends HelperProbe>(
     if (i > 0) await deps.sleep(1000);
     try {
       const probe = await deps.check(host);
-      if (probe.reachable) {
+      if (probe.reachable && (!deps.isNew || deps.isNew(probe))) {
         deps.onUp(host, probe);
         store.put(host, null);
         deps.onOk(host, text.running);

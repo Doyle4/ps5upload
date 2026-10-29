@@ -21,7 +21,7 @@ export default function RemotePlayBanner() {
       className="mx-3 mt-3 rounded-[var(--radius-card)] border border-[color-mix(in_srgb,var(--color-accent)_35%,transparent)] bg-[var(--color-accent-soft,var(--color-surface-raised))] px-4 py-2 md:mx-5"
       data-testid="rp-banner"
     >
-      <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         {phase === "playing" ? (
           <MonitorPlay size={18} className="shrink-0 text-[var(--color-accent)]" />
         ) : (

@@ -28,7 +28,8 @@ for arg in "$@"; do
 done
 
 echo "==> Building engine release binary..."
-cargo build --release -p ps5upload-engine --manifest-path "${REPO_DIR}/engine/Cargo.toml"
+# The RAR helper (ps5upload-unrar) is found next to the engine binary.
+cargo build --release -p ps5upload-engine -p ps5upload-unrar --manifest-path "${REPO_DIR}/engine/Cargo.toml"
 ENGINE_BIN="${REPO_DIR}/engine/target/release/ps5upload-engine"
 
 echo "==> Installing launchd plist..."

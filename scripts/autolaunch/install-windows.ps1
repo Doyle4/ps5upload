@@ -28,7 +28,7 @@ $TaskName   = "ps5upload-engine"
 
 Write-Host "==> Building engine release binary..."
 Push-Location (Join-Path $RepoDir "engine")
-cargo build --release -p ps5upload-engine
+cargo build --release -p ps5upload-engine -p ps5upload-unrar  # the RAR helper runs next to the engine
 Pop-Location
 
 $EngineBin = Join-Path $RepoDir "engine\target\release\ps5upload-engine.exe"

@@ -12,8 +12,13 @@
  */
 import { formatDate } from "../../lib/formatDate";
 import { useGameLaunch } from "../../lib/useGameLaunch";
-import { useEffect, useMemo, useState } from "react";
-import { useParams, useNavigate, useSearchParams } from "react-router";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  useLocation,
+  useParams,
+  useNavigate,
+  useSearchParams,
+} from "react-router";
 import {
   ArrowLeft,
   Gamepad2,
@@ -39,7 +44,12 @@ import {
 } from "../../components";
 import { GameIcon } from "../../components/GameIcon";
 import { useTr } from "../../state/lang";
-import { useLibraryStore, libraryForHost } from "../../state/library";
+import {
+  useLibraryStore,
+  libraryForHost,
+  refreshLibrary,
+} from "../../state/library";
+import { useLibraryScan } from "../../lib/useLibraryScan";
 import { shownGamePath } from "./gamePath";
 import { useConnectionStore } from "../../state/connection";
 import { usePlayTimeStore } from "../../state/playTime";
@@ -70,6 +80,10 @@ import { CollectionCover } from "../Collection/CollectionCover";
 import { CoverFrame, PlatformTag } from "../../components/GameIconFrame";
 import { ConsolesCard } from "./ConsolesCard";
 import { DrivesCard } from "./DrivesCard";
+import { OnThisPs5Card } from "./OnThisPs5Card";
+import { Ps5DrivesCard } from "./Ps5DrivesCard";
+import { installedKindOf } from "./installedKind";
+import { useSmpState } from "./SmpNeeded";
 import { ConvertBuildsCard, NextStep } from "./NextStep";
 import { TraceCard } from "./TraceCard";
 import {
@@ -121,8 +135,12 @@ export default function GameHubScreen() {
     else navigate("/games");
   };
 
-  // Fetch installed apps when connected, so we can resolve title_id → name
-  // for games not in the library scan (e.g. system apps).
+  // The connected console's installed titles: this game's "On this PS5" card, the name of a
+  // game the drives scan doesn't have, and what a backport's library scan may walk.
+  const [installedTick, setInstalledTick] = useState(0);
+  useEffect(() => {
+    setInstalledTitles([]);
+  }, [host]);
   useEffect(() => {
     if (!host?.trim() || payloadStatus !== "up") return;
     let cancelled = false;
@@ -136,7 +154,25 @@ export default function GameHubScreen() {
     return () => {
       cancelled = true;
     };
-  }, [host, payloadStatus]);
+  }, [host, payloadStatus, installedTick]);
+  // The PS5's drives: this game's folders and images, read here when the grid hasn't lately.
+  useLibraryScan();
+  const installedHere = useMemo(
+    () =>
+      title_id
+        ? installedTitles.find(
+            (t) => t.titleId.toUpperCase() === title_id.toUpperCase(),
+          )
+        : undefined,
+    [installedTitles, title_id],
+  );
+  // A game from a disk image starts only while ShadowMount+ runs: Play waits for it.
+  const disc = !!installedHere && installedKindOf(installedHere) === "disc";
+  const smp = useSmpState(disc ? (host ?? "") : "");
+  // The Collection's "Backport…" opens the panel on arrival.
+  const location = useLocation();
+  const handedBackport =
+    (location.state as { backport?: boolean } | null)?.backport === true;
 
   // Determine the active tab from URL ?tab=
   const tabParam = searchParams.get("tab");
@@ -229,6 +265,15 @@ export default function GameHubScreen() {
     title_id
       ? launcher.stop({ titleId: title_id, titleName: game?.name ?? title_id })
       : Promise.resolve();
+  // After an uninstall: what the console has, its row, and its drives, read again.
+  const { refresh: refreshConsole } = gv;
+  const onConsoleChanged = useCallback(() => {
+    setInstalledTick((n) => n + 1);
+    if (connectedHost) {
+      void refreshConsole(connectedHost).catch(() => {});
+      void refreshLibrary(connectedHost);
+    }
+  }, [connectedHost, refreshConsole]);
 
   if (!title_id) {
     return (
@@ -239,7 +284,7 @@ export default function GameHubScreen() {
           message={tr(
             "game_hub_not_found_desc",
             undefined,
-            "This title ID does not match any installed or library game.",
+            "This title ID does not match any game on this computer, a saved server or a PS5.",
           )}
         />
       </div>
@@ -281,7 +326,7 @@ export default function GameHubScreen() {
               ? tr(
                   "game_hub_not_found_desc",
                   undefined,
-                  "This title ID does not match any installed or library game.",
+                  "This title ID does not match any game on this computer, a saved server or a PS5.",
                 )
               : tr("v5_home_disconnected", undefined, "Not connected")
           }
@@ -426,61 +471,93 @@ export default function GameHubScreen() {
       />
 
       {activeTab === "overview" && (
-        <div className="mb-4 grid gap-4">
-          <NextStep
-            view={gv.view}
-            connectedHost={connectedHost}
-            consoleName={names[connectedHost] ?? connectedHost}
-            consoles={profiles.length}
-            onSend={() => setSendHost(connectedHost || null)}
-          />
-          <ConsolesCard
-            titleId={game.titleId}
-            consoles={profiles.map((p) => ({
-              host: hostOf(p.host),
-              name: p.name || hostOf(p.host),
-            }))}
-            connected={connectedHost}
-            view={gv.view}
-            refresh={gv.refresh}
-            onPlay={() => void handleLaunch()}
-            launching={launching}
-            running={running}
-            onStop={() => void handleStop()}
-            stopping={stopping}
-            sendHost={sendHost}
-            setSendHost={setSendHost}
-          />
-          <DrivesCard
-            view={gv.view}
-            connectedHost={connectedHost}
-            onSend={() => setSendHost(connectedHost || null)}
-            onChanged={() => void gv.reload()}
-          />
-          <ConvertBuildsCard view={gv.view} connectedHost={connectedHost} />
-          {/* Measuring needs the game as a folder on the connected console (an image is
-              read-only, and the journal is written into the game's folder). */}
-          {(() => {
-            const folder =
-              connectedEntry?.installed && connectedEntry.registered_from
-                ? connectedEntry.registered_from
-                : game.source === "installed" && game.path
-                  ? game.path
-                  : null;
-            const isFolder =
-              !!folder &&
-              /^\//.test(folder) &&
-              !/\.(exfat|ffpkg|ffpfs|ffpfsc)$/i.test(folder);
-            return (
-              <TraceCard
-                titleId={game.titleId}
-                host={connectedHost && isFolder ? connectedHost : null}
-                gamePath={isFolder ? folder : null}
+        // One column on a phone; on a wide window the console side (its rows, what the
+        // connected PS5 has, its drives) beside this computer's side (copies, builds, traces).
+        <div className="mb-4 grid gap-4 xl:grid-cols-2 xl:items-start">
+          <div className="xl:col-span-2 empty:hidden">
+            <NextStep
+              view={gv.view}
+              connectedHost={connectedHost}
+              consoleName={names[connectedHost] ?? connectedHost}
+              consoles={profiles.length}
+              onSend={() => setSendHost(connectedHost || null)}
+            />
+          </div>
+          <div className="grid min-w-0 gap-4">
+            <ConsolesCard
+              titleId={game.titleId}
+              consoles={profiles.map((p) => ({
+                host: hostOf(p.host),
+                name: p.name || hostOf(p.host),
+              }))}
+              connected={connectedHost}
+              view={gv.view}
+              refresh={gv.refresh}
+              onPlay={() => void handleLaunch()}
+              launching={launching}
+              running={running}
+              onStop={() => void handleStop()}
+              stopping={stopping}
+              sendHost={sendHost}
+              setSendHost={setSendHost}
+              playBlocked={
+                disc && smp.absent
+                  ? tr(
+                      "installed_play_needs_smp",
+                      undefined,
+                      "Needs ShadowMount+ running to mount and launch",
+                    )
+                  : undefined
+              }
+            />
+            {connectedHost && installedHere && (
+              <OnThisPs5Card
+                host={connectedHost}
                 consoleName={names[connectedHost] ?? connectedHost}
+                title={installedHere}
+                allTitles={installedTitles}
                 running={running}
+                openBackport={handedBackport}
+                onLaunch={() => void handleLaunch()}
+                onChanged={onConsoleChanged}
               />
-            );
-          })()}
+            )}
+            {connectedHost && (
+              <Ps5DrivesCard host={connectedHost} titleId={game.titleId} />
+            )}
+          </div>
+          <div className="grid min-w-0 gap-4">
+            <DrivesCard
+              view={gv.view}
+              connectedHost={connectedHost}
+              onSend={() => setSendHost(connectedHost || null)}
+              onChanged={() => void gv.reload()}
+            />
+            <ConvertBuildsCard view={gv.view} connectedHost={connectedHost} />
+            {/* Measuring needs the game as a folder on the connected console (an image is
+                read-only, and the journal is written into the game's folder). */}
+            {(() => {
+              const folder =
+                connectedEntry?.installed && connectedEntry.registered_from
+                  ? connectedEntry.registered_from
+                  : game.source === "installed" && game.path
+                    ? game.path
+                    : null;
+              const isFolder =
+                !!folder &&
+                /^\//.test(folder) &&
+                !/\.(exfat|ffpkg|ffpfs|ffpfsc)$/i.test(folder);
+              return (
+                <TraceCard
+                  titleId={game.titleId}
+                  host={connectedHost && isFolder ? connectedHost : null}
+                  gamePath={isFolder ? folder : null}
+                  consoleName={names[connectedHost] ?? connectedHost}
+                  running={running}
+                />
+              );
+            })()}
+          </div>
         </div>
       )}
 

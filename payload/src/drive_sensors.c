@@ -5,6 +5,9 @@
  * SENSE (CAM pass-through, page 0x0D), and collects capacity, ident,
  * and filesystem usage. Ported from elf-arsenal's drive_sensors.c,
  * adapted to emit legacy-compatible JSON instead of an HTTP response.
+ * elf-arsenal (https://git.etawen.dev/soniciso/elf-arsenal, soniciso and
+ * contributors) is GPL-3.0-or-later per its README; this file is part of
+ * ps5upload, GPL-3.0-or-later.
  */
 
 #include <stdint.h>

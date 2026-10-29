@@ -1,6 +1,13 @@
 import { create } from "zustand";
-import type { LibraryEntry, Volume } from "../api/ps5";
-import { hostOf } from "../lib/addr";
+import {
+  appsInstalled,
+  fetchVolumes,
+  scanLibrary,
+  type LibraryEntry,
+  type Volume,
+} from "../api/ps5";
+import { hostOf, transferAddr } from "../lib/addr";
+import { imageBasename, smpMountImageBasename } from "../lib/mountPaths";
 
 /** What the console knows about a title we registered from a given source
  *  path. A `.exfat`/`.ffpkg` row has no readable `sce_sys/` of its own (the
@@ -211,3 +218,131 @@ export const useLibraryStore = create<LibraryStore>((set) => {
       }),
   };
 });
+
+/** How old a console's scan may be before a screen that shows it scans again. */
+export const LIBRARY_STALE_MS = 30_000;
+
+/** One scan per console at a time: a second caller shares the first one's. */
+const inflight = new Map<string, Promise<void>>();
+
+/** The console's scan is missing or older than LIBRARY_STALE_MS. */
+export function libraryIsStale(host: string, now = Date.now()): boolean {
+  const at = libraryForHost(useLibraryStore.getState(), host).lastRefreshedAt;
+  return at === null || now - at > LIBRARY_STALE_MS;
+}
+
+/**
+ * Scan one console's drives for game folders and disk images, and commit the result to its
+ * slot (the Games grid, every game page and the not-linked list read it).
+ *
+ * Alongside the walk it reads the volumes (the Move dialog's destinations and the image →
+ * mount map) and the registered titles (what puts a name on an image row, and which folders
+ * are second copies of a package install). Both are non-fatal: without them the rows fall
+ * back to file names and the Move dialog offers no destinations.
+ *
+ * The result is written to the slot of the console that was scanned, never "the current one",
+ * so a scan that lands after a console switch cannot paint one PS5's files under another's name.
+ */
+export function refreshLibrary(host: string): Promise<void> {
+  const key = keyOf(host);
+  if (!key) return Promise.resolve();
+  const running = inflight.get(key);
+  if (running) return running;
+  const store = useLibraryStore.getState();
+  const run = (async () => {
+    store.setLoading(host, true);
+    store.setError(host, null);
+    try {
+      const addr = transferAddr(host);
+      const [result, volumes, registered] = await Promise.all([
+        scanLibrary(addr),
+        fetchVolumes(addr).catch((e) => {
+          console.warn(
+            "[library] volume probe failed; Move modal will offer no destinations:",
+            e,
+          );
+          return [] as Volume[];
+        }),
+        appsInstalled(addr).catch((e) => {
+          console.warn(
+            "[library] installed-apps probe failed; disk-image rows will show filenames only:",
+            e,
+          );
+          return { titles: [], registeredUnavailable: true, incomplete: true };
+        }),
+      ]);
+      // Two ways a registered title points back at a row:
+      //   1. its source IS the row's path: folder games, and any image ps5upload mounted itself.
+      //   2. its source is a ShadowMount+ mount point, which encodes only the image's basename.
+      // Both go into one map; images look themselves up under both keys.
+      const registeredBySource = new Map<string, RegisteredTitle>();
+      const titles = registered.titles ?? [];
+      const pkgInstalled = new Set(
+        titles
+          .filter((t) => t.origin === "pkg")
+          .map((t) => t.titleId.toUpperCase()),
+      );
+      for (const t of titles) {
+        // Only registered titles carry a source path; a .pkg install has none.
+        if (!t.source) continue;
+        const title = { titleId: t.titleId, titleName: t.titleName };
+        registeredBySource.set(t.source, title);
+        const smpBasename = smpMountImageBasename(t.source);
+        if (smpBasename) registeredBySource.set(smpBasename, title);
+      }
+      // image_path → mount_point, for any mount point (the payload's tracker still decides
+      // what Unmount may touch).
+      const mountMap = new Map<string, string>();
+      for (const v of volumes) {
+        if (v.source_image) mountMap.set(v.source_image, v.path);
+      }
+      // Move destinations: real attached drives only.
+      const writable = volumes.filter((v) => v.writable && !v.is_placeholder);
+      useLibraryStore
+        .getState()
+        .setData(host, result, mountMap, writable, registeredBySource, pkgInstalled);
+    } catch (e) {
+      useLibraryStore
+        .getState()
+        .setError(host, e instanceof Error ? e.message : String(e));
+    } finally {
+      useLibraryStore.getState().setLoading(host, false);
+      inflight.delete(key);
+    }
+  })();
+  inflight.set(key, run);
+  return run;
+}
+
+/** The title ids a console's drives hold, upper case: game folders by their own id, images by
+ *  the title registered from them. */
+export function driveTitleIds(slot: LibrarySlot): Set<string> {
+  const out = new Set<string>();
+  for (const e of slot.entries ?? []) {
+    const id = entryTitleId(e, slot);
+    if (id) out.add(id.toUpperCase());
+  }
+  return out;
+}
+
+/** The title a drive entry belongs to, or null when nothing links it to one: a folder's own
+ *  id; for an image, the title registered from it (by its path, or the basename ShadowMount+
+ *  names its mount after), else the game folder inside it while it is mounted. */
+export function entryTitleId(
+  e: LibraryEntry,
+  slot: Pick<LibrarySlot, "registeredBySource" | "entries" | "mountMap" | "pendingMounts">,
+): string | null {
+  if (e.titleId) return e.titleId;
+  if (e.kind !== "image") return null;
+  const registered =
+    slot.registeredBySource.get(e.path)?.titleId ??
+    slot.registeredBySource.get(imageBasename(e.path))?.titleId;
+  if (registered) return registered;
+  const mount = slot.mountMap.get(e.path) ?? slot.pendingMounts.get(e.path);
+  if (!mount) return null;
+  const root = mount.endsWith("/") ? mount : mount + "/";
+  const inner = (slot.entries ?? []).find(
+    (x) => x.kind === "game" && !!x.titleId && (x.path === mount || x.path.startsWith(root)),
+  );
+  return inner?.titleId ?? null;
+}

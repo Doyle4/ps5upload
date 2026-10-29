@@ -106,7 +106,7 @@ export default function MoreScreen() {
   if (editingPins && pinnedItems.length === 0) setEditingPins(false);
   const searching = query.trim().length > 0;
   return (
-    <div className="app-page max-w-4xl! pb-6!">
+    <div className="app-page pb-6!">
       <PageHeader
         icon={LayoutGrid}
         title={tr("more_title", undefined, "More")}

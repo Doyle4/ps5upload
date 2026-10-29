@@ -8,6 +8,7 @@ members = [
   "crates/ps5upload-pkg",
   "crates/ps5upload-fpkg",
   "crates/ps5upload-tests",
+  "crates/ps5upload-unrar",
   "crates/ps5-dump-forge-ufs2",
   "crates/ps5-dump-forge-pfs",
 ]
@@ -16,12 +17,15 @@ resolver = "2"
 [workspace.package]
 edition = "2021"
 license = "GPL-3.0-or-later"
-version = "8.10.0"
+version = "9.0.0"
 
 [workspace.dependencies]
-# AVA1 (github.com/phantomptr/ava1), checked out as the third_party/ava1 submodule: the payload
-# builds the C side from the same checkout, so the two can never be different versions.
-ava1 = { path = "../third_party/ava1/crates/ava1", version = "1.0.0" }
+# AVA1 (github.com/phantomptr/ava1): the Rust crate from crates.io; the payload builds the C side
+# from the third_party/ava1 submodule. Move both together: this version is the submodule's tag
+# (`make ava1-version-check` fails when they differ). ava1-chaos (a fault-injecting TCP proxy for
+# the lab and tests) is not published and does not depend on ava1, so the path dep adds no
+# second ava1 to the graph.
+ava1 = "=1.0.3"
 ava1-chaos = { path = "../third_party/ava1/crates/ava1-chaos" }
 anyhow = "1.0"
 # "multipart" is for the backport library import (fakelibs_api.rs): users pick
@@ -65,6 +69,9 @@ opt-level = 2
 debug = false
 
 # Vendored `unrar` with a one-line bounds fix in the volume-change callback.
+# Only the separate `ps5upload-unrar` program links it (crates/ps5upload-unrar);
+# the engine starts that program and never links UnRAR itself
+# (LICENSES/UnRAR-exception.md).
 # Upstream 0.5.8 reads ~8 KB out of a much smaller buffer on every volume
 # transition, which aborts debug builds on any multi-part .rar and is a
 # latent out-of-bounds read in release. 0.5.8 is the latest release, so

@@ -1,3 +1,7 @@
+/* The account-id lookup below is ported from elf-arsenal's remoteplay.c
+ * (https://git.etawen.dev/soniciso/elf-arsenal, soniciso and contributors;
+ * GPL-3.0-or-later per its README). This file is part of ps5upload,
+ * GPL-3.0-or-later. */
 #include "remoteplay.h"
 
 #include <ps5/kernel.h>

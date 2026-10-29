@@ -69,9 +69,9 @@ export function DrivesCard({
             <HardDrive size={15} aria-hidden />
           </span>
           {tr(
-            "game_drives_title",
+            "game_computer_title",
             { n: copies.length },
-            "On your drives ({n})",
+            "On this computer ({n})",
           )}
         </h2>
         <span className="flex flex-wrap items-center gap-2">

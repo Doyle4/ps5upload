@@ -83,7 +83,8 @@ export default function AboutScreen({ embedded = false }: { embedded?: boolean }
           <PrimaryLink
             icon={<GithubIcon />}
             label="GitHub"
-            onClick={() => openExternal(URLS.github)}
+            // The source of exactly this version (the AGPL parts' source offer, too).
+            onClick={() => openExternal(version ? `${URLS.github}/tree/v${version}` : URLS.github)}
           />
           <PrimaryLink
             icon={<XIcon />}

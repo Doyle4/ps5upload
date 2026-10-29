@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Ported from chiaki-ng: Copyright (C) the Chiaki and chiaki-ng authors. Rust port for
+// ps5upload. Licensed under the GNU AGPL v3.0 (LICENSES/AGPL-3.0.txt).
 //! Controller input: what the console reads as "the pad".
 //!
 //! Ported from chiaki-ng (AGPL-3.0, `lib/src/feedback.c`,

@@ -10,14 +10,18 @@ finds a word or an error code (for example `0x80B2116F`) in any answer.
 
 ## What ps5upload does (and doesn't)
 
-**Q: Where did a screen go? (8.5.0)**
-The sidebar is shorter; old links still land. **Collection** is **Games → Everything**, Game
-Activity's play time is in **Games**, **Search**, **Disk usage** ("What takes space?") and
-**Console snapshots** are in **Files**, **Processes & ports** joined **Payloads & processes**,
-the **Firmware spoof check** is a card in **Console**, **Shell** is under Diagnostics,
-**Servers** is **Network shares**, **Tasks**, **Logs** and the **Audit log** are **Activity &
-logs**, and **FAQ**, **About** and **What's new** are **Help**. A pinned screen shows only under
-Pinned.
+**Q: Where did a screen go?**
+The sidebar is shorter; old links still land. **Collection**, **Installed games** and **Game
+files** are all **Games** now: one grid with every game once, and each game's page holds
+everything you can do with it. **Upload** and **Install Package** are **Send to PS5**, **Convert
+Games** is **Workshop**, **Network shares** and **Mesh Drive** are **Shared Folders**,
+**Profile** and the Remote Play PIN screen are **Accounts**, and **Play** is **Remote Play**.
+Game Activity's play time is in **Games**; **Search**, **Disk usage** ("What takes space?") and
+**Console snapshots** are in **Files**; processes and ports are the **Running** tab of
+**Payloads**; the **Firmware spoof check** is a card in **Console**; **Devices** and **Health
+Check** are tabs of **Connection**; **Shell** is under Diagnostics; **Tasks**, **Logs** and the
+**Audit log** are **Activity & Logs**; and **FAQ**, **About** and **What's new** are **Help**. A
+pinned screen shows only under Pinned.
 
 **Q: What is ps5upload?**
 An app (desktop, Android, or a self-hosted web UI) for moving games, apps and homebrew to a
@@ -31,12 +35,16 @@ the app over **AVA1**, one encrypted connection on port 9120.
 - **Install packages**: PS4 `.pkg` and PS5 fake packages (base, update, DLC) through ps5upload's
   own on-console installer, from your computer (**Stream & install** or **Upload & install**),
   a NAS, a USB drive or a link.
-- **Convert Games**: build an installable package from a decrypted game folder or an image, or
-  write a game folder as a game image (`.ffpkg`, `.exfat` or `.ffpfs`, optionally compressed to
-  the smaller `.ffpfsc`) that ShadowMount+ mounts.
+- **Convert games** (Workshop): build an installable package from a decrypted game folder or an
+  image, or write a game folder as a game image (`.ffpkg`, `.exfat` or `.ffpfs`, optionally
+  compressed to the smaller `.ffpfsc`) that ShadowMount+ mounts.
 - **Health check and speed test**: checks the PS5, the app and the network between them, says
   what to fix, and measures how fast files move.
-- **Mount** `.exfat` / `.ffpkg` images, **register and launch** games, browse and manage files.
+- **Games**: every game once in one grid (on this computer, installed, on the PS5's drives);
+  each game's page mounts images, adds games to the home screen, plays, closes and uninstalls
+  them. Browse and manage files.
+- **Remote Play**: stream the PS5 into the app and play it with a controller, the keyboard or
+  touch.
 - **Cheats, fan curve, hardware view, power and wake, payload sender and backport tools.**
 
 **Q: What does it NOT do?**
@@ -91,10 +99,11 @@ running.
    something already loads kstuff, send only ps5upload.
 5. Wait for the `helper` dot to turn green. (If you turned on **Ask before a new device can
    connect** in Devices, a new device types the 6-digit code the console shows, once.)
-6. Open **Upload**, choose your game, pick the drive and click **Start**. The free-space check
-   runs before anything is sent.
-7. Open **Games → Game files** to see it. For a `.pkg`, use **Install Package → Stream &
-   install**. If it will not launch, see "My uploaded game won't launch".
+6. Open **Send to PS5**, drop or choose your game, pick the drive and click **Start**. The
+   free-space check runs before anything is sent.
+7. Open **Games** to see it, and open the game for its actions (**On the PS5's drives** on its
+   page). For a `.pkg`, use **Send to PS5 → Install a package**. If it will not launch, see "My
+   uploaded game won't launch".
 
 ---
 
@@ -119,7 +128,7 @@ each time the console starts; after rest mode only the helper is sent again. Off
 
 **Q: How do I send a different payload (kstuff, kernel patches,
 plugin scripts, etc)?**
-Open **Payloads & processes → Send payload** (the Connection screen has an **Open Send
+Open **Payloads → Send payload** (the Connection screen has an **Open Send
 payload** button that goes there; Connection itself only sends the PS5Upload helper), click
 **Choose**, pick any `.elf`,
 `.bin`, `.js`, `.lua`, or `.jar` file, set the port to whatever your
@@ -136,8 +145,8 @@ load; send it again.
 
 **Q: Can I use a helper that is already running (loaded by another tool)?**
 Yes. Open **Connection** while it is up and the app skips the send step and connects. If the
-helper is older than this app, the
-app shows **Update helper**, which replaces it in one click.
+helper is older than this app, a banner says so: its **Send helper** sends this app's helper
+right there and waits until the new version answers.
 
 **Q: Can multiple computers connect to the same PS5 at the same time?**
 Yes: computers, phones and Docker, up to 16 at once, with no pairing code (8.0.0). **Devices**
@@ -158,14 +167,14 @@ straight to the console is a Public network.
 | 8084 TCP | PS5 | Payload Manager, when there is no ELF loader |
 | 9180 TCP | PS5 | PS5Upload Minion, the page the helper serves to the PS5's browser (and to your phone or PC once you allow other devices) |
 | 19113 TCP | this computer | The engine: the PS5 fetches packages from it during Stream & install |
-| 9295, 9302 | PS5 | Remote Play pairing and wake |
+| 9295–9304 TCP/UDP | PS5 | Remote Play: pairing, wake and streaming |
 
-To see every port in use on your PS5, and which payload usually sits on it, open **Payloads &
-processes → Ports**.
+To see every port in use on your PS5, and which payload usually sits on it, open **Payloads →
+Running**.
 
-Every connection is encrypted, and the console remembers each device the first time it
-connects. A 6-digit code only appears when **Ask before a new device can connect** is on in
-**Devices**. If a different PS5 answers at an address you reuse, forget the old one and connect
+Every connection is encrypted, and the console remembers each device the first time it connects.
+A 6-digit code only appears when **Ask before a new device can connect** is on in **Connection →
+Devices**. If a different PS5 answers at an address you reuse, forget the old one and connect
 again.
 
 **Q: The web UI says it isn't paired, and no code shows on the console.**
@@ -175,8 +184,9 @@ pair**), or press **Send helper** in the web UI: the helper it sends lets it in.
 than 8.0.0 still asks for pairing; sending the 8.0.0 helper ends that.
 
 **Q: I updated to 6.0 and the app says the helper is old.**
-6.0 and v5.x cannot talk to each other. Click **Update helper** on the Connection screen (or
-reload `ps5upload.elf`) and the app replaces it. If the old helper will not exit, restart the
+6.0 and v5.x cannot talk to each other. Press **Send helper** in the banner that says the helper
+is older (or on the Connection screen) and the app replaces it, waiting until the new version
+answers. If the old helper will not exit, restart the
 console and try again.
 
 **Q: How do I cap the upload speed?**
@@ -275,10 +285,11 @@ phone or another computer?" below walks through it from start to finish.
 - **Upload works**, but the file picker browses the **engine's** disk, not your browser machine's.
   Mount your games into the container (`-v /host/games:/pkgs:ro`) and set
   `PS5UPLOAD_BROWSE_ROOTS=/pkgs` (comma-separated for several) so the picker opens there.
-  **Upload → From this device** stages files from your browser machine on the engine, then
-  opens the normal review before sending to the PS5. Keep the tab open until staging finishes.
-  This needs free space on the engine; temporary uploads expire after seven days.
-  **Install Package → From this device** stages packages for immediate installation.
+  In **Send to PS5**, **From this device…** stages files from your browser machine on the
+  engine, then opens the normal review before sending to the PS5. Keep the tab open until
+  staging finishes. This needs free space on the engine; temporary uploads expire after seven
+  days. For a package, **Stream & install → From this device** stages it for immediate
+  installation.
 - An upload keeps running when you close the tab; reopening shows it. Only one tab runs the queue.
 - **Payloads → Send payload** accepts an ELF from your browser machine and forwards it through
   the engine to the selected console's loader (9021 by default). Sending bytes does not confirm
@@ -332,7 +343,7 @@ volumes:
   install hands the PS5 an address inside Docker that it cannot reach.
 - `/pkgs` is what the web UI's file picker shows: change `/Users/you/PS5` to the folder that holds
   your `.pkg` files and games. The picker browses this computer, not your phone. To send a package
-  that is on the phone itself, use **Install Package → From this device**.
+  that is on the phone itself, use **Send to PS5 → Stream & install → From this device**.
 - `ps5upload-data` holds the engine's pairing key and saved settings. Don't delete it, or the PS5
   sees a new device and you pair again.
 - Quit the PS5Upload desktop app on this computer first: it also uses port 19113.
@@ -687,12 +698,13 @@ files** for PS5Upload, come back and tap **Retry**. You can also grant it in **A
 → Apps → PS5Upload → Permissions → All files access**.
 
 **Q: How do I upload a big game from my phone?**
-**Upload → Choose folder** (or **Choose file** for a `.zip`), pick it in the in-app browser,
+**Send to PS5 → Choose folder** (or **Choose file** for a `.zip`), pick it in the in-app browser,
 choose the destination and **Start**. The file is read in place, nothing is copied first.
 
 **Q: The `helper` dot at the bottom of the app is red.**
 The dot is the PS5-side helper, not the app. Red means it is not running (or is an older version
-that needs **Update helper**). Run **Set up your PS5** or send it from the **Payloads** tab. The
+that needs **Send helper**). Run **Set up your PS5**, or press **Send helper** on the Connection
+screen or in the banner. The
 `engine` dot is the app's own service and is green whenever the app is open.
 
 ---
@@ -1019,18 +1031,18 @@ write: we measured about 16–20% of the bytes written on both of our consoles (
 is exactly its own size. Deleting it gives back the file and the reserve within seconds. An
 **extended storage** drive (M.2 or USB formatted by the PS5) has no such reserve: a file there
 costs exactly its size. ps5upload's own extras are small: a game image carries 64–512 MiB of
-spare space, and a transfer that failed can leave a partial file, which **Home → Health check →
-Clean up** removes. **Volumes** shows what is likely to fit after the reserve, and
+spare space, and a transfer that failed can leave a partial file, which **Connection →
+Health Check** offers to delete. **Volumes** shows what is likely to fit after the reserve, and
 **Kept by ps5upload** lists everything the app itself wrote.
 
 **Q: Can I send a game folder as one compressed image instead of thousands of files?**
-Yes. In **Upload**, pick the game folder: under its options, **Or send it as one game image**
+Yes. In **Send to PS5**, pick the game folder: under its options, **Or send it as one game image**
 builds a compressed `.ffpfsc` (or a `.ffpkg` / `.exfat`) on this computer, checks it, and then
-puts it in the Upload queue by itself, into the destination folder you chose (`homebrew`, which
+puts it in the upload queue by itself, into the destination folder you chose (`homebrew`, which
 ShadowMount+ watches, by default). One file is much quicker to send than many small ones, and
 compressed it takes less room on the PS5. It needs free space on this computer for the image
 while it is built; **Delete the image from this computer once it is on the PS5** cleans that up.
-In **Convert Games**, a finished image also has **Upload to PS5**.
+In **Workshop**, a finished image also has **Upload to PS5**.
 
 **Q: Can I wake the PS5 from standby, or turn it off, from the app?**
 Yes. The Connection screen has **Rest mode**, **Reboot**, and **Shut down**
@@ -1046,14 +1058,12 @@ fails silently:
   Features Available in Rest Mode
 - **Enable Turning On PS5 from Network** — same menu
 
-Wake needs a one-time **wake code** (your console's Remote Play registration
-key as a number). Enter it once in the wake-setup panel and it's remembered.
-
-A plain wake powers the console on to the *user-select* screen. If you also
-provide the console's two Remote Play **session keys** (registration key +
-RP-Key, in the panel's advanced section), the button becomes **Wake & sign
-in** and brings the console up straight on your user's home screen — the same
-thing the official Remote Play app does. (If your user has a login passcode,
+Wake needs the app paired with the console once: **Set up wake & sign-in** on the Connection
+screen turns on Remote Play, reads your account from the console and registers, with the console
+awake. After that the button is **Wake & sign in** and brings the console up straight on your
+user's home screen — the same thing the official Remote Play app does. Only if a console refuses
+to pair, **Enter keys manually** takes a **wake code** (wakes to the user-select screen) and the
+two Remote Play **session keys** (also signs your user in). (If your user has a login passcode,
 the console will stop to ask for it, so sign-in needs a passcode-free user.)
 
 **Q: Do I still have to "Register" a game after uploading it?**
@@ -1061,8 +1071,9 @@ Not anymore. When you upload a game folder, **"Add to PS5 home screen
 when done"** is on by default — the game is registered automatically the
 moment the transfer finishes (also from the upload queue), ready to
 launch. If that step ever fails the upload itself is unaffected; open
-**Games → Game files** and choose **"Add to home screen"** on the row (this is
-the action formerly called "Register").
+the game in **Games** and, under **On the PS5's drives**, choose **Add to home screen** in the
+row's **⋯** menu (the action formerly called "Register"). A folder no game links to yet is in
+the list under the Games grid, with the same menu.
 
 **Q: Where do uploads go by default?**
 Under `/data/homebrew/` unless you pick a different drive in the Upload
@@ -1086,7 +1097,7 @@ of it back.
 
 So on internal storage, plan for a game to need about 1.2 times its size. **Volumes** shows this
 as **safe for new uploads**, which is what is likely to fit, not the raw free number. When an
-upload is over that but its bytes would still fit, the Upload screen says it **may not fit** and
+upload is over that but its bytes would still fit, **Send to PS5** says it **may not fit** and
 lets you go ahead; it is an estimate, so it never blocks you. If the console does run out part-way,
 the partial upload is kept: free some space and press Resume. An M.2, extended or USB drive does
 not have this overhead.
@@ -1112,14 +1123,14 @@ The app asks: **Override**, **Resume**, or **Cancel**.
 Set **Settings → Always overwrite** if you want to skip the prompt.
 
 **Q: Can I upload a disk image?**
-Yes. Drop any `.exfat` or `.ffpkg` image. After upload, open
-**Games → Game files** and hit **Mount** on the row — the payload attaches
-the image via `/dev/lvd*` and mounts it at `/mnt/ps5upload/<name>/`.
-The Volumes tab shows the result with a progress bar and Unmount
-button.
+Yes. Drop any `.exfat` or `.ffpkg` image. After upload, open the game in **Games** and press
+**Mount** on the image under **On the PS5's drives** (an image no game links to yet is in the
+list under the Games grid). The payload attaches the image via `/dev/lvd*` and mounts it at
+`/mnt/ps5upload/<name>/`. The **Volumes** screen shows the result with a progress bar and
+Unmount button.
 
 **Q: Can I upload a compressed `.zip` of a game?**
-Yes, and the files arrive **already extracted**. Drop the `.zip` on the Upload screen; ps5upload
+Yes, and the files arrive **already extracted**. Drop the `.zip` on **Send to PS5**; ps5upload
 decompresses it on your computer while sending, with no manual unzip. The screen previews
 `zipped → extracted`, the file count and any embedded game. The destination folder is named after
 the archive. Resume, excludes and the bandwidth cap work as for a folder. Only standard "Deflate"
@@ -1127,7 +1138,8 @@ zips are supported (Windows "Send to → Compressed folder" is fine); Deflate64,
 and encrypted zips are rejected with a clear message.
 
 **Q: What about `.rar` and `.7z`?**
-Both work and also resume after a drop.
+Both work and also resume after a drop. A resumed archive is read again from the start to reach
+the part not sent yet; meanwhile the progress reads "Skipping data the console already has".
 
 - **`.7z`**: LZMA2, which almost every `.7z` uses.
 - **`.rar`**: including multi-part sets and password-protected archives. Pick the **first** part
@@ -1142,14 +1154,14 @@ No. The archive is decompressed and sent at the same time, so you only need room
 you already have. The `PS5UPLOAD_ARCHIVE_STAGE_MB` and `PS5UPLOAD_ZIP_RAM_THRESHOLD_MB` variables
 are accepted for old setups but do nothing.
 
-**Q: Why does Games → Game files sometimes show a game twice?**
-If the same title is present both as a folder on disk and inside a
-mounted disk image, both paths appear — but the list dedupes by
-`title_id` and prefers the mount-backed path. Refresh the tab if
-something still looks off.
+**Q: Why does a game's page list it more than once under On the PS5's drives?**
+The Games grid shows each game once, by title ID. Its page lists every folder and image on the
+PS5's drives it is in, one row each: a game inside a mounted image shows both the image and the
+game folder inside it. A folder of a game the PS5 also has installed from a package is marked
+**Also installed**: it is a second copy you can delete (or copy to your Collection first).
 
 **Q: Can I queue several uploads to run back-to-back?**
-Yes — the Upload screen has a queue panel below the single-shot
+Yes — **Send to PS5** has a queue panel below the single-shot
 controls. Each row shows live progress, current speed, and ETA
 while running; the wall-clock-average MiB/s after it completes.
 The runner processes one item at a time, and the queue persists across app restarts so a
@@ -1196,32 +1208,35 @@ To avoid interruptions on long transfers:
 ShadowMount+ mounts game **image files** (`.ffpkg` / `.exfat` / `.ffpfs`), not loose folders. Two
 ways forward:
 
-- **Register the folder in ps5upload.** In **Games → Game files**, on a folder with `eboot.bin` and
-  `sce_sys/param.json` at its root, click **Register**, then **Launch**. If a PSN- or
-  disc-extracted dump fails with a DRM error, use **Register (patch DRM)**. If the home-screen tile
-  is blank, enable the ShadowMount+ metadata healer in ps5upload.
-- **Give ShadowMount+ an image.** Upload the game as an `.exfat` or `.ffpkg` image.
+- **Add the folder to the home screen in ps5upload.** Open the game in **Games** (a folder with
+  `eboot.bin` and `sce_sys/param.json` at its root); under **On the PS5's drives**, choose **Add
+  to home screen** in the folder's **⋯** menu, then **Play**. If a PSN- or disc-extracted dump
+  fails with a DRM error, use **Add to home screen (patch DRM)**. If the home-screen tile is
+  blank, use **Heal home-screen metadata** in the same menu (desktop app), or enable the
+  ShadowMount+ metadata healer.
+- **Give ShadowMount+ an image.** Send the game as an `.exfat` or `.ffpkg` image.
 
 **Payloads → On your PS5 → ShadowMount+ → Manage** shows its `debug.log`, which says why a given
 item did not mount.
 
 **Q: How do I find one game in a long library?**
-Use the search bar in **Games → Game files**: a name fragment, a title ID prefix (`PPSA…`, `CUSA…`) or a path
-fragment. Several words must all match.
+Use the search box above the **Games** grid: part of the name, a title ID (`PPSA…`, `CUSA…`), a
+content ID or part of a copy's path. The list of game files no game links to has its own search
+box.
 
 **Q: Can I pick where a `.exfat` / `.ffpkg` mounts?**
-Yes. The **Mount** button in **Games → Game files** opens a dialog with a volume, a subpath and a name (taken from
-the image filename). Your last choice is remembered per console. Some PS5 game scanners only look
-in `/mnt/ps5upload/`, so the dialog warns when you mount elsewhere.
+Yes. The **Mount** button on an image (a game's page, under **On the PS5's drives**) opens a
+dialog with a volume, a subpath and a name (taken from the image filename). Your last choice is
+remembered per console. Some PS5 game scanners only look in `/mnt/ps5upload/`, so the dialog
+warns when you mount elsewhere.
 
 **Q: A mount from a previous session is still showing after I re-sent the helper.**
 Expected: mounts are held by the PS5 kernel and survive helper restarts. Only a PS5 reboot clears
 them. On startup the helper unmounts any mount whose backing device is gone.
 
-**Q: Games → Game files has a `MOUNTED` badge on a `.exfat` file. What does
-that mean?**
+**Q: An image on a game's page has a `mounted` badge. What does that mean?**
 The file is currently attached at `/mnt/ps5upload/<name>/`, and the
-Mount button has flipped to Unmount. The Volumes tab shows the
+Mount button has flipped to Unmount. The **Volumes** screen shows the
 mapping explicitly, with the source image path under each mount.
 
 **Q: Does Unmount leave ghost tiles in the PS5 dashboard?**
@@ -1232,8 +1247,8 @@ or apply a backport patch?**
 Yes. Mount the image **read-write**, then edit it in the **File System**
 tab like any other folder on the console.
 
-- **Games → Game files → the image → Mount**, and leave **"Mount read-only"**
-  unchecked. (In the upload flow the same choice is the *"Mount
+- Open the game in **Games**, press **Mount** on the image under **On the PS5's drives**, and
+  leave **"Mount read-only"** unchecked. (In the upload flow the same choice is the *"Mount
   read-only"* sub-option under *Mount after upload*.)
 - Browse to the mount — it appears under `/mnt/ps5upload/<name>`.
 - **Add files** copies files from your computer into the folder you're
@@ -1265,18 +1280,18 @@ until you convert or re-create the image.
 
 | Format | Play on the console | Edit |
 | --- | --- | --- |
-| `.exfat` | ShadowMount+ or compatible integrated mount service | Game files → Edit files; or mount locally on a supported OS |
-| `.ffpkg`, `.ffpfs` | ShadowMount+ or compatible integrated mount service | Game files → Edit files, when the console permits a writable mount |
+| `.exfat` | ShadowMount+ or compatible integrated mount service | Game page → On the PS5's drives → Edit files; or mount locally on a supported OS |
+| `.ffpkg`, `.ffpfs` | ShadowMount+ or compatible integrated mount service | Game page → On the PS5's drives → Edit files, when the console permits a writable mount |
 | `.ffpfsc` | ShadowMount+ or compatible integrated mount service | Open its folder in Files → Decompress to .exfat; edit the extracted image, then recompress on the computer if desired |
-| `.pkg` | Install Package | Convert supports unpacking packages made with the debug key; arbitrary encrypted retail packages are not editable sources |
+| `.pkg` | Send to PS5 | Workshop supports unpacking packages made with the debug key; arbitrary encrypted retail packages are not editable sources |
 
-Compressed images appear in Game files alongside uncompressed images. Decompression keeps the
-original file and requires space for the full extracted image. The direct Edit files action
-is not offered for compressed containers. A successful read-only mount does not establish
-that a firmware permits writable mounting.
+Compressed images are listed under **On the PS5's drives** alongside uncompressed images.
+Decompression keeps the original file and requires space for the full extracted image. The
+direct Edit files action is not offered for compressed containers. A successful read-only mount
+does not establish that a firmware permits writable mounting.
 
 **Q: Can I look inside a game image without mounting it on the PS5?**
-Yes: **Edit image on this computer** opens any image ps5upload reads (`.exfat`, `.ffpkg`,
+Yes: **Workshop → Look Inside** opens any image ps5upload reads (`.exfat`, `.ffpkg`,
 `.ffpfs`, `.ffpfsc` and debug `.pkg`) that is on the machine the engine runs on, without a
 mount, wherever the engine runs. Browse its folders with their sizes and save any file or
 folder to the computer (checked against the image). For images (not packages) you can also add,
@@ -1289,7 +1304,7 @@ In Files, Add files and Add folder remain available while a copy runs. Further p
 their destination and conflict choices in the queue; a failure or cancellation pauses it.
 Pending picks can be removed. After an app restart, review the saved queue and press Resume.
 
-Convert → Queue → Add games from a folder accepts `PS5 Games/<game>/game.pkg`, alongside
+Workshop → Queue → Add games from a folder accepts `PS5 Games/<game>/game.pkg`, alongside
 actual game folders and supported images/archives. Generic `game.pkg` outputs use the parent
 folder's name. Review the queue before starting; unsupported/encrypted inputs fail individually,
 and existing output files are not overwritten. Stream & install accepts multiple packages
@@ -1309,7 +1324,8 @@ need the same source, settings and storage. The current small-file and compressi
 remain investigations; no throughput improvement is claimed for this release.
 
 **Q: ShadowMount+ mounts my game read-only — how do I edit it?**
-Use **Games → Game files → the image → Edit files** for an uncompressed image. That is a *checkout*: the
+Open the game in **Games** and press **Edit files** on an uncompressed image under **On the
+PS5's drives**. That is a *checkout*: the
 app moves the image out of ShadowMount+'s scan folder, waits for
 ShadowMount+ to let go of it, and mounts it read-write where you choose.
 When you press **Finish editing** it unmounts (which is what flushes your
@@ -1343,7 +1359,7 @@ No — the kernel refuses with `EBUSY` because a process inside the
 mount has files open. The UI surfaces this as: *"the game inside
 this image is currently running on the PS5. Exit it (PS Home →
 close the game) and try again."* Same protection applies whether
-you trigger Unmount from Games → Game files or the Volumes screen.
+you trigger Unmount from a game's page or the Volumes screen.
 
 ---
 
@@ -1362,30 +1378,55 @@ refuses to start the title. Check these in order.
    before its update or DLC. A package that needs an entitlement the console
    does not have will always show "View product".
 3. **kstuff or ShadowMount+ is not running.** Launching needs kernel access.
-   **Games → Ready to play** says when the helper has none; load kstuff and
+   **Games** says so above the grid when the helper has none; load kstuff and
    reconnect. Disc-image titles need ShadowMount+ running.
 4. **Convert to exFAT + ShadowMount+ (reported working on FW 13.60).** Put the
    decrypted game folder on the console's drive (or convert it to an `.exfat`
-   image with **Convert**), let ShadowMount+ mount it, and launch from the
+   image with **Workshop**), let ShadowMount+ mount it, and launch from the
    console's home screen. This does not depend on the package installer.
 5. **A launch the app sent is not the same as a game that started.** The
    console accepts a launch and may take a while on the first start. If the
    game never appears, close it from the PS5 and start it from there.
 
-## Collection
+## Games and the Collection
+
+**Q: What does the Games screen show?**
+One grid with every game once: your copies on this computer and saved servers (the Collection),
+the games the selected PS5 has installed, and the games on its drives. Chips filter it by what is
+on that PS5: **Installed**, **Not installed**, **Update available**, **DLC missing**, **On the
+PS5's drives**, **Never seen played** and **Needs newer firmware**.
+
+Open a game for everything you can do with it:
+
+- **Consoles**: a row for each of your consoles, with **Play** (or **Close game** while it runs)
+  and **Install** or **Send to PS5** where it is missing.
+- **On <console>**: the installed game's upkeep: **Suspend** and **Resume** while it runs,
+  **Uninstall**, **Hide from home screen** / **Show on home screen**, **Fix permissions**,
+  **Backport** and **Copy to Collection**. It warns when the game needs ShadowMount+ running.
+- **On the PS5's drives**: each folder and image the game is in, with **Play**, **Mount**,
+  **Unmount**, **Edit files**, **Details**, and in **⋯**: **Add to home screen** (and **patch
+  DRM**), **Remove from home screen**, **Backup to folder…**, **Permission 777**, **Convert…**,
+  **Make it smaller…**, **Copy to Collection**, **Download**, **Move** and **Delete**. A
+  compressed `.ffpfsc` has **Open in Files** to decompress it.
+- **On this computer**: your copies, to send, check or convert.
+
+Game files on the PS5 that no game links to yet (an image nothing was registered from, a folder
+whose title ID can't be read) are counted in a line under the grid; **Show them** lists them
+with the same actions. **Manage → Dump games** copies installed games to a drive.
 
 **Q: What is the Collection?**
-It is the **Everything** tab of **Games**. Every game you keep on this computer's drives, grouped by game: its full copies, its updates and
-DLC, the duplicates and the space they take. Add the folder (or folders) that holds your games
-under **Collection → Folders**; anything inside, up to six folders deep, is found by what it is
-(packages, game folders, `.exfat` / `.ffpkg` / `.ffpfs` / `.ffpfsc` images, `.zip` / `.7z` /
-`.rar` archives), however the folders are named. Each item is read from the file itself, so
-nothing needs renaming first. A drive, an external disk or a mounted network share all work. It
-is PS Game Library, built into ps5upload: if you used it, **Import from PS Game Library** in the
-**⋯** menu brings its index over.
+It is what the **Games** grid shows of this computer: every game you keep on its drives and
+saved servers, grouped by game: its full copies, its updates and DLC, the duplicates and the
+space they take. The same grid also has the games the PS5 has installed and the games on its
+drives. Add the folder (or folders) that holds your games under **Games → Folders**; anything
+inside, up to six folders deep, is found by what it is (packages, game folders, `.exfat` /
+`.ffpkg` / `.ffpfs` / `.ffpfsc` images, `.zip` / `.7z` / `.rar` archives), however the folders
+are named. Each item is read from the file itself, so nothing needs renaming first. A drive, an
+external disk or a mounted network share all work. It is PS Game Library, built into ps5upload:
+if you used it, **Import from PS Game Library** in the **⋯** menu brings its index over.
 
 **Q: Can the Collection read my NAS without mounting it?**
-Yes. Save the server under **Network shares** (SMB, FTP, FTPS, SFTP or WebDAV), then in **Collection →
+Yes. Save the server under **Shared Folders** (SMB, FTP, FTPS, SFTP or WebDAV), then in **Games →
 Folders** press **Add a folder on <server>** and pick the folder. It is scanned where it is:
 packages, game folders and covers are read over the network, and nothing is copied to this
 computer. Its games install straight from the server, and **Convert…** reads them in place.
@@ -1396,8 +1437,8 @@ works as an ordinary folder.
 **Q: Does it keep the computer awake or rescan all the time?**
 No. **Look for changes automatically** (in Folders) rescans only while the app is open, never
 keeps the computer awake, and after the computer wakes the wait starts over instead of scanning
-at once. A rescan reads only what changed, so it takes seconds. **Cmd/Ctrl + R** on the
-Collection screen scans now.
+at once. A rescan reads only what changed, so it takes seconds. **Cmd/Ctrl + R** in
+**Games** scans now.
 
 **Q: What do "Duplicate" and "Reclaimable" mean?**
 A game is a duplicate when more than one **full copy** of it is on disk (updates and DLC never
@@ -1411,11 +1452,11 @@ update or is missing DLC for. A game's details offer **Install on this PS5** (wi
 and DLC), **Install update**, **Install DLC**, and **⋯ → Bring this PS5 up to date** queues every
 newer update and missing DLC at once. Installs go through the normal install queue (base, then
 update, then DLC), streamed from this computer. A game kept only as a folder, image or archive is
-copied with **Upload** or converted with **Convert…** instead.
+sent with **Send to PS5** on its page or converted with **Convert…** instead.
 
 **Q: What is "Copy install link"?**
 A link a PS5 can install the package from by itself, for a package installer or browser running
-on the console. It works for the PS5 it was made for; in **Serving n** (Collection header) you can
+on the console. It works for the PS5 it was made for; in **Serving n** (Games header) you can
 let any device on your network fetch it instead, for an installer on another console. The link
 carries a random code, there is no folder listing, and only the packages you share can be
 reached. A link lasts until you stop it (one at a time, or **Stop all**) or the app quits;
@@ -1456,7 +1497,7 @@ off for the drive your games are on (macOS asks for your password).
 In the system Trash (Recycle Bin on Windows), so they can be put back until it is emptied. Only
 a copy the collection knows can be moved, and you confirm first. Docker, a server without a
 desktop, Android and iPhone have no Trash: there the button is hidden unless you turn on **Allow
-deleting copies for good** in **Collection → Folders**. Then it reads **Delete…**, asks you to
+deleting copies for good** in **Games → Folders**. Then it reads **Delete…**, asks you to
 confirm every time, and the copy is gone for good.
 
 **Q: Does it work in the web UI, Docker and Android?**
@@ -1465,11 +1506,11 @@ engine's disks (add the folder from the in-app browser). On Android the folder i
 the in-app browser too; the online title lookup for a game that names nothing is not available
 there.
 
-**Q: What does the ⋯ menu on a game in the Collection do?**
+**Q: What does the ⋯ menu on a game in the Games grid do?**
 It works on that game without opening its page. **Install update** and **Install missing DLC**
 appear when the connected PS5 has the game but lacks what this computer has. **Convert…** opens
-the best copy in Convert (a folder before an image, archive or base package). **Make it
-smaller…** opens a big PS5 folder or plain image in Convert set to a compressed image (.ffpfsc).
+the best copy in Workshop (a folder before an image, archive or base package). **Make it
+smaller…** opens a big PS5 folder or plain image in Workshop set to a compressed image (.ffpfsc).
 **Cheats…** opens Cheats with the game selected. **Backport…** appears when the game is
 installed but asks for newer firmware than the PS5 has. **Check** reads its copies back.
 
@@ -1485,27 +1526,29 @@ result appears under the copy on the game's page. Checks run one at a time on th
 Press **Select**, pick games, then **Send to PS5…** and tick the consoles. Each PS5 gets only what
 it lacks: the game's package, or its folder, image or archive, plus newer updates and DLC for the
 games it has. Games it already has, up to date, are left alone. The same bar queues the picked
-games in Convert or checks their copies.
+games in Workshop or checks their copies.
 
 **Q: What are "Needs FW", "Cheats" and "Could be smaller"?**
 "Needs FW 10.00" means the game asks for newer firmware than the connected PS5 has; it may not
 start unless it is backported. "Cheats" means the cheat repositories have cheats for it. "Could
 be smaller" lists PS5 games of 4 GiB or more kept as a folder or uncompressed image; **Queue them
-in Convert** builds compressed images of them. How much room that saves depends on the game.
+in Workshop** builds compressed images of them. How much room that saves depends on the game.
 After updating, the firmware needed shows once the next scan has read each item again.
 
 **Q: Can I get a game from my PS5 into the Collection?**
-Yes, when the PS5 has it as a folder or image (a dump). **Games → Game files → ⋯ → Copy to
-Collection** downloads it into your first Collection folder on this computer and scans. In
-**Ready to play**, a game that runs from a folder or image has the same item. A game installed
+Yes, when the PS5 has it as a folder or image (a dump). Open the game in **Games**: under **On
+the PS5's drives**, **⋯ → Copy to Collection** downloads it into your first Collection folder on
+this computer and scans. Under **On <console>**, a game that runs from a folder or image has
+the same item. A game installed
 from a package cannot be copied this way: its installed files are encrypted.
 
 # Installing packages
 
-## Install Package
+## Install a package
 
 **Q: Can I install fake packages from the desktop?**
-Yes, with **Install Package**. It has two tabs, for the two ways a package can reach the PS5:
+Yes, in **Send to PS5** (**Install a package**). It has two tabs, for the two ways a package can
+reach the PS5:
 
 - **Stream & install**: the PS5 installs straight from this computer or from a link. No copy is
   put on the PS5 first, so it needs no spare space there. This is the most reliable way.
@@ -1575,8 +1618,8 @@ Settings → Set Up Internet Connection → your connection → Advanced Setting
 names the network adapter and whether Windows treats it as Public, with one-click fixes.
 **Upload & install** works without this connection.
 
-**Q: How do I turn a game folder into an installable package? (Convert Games)**
-Open **Convert Games**, pick a decrypted game folder or an `.exfat` / `.ffpkg` image. The app
+**Q: How do I turn a game folder into an installable package? (Workshop)**
+Open **Workshop**, pick a decrypted game folder or an `.exfat` / `.ffpkg` image. The app
 checks it has what a launchable package needs and builds a fake package on your computer,
 compressed the way Sony's packages are. It reads games from the console through the helper, so
 ftpsrv is not needed. Then choose **Stream install** or **Upload & install**, or keep the package.
@@ -1584,7 +1627,7 @@ Before installing it, load the payloads under "Which payloads must be running be
 package?". Keep the game files you converted from.
 
 **Q: How do I turn a game folder into a game image (`.ffpkg`, `.exfat`, `.ffpfs` or `.ffpfsc`)?**
-Open **Convert Games**, pick the game folder on your computer, and under "Or make a game image
+Open **Workshop**, pick the game folder on your computer, and under "Or make a game image
 instead of a package" choose the format, then **Make game image**:
 
 - **.ffpkg (UFS2), recommended**: what ShadowMount+ recommends for most games.
@@ -1615,7 +1658,7 @@ the file data (about 1%) is compared byte for byte with the source. Only then do
 name. Tick **Full verification** to re-read every byte of the output instead; it takes longer.
 
 Nothing is installed. Copy the image to a folder ShadowMount+ watches on the PS5 (for example
-`/data/homebrew`, with **Upload**), and ShadowMount+ mounts it and puts the game on the home
+`/data/homebrew`, with **Send to PS5**), and ShadowMount+ mounts it and puts the game on the home
 screen. The `.ffpkg` and `.ffpfs` writers and the streaming `.ffpfsc` container come from quer3q's
 PS5 Dump Forge; the `.exfat` writer is ps5upload's own. On a PS5 on firmware 13.60 with
 ShadowMount+ 1.7, a game image made by the app in each of `.exfat`, `.ffpkg`, `.ffpfs` and a
@@ -1623,12 +1666,12 @@ compressed `.ffpfsc` mounted, registered and ran its game. A folder that is on t
 a saved server cannot be made into an image from here; copy it to this computer first.
 
 **Q: Can I install a package that is already on a USB drive?**
-Yes. Plug the drive into the PS5; packages on it show in **Install Package → Install from USB /
+Yes. Plug the drive into the PS5; packages on it show in **Send to PS5 → Install from USB /
 external drive** with an **Install** button. The app first copies the package to internal storage on the console
 (drive to drive, fast), because Sony's installer cannot read the exFAT USB mount directly.
 
 **Q: What is the difference between `.pkg`, `.fpkg`, and `.ffpkg` here?**
-`.pkg` and `.fpkg` are accepted by **Install Package**. The app validates their
+`.pkg` and `.fpkg` are accepted by **Send to PS5**. The app validates their
 actual header instead of trusting the suffix: PS4-style packages use a CNT
 container, while a finalized PS5 package uses an FIH envelope with an embedded
 CNT. `.ffpkg` and `.ffpfs` are UFS filesystem images and remain in the mount /
@@ -1712,7 +1755,7 @@ Open your phone's Files app → Downloads and look for the title ID/game name.
 **Save to USB** is a separate action using the configured PS5 USB backup path.
 
 **Q: Can I install a split package (`*.0`, `*.1`, …)?**
-Not through Install Package: it takes a single package file. Pick the single lead `.pkg`.
+Not through Send to PS5: it installs a single package file. Pick the single lead `.pkg`.
 
 **Q: Where do uploaded packages live, and are they cleaned up?**
 At `/user/data/ps5upload/pkg_library/<ContentID>.pkg`, and they stay so you can reinstall. Remove
@@ -1810,7 +1853,7 @@ Firmware notes:
   tools newer than the console's firmware reads, or one that is not a
   fake-signed (FPKG) build. Use a package made for your firmware (a backport),
   or install the game without the installer: copy its game folder, or a game
-  image for ShadowMount+, with **Upload**.
+  image for ShadowMount+, with **Send to PS5**.
 - **`E2-80B22410`.** An error code the PS5's own installer or system software
   shows; ps5upload does not generate it and we have no confirmed single cause.
   It has been reported on packages the console would not accept as built.
@@ -1840,8 +1883,14 @@ In **Screenshots & clips**: one screen with a tab for each. Preview and download
 computer, and sort either tab by date (newest or oldest first) or by size; to delete one, use
 **Files**.
 
+**Q: Downloading a screenshot or folder under `/original_user` fails.**
+On some setups (kstuff with ShadowMount+, for example) the console's `/user` resolves to
+`/original_user`, the same data under its other name, and the helper refused to read from there
+(#531). Since 9.0.0 it reads `/original_user` (read-only: writes still go to `/user`), so those
+downloads work again once the PS5 runs the current helper.
+
 **Q: What does the play time in Games actually track?**
-Games → On this PS5 can sort by **Recently played**, and each game's page says how long it was
+**Games** can sort by **Recently played**, and each game's page says how long it was
 played. That counts any game you launch, however you launch it — with your controller, from
 the PS5 dashboard, or from this app. It works by watching the console's
 process list, so it has no idea *how* a game was started.
@@ -1865,14 +1914,55 @@ community repositories inside the screen. Native JSON, SHN trainer XML and encry
 work, with game names, filters and a notification when cheats load. Cheats change nothing on disk
 and stop when the game does.
 
-**Q: What is the Remote Play screen?**
-It requests a Remote Play registration from the console so you can pair a client without the PS5's
-own menus. It shows the pending PIN with a countdown, reads "waiting" until a device really pairs,
-and can be cancelled. It does not stream anything; use Sony's Remote Play app or Chiaki.
+**Q: What is Remote Play, and how do I set it up?**
+Remote Play streams a PS5 into the app (desktop, web UI and Android) and lets you play it with a
+controller connected to the computer, the keyboard, or touch. It wakes a console in rest mode and
+signs your user in on its own, and keeps playing while you use other screens. One console streams
+at a time. **Accounts › Remote Play** has the same steps as a checklist that shows what is done
+and fixes what it can:
+
+1. **Sign in to a user on the PS5.** Use a user without a login passcode; a passcode stops the
+   automatic sign-in after a wake.
+2. **Give that user an account ID.** A PSN-linked user has one; an offline user gets one in
+   Accounts › Users (write it down: saves made afterwards are tied to it).
+3. **Sign the account in to PlayStation Network (offline)** if the console's own Remote Play
+   setting is greyed out (see the next question), then restart the PS5.
+4. **Turn Remote Play on**: Settings › System › Remote Play. The app can switch it on, and on
+   firmware 10.00 and later allow it for the user.
+5. **Let the PS5 be woken**: Settings › System › Power Saving › Features Available in Rest Mode ›
+   Stay Connected to the Internet and Enable Turning On PS5 from Network.
+6. **Pair the app**: Connection › Wake & sign in › Set up. One click; the keys stay on this
+   computer. Do it again after resetting the console or changing the user.
+7. **Play**: Remote Play › Start.
+
+If the picture stays black or stutters, use a wired connection or 5 GHz Wi-Fi, try 720p or 30 fps,
+and let the app through this computer's firewall on the local network (TCP and UDP 9295–9304). A
+browser needs WebCodecs (a current Chrome, Edge or Safari). To use Sony's PS Remote Play app or
+chiaki-ng instead, **Request PIN** on the same page registers a device without the PS5's menus.
+The same page lists what to check if it still does not work.
+
+Remote Play shows the console selected in the app. If another console is streaming, it keeps
+playing and the page offers it (**Show it**); **Start** on this one stops that stream first. The
+toolbar on the picture has mute and a volume slider.
+
+**Picture in picture** puts the stream in a small window that stays on top while you use other
+apps. The desktop app opens its own small always-on-top window; Chrome and Edge use the
+browser's picture-in-picture window. Safari's picture in picture shows the picture only: the
+keyboard and controller play it while the app's window is in front. Firefox and phones do not
+offer it. A controller keeps playing the small window while another app is in front in the
+Windows app and in Chrome and Edge; in the macOS and Linux apps, click the small window first.
+
+**Q: How do I change a user's avatar, name or account ID?**
+In **Accounts › Users**. Each user on the PS5 is one row: click the picture to change the avatar
+(crop or fit any image), edit the name (16 characters at most), and see whether the user is
+active and its account ID, in hex and in the base64 form Remote Play uses. A user can be deleted
+from its row. Account slots that hold no user are listed under **Other account slots**. Restart
+the PS5 to see a new avatar or name there. To add a user, do it on the PS5: Switch User, then Add
+User.
 
 **Q: The PS5 won't let me turn on its own Remote Play setting.**
 The PS5 offers Settings › System › Remote Play only to an account signed in to PlayStation
-Network. Open **Profile** › **Sign in to PlayStation Network (offline)**: it checks that the
+Network. Open **Accounts** › **Sign in to PlayStation Network (offline)**: it checks that the
 signed-in user has an activated account, then fetches earthonion's np-fake-signin and runs it on
 the PS5 with one button. Nothing is sent to Sony. Restart the PS5 afterwards. Before it runs, the
 helper keeps a copy on the PS5 of every setting and file np-fake-signin changes; **Undo sign-in**
@@ -1880,14 +1970,14 @@ on the same card puts them back (restart again afterwards). In the web UI, send 
 from **Payloads** instead (Undo works there too, but nothing is kept unless the desktop app ran
 the sign-in).
 
-**Q: After signing in from Profile, the PS5 asks to "Temporarily Disable PS5 Console
+**Q: After signing in from Accounts, the PS5 asks to "Temporarily Disable PS5 Console
 Restrictions" before games open.**
 np-fake-signin copies a template account's PlayStation Network settings onto yours, among them a
 1983 birth date and an "offline adult" flag that is off, and on some consoles the PS5 then asks for
 that before any game starts (upstream np-fake-signin issue #1 reports the same; its own undo,
 Settings › Users and Accounts › Other › Sign out, can stay greyed out). If the sign-in ran from
-this version of the app, press **Undo sign-in** on Profile and restart. If it ran before, there is
-no copy to put back: the Profile card says so, and Settings › Family and Parental Controls › PS5
+this version of the app, press **Undo sign-in** on Accounts and restart. If it ran before, there is
+no copy to put back: the Accounts card says so, and Settings › Family and Parental Controls › PS5
 Console Restrictions (passcode 0000 unless you changed it) is where the restrictions are lifted.
 
 **Q: What does the fan curve do?**
@@ -1920,18 +2010,19 @@ For save data specifically, use the Save data screen.
 
 **Q: What is PS5Upload Minion?**
 A page that runs on the PS5 itself, in the PS5's web browser, for when your PC isn't nearby.
-The PS5Upload helper serves it on port 9180. It has nine sections, on the left:
+The PS5Upload helper serves it on port 9180. It has seven sections, on the left:
 
 - **Home**: the running game (with Close game), the tasks that are running (with Cancel) and
   your drives.
-- **Games**: start, close, hide or uninstall your games, with each game's version, size and
-  where it is stored.
-- **Library**: press **Scan** and it looks through your network shares and this PS5's drives for
+- **Games**, with two views. **Installed**: start, close, hide or uninstall your games, with
+  each game's version, size and where it is stored. **On Drives & Shares**: press **Scan** and it
+  looks through your network shares and this PS5's drives for
   games (`.pkg` files, game folders and disk images) and shows them as a cover grid with title,
   version, type and the system software they need. Install a package from the TV (one on a
   share is copied to the PS5 first and the copy removed afterwards), or copy a game folder or
   image to a drive's `homebrew` folder and add it to the home screen. Results are kept on the
   PS5, and a scan stops at a size limit so a huge share cannot hang it.
+- **Saves**: back up a game's save and put it back later, to the internal drive or a USB drive.
 - **Files**: browse, copy, move, rename, delete, view, verify and search; set permissions, make
   and edit text files. **Network shares** adds an SMB share (a PC or NAS) you can browse like a
   drive and copy to and from. **Extract** unpacks a `.zip`, `.7z`, `.rar` (multi-part too) or
@@ -1941,10 +2032,10 @@ The PS5Upload helper serves it on port 9180. It has nine sections, on the left:
   then the copy removed). **Load payload** sends an `.elf` or `.bin` on the console to the
   payload loader, after a confirm.
 - **Cheats** for the running game, including **Find cheats** to download them to the console.
-- **Fan**: temperatures, fan speed and the fan target.
-- **Processes**: what runs now; stop a game or a payload (system processes cannot be stopped).
-- **Clean up**: get space back from updates of removed games, leftover packages, temp files
-  and leftovers of removed games (the same as the desktop's Clean up screen).
+- **System**, with three views. **Fan**: temperatures, fan speed and the fan target.
+  **Processes**: what runs now; stop a game or a payload (system processes cannot be stopped).
+  **Clean up**: get space back from updates of removed games, leftover packages, temp files and
+  leftovers of removed games (the same as the desktop's Clean Up screen).
 - **Settings**: theme, language, full screen, the tips, and the switches below.
 
 **Q: How do I open it?**
@@ -1990,23 +2081,23 @@ page on port 9180, and it stays off after a restart (the helper keeps the choice
 **Q: How do I remove PS5Upload Minion completely?**
 In the app on your PC, **Settings → PS5Upload Minion → Remove Minion from this PS5**. It turns
 Minion off (no tile, no page on port 9180) and deletes what Minion keeps on the PS5: its Files
-favourites and recent folders, its game Library cache and its controller log. It keeps saved
-network shares, cheats and backups, which the PC app uses too. Minion is part of the helper, so
-nothing is installed again when the helper starts: the helper reads its `webui.json`, which says
+favourites and recent folders, its cache of games on drives and shares, and its controller log.
+It keeps saved network shares, cheats and backups, which the PC app uses too. Minion is part of
+the helper, so nothing is installed again when the helper starts: the helper reads its `webui.json`, which says
 off. If that file is lost (the `/data/ps5upload` folder was wiped), the next connection from a
 computer that turned Minion off turns it off again. You can turn Minion back on from the same
 place at any time. The same Settings section can also let other devices on your network open
 Minion, and shows the address to open.
 
-**Q: Which network shares does the Library see, and where do I set them up?**
+**Q: Which network shares does Minion's Games see, and where do I set them up?**
 The SMB shares kept on the PS5: add them in Minion's **Files → Network shares**, or from the
-PC in **Network shares → Shares on the PS5**, which adds, edits and removes them and can copy a server
+PC in **Shared Folders → Shares on the PS5**, which adds, edits and removes them and can copy a server
 you already saved (type the password again: the PS5 keeps its own encrypted copy). Minion
-browses them in Files and its Library shows the games on them.
+browses them in Files, and **Games → On Drives & Shares** shows the games on them.
 
 ---
 
-## Network shares, safe moves, and backport helpers
+## Shared folders, safe moves, and backport helpers
 
 **Q: Why can't I rename a file from one PS5 drive to another?**
 
@@ -2021,7 +2112,7 @@ screens copies the file to the other drive, checks the copy is whole, then
 deletes the original; `mv` in the Shell screen refuses a cross-drive rename.
 Renaming *within* one drive works normally.
 
-**Q: What is the Network shares screen for?**
+**Q: What is the Shared Folders screen for?**
 It keeps your **NAS and servers** (SMB, FTP, FTPS, SFTP, WebDAV) in one place. Anywhere you
 browse for a game or file, pick from them with the ▾ next to **Browse**: upload a file or folder
 from a share straight to the PS5, or install a package from it, without copying it to this
@@ -2090,7 +2181,7 @@ console list. **Export bundle** still saves everything to a file you keep.
 
 **Q: What is Mesh Drive?**
 A folder kept the same on every device that joins it, with its home in a folder on the console.
-Open **Mesh Drive** in the sidebar (on a phone, under More) and press **New Mesh Drive**:
+Open **Shared Folders** (on a phone, under More) and press **New Mesh Drive**:
 
 1. Name the drive.
 2. Choose its home on the console: **Make a new folder** (pick where, and its name) or **Use a
@@ -2193,7 +2284,7 @@ They stop syncing it on their next pass and free their folder for another drive.
 deleted anywhere.
 
 **Q: Can I download from the PS5 straight to my NAS?**
-Yes (8.0.0). Save the NAS under **Network shares** (SMB, FTP, FTPS, SFTP or WebDAV). Then, in **Files**,
+Yes (8.0.0). Save the NAS under **Shared Folders** (SMB, FTP, FTPS, SFTP or WebDAV). Then, in **Files**,
 open a file or folder's menu and choose **Download to <your NAS>**, and pick the folder on it.
 The bytes pass through the engine on the way (the Docker container, if you use the web UI on the
 NAS), one file at a time, so it only needs room for the largest single file. If the NAS folder
@@ -2246,7 +2337,8 @@ The app checks GitHub once per launch and shows a dot on the Settings entry when
 exists. **Settings → Updates → Download** saves it to your Downloads folder. Where the app can
 replace itself (Windows, macOS when the app's folder is writable, a Linux AppImage) the button
 becomes **Install and restart**: the app quits, the new version takes its place and opens. A
-`.deb` / `.rpm` shows the command to run instead. Then use **Update helper** if the app asks.
+`.deb` / `.rpm` shows the command to run instead. Then press **Send helper** in the banner if
+the app says the helper is older.
 
 **Q: "Install and restart" froze the app on my Mac.**
 Fixed in 8.3.0. Quitting could wait forever on its clean-up, so the old app sat "not responding"

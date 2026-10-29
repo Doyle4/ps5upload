@@ -1,81 +1,31 @@
-// Ready to play ↔ Collection: what this computer has of an installed game (a newer update,
-// missing DLC, or just a copy), and the actions that follow from it. Read straight from the
-// Collection store per title, so the memoised cards need no new props.
+// An installed game ↔ the Collection: what this computer has of it (a newer update, missing DLC,
+// or just a copy), and the actions that follow from it. Read straight from the Collection store.
 
 import { useEffect } from "react";
-import { Download, HardDrive, HardDriveDownload } from "lucide-react";
+import { Download, HardDriveDownload } from "lucide-react";
 
 import type { InstalledTitle } from "../../api/ps5";
 import type { OverflowMenuItem } from "../../components/OverflowMenu";
-import { CoverTag } from "../../components/GameIconFrame";
 import { copyToCollection } from "../../lib/collectionActions";
 import { smpMountImageBasename } from "../../lib/mountPaths";
-import {
-  loadCollection,
-  loadConsoleStates,
-  useCollectionStore,
-} from "../../state/collection";
+import { loadCollection, useCollectionStore } from "../../state/collection";
 import { useTr } from "../../state/lang";
 import { pushNotification } from "../../state/notifications";
-import { installOffers } from "../GameHub/collectionInstall";
+import { installOffers } from "./collectionInstall";
 
-/** Reads the Collection and what it holds for `host` once the screen has a console. */
-export function useCollectionForConsole(host: string, up: boolean): void {
+/** Reads the Collection once, when nothing has yet: whether it already has a game decides
+ *  whether "Copy to Collection" is offered. */
+export function useCollectionLoaded(): void {
   useEffect(() => {
-    void (async () => {
-      if (!useCollectionStore.getState().library) await loadCollection();
-      if (host && up && useCollectionStore.getState().library)
-        await loadConsoleStates(host);
-    })();
-  }, [host, up]);
+    if (!useCollectionStore.getState().library) void loadCollection();
+  }, []);
 }
 
 function useLink(host: string, titleId: string) {
   const id = titleId.toUpperCase();
-  const state = useCollectionStore((s) => s.consoleByHost[host]?.states[id]);
-  const game = useCollectionStore((s) => s.library?.games[id]);
+  const state = useCollectionStore((s) => s.consoleByHost[host]?.states?.[id]);
+  const game = useCollectionStore((s) => s.library?.games?.[id]);
   return { state, game };
-}
-
-/** "Update 1.05 here" / "In Collection": on the card's cover. */
-export function CollectionTag({
-  host,
-  titleId,
-}: {
-  host: string;
-  titleId: string;
-}) {
-  const tr = useTr();
-  const { state, game } = useLink(host, titleId);
-  if (state?.installed && state.update) {
-    return (
-      <CoverTag
-        tone="accent"
-        icon={<HardDriveDownload size={11} aria-hidden />}
-        title={tr(
-          "installed_coll_update_hint",
-          { v: state.update.version },
-          "Update {v} is in your Collection on this computer. Install it from ⋯.",
-        )}
-      >
-        {tr("installed_coll_update", { v: state.update.version }, "Update {v}")}
-      </CoverTag>
-    );
-  }
-  if (!game) return null;
-  return (
-    <CoverTag
-      tone="neutral"
-      icon={<HardDrive size={11} aria-hidden />}
-      title={tr(
-        "installed_coll_have_hint",
-        undefined,
-        "A copy of this game is in your Collection on this computer.",
-      )}
-    >
-      {tr("installed_coll_have", undefined, "In Collection")}
-    </CoverTag>
-  );
 }
 
 /** The card menu's Collection items: install a newer update or missing DLC from this computer,
@@ -85,6 +35,8 @@ export function CollectionTag({
 export function useCollectionItems(
   host: string,
   title: InstalledTitle,
+  /** Only "Copy to Collection": the game page offers the installs on its console rows. */
+  { copyOnly = false }: { copyOnly?: boolean } = {},
 ): OverflowMenuItem[] {
   const tr = useTr();
   const { state, game } = useLink(host, title.titleId);
@@ -102,7 +54,7 @@ export function useCollectionItems(
       },
     );
   };
-  if (state?.installed && state.update) {
+  if (!copyOnly && state?.installed && state.update) {
     const update = state.update;
     items.push({
       label: tr(
@@ -114,7 +66,7 @@ export function useCollectionItems(
       onSelect: () => queue([update]),
     });
   }
-  if (state?.installed && state.dlc_missing.length > 0) {
+  if (!copyOnly && state?.installed && state.dlc_missing.length > 0) {
     const dlc = state.dlc_missing;
     items.push({
       label: tr(

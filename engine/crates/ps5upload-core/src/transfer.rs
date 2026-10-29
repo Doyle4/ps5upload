@@ -733,11 +733,16 @@ pub fn sevenz_plan_preview_with_progress(
 // ═══════════════════════════════════════════════════════════════════════════
 //  .rar support  (desktop-only)
 //
-//  Real RAR support needs the UnRAR C++ source (the `unrar` crate): there is no
-//  production-grade pure-Rust RAR decoder, and only UnRAR covers RAR5 +
-//  multi-volume + AES passwords. That's a C dependency, which would break the
-//  Android pure-Rust cross-compile the zip/7z pins guard, so this whole module
-//  is compiled out on Android (Android keeps zip/7z only).
+//  Real RAR support needs the UnRAR C++ source: there is no production-grade
+//  pure-Rust RAR decoder, and only UnRAR covers RAR5 + multi-volume + AES
+//  passwords. UnRAR's license is GPL-incompatible and this binary carries
+//  third-party GPL/AGPL code with no exception for it, so UnRAR is NOT linked
+//  here: it runs as the separate program `ps5upload-unrar`
+//  (engine/crates/ps5upload-unrar, only ps5upload's own code + UnRAR), which
+//  `crate::rar_helper` starts and talks to over pipes. This module keeps all the
+//  RAR logic (paths, exclusions, errors, resume) and asks the helper only to
+//  list headers, skip an entry or decode one. Android has no helper, so this
+//  whole module is compiled out there (Android keeps zip/7z only).
 //
 //  This module inspects and walks an archive: `inspect_rar` and `rar_plan_preview`
 //  for the Upload card, `rar_layout` and `rar_walk` for the AVA1 RAR source
@@ -759,8 +764,8 @@ pub fn sevenz_plan_preview_with_progress(
 //    included in license, or in documentation if license is not available, and
 //    in source code comments of resulting package.
 //  ps5upload uses UnRAR ONLY to extract; it never compresses RAR. GPLv3 §7
-//  linking exception + the full UnRAR license: see LICENSES/UnRAR-exception.md
-//  and LICENSES/UnRAR-license.txt.
+//  exception + the full UnRAR license: see LICENSES/UnRAR-exception.md and
+//  LICENSES/UnRAR-license.txt.
 // ═══════════════════════════════════════════════════════════════════════════
 #[cfg(not(target_os = "android"))]
 pub use rar_support::{inspect_rar, rar_plan_preview};
@@ -772,16 +777,17 @@ pub use rar_support::{rar_layout, rar_walk, RarFailKind, RarLayout, RarWalkError
 #[cfg(not(target_os = "android"))]
 mod rar_support {
     use super::*;
-    use unrar::error::{Code as RarCode, UnrarError};
-    use unrar::{Archive, FileHeader, StreamSink};
+    use crate::rar_helper::{self, Code as RarCode, Piece, RarError};
 
     /// Map UnRAR errors to stable, UI-detectable strings for the two cases the
     /// UI must react to (prompt for / re-prompt the password); everything else
     /// passes through verbatim with context.
-    fn map_rar_err(ctx: &str, e: UnrarError) -> anyhow::Error {
+    fn map_rar_err(ctx: &str, e: RarError) -> anyhow::Error {
         match e.code {
             RarCode::MissingPassword => anyhow::anyhow!("rar_password_required"),
             RarCode::BadPassword => anyhow::anyhow!("rar_password_wrong"),
+            // The helper program's own trouble (missing, crashed) says so itself.
+            RarCode::Helper => anyhow::anyhow!("{e}"),
             _ => anyhow::anyhow!("{ctx}: {e}"),
         }
     }
@@ -792,8 +798,11 @@ mod rar_support {
     /// UI turned into "select the FIRST part and keep every volume in one
     /// folder" — useless to someone who had done both. Checking the set
     /// ourselves lets us name the file that is actually missing.
-    fn map_rar_open_err(path: &str, ctx: &str, e: UnrarError) -> anyhow::Error {
-        if !matches!(e.code, RarCode::MissingPassword | RarCode::BadPassword) {
+    fn map_rar_open_err(path: &str, ctx: &str, e: RarError) -> anyhow::Error {
+        if !matches!(
+            e.code,
+            RarCode::MissingPassword | RarCode::BadPassword | RarCode::Helper
+        ) {
             let on_disk = |p: &str| std::path::Path::new(p).exists();
             if let Some(missing) = missing_volume(path, &on_disk) {
                 return anyhow::anyhow!("rar_missing_volume: {missing}");
@@ -885,26 +894,19 @@ mod rar_support {
     }
 
     /// Open the archive's file list (with or without a password) as an iterator
-    /// of headers. The returned `OpenArchive` owns its handle, so the borrowed
-    /// `path` / `password` only need to live across this call.
+    /// of headers, read by the `ps5upload-unrar` helper.
     /// Multi-volume note: upstream `unrar 0.5.8` reads ~8 KB out of a much
     /// smaller buffer on every volume transition (a ~7.7 KB out-of-bounds
     /// heap read), which aborts debug builds on any multi-part archive.
-    /// The crate is vendored at `third_party/unrar` with that fixed, wired
-    /// up through `[patch.crates-io]` — so this is safe to call on a
-    /// multi-part set. If you ever bump or un-vendor `unrar`, check the
+    /// The crate the helper links is vendored at `third_party/unrar` with that
+    /// fixed, wired up through `[patch.crates-io]` — so this is safe to call on
+    /// a multi-part set. If you ever bump or un-vendor `unrar`, check the
     /// `UCM_CHANGEVOLUMEW` arm first: see `third_party/unrar/README.md`.
     fn list_headers(
         path: &str,
         password: Option<&str>,
-    ) -> std::result::Result<
-        impl Iterator<Item = std::result::Result<FileHeader, UnrarError>>,
-        UnrarError,
-    > {
-        match password {
-            Some(pw) => Archive::with_password(path, pw).open_for_listing(),
-            None => Archive::new(path).open_for_listing(),
-        }
+    ) -> std::result::Result<rar_helper::Listing, RarError> {
+        rar_helper::list(path, password)
     }
 
     /// Inspect a `.rar` (counts + uncompressed bytes) without extracting. Opens
@@ -1021,35 +1023,25 @@ mod rar_support {
             format!("{game_root}/sce_sys/param.json")
         };
 
-        let tmp = std::env::temp_dir().join(format!(".ps5upload-param-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&tmp);
-        std::fs::create_dir_all(&tmp).ok()?;
-
-        let result = (|| -> Option<crate::game_meta::FolderInspectResult> {
-            let path_str = archive_path.to_string_lossy().into_owned();
-            let mut open = match password {
-                Some(pw) => Archive::with_password(&path_str, pw).open_for_processing(),
-                None => Archive::new(&path_str).open_for_processing(),
+        let path_str = archive_path.to_string_lossy().into_owned();
+        let mut walk = rar_helper::walk(&path_str, password).ok()?;
+        loop {
+            let header = walk.next_header().ok()??;
+            let matches = sanitize_rar_entry(&header.filename).as_deref() == Some(want.as_str());
+            if !matches || header.unpacked_size > MAX_PARAM_JSON {
+                walk.skip().ok()?;
+                continue;
             }
-            .ok()?;
-
-            loop {
-                let header = open.read_header().ok()??;
-                let name = header.entry().filename.clone();
-                let matches = sanitize_rar_entry(&name).as_deref() == Some(want.as_str());
-                if !matches || header.entry().unpacked_size > MAX_PARAM_JSON {
-                    open = header.skip().ok()?;
-                    continue;
+            let mut bytes = Vec::new();
+            walk.read(false, &mut |p: Piece<'_>| {
+                if let Piece::Data(b) = p {
+                    bytes.extend_from_slice(b);
                 }
-                let dest = tmp.join("param.json");
-                let _ = header.extract_to(&dest).ok()?;
-                let bytes = std::fs::read(&dest).ok()?;
-                return crate::game_meta::parse_param_json_bytes(&bytes).ok();
-            }
-        })();
-
-        let _ = std::fs::remove_dir_all(&tmp);
-        result
+                bytes.len() as u64 <= MAX_PARAM_JSON
+            })
+            .ok()?;
+            return crate::game_meta::parse_param_json_bytes(&bytes).ok();
+        }
     }
 
     /// Metadata-only plan preview: total bytes + sanitised dest paths (sorted)
@@ -1127,9 +1119,9 @@ mod rar_support {
 
     /// Walk the archive on a worker thread, pushing entry-framed messages.
     ///
-    /// Runs on its own thread because UnRAR pushes bytes at us while the sender
-    /// pulls; the bounded channel between them is the backpressure, so
-    /// peak memory is a few chunks rather than a whole entry.
+    /// Runs on its own thread so the consumer can pull entries as `Read`s; the
+    /// bounded channel between them is the backpressure, so peak memory is a few
+    /// chunks rather than a whole entry.
     pub(crate) fn spawn_rar_worker(
         archive_path: &Path,
         password: Option<&str>,
@@ -1151,12 +1143,8 @@ mod rar_support {
                 let _ = tx.send(StreamMsg::Failed(msg));
             };
 
-            let opened = match password.as_deref() {
-                Some(pw) => Archive::with_password(&path_str, pw).open_for_processing(),
-                None => Archive::new(&path_str).open_for_processing(),
-            };
-            let mut open = match opened {
-                Ok(o) => o,
+            let mut walk = match rar_helper::walk(&path_str, password.as_deref()) {
+                Ok(w) => w,
                 Err(e) => {
                     fail(
                         &tx,
@@ -1167,7 +1155,7 @@ mod rar_support {
             };
 
             loop {
-                let header = match open.read_header() {
+                let header = match walk.next_header() {
                     Ok(Some(h)) => h,
                     Ok(None) => {
                         let _ = tx.send(StreamMsg::Finished);
@@ -1179,9 +1167,9 @@ mod rar_support {
                     }
                 };
 
-                let name = header.entry().filename.clone();
+                let name = header.filename.clone();
                 let sanitised = sanitize_rar_entry(&name);
-                let skip_this = header.entry().is_directory()
+                let skip_this = header.is_directory()
                     || match &sanitised {
                         None => true,
                         Some(rel) => {
@@ -1191,16 +1179,11 @@ mod rar_support {
                     };
 
                 if skip_this {
-                    match header.skip() {
-                        Ok(next) => {
-                            open = next;
-                            continue;
-                        }
-                        Err(e) => {
-                            fail(&tx, format!("{:#}", map_rar_err("skip rar entry", e)));
-                            return;
-                        }
+                    if let Err(e) = walk.skip() {
+                        fail(&tx, format!("{:#}", map_rar_err("skip rar entry", e)));
+                        return;
                     }
+                    continue;
                 }
 
                 let Some(rel) = sanitised else {
@@ -1211,47 +1194,32 @@ mod rar_support {
                     return; // consumer gone (cancel or error) — unwind quietly
                 }
 
-                let (chunk_tx, chunk_rx) = std::sync::mpsc::sync_channel::<Box<[u8]>>(4);
-                // Forward this entry's chunks on a helper thread: UnRAR's walk
-                // blocks inside read_to_sink, so something else has to move
-                // bytes onto the framed channel or the two capacities deadlock.
-                let fwd_tx = tx.clone();
-                let fwd = std::thread::spawn(move || {
-                    for c in chunk_rx {
-                        if fwd_tx.send(StreamMsg::Chunk(c)).is_err() {
+                // The helper pushes the entry's bytes down its pipe as it decodes; each
+                // piece goes onto the bounded channel, whose capacity is the backpressure
+                // (a full channel stops reading the pipe, which stops the decoder).
+                let mut gone = false;
+                // UnRAR reports a wrong password on a content-encrypted entry
+                // as a CRC error; with a password given, that is what it means.
+                let encrypted = header.is_encrypted();
+                let result = walk.read(false, &mut |p: Piece<'_>| {
+                    if let Piece::Data(b) = p {
+                        if tx.send(StreamMsg::Chunk(b.into())).is_err() {
+                            gone = true;
                             return false;
                         }
                     }
                     true
                 });
-
-                // UnRAR reports a wrong password on a content-encrypted entry
-                // as a CRC error; with a password given, that is what it means.
-                let encrypted = header.entry().is_encrypted();
-                let sink = StreamSink::new(chunk_tx);
-                let result = header.read_to_sink(sink);
-
+                if gone {
+                    return; // consumer went away
+                }
                 match result {
-                    Ok((sink, next)) => {
-                        // Drop the sink BEFORE joining: it still owns the
-                        // chunk sender, and the forwarder's `for c in
-                        // chunk_rx` only ends when every sender is gone.
-                        // Joining first deadlocks.
-                        let disconnected = sink.disconnected();
-                        drop(sink);
-                        let alive = fwd.join().unwrap_or(false);
-                        if disconnected || !alive {
-                            return; // consumer went away
-                        }
+                    Ok(()) => {
                         if tx.send(StreamMsg::EntryEnd).is_err() {
                             return;
                         }
-                        open = next;
                     }
                     Err(e) => {
-                        // The sink was consumed (and its sender dropped)
-                        // inside the failed call, so the forwarder can finish.
-                        let _ = fwd.join();
                         if encrypted && password.is_some() && e.code == RarCode::BadData {
                             fail(&tx, "rar_password_wrong".to_string());
                         } else {
@@ -1279,6 +1247,9 @@ mod rar_support {
         pub dirs: Vec<String>,
         /// A solid archive cannot skip an entry without decoding it.
         pub solid: bool,
+        /// The unpacked bytes of the files `excludes` leaves out, which a solid walk decodes
+        /// and discards; `None` when one of them has no known size.
+        pub excluded_bytes: Option<u64>,
     }
 
     /// One header pass: files, dirs and the solid flag. Never decodes.
@@ -1288,14 +1259,12 @@ mod rar_support {
         excludes: &[String],
     ) -> Result<RarLayout> {
         let path_str = archive_path.to_string_lossy().into_owned();
-        let opened = match password {
-            Some(pw) => Archive::with_password(&path_str, pw).open_for_listing(),
-            None => Archive::new(&path_str).open_for_listing(),
-        }
-        .map_err(|e| map_rar_open_err(&path_str, "open rar", e))?;
+        let opened = list_headers(&path_str, password)
+            .map_err(|e| map_rar_open_err(&path_str, "open rar", e))?;
         let solid = opened.is_solid();
         let (mut files, mut dirs) = (Vec::new(), Vec::new());
         let mut mtimes: Vec<u64> = Vec::new();
+        let mut excluded_bytes = Some(0u64);
         for entry in opened {
             let e = entry.map_err(|e| map_rar_err("read rar header", e))?;
             let Some(rel) = sanitize_rar_entry(&e.filename) else {
@@ -1311,6 +1280,12 @@ mod rar_support {
             if !excludes.is_empty()
                 && crate::excludes::is_excluded_strings(Path::new(&rel), excludes)
             {
+                // A continuation from the previous volume is not decoded again (rar_walk).
+                if !e.is_split_before() {
+                    excluded_bytes = excluded_bytes
+                        .filter(|_| !rar_size_unknown(e.unpacked_size))
+                        .map(|n| n.saturating_add(e.unpacked_size));
+                }
                 continue;
             }
             files.push((rel, e.unpacked_size));
@@ -1329,6 +1304,7 @@ mod rar_support {
             mtimes,
             dirs,
             solid,
+            excluded_bytes,
         })
     }
 
@@ -1399,11 +1375,8 @@ mod rar_support {
         solid: bool,
         files: &mut [(String, u64)],
     ) -> Result<()> {
-        let mut open = match password {
-            Some(pw) => Archive::with_password(path_str, pw).open_for_processing(),
-            None => Archive::new(path_str).open_for_processing(),
-        }
-        .map_err(|e| map_rar_open_err(path_str, "open rar", e))?;
+        let mut walk = rar_helper::walk(path_str, password)
+            .map_err(|e| map_rar_open_err(path_str, "open rar", e))?;
         {
             // A long silent "planning" phase must be explainable (review L7). Ignores a
             // closed stderr rather than panicking like eprintln!.
@@ -1429,40 +1402,36 @@ mod rar_support {
             .collect();
         let mut left = wanted.len();
         while left > 0 {
-            let Some(header) = open
-                .read_header()
+            let Some(header) = walk
+                .next_header()
                 .map_err(|e| map_rar_err("read rar header", e))?
             else {
                 break;
             };
-            let target = sanitize_rar_entry(&header.entry().filename)
-                .filter(|_| !header.entry().is_directory())
+            let target = sanitize_rar_entry(&header.filename)
+                .filter(|_| !header.is_directory())
                 .and_then(|r| wanted.get(&r).copied());
-            let encrypted = header.entry().is_encrypted();
+            let encrypted = header.is_encrypted();
             match target {
                 Some(i) => {
                     let mut n = 0u64;
-                    open = header
-                        .read_to_fn(&mut |b: &[u8]| {
-                            n += b.len() as u64;
-                            true
-                        })
-                        .map_err(|e| {
-                            map_rar_err("measure rar entry", e)
-                                .context(format!("encrypted={}", encrypted && password.is_some()))
-                        })?;
+                    walk.read(true, &mut |p: Piece<'_>| {
+                        n += p.bytes();
+                        true
+                    })
+                    .map_err(|e| {
+                        map_rar_err("measure rar entry", e)
+                            .context(format!("encrypted={}", encrypted && password.is_some()))
+                    })?;
                     files[i].1 = n;
                     left -= 1;
                 }
-                None if solid && !header.entry().is_directory() => {
-                    open = header
-                        .read_to_fn(&mut |_: &[u8]| true)
+                None if solid && !header.is_directory() => {
+                    walk.read(true, &mut |_: Piece<'_>| true)
                         .map_err(|e| map_rar_err("measure rar entry", e))?;
                 }
                 None => {
-                    open = header
-                        .skip()
-                        .map_err(|e| map_rar_err("skip rar entry", e))?;
+                    walk.skip().map_err(|e| map_rar_err("skip rar entry", e))?;
                 }
             }
             idx += 1;
@@ -1510,7 +1479,7 @@ mod rar_support {
         fn skipped(&mut self, _n: u64) {}
     }
 
-    fn classify(e: &UnrarError, encrypted_with_password: bool) -> RarFailKind {
+    fn classify(e: &RarError, encrypted_with_password: bool) -> RarFailKind {
         match e.code {
             RarCode::MissingPassword => RarFailKind::PasswordRequired,
             RarCode::BadPassword => RarFailKind::PasswordWrong,
@@ -1533,9 +1502,12 @@ mod rar_support {
         }
     }
 
-    fn walk_fail(path: &str, ctx: &str, e: UnrarError, enc_pw: bool) -> RarWalkError {
+    fn walk_fail(path: &str, ctx: &str, e: RarError, enc_pw: bool) -> RarWalkError {
         let mut kind = classify(&e, enc_pw);
-        let message = if kind == RarFailKind::Other {
+        let message = if e.code == RarCode::Helper {
+            // The helper program's own trouble (missing, crashed) says so itself.
+            e.message
+        } else if kind == RarFailKind::Other {
             // A missing volume surfaces as a generic open failure.
             let on_disk = |p: &str| std::path::Path::new(p).exists();
             if let Some(missing) = missing_volume(path, &on_disk) {
@@ -1555,9 +1527,9 @@ mod rar_support {
     }
 
     /// One forward pass over the archive on the calling thread (no worker, no
-    /// channel): the sink is called as UnRAR produces data, and `cancel` is polled
-    /// on every piece UnRAR hands over (at most a few MiB of output apart) and
-    /// between entries. Entries with ordinal below `start`, and entries the sink
+    /// channel; the `ps5upload-unrar` helper decodes): the sink is called as the
+    /// helper's data arrives, and `cancel` is polled on every piece (at most 1 MiB
+    /// apart) and between entries; a stop kills the helper. Entries with ordinal below `start`, and entries the sink
     /// does not `want`, are skipped: a non-solid archive seeks past them, a solid
     /// one decodes and discards them (it must, to stay aligned) but still polls
     /// `cancel`, so a stop never waits out a long skip.
@@ -1578,18 +1550,15 @@ mod rar_support {
         if cancelled() {
             return Err(RarWalkError::Cancelled);
         }
-        let opened = match password {
-            Some(pw) => Archive::with_password(&path_str, pw).open_for_processing(),
-            None => Archive::new(&path_str).open_for_processing(),
-        };
-        let mut open = opened.map_err(|e| walk_fail(&path_str, "open rar", e, false))?;
-        let solid = open.is_solid();
+        let mut walk = rar_helper::walk(&path_str, password)
+            .map_err(|e| walk_fail(&path_str, "open rar", e, false))?;
+        let solid = walk.is_solid();
         let mut ordinal = 0u64;
         loop {
             if cancelled() {
                 return Err(RarWalkError::Cancelled);
             }
-            let header = match open.read_header() {
+            let header = match walk.next_header() {
                 Ok(Some(h)) => h,
                 Ok(None) => return Ok(()),
                 Err(e) => return Err(walk_fail(&path_str, "read rar header", e, false)),
@@ -1598,20 +1567,19 @@ mod rar_support {
             // takes its continuation with it, so this shows up only after the walk skipped
             // that file: it is skipped too, and is not another entry (#429: a resume past a
             // file split across volumes counted it, and failed as a reordered archive).
-            if header.entry().is_split_before() {
-                open = header
-                    .skip()
+            if header.is_split_before() {
+                walk.skip()
                     .map_err(|e| walk_fail(&path_str, "skip rar entry", e, false))?;
                 continue;
             }
-            let name = header.entry().filename.clone();
-            let declared = header.entry().unpacked_size;
+            let name = header.filename.clone();
+            let declared = header.unpacked_size;
             // An unknown-size entry is read to its end; the sender checks the
             // delivered length against the size `rar_layout` measured.
             let size_known = !rar_size_unknown(declared);
             let size = if size_known { declared } else { u64::MAX };
-            let is_dir = header.entry().is_directory();
-            let encrypted = header.entry().is_encrypted();
+            let is_dir = header.is_directory();
+            let encrypted = header.is_encrypted();
             let Some(rel) = sanitize_rar_entry(&name) else {
                 return Err(RarWalkError::Failed {
                     kind: RarFailKind::Other,
@@ -1621,23 +1589,22 @@ mod rar_support {
             let excluded = !excludes.is_empty()
                 && crate::excludes::is_excluded_strings(Path::new(&rel), excludes);
             if is_dir || (excluded && !solid) {
-                open = header
-                    .skip()
+                walk.skip()
                     .map_err(|e| walk_fail(&path_str, "skip rar entry", e, false))?;
                 continue;
             }
             if excluded {
-                // Solid: the entry must be decoded to keep the stream aligned, and
-                // RAR_SKIP never calls back, so stop could not be polled. Decode it
-                // through a discarding callback that does.
-                let r = header.read_to_fn(&mut |b: &[u8]| {
-                    sink.skipped(b.len() as u64);
+                // Solid: the entry must be decoded to keep the stream aligned. The
+                // helper decodes and discards it, reporting each piece's size, so stop
+                // is polled throughout.
+                let r = walk.read(true, &mut |p: Piece<'_>| {
+                    sink.skipped(p.bytes());
                     !cancelled()
                 });
                 if cancelled() {
                     return Err(RarWalkError::Cancelled);
                 }
-                open = r.map_err(|e| {
+                r.map_err(|e| {
                     walk_fail(
                         &path_str,
                         "skip rar entry",
@@ -1657,8 +1624,7 @@ mod rar_support {
             }
             let deliver = this >= start && sink.want(this, &rel, declared);
             if !deliver && !solid {
-                open = header
-                    .skip()
+                walk.skip()
                     .map_err(|e| walk_fail(&path_str, "skip rar entry", e, false))?;
                 continue;
             }
@@ -1668,22 +1634,25 @@ mod rar_support {
             let mut got = 0u64;
             let mut sink_err: Option<std::io::Error> = None;
             let mut overrun = false;
-            let result = header.read_to_fn(&mut |bytes: &[u8]| {
+            // A solid entry the walk does not deliver is decoded and discarded inside
+            // the helper (only its size crosses the pipe).
+            let result = walk.read(!deliver, &mut |p: Piece<'_>| {
                 if cancelled() {
                     return false;
                 }
-                got += bytes.len() as u64;
+                got += p.bytes();
                 if got > size {
                     overrun = true;
                     return false;
                 }
-                if deliver {
-                    if let Err(e) = sink.data(bytes) {
-                        sink_err = Some(e);
-                        return false;
+                match p {
+                    Piece::Data(bytes) if deliver => {
+                        if let Err(e) = sink.data(bytes) {
+                            sink_err = Some(e);
+                            return false;
+                        }
                     }
-                } else {
-                    sink.skipped(bytes.len() as u64);
+                    p => sink.skipped(p.bytes()),
                 }
                 true
             });
@@ -1701,7 +1670,7 @@ mod rar_support {
                     ),
                 });
             }
-            open = result.map_err(|e| {
+            result.map_err(|e| {
                 walk_fail(
                     &path_str,
                     "extract rar entry",

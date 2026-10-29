@@ -820,7 +820,7 @@
   "cw_offline_title": "PS5Upload Minion が動いていません",
   "cw_payload_body": "このファイルを本体のペイロードローダー（ポート9021）に送ります。ローダーはすぐに実行します。信頼できるペイロードだけを読み込んでください。",
   "cw_payload_done": "「{name}」をペイロードローダーに送りました。",
-  "cw_payload_err_helper": "これは PS5Upload の helper です。helper はパソコンの PS5Upload アプリから更新してください。",
+  "cw_payload_err_helper": "これは PS5Upload のヘルパーです。ヘルパーはパソコンの PS5Upload アプリから更新してください。",
   "cw_payload_err_installing": "パッケージをインストール中です。終わってからペイロードを読み込んでください。",
   "cw_payload_err_not_elf": "このファイルは ELF ペイロードではありません。",
   "cw_payload_err_send": "ペイロードを送信できませんでした。",

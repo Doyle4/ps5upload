@@ -29,7 +29,6 @@ import { consoleAddr, hostOf } from "../../lib/addr";
 import {
   memo,
   useCallback,
-  useDeferredValue,
   useEffect,
   useMemo,
   useRef,
@@ -37,8 +36,6 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import {
-  LibraryBig,
-  RefreshCw,
   FileArchive,
   Gamepad2,
   Trash2,
@@ -49,8 +46,6 @@ import {
   HardDriveDownload,
   Shrink,
   FolderInput,
-  Search,
-  X,
   Info,
   ExternalLink,
   Boxes,
@@ -64,7 +59,6 @@ import { openExternalUrl as openExternal } from "../../lib/openExternalUrl";
 import { safeGetItem, safeSetItem } from "../../lib/safeStorage";
 
 import { useConnectionStore } from "../../state/connection";
-import RunningAppsPanel from "./RunningAppsPanel";
 import { useRunningTitleIds } from "../../state/runningApps";
 import {
   usePlayTimeStore,
@@ -72,7 +66,6 @@ import {
   playSecondsFor,
 } from "../../state/playTime";
 import {
-  scanLibrary,
   fsDelete,
   fsChmod,
   fsPathExists,
@@ -83,8 +76,6 @@ import {
   appUnregister,
   smpManualInstall,
   smpCheckoutBegin,
-  smpStatus,
-  fetchVolumes,
   fetchGameMeta,
   gameIconUrl,
   appIconUrl,
@@ -93,7 +84,6 @@ import {
   iconSizeFor,
   cachedGameIcon,
   gameIconDataUrl,
-  appsInstalled,
   jobCancel,
   jobStatus,
   startTransferDownload,
@@ -112,26 +102,23 @@ import {
 } from "../../lib/moveTarget";
 import {
   imageBasename,
-  smpMountImageBasename,
 } from "../../lib/mountPaths";
-import EditSessionBanner from "../../components/EditSessionBanner";
 import { useConfirm } from "../../components/ConfirmDialog";
 import { useEditSessionStore } from "../../state/editSession";
 import {
   useLibraryStore,
   findOwningImage,
   libraryForHost,
+  refreshLibrary,
   type RegisteredTitle,
 } from "../../state/library";
 import { useElapsed } from "../../lib/useElapsed";
 import { cachedGameMeta, peekGameMeta } from "../../lib/gameMetaCache";
 import { formatBytes } from "../../lib/format";
-import { mgmtAddr, transferAddr } from "../../lib/addr";
+import { mgmtAddr } from "../../lib/addr";
 import { useImageRetry } from "../../lib/useImageRetry";
-import { useStaleHostGuard } from "../../lib/staleHostGuard";
 import { isTauriEnv } from "../../lib/tauriEnv";
 import { createLimiter } from "../../lib/limitConcurrency";
-import { filterLibraryEntries } from "../../lib/libraryFilter";
 import { humanizePs5Error } from "../../lib/humanizeError";
 import {
   fetchTitleInfo,
@@ -152,18 +139,16 @@ import { audit } from "../../state/auditLog";
 import { pushNotification } from "../../state/notifications";
 import { withConsolePrefix } from "../../state/roster";
 import {
-  EmptyState,
   ErrorCard,
   Button,
   Input,
   OverflowMenu,
-  SkeletonRows,
   Spinner,
   type OverflowMenuItem,
   Toggle,
-  ConnectionGate,
 } from "../../components";
 import { useTr } from "../../state/lang";
+import { useSmpState } from "./SmpNeeded";
 
 // Module-level limiter shared across every LibraryRow mounted at once.
 // 4 concurrent FS_READs keeps the metadata fetch snappy (browser
@@ -184,15 +169,30 @@ function formatDuration(sec: number): string {
 
 // formatBytes moved to lib/format.ts — kept consistent across screens.
 
-export default function LibraryScreen() {
-  const tr = useTr();
-  const host = useConnectionStore((s) => s.host);
-  const guard = useStaleHostGuard();
-  const payloadStatus = useConnectionStore((s) => s.payloadStatus);
-  // Per-console library: select THIS console's slot. Switching tabs shows the
-  // new console's last-known library instantly (no blank-on-switch) and its
-  // background refresh repopulates it — no cross-console staleness.
-  const entries = useLibraryStore((s) => libraryForHost(s, host).entries);
+/** Whether ShadowMount+ is running on `host` right now. Gates a row's "Edit files" (checking
+ *  an image out only means anything when SMP is the one holding it) and how Mount behaves.
+ *  Asked once per screen rather than by every row; false while unknown or unreachable. */
+export function useSmpRunning(host: string): boolean {
+  const { status } = useSmpState(host);
+  return status !== null && status !== "checking" && !!status.running;
+}
+
+/**
+ * Game folders and disk images on one console's drives, one row each, with every action a
+ * row offers (play, mount, edit, register, move, download, convert, delete…). Used by a game
+ * page for that game's files, and by the Games screen's list of files no game links to.
+ * Everything the rows need besides the entries comes from that console's scan
+ * (state/library); a change re-scans it.
+ */
+export function DriveRows({
+  entries,
+  host,
+  onChanged,
+}: {
+  entries: LibraryEntry[];
+  host: string;
+  onChanged?: () => void;
+}) {
   const mountMap = useLibraryStore((s) => libraryForHost(s, host).mountMap);
   const pendingMounts = useLibraryStore(
     (s) => libraryForHost(s, host).pendingMounts,
@@ -203,532 +203,26 @@ export default function LibraryScreen() {
   );
   // One read for every row: the same play time Game Activity shows.
   const trackedPlay = useTrackedPlay(host);
-  // Whether ShadowMount+ is running right now. Gates the per-row "Edit
-  // files…" action: checking an image out only means anything when SMP is the
-  // one holding it. Probed at screen level so ~100 rows don't each ask.
-  const [smpRunning, setSmpRunning] = useState(false);
-  useEffect(() => {
-    if (payloadStatus !== "up" || !host?.trim()) {
-      setSmpRunning(false);
-      return;
-    }
-    let cancelled = false;
-    smpStatus(mgmtAddr(host))
-      .then((s) => {
-        if (!cancelled) setSmpRunning(!!s.running);
-      })
-      .catch(() => {
-        // Unreachable SMP → hide the action rather than offering something
-        // that would fail. Not worth a banner.
-        if (!cancelled) setSmpRunning(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [host, payloadStatus]);
-  const loading = useLibraryStore((s) => libraryForHost(s, host).loading);
-  const error = useLibraryStore((s) => libraryForHost(s, host).error);
-  const lastRefreshedAt = useLibraryStore(
-    (s) => libraryForHost(s, host).lastRefreshedAt,
-  );
-  // Host-bound wrappers so the many call sites stay `setLoading(false)` /
-  // `setError(msg)` while the underlying store action is per-host.
-  const setLoading = useCallback(
-    (loading: boolean) => useLibraryStore.getState().setLoading(host, loading),
-    [host],
-  );
-  const setError = useCallback(
-    (e: string | null) => useLibraryStore.getState().setError(host, e),
-    [host],
-  );
-
-  const refresh = useCallback(async () => {
-    if (!host?.trim()) return;
-    // Host-switch race guard: refresh() is async and writes into the
-    // shared useLibraryStore. If the user points the app at a new PS5
-    // mid-scan, a slow scan of the PREVIOUS host can land after the
-    // new host's scan and repaint the old console's library under
-    // the new host's name. (2.12.0: migrated to canonical
-    // useStaleHostGuard from lib/staleHostGuard — was hand-rolled
-    // here and was the original template the 2.9.0 audit told the
-    // other 6 screens to copy.)
-    const probe = guard.capture();
-    const isStale = probe.isStale;
-    setLoading(true);
-    setError(null);
-    try {
-      const addr = transferAddr(probe.host);
-      // Volume probe failure is non-fatal for the library scan
-      // itself (the Move modal degrades to "no destinations
-      // available" instead of blocking the whole screen), but we
-      // still log so diagnosis is possible. Without the log, a
-      // transient mgmt-port timeout looked indistinguishable from
-      // "no drives attached" — same empty UI, no breadcrumb.
-      const [result, volumes, registered] = await Promise.all([
-        scanLibrary(addr),
-        fetchVolumes(addr).catch((e) => {
-          console.warn(
-            "[library] volume probe failed; Move modal will offer no destinations:",
-            e,
-          );
-          return [];
-        }),
-        // Registered-title inventory, keyed by the SOURCE path we registered
-        // from. This is what puts a real name + cover on a `.exfat`/`.ffpkg`
-        // row: the image file itself has no readable `sce_sys/` (the metadata
-        // is inside it), but /user/appmeta does, and the payload reports which
-        // source each registered title came from. Non-fatal like the volume
-        // probe — rows fall back to the bare filename without it.
-        appsInstalled(addr).catch((e) => {
-          console.warn(
-            "[library] installed-apps probe failed; disk-image rows will show filenames only:",
-            e,
-          );
-          return { titles: [], registeredUnavailable: true, incomplete: true };
-        }),
-      ]);
-      // Two ways a registered title points back at a Library row:
-      //   1. its source IS the row's path — true for folder games and for any
-      //      image ps5upload mounted itself (our mount.lnk records the image).
-      //   2. its source is a ShadowMount+ mount point, which encodes only the
-      //      image's basename. SMP never records the original path, so the
-      //      basename is the only link back to the row.
-      // Both go into one map; images look themselves up under both keys.
-      const registeredBySource = new Map<string, RegisteredTitle>();
-      const pkgInstalled = new Set(
-        registered.titles
-          .filter((t) => t.origin === "pkg")
-          .map((t) => t.titleId.toUpperCase()),
-      );
-      for (const t of registered.titles) {
-        // Only "registered" titles carry a source path; a plain .pkg install
-        // has none and would collide on the empty-string key.
-        if (!t.source) continue;
-        const title = { titleId: t.titleId, titleName: t.titleName };
-        registeredBySource.set(t.source, title);
-        const smpBasename = smpMountImageBasename(t.source);
-        if (smpBasename) registeredBySource.set(smpBasename, title);
-      }
-      // image_path → mount_point. Pre-2.2.36 this gated on the mount
-      // landing under /mnt/ps5upload/, which broke the MOUNTED badge
-      // and the Unmount button for any user-chosen mount point (e.g.
-      // /data/homebrew/Mafia/) — the volume row carries the right
-      // source_image either way, so the prefix check was wrong. The
-      // payload's tracker file is the consent record on the unmount
-      // side, so accepting any source_image here doesn't open a
-      // surprise-unmount path: clicking Unmount calls fs_unmount
-      // which still validates "is this our mount?".
-      const next = new Map<string, string>();
-      for (const v of volumes) {
-        if (v.source_image) {
-          next.set(v.source_image, v.path);
-        }
-      }
-      // Move-modal destinations only make sense for real attached
-      // drives, so filter out placeholder/read-only volumes here.
-      const writable = volumes.filter((v) => v.writable && !v.is_placeholder);
-      // Drop the result if the user switched hosts while the scan was
-      // in flight — see the probedHost guard at the top of refresh().
-      if (isStale()) return;
-      // Stale-empty guard: a transient race during fs_mount /
-      // fs_unmount can cause scanLibrary to return zero entries
-      // even though there are still games on disk (volumes are
-      // mid-update on the kernel side). If we previously had
-      // entries and the new scan returned nothing, keep the old
-      // entries — only update mountMap + volumes from the fresh
-      // probe — and let the next scheduled refresh produce a real
-      // count. The user-visible symptom this fixes: "library goes
-      // blank after mounting an image, must click Refresh manually."
-      //
-      // setData commits atomically (single set() callback) for THIS console's
-      // slot: it prunes confirmed pending mounts and keeps the old entries if
-      // the rescan came back empty but we had some (the "library goes blank
-      // after mounting" fix) — the same logic that used to live inline here.
-      useLibraryStore
-        .getState()
-        .setData(host, result, next, writable, registeredBySource, pkgInstalled);
-    } catch (e) {
-      if (isStale()) return;
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      // Leave `loading` alone if we've been superseded — the new
-      // host's own refresh now owns the loading indicator.
-      if (!isStale()) setLoading(false);
-    }
-  }, [host, setLoading, setError, guard]);
-
-  // Auto-refresh policy:
-  //   - First time Library is visited after mount → always refresh
-  //   - Subsequent visits → only refresh if data is older than 30s
-  //     (or never loaded). Keeps "flip Library ↔ another tab" snappy
-  //     without serving week-old data after the app has been open
-  //     for a while.
-  useEffect(() => {
-    if (payloadStatus !== "up") return;
-    const stale =
-      lastRefreshedAt === null || Date.now() - lastRefreshedAt > 30_000;
-    if (stale) refresh();
-  }, [payloadStatus, lastRefreshedAt, refresh]);
-
-  // Listen for Install Package completion events. The install queue
-  // dispatches `ps5upload:library:invalidate` when a BGFT install
-  // reports phase=done — and a fresh title appears in /user/app/.
-  // We force a refresh on the next render even if the 30-s stale
-  // window hasn't elapsed, so the just-installed title shows up
-  // without the user having to click Refresh.
-  useEffect(() => {
-    function onInvalidate() {
-      if (payloadStatus === "up") refresh();
-    }
-    window.addEventListener("ps5upload:library:invalidate", onInvalidate);
-    return () => {
-      window.removeEventListener("ps5upload:library:invalidate", onInvalidate);
-    };
-  }, [payloadStatus, refresh]);
-
-  // Live search filter. Matches `query` against name / titleId /
-  // path / scope / volume so users can find a title by any of the
-  // identifiers they happen to remember (the folder name they
-  // uploaded, the PPSA id from psprices, the drive it lives on, …).
-  // Kept transient — closing + reopening the screen clears the
-  // query, so a stale filter doesn't surprise the user later.
-  const [query, setQuery] = useState("");
-  // The input reflects `query` immediately (responsive typing); the expensive
-  // filter+sort below runs against the DEFERRED value, so a fast typist isn't
-  // blocked by re-filtering a few-hundred-entry library on every keystroke.
-  const deferredQuery = useDeferredValue(query);
-
-  // Render cap (see CappedRows): big libraries (200+ entries) used to
-  // mount every LibraryRow at once — hundreds of components each with a
-  // metadata-fetch effect. Sections render the first chunk and a
-  // "Show all N" expander. Collapse again whenever the console or the
-  // filter changes, so a narrowed search never stays stuck expanded.
-  const [gamesExpanded, setGamesExpanded] = useState(false);
-  const [imagesExpanded, setImagesExpanded] = useState(false);
-  useEffect(() => {
-    setGamesExpanded(false);
-    setImagesExpanded(false);
-  }, [host, query]);
-
-  // Filter, then split by kind so games and disk images render in
-  // their own sections. Memoization keys on the entries array
-  // identity (set by setData on refresh) and the query string —
-  // both cheap, neither flips on every render.
-  // Sort key persisted to localStorage so reopening the screen
-  // remembers the user's last preference. Default is "recent" so
-  // freshly-uploaded games appear at the top — the most common
-  // "where did the thing I just uploaded go" experience.
-  type SortKey = "recent" | "oldest" | "name-asc" | "name-desc";
-  const [sortKey, setSortKey] = useState<SortKey>(() => {
-    if (typeof window === "undefined") return "recent";
-    const saved = safeGetItem("ps5upload.library.sort");
-    return saved === "recent" ||
-      saved === "oldest" ||
-      saved === "name-asc" ||
-      saved === "name-desc"
-      ? saved
-      : "recent";
-  });
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      safeSetItem("ps5upload.library.sort", sortKey);
-    }
-  }, [sortKey]);
-
-  function applySort(arr: LibraryEntry[]): LibraryEntry[] {
-    const sorted = [...arr];
-    if (sortKey === "name-asc") {
-      sorted.sort((a, b) => a.name.localeCompare(b.name));
-    } else if (sortKey === "name-desc") {
-      sorted.sort((a, b) => b.name.localeCompare(a.name));
-    } else if (sortKey === "recent") {
-      // mtime=0 means unknown (older payload, stat failure) — sort
-      // those to the bottom so they don't pollute the "recent" top.
-      sorted.sort((a, b) => {
-        const am = a.mtime ?? 0;
-        const bm = b.mtime ?? 0;
-        if (am === 0 && bm === 0) return a.name.localeCompare(b.name);
-        if (am === 0) return 1;
-        if (bm === 0) return -1;
-        return bm - am;
-      });
-    } else {
-      // oldest first — same null-aware ordering, reversed.
-      sorted.sort((a, b) => {
-        const am = a.mtime ?? 0;
-        const bm = b.mtime ?? 0;
-        if (am === 0 && bm === 0) return a.name.localeCompare(b.name);
-        if (am === 0) return 1;
-        if (bm === 0) return -1;
-        return am - bm;
-      });
-    }
-    return sorted;
-  }
-
-  const split = useMemo(() => {
-    const filtered = filterLibraryEntries(entries ?? [], deferredQuery);
-    const games = applySort(filtered.filter((e) => e.kind === "game"));
-    const images = applySort(filtered.filter((e) => e.kind === "image"));
-    return { games, images, total: filtered.length };
-    // applySort closes over sortKey — eslint-deps catches it via the
-    // sortKey dep below, no need to memoize the function itself.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [entries, deferredQuery, sortKey]);
-  const totalUnfiltered = entries?.length ?? 0;
-  const querying = query.trim() !== "";
-
+  const smpRunning = useSmpRunning(host);
+  const [expanded, setExpanded] = useState(false);
+  const changed = useCallback(() => {
+    if (onChanged) onChanged();
+    else void refreshLibrary(host);
+  }, [onChanged, host]);
   return (
-    <div>
-      <div className="mb-4 flex justify-end">
-        <Button
-          variant="secondary"
-          size="sm"
-          leftIcon={<RefreshCw size={12} />}
-          onClick={refresh}
-          disabled={loading || !host?.trim()}
-          loading={loading}
-        >
-          {tr("refresh", undefined, "Refresh")}
-        </Button>
-      </div>
-
-      {/* An open edit session hides a game from the PS5 home screen, so the
-          reminder sits above the list rather than inside the row it came
-          from — the user may well arrive here from a different screen, or a
-          different session entirely. */}
-      <div className="mb-4 empty:hidden">
-        {/* Re-scan on check-in: the image is back in its original folder and
-            the edit mount is gone, so the list is stale the moment the
-            session ends. */}
-        <EditSessionBanner onFinished={refresh} />
-      </div>
-
-      {error && (
-        <div className="mb-4">
-          <ErrorCard
-            title={tr("library_scan_error", undefined, "Couldn't scan the PS5")}
-            detail={humanizePs5Error(error)}
-            action={
-              <Button
-                variant="secondary"
-                size="sm"
-                leftIcon={<RefreshCw size={12} />}
-                onClick={() => void refresh()}
-                disabled={loading || !host?.trim()}
-              >
-                {tr("games_retry", undefined, "Try again")}
-              </Button>
-            }
-          />
-        </div>
-      )}
-
-      {/* Running apps with suspend/resume/kill controls. Auto-hides
-          when nothing is running. Wires Phase 18 (app lifecycle RPCs)
-          + Phase 33 (app.db query) so each row shows a friendly name. */}
-      <ConnectionGate require="payload">
-        <RunningAppsPanel mgmtAddr={mgmtAddr(host.trim())} />
-
-        {/* First scan in flight: hold the list's shape with shimmering row
-            placeholders instead of dead space — a 200k-file console can take
-            seconds, and a blank page reads as "broken". Refreshes of an
-            already-loaded list keep showing the stale list (no flicker). */}
-        {entries === null && loading && (
-          <SkeletonRows rows={8} rowClassName="h-14" />
-        )}
-
-        {entries && entries.length === 0 && (
-          <EmptyState
-            icon={LibraryBig}
-            size="hero"
-            title={tr(
-              "library_empty_title",
-              undefined,
-              "Nothing in the scan folders yet",
-            )}
-            message={tr(
-              "library_empty_message",
-              undefined,
-              "Upload a game folder or disk image, or register titles with a PS5-side installer — they'll show up here.",
-            )}
-          />
-        )}
-
-        {entries && entries.length > 0 && (
-          <>
-            {/* Search bar. Matches name / titleId / path / scope /
-                volume so a query like "dead", "PPSA03845", or "ext1"
-                all narrow the list. Empty query renders the full list
-                unchanged (filterLibraryEntries returns the same
-                reference, so memoization downstream stays warm). */}
-            <div className="mb-5 flex min-h-11 items-center gap-2 rounded-full border border-[var(--glass-edge)] bg-[var(--color-surface-raised)] py-1.5 pl-4 pr-1.5 shadow-[var(--edge-highlight),var(--shadow-1)]">
-              <Search
-                size={14}
-                className="shrink-0 text-[var(--color-muted)]"
-              />
-              <input
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                onKeyDown={(e) => {
-                  // Standard search-input convention: Escape clears
-                  // the query. Match what the X button does so the
-                  // keyboard path mirrors the mouse path.
-                  if (e.key === "Escape" && query !== "") {
-                    setQuery("");
-                    e.stopPropagation();
-                  }
-                }}
-                placeholder={tr(
-                  "library_search_placeholder",
-                  undefined,
-                  "Search by name, title ID, or path…",
-                )}
-                className="flex-1 bg-transparent text-sm outline-none placeholder:text-[var(--color-muted)]"
-                aria-label={tr(
-                  "library_search_aria",
-                  undefined,
-                  "Filter library entries",
-                )}
-              />
-              {querying && (
-                <button
-                  type="button"
-                  onClick={() => setQuery("")}
-                  className="rounded p-0.5 text-[var(--color-muted)] hover:bg-[var(--color-surface-3)]"
-                  aria-label={tr(
-                    "library_search_clear",
-                    undefined,
-                    "Clear search",
-                  )}
-                >
-                  <X size={12} />
-                </button>
-              )}
-              {querying && (
-                <span className="shrink-0 text-xs text-[var(--color-muted)]">
-                  {split.total} / {totalUnfiltered}
-                </span>
-              )}
-              <select
-                value={sortKey}
-                onChange={(e) => setSortKey(e.target.value as SortKey)}
-                className="shrink-0 rounded-full border border-[var(--color-border-strong)] bg-[var(--color-surface)] px-3 py-1.5 text-xs text-[var(--color-text)] outline-none hover:bg-[var(--color-surface-3)]"
-                aria-label={tr(
-                  "library_sort_aria",
-                  undefined,
-                  "Sort library entries",
-                )}
-                title={tr(
-                  "library_sort_tooltip",
-                  undefined,
-                  "Choose how the list is ordered. 'Most recent' uses each entry's last-modified time on the PS5.",
-                )}
-              >
-                <option value="recent">
-                  {tr("library_sort_recent", undefined, "Most recent")}
-                </option>
-                <option value="oldest">
-                  {tr("library_sort_oldest", undefined, "Oldest first")}
-                </option>
-                <option value="name-asc">
-                  {tr("library_sort_name_asc", undefined, "Name (A→Z)")}
-                </option>
-                <option value="name-desc">
-                  {tr("library_sort_name_desc", undefined, "Name (Z→A)")}
-                </option>
-              </select>
-            </div>
-
-            {querying && split.total === 0 && (
-              <EmptyState
-                icon={Search}
-                title={tr(
-                  "library_search_no_matches_title",
-                  undefined,
-                  "No matches",
-                )}
-                message={tr(
-                  "library_search_no_matches_message",
-                  { query },
-                  `Nothing in your library matches "${query}". Try a shorter phrase, the title ID (e.g. PPSA01342), or a fragment of the path.`,
-                )}
-              />
-            )}
-
-            {split.total > 0 && (
-              <div className="flex flex-col gap-6">
-                {split.games.length > 0 && (
-                  <section>
-                    <SectionHeader
-                      icon={<Gamepad2 size={13} />}
-                      title={tr("library_games", undefined, "Games")}
-                      count={split.games.length}
-                    />
-                    <CappedRows
-                      entries={split.games}
-                      expanded={gamesExpanded}
-                      onExpand={() => setGamesExpanded(true)}
-                      host={host}
-                      mountMap={mountMap}
-                      pendingMounts={pendingMounts}
-                      volumes={volumes}
-                      registeredBySource={registeredBySource}
-                      trackedPlay={trackedPlay}
-                      smpRunning={smpRunning}
-                      onChanged={refresh}
-                    />
-                  </section>
-                )}
-                {split.images.length > 0 && (
-                  <section>
-                    <SectionHeader
-                      icon={<FileArchive size={13} />}
-                      title={tr(
-                        "library_disk_image_files",
-                        undefined,
-                        "Disk image files (.exfat / .ffpkg / .ffpfs / .ffpfsc)",
-                      )}
-                      count={split.images.length}
-                    />
-                    {/* What you can actually DO with a disk image. Both verbs
-                        are on every row below, but until you press one nothing
-                        says that editing an image is how you add DLC or apply a
-                        backport — that knowledge lived only in the FAQ, and
-                        users were finding it by accident. One quiet line, not a
-                        card: it's orientation, not a warning. */}
-                    <p className="mb-2 text-xs text-[var(--color-muted)]">
-                      {tr(
-                        "library_images_capabilities",
-                        undefined,
-                        "Mount to play a game, or Edit files to change what's inside it — adding DLC, swapping assets, or applying a backport patch. Edits are written straight into the image.",
-                      )}
-                    </p>
-                    <p className="mb-2 text-xs text-[var(--color-muted)]">
-                      {tr("library_compressed_hint", undefined, "Compressed images need ShadowMount+ to play. To edit, open Files and decompress first.")}
-                    </p>
-                    <FpkgKstuffTip />
-                    <CappedRows
-                      entries={split.images}
-                      expanded={imagesExpanded}
-                      onExpand={() => setImagesExpanded(true)}
-                      host={host}
-                      mountMap={mountMap}
-                      pendingMounts={pendingMounts}
-                      volumes={volumes}
-                      registeredBySource={registeredBySource}
-                      trackedPlay={trackedPlay}
-                      smpRunning={smpRunning}
-                      onChanged={refresh}
-                    />
-                  </section>
-                )}
-              </div>
-            )}
-          </>
-        )}
-      </ConnectionGate>
-    </div>
+    <CappedRows
+      entries={entries}
+      expanded={expanded}
+      onExpand={() => setExpanded(true)}
+      host={host}
+      mountMap={mountMap}
+      pendingMounts={pendingMounts}
+      volumes={volumes}
+      registeredBySource={registeredBySource}
+      trackedPlay={trackedPlay}
+      smpRunning={smpRunning}
+      onChanged={changed}
+    />
   );
 }
 
@@ -806,24 +300,6 @@ function CappedRows({
         </Button>
       )}
     </div>
-  );
-}
-
-function SectionHeader({
-  icon,
-  title,
-  count,
-}: {
-  icon: React.ReactNode;
-  title: string;
-  count: number;
-}) {
-  return (
-    <header className="mb-3 flex items-center gap-2 text-[0.6875rem] font-medium uppercase tracking-[0.08em] text-[var(--color-muted)]">
-      {icon}
-      <span>{title}</span>
-      <span className="text-xs font-normal normal-case">· {count}</span>
-    </header>
   );
 }
 
@@ -2325,9 +1801,9 @@ function LibraryRowImpl({
             <div
               className="mt-1 inline-block rounded-full border border-[var(--color-good)] bg-[var(--color-good-soft)] px-1.5 py-0.5 text-xs font-medium uppercase tracking-wide text-[var(--color-good)]"
               title={tr(
-                "library_badge_running_tooltip",
+                "library_badge_running_tooltip2",
                 undefined,
-                "This title is currently running on the PS5 — see the Running apps panel above for suspend/kill controls.",
+                "This title is running on the PS5. Its game page has Close game, Suspend and Resume.",
               )}
             >
               {tr("library_badge_running", undefined, "running")}
@@ -4129,7 +3605,7 @@ function ConfirmRow({
  * they're on the slower default is every mount being slower than
  * it has to be.
  */
-function FpkgKstuffTip() {
+export function FpkgKstuffTip() {
   const tr = useTr();
   const [dismissed, setDismissed] = useState<boolean>(() => {
     if (typeof window === "undefined") return false;

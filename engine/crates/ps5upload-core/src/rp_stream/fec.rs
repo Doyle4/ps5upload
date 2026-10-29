@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Ported from chiaki-ng: Copyright (C) the Chiaki and chiaki-ng authors. Rust port for
+// ps5upload. Licensed under the GNU AGPL v3.0 (LICENSES/AGPL-3.0.txt).
 //! Video forward error correction: Cauchy Reed-Solomon over GF(2^8).
 //!
 //! Ported from chiaki-ng (AGPL-3.0, `lib/src/fec.c`, which calls jerasure's

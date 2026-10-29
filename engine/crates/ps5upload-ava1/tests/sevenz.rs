@@ -246,18 +246,18 @@ fn resume_pass(
         .unwrap_or(Restart::START);
     let mut sink = Collect::default();
     let cancel = AtomicBool::new(false);
-    src.pass(
-        restart,
-        &mut |p, _| {
-            if done.contains(&p) {
-                Keep::Skip
-            } else {
-                Keep::All
-            }
-        },
-        &mut sink,
-        &cancel,
-    )?;
+    let mut want = |p: &str, _| {
+        if done.contains(&p) {
+            Keep::Skip
+        } else {
+            Keep::All
+        }
+    };
+    // What the sender reports as the skip's total must be what the pass then discards.
+    let predicted = SeqSource::bytes_to_skip(src, restart, &mut want);
+    let before = src.bytes_skipped();
+    src.pass(restart, &mut want, &mut sink, &cancel)?;
+    assert_eq!(predicted, Some(src.bytes_skipped() - before));
     Ok(sink.files)
 }
 

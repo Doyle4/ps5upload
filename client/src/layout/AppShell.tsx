@@ -9,6 +9,9 @@ import RemotePlayBanner from "./RemotePlayBanner";
 import EngineDownBanner from "./EngineDownBanner";
 import MovedConsoleBanner, { useMovedConsoleWatch } from "./MovedConsoleBanner";
 import { PairingDialog } from "../screens/Connection/PairingDialog";
+import { useHelperReplaceGuard } from "../screens/Connection/useHelperReplaceGuard";
+import { helperSendFor, useHelperSendStore } from "../state/helperSend";
+import { sendHelperTo } from "../state/helperSendRuntime";
 import ConsoleTabs from "./ConsoleTabs";
 import ActivityBar from "./ActivityBar";
 import UpdateToast from "./UpdateToast";
@@ -1218,6 +1221,12 @@ function useRoutePersistence() {
 function HelperVersionBanner() {
   const tr = useTr();
   const navigate = useNavigate();
+  const host = useConnectionStore((s) => s.host);
+  const { guard: guardReplace, dialog: replaceDialog } = useHelperReplaceGuard();
+  const send = useHelperSendStore((s) => helperSendFor(s, host));
+  // A send started from this banner keeps it (with the send's step) until it ends; a send
+  // started anywhere else does not raise it.
+  const [sentHere, setSentHere] = useState(false);
   const payloadVersion = useConnectionStore((s) => s.payloadVersion);
   const payloadStatus = useConnectionStore((s) => s.payloadStatus);
   const [appVersion, setAppVersion] = useState<string | null>(null);
@@ -1236,20 +1245,24 @@ function HelperVersionBanner() {
     };
   }, []);
 
+  // A send in progress keeps the banner, with its step, until the new helper answers.
+  const sending = send?.state === "busy";
   const mismatch =
     payloadStatus === "up" &&
     !!appVersion &&
     !!payloadVersion &&
     payloadVersion !== appVersion;
   const pair = `${payloadVersion}->${appVersion}`;
-  if (!mismatch || dismissed === pair) return null;
+  const following = sentHere && (sending || send?.state === "fail");
+  if (!following && (!mismatch || dismissed === pair)) return null;
   // The helper is the newer one (another device sent it, 8.0.0): sending ours would take that
   // away from every device. The fix is updating this app.
-  const appOlder = compareVersions(payloadVersion, appVersion) === 1;
+  const appOlder = !!payloadVersion && !!appVersion && compareVersions(payloadVersion, appVersion) === 1;
 
   return (
     <div className="mx-3 mt-3 rounded-[var(--radius-card)] border border-[color-mix(in_srgb,var(--color-warn)_35%,transparent)] bg-[var(--color-warn-soft)] px-4 py-2.5 backdrop-blur-xl md:mx-5 text-[var(--color-text)]">
-      <div className="mx-auto flex max-w-6xl flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+      {replaceDialog}
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
         <div className="flex min-w-0 flex-1 items-start gap-3">
           <RefreshCw
             size={18}
@@ -1271,11 +1284,18 @@ function HelperVersionBanner() {
                     "Another device sent a newer helper. Update this app to match it; sending this app's helper would replace it with an older one for every device.",
                   )
                 : tr(
-                    "helper_mismatch_body_v2",
+                    "helper_mismatch_body_v3",
                     undefined,
-                    "Nothing to do on the PS5 itself: press Reload helper and this app sends the matching helper to the console. Fixes and features from the newer version won't work until then.",
+                    "Nothing to do on the PS5 itself: press Send helper and this app sends the matching helper to the console. Fixes and features from the newer version won't work until then.",
                   )}
             </p>
+            {send?.msg && (
+              <p
+                className={`mt-1 text-xs ${send.state === "fail" ? "text-[var(--color-bad)]" : "text-[var(--color-muted)]"}`}
+              >
+                {send.msg}
+              </p>
+            )}
           </div>
         </div>
         <div className="flex shrink-0 gap-2">
@@ -1287,13 +1307,23 @@ function HelperVersionBanner() {
                 void useUpdateStore.getState().checkNow();
                 navigate("/settings");
               } else {
-                navigate("/connection");
+                // Send it right here: the banner already said what this does.
+                const target = host.trim();
+                void guardReplace(target).then((ok) => {
+                  if (!ok) return;
+                  setSentHere(true);
+                  void sendHelperTo(target, tr).finally(() => {
+                    if (helperSendFor(useHelperSendStore.getState(), target)?.state !== "fail") setSentHere(false);
+                  });
+                });
               }
             }}
+            loading={!appOlder && sending}
+            disabled={!appOlder && sending}
           >
             {appOlder
               ? tr("helper_mismatch_update_app", undefined, "Update this app")
-              : tr("helper_mismatch_go", undefined, "Reload helper")}
+              : tr("helper_mismatch_send", undefined, "Send helper")}
           </Button>
           <Button
             size="sm"
@@ -1368,7 +1398,7 @@ function AndroidStorageAccessBanner() {
       {/* Stack on phones (text block over buttons); single row on sm+. The
           old single-row layout squished the text into a narrow column on a
           phone because the button group is shrink-0. */}
-      <div className="mx-auto flex max-w-6xl flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
         <div className="flex min-w-0 flex-1 items-start gap-3">
           <Lock
             size={18}
@@ -1456,7 +1486,7 @@ function AndroidLocalNetworkBanner() {
       role="alert"
       className="mx-3 mt-3 rounded-[var(--radius-card)] border border-[color-mix(in_srgb,var(--color-bad)_45%,transparent)] bg-[var(--color-bad-soft)] px-4 py-3 text-[var(--color-text)] backdrop-blur-xl md:mx-5"
     >
-      <div className="mx-auto flex max-w-6xl flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
         <div className="flex min-w-0 flex-1 items-start gap-3">
           <WifiOff size={20} className="mt-0.5 shrink-0 text-[var(--color-bad)]" />
           <div className="min-w-0">

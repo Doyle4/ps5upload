@@ -10,7 +10,7 @@ export default function EngineDownBanner() {
       className="mx-3 mt-3 rounded-[var(--radius-card)] border border-[color-mix(in_srgb,var(--color-bad)_35%,transparent)] bg-[var(--color-bad-soft)] px-4 py-2.5 backdrop-blur-xl md:mx-5 text-[var(--color-text)]"
       role="alert"
     >
-      <div className="mx-auto max-w-6xl">
+      <div className="w-full">
         <EngineProblem compact />
       </div>
     </div>

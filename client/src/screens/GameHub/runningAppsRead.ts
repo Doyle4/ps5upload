@@ -1,7 +1,5 @@
 import { appListRunning, type AppDbEntry, type AppLifecycleAck } from "../../api/ps5";
 import { fetchRunningGames, type RunningGame } from "../../lib/runningGames";
-import type { HostProbe } from "../../lib/staleHostGuard";
-import { useRunningAppsStore } from "../../state/runningApps";
 
 export interface RunningJoined {
   app_id: number;
@@ -55,24 +53,4 @@ export async function readRunningApps(
   });
   if (db) titleIds = rows.map((j) => j.title_id).filter((t): t is string => !!t);
   return { rows, titleIds };
-}
-
-/**
- * The panel's refresh: read, then show and publish only while the console the
- * read was for is still the selected one. A slow reply for console A landing
- * after a switch to B would otherwise show A's rows, whose Kill/Suspend
- * buttons act on B (app ids are small and collide across consoles).
- */
-export async function refreshRunningApps(opts: {
-  addr: string;
-  probe: HostProbe;
-  appdb: (() => Promise<AppDbEntry[]>) | null;
-  onRows: (rows: RunningJoined[]) => void;
-  deps?: RunningAppsDeps;
-}): Promise<void> {
-  const r = await readRunningApps(opts.addr, opts.appdb, opts.deps);
-  if (opts.probe.isStale()) return;
-  opts.onRows(r.rows);
-  // Tag with the address so a console switch can clear data tied to another PS5.
-  if (r.titleIds) useRunningAppsStore.getState().setRunning(r.titleIds, opts.addr);
 }

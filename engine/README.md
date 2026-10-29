@@ -18,8 +18,11 @@ client (Tauri/React)  ──HTTP──▶  ps5upload-engine :19113
 ## Crates
 
 The AVA1 protocol itself (crates `ava1`, `ava1-gen`, `ava1-chaos`, its C library and spec) is
-[github.com/phantomptr/ava1](https://github.com/phantomptr/ava1), checked out as the
-`third_party/ava1` submodule (`git submodule update --init`).
+[github.com/phantomptr/ava1](https://github.com/phantomptr/ava1). The Rust crate comes from
+crates.io ([`ava1`](https://crates.io/crates/ava1), pinned exactly in `engine/Cargo.toml` and
+`client/src-tauri/Cargo.toml`); the C library the payload builds, `ava1-gen` and the unpublished
+`ava1-chaos` come from the `third_party/ava1` submodule (`git submodule update --init`), checked
+out at the same release (`make ava1-version-check`).
 
 | Crate | What it is |
 |---|---|
@@ -30,6 +33,7 @@ The AVA1 protocol itself (crates `ava1`, `ava1-gen`, `ava1-chaos`, its C library
 | `ps5upload-pkg` | `.pkg` parsing — headers, entries, split-file sets. |
 | `ps5upload-lab` | CLI for driving the console by hand over AVA1: management calls, uploads, benchmarks (`bench`), pairing and chaos tools. Useful when you want one call, not a workflow. |
 | `ps5upload-tests` | Integration tests that run against in-process and loopback AVA1 peers, with no console. |
+| `ps5upload-unrar` | The RAR helper program: the only binary that contains UnRAR, holding nothing else but ps5upload's own code. The engine starts it for every RAR operation and talks to it over stdin/stdout (`ps5upload-core/src/rar_helper.rs`); it is shipped next to the engine (desktop app, Docker images, release assets). It must not depend on any other crate here — see `LICENSES/UnRAR-exception.md`. |
 
 ## Working on it
 

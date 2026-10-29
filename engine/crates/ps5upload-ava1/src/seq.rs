@@ -552,6 +552,35 @@ impl SeqSource for SevenzSource {
     fn bytes_skipped(&self) -> u64 {
         SevenzSource::bytes_skipped(self)
     }
+
+    /// The same walk as `pass`, from the headers: in each folder that is opened, every entry
+    /// up to the last wanted one that is not wanted (or is excluded) is decoded and dropped.
+    fn bytes_to_skip(
+        &self,
+        restart: Restart,
+        want: &mut dyn FnMut(&str, u64) -> Keep,
+    ) -> Option<u64> {
+        let first = usize::try_from(restart.0).unwrap_or(usize::MAX);
+        let mut n = 0u64;
+        for members in self.folders.iter().skip(first) {
+            let skips: Vec<bool> = members
+                .iter()
+                .map(|m| match &m.path {
+                    Some(p) => matches!(want(p, m.size), Keep::Skip),
+                    None => true,
+                })
+                .collect();
+            let Some(last) = skips.iter().rposition(|s| !s) else {
+                continue; // never opened
+            };
+            n = members[..=last]
+                .iter()
+                .zip(&skips)
+                .filter(|(_, s)| **s)
+                .fold(n, |n, (m, _)| n.saturating_add(m.size));
+        }
+        Some(n)
+    }
 }
 
 /// A folder whose decode ended before its last wanted entry.

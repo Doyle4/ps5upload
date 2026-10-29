@@ -820,7 +820,7 @@
   "cw_offline_title": "PS5Upload Minion chưa chạy",
   "cw_payload_body": "Gửi tệp này đến trình nạp payload của máy (cổng 9021), trình nạp sẽ chạy nó ngay. Chỉ nạp payload bạn tin tưởng.",
   "cw_payload_done": "Đã gửi “{name}” đến trình nạp payload.",
-  "cw_payload_err_helper": "Đây là helper PS5Upload. Hãy cập nhật helper từ ứng dụng PS5Upload trên máy tính.",
+  "cw_payload_err_helper": "Đây là trình trợ giúp PS5Upload. Hãy cập nhật trình trợ giúp từ ứng dụng PS5Upload trên máy tính.",
   "cw_payload_err_installing": "Đang cài một gói. Hãy nạp payload sau khi xong.",
   "cw_payload_err_not_elf": "Tệp này không phải payload ELF.",
   "cw_payload_err_send": "Gửi payload thất bại.",

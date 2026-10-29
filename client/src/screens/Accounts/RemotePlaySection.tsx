@@ -30,9 +30,11 @@ import {
   type RemotePlayReadiness,
 } from "../../api/ps5";
 import { humanizePs5Error } from "../../lib/humanizeError";
+import { RemotePlayGuide } from "./RemotePlayGuide";
 
 /** The anchor old /remote-play links land on: /accounts#remote-play scrolls here. */
 export const REMOTE_PLAY_ANCHOR = "remote-play";
+const SIGN_IN_ANCHOR = "remote-play-signin";
 
 /** Firmware magic to a human version, e.g. 0x09600004 -> "9.60".
  *
@@ -45,152 +47,6 @@ export function formatFirmware(magic: number): string {
   const major = bcd((magic >> 24) & 0xff);
   const minor = bcd((magic >> 16) & 0xff);
   return `${major}.${minor < 10 ? "0" : ""}${minor}`;
-}
-
-/** Readiness checklist: every precondition Remote Play needs, and where a
- *  row can be fixed, the button that fixes it.
- *
- *  The point is that nobody should have to know the recipe, read a guide,
- *  or decode a Sony error code. A failing row says what is wrong in plain
- *  words and either fixes it or says what to do instead. */
-function ReadinessPanel({
-  readiness,
-  onEnable,
-  onShowAccounts,
-  busy,
-  tr,
-}: {
-  readiness: RemotePlayReadiness | null;
-  onEnable: (scope: "service" | "user") => void;
-  onShowAccounts: () => void;
-  busy: boolean;
-  tr: ReturnType<typeof useTr>;
-}) {
-  if (!readiness) return null;
-
-  // Non-zero registry_err means we could not READ the console's settings.
-  // Everything else in the snapshot is meaningless then, so say that
-  // rather than reporting a pile of plausible-looking "off" rows.
-  if (readiness.registry_err !== 0) {
-    return (
-      <ErrorCard
-        title={tr(
-          "remotePlay_registry_unreadable",
-          undefined,
-          "Couldn't read this console's settings, so Remote Play status is unknown. Reload the helper and try again.",
-        )}
-      />
-    );
-  }
-
-  const fw = readiness.fw_magic ? formatFirmware(readiness.fw_magic) : null;
-
-  const activated =
-    readiness.account_id_raw !== 0 && readiness.account_type === "np";
-
-  const rows: {
-    key: string;
-    ok: boolean;
-    label: string;
-    detail?: string;
-    fix?: () => void;
-    fixLabel?: string;
-    hint?: string;
-  }[] = [
-    {
-      key: "user",
-      // account_uid, not foreground_uid: a console with nobody on screen
-      // reports -1 there, which is !== 0 and so used to read as a pass.
-      ok: readiness.account_uid > 0,
-      label: tr("remotePlay_check_user", undefined, "Someone is signed in"),
-      detail:
-        readiness.user_slot > 0
-          ? tr("remotePlay_slot", { slot: readiness.user_slot }, `Slot ${readiness.user_slot}`)
-          : undefined,
-      hint: tr(
-        "remotePlay_check_user_hint",
-        undefined,
-        "Sign in on the console. Nobody has to be on screen — a signed-in account is enough.",
-      ),
-    },
-    {
-      key: "account",
-      ok: activated,
-      label: tr("remotePlay_check_account", undefined, "Account is activated"),
-      hint: tr(
-        "remotePlay_check_account_hint_v3",
-        undefined,
-        "This account has never been activated, so it cannot pair. Give it an account ID in the account list above; that changes account data, and saves made afterwards are tied to that ID.",
-      ),
-      fix: onShowAccounts,
-      fixLabel: tr("remotePlay_show_accounts", undefined, "Show accounts"),
-    },
-    {
-      key: "service",
-      ok: readiness.service_enabled !== 0,
-      label: tr("remotePlay_check_service", undefined, "Remote Play is on"),
-      fix: () => onEnable("service"),
-      fixLabel: tr("remotePlay_turn_on", undefined, "Turn on"),
-    },
-  ];
-
-  // Only shown on firmware that actually has the setting.
-  if (readiness.has_per_user !== 0) {
-    rows.push({
-      key: "peruser",
-      ok: readiness.user_enabled !== 0,
-      label: tr(
-        "remotePlay_check_peruser",
-        undefined,
-        "Remote Play is allowed for this user",
-      ),
-      detail: tr("remotePlay_fw10", undefined, "firmware 10.00 and later"),
-      fix: () => onEnable("user"),
-      fixLabel: tr("remotePlay_allow_user", undefined, "Allow"),
-    });
-  }
-
-  return (
-    <div className="surface-panel p-5">
-      <div className="mb-3 flex items-center justify-between">
-        <span className="text-sm font-medium">
-          {tr("remotePlay_readiness", undefined, "Before you pair")}
-        </span>
-        {fw && (
-          <span className="text-xs text-[var(--color-muted)]">
-            {tr("remotePlay_fw", { fw }, `firmware ${fw}`)}
-          </span>
-        )}
-      </div>
-      <ul className="space-y-2">
-        {rows.map((r) => (
-          <li key={r.key} className="flex items-start gap-2 text-sm">
-            <span className={r.ok ? "text-[var(--color-good)]" : "text-[var(--color-warn)]"}>
-              {r.ok ? <Check size={16} /> : <X size={16} />}
-            </span>
-            <span className="flex-1">
-              <span className={r.ok ? "" : "font-medium"}>{r.label}</span>
-              {r.detail && (
-                <span className="ml-2 text-xs text-[var(--color-muted)]">
-                  {r.detail}
-                </span>
-              )}
-              {!r.ok && r.hint && (
-                <div className="mt-0.5 text-xs text-[var(--color-muted)]">
-                  {r.hint}
-                </div>
-              )}
-            </span>
-            {!r.ok && r.fix && (
-              <Button size="sm" variant="secondary" onClick={r.fix} disabled={busy}>
-                {r.fixLabel}
-              </Button>
-            )}
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
 }
 
 /**
@@ -412,15 +268,22 @@ export function RemotePlaySection({
 
         {error && <ErrorCard title={error} onRetry={() => void refresh()} />}
 
-        <ReadinessPanel
+        <RemotePlayGuide
           readiness={readiness}
           onEnable={handleEnable}
           onShowAccounts={onShowAccounts}
+          onShowSignIn={() =>
+            document.getElementById(SIGN_IN_ANCHOR)?.scrollIntoView?.({ block: "start", behavior: "smooth" })
+          }
           busy={busy}
           tr={tr}
         />
 
-        {signIn}
+        {signIn && (
+          <div id={SIGN_IN_ANCHOR} className="scroll-mt-4">
+            {signIn}
+          </div>
+        )}
 
         {/* Request form */}
         <div className="surface-panel p-5">

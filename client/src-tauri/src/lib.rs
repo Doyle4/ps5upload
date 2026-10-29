@@ -70,6 +70,7 @@ mod tray {
 }
 // "Open with PS5Upload" for .pkg files: paths from the launch, a second launch, or macOS.
 mod opened_files;
+mod pip_window;
 
 /// Build and run the Tauri application. The desktop `main.rs` calls this
 /// directly; on mobile the `tauri::mobile_entry_point` macro generates
@@ -206,6 +207,10 @@ pub fn run() {
                 opened_files::push(opened_files::package_args(&argv, &cwd));
             }
 
+            // The main window (built here, not from the config, so Remote Play's picture in
+            // picture can open from it; see pip_window).
+            pip_window::build_main(app.handle())?;
+
             // Open the main window centred + fully on-screen. Desktop-only —
             // the centre/monitor/size window APIs don't exist on mobile, so
             // this is a no-op there (see center_main_window).
@@ -258,6 +263,8 @@ pub fn run() {
         .on_window_event(|_window, _event| {
             #[cfg(desktop)]
             tray::on_window_event(_window, _event);
+            #[cfg(desktop)]
+            pip_window::on_window_event(_window, _event);
         })
         .invoke_handler(tauri::generate_handler![
             // ── Engine proxies ──────────────────────────────────────

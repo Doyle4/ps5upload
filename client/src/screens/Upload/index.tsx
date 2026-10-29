@@ -1603,7 +1603,7 @@ function Step2Options(props: {
                 <div className="mt-0.5 text-xs text-[var(--color-muted)]">
                   {tr(
                     "upload_register_after_desc",
-                    "Registers the game with the PS5 right after the upload finishes, so it's ready to launch. If this step fails the upload itself is unaffected and you can still register it from Games → On PS5 Storage.",
+                    "Registers the game with the PS5 right after the upload finishes, so it's ready to launch. If this step fails the upload itself is unaffected and you can still register it from the game's page in Games.",
                   )}
                 </div>
               </div>
@@ -2431,8 +2431,8 @@ function TransferStatus({ onRetry }: { onRetry: () => void }) {
                   `On your PS5 home screen as "${phase.registeredAs}" — ready to launch.`,
                 )
               : tr(
-                  "upload_done_next_hint",
-                  "Next: open Games → On PS5 Storage to register or mount it so it shows up on the PS5 home screen.",
+                  "upload_done_next_hint2",
+                  "Next: open the game in Games and, under On the PS5's drives, add it to the home screen or mount it.",
                 )}
           </span>
           <div className="ml-auto flex items-center gap-2">
@@ -2443,7 +2443,7 @@ function TransferStatus({ onRetry }: { onRetry: () => void }) {
                 className="shrink-0"
                 onClick={() => navigate("/games?tab=files")}
               >
-                {tr("upload_done_open_library", "Open PS5 Storage")}
+                {tr("upload_done_open_drives", "Open in Games")}
               </Button>
             )}
             <Button

@@ -85,6 +85,24 @@ async fn child_lock() -> &'static tokio::sync::Mutex<Option<Child>> {
 /// Resources dir, no sidecar file to ship.
 const EMBEDDED_ENGINE: &[u8] = include_bytes!(env!("PS5UPLOAD_ENGINE_BYTES"));
 
+/// The RAR helper `ps5upload-unrar`, embedded the same way (build.rs). UnRAR is
+/// GPL-incompatible, so it is a separate program the engine starts over pipes,
+/// never linked into the engine; it is extracted next to the engine and the engine
+/// is told where (PS5UPLOAD_UNRAR_BIN).
+const EMBEDDED_UNRAR: &[u8] = include_bytes!(env!("PS5UPLOAD_UNRAR_BYTES"));
+
+/// Extracts the RAR helper into `dir` (the engine's directory) and returns its path.
+/// Same stamp and locked-file fallback as the engine.
+fn extract_unrar_helper(dir: &Path) -> Result<PathBuf> {
+    let bin_name = if cfg!(target_os = "windows") {
+        "ps5upload-unrar.exe"
+    } else {
+        "ps5upload-unrar"
+    };
+    let hex = blake3::hash(EMBEDDED_UNRAR).to_hex().to_string();
+    extract_engine(dir, bin_name, EMBEDDED_UNRAR, &hex)
+}
+
 /// Extract the embedded engine binary into the app's local-data dir
 /// and return the extracted path. Caches across launches via a
 /// BLAKE3 hash stamp file (`<bin>.blake3`) sitting next to the
@@ -658,6 +676,16 @@ pub async fn start(app: &AppHandle) -> Result<String> {
         (preferred_url, preferred_port)
     };
     let binary = find_engine_binary(app).context("locating ps5upload-engine binary")?;
+    // Without the helper the engine still runs; only RAR archives say "not installed".
+    let unrar_helper = binary
+        .parent()
+        .and_then(|dir| match extract_unrar_helper(dir) {
+            Ok(p) => Some(p),
+            Err(e) => {
+                eprintln!("[engine] could not extract the RAR helper: {e:#}");
+                None
+            }
+        });
     // Point the whole app at wherever the engine actually landed. The
     // renderer's command proxies read engine::url() fresh on every call,
     // so this reroutes them with no renderer-side change. In-memory only
@@ -719,6 +747,10 @@ pub async fn start(app: &AppHandle) -> Result<String> {
         // (taskkill /F, segfault, panic, OOM-killer) where Drop never
         // gets a chance to run.
         .kill_on_drop(true);
+
+    if let Some(p) = &unrar_helper {
+        cmd.env("PS5UPLOAD_UNRAR_BIN", p);
+    }
 
     // Windows: belt-and-braces with the engine's own
     // `windows_subsystem = "windows"` — also pass CREATE_NO_WINDOW so

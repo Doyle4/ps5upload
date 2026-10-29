@@ -40,6 +40,7 @@
  *                                 an unsaved save copy kept as <copy>.unsaved (same folder)
  *   src/fs_jobs.c         1  dir    chmod/copy tmp inside the destination folder
  *   src/icon_keeper.c     1  dir    hidden_icons.txt: tmp -> final
+ *   src/smp_meta.c        1  dir    restored tile art / param.json: <file>.tmp-<pid> -> file, same appmeta folder
  *   src/register.c        1  dir    param.json: tmp -> final
  *   src/ffpfsc_unpack.c   1  dir    decompressed image: <name>.part -> <name>, beside the .ffpfsc
  *   src/shell_builtin.c   1  guard  `mv` (mv_same_dev, lstat of the source)

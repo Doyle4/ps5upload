@@ -16,7 +16,9 @@
  *     redeploy.
  *
  * Ported from elf-arsenal/src/cheats.c, adapted to ps5upload's
- * management protocol.
+ * management protocol. elf-arsenal (https://git.etawen.dev/soniciso/elf-arsenal,
+ * soniciso and contributors) is GPL-3.0-or-later per its README; this file is
+ * part of ps5upload, GPL-3.0-or-later.
  */
 
 #include "cheats.h"

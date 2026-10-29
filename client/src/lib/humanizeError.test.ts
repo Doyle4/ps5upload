@@ -198,7 +198,7 @@ describe("humanizePs5Error", () => {
     });
     it("8094000C → not registered", () => {
       expect(humanizePs5Error("launch_sony_error_0x8094000c")).toMatch(
-        /title isn't registered/i,
+        /title isn't on its home screen/i,
       );
     });
     it("80940020 → busy", () => {
@@ -378,9 +378,9 @@ describe("install and launch advice names today's app", () => {
       expect(out).not.toBe(raw);
     });
   }
-  it("points at Games → On PS5 Storage where a folder or image can be registered", () => {
-    expect(humanizePs5Error("launch_sony_error_0x80941234")).toContain("Games → On PS5 Storage");
-    expect(humanizePs5Error("0x80A2FF06")).toContain("Games → On PS5 Storage");
+  it("points at the game's page in Games where a folder or image can be registered", () => {
+    expect(humanizePs5Error("launch_sony_error_0x80941234")).toContain("the game's page in Games");
+    expect(humanizePs5Error("0x80A2FF06")).toContain("the game's page in Games");
   });
 });
 

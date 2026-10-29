@@ -820,7 +820,7 @@
   "cw_offline_title": "PS5Upload Minion لا يعمل",
   "cw_payload_body": "يرسل هذا الملف إلى محمّل الحمولات في الجهاز (المنفذ 9021)، الذي يشغّله فورًا. لا تحمّل إلا حمولات تثق بها.",
   "cw_payload_done": "أُرسل «{name}» إلى محمّل الحمولات.",
-  "cw_payload_err_helper": "هذا helper خاص بـ PS5Upload. حدّث الـ helper من تطبيق PS5Upload على حاسوبك.",
+  "cw_payload_err_helper": "هذا مساعد PS5Upload. حدّث المساعد من تطبيق PS5Upload على حاسوبك.",
   "cw_payload_err_installing": "تُثبَّت حزمة الآن. حمّل الحمولة بعد انتهائها.",
   "cw_payload_err_not_elf": "هذا الملف ليس حمولة ELF.",
   "cw_payload_err_send": "فشل إرسال الحمولة.",

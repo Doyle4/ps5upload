@@ -1,7 +1,8 @@
 [package]
 name = "ps5upload-desktop"
-version = "8.10.0"
+version = "9.0.0"
 description = "The all-in-one PS5 companion app."
+license = "GPL-3.0-or-later"
 edition = "2021"
 rust-version = "1.77"
 
@@ -13,7 +14,8 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-ava1 = { path = "../../third_party/ava1/crates/ava1", version = "1.0.0" }
+# Same version as engine/Cargo.toml (the third_party/ava1 submodule's tag).
+ava1 = "=1.0.3"
 # Tauri core + the native file dialogs. File reads/writes go through our
 # own commands (see commands/save_text_file.rs), and links open through
 # tauri-plugin-opener below.
@@ -174,13 +176,9 @@ opt-level = "s"
 # packages via [profile.release.package.X] with `strip = true`.
 panic = "abort"
 
-# Vendored `unrar` with a one-line bounds fix in the volume-change callback.
-# Upstream 0.5.8 reads ~8 KB out of a much smaller buffer on every volume
-# transition, which aborts debug builds on any multi-part .rar and is a
-# latent out-of-bounds read in release. 0.5.8 is the latest release, so
-# there is nothing upstream to take. See third_party/unrar/README.md and
-# docs/unrar-upstream-bug.md.
+# No `unrar` here: UnRAR runs as the separate `ps5upload-unrar` program (built in
+# the engine workspace, embedded next to the engine by build.rs/engine.rs), never
+# linked into this app or the engine. See LICENSES/UnRAR-exception.md.
 [patch.crates-io]
-unrar = { path = "../../third_party/unrar" }
 # 32-bit fix: archive sizes stay u64 (third_party/sevenz-rust2/README.md, #434).
 sevenz-rust2 = { path = "../../third_party/sevenz-rust2" }

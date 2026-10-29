@@ -177,11 +177,28 @@ describe("the console overlay", () => {
       update: 1,
       dlc: 1,
       firmware: 0,
+      drives: 0,
+      unplayed: 2,
     });
   });
 
   it("does not filter at all without a console", () => {
     expect(viewGames(games, q({ console: "missing" }))).toHaveLength(3);
+  });
+
+  it("finds games with files on the PS5's drives, and installed games never seen played", () => {
+    const driveIds = new Set(["PPSA05555"]);
+    const playSeconds = (id: string) => (id === "CUSA00900" ? 600 : undefined);
+    const ids = (c: "drives" | "unplayed") =>
+      viewGames(
+        games,
+        q({ console: c, consoleStates: states, driveIds, playSeconds }),
+      ).map((g) => g.game_id);
+    expect(ids("drives")).toEqual(["PPSA05555"]);
+    expect(ids("unplayed")).toEqual(["PPSA01234"]);
+    const n = consoleCounts(games, states, null, { driveIds, playSeconds });
+    expect(n.drives).toBe(1);
+    expect(n.unplayed).toBe(1);
   });
 });
 

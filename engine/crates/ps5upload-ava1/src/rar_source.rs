@@ -1,5 +1,6 @@
 //! A RAR archive (any volume set, optional password) as a sequential AVA1 source
-//! (SPEC.md §17). Desktop only: the UnRAR dependency is not built for Android.
+//! (SPEC.md §17). Desktop only: the `ps5upload-unrar` helper that decodes it does not exist
+//! on Android.
 //!
 //! UnRAR can only be read forward. One `pass` opens the archive and walks it once on
 //! the calling (decode) thread, delivering the entries the sender wants. Resume is
@@ -121,6 +122,8 @@ pub struct RarSource {
     by_id: Vec<String>,
     /// Bytes decoded only to be discarded (solid: the entries a pass skips).
     skipped: AtomicU64,
+    /// What a solid walk decodes of the excluded files (`None`: a size is unknown).
+    excluded_bytes: Option<u64>,
 }
 
 impl RarSource {
@@ -217,6 +220,7 @@ impl RarSource {
                 sizes: layout.files.iter().map(|(_, s)| *s).collect(),
                 by_id,
                 skipped: AtomicU64::new(0),
+                excluded_bytes: layout.excluded_bytes,
             },
         ))
     }
@@ -358,6 +362,25 @@ impl SeqSource for RarSource {
 
     fn bytes_skipped(&self) -> u64 {
         RarSource::bytes_skipped(self)
+    }
+
+    /// Non-solid: nothing (a pass seeks past what it does not want). Solid: every entry the
+    /// pass does not want, plus the excluded files, all decoded from the start.
+    fn bytes_to_skip(
+        &self,
+        _restart: Restart,
+        want: &mut dyn FnMut(&str, u64) -> Keep,
+    ) -> Option<u64> {
+        if !self.solid {
+            return Some(0);
+        }
+        let mut n = self.excluded_bytes?;
+        for (p, size) in self.order.iter().zip(&self.sizes) {
+            if matches!(want(p, *size), Keep::Skip) {
+                n = n.saturating_add(*size);
+            }
+        }
+        Some(n)
     }
 }
 

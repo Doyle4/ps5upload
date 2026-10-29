@@ -820,7 +820,7 @@
   "cw_offline_title": "PS5Upload Minion 未在运行",
   "cw_payload_body": "将此文件发送到主机的 payload 加载器（端口 9021），加载器会立即运行它。只加载你信任的 payload。",
   "cw_payload_done": "已将“{name}”发送到 payload 加载器。",
-  "cw_payload_err_helper": "这是 PS5Upload helper。请在电脑上的 PS5Upload 应用中更新 helper。",
+  "cw_payload_err_helper": "这是 PS5Upload 助手。请在电脑上的 PS5Upload 应用中更新助手。",
   "cw_payload_err_installing": "正在安装一个包。请在完成后再加载 payload。",
   "cw_payload_err_not_elf": "此文件不是 ELF payload。",
   "cw_payload_err_send": "发送 payload 失败。",

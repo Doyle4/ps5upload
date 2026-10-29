@@ -80,12 +80,22 @@ interface RpState {
   keymap: Record<string, KeyAction>;
   /** The Remote Play screen is on show: only then do controllers drive the console. */
   onScreen: boolean;
+  /** The picture is in picture in picture, and how: a window of its own (desktop app popup or
+   *  the browser's Document Picture-in-Picture), or the browser's video picture in picture. */
+  pip: PipKind | null;
+  /** The picture-in-picture window, when the picture is in one (not for "video"). */
+  pipWindow: Window | null;
   start: (t: RpTarget, opts?: { attach?: boolean }) => Promise<void>;
   stop: () => void;
   setPrefs: (p: Partial<RpPrefs>) => void;
   setKeymap: (k: Record<string, KeyAction> | null) => void;
   setOnScreen: (v: boolean) => void;
+  setPip: (kind: PipKind | null, win?: Window | null) => void;
 }
+
+/** popup: the desktop app's always-on-top window; document: the browser's Document
+ *  Picture-in-Picture; video: the browser's video picture in picture (picture only). */
+export type PipKind = "popup" | "document" | "video";
 
 /** Keys held on the picture and a finger on the touchpad: read by the stream every frame. */
 export const rpInput = {
@@ -95,14 +105,36 @@ export const rpInput = {
   touchPad: IDLE_PAD as PadState,
 };
 
+/** Controllers as every window showing the stream sees them. A hidden page's list can be a
+ *  stale snapshot (buttons stuck down), so only visible ones count. Read once each: the same
+ *  pad seen by two windows counts once (padFromGamepads takes the strongest). */
+export function rpGamepads(): Array<Gamepad | null> {
+  const out: Array<Gamepad | null> = [];
+  const add = (w: Window | null | undefined) => {
+    try {
+      if (!w || w.closed || w.document.visibilityState !== "visible") return;
+      out.push(...(w.navigator.getGamepads?.() ?? []));
+    } catch {
+      // A window being torn down.
+    }
+  };
+  if (typeof window !== "undefined") add(window);
+  add(useRemotePlayStore.getState().pipWindow);
+  return out;
+}
+
 function readPad(): PadState {
   const s = useRemotePlayStore.getState();
   const keys = padFromKeys(rpInput.held, s.keymap);
   // A controller drives the console while you are looking at the stream, not while you use
-  // another screen or another app.
+  // another screen or another app. A picture-in-picture window is the stream on show whatever
+  // has the focus: there the controller plays it while you use another app, where the system
+  // gives a background window controller input at all (Chromium does; WebKit gives it only to
+  // the window in front).
+  const pip = !!s.pipWindow && !s.pipWindow.closed;
   const pads =
-    s.onScreen && typeof document !== "undefined" && document.hasFocus()
-      ? padFromGamepads(navigator.getGamepads?.() ?? [])
+    pip || (s.onScreen && typeof document !== "undefined" && document.hasFocus())
+      ? padFromGamepads(rpGamepads())
       : IDLE_PAD;
   return {
     ...mergePads(mergePads(keys, pads), rpInput.touchPad),
@@ -120,6 +152,8 @@ export const useRemotePlayStore = create<RpState>((set, get) => ({
   prefs: loadRpPrefs(),
   keymap: loadKeymap(),
   onScreen: false,
+  pip: null,
+  pipWindow: null,
 
   async start(t, opts) {
     const cur = get().stream;
@@ -149,6 +183,7 @@ export const useRemotePlayStore = create<RpState>((set, get) => ({
       onError: (e) => get().stream === stream && set({ error: e }),
       onLight: (rgb) => get().stream === stream && set({ light: rgb }),
       readPad,
+      gamepads: rpGamepads,
     });
     stream.setVolume(prefs.muted ? 0 : prefs.volume);
     set({ stream, target: t, phase: "connecting", error: null, stats: null, light: null });
@@ -177,6 +212,11 @@ export const useRemotePlayStore = create<RpState>((set, get) => ({
 
   setOnScreen(v) {
     set({ onScreen: v });
+  },
+
+  setPip(kind, win = null) {
+    set({ pip: kind, pipWindow: kind ? win : null });
+    get().stream?.setFrameWindow(kind ? win : null);
   },
 }));
 

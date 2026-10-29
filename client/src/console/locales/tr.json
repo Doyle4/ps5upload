@@ -820,7 +820,7 @@
   "cw_offline_title": "PS5Upload Minion çalışmıyor",
   "cw_payload_body": "Bu dosyayı konsolun payload yükleyicisine (port 9021) gönderir; yükleyici onu hemen çalıştırır. Yalnızca güvendiğiniz payload'ları yükleyin.",
   "cw_payload_done": "“{name}” payload yükleyicisine gönderildi.",
-  "cw_payload_err_helper": "Bu bir PS5Upload helper'ı. Helper'ı bilgisayarınızdaki PS5Upload uygulamasından güncelleyin.",
+  "cw_payload_err_helper": "Bu bir PS5Upload yardımcısı. Yardımcıyı bilgisayarınızdaki PS5Upload uygulamasından güncelleyin.",
   "cw_payload_err_installing": "Şu anda bir paket yükleniyor. Payload'ı bittikten sonra yükleyin.",
   "cw_payload_err_not_elf": "Bu dosya bir ELF payload değil.",
   "cw_payload_err_send": "Payload gönderilemedi.",

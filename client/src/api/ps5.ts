@@ -3249,6 +3249,9 @@ export interface LibraryEntry {
    *  views. Used by the "Most recent first" / "Oldest first" sort
    *  options in the Library. */
   mtime?: number;
+  /** For `game` kind: the game's name from its param.json, read during the scan; null when
+   *  it has none. */
+  title?: string | null;
 }
 
 /** Walk every non-placeholder PS5 volume recursively and return all games
@@ -3507,11 +3510,12 @@ export async function scanLibrary(
   const titleIdLimit = createScanLimiter(6);
   const withTitleIds = await Promise.all(
     rawGames.map(async (game) => {
-      const tid = await titleIdLimit(async () => {
-        const meta = await fetchGameMeta(addr, game.path);
-        return meta.title_id ?? null;
-      });
-      return { ...game, titleId: tid };
+      const meta = await titleIdLimit(() => fetchGameMeta(addr, game.path));
+      return {
+        ...game,
+        titleId: meta.title_id ?? null,
+        title: meta.title ?? null,
+      };
     }),
   );
   // Group by titleId, pick the preferred path per group.

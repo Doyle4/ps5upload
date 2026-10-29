@@ -1,9 +1,10 @@
-//! Bridge between UnRAR's push-style callback and the pull-style shard sender.
+//! Bridge between the RAR walk and pull-style readers.
 //!
-//! UnRAR hands us decompressed bytes through a callback; `PipelinedSender`
-//! wants something it can `read()`. A worker thread runs the UnRAR walk and
-//! pushes entry-delimited messages down a bounded channel; this module turns
-//! those back into one `Read` per entry.
+//! The `ps5upload-unrar` helper program hands us decompressed bytes as it
+//! produces them; a consumer wants something it can `read()`. A worker thread
+//! drives the walk (`transfer::spawn_rar_worker`) and pushes entry-delimited
+//! messages down a bounded channel; this module turns those back into one
+//! `Read` per entry.
 //!
 //! The framing matters: without `EntryEnd` the next file's bytes would flow
 //! into the current file's shards and silently corrupt the upload. That is

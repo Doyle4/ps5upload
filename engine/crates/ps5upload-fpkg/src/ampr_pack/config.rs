@@ -1,3 +1,5 @@
+// Ported from drakmor's ampr_emu tools (https://github.com/drakmor/ampr_emu, GPL-3.0). This
+// Rust port is part of ps5upload, GPL-3.0-or-later.
 //! What gets packed and how: drakmor's TOML profile (`[pack]`, `[groups.*]`, `[[rule]]`,
 //! `[runtime]`), the same keys, defaults and checks as `ampr_pack.py`'s `load_config`, and the
 //! built-in profile used when the user gives none.

@@ -820,7 +820,7 @@
   "cw_offline_title": "PS5Upload Minion n'est pas lancé",
   "cw_payload_body": "Envoie ce fichier au chargeur de payloads de la console (port 9021), qui l'exécute aussitôt. Ne chargez que des payloads de confiance.",
   "cw_payload_done": "« {name} » envoyé au chargeur de payloads.",
-  "cw_payload_err_helper": "C'est un helper PS5Upload. Mettez le helper à jour depuis l'app PS5Upload sur votre ordinateur.",
+  "cw_payload_err_helper": "C'est un assistant PS5Upload. Mettez l'assistant à jour depuis l'app PS5Upload sur votre ordinateur.",
   "cw_payload_err_installing": "Un paquet est en cours d'installation. Chargez le payload une fois terminé.",
   "cw_payload_err_not_elf": "Ce fichier n'est pas un payload ELF.",
   "cw_payload_err_send": "L'envoi du payload a échoué.",

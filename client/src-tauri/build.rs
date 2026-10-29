@@ -1,8 +1,9 @@
 //! Tauri build-script hook + sidecar-binary embedding.
 //!
 //! Beyond the standard Tauri codegen, this script wires absolute
-//! paths to the two sidecar binaries we embed in the desktop exe
-//! (`ps5upload-engine[.exe]` and `ps5upload.elf.gz`) into env vars
+//! paths to the sidecar binaries we embed in the desktop exe
+//! (`ps5upload-engine[.exe]`, the RAR helper `ps5upload-unrar[.exe]` that
+//! sits next to it, and `ps5upload.elf.gz`) into env vars
 //! that `include_bytes!(env!("…"))` can consume at compile time.
 //!
 //! Why embed at compile time: Windows ships with `--no-bundle`, which
@@ -15,8 +16,8 @@
 //!
 //! Fails the build with an actionable message if either file is
 //! missing — in CI the release workflow builds the engine first, in
-//! dev you need `make payload` plus a release `ps5upload-engine`
-//! built for the same target as the Tauri bundle.
+//! dev you need `make payload` plus a release `ps5upload-engine` and
+//! `ps5upload-unrar` built for the same target as the Tauri bundle.
 
 use std::path::{Path, PathBuf};
 
@@ -149,6 +150,46 @@ fn main() {
         engine_path.display()
     );
     println!("cargo:rerun-if-changed={}", engine_path.display());
+
+    // ── RAR helper (ps5upload-unrar): DESKTOP ONLY, next to the engine ──
+    // UnRAR is GPL-incompatible, so it is not linked into the engine: it is
+    // the separate program `ps5upload-unrar`, built by the same cargo run as
+    // the engine and into the same directory. Embedded here the same way and
+    // extracted next to the engine at run time (engine.rs), which tells the
+    // engine where it is (PS5UPLOAD_UNRAR_BIN).
+    let unrar_name = if target_os == "windows" {
+        "ps5upload-unrar.exe"
+    } else {
+        "ps5upload-unrar"
+    };
+    // Next to the engine; on a native build (TARGET == HOST) either cargo output
+    // directory holds a usable one, so take the newer when the engine's has none.
+    let beside = engine_path
+        .parent()
+        .expect("engine path has a directory")
+        .join(unrar_name);
+    let unrar_path = if beside.is_file() || target != host {
+        beside
+    } else {
+        let release = |p: PathBuf| p.join("release").join(unrar_name);
+        let mtime = |p: &Path| std::fs::metadata(p).ok().and_then(|m| m.modified().ok());
+        [
+            release(repo_root.join("engine").join("target").join(&target)),
+            release(repo_root.join("engine").join("target")),
+        ]
+        .into_iter()
+        .filter(|p| p.is_file())
+        .max_by_key(|p| mtime(p))
+        .unwrap_or(beside)
+    };
+    let unrar_hint =
+        format!("cargo build --release -p ps5upload-engine -p ps5upload-unrar --target {target}");
+    require_file(&unrar_path, "RAR helper binary", &unrar_hint);
+    println!(
+        "cargo:rustc-env=PS5UPLOAD_UNRAR_BYTES={}",
+        unrar_path.display()
+    );
+    println!("cargo:rerun-if-changed={}", unrar_path.display());
 }
 
 fn require_file(path: &Path, label: &str, how_to_build: &str) {

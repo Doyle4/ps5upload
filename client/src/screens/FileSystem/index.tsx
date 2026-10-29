@@ -2074,7 +2074,7 @@ export default function FileSystemScreen() {
           tr("fs_extract_next_pkgs", { n: next.packages }, `It holds ${next.packages} package(s): install them from Send to PS5, or from their row here.`),
         );
       else if (next.game)
-        extra.push(tr("fs_extract_next_game", undefined, "It is a game folder: register it from its row menu to put it on the home screen."));
+        extra.push(tr("fs_extract_next_game", undefined, "It is a game folder: open the game in Games and use Add to home screen to put it on the PS5's home screen."));
       pushNotification(
         "success",
         withConsolePrefix(host, tr("fs_extract_done", { name: entry.name }, `Extracted ${entry.name}`)),

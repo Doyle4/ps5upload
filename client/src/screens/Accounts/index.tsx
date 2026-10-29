@@ -1,7 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   CircleUserRound,
-  ImageIcon,
   Crop,
   Maximize2,
   UserPen,
@@ -22,7 +21,6 @@ import {
   EmptyState,
   Spinner,
   Badge,
-  Select,
 } from "../../components";
 import { useTr } from "../../state/lang";
 import { useConfirm } from "../../components/ConfirmDialog";
@@ -43,6 +41,8 @@ import {
   profileActivate,
   userDelete,
   type ProfileInfo,
+  type ProfileSlot,
+  type ProfileUser,
   type SquareMode,
 } from "../../api/ps5";
 
@@ -92,19 +92,16 @@ export default function AccountsScreen() {
 
 function AccountsBody({ addr }: { addr: string }) {
   const [info, setInfo] = useState<ProfileInfo | null>(null);
-  const [loadingInfo, setLoadingInfo] = useState(false);
+
   const [infoError, setInfoError] = useState<string | null>(null);
 
   const refreshInfo = useCallback(async () => {
-    setLoadingInfo(true);
     setInfoError(null);
     try {
       const r = await profileInfo(addr);
       setInfo(r);
     } catch (e) {
       setInfoError(`${e}`);
-    } finally {
-      setLoadingInfo(false);
     }
   }, [addr]);
 
@@ -116,12 +113,7 @@ function AccountsBody({ addr }: { addr: string }) {
     <div className="space-y-6">
       {infoError && <ErrorCard title={infoError} onRetry={() => void refreshInfo()} />}
       <UsernameSection addr={addr} info={info} onChanged={refreshInfo} />
-      <AvatarSection
-        addr={addr}
-        info={info}
-        loadingInfo={loadingInfo}
-        onApplied={refreshInfo}
-      />
+
       <RemotePlaySection
         onShowAccounts={() =>
           document.getElementById(USERS_ANCHOR)?.scrollIntoView?.({ block: "start", behavior: "smooth" })
@@ -134,15 +126,19 @@ function AccountsBody({ addr }: { addr: string }) {
 
 // ─── Avatar ──────────────────────────────────────────────────────────────────
 
-function AvatarSection({
+/** Change one user's avatar: opened from that user's row, so the user is never picked twice. */
+function AvatarEditor({
   addr,
-  info,
-  loadingInfo,
+  uid,
+  label,
+  username,
   onApplied,
 }: {
   addr: string;
-  info: ProfileInfo | null;
-  loadingInfo: boolean;
+  uid: number;
+  /** The user's name (or hex id), for the confirmation. */
+  label: string;
+  username: string;
   onApplied: () => void;
 }) {
   const tr = useTr();
@@ -155,7 +151,7 @@ function AvatarSection({
   const [crop, setCrop] = useState({ x: 50, y: 50 });
   const [preview, setPreview] = useState<string | null>(null);
   const [previewError, setPreviewError] = useState<string | null>(null);
-  const [targetUid, setTargetUid] = useState<number | null>(null);
+  const targetUid: number = uid;
   // The selected user's CURRENT avatar (PNG data URL), shown in the picture box
   // by default until the user picks a new image. null = none / not yet loaded.
   const [currentAvatar, setCurrentAvatar] = useState<string | null>(null);
@@ -163,27 +159,10 @@ function AvatarSection({
   const [applyOk, setApplyOk] = useState<string | null>(null);
   const [applyError, setApplyError] = useState<string | null>(null);
 
-  // Build the selectable user list: every enumerated user, plus the
-  // foreground user if it wasn't enumerated (uid != 0). Memoized so it's a
-  // stable dependency for the target-defaulting effect.
-  const users = useMemo(() => info?.users ?? [], [info]);
-  const foreground = info && info.uid !== 0 ? info.uid : null;
-
-  // Default the target once info arrives: foreground user, else the first
-  // enumerated user.
-  useEffect(() => {
-    if (targetUid != null || !info) return;
-    setTargetUid(foreground ?? users[0]?.uid ?? null);
-  }, [info, foreground, users, targetUid]);
-
   // Load the selected user's CURRENT avatar into the picture box whenever the
   // target user (or console) changes. Best-effort: a user with a stock PSN
   // avatar has no readable PNG, so we just clear to the placeholder.
   useEffect(() => {
-    if (targetUid == null) {
-      setCurrentAvatar(null);
-      return;
-    }
     let cancelled = false;
     profileAvatarCurrent(targetUid, addr)
       .then((url) => {
@@ -283,11 +262,7 @@ function AvatarSection({
   }
 
   async function applyAvatar() {
-    if (!imagePath || targetUid == null) return;
-    const u = users.find((x) => x.uid === targetUid);
-    const label = u
-      ? userLabel(u.uid_hex, u.username)
-      : `0x${targetUid.toString(16).toUpperCase().padStart(8, "0")}`;
+    if (!imagePath) return;
     const ok = await confirm({
       title: tr("profile.avatar.confirmTitle", undefined, "Change avatar?"),
       message: tr(
@@ -305,7 +280,7 @@ function AvatarSection({
         imagePath,
         mode,
         targetUid,
-        u?.username || null,
+        username || null,
         addr,
         crop,
       );
@@ -328,27 +303,9 @@ function AvatarSection({
   }
 
   const fileName = browserFileName ?? (imagePath ? imagePath.split(/[\\/]/).pop() : null);
-  const noTarget = !loadingInfo && users.length === 0 && foreground == null;
-
   return (
-    <Card>
+    <div className="mt-3 rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-surface-2)] p-3">
       {confirmDialog}
-      <div className="mb-4 flex items-center gap-2">
-        <ImageIcon size={16} className="text-[var(--color-accent)]" />
-        <h2 className="text-sm font-semibold">
-          {tr("profile.avatar.title", "Avatar")}
-        </h2>
-      </div>
-
-      {noTarget && (
-        <div className="mb-3 rounded-[var(--radius-card)] border border-[var(--color-warn)] bg-[var(--color-surface)] p-3 text-xs text-[var(--color-muted)]">
-          {tr(
-            "profile.avatar.noUser",
-            "No console user found. Sign in to a profile on the PS5, then refresh.",
-          )}
-        </div>
-      )}
-
       <div className="flex flex-col gap-4 sm:flex-row">
         {/* Preview */}
         <div className="flex shrink-0 flex-col items-center gap-2">
@@ -437,35 +394,11 @@ function AvatarSection({
             </Button>
           </div>}
 
-          {/* Target user */}
-          <Select
-            label={tr("profile.avatar.targetUser", "Apply to user")}
-            value={targetUid ?? ""}
-            onChange={(e) =>
-              setTargetUid(e.target.value ? Number(e.target.value) : null)
-            }
-          >
-            {foreground != null && !users.some((u) => u.uid === foreground) && (
-              <option value={foreground}>
-                {userLabel(info?.uid_hex ?? "", info?.username ?? "")} (
-                {tr("profile.avatar.foreground", "active")})
-              </option>
-            )}
-            {users.map((u) => (
-              <option key={u.uid} value={u.uid}>
-                {userLabel(u.uid_hex, u.username)}
-                {foreground === u.uid
-                  ? ` (${tr("profile.avatar.foreground", "active")})`
-                  : ""}
-              </option>
-            ))}
-          </Select>
-
           <div className="flex items-center gap-2 pt-1">
             <Button
               variant="primary"
               size="sm"
-              disabled={!imagePath || !preview || !!previewError || targetUid == null || applying || readingImage}
+              disabled={!imagePath || !preview || !!previewError || applying || readingImage}
               loading={applying}
               onClick={applyAvatar}
             >
@@ -486,7 +419,7 @@ function AvatarSection({
           {applyError && <ErrorCard title={applyError} />}
         </div>
       </div>
-    </Card>
+    </div>
   );
 }
 
@@ -528,6 +461,11 @@ function UsernameSection({
   const tr = useTr();
   const users = info?.users ?? [];
   const slots = info?.slots ?? [];
+  const slotOf = userSlots(users, slots);
+  // Slots no user goes with (an offline-activated name with no user on this PS5).
+  const otherSlots = slots.filter(
+    (s) => ![...slotOf.values()].some((m) => m.slot === s.slot) && (s.name.trim() || s.activated),
+  );
 
   return (
     <div id={USERS_ANCHOR} className="scroll-mt-4">
@@ -540,8 +478,8 @@ function UsernameSection({
       </div>
       <p className="mb-4 text-xs text-[var(--color-muted)]">
         {tr(
-          "profile.username.description",
-          "Rename a console user. The PS5 limits names to 16 characters.",
+          "profile.username.description2",
+          "Each user on this PS5 with their name (16 characters at most), avatar and account ID. Click the picture to change the avatar.",
         )}
       </p>
 
@@ -562,7 +500,7 @@ function UsernameSection({
           )}
         />
       ) : (
-        <div className="space-y-2">
+        <div className="card-flow">
           {users.map((u) => (
             <UserRow
               key={u.uid}
@@ -570,6 +508,7 @@ function UsernameSection({
               uid={u.uid}
               uidHex={u.uid_hex}
               name={u.username}
+              slot={slotOf.get(u.uid) ?? null}
               onChanged={onChanged}
             />
           ))}
@@ -594,15 +533,13 @@ function UsernameSection({
           advanced case, which is how the account id ended up looking like
           something only offline activation cared about. Only say "offline"
           when one of the slots actually was activated that way. */}
-      {slots.length > 0 && (
+      {otherSlots.length > 0 && (
         <div className="mt-5 border-t border-[var(--color-border)] pt-4">
           <h3 className="mb-2 text-xs font-semibold text-[var(--color-muted)]">
-            {slots.some((s) => s.offline_activated)
-              ? tr("profile.username.slotsTitle", "Offline-account slots")
-              : tr("profile.username.accountsTitle", "Accounts")}
+            {tr("profile.username.otherSlotsTitle", "Other account slots")}
           </h3>
           <div className="space-y-2">
-            {slots.map((s) => (
+            {otherSlots.map((s) => (
               <SlotRow
                 key={s.slot}
                 addr={addr}
@@ -621,17 +558,34 @@ function UsernameSection({
   );
 }
 
+/** Each user's account slot: the slot carrying the user's name (how the console's account and the
+ *  sign-in tools find it), or, with one user and one named slot, that slot. */
+export function userSlots(users: ProfileUser[], slots: ProfileSlot[]): Map<number, ProfileSlot> {
+  const out = new Map<number, ProfileSlot>();
+  for (const u of users) {
+    const name = u.username.trim();
+    const s = name ? slots.find((x) => x.name.trim() === name) : undefined;
+    if (s) out.set(u.uid, s);
+  }
+  const named = slots.filter((s) => s.name.trim());
+  if (users.length === 1 && out.size === 0 && named.length === 1) out.set(users[0].uid, named[0]);
+  return out;
+}
+
 function UserRow({
   addr,
   uid,
   uidHex,
   name,
+  slot,
   onChanged,
 }: {
   addr: string;
   uid: number;
   uidHex: string;
   name: string;
+  /** The account slot that goes with this user (its name is the user's), if one does. */
+  slot: ProfileSlot | null;
   onChanged: () => void;
 }) {
   const tr = useTr();
@@ -642,6 +596,18 @@ function UserRow({
   const [error, setError] = useState<string | null>(null);
   const [savedOk, setSavedOk] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [avatarOpen, setAvatarOpen] = useState(false);
+  const [avatar, setAvatar] = useState<string | null>(null);
+  const [avatarRev, setAvatarRev] = useState(0);
+  useEffect(() => {
+    let live = true;
+    profileAvatarCurrent(uid, addr)
+      .then((url) => live && setAvatar(url))
+      .catch(() => live && setAvatar(null));
+    return () => {
+      live = false;
+    };
+  }, [uid, addr, avatarRev]);
 
   useEffect(() => {
     setDraft(name);
@@ -655,15 +621,21 @@ function UserRow({
     setSaving(true);
     setError(null);
     setSavedOk(false);
+    let renamed = false;
     try {
       await profileRenameUser(uid, draft.trim(), addr);
+      renamed = true;
+      // The slot carries the same name (it is how the account is found for this user): keep
+      // them one name, so there is one field to edit.
+      if (slot) await profileSetUsername(slot.slot, draft.trim(), addr);
       setSaved(draft.trim());
       setSavedOk(true);
-      onChanged();
     } catch (e) {
       setError(`${e}`);
     } finally {
       setSaving(false);
+      // Reread whenever the console changed, even if the slot half failed.
+      if (renamed) onChanged();
     }
   }
 
@@ -694,12 +666,19 @@ function UserRow({
     <div className="rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-surface)] p-3">
       {confirmDialog}
       <div className="flex items-center gap-2">
-        <span
-          className="shrink-0 font-mono text-xs text-[var(--color-muted)]"
-          title={uidHex}
+        <button
+          type="button"
+          onClick={() => setAvatarOpen((v) => !v)}
+          title={tr("profile.avatar.change", undefined, "Change avatar")}
+          aria-expanded={avatarOpen}
+          className="grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-full border border-[var(--color-border)] bg-[var(--color-surface-2)] hover:ring-2 hover:ring-[var(--color-accent)]"
         >
-          {uidHex}
-        </span>
+          {avatar ? (
+            <img src={avatar} alt="" className="h-full w-full object-cover" />
+          ) : (
+            <CircleUserRound size={18} className="text-[var(--color-muted)]" />
+          )}
+        </button>
         <input
           className="min-w-0 flex-1 rounded-full border border-[var(--glass-edge)] bg-[var(--color-surface-raised)] px-2 py-1 text-sm"
           value={draft}
@@ -713,6 +692,11 @@ function UserRow({
             if (e.key === "Enter") void save();
           }}
         />
+        {slot?.activated && (
+          <Badge tone="good" variant="soft" size="md" icon={Check}>
+            {tr("profile.username.activated", "active")}
+          </Badge>
+        )}
         <Button
           variant="secondary"
           size="sm"
@@ -732,6 +716,33 @@ function UserRow({
           {deleting ? <Spinner size={14} /> : <Trash2 size={14} />}
         </button>
       </div>
+      <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+        <span className="font-mono text-[var(--color-muted)]" title={tr("profile.user_id", undefined, "User ID")}>
+          {uidHex}
+        </span>
+        <button
+          type="button"
+          className="text-[var(--color-accent)] hover:underline"
+          onClick={() => setAvatarOpen((v) => !v)}
+        >
+          {tr("profile.avatar.change", undefined, "Change avatar")}
+        </button>
+      </div>
+      {avatarOpen && (
+        <AvatarEditor
+          addr={addr}
+          uid={uid}
+          label={userLabel(uidHex, name)}
+          username={name}
+          onApplied={() => {
+            setAvatarRev((n) => n + 1);
+            onChanged();
+          }}
+        />
+      )}
+      {slot && (
+        <AccountIdLine addr={addr} slot={slot.slot} accountId={slot.id} onChanged={onChanged} />
+      )}
       {error && <p className="mt-1 text-xs text-[var(--color-bad)]">{error}</p>}
       {savedOk && (
         <p className="mt-1 text-xs text-[var(--color-good)]">
@@ -879,56 +890,26 @@ function CopyableId({
   );
 }
 
-function SlotRow({
+/** A slot's account ID: shown plainly (hex, and the encoding Remote Play pairing wants), changed
+ *  only deliberately. */
+function AccountIdLine({
   addr,
   slot,
-  name,
   accountId,
-  activated,
   onChanged,
 }: {
   addr: string;
   slot: number;
-  name: string;
   accountId: string;
-  activated: boolean;
   onChanged: () => void;
 }) {
   const tr = useTr();
   const { confirm, dialog: confirmDialog } = useConfirm();
-  const [draft, setDraft] = useState(name);
-  const [saved, setSaved] = useState(name);
-  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [savedOk, setSavedOk] = useState(false);
   const [editingId, setEditingId] = useState(false);
   const [idDraft, setIdDraft] = useState("");
   const [idBusy, setIdBusy] = useState(false);
-
-  // Re-sync when the server-confirmed name changes (after a refetch).
-  useEffect(() => {
-    setDraft(name);
-    setSaved(name);
-  }, [name]);
-
-  const dirty = draft.trim() !== saved && draft.trim().length > 0;
-
-  async function save() {
-    if (!dirty) return;
-    setSaving(true);
-    setError(null);
-    setSavedOk(false);
-    try {
-      await profileSetUsername(slot, draft.trim(), addr);
-      setSaved(draft.trim());
-      setSavedOk(true);
-      onChanged();
-    } catch (e) {
-      setError(`${e}`);
-    } finally {
-      setSaving(false);
-    }
-  }
 
   /** Write a new account id to this slot.
    *
@@ -978,43 +959,12 @@ function SlotRow({
   }
 
   return (
-    <div className="rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-surface)] p-3">
+    <>
       {confirmDialog}
-      <div className="flex items-center gap-2">
-        <span className="w-12 shrink-0 text-xs tabular-nums text-[var(--color-muted)]">
-          {tr("profile.username.slot", { n: slot }, `Slot ${slot}`)}
-        </span>
-        <input
-          className="min-w-0 flex-1 rounded-full border border-[var(--glass-edge)] bg-[var(--color-surface-raised)] px-2 py-1 text-sm"
-          value={draft}
-          maxLength={31}
-          onChange={(e) => {
-            setDraft(e.target.value);
-            setSavedOk(false);
-          }}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") void save();
-          }}
-        />
-        {activated && (
-          <Badge tone="good" variant="soft" size="md" icon={Check}>
-            {tr("profile.username.activated", "active")}
-          </Badge>
-        )}
-        <Button
-          variant="secondary"
-          size="sm"
-          disabled={!dirty || saving}
-          loading={saving}
-          onClick={save}
-        >
-          {tr("profile.username.save", "Save")}
-        </Button>
-      </div>
       {/* Account id. Read-only by default: this is the value the console uses
           to decide which saves belong to this profile, so it is shown plainly
           and changed only deliberately. */}
-      <div className="mt-2 flex flex-wrap items-center gap-2 pl-14 text-xs">
+      <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
         <span className="text-[var(--color-muted)]">
           {tr("profile.accountId.label", "Account ID")}
         </span>
@@ -1094,6 +1044,88 @@ function SlotRow({
           )}
         </p>
       )}
+    </>
+  );
+}
+
+/** An account slot no console user goes with (a slot activated offline for a name that has no
+ *  user on this PS5): its name and account ID. */
+function SlotRow({
+  addr,
+  slot,
+  name,
+  accountId,
+  activated,
+  onChanged,
+}: {
+  addr: string;
+  slot: number;
+  name: string;
+  accountId: string;
+  activated: boolean;
+  onChanged: () => void;
+}) {
+  const tr = useTr();
+  const [draft, setDraft] = useState(name);
+  const [saved, setSaved] = useState(name);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Re-sync when the server-confirmed name changes (after a refetch).
+  useEffect(() => {
+    setDraft(name);
+    setSaved(name);
+  }, [name]);
+
+  const dirty = draft.trim() !== saved && draft.trim().length > 0;
+
+  async function save() {
+    if (!dirty) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await profileSetUsername(slot, draft.trim(), addr);
+      setSaved(draft.trim());
+      onChanged();
+    } catch (e) {
+      setError(`${e}`);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-surface)] p-3">
+      <div className="flex items-center gap-2">
+        <span className="w-12 shrink-0 text-xs tabular-nums text-[var(--color-muted)]">
+          {tr("profile.username.slot", { n: slot }, `Slot ${slot}`)}
+        </span>
+        <input
+          className="min-w-0 flex-1 rounded-full border border-[var(--glass-edge)] bg-[var(--color-surface-raised)] px-2 py-1 text-sm"
+          value={draft}
+          maxLength={31}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") void save();
+          }}
+        />
+        {activated && (
+          <Badge tone="good" variant="soft" size="md" icon={Check}>
+            {tr("profile.username.activated", "active")}
+          </Badge>
+        )}
+        <Button
+          variant="secondary"
+          size="sm"
+          disabled={!dirty || saving}
+          loading={saving}
+          onClick={save}
+        >
+          {tr("profile.username.save", "Save")}
+        </Button>
+      </div>
+      {error && <p className="mt-1 text-xs text-[var(--color-bad)]">{error}</p>}
+      <AccountIdLine addr={addr} slot={slot} accountId={accountId} onChanged={onChanged} />
     </div>
   );
 }

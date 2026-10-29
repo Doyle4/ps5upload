@@ -342,6 +342,9 @@ export interface StreamOptions {
   onLight?: (rgb: [number, number, number]) => void;
   /** The pad state to send; polled every animation frame and on key events. */
   readPad: () => PadState;
+  /** The controllers rumble is played on (default: this page's). A picture-in-picture window
+   *  has its own list where the engine gives controllers only to the window in front. */
+  gamepads?: () => ReadonlyArray<Gamepad | null>;
 }
 
 /** Waits between tries to rejoin after the socket dropped (the last one repeats), and for how
@@ -458,6 +461,11 @@ export class RemotePlayStream {
   private volume = 1;
   private lastPad = "";
   private raf = 0;
+  /** The window whose animation frames poll the pad: this page's, or a picture-in-picture
+   *  window's, which keeps them coming while this page is hidden or minimized. */
+  private frameWin: Window | null = null;
+  private rafWin: Window = window;
+  private ticking = false;
   private decoded = 0;
   private bytes = 0;
   private decodeMs = 0;
@@ -507,11 +515,8 @@ export class RemotePlayStream {
     this.codecChoice = codec;
     this.hevc = codec === "h265";
     this.connect(!!this.o.attach);
-    const tick = () => {
-      this.sendPad();
-      this.raf = requestAnimationFrame(tick);
-    };
-    this.raf = requestAnimationFrame(tick);
+    this.ticking = true;
+    this.schedule();
     let lastDecoded = 0;
     let lastBytes = 0;
     this.statsTimer = window.setInterval(() => {
@@ -616,6 +621,30 @@ export class RemotePlayStream {
     }, wait);
   }
 
+  private readonly tick = (): void => {
+    this.sendPad();
+    this.schedule();
+  };
+
+  private schedule(): void {
+    if (!this.ticking) return;
+    const w = this.frameWin && !this.frameWin.closed ? this.frameWin : window;
+    this.rafWin = w;
+    this.raf = w.requestAnimationFrame(this.tick);
+  }
+
+  /** Poll the pad on `w`'s animation frames (a picture-in-picture window), or this page's (null). */
+  setFrameWindow(w: Window | null): void {
+    this.frameWin = w;
+    if (!this.ticking) return;
+    try {
+      this.rafWin.cancelAnimationFrame(this.raf);
+    } catch {
+      // That window is gone.
+    }
+    this.schedule();
+  }
+
   /** Show the stream here again after another window took it. */
   takeOver(): void {
     if (this.ended || this.ws) return;
@@ -689,7 +718,12 @@ export class RemotePlayStream {
   private finish(): void {
     if (this.ended) return;
     this.ended = true;
-    cancelAnimationFrame(this.raf);
+    this.ticking = false;
+    try {
+      this.rafWin.cancelAnimationFrame(this.raf);
+    } catch {
+      // That window is gone.
+    }
     window.clearInterval(this.statsTimer);
     window.clearTimeout(this.reconnectTimer);
     this.resetMedia();
@@ -721,7 +755,7 @@ export class RemotePlayStream {
     }
     if (s.rumble) {
       if (this.o.rumble && !this.o.rumble()) return;
-      playRumble(navigator.getGamepads?.() ?? [], s.rumble[0], s.rumble[1]);
+      playRumble(this.o.gamepads?.() ?? navigator.getGamepads?.() ?? [], s.rumble[0], s.rumble[1]);
       return;
     }
     if (s.light) {

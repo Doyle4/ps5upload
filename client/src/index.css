@@ -114,7 +114,10 @@
   --radius-card: 0.875rem;
   --radius-panel: 1rem;
   --radius-canvas: 0px;
-  --content-max: 80rem;
+  /* No cap: every screen uses the whole window (the user asked for this repeatedly). Running
+   * text keeps its own readable width (PageHeader descriptions, .readable); lists flow into
+   * more columns instead of stretching one row across a wide window (.card-flow). */
+  --content-max: none;
 }
 
 /* ── Light ────────────────────────────────────────────────────────────── */
@@ -359,7 +362,16 @@ body {
   width: 100%;
   max-width: var(--content-max);
   margin-inline: auto;
-  padding: 1.75rem 2rem 2.5rem;
+  padding: 1.75rem clamp(2rem, 2.5vw, 3rem) 2.5rem;
+}
+
+/* A list of cards that fills the width: one column on a narrow window, as many ~44rem columns
+ * as fit on a wide one. */
+.card-flow {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 44rem), 1fr));
+  align-items: start;
 }
 
 /* A screen's view switcher, above that view's own .app-page (Connection's tabs). */
@@ -367,7 +379,7 @@ body {
   width: 100%;
   max-width: var(--content-max);
   margin-inline: auto;
-  padding: 1.25rem 2rem 0;
+  padding: 1.25rem clamp(2rem, 2.5vw, 3rem) 0;
 }
 
 /* ── Glass ────────────────────────────────────────────────────────────────

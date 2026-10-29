@@ -39,7 +39,7 @@ import { pushNotification } from "../../../state/notifications";
 import { withConsolePrefix } from "../../../state/roster";
 import { killPrompt } from "../../Processes/killPrompt";
 import NanoDnsScreen from "../../NanoDns";
-import SmpPanel from "../../Library/SmpPanel";
+import SmpPanel from "./SmpPanel";
 import PayloadManagerPanel from "../PayloadManagerPanel";
 import { PmSummary, SmpSummary } from "./summaries";
 import { HbSummary, HearBridgePanel, useHearBridge } from "./hearbridge";

@@ -734,24 +734,6 @@ async fn a_reused_job_id_with_changed_bytes_never_splices() {
     }
 }
 
-// ─── Console session ───────────────────────────────────────────────────────────
-
-/// Ports `hello_round_trip`: a session to the console opens and answers its identity
-/// (`node.info`) over the control stream.
-#[tokio::test(flavor = "multi_thread")]
-async fn a_session_opens_and_the_console_answers_node_info() {
-    use ava1::wire::Message;
-    let c = console().await;
-    let s = c.pool.session(&c.addr).await.expect("a paired session");
-    let reply = s
-        .rpc(ps5upload_ava1::gen::METHOD_NODE_INFO, &[])
-        .await
-        .unwrap();
-    assert_eq!(reply.status, ps5upload_ava1::gen::STATUS_OK);
-    let info = ps5upload_ava1::gen::NodeInfo::decode(&reply.body).unwrap();
-    assert!(!info.version.is_empty());
-}
-
 // ─── CI throughput gates ───────────────────────────────────────────────────────
 //
 // Loopback, no PS5: they catch algorithmic regressions (extra copies, serialisation bugs)

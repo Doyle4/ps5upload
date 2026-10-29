@@ -90,6 +90,25 @@ describe("runHelperSend", () => {
     ]);
   });
 
+  it("waits for the new helper while the replaced one still answers", async () => {
+    const versions = ["8.9.0", "8.9.0", "8.11.0"];
+    let probes = 0;
+    const w = world({
+      check: async () => ({ reachable: true, payloadVersion: versions[probes++] ?? "8.11.0" }),
+      isNew: (p) => (p as { payloadVersion?: string }).payloadVersion !== "8.9.0",
+    });
+    expect(await runHelperSend(A, w.deps, text)).toBe("ok");
+    expect(probes).toBe(3);
+  });
+
+  it("times out when only the replaced helper ever answers", async () => {
+    const w = world({
+      check: async () => ({ reachable: true, payloadVersion: "8.9.0" }),
+      isNew: (p) => (p as { payloadVersion?: string }).payloadVersion !== "8.9.0",
+    });
+    expect(await runHelperSend(A, w.deps, text)).toBe("fail");
+  });
+
   it("does not send to a stuck loader", async () => {
     const w = world({ waitForLoader: async () => "stuck" });
     expect(await runHelperSend(A, w.deps, text)).toBe("fail");

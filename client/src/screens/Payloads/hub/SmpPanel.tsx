@@ -8,9 +8,9 @@ import {
   Activity,
   HardDrive,
 } from "lucide-react";
-import { smpStatus, type SmpStatus } from "../../api/ps5";
-import { Button, ErrorCard, Spinner } from "../../components";
-import { useTr } from "../../state/lang";
+import { smpStatus, type SmpStatus } from "../../../api/ps5";
+import { Button, ErrorCard, Spinner } from "../../../components";
+import { useTr } from "../../../state/lang";
 
 /**
  * Read-only ShadowMount+ status panel. Renders nothing until the
@@ -374,7 +374,7 @@ function SmpAutotuneTable({
     setSaving(true);
     setSaveError(null);
     try {
-      const { fsWriteText } = await import("../../api/ps5");
+      const { fsWriteText } = await import("../../../api/ps5");
       const r = await fsWriteText(
         mgmtAddr,
         "/data/shadowmount/autotune.ini",

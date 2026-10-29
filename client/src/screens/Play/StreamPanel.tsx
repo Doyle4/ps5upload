@@ -7,6 +7,7 @@ import {
   Gamepad2,
   Minimize,
   MonitorPlay,
+  PictureInPicture2,
   Play,
   Settings2,
   Square,
@@ -37,6 +38,7 @@ import {
   type RpPrefs,
 } from "../../state/remotePlay";
 import { TouchControls, useTouchFirst } from "./TouchControls";
+import { closePip, openPip, pipPadsInBackground, pipSupport } from "./pip";
 
 type Tr = ReturnType<typeof useTr>;
 
@@ -95,7 +97,7 @@ export function streamErrorMessage(tr: Tr, e: StreamError): string {
   }
 }
 
-function phaseText(tr: Tr, p: StreamPhase): string {
+export function phaseText(tr: Tr, p: StreamPhase): string {
   switch (p) {
     case "connecting":
       return tr("rp_phase_connecting", undefined, "Connecting…");
@@ -147,7 +149,7 @@ function KeyRemap({
       <div className="grid grid-cols-1 gap-x-6 gap-y-1 sm:grid-cols-2">
         {PAD_ACTIONS.map((a) => (
           <div key={a.id} className="flex items-center justify-between gap-2">
-            <span>{tr(`rp_action_${a.id}`, undefined, a.label)}</span>
+            <span>{/[a-z]/.test(a.label) ? tr(`rp_action_${a.id}`, undefined, a.label) : a.label}</span>
             <span className="flex items-center gap-2">
               <span className="font-mono text-[var(--color-text)]">
                 {keysFor(keymap, a.action).map(keyLabel).join(", ") || "—"}
@@ -427,6 +429,9 @@ export function StreamPanel() {
   const startStream = useRemotePlayStore((s) => s.start);
   const stopStream = useRemotePlayStore((s) => s.stop);
   const setOnScreen = useRemotePlayStore((s) => s.setOnScreen);
+  const pip = useRemotePlayStore((s) => s.pip);
+  const pipKind = useMemo(() => pipSupport(), []);
+  const [pipFailed, setPipFailed] = useState(false);
   const [profileId, setProfileId] = useState<string>(activeId ?? profiles[0]?.id ?? "");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [full, setFull] = useState(false);
@@ -436,36 +441,49 @@ export function StreamPanel() {
   const canvasHost = useRef<HTMLDivElement>(null);
   const hideTimer = useRef(0);
   const touchFirst = useTouchFirst(prefs.touchControls);
+  // The console selected in the app is the one this page is about.
+  useEffect(() => {
+    if (activeId) setProfileId(activeId);
+  }, [activeId]);
 
   const profile = useMemo(() => profiles.find((p) => p.id === profileId) ?? null, [profiles, profileId]);
   const paired = !!(profile?.wake_regist_key && profile?.wake_rp_key);
-  const running = !!stream && phase !== null && phase !== "ended";
-  const playing = phase === "playing";
+  // One stream at a time, for whichever console it plays. This page shows the selected console:
+  // the stream when it is that console's, otherwise that console's own Start, with the other
+  // stream offered (show it, or stop it and play this one).
+  const streaming = !!stream && phase !== null && phase !== "ended";
+  const running = streaming && !!profile && target?.host === profile.host;
+  const otherStream = streaming && !running ? target : null;
+  const otherProfile = otherStream ? profiles.find((p) => p.host === otherStream.host) ?? null : null;
+  const playing = running && phase === "playing";
 
   // On show: controllers drive the console. Off: they do not, but the stream keeps running.
+  // Only while it shows this stream: looking at another console must not play this one.
   useEffect(() => {
+    if (!running) return;
     setOnScreen(true);
     return () => {
       setOnScreen(false);
       rpInput.held.clear();
       stream?.sendPad();
     };
-  }, [setOnScreen, stream]);
+  }, [setOnScreen, stream, running]);
 
-  // The stream draws on its own canvas; it is shown here whenever this screen is.
+  // The stream draws on its own canvas; it is shown here whenever this screen is, unless it is
+  // in a picture-in-picture window (video picture in picture copies it from here).
   useEffect(() => {
     const host = canvasHost.current;
-    if (!stream || !host) return;
+    if (!stream || !host || !running || pip === "popup" || pip === "document") return;
     host.appendChild(stream.canvas);
     return () => {
       if (stream.canvas.parentElement === host) host.removeChild(stream.canvas);
     };
     // Full screen moves the stage (a portal), so the canvas follows it.
-  }, [stream, full]);
+  }, [stream, full, running, pip]);
 
   // A stream this page does not show (a reload, another window): offer it here.
   useEffect(() => {
-    if (running) {
+    if (streaming) {
       setElsewhere(null);
       return;
     }
@@ -474,7 +492,7 @@ export function StreamPanel() {
     return () => {
       live = false;
     };
-  }, [running]);
+  }, [streaming]);
 
   // Two windows: the one you look at takes the stream.
   useEffect(() => {
@@ -494,6 +512,16 @@ export function StreamPanel() {
     stage.current?.focus();
   }, []);
   const toggleFull = useCallback(() => (full ? exitFull() : enterFull()), [full, exitFull, enterFull]);
+  const togglePip = useCallback(async () => {
+    if (useRemotePlayStore.getState().pip) return closePip();
+    if (full) exitFull();
+    const name = target?.name ?? "";
+    const ok = await openPip({
+      title: tr("rp_pip_title", { name }, `${name} · Remote Play`),
+      onBack: () => navigate("/play"),
+    });
+    setPipFailed(!ok);
+  }, [full, exitFull, target, tr, navigate]);
   // The browser left full screen on its own (Esc): the picture goes back in its place.
   useEffect(() => {
     if (!full || isTauriEnv()) return;
@@ -530,6 +558,16 @@ export function StreamPanel() {
     [profile, profiles, startStream],
   );
 
+  // Another console is streaming: stop it, wait for it to end (the store takes one stream at a
+  // time), then start the selected one.
+  const switchHere = useCallback(async () => {
+    stopStream();
+    for (let i = 0; i < 50 && useRemotePlayStore.getState().stream; i++) {
+      await new Promise((r) => window.setTimeout(r, 100));
+    }
+    if (!useRemotePlayStore.getState().stream) await start();
+  }, [start, stopStream]);
+
   const onKey = useCallback(
     (e: React.KeyboardEvent, down: boolean) => {
       // Full screen without a hidden pointer: Esc leaves full screen, as everywhere else.
@@ -538,13 +576,13 @@ export function StreamPanel() {
         exitFull();
         return;
       }
-      if (!useRemotePlayStore.getState().keymap[e.code]) return;
+      if (!running || !useRemotePlayStore.getState().keymap[e.code]) return;
       e.preventDefault();
       if (down) rpInput.held.add(e.code);
       else rpInput.held.delete(e.code);
       stream?.sendPad();
     },
-    [full, exitFull, stream],
+    [full, exitFull, stream, running],
   );
 
   // Shift + drag on the picture is a finger on the touchpad (for games that use it, like
@@ -552,6 +590,7 @@ export function StreamPanel() {
   const onPointer = useCallback(
     (e: React.PointerEvent, kind: "down" | "move" | "up") => {
       if (e.pointerType === "mouse" && kind === "move") showChrome();
+      if (!running) return;
       if (kind === "up") {
         if (!rpInput.touch) return;
         rpInput.touch = null;
@@ -563,7 +602,7 @@ export function StreamPanel() {
       }
       stream?.sendPad();
     },
-    [stream, showChrome],
+    [stream, showChrome, running],
   );
 
   // Clicking the picture takes the keyboard and (if set) hides the pointer; the browser keeps
@@ -629,12 +668,43 @@ export function StreamPanel() {
               {phaseText(tr, phase)}
             </div>
           )}
-          {phase === "moved" && (
+          {running && phase === "moved" && (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/70 text-sm text-white/85">
               <MonitorPlay size={28} />
               {tr("rp_moved", undefined, "Playing in another window.")}
               <Button size="sm" variant="primary" onClick={() => stream?.takeOver()}>
                 {tr("rp_play_here", undefined, "Play here")}
+              </Button>
+            </div>
+          )}
+          {running && pip && (
+            <div
+              className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/80 px-6 text-center text-sm text-white/85"
+              data-testid="rp-pip-on"
+            >
+              <PictureInPicture2 size={28} />
+              {tr("rp_pip_on", undefined, "Showing in picture in picture.")}
+              <span className="max-w-md text-xs text-white/60">
+                {pip === "video"
+                  ? tr(
+                      "rp_pip_hint_video",
+                      undefined,
+                      "This browser's picture in picture shows the picture only: the keyboard and controller play it while this window is in front.",
+                    )
+                  : pipPadsInBackground(pip)
+                    ? tr(
+                        "rp_pip_hint_any",
+                        undefined,
+                        "A controller keeps playing it while you use other apps. Click the small window to play with the keyboard.",
+                      )
+                    : tr(
+                        "rp_pip_hint_front",
+                        undefined,
+                        "The keyboard and controller play it while the small window is the active one: click it. On macOS and Linux a controller only reaches the window in front.",
+                      )}
+              </span>
+              <Button size="sm" variant="primary" onClick={() => closePip()} data-testid="rp-pip-bring-back">
+                {tr("rp_pip_bring_back", undefined, "Bring it back here")}
               </Button>
             </div>
           )}
@@ -674,6 +744,25 @@ export function StreamPanel() {
               >
                 {muted ? <VolumeX size={16} /> : <Volume2 size={16} />}
               </BarButton>
+              {/* Volume right on the picture (Settings has it too); keys on it never reach the pad. */}
+              <input
+                type="range"
+                min={0}
+                max={100}
+                step={5}
+                value={muted ? 0 : Math.round(prefs.volume * 100)}
+                onChange={(e) => {
+                  const v = Number(e.target.value) / 100;
+                  setPrefs(v === 0 ? { muted: true } : { volume: v, muted: false });
+                }}
+                onKeyDown={(e) => e.stopPropagation()}
+                onKeyUp={(e) => e.stopPropagation()}
+                onPointerDown={(e) => e.stopPropagation()}
+                aria-label={tr("rp_volume", undefined, "Volume")}
+                title={`${tr("rp_volume", undefined, "Volume")} ${muted ? 0 : Math.round(prefs.volume * 100)}%`}
+                className="w-20 accent-white sm:w-28"
+                data-testid="rp-volume"
+              />
               <BarButton
                 label={tr("rp_settings", undefined, "Settings")}
                 active={settingsOpen}
@@ -684,6 +773,20 @@ export function StreamPanel() {
               >
                 <Settings2 size={16} />
               </BarButton>
+              {pipKind && (
+                <BarButton
+                  label={
+                    pip
+                      ? tr("rp_pip_exit", undefined, "Leave picture in picture")
+                      : tr("rp_pip", undefined, "Picture in picture")
+                  }
+                  active={!!pip}
+                  onClick={() => void togglePip()}
+                  testId="rp-pip"
+                >
+                  <PictureInPicture2 size={16} />
+                </BarButton>
+              )}
               <BarButton
                 label={full ? tr("rp_exit_fullscreen", undefined, "Leave full screen") : tr("rp_fullscreen", undefined, "Full screen")}
                 active={full}
@@ -745,9 +848,17 @@ export function StreamPanel() {
               { value: "30", label: "30 fps" },
             ]}
           />
-          <Button variant="primary" size="md" onClick={() => void start()} disabled={!paired} data-testid="rp-start">
+          <Button
+            variant="primary"
+            size="md"
+            onClick={() => void (otherStream ? switchHere() : start())}
+            disabled={!paired}
+            data-testid="rp-start"
+          >
             <Play size={14} />
-            {tr("rp_start", undefined, "Start")}
+            {otherStream
+              ? tr("rp_switch_start", undefined, "Stop the other stream and start")
+              : tr("rp_start", undefined, "Start")}
           </Button>
           <Button
             variant="ghost"
@@ -761,7 +872,36 @@ export function StreamPanel() {
         </div>
       )}
 
-      {!running && elsewhere && (
+      {otherStream && (
+        <Callout
+          tone="info"
+          title={tr(
+            "rp_streaming_other",
+            { name: otherStream.name },
+            `Remote Play is streaming ${otherStream.name}`,
+          )}
+          action={
+            <div className="flex gap-2">
+              {otherProfile && (
+                <Button size="sm" variant="primary" onClick={() => setProfileId(otherProfile.id)}>
+                  {tr("rp_show_it", undefined, "Show it")}
+                </Button>
+              )}
+              <Button size="sm" onClick={() => stopStream()}>
+                {tr("rp_stop", undefined, "Stop")}
+              </Button>
+            </div>
+          }
+        >
+          {tr(
+            "rp_streaming_other_body",
+            undefined,
+            "One console streams at a time. It keeps playing while you look at this one; Start here stops it first.",
+          )}
+        </Callout>
+      )}
+
+      {!streaming && elsewhere && (
         <Callout
           tone="info"
           title={tr(
@@ -801,9 +941,14 @@ export function StreamPanel() {
           tone="info"
           title={tr("rp_not_paired", undefined, "Set up Wake & sign in for this console first")}
           action={
-            <Button size="sm" onClick={() => navigate("/connection")}>
-              {tr("rp_open_connection", undefined, "Open Connection")}
-            </Button>
+            <div className="flex gap-2">
+              <Button size="sm" variant="primary" onClick={() => navigate("/connection")}>
+                {tr("rp_open_connection", undefined, "Open Connection")}
+              </Button>
+              <Button size="sm" onClick={() => navigate("/accounts#remote-play")}>
+                {tr("rp_setup_guide", undefined, "Setup guide")}
+              </Button>
+            </div>
           }
         >
           {tr(
@@ -815,6 +960,15 @@ export function StreamPanel() {
       )}
 
       {error && <Callout tone="error" title={streamErrorMessage(tr, error)}>{error.detail}</Callout>}
+      {pipFailed && (
+        <Callout tone="warn" title={tr("rp_pip_failed", undefined, "Picture in picture did not open.")}>
+          {tr(
+            "rp_pip_failed_body",
+            undefined,
+            "The browser or the system refused the window. Try again from the button on the picture.",
+          )}
+        </Callout>
+      )}
 
       {full ? createPortal(stageView, document.body) : stageView}
 

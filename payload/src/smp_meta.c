@@ -1,25 +1,18 @@
-/*
- * ShadowMountPlus metadata self-healer — see smp_meta.h for the why.
+/* Home-screen metadata repair for titles under /user/app (see include/smp_meta.h).
  *
- * Port of sonicloader/src/smp_meta.c with three deliberate diffs:
- *   1. No chmod_recursive(0777) on game dirs. Sonicloader needs write
- *      access for garlic-savemgr; we only read app dirs and write to
- *      /user/appmeta. 777-ing /user/app is destructive to permission-
- *      sensitive firmware paths and we don't need it.
- *   2. Lazy-start via smp_meta_init() rather than auto-on-boot — most
- *      ps5upload sessions are transfer-only, so paying for a 30 s
- *      pthread is wasted work. Desktop UI fires init() when the user
- *      opts in.
- *   3. Bounded `last_missing` updates use snprintf instead of strncpy
- *      to guarantee NUL termination even on truncation.
- */
+ * One detached worker thread walks /user/app/<TITLE_ID>/ and, for each title,
+ * fills in whatever tile art / param.json is missing from /user/appmeta/<TITLE_ID>/
+ * by copying it from the game's own folder. The game folder is only ever read.
+ *
+ * Every write lands as a temporary file beside its destination and is renamed into
+ * place in the same folder, so the rename can never cross a mount. */
+#include "smp_meta.h"
 
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <pthread.h>
 #include <stdatomic.h>
-#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -29,378 +22,329 @@
 #include <time.h>
 #include <unistd.h>
 
-#include "smp_meta.h"
+#ifndef O_CLOEXEC
+#define O_CLOEXEC 0
+#endif
 
-#define APP_DIR     "/user/app"
-#define APPMETA_DIR "/user/appmeta"
+#define SMP_POLL_DEFAULT 30
+#define SMP_POLL_MIN 5
+#define SMP_POLL_MAX 600
+#define SMP_STARTUP_WAIT_S 60
+#define SMP_COPY_BUF (64u * 1024u)
+#define SMP_COPY_MAX ((off_t)32 * 1024 * 1024)
+#define SMP_PATH_CAP 512
+#define SMP_THREAD_STACK (256u * 1024u)
 
-#define POLL_SECONDS_DEFAULT  30
-#define POLL_SECONDS_MIN       5
-#define POLL_SECONDS_MAX     600
-
-/* META_FILES order matters only insofar as the "icon0.png healed"
- * counter is reported separately from the "everything else" counter.
- * icon0.png is the load-bearing one for the blank-tile symptom; the
- * rest are nice-to-have so background art and the boot jingle resolve. */
-static const char *META_FILES[] = {
-    "icon0.png",   /* home-screen tile */
-    "pic0.png",    /* loading screen art */
-    "pic1.png",    /* full-bleed background */
-    "icon1.png",
-    "snd0.at9",    /* boot jingle — harmless to omit but cheap to copy */
-    NULL,
+/* The tile first: whether a title "has its tile" is decided by index 0. */
+static const char *const k_art_files[] = {
+    "icon0.png", "pic0.png", "pic1.png", "icon1.png", "snd0.at9",
 };
 
-#define PARAM_JSON  "sce_sys/param.json"
+static char g_app_root[SMP_PATH_CAP] = "/user/app";
+static char g_meta_root[SMP_PATH_CAP] = "/user/appmeta";
 
-/* ── shared state ─────────────────────────────────────────────── */
-static pthread_mutex_t  g_lock           = PTHREAD_MUTEX_INITIALIZER;
-static atomic_int       g_poll_seconds   = POLL_SECONDS_DEFAULT;
-static atomic_int       g_run_now_flag   = 0;
-static smp_meta_stats_t g_stats          = {0};
-static int              g_thread_started = 0;
+static pthread_mutex_t g_mu = PTHREAD_MUTEX_INITIALIZER;
+static smp_meta_stats_t g_stats; /* guarded by g_mu; poll_seconds lives in g_poll */
+static int g_started;            /* guarded by g_mu */
+static atomic_int g_poll = SMP_POLL_DEFAULT;
+static atomic_int g_wake; /* 1 = a sweep was asked for and not yet picked up */
 
-/* ── helpers ──────────────────────────────────────────────────── */
+static void stats_add(int *field) {
+    pthread_mutex_lock(&g_mu);
+    (*field)++;
+    pthread_mutex_unlock(&g_mu);
+}
 
-/* TITLE_ID shape is CUSAxxxxx / PPSAxxxxx / NPXSxxxxx / FAKExxxxx /
- * IV9999 etc. Keep this lenient: 8-12 chars, all uppercase letters +
- * digits. Sony has invented several prefixes over the years and we
- * don't want to false-negative on a future one. */
-static int title_id_looks_valid(const char *name) {
-    size_t n = strlen(name);
-    if (n < 8 || n > 12) return 0;
-    for (size_t i = 0; i < n; i++) {
-        char c = name[i];
+/* 8 to 12 characters, each A-Z or 0-9. */
+static int title_id_ok(const char *s) {
+    size_t n = 0;
+    for (; s[n]; n++) {
+        char c = s[n];
         if (!((c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9'))) return 0;
+        if (n >= 12) return 0;
     }
-    return 1;
+    return n >= 8;
 }
 
-/* Use lstat + reject symlinks so a hostile/malformed package can't
- * point /user/app/<TID>/sce_sys/icon0.png at a symlink loop or a path
- * outside the app dir. We only ever copy plain regular files into
- * /user/appmeta; everything else (symlink, fifo, socket, device,
- * directory) is treated as "not present" so we don't follow it. */
-static int file_exists_nonempty(const char *path) {
+/* snprintf that reports truncation as failure. */
+static int join(char *out, size_t cap, const char *a, const char *b, const char *c) {
+    int n = snprintf(out, cap, "%s/%s%s%s", a, b, c ? "/" : "", c ? c : "");
+    return n > 0 && (size_t)n < cap;
+}
+
+/* A plain, non-empty file (never a link, fifo or device). */
+static int is_nonempty_regular(const char *path) {
     struct stat st;
-    if (lstat(path, &st) != 0) return 0;
-    if (!S_ISREG(st.st_mode)) return 0;
-    return st.st_size > 0;
+    return lstat(path, &st) == 0 && S_ISREG(st.st_mode) && st.st_size > 0;
 }
 
-/* mkdir -p of a single path. EEXIST is fine. */
-static int mkdir_one(const char *path) {
-    if (mkdir(path, 0755) == 0) return 0;
-    if (errno == EEXIST) return 0;
-    return -1;
+/* mkdir that accepts an existing directory, but not a link or a file in its place. */
+static int ensure_dir(const char *path) {
+    if (mkdir(path, 0755) != 0 && errno != EEXIST) return -1;
+    struct stat st;
+    return (lstat(path, &st) == 0 && S_ISDIR(st.st_mode)) ? 0 : -1;
 }
 
-/* Buffered copy with partial-write handling. Returns 0 on success.
- *
- * Security: opens the source with O_NOFOLLOW so a symlink planted by
- * a hostile / malformed package can't redirect the read out of the
- * source tree; opens the destination with O_NOFOLLOW + O_EXCL so a
- * TOCTOU race that swaps `dst` for a symlink between the
- * file_exists_nonempty() check and this open can't trick the payload
- * (which runs with kstuff-elevated ucred) into writing attacker
- * content into a system file via the symlink target. O_EXCL means
- * "fail with EEXIST if the path already exists" — the caller has
- * already verified the file does NOT exist, so on EEXIST we just
- * lose the race and the next sweep heals it.
- *
- * Unlinks the destination on any failure so we don't leave a
- * half-written icon0.png that file_exists_nonempty would later mistake
- * for "already healed". */
+static int write_all(int fd, const unsigned char *p, size_t n) {
+    while (n > 0) {
+        ssize_t w = write(fd, p, n);
+        if (w < 0) {
+            if (errno == EINTR) continue;
+            return -1;
+        }
+        if (w == 0) return -1;
+        p += w;
+        n -= (size_t)w;
+    }
+    return 0;
+}
+
+/* Copy src to dst through "<dst>.tmp-<pid>" and a same-folder rename. On any failure the
+ * temporary is removed and dst is left as it was. 0 on success. */
 static int copy_file(const char *src, const char *dst) {
-    int sfd = -1, dfd = -1;
-    const size_t bufsz = 16384;
-    uint8_t *buf = malloc(bufsz); /* heap: reached from a management thread (mgmt_audit.py stack budget) */
-    ssize_t n;
-    int rc = -1;
+    char tmp[SMP_PATH_CAP];
+    int n = snprintf(tmp, sizeof tmp, "%s.tmp-%ld", dst, (long)getpid());
+    if (n <= 0 || (size_t)n >= sizeof tmp) return -1;
 
-    if (!buf) goto done;
-    if ((sfd = open(src, O_RDONLY | O_NOFOLLOW)) < 0) goto done;
-    if ((dfd = open(dst, O_CREAT | O_WRONLY | O_EXCL | O_NOFOLLOW, 0644)) < 0) {
-        /* EEXIST = lost the race to another sweep / SMP itself;
-         * ELOOP / EFTYPE / EMLINK = symlink rejected, which is
-         * exactly what we want. Either way: leave the file alone. */
-        goto done;
+    int in = open(src, O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
+    if (in < 0) return -1;
+    struct stat st;
+    if (fstat(in, &st) != 0 || !S_ISREG(st.st_mode) || st.st_size <= 0 ||
+        st.st_size > SMP_COPY_MAX) {
+        close(in);
+        return -1;
     }
 
-    while ((n = read(sfd, buf, bufsz)) > 0) {
-        ssize_t off = 0;
-        while (off < n) {
-            ssize_t w = write(dfd, buf + off, n - off);
-            if (w <= 0) goto done;
-            off += w;
-        }
+    const int oflags = O_CREAT | O_EXCL | O_WRONLY | O_NOFOLLOW | O_CLOEXEC;
+    int out = open(tmp, oflags, 0644);
+    if (out < 0 && errno == EEXIST) {
+        /* A leftover from an interrupted run with the same pid: unlink removes the
+         * name itself (a link is not followed), then try once more. */
+        (void)unlink(tmp);
+        out = open(tmp, oflags, 0644);
     }
-    if (n < 0) goto done;
-    rc = 0;
-
-done:
-    free(buf);
-    if (sfd >= 0) close(sfd);
-    if (dfd >= 0) close(dfd);
-    if (rc != 0 && dfd >= 0) {
-        /* unlink can fail too (dst replaced by attacker between
-         * close and unlink); log nothing but capture errno for
-         * future debug. Without this, a leftover zero-byte file
-         * would poison the next sweep's file_exists_nonempty check
-         * via size==0 → "not present" → infinite retry. Actually
-         * size==0 already filters out via file_exists_nonempty so
-         * an unlink failure here is at worst one wasted retry. */
-        (void)unlink(dst);
+    if (out < 0) {
+        close(in);
+        return -1;
     }
-    return rc;
-}
 
-/* Heal one TITLE_ID slot. Walks META_FILES and the param.json special
- * case. Returns 1 when icon0.png is in place at the end (whether we
- * copied it or it was already there); 0 otherwise. The caller uses the
- * return value to drive the "still missing" counter for the UI. */
-static int heal_one_title(const char *title_id) {
-    char appmeta_dir[256];
-    char src_meta_dir[256];
-    char src_path[384];
-    char dst_path[384];
-    int  icon_ok = 0;
-
-    snprintf(appmeta_dir, sizeof(appmeta_dir),
-             "%s/%s", APPMETA_DIR, title_id);
-    /* SMP-mounted apps keep their sce_sys/ at the top of the app dir.
-     * Some packages flatten metadata at the root (icon0.png next to
-     * eboot.bin), so we try sce_sys/ first then bare-root as a fallback. */
-    snprintf(src_meta_dir, sizeof(src_meta_dir),
-             "%s/%s/sce_sys", APP_DIR, title_id);
-
-    if (mkdir_one(APPMETA_DIR) < 0) return 0;
-    if (mkdir_one(appmeta_dir) < 0) return 0;
-
-    for (int i = 0; META_FILES[i]; i++) {
-        snprintf(dst_path, sizeof(dst_path),
-                 "%s/%s", appmeta_dir, META_FILES[i]);
-
-        if (file_exists_nonempty(dst_path)) {
-            if (!strcmp(META_FILES[i], "icon0.png")) icon_ok = 1;
-            continue;
-        }
-
-        /* Try sce_sys/<file> first, then bare <file> at the app root. */
-        snprintf(src_path, sizeof(src_path),
-                 "%s/%s", src_meta_dir, META_FILES[i]);
-        int copied = 0;
-        if (file_exists_nonempty(src_path) &&
-            copy_file(src_path, dst_path) == 0) {
-            copied = 1;
-        } else {
-            snprintf(src_path, sizeof(src_path),
-                     "%s/%s/%s", APP_DIR, title_id, META_FILES[i]);
-            if (file_exists_nonempty(src_path) &&
-                copy_file(src_path, dst_path) == 0) {
-                copied = 1;
+    int ok = 0;
+    unsigned char *buf = malloc(SMP_COPY_BUF);
+    if (buf) {
+        off_t total = 0;
+        ok = 1;
+        for (;;) {
+            ssize_t r = read(in, buf, SMP_COPY_BUF);
+            if (r < 0) {
+                if (errno == EINTR) continue;
+                ok = 0;
+                break;
+            }
+            if (r == 0) break;
+            total += r;
+            if (total > SMP_COPY_MAX || write_all(out, buf, (size_t)r) != 0) {
+                ok = 0;
+                break;
             }
         }
+        if (total <= 0) ok = 0;
+        free(buf);
+    }
+    close(in);
+    if (ok && fsync(out) != 0) ok = 0;
+    if (close(out) != 0) ok = 0;
+    /* tmp and dst are siblings in one folder: never a cross-device rename. */
+    if (ok && rename(tmp, dst) != 0) ok = 0;
+    if (!ok) {
+        (void)unlink(tmp);
+        return -1;
+    }
+    return 0;
+}
 
-        if (copied) {
-            pthread_mutex_lock(&g_lock);
-            if (!strcmp(META_FILES[i], "icon0.png")) {
+/* Is the destination already there? 1 = present (non-empty regular file), 0 = absent or
+ * empty (may be written), -1 = something else occupies the name (a link, a folder): left
+ * alone, never replaced. */
+static int dst_state(const char *dst) {
+    struct stat st;
+    if (lstat(dst, &st) != 0) return 0;
+    if (!S_ISREG(st.st_mode)) return -1;
+    return st.st_size > 0 ? 1 : 0;
+}
+
+/* Bring one file in from the game folder. `sources` is a NULL-terminated list of folders
+ * to look in, in order. 1 = present before, 2 = copied now, 0 = still missing. */
+static int heal_file(const char *meta_dir, const char *const *sources, const char *name) {
+    char dst[SMP_PATH_CAP];
+    if (!join(dst, sizeof dst, meta_dir, name, NULL)) return 0;
+    int have = dst_state(dst);
+    if (have == 1) return 1;
+    if (have < 0) return 0;
+    for (size_t i = 0; sources[i]; i++) {
+        char src[SMP_PATH_CAP];
+        if (!join(src, sizeof src, sources[i], name, NULL)) continue;
+        if (!is_nonempty_regular(src)) continue;
+        return copy_file(src, dst) == 0 ? 2 : 0;
+    }
+    return 0;
+}
+
+/* One title. Returns 1 when it ends with a tile image, 0 when it does not. */
+static int heal_title(const char *id) {
+    char app_dir[SMP_PATH_CAP], sce_sys[SMP_PATH_CAP], meta_dir[SMP_PATH_CAP];
+    if (!join(app_dir, sizeof app_dir, g_app_root, id, NULL) ||
+        !join(sce_sys, sizeof sce_sys, g_app_root, id, "sce_sys") ||
+        !join(meta_dir, sizeof meta_dir, g_meta_root, id, NULL))
+        return 0;
+    if (ensure_dir(g_meta_root) != 0 || ensure_dir(meta_dir) != 0) return 0;
+
+    const char *const art_sources[] = {sce_sys, app_dir, NULL};
+    int has_tile = 0;
+    for (size_t i = 0; i < sizeof k_art_files / sizeof k_art_files[0]; i++) {
+        int r = heal_file(meta_dir, art_sources, k_art_files[i]);
+        if (r == 2) {
+            pthread_mutex_lock(&g_mu);
+            if (i == 0)
                 g_stats.icons_healed++;
-                icon_ok = 1;
-            } else {
+            else
                 g_stats.pics_healed++;
-            }
-            pthread_mutex_unlock(&g_lock);
+            pthread_mutex_unlock(&g_mu);
+            fprintf(stderr, "[smp-meta] %s: restored %s\n", id, k_art_files[i]);
         }
+        if (i == 0) has_tile = r != 0;
     }
 
-    /* param.json carries the visible game name; without it the tile
-     * shows "Unknown Title". Distinct counter so the UI can show
-     * "icons / pics / json" healed separately. */
-    snprintf(src_path, sizeof(src_path),
-             "%s/%s/%s", APP_DIR, title_id, PARAM_JSON);
-    snprintf(dst_path, sizeof(dst_path),
-             "%s/param.json", appmeta_dir);
-    if (!file_exists_nonempty(dst_path) &&
-        file_exists_nonempty(src_path) &&
-        copy_file(src_path, dst_path) == 0) {
-        pthread_mutex_lock(&g_lock);
-        g_stats.json_healed++;
-        pthread_mutex_unlock(&g_lock);
+    const char *const json_sources[] = {sce_sys, NULL};
+    if (heal_file(meta_dir, json_sources, "param.json") == 2) {
+        stats_add(&g_stats.json_healed);
+        fprintf(stderr, "[smp-meta] %s: restored param.json\n", id);
     }
-
-    return icon_ok;
+    return has_tile;
 }
 
-/* One full sweep over /user/app. */
-static void sweep_once(void) {
-    DIR *d = opendir(APP_DIR);
+static int entry_is_dir(const struct dirent *de) {
+#ifdef DT_DIR
+    if (de->d_type == DT_DIR) return 1;
+    if (de->d_type != DT_UNKNOWN) return 0;
+#endif
+    char path[SMP_PATH_CAP];
+    struct stat st;
+    return join(path, sizeof path, g_app_root, de->d_name, NULL) && stat(path, &st) == 0 &&
+           S_ISDIR(st.st_mode);
+}
+
+static void sweep(void) {
+    int scanned = 0, missing = 0;
+    char last_missing[sizeof g_stats.last_missing] = {0};
+    DIR *d = opendir(g_app_root);
     if (!d) {
-        /* /user/app doesn't exist — pre-jailbreak or no games installed
-         * yet. Not an error; just a no-op sweep that bumps last_run. */
-        pthread_mutex_lock(&g_lock);
-        g_stats.last_run_unix = (uint64_t)time(NULL);
-        pthread_mutex_unlock(&g_lock);
-        return;
-    }
-
-    int local_scanned = 0;
-    int local_missing = 0;
-    char last_missing[64] = "";
-
-    /* readdir returns NULL for both end-of-directory and error. Reset
-     * errno so we can tell them apart at the end of the loop; a real
-     * error means we report partial scan results rather than claiming
-     * the sweep completed (still_missing underreports otherwise). */
-    errno = 0;
-    int read_failed = 0;
-    struct dirent *e;
-    while ((e = readdir(d))) {
-        if (e->d_name[0] == '.') continue;
-        if (!title_id_looks_valid(e->d_name)) continue;
-
-        /* Skip non-directories. d_type may be DT_UNKNOWN on some FSes;
-         * fall through to a stat() probe in that case. */
-        if (e->d_type != DT_DIR && e->d_type != DT_UNKNOWN) continue;
-        if (e->d_type == DT_UNKNOWN) {
-            char probe[256];
-            snprintf(probe, sizeof(probe), "%s/%s", APP_DIR, e->d_name);
-            struct stat st;
-            if (stat(probe, &st) != 0 || !S_ISDIR(st.st_mode)) continue;
+        fprintf(stderr, "[smp-meta] cannot read %s (errno %d)\n", g_app_root, errno);
+    } else {
+        struct dirent *de;
+        while ((de = readdir(d)) != NULL) {
+            if (!title_id_ok(de->d_name) || !entry_is_dir(de)) continue;
+            scanned++;
+            if (!heal_title(de->d_name)) {
+                missing++;
+                snprintf(last_missing, sizeof last_missing, "%.*s",
+                         (int)(sizeof last_missing - 1), de->d_name);
+            }
         }
-
-        local_scanned++;
-
-        int healthy = heal_one_title(e->d_name);
-        if (!healthy) {
-            local_missing++;
-            /* snprintf guarantees NUL termination even on truncation;
-             * sonicloader's strncpy+manual-NUL is harder to read and
-             * leaves stale chars on a shorter-than-buffer overwrite. */
-            snprintf(last_missing, sizeof(last_missing), "%s", e->d_name);
-        }
+        closedir(d);
     }
-    /* `errno != 0` after a NULL return from readdir means real error
-     * (vs clean EOF). Don't update stats from a partial scan — the
-     * next tick will retry the whole thing. */
-    if (errno != 0) read_failed = 1;
-    closedir(d);
-
-    if (read_failed) return;
-
-    pthread_mutex_lock(&g_lock);
-    g_stats.games_scanned = local_scanned;
-    g_stats.still_missing = local_missing;
-    snprintf(g_stats.last_missing, sizeof(g_stats.last_missing),
-             "%s", local_missing > 0 ? last_missing : "");
+    pthread_mutex_lock(&g_mu);
+    g_stats.games_scanned = scanned;
+    g_stats.still_missing = missing;
+    if (last_missing[0]) memcpy(g_stats.last_missing, last_missing, sizeof last_missing);
     g_stats.last_run_unix = (uint64_t)time(NULL);
-    pthread_mutex_unlock(&g_lock);
+    pthread_mutex_unlock(&g_mu);
 }
 
-/* ── worker thread ────────────────────────────────────────────── */
-
-static void *worker_thread_fn(void *arg) {
-    (void)arg;
-    /* Best-effort thread name for ps/top output; ignored if the syscall
-     * isn't available. SYS_thr_set_name is FreeBSD-specific. */
-    (void)syscall(SYS_thr_set_name, -1, "ps5upload-smp");
-
-    pthread_mutex_lock(&g_lock);
-    g_stats.running = 1;
-    pthread_mutex_unlock(&g_lock);
-
-    /* Wait up to 60 s for kstuff + SMP to fully settle before the first
-     * sweep. Sonicloader observed SIGILL in kstuff's ZeroConf thread
-     * when chmod_recursive ran during the kstuff init window; we don't
-     * chmod, but the safe-startup pause is cheap and matches their
-     * proven timing. A run_now trigger short-circuits the wait.
-     *
-     * Flag-consume via atomic_exchange — earlier versions used
-     * atomic_store(0) after sweep_once, which dropped any run_now
-     * that arrived during sweep_once itself (caller had to wait up
-     * to poll_seconds for the next tick). Using atomic_exchange to
-     * READ-AND-CLEAR before the sweep means a run_now that arrives
-     * during the sweep stays set for the next iteration and triggers
-     * an immediate re-sweep — desired behavior. */
-    for (int i = 0; i < 60; i++) {
-        if (atomic_load(&g_run_now_flag)) break;
+/* Sleep up to `seconds`, a second at a time; a pending run_now ends it early (and is
+ * consumed, so it causes exactly one sweep). */
+static void wait_or_wake(int seconds) {
+    for (int i = 0; i < seconds; i++) {
+        if (atomic_exchange(&g_wake, 0)) return;
         sleep(1);
     }
-    (void)atomic_exchange(&g_run_now_flag, 0);
-    sweep_once();
+    (void)atomic_exchange(&g_wake, 0);
+}
 
-    while (1) {
-        int interval = atomic_load(&g_poll_seconds);
-        if (interval < POLL_SECONDS_MIN) interval = POLL_SECONDS_MIN;
-        if (interval > POLL_SECONDS_MAX) interval = POLL_SECONDS_MAX;
-
-        /* Sleep in 1 s slices so a run_now flag flips inside one tick.
-         * Same shape as the fan watcher in hw_info.c. */
-        for (int i = 0; i < interval; i++) {
-            if (atomic_load(&g_run_now_flag)) break;
-            sleep(1);
-        }
-        (void)atomic_exchange(&g_run_now_flag, 0);
-        sweep_once();
+static void *worker(void *arg) {
+    (void)arg;
+#ifdef SYS_thr_set_name
+    (void)syscall(SYS_thr_set_name, -1, "ps5upload-smp");
+#endif
+    pthread_mutex_lock(&g_mu);
+    g_stats.running = 1;
+    pthread_mutex_unlock(&g_mu);
+    /* Let the jailbreak payloads and the mounter settle before the first pass. */
+    wait_or_wake(SMP_STARTUP_WAIT_S);
+    for (;;) {
+        sweep();
+        wait_or_wake(atomic_load(&g_poll));
     }
     return NULL;
 }
 
-/* ── public API ───────────────────────────────────────────────── */
-
 int smp_meta_init(void) {
-    /* Hold the mutex across the entire start sequence — including
-     * pthread_create. The pre-fix dropped the lock before
-     * pthread_create, then re-took it on failure to roll g_thread_started
-     * back to 0. Window: caller A sets flag=1, drops lock, pthread_create
-     * fails; before A can re-take the lock and rollback, caller B
-     * takes the lock, sees flag=1, returns 0 ("watcher running"). B's
-     * caller then trusts the watcher to exist; it doesn't.
-     *
-     * Holding the lock across pthread_create is safe because the
-     * created worker doesn't touch g_lock until well after it spins
-     * up (the first lock acquisition in worker_thread_fn is the
-     * `g_stats.running = 1` write, line ~280, which happens after
-     * we've already returned and dropped the lock here). */
-    pthread_mutex_lock(&g_lock);
-    if (g_thread_started) {
-        pthread_mutex_unlock(&g_lock);
+    pthread_mutex_lock(&g_mu);
+    if (g_started) {
+        pthread_mutex_unlock(&g_mu);
         return 0;
     }
-
-    pthread_t t;
-    if (pthread_create(&t, NULL, worker_thread_fn, NULL) != 0) {
-        /* Don't set g_thread_started — caller retries get a clean slot. */
-        pthread_mutex_unlock(&g_lock);
-        return -1;
+    int rc = -1;
+    pthread_attr_t a;
+    if (pthread_attr_init(&a) == 0) {
+        (void)pthread_attr_setdetachstate(&a, PTHREAD_CREATE_DETACHED);
+        (void)pthread_attr_setstacksize(&a, SMP_THREAD_STACK);
+        pthread_t t;
+        if (pthread_create(&t, &a, worker, NULL) == 0) {
+            g_started = 1;
+            rc = 0;
+        }
+        pthread_attr_destroy(&a);
     }
-    pthread_detach(t);
-    g_thread_started = 1;
-    pthread_mutex_unlock(&g_lock);
-    return 0;
+    pthread_mutex_unlock(&g_mu);
+    if (rc != 0) fprintf(stderr, "[smp-meta] could not start the worker thread\n");
+    return rc;
 }
 
 void smp_meta_get_stats(smp_meta_stats_t *out) {
     if (!out) return;
-    memset(out, 0, sizeof(*out));
-    pthread_mutex_lock(&g_lock);
+    memset(out, 0, sizeof *out);
+    pthread_mutex_lock(&g_mu);
     *out = g_stats;
-    out->poll_seconds = atomic_load(&g_poll_seconds);
-    pthread_mutex_unlock(&g_lock);
+    pthread_mutex_unlock(&g_mu);
+    out->poll_seconds = atomic_load(&g_poll);
+    out->last_missing[sizeof out->last_missing - 1] = '\0';
 }
 
 int smp_meta_run_now(void) {
-    atomic_store(&g_run_now_flag, 1);
+    atomic_store(&g_wake, 1);
     return 0;
 }
 
 int smp_meta_set_poll_seconds(int seconds) {
-    if (seconds < POLL_SECONDS_MIN) seconds = POLL_SECONDS_MIN;
-    if (seconds > POLL_SECONDS_MAX) seconds = POLL_SECONDS_MAX;
-    atomic_store(&g_poll_seconds, seconds);
+    if (seconds < SMP_POLL_MIN) seconds = SMP_POLL_MIN;
+    if (seconds > SMP_POLL_MAX) seconds = SMP_POLL_MAX;
+    atomic_store(&g_poll, seconds);
     return seconds;
 }
 
-int smp_meta_get_poll_seconds(void) {
-    return atomic_load(&g_poll_seconds);
+int smp_meta_get_poll_seconds(void) { return atomic_load(&g_poll); }
+
+#ifdef SMP_META_HOST_TEST
+void smp_meta_set_roots_for_test(const char *app_dir, const char *appmeta_dir) {
+    snprintf(g_app_root, sizeof g_app_root, "%s", app_dir);
+    snprintf(g_meta_root, sizeof g_meta_root, "%s", appmeta_dir);
 }
+
+void smp_meta_sweep_for_test(void) { sweep(); }
+
+void smp_meta_reset_stats_for_test(void) {
+    pthread_mutex_lock(&g_mu);
+    memset(&g_stats, 0, sizeof g_stats);
+    pthread_mutex_unlock(&g_mu);
+}
+#endif

@@ -1,3 +1,5 @@
+// Ported from drakmor's ampr_emu tools (https://github.com/drakmor/ampr_emu, GPL-3.0). This
+// Rust port is part of ps5upload, GPL-3.0-or-later.
 //! The packer: AMPRIDX3 entries in, data volumes plus manifest, CRC sidecar and runtime
 //! settings out. A port of the planning and placement rules in drakmor's `build_packs`.
 

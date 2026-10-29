@@ -596,10 +596,11 @@ export default function ConnectionScreen() {
     if (!(await guardReplace(target))) return;
     setTransientStep2(null);
     setTransientStep2Msg(null);
+    const replacing = useConnectionStore.getState().payloadVersion;
     // Version and kernel are stale from the moment Send is pressed: the run turns the
     // "rechecking…" badge on, and writes the new helper's own figures when it answers.
     setStatus({ payloadVersion: null, ps5Kernel: null });
-    await sendHelperTo(target, tr);
+    await sendHelperTo(target, tr, replacing);
   }
 
   return (
@@ -809,7 +810,7 @@ export default function ConnectionScreen() {
               {tr(
                 "connection_step3_hint_v2",
                 undefined,
-                "Open Send to PS5 and drop in a game folder, a .exfat or .ffpkg image, or a .pkg package. Images and folders you send are listed in Games → On PS5 Storage, where Mount puts them on the PS5's home screen.",
+                "Open Send to PS5 and drop in a game folder, a .exfat or .ffpkg image, or a .pkg package. Images and folders you send are listed in the game's page in Games, where Mount puts them on the PS5's home screen.",
               )}
             </p>
             <Button
@@ -1689,7 +1690,7 @@ function VersionBlock({ onResend }: { onResend?: () => void }) {
               )}
             </p>
           </div>
-          {onResend && isTauriEnv() && (
+          {onResend && (
             <Button
               variant="secondary"
               size="sm"

@@ -390,7 +390,10 @@ jobs:
               --bins --features tauri/custom-protocol --keep-going
           ) > "$RUNNER_TEMP/desktop-deps.log" 2>&1 &
           deps=$!
-          cargo build --locked --release -p ps5upload-engine --target "$RUST_TARGET"
+          # ps5upload-unrar: the RAR helper. UnRAR is never linked into the engine (its
+          # license is GPL-incompatible, LICENSES/UnRAR-exception.md); the app embeds the
+          # helper next to the engine and the engine starts it over pipes.
+          cargo build --locked --release -p ps5upload-engine -p ps5upload-unrar --target "$RUST_TARGET"
           # Expected to exit non-zero (the app's build script, see above).
           wait "$deps" || true
           echo "desktop dependencies pre-built: $(grep -c ' Compiling ' "$RUNNER_TEMP/desktop-deps.log") crates"
@@ -403,15 +406,24 @@ jobs:
           target_root="engine/target/${RUST_TARGET}/release"
           if [ "$RUNNER_OS" = "Windows" ]; then
             test -s "$target_root/ps5upload-engine.exe"
-            ls -la "$target_root/ps5upload-engine.exe"
+            test -s "$target_root/ps5upload-unrar.exe"
+            ls -la "$target_root/ps5upload-engine.exe" "$target_root/ps5upload-unrar.exe"
           else
             test -s "$target_root/ps5upload-engine"
-            ls -la "$target_root/ps5upload-engine"
+            test -s "$target_root/ps5upload-unrar"
+            ls -la "$target_root/ps5upload-engine" "$target_root/ps5upload-unrar"
           fi
+          # The helper must not be a stub: it answers --version on the native runners
+          # (every leg but macOS x64, which is cross-built on Apple silicon and runs
+          # under Rosetta when present).
+          helper="$target_root/ps5upload-unrar"
+          [ "$RUNNER_OS" = "Windows" ] && helper="$helper.exe"
+          "$helper" --version || [ "$RUST_TARGET" = x86_64-apple-darwin ]
 
       # Windows signing (Azure Artifact Signing) — only when the secrets exist; otherwise
-      # releases ship unsigned exactly as before. The engine exe is signed here because the app
-      # embeds it; the app exe and the installer are signed by Tauri's signCommand below.
+      # releases ship unsigned exactly as before. The engine exe and the RAR helper exe are signed
+      # here because the app embeds them; the app exe and the installer are signed by Tauri's
+      # signCommand below.
       - name: Sign the engine (Windows, when signing is set up)
         if: runner.os == 'Windows' && env.WINDOWS_SIGNING == 'true'
         shell: pwsh
@@ -423,7 +435,9 @@ jobs:
           AZURE_SIGNING_ENDPOINT: ${{ secrets.AZURE_SIGNING_ENDPOINT }}
           AZURE_SIGNING_ACCOUNT: ${{ secrets.AZURE_SIGNING_ACCOUNT }}
           AZURE_SIGNING_PROFILE: ${{ secrets.AZURE_SIGNING_PROFILE }}
-        run: ./scripts/release/azure-sign.ps1 "engine/target/$env:RUST_TARGET/release/ps5upload-engine.exe"
+        run: |
+          ./scripts/release/azure-sign.ps1 "engine/target/$env:RUST_TARGET/release/ps5upload-engine.exe"
+          ./scripts/release/azure-sign.ps1 "engine/target/$env:RUST_TARGET/release/ps5upload-unrar.exe"
 
       - name: Diagnose linuxdeploy (Linux only)
         if: matrix.platform == 'linux'
@@ -570,11 +584,14 @@ jobs:
           # Ship the engine sidecar binary standalone too (it's also bundled
           # inside the app). Lets users run/inspect the engine on its own and
           # keeps a per-OS/arch engine artifact on every release.
+          # The RAR helper goes with it: the engine looks for it next to its own binary.
           eng_root="engine/target/${RUST_TARGET}/release"
           if [ "$PLATFORM" = windows ]; then
             cp -v "$eng_root/ps5upload-engine.exe" "$dist_abs/ps5upload-engine.exe"
+            cp -v "$eng_root/ps5upload-unrar.exe" "$dist_abs/ps5upload-unrar.exe"
           else
             cp -v "$eng_root/ps5upload-engine" "$dist_abs/ps5upload-engine"
+            cp -v "$eng_root/ps5upload-unrar" "$dist_abs/ps5upload-unrar"
           fi
           ls -la "$dist_abs"
 
@@ -942,6 +959,13 @@ jobs:
             ext=""; [ "${f##*.}" = exe ] && ext=".exe"
             cp -v "$f" "release/ps5upload-engine-${TAG_VERSION}-${pa}${ext}"
           done
+          # Its RAR helper (ps5upload-unrar), to keep next to the standalone engine.
+          for f in artifacts/ps5upload-*/ps5upload-unrar artifacts/ps5upload-*/ps5upload-unrar.exe; do
+            [ -f "$f" ] || continue
+            pa="$(basename "$(dirname "$f")")"; pa="${pa#ps5upload-}"
+            ext=""; [ "${f##*.}" = exe ] && ext=".exe"
+            cp -v "$f" "release/ps5upload-unrar-${TAG_VERSION}-${pa}${ext}"
+          done
           if [ -f artifacts/ps5upload-payload/ps5upload.elf ]; then
             cp -v artifacts/ps5upload-payload/ps5upload.elf \
               "release/ps5upload-${TAG_VERSION}.elf"
@@ -991,6 +1015,12 @@ jobs:
             "ps5upload-engine-${TAG_VERSION}-linux-arm64" \
             "ps5upload-engine-${TAG_VERSION}-windows-x64.exe" \
             "ps5upload-engine-${TAG_VERSION}-windows-arm64.exe" \
+            "ps5upload-unrar-${TAG_VERSION}-macos-arm64" \
+            "ps5upload-unrar-${TAG_VERSION}-macos-x64" \
+            "ps5upload-unrar-${TAG_VERSION}-linux-x64" \
+            "ps5upload-unrar-${TAG_VERSION}-linux-arm64" \
+            "ps5upload-unrar-${TAG_VERSION}-windows-x64.exe" \
+            "ps5upload-unrar-${TAG_VERSION}-windows-arm64.exe" \
             "ps5upload-${TAG_VERSION}.elf"; do
             if [ ! -s "release/$name" ]; then
               echo "::error::release asset missing or empty: $name"

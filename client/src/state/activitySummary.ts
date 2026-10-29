@@ -109,9 +109,9 @@ export function routeForTask(task: Task): string {
   if (k.startsWith("backup-")) return "/files?view=snapshots";
   if (k.startsWith("save-")) return "/saves";
   if (k === "fpkg-convert" || k === "ffpfsc-compress") return "/workshop";
-  if (k === "backport-patch" || k.startsWith("fakelib-")) return "/games?tab=ready";
+  if (k === "backport-patch" || k.startsWith("fakelib-")) return "/games";
   if (k === "bug-report") return "/bug-report";
-  if (k.startsWith("library-")) return "/games?tab=files";
+  if (k.startsWith("library-")) return "/games";
   if (k === "cheat-download") return "/cheats";
   return "/tasks";
 }

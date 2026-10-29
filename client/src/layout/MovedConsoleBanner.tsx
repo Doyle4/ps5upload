@@ -45,7 +45,7 @@ export function MovedConsoleBannerView({
   if (!offer || hostOf(offer.from) !== hostOf(activeHost)) return null;
   return (
     <div className="mx-3 mt-3 rounded-[var(--radius-card)] border border-[color-mix(in_srgb,var(--color-accent)_35%,transparent)] bg-[var(--color-accent-soft)] px-4 py-2.5 backdrop-blur-xl md:mx-5 text-[var(--color-text)]">
-      <div className="mx-auto flex max-w-6xl flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
         <div className="flex min-w-0 flex-1 items-start gap-3">
           <ArrowRightLeft size={18} className="mt-0.5 shrink-0 text-[var(--color-accent)]" />
           <p className="text-sm">

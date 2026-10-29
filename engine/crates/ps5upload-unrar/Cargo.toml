@@ -1,0 +1,26 @@
+# ps5upload-unrar: the only program in ps5upload that contains UnRAR.
+#
+# UnRAR's license is GPL-incompatible (LICENSES/UnRAR-license.txt). The engine
+# (ps5upload-engine, also embedded in the desktop app) contains third-party GPL
+# and AGPL code that carries no exception for it, so UnRAR must not be linked
+# into it. This crate builds a separate executable, holding only ps5upload's own
+# code (GPL-3.0-or-later with the §7 exception in LICENSES/UnRAR-exception.md)
+# and UnRAR, which the engine starts and talks to over pipes
+# (ps5upload-core/src/rar_helper.rs is the other end). Keep it that way: no
+# dependency on ps5upload-core or any other ps5upload crate.
+[package]
+name = "ps5upload-unrar"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[[bin]]
+name = "ps5upload-unrar"
+path = "src/main.rs"
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+# The vendored copy at third_party/unrar (engine/Cargo.toml [patch.crates-io]).
+unrar = "0.5"

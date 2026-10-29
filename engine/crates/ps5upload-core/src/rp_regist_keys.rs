@@ -1,3 +1,5 @@
+// The tables below are copied from playactor, Copyright (c) Daniel Leong, under the ISC license
+// (LICENSES/playactor-ISC.txt).
 //! PS5 Remote Play registration key tables.
 //!
 //! Lifted verbatim from playactor (ISC licensed), which is why this file

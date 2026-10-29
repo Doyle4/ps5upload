@@ -4,12 +4,15 @@ Upstream: <https://github.com/muja/unrar.rs> (MIT OR Apache-2.0).
 Only `src/` and the licences are vendored; upstream's examples, tests and
 `.rar` test data are not, so this stays a small patch rather than a fork.
 
-Both workspaces redirect to this copy via `[patch.crates-io]`:
+The engine workspace redirects to this copy via `[patch.crates-io]`:
 
 ```text
 engine/Cargo.toml              unrar = { path = "../third_party/unrar" }
-client/src-tauri/Cargo.toml    unrar = { path = "../../third_party/unrar" }
 ```
+
+Only the `ps5upload-unrar` program (`engine/crates/ps5upload-unrar`) links it;
+the engine and the desktop app start that program instead of linking UnRAR
+(`LICENSES/UnRAR-exception.md`).
 
 ## The change
 

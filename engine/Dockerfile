@@ -48,7 +48,8 @@
 
 FROM rust:alpine AS builder
 
-# g++ compiles unrar's bundled C++ against musl; musl target links static.
+# g++ compiles unrar's bundled C++ (for the ps5upload-unrar helper) against
+# musl; musl target links static.
 RUN apk add --no-cache musl-dev g++ make
 
 # Built from the REPO ROOT, not engine/, because the workspace patches
@@ -68,7 +69,9 @@ COPY payload payload
 WORKDIR /build/engine
 # --locked: the image is built from a tag; the lockfile must already satisfy
 # Cargo.toml (a stale lock after a squash merge fails here, not re-resolves).
-RUN cargo build --locked --release -p ps5upload-engine
+# ps5upload-unrar is the RAR helper the engine starts (UnRAR is never linked into
+# the engine; LICENSES/UnRAR-exception.md). It goes next to the engine below.
+RUN cargo build --locked --release -p ps5upload-engine -p ps5upload-unrar
 
 # The runtime image is `scratch`, which has no /tmp and no home: the engine
 # could not stage an uploaded package ("could not create upload dir:
@@ -81,6 +84,8 @@ RUN mkdir -p /rootfs/tmp /rootfs-data/data && chmod 1777 /rootfs/tmp /rootfs-dat
 
 FROM scratch
 COPY --from=builder /build/engine/target/release/ps5upload-engine /ps5upload-engine
+# The engine looks for the RAR helper next to its own binary.
+COPY --from=builder /build/engine/target/release/ps5upload-unrar /ps5upload-unrar
 # /tmp: staging for uploaded packages, archive extraction and the like. It
 # is copied as a child of /rootfs because copying a directory applies only
 # its contents: `COPY /rootfs/tmp /tmp` left a 0755 root-owned /tmp and the

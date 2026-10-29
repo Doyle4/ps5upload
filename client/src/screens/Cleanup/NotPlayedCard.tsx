@@ -68,7 +68,7 @@ export function NotPlayedCard({ host }: { host: string }) {
           variant="secondary"
           size="sm"
           leftIcon={<Gamepad2 size={12} />}
-          onClick={() => navigate("/games?tab=ready&unplayed=1")}
+          onClick={() => navigate("/games?unplayed=1")}
           data-testid="cleanup-not-played"
         >
           {tr("cleanup_not_played_review", undefined, "Review them")}

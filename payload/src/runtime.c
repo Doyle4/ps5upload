@@ -2152,6 +2152,22 @@ static int is_disc_read_path(const char *p) {
     return is_disc_lexical(resolved);
 }
 
+/* READ-ONLY exception for the user partition's other name: some consoles list /original_user next
+ * to /user (the same data: av_contents, home, ...), and a /user path can resolve to it. The File
+ * System browser lists it, so downloading from it (screenshots in av_contents/photo/<title>) must
+ * work; writes stay on /user. The canonical form must stay on one of the two names. */
+static int is_original_user_lexical(const char *p) {
+    return (strcmp(p, "/original_user") == 0 || strncmp(p, "/original_user/", 15) == 0 ||
+            strcmp(p, "/user") == 0 || strncmp(p, "/user/", 6) == 0) &&
+           !path_has_dotdot_component(p);
+}
+static int is_original_user_read_path(const char *p) {
+    if (!is_original_user_lexical(p)) return 0;
+    char resolved[PATH_MAX];
+    if (realpath(p, resolved) == NULL) return errno == ENOENT;
+    return is_original_user_lexical(resolved);
+}
+
 /* READ-ONLY exception for HyperHEN's readiness markers: /system_tmp/hyperhen/ready/<name>, one
  * small file per stage holding the stage's pid ("automount" for its built-in ShadowMount+). The
  * engine reads them to tell that HyperHEN's own mount engine runs, whatever its process is called.
@@ -9193,7 +9209,8 @@ static runtime_state_t *g_mgmt_fs_state;
  * fs.read may open is one a download may open too (the disc and avatar carve-outs included). */
 int mgmt_fs_read_allowed(const char *path, int unsafe_read) {
     return is_path_allowed(path) || is_profile_avatar_read_path(path) || is_disc_read_path(path) ||
-           is_hyperhen_ready_read_path(path) || (unsafe_read && is_safe_unsafe_read_path(path));
+           is_original_user_read_path(path) || is_hyperhen_ready_read_path(path) ||
+           (unsafe_read && is_safe_unsafe_read_path(path));
 }
 
 static void mgmt_fs_count(void) {

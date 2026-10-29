@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Ported from chiaki-ng: Copyright (C) the Chiaki and chiaki-ng authors. Rust port for
+// ps5upload. Licensed under the GNU AGPL v3.0 (LICENSES/AGPL-3.0.txt).
 //! The few `tkproto.TakionMessage` messages the stream needs, encoded and
 //! decoded by hand (proto2 wire format) rather than through a protobuf code
 //! generator. Field numbers from chiaki-ng's `lib/protobuf/takion.proto`

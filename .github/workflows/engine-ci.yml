@@ -107,6 +107,20 @@ jobs:
         working-directory: engine
         run: cargo clippy --locked --workspace -- -D warnings
 
+      # UnRAR is GPL-incompatible and the engine carries third-party GPL/AGPL code, so only
+      # the separate ps5upload-unrar program may link it (LICENSES/UnRAR-exception.md).
+      - name: UnRAR stays out of the engine
+        working-directory: engine
+        run: |
+          if cargo tree --locked -p ps5upload-engine --target all -e normal,build | grep -E ' unrar(_sys)? v'; then
+            echo "::error::ps5upload-engine links unrar; RAR must go through ps5upload-unrar"
+            exit 1
+          fi
+          if cargo tree --locked -p ps5upload-unrar --target all -e normal,build | grep -E 'ps5upload-(core|fpkg|ava1|engine) v'; then
+            echo "::error::ps5upload-unrar must hold only ps5upload's own code and UnRAR"
+            exit 1
+          fi
+
       # The webui feature (rust-embed + static serving) is only enabled
       # in the Docker webui build, not the default workspace clippy/test
       # above. Compile-check it here so a broken #[cfg(feature = "webui")]
@@ -241,6 +255,12 @@ jobs:
             exit 1
           fi
 
+      # The RAR tests (ps5upload-core, ps5upload-ava1, ps5upload-tests) start the separate
+      # ps5upload-unrar program from target/debug; the `engine` leg does not select it.
+      - name: Build the RAR helper (ps5upload-unrar)
+        working-directory: engine
+        run: cargo build -p ps5upload-unrar
+
       - name: cargo nextest
         working-directory: engine
         timeout-minutes: 25
@@ -351,6 +371,9 @@ jobs:
 
       - name: The app's AVA1 codecs match protocol/ps5upload-ava1/app.toml
         run: make ava1-app-gen ARGS=--check
+
+      - name: The ava1 crate pin matches the third_party/ava1 submodule
+        run: make ava1-version-check
 
       - name: No FTX2 or ports 9113/9114 in the repository
         run: make check-no-ftx2
@@ -483,6 +506,10 @@ jobs:
       - name: cargo check engine
         run: cargo check -p ps5upload-engine ${{ matrix.target_args }}
 
+      # The RAR helper ships next to the engine on every desktop target.
+      - name: cargo check RAR helper
+        run: cargo check -p ps5upload-unrar ${{ matrix.target_args }}
+
   # ─────────────────────────────────────────────────────────────────────
   # Rust desktop shell (client/src-tauri). Uses its own workspace so
   # it doesn't share target/ with the engine. Tauri pulls heavy
@@ -604,14 +631,27 @@ jobs:
         run: |
           mkdir -p engine/target/release
           exe=engine/target/release/ps5upload-engine
-          [ "$RUNNER_OS" = "Windows" ] && exe="$exe.exe"
+          helper=engine/target/release/ps5upload-unrar
+          if [ "$RUNNER_OS" = "Windows" ]; then exe="$exe.exe"; helper="$helper.exe"; fi
           printf 'engine stub for CI\n' > "$exe"
+          # The RAR helper is embedded next to the engine the same way (build.rs).
+          printf 'unrar helper stub for CI\n' > "$helper"
 
       # No separate `cargo check --all-targets`: clippy --all-targets type-checks the same code.
       # --locked for the same reason as the engine workspace's clippy step.
       - name: cargo clippy
         working-directory: client/src-tauri
         run: cargo clippy --locked --all-targets -- -D warnings
+
+      # See the engine job: only the separate ps5upload-unrar program may link UnRAR.
+      - name: UnRAR stays out of the desktop app
+        working-directory: client/src-tauri
+        shell: bash
+        run: |
+          if cargo tree --locked --target all -e normal,build | grep -E ' unrar(_sys)? v'; then
+            echo "::error::the desktop app links unrar; RAR must go through ps5upload-unrar"
+            exit 1
+          fi
 
       - name: cargo test
         working-directory: client/src-tauri

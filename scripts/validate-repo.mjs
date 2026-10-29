@@ -105,6 +105,8 @@ runInline("git whitespace", "git", ["diff", "--check"]);
 
 const engineSteps = [
   step("engine fmt", "cargo", ["fmt", "--all", "--", "--check"], engineDir),
+  // The RAR tests start the separate ps5upload-unrar program from the target directory.
+  step("RAR helper (ps5upload-unrar)", "cargo", ["build", "-p", "ps5upload-unrar"], engineDir),
   step("engine clippy", "cargo", ["clippy", "--workspace", "--", "-D", "warnings"], engineDir),
   ...(nextest
     ? [
@@ -123,6 +125,8 @@ const engineSteps = [
 
 // clippy --all-targets type-checks everything `cargo check --all-targets` did.
 const desktopSteps = [
+  // The desktop build embeds the RAR helper next to the engine (client/src-tauri/build.rs).
+  step("RAR helper for the desktop build", "cargo", ["build", "--release", "-p", "ps5upload-unrar"], engineDir),
   step("desktop clippy", "cargo", ["clippy", "--all-targets", "--", "-D", "warnings"], desktopDir),
   step("desktop tests", "cargo", ["test"], desktopDir),
 ];

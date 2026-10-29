@@ -31,23 +31,27 @@
 - **Install any package.** PS4 `.pkg` and PS5 fake packages (base, update, DLC) from your
   computer (**Stream & install** or **Upload & install**), a NAS/SMB share, a USB drive or a
   link. If the PS5 refuses one route, the app offers another.
-- **Collection.** Every game in your folders (including folders on a NAS, scanned in place),
-  grouped with its updates and DLC, with what each PS5 already has and one click to install the
-  rest. Organize, de-duplicate and clean up the drives. Replaces PS Game Library.
-- **Convert Games.** Build an installable package from a decrypted game folder or an
+- **Games.** One grid with every game once: your copies in your folders (including folders on
+  a NAS, scanned in place) grouped with their updates and DLC, what each PS5 has installed, and
+  the games on its drives. Each game's page holds everything you can do with it: install, play,
+  mount, add to the home screen, move, back up, convert. Organize, de-duplicate and clean up the
+  drives. Replaces PS Game Library.
+- **Convert games (Workshop).** Build an installable package from a decrypted game folder or an
   image, or write a game folder as a game image (`.exfat`, `.ffpkg`, `.ffpfs`, or the smaller
   `.ffpfsc`) that ShadowMount+ mounts, and upload it in one step.
 - **Browse and manage.** Files, games, disk images (mount, edit in place), saves, screenshots
   and video clips; register, launch, stop and uninstall games; copy, move (Move to…),
   delete, set permissions.
-- **Cheats, fan curve, hardware view,** Remote Play pairing, payload sender with a catalogue
-  and playlists, and backport tools.
+- **Remote Play.** Stream the PS5 into the app and play it with a controller, the keyboard or
+  touch, with picture in picture on desktop and in Chrome, Edge and Safari.
+- **Cheats, fan curve, hardware view,** payload sender with a catalogue and playlists, and
+  backport tools.
 - **Power.** Rest mode, reboot, shut down, and wake over the network (optionally straight
   into your signed-in user).
 - **PS5Upload Minion.** A page the helper serves to the PS5's own browser (a tile on the home
-  screen, port 9180), made for the controller: games, a library scanned from your network shares
-  and drives, files (SMB shares, archive extraction, package install, payload loading), cheats,
-  fan, processes, clean-up and settings, with no PC nearby.
+  screen, port 9180), made for the controller: installed games and the games on your network
+  shares and drives, save backups, files (SMB shares, archive extraction, package install,
+  payload loading), cheats, fan, processes, clean-up and settings, with no PC nearby.
 - **Several devices, one PS5.** Computers, phones and Docker connect at once with no pairing
   code, see what the others are doing (Devices), share your consoles and settings, and stay out
   of each other's way. Settings are backed up daily, to the engine and to each console.
@@ -242,14 +246,14 @@ For per-platform bundles only (no full dev env): `make dist-mac`,
 1. Jailbreak the PS5 and keep an ELF loader running on port **9021**.
 2. Launch ps5upload and open **Connection**. Enter the PS5's IP address.
 3. Click **Check**, then **Send helper**. The app launches the helper and connects to it. (Other
-   payloads, such as kstuff or etaHEN, are sent from **Payloads & processes → Send payload**.)
+   payloads, such as kstuff or etaHEN, are sent from **Payloads → Send payload**.)
 4. Other computers, phones and Docker setups connect to the same helper with no code; the console
    remembers each one (**Devices**). To make new devices type a code shown on the TV first, turn
    on **Ask before a new device can connect** there.
 
 The helper stays until the PS5 reboots or enters rest mode. The app only needs ports **9120**
 (the helper) and **9021** (the loader); allow both in your firewall. 6.0 cannot talk to a
-v5.x helper: the app offers **Update the helper** and replaces it in one click.
+v5.x helper: the banner's **Send helper** replaces it in one click.
 
 ## Architecture
 
@@ -414,49 +418,59 @@ acknowledge and accept that:
 If any of the above is not acceptable to you, do not use this
 software.
 
-## Third-Party Libraries
+## Credits
 
-This software builds on the following open-source projects:
+ps5upload builds on other people's work. Each entry says how: **included** (their source is in
+this repository, under its own license), **ported** (their code rewritten in another language or
+adapted file by file), **library** (a dependency the build pulls in), **fetched at runtime**
+(downloaded from its own home when you use the feature; not shipped with ps5upload), or
+**reference** (read to learn how something works; no code taken).
 
-**Desktop client (Tauri 2 + React):**
-* [Tauri](https://tauri.app/) — Rust-backed cross-platform desktop runtime
-* [React](https://react.dev/) — UI library
-* [Zustand](https://github.com/pmndrs/zustand) — Client state management
-* [Tailwind CSS](https://tailwindcss.com/) — Styling
-* [Vite](https://vitejs.dev/) — Build + dev server
-* [lucide-react](https://lucide.dev/) — Icons
-* [react-router](https://reactrouter.com/) — Routing
+**Included code:**
+* [PS5 Payload SDK](https://github.com/ps5-payload-dev/sdk) (John Törnblom; GPL-3.0-or-later) — builds every payload; its startup code is in [`payload/third_party/sdk-crt`](payload/third_party/sdk-crt) with one fix so payloads start on firmware where two kernel lookups fail (FW 5.50)
+* [elfldr](https://github.com/ps5-payload-dev/elfldr) (John Törnblom; GPL-3.0-or-later) — the ELF loader, in [`third_party/elfldr`](third_party/elfldr) with a fix for a loader that hangs on a silent client; the app sends this build to the console
+* [PS5 Dump Forge](https://github.com/quer3q/ps5-dump-forge) (quer3q; GPL-3.0-or-later) — the UFS2 (`.ffpkg`) and PFS (`.ffpfs`) image writers and the streaming `.ffpfsc` container, in `engine/crates/ps5-dump-forge-ufs2` and `-pfs`; quer3q also contributed reader and safety fixes to the package crates, and the ideas behind hash-checked images and spare space for read-write mounts
+* [Monocypher](https://github.com/LoupVaillant/Monocypher) (Loup Vaillant et al.; CC0-1.0 or BSD-2-Clause) and [BLAKE3](https://github.com/BLAKE3-team/BLAKE3) (CC0-1.0 or Apache-2.0) — AVA1's cryptography and file verification on the console, in [`third_party/ava1/c/third_party`](third_party/ava1/c/third_party)
+* [SQLite](https://sqlite.org/) (public domain) — reading the console's app database, in [`payload/third_party/sqlite3`](payload/third_party/sqlite3)
+* [tiny-AES-c](https://github.com/kokke/tiny-AES-c) (kokke; Unlicense) — MC4 cheat decryption, in [`payload/third_party/tiny_aes`](payload/third_party/tiny_aes)
+* [libsmb2](https://github.com/sahlberg/libsmb2) (Ronnie Sahlberg; LGPL-2.1-or-later) — network shares on the console's own Files page, in [`payload/third_party/libsmb2`](payload/third_party/libsmb2), built into a separate on-demand daemon (`payload/smb/`), never into the helper
+* [7-Zip](https://7-zip.org) (Igor Pavlov; LGPL-2.1-or-later, parts BSD-3-Clause and BSD-2-Clause) — the decoders of the on-console archive extractor, in [`payload/third_party/7zip`](payload/third_party/7zip) (no RAR code), built into a separate on-demand payload (`payload/extractor/`)
+* [libarchive](https://github.com/libarchive/libarchive) (BSD-2-Clause) — that extractor's RAR and RAR5 readers, in [`payload/third_party/libarchive`](payload/third_party/libarchive)
+* [sevenz-rust2](https://github.com/hasenbanck/sevenz-rust2) (Apache-2.0) — `.7z` extraction, in [`third_party/sevenz-rust2`](third_party/sevenz-rust2) with a fix for archives over 4 GiB on 32-bit Android
+* [unrar](https://crates.io/crates/unrar) (MIT OR Apache-2.0) — the Rust wrapper for `.rar` extraction, in [`third_party/unrar`](third_party/unrar) with a fix for an out-of-bounds read on multi-volume archives (see the UnRAR library entry below)
+* Brad Conte's [crypto-algorithms](https://github.com/B-Con/crypto-algorithms) SHA-256 (public domain) — in `payload/src/app_dump_sha256.c`, as ps5-app-dumper carries it
+* FreeBSD `newfs` (BSD-3-Clause) — portions of its cylinder-group arithmetic, in `engine/crates/ps5-dump-forge-ufs2/src/geom.rs`
+* [Noto Sans](https://fonts.google.com/noto) (Google, Adobe; OFL-1.1) — font subsets in `client/src/assets/fonts` (see [`LICENSES/Noto-OFL-1.1.txt`](LICENSES/Noto-OFL-1.1.txt))
 
-**Engine (Rust):**
-* [tokio](https://tokio.rs/) — Async runtime
-* [axum](https://github.com/tokio-rs/axum) — HTTP service
-* [serde](https://serde.rs/) — Serialization
-* [anyhow](https://github.com/dtolnay/anyhow) — Error handling
-* [uuid](https://github.com/uuid-rs/uuid) — Job IDs
-* [zip](https://github.com/zip-rs/zip2) + [sevenz-rust2](https://crates.io/crates/sevenz-rust2) — pure-Rust `.zip` / `.7z` extraction
-* [unrar / unrar_sys](https://crates.io/crates/unrar) — `.rar` extraction on **desktop** (bundles the **UnRAR** source by Alexander Roshal; used to *extract only*, never to compress). See the required notice and the GPLv3 §7 linking exception in [`LICENSES/`](LICENSES/). The `unrar` wrapper (MIT OR Apache-2.0) is **vendored** at [`third_party/unrar`](third_party/unrar) carrying one local fix for an out-of-bounds read on multi-volume archives — upstream 0.5.8 has no fix; see that directory's README.
+**Ported:**
+* [ps5-app-dumper](https://github.com/EchoStretch/ps5-app-dumper) (EchoStretch, slopmaster33; GPL-3.0-or-later) — the on-console game dump: its dumper, package, PFS, decrypt and elf2fself code, adapted into `payload/src/app_dump_*.c`
+* [ps5-self-pager](https://github.com/idlesauce/ps5-self-pager) (idlesauce; Unlicense) — the self-pager SELF decryption and its firmware table, in `payload/src/app_dump_self.c`
+* [elf-arsenal](https://git.etawen.dev/soniciso/elf-arsenal) (soniciso and contributors; GPL-3.0-or-later) — the cheat engine (`payload/src/cheats.c`), the drive sensors (`drive_sensors.c`) and the Remote Play account-id lookup (`remoteplay.c`); the wake watchdog adapts its algorithm, and its launch and jailbreak code was a reference for ours
+* [ampr_emu](https://github.com/drakmor/ampr_emu) (drakmor; GPL-3.0) — the LZ4 asset packer is a Rust port of its `ampr_pack.py`, and "Measure how it plays" of `ampr_pack_profile.py`; the index writer follows the format `build_ampr_index.py` writes
+* [playactor](https://github.com/dhleong/playactor) (Daniel Leong; ISC) — Remote Play registration (with its key tables) and the control session that wakes a console and signs its user in, ported to Rust in `engine/crates/ps5upload-core/src/rp_regist*.rs` and `rp_session.rs` (notice in [`LICENSES/playactor-ISC.txt`](LICENSES/playactor-ISC.txt))
+* [chiaki-ng](https://github.com/chiaki-ng/chiaki-ng) (Streetpea and the Chiaki authors; AGPL-3.0-only) — Remote Play streaming: its session, control, Takion, crypto, FEC, video and audio receiving code, ported to Rust in `engine/crates/ps5upload-core/src/rp_stream/` (those files stay AGPL-3.0; see [`LICENSES/AGPL-3.0.txt`](LICENSES/AGPL-3.0.txt))
 
-**Payload (PS5):**
-* [PS5 Payload SDK](https://github.com/ps5-payload-dev/sdk) — Open-source SDK for PS5 payload development; its startup code is **vendored** at [`payload/third_party/sdk-crt`](payload/third_party/sdk-crt) with one fix so payloads start on firmware where two kernel lookups fail (FW 5.50)
-* [elfldr](https://github.com/ps5-payload-dev/elfldr) (GPLv3) — the ELF loader; a patched copy is **vendored** at [`third_party/elfldr`](third_party/elfldr) (fix for a loader that hangs on a silent client)
-* [Monocypher](https://github.com/LoupVaillant/Monocypher) (CC0 / BSD-2) — AVA1's cryptography on the console (X25519, ChaCha20-Poly1305, BLAKE2b)
-* [BLAKE3](https://github.com/BLAKE3-team/BLAKE3) (CC0 / Apache-2.0) — fast hashing for AVA1 file verification
-* [SQLite](https://sqlite.org/) (public domain) — reading the console's app database
-* [tiny-AES-c](https://github.com/kokke/tiny-AES-c) (Unlicense) — MC4 cheat decryption
-* [libsmb2](https://github.com/sahlberg/libsmb2) (LGPL-2.1-or-later) — network shares on the console's own Files page; **vendored** at [`payload/third_party/libsmb2`](payload/third_party/libsmb2) and built into a separate on-demand daemon (`payload/smb/`), never into the helper
-* [7-Zip](https://7-zip.org) (Igor Pavlov; LGPL-2.1-or-later, parts BSD-3-Clause) — the decoders of the on-console archive extractor; the files it needs are **vendored** at [`payload/third_party/7zip`](payload/third_party/7zip) (no RAR code), built into a separate on-demand payload (`payload/extractor/`), never into the helper
-* [libarchive](https://github.com/libarchive/libarchive) (BSD-2-Clause) — that extractor's RAR and RAR5 readers, **vendored** at [`payload/third_party/libarchive`](payload/third_party/libarchive)
-* [ps5-app-dumper](https://github.com/EchoStretch/ps5-app-dumper) (EchoStretch, slopmaster33; GPL-3.0-or-later) — the on-console game dump: its dumper, package, PFS, decrypt and elf2fself code is **ported** into `payload/src/app_dump_*.c` (with Brad Conte's public-domain SHA-256 it carries)
-* [ps5-self-pager](https://github.com/idlesauce/ps5-self-pager) (idlesauce; The Unlicense) — the self-pager SELF decryption and its firmware table, in `payload/src/app_dump_self.c`
+**Libraries:**
+* Desktop client: [Tauri](https://tauri.app/), [React](https://react.dev/), [react-router](https://reactrouter.com/), [Zustand](https://github.com/pmndrs/zustand), [lucide-react](https://lucide.dev/) icons, built with [Vite](https://vitejs.dev/) and [Tailwind CSS](https://tailwindcss.com/)
+* Engine: [tokio](https://tokio.rs/), [axum](https://github.com/tokio-rs/axum), [serde](https://serde.rs/), [anyhow](https://github.com/dtolnay/anyhow), [uuid](https://github.com/uuid-rs/uuid), [zip](https://github.com/zip-rs/zip2), and the other crates in the `Cargo.lock` files (MIT, Apache-2.0, BSD, ISC, MPL-2.0, Zlib, Unicode-3.0)
+* [UnRAR](https://www.rarlab.com/) (Alexander Roshal; UnRAR license) — `.rar` extraction on **desktop**, compiled from the source the `unrar_sys` crate bundles into its own program, `ps5upload-unrar`, which holds only ps5upload's own code and UnRAR and which the engine runs over pipes (UnRAR is never linked into the engine); used to *extract only*, never to compress. See the required notice and the GPLv3 §7 exception in [`LICENSES/`](LICENSES/)
+
+**Fetched at runtime:**
+* The Payloads catalogue — kstuff-lite (EchoStretch, drakmor), [ShadowMountPlus](https://github.com/drakmor/ShadowMountPlus) and nanoDNS (drakmor), etaHEN and Itemzflow (LightningMods), ftpsrv, websrv, shsrv and klogsrv (ps5-payload-dev), ps5-app-dumper, CheatRunner, BackPork, itsPLK's Payload Manager and WebKit Autoloader, earthonion's tools, Ghostpad, HearBridge, ps5debug-NG and more — each downloaded from its own releases when you choose it
+* ampr_emu's debug build (drakmor) — downloaded for "Measure how it plays"
+* [etaHEN PS5_Cheats](https://github.com/etaHEN/PS5_Cheats), [GoldHEN Cheat Repository](https://github.com/GoldHEN/GoldHEN_Cheat_Repository) and [HEN-Cheats-Collection](https://github.com/TeeKay87/HEN-Cheats-Collection) (TeeKay87) — cheat files
+* [PROSPEROPatches](https://prosperopatches.com/) and [ORBISPatches](https://orbispatches.com/) — game details and artwork
+
+**References:**
+* [ShadowMountPlus](https://github.com/drakmor/ShadowMountPlus) (drakmor) — the mount tool that shows our game images on the home screen; the images we write are the ones it mounts
+* [garlic-savemgr](https://github.com/earthonion/garlic-savemgr) (earthonion) — how a save image is opened on the console: the sealed key unsealed through `/dev/pfsmgr` and the image mounted with `sceFsMountSaveData` from a copy under `/data`, which "Open save" follows
+* cy33hc's [ps5-ezremote-dpi](https://github.com/cy33hc/ps5-ezremote-dpi), etaHEN and elf-arsenal's DPI payloads, and itsPLK's PKG Manager — behavioural references for our installer daemon (no code taken)
+* [LibOrbisPkg](https://github.com/maxton/LibOrbisPkg) — its documentation of the PlayGo chunk format
+* [chiaki](https://git.sr.ht/~thestr4ng3r/chiaki) — cross-checked while porting playactor's registration
+* [TMDB](https://www.themoviedb.org/) — cover art in earlier versions (no longer used)
 
 ## Thanks
 
-* [elf-arsenal](https://git.etawen.dev/soniciso/elf-arsenal) (soniciso, Sanad) — parts of the drive sensor, cheat and wake-watchdog code
-* [PS5 Dump Forge](https://github.com/quer3q/ps5-dump-forge) (quer3q) — the UFS2 (`.ffpkg`) and PFS (`.ffpfs`) image writers, the streaming `.ffpfsc` container, reader and safety fixes to the package crates, and the ideas behind hash-checked images and spare space for read-write mounts
-* [ampr_emu](https://github.com/drakmor/ampr_emu) and [ShadowMountPlus](https://github.com/drakmor/ShadowMountPlus) (drakmor) — the AMPR emulator that plays LZ4 asset packs, and the mount tool that shows our images on the home screen. Our packer is a port of its `ampr_pack.py`, the index writer follows `build_ampr_index.py`, and "Measure how it plays" is a port of `ampr_pack_profile.py` fed by the debug build's command journal
-* [garlic-savemgr](https://github.com/earthonion/garlic-savemgr) (earthonion) — how a save image is opened on the console: the sealed key unsealed through `/dev/pfsmgr` and the image mounted with `sceFsMountSaveData` from a copy under `/data`, which "Open save" follows
-* [PROSPEROPatches](https://prosperopatches.com/), [ORBISPatches](https://orbispatches.com/) and [TMDB](https://www.themoviedb.org/) — game details and artwork
-* [etaHEN PS5_Cheats](https://github.com/etaHEN/PS5_Cheats) and GoldHEN — cheat files
 * Everyone who contributed code, translations and docs, and the Discord testers
 
 ps5upload stands on the shoulders of the **PS5 homebrew scene**. Huge
@@ -477,12 +491,21 @@ lives alongside deserve the same thanks. **Please support them too.**
 GNU General Public License v3.0 (GPLv3).
 Free to use, free to modify. See [`LICENSE`](LICENSE).
 
-**`.rar` support / UnRAR:** the desktop build bundles the UnRAR source (used
-only to *extract* RAR — never to compress or build a RAR-compatible archiver).
-A GPLv3 §7 linking exception covers combining it with this GPL code, and
-UnRAR's own license is reproduced as required. See
+**`.rar` support / UnRAR:** the desktop and Docker builds ship the UnRAR source
+compiled into a separate program, `ps5upload-unrar`, that contains only
+ps5upload's own code and UnRAR (used only to *extract* RAR — never to compress or
+build a RAR-compatible archiver). The engine starts it and talks to it over pipes;
+it does not link UnRAR. A GPLv3 §7 exception covers combining ps5upload's code
+with UnRAR in that program, and UnRAR's own license is reproduced as required. See
 [`LICENSES/UnRAR-exception.md`](LICENSES/UnRAR-exception.md) and
 [`LICENSES/UnRAR-license.txt`](LICENSES/UnRAR-license.txt).
+
+**Remote Play streaming:** the code ported from chiaki-ng
+(`engine/crates/ps5upload-core/src/rp_stream/`) is under the GNU Affero General Public License
+v3.0, which GPLv3 §13 allows combining with; see [`LICENSES/AGPL-3.0.txt`](LICENSES/AGPL-3.0.txt).
+
+Included third-party code keeps its own license, next to the code or in [`LICENSES/`](LICENSES/);
+see [Credits](#credits).
 
 ## Author
 

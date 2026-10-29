@@ -1116,6 +1116,7 @@ export default function SavesScreen() {
               />
             </div>
           )}
+          <div className="card-flow">
           {grouped.map(({ title_id, entries }) => (
             <section
               key={title_id}
@@ -1237,6 +1238,7 @@ export default function SavesScreen() {
               </ul>
             </section>
           ))}
+          </div>
         </div>
 
         {loading && saves === null && (

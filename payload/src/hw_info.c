@@ -1183,8 +1183,7 @@ static void hw_fan_watch_tick(void) {
 static void *hw_fan_watcher_thread_fn(void *arg) {
     (void)arg;
     /* Best-effort thread name for ps/top output; ignored if the
-     * syscall isn't available. SYS_thr_set_name is FreeBSD-specific
-     * (matches sonicloader fan.c:170). */
+     * syscall isn't available. SYS_thr_set_name is FreeBSD-specific. */
     (void)syscall(SYS_thr_set_name, -1, "ps5upload-fan");
 
     for (;;) {

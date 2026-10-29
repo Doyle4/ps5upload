@@ -4,6 +4,52 @@ What's new in ps5upload, written for humans.
 
 ---
 
+## 9.0.0
+
+- **Every game on one page.** Installed games and Games on the PS5's drives are no longer views
+  of their own. The Games grid shows every game once: your copies, what the PS5 has installed,
+  and games found on its drives (a new **On the PS5's drives** filter, and **Never seen played**).
+  Open a game for everything about it:
+  - **On <console>**: Play or Close game, Uninstall, Hide or Show on the home screen, Fix
+    permissions, Backport, Copy to Collection, Suspend and Resume while it runs, and a warning
+    when a disk-image game needs ShadowMount+.
+  - **On the PS5's drives**: each folder and image of the game, with Mount, Unmount, Edit files,
+    Add to home screen, Download, Move, Delete, Convert, Make smaller and the rest.
+  - **On this computer**: your copies, as before.
+  Files on the PS5 that no game links to yet are one line under the grid. Old links to the
+  removed views land on the grid with the matching filter.
+- **Accounts, without the duplicates.** Each user is one row: picture (click it to change the
+  avatar), name, account ID, and whether it is active. A user and its account slot used to be
+  two rows, each with its own name field.
+- **Remote Play**
+  - **Picture in picture**: the stream in a small window that stays on top while you use other
+    apps (desktop app; Chrome and Edge; picture only on Safari). A controller keeps playing in
+    the background on Windows and in Chromium browsers; on macOS and Linux, click the small
+    window first.
+  - A **volume slider** on the picture's bar.
+  - With two consoles, the page shows the one selected in the app. The other console's stream
+    keeps running and is offered there; Start on this one stops it first.
+  - A **setup guide** in Accounts › Remote Play: seven steps from signing in to playing, each
+    with its status and the button that fixes it, plus what to do when it still does not work.
+- **Send helper means send.** When the PS5 runs an older helper, the banner's **Send helper**
+  sends it right there instead of opening Connection, and it waits for the new version to
+  answer (the old one used to answer first and count as done).
+- **Screenshots download again (#531).** On consoles where /user is /original_user (kstuff with
+  ShadowMount, for example), downloads from there were refused; reading it is allowed again.
+- **The app fills the window.** Screens no longer sit in a narrow column on a wide monitor;
+  long lists of cards flow into more columns. Phones are unchanged.
+- **AVA1 1.0.3**, the transfer protocol's first releases as a standalone library: fixes for a
+  download retried right as it finished, a manifest that never arrives, and duplicate
+  small-file records, plus faster resumes. A resumed 7z or RAR transfer now reports the data it
+  skips.
+- **Licenses.** RAR extraction now runs in its own small program (`ps5upload-unrar`) next to the
+  engine, so UnRAR's license no longer applies to the rest of the engine. The credits in the
+  README say what each project contributes (included, ported, library, fetched, reference),
+  and the required notices are in `LICENSES/`. The ShadowMount+ metadata self-healer was
+  rewritten from scratch.
+- Translations: every new string in all 21 languages, and about 200 strings that were still
+  English or used an older wording are translated.
+
 ## 8.10.0
 
 - **Games is one grid.** The list and its Everywhere / Installed / On PS5 drives / Your copies

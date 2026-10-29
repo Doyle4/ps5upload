@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Ported from chiaki-ng: Copyright (C) the Chiaki and chiaki-ng authors. Rust port for
+// ps5upload. Licensed under the GNU AGPL v3.0 (LICENSES/AGPL-3.0.txt).
 //! Remote Play stream crypto: the ECDH key exchange and the "GKCrypt" stream
 //! cipher + GMAC that protect every Takion packet once the stream is up.
 //!

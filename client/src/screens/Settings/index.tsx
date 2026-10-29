@@ -2,7 +2,7 @@ import { MinionSettings } from "./MinionSettings";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { writeClipboard } from "../../lib/clipboard";
 import { EMPTY_CORPUS, deleteFakelibSet, loadFakelibCorpus, type FakelibCorpus } from "../../state/fakelibCorpus";
-import { LibrarySourcePicker } from "../InstalledApps/LibrarySourcePicker";
+import { LibrarySourcePicker } from "../Backport/LibrarySourcePicker";
 import {
   Settings as SettingsIcon,
   Moon as SleepIcon,

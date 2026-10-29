@@ -79,6 +79,13 @@ import { startCopyChecks } from "../../state/copyChecks";
 import { SendManyModal } from "./SendManyModal";
 import type { CollectionGame } from "../../api/collection";
 import { useInstalledTitles } from "../../state/installedTitles";
+import {
+  driveTitleIds,
+  entryTitleId,
+  libraryForHost,
+  useLibraryStore,
+} from "../../state/library";
+import { useRunningTitleIds } from "../../state/runningApps";
 
 /** The games kept on this computer's drives: PS Game Library, inside ps5upload.
  *  `embedded`: shown as the Games screen's grid, under that screen's own
@@ -186,14 +193,55 @@ export default function CollectionScreen({ embedded = false }: { embedded?: bool
       );
   }, [copies, installedTitles]);
   const consoleOnlyIds = useMemo(() => new Set(consoleOnly.map((g) => g.game_id)), [consoleOnly]);
-  const games = useMemo(() => copies.concat(consoleOnly), [copies, consoleOnly]);
+  // And the games on the PS5's drives that are neither (a game folder or image it has not
+  // registered): cards too ("On the PS5's drives"), from the drive scan the Games screen keeps.
+  const driveSlot = useLibraryStore((st) => libraryForHost(st, helperUp ? host : ""));
+  const driveIds = useMemo(
+    () => (helperUp && driveSlot.entries ? driveTitleIds(driveSlot) : null),
+    [helperUp, driveSlot],
+  );
+  const [drivesOnly, drivePaths] = useMemo((): [CollectionGame[], Map<string, string>] => {
+    const paths = new Map<string, string>();
+    if (!helperUp || !driveSlot.entries) return [[], paths];
+    const have = new Set(copies.map((g) => g.game_id.toUpperCase()));
+    for (const t of installedTitles ?? []) have.add(t.titleId.toUpperCase());
+    const out = new Map<string, CollectionGame>();
+    for (const e of driveSlot.entries) {
+      const id = entryTitleId(e, driveSlot);
+      if (!id || have.has(id.toUpperCase()) || out.has(id.toUpperCase())) continue;
+      // A folder's own icon; an image's is inside it.
+      if (e.kind === "game") paths.set(id, e.path);
+      out.set(id.toUpperCase(), {
+        game_id: id,
+        title: e.title || id,
+        platform: /^CUSA/i.test(id) ? "PS4" : "PS5",
+        sources: [],
+        locations: [],
+        total_size_bytes: 0,
+        copies: 0,
+        is_duplicate: false,
+        added_ts: 0,
+      });
+    }
+    return [[...out.values()], paths];
+  }, [helperUp, driveSlot, copies, installedTitles]);
+  const drivesOnlyIds = useMemo(() => new Set(drivesOnly.map((g) => g.game_id)), [drivesOnly]);
+  const games = useMemo(
+    () => copies.concat(consoleOnly, drivesOnly),
+    [copies, consoleOnly, drivesOnly],
+  );
   const consoleStates = useMemo(() => {
-    if (!copyStates && consoleOnly.length === 0) return undefined;
+    if (!copyStates && consoleOnly.length === 0 && drivesOnly.length === 0) return undefined;
     const m = new Map(copyStates ?? []);
     for (const g of consoleOnly)
       m.set(g.game_id, { game_id: g.game_id, installed: true, dlc_missing: [], non_package_copy: false });
+    for (const g of drivesOnly)
+      m.set(g.game_id, { game_id: g.game_id, installed: false, dlc_missing: [], non_package_copy: false });
     return m;
-  }, [copyStates, consoleOnly]);
+  }, [copyStates, consoleOnly, drivesOnly]);
+  const playSeconds = useCallback((id: string) => playOf(id).seconds, [playOf]);
+  // What runs on this PS5 now, for the cards' "Playing" tag.
+  const runningIds = useRunningTitleIds(helperUp ? host : null);
   const shown = useMemo(
     () =>
       viewGames(games, {
@@ -206,6 +254,8 @@ export default function CollectionScreen({ embedded = false }: { embedded?: bool
         consoleFw,
         cheatIds,
         lastPlayed,
+        driveIds,
+        playSeconds,
       }),
     [
       games,
@@ -218,6 +268,8 @@ export default function CollectionScreen({ embedded = false }: { embedded?: bool
       consoleFw,
       cheatIds,
       lastPlayed,
+      driveIds,
+      playSeconds,
     ],
   );
   const counts = useMemo(
@@ -225,8 +277,8 @@ export default function CollectionScreen({ embedded = false }: { embedded?: bool
     [copies, cheatIds],
   );
   const cCounts = useMemo(
-    () => consoleCounts(games, consoleStates, consoleFw),
-    [games, consoleStates, consoleFw],
+    () => consoleCounts(games, consoleStates, consoleFw, { driveIds, playSeconds }),
+    [games, consoleStates, consoleFw, driveIds, playSeconds],
   );
 
   // Select mode: the cards pick instead of opening, and the bar acts on what is picked.
@@ -508,6 +560,12 @@ export default function CollectionScreen({ embedded = false }: { embedded?: bool
           ]}
         />
       </div>
+    ) : s.settings && (consoleOnly.length > 0 || drivesOnly.length > 0) ? (
+      // No folder of your own yet, but the PS5 has games, so the grid is not empty and its
+      // "Add a folder" empty state does not show: offer it here instead.
+      <Button size="sm" variant="secondary" leftIcon={<FolderPlus size={12} />} onClick={() => void addFolder()}>
+        {tr("collection.add_folder", undefined, "Add a folder")}
+      </Button>
     ) : undefined;
   const header = embedded ? (
     actions && <div className="mb-5 flex justify-end">{actions}</div>
@@ -578,7 +636,7 @@ export default function CollectionScreen({ embedded = false }: { embedded?: bool
 
       {/* Not loaded (the read failed): an unread collection is not an empty
           one, so no "add the folder that holds your games" under the error. */}
-      {!s.settings ? null : roots.length === 0 && consoleOnly.length === 0 ? (
+      {!s.settings ? null : roots.length === 0 && consoleOnly.length === 0 && drivesOnly.length === 0 ? (
         <EmptyState
           fill
           icon={Library}
@@ -828,6 +886,32 @@ export default function CollectionScreen({ embedded = false }: { embedded?: bool
                     tr("collection.console_dlc", undefined, "DLC missing"),
                     cCounts.dlc,
                   ],
+                  ...(cCounts.unplayed > 0 || s.consoleFilter === "unplayed"
+                    ? [
+                        [
+                          "unplayed",
+                          tr(
+                            "collection.console_unplayed",
+                            undefined,
+                            "Never seen played",
+                          ),
+                          cCounts.unplayed,
+                        ],
+                      ]
+                    : []),
+                  ...(cCounts.drives > 0 || s.consoleFilter === "drives"
+                    ? [
+                        [
+                          "drives",
+                          tr(
+                            "collection.console_drives",
+                            undefined,
+                            "On the PS5's drives",
+                          ),
+                          cCounts.drives,
+                        ],
+                      ]
+                    : []),
                   ...(consoleFw &&
                   (cCounts.firmware > 0 || s.consoleFilter === "firmware")
                     ? [
@@ -939,6 +1023,9 @@ export default function CollectionScreen({ embedded = false }: { embedded?: bool
                   key={g.game_id}
                   game={g}
                   onlyOnConsole={consoleOnlyIds.has(g.game_id)}
+                  onlyOnDrives={drivesOnlyIds.has(g.game_id)}
+                  drivePath={drivePaths.get(g.game_id)}
+                  running={runningIds.has(g.game_id)}
                   activity={activityOf(g)}
                   consoleState={consoleStates?.get(g.game_id)}
                   onOpen={openGame}

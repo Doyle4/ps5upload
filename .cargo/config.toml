@@ -25,6 +25,8 @@
 #   - client/src-tauri  → PS5Upload.exe (the Tauri desktop shell)
 #   - engine            → ps5upload-engine.exe (the sidecar; embedded
 #                         in the desktop bundle as an external bin)
+#                         and ps5upload-unrar.exe (the RAR helper,
+#                         embedded and extracted next to it)
 
 [target.x86_64-pc-windows-msvc]
 rustflags = ["-C", "target-feature=+crt-static"]

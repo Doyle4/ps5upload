@@ -41,6 +41,12 @@ done
 curl -fsS -m 5 "$base/api/jobs" >/dev/null || fail "engine never answered GET /api/jobs"
 echo "ok: engine answers through the published port"
 
+# RAR archives are read by the separate ps5upload-unrar program next to the engine
+# (UnRAR is never linked into the engine): an image without it cannot open a .rar.
+docker run --rm --entrypoint /ps5upload-unrar "$image" --version | grep -q '^ps5upload-unrar ' \
+  || fail "the RAR helper /ps5upload-unrar is missing or does not run"
+echo "ok: the RAR helper is next to the engine"
+
 # Any Host header is served (the engine has no hostname allowlist): reaching it by a name works.
 curl -fsS -m 5 -H 'Host: nas.example' "$base/api/jobs" >/dev/null || fail "a hostname Host header was refused"
 echo "ok: the engine answers when reached by a hostname"

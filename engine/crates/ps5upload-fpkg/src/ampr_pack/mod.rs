@@ -1,3 +1,5 @@
+// Ported from drakmor's ampr_emu tools (https://github.com/drakmor/ampr_emu, GPL-3.0). This
+// Rust port is part of ps5upload, GPL-3.0-or-later.
 //! AMPR seekable LZ4 asset packs: a game's files stored as independent LZ4 blocks in a few
 //! large volumes, which `ampr_emu` 0.4 and later (a backport's `fakelib/libSceAmpr.sprx`) serves
 //! back to the title as the original files. The game image gets smaller; the packed originals

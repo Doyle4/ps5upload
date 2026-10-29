@@ -820,7 +820,7 @@
   "cw_offline_title": "PS5Upload Minion ไม่ได้ทำงานอยู่",
   "cw_payload_body": "ส่งไฟล์นี้ไปยังตัวโหลด payload ของคอนโซล (พอร์ต 9021) ซึ่งจะรันทันที โหลดเฉพาะ payload ที่คุณไว้ใจ",
   "cw_payload_done": "ส่ง “{name}” ไปยังตัวโหลด payload แล้ว",
-  "cw_payload_err_helper": "นี่คือ helper ของ PS5Upload อัปเดต helper จากแอป PS5Upload บนคอมพิวเตอร์ของคุณ",
+  "cw_payload_err_helper": "นี่คือตัวช่วยของ PS5Upload อัปเดตตัวช่วยจากแอป PS5Upload บนคอมพิวเตอร์ของคุณ",
   "cw_payload_err_installing": "กำลังติดตั้งแพ็กเกจอยู่ โหลด payload หลังติดตั้งเสร็จ",
   "cw_payload_err_not_elf": "ไฟล์นี้ไม่ใช่ payload แบบ ELF",
   "cw_payload_err_send": "ส่ง payload ไม่สำเร็จ",

@@ -56,7 +56,9 @@ npm run i18n:check                                # from the repo root
 `ps5upload-ctest` builds the payload's AVA1 C (the `third_party/ava1` library plus the payload's
 management methods) on the host and tests it against the Rust side, so no PS5 is needed. A change
 to the protocol itself goes to [github.com/phantomptr/ava1](https://github.com/phantomptr/ava1)
-first, then the submodule is moved to it here. `check-no-ftx2` fails if the old protocol name or ports 9113/9114 reappear
+first and is released there; then the submodule is moved to the new tag here and the exact `ava1`
+version in `engine/Cargo.toml` and `client/src-tauri/Cargo.toml` with it (`make ava1-version-check`
+fails until both match). `check-no-ftx2` fails if the old protocol name or ports 9113/9114 reappear
 outside the changelog and a short list of exceptions in the Makefile.
 
 Other useful targets:

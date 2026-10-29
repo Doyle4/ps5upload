@@ -108,7 +108,7 @@ ADB ?= $(ANDROID_HOME)/platform-tools/adb
 .PHONY: quality quality-full quality-hardware ci ci-full
 .PHONY: clean clean-payload clean-engine clean-client
 .PHONY: verify info install-hooks
-.PHONY: test-ava1 test-ava1-sanitize ava1-app-gen check-no-ftx2
+.PHONY: test-ava1 test-ava1-sanitize ava1-app-gen ava1-version-check check-no-ftx2
 .PHONY: run-engine run-client dev start _check-tauri-system-deps
 .PHONY: install-engine uninstall-engine
 .PHONY: dist dist-win dist-win-arm dist-mac dist-mac-x64 dist-linux dist-linux-arm
@@ -477,8 +477,8 @@ send-payload: payload
 engine: setup-engine
 	@echo "Building Rust engine workspace..."
 	@cd $(ENGINE_DIR) && $(CARGO) build --workspace
-	@echo "Building release ps5upload-engine (the binary Tauri spawns)..."
-	@cd $(ENGINE_DIR) && $(CARGO) build --release -p ps5upload-engine
+	@echo "Building release ps5upload-engine + ps5upload-unrar (the binaries Tauri embeds)..."
+	@cd $(ENGINE_DIR) && $(CARGO) build --release -p ps5upload-engine -p ps5upload-unrar
 	@echo "✓ Engine workspace built"
 
 # Internal helper: build the `ps5upload-engine` release binary, which the
@@ -487,11 +487,14 @@ engine: setup-engine
 # this is a cheap no-op when sources are unchanged — and a real rebuild
 # the moment they aren't. (An earlier version guarded with
 # `[ ! -x binary ]`, which stayed stale through code changes; removed.)
+# ps5upload-unrar (the RAR helper; UnRAR is never linked into the engine, see
+# LICENSES/UnRAR-exception.md) is built into the same directory: the desktop
+# build embeds it next to the engine.
 _engine-release: setup-engine
 	@if [ -n "$(ENGINE_TARGET)" ]; then \
-		cd $(ENGINE_DIR) && $(CARGO) build --release -p ps5upload-engine --target "$(ENGINE_TARGET)"; \
+		cd $(ENGINE_DIR) && $(CARGO) build --release -p ps5upload-engine -p ps5upload-unrar --target "$(ENGINE_TARGET)"; \
 	else \
-		cd $(ENGINE_DIR) && $(CARGO) build --release -p ps5upload-engine; \
+		cd $(ENGINE_DIR) && $(CARGO) build --release -p ps5upload-engine -p ps5upload-unrar; \
 	fi
 
 client: setup-client
@@ -894,6 +897,8 @@ test-engine: setup-engine
 	@# process holds without --test-threads=1; engine/.config/nextest.toml serializes the
 	@# timing-sensitive binaries.
 	@# nextest skips doctests, so they run separately. Without nextest: cargo test, serially.
+	@# The RAR tests start the ps5upload-unrar helper from the target directory: build it first.
+	@cd $(ENGINE_DIR) && $(CARGO) build -p ps5upload-unrar
 	@if $(CARGO) nextest --version >/dev/null 2>&1; then \
 		cd $(ENGINE_DIR) && $(CARGO) nextest run --workspace --exclude ps5upload-ctest && \
 		$(CARGO) test --workspace --exclude ps5upload-ctest --doc && \
@@ -904,7 +909,7 @@ test-engine: setup-engine
 	fi
 	@echo "✓ Engine tests passed"
 	@# Android cross-compile check. The engine cfg's some code out on
-	@# Android (RAR, which needs the UnRAR C++ dep), so a call site added
+	@# Android (RAR, which needs the ps5upload-unrar helper program), so a call site added
 	@# without the matching cfg builds fine on every desktop target and fails
 	@# ONLY here. That is exactly how v5.31.0 shipped with no APK: every local
 	@# gate was green on macOS while the Android build was broken, and it was
@@ -1370,7 +1375,8 @@ uninstall-engine:
 run-engine: setup-engine
 	@echo "Starting ps5upload-engine (standalone; kept for diagnostics —"
 	@echo "in normal use the Tauri client spawns the engine automatically)..."
-	@cd $(ENGINE_DIR) && $(CARGO) run --release -p ps5upload-engine
+	@# The RAR helper is found next to the engine binary.
+	@cd $(ENGINE_DIR) && $(CARGO) build --release -p ps5upload-unrar && $(CARGO) run --release -p ps5upload-engine
 
 # `run-client` is the one-command dev flow. `npm run dev` in client/ is wired
 # to `tauri dev`, which starts Vite + the Rust main process. The Rust setup
@@ -1563,6 +1569,18 @@ test-ava1-sanitize:
 		ASAN_OPTIONS=$${ASAN_OPTIONS:-detect_leaks=$$([ "$$(uname)" = Linux ] && echo 1 || echo 0)} \
 		LSAN_OPTIONS=suppressions=$(CURDIR)/engine/crates/ps5upload-ctest/lsan.supp \
 		cargo test -p ps5upload-ctest -- --test-threads=1
+
+# The Rust side takes the `ava1` crate from crates.io, the payload builds the C side from the
+# submodule: both must be the same release. Fails when engine/Cargo.toml or
+# client/src-tauri/Cargo.toml pins another version than the submodule's.
+ava1-version-check:
+	@want=$$(sed -n 's/^version = "\(.*\)"/\1/p' third_party/ava1/Cargo.toml | head -1); \
+	for f in engine/Cargo.toml client/src-tauri/Cargo.toml; do \
+		got=$$(sed -n 's/^ava1 = "=\{0,1\}\([^"]*\)"/\1/p' $$f); \
+		if [ "$$got" != "$$want" ]; then \
+			echo "$$f pins ava1 $$got, the third_party/ava1 submodule is $$want" >&2; exit 1; \
+		fi; \
+	done; echo "ava1 $$want: crates.io pin matches the submodule"
 
 # Regenerates ps5upload's AVA1 application codecs from protocol/ps5upload-ava1/app.toml.
 ava1-app-gen:

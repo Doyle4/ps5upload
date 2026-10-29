@@ -1,3 +1,5 @@
+// Portions ported from playactor, Copyright (c) Daniel Leong, under the ISC license
+// (LICENSES/playactor-ISC.txt); the rest of this file is part of ps5upload (GPL-3.0).
 //! Remote Play control session — logging the console into its user after a
 //! network wake.
 //!

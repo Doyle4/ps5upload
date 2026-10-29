@@ -2375,6 +2375,98 @@ pub fn fan_map_threshold(points_json: &str) -> i32 {
     unsafe { fan_map_threshold(c.as_ptr()) }
 }
 
+/// payload/src/smp_meta.c, the home-screen metadata repair, driven one sweep at a time on the
+/// calling thread with its /user/app and /user/appmeta roots pointed at test folders. One shared
+/// instance: callers serialise (tests/smp_meta.rs holds a lock).
+pub mod smp_meta {
+    use std::ffi::CString;
+    use std::os::raw::{c_char, c_int};
+    use std::path::Path;
+
+    #[repr(C)]
+    #[derive(Clone, Copy)]
+    struct RawStats {
+        running: c_int,
+        poll_seconds: c_int,
+        last_run_unix: u64,
+        games_scanned: c_int,
+        icons_healed: c_int,
+        pics_healed: c_int,
+        json_healed: c_int,
+        still_missing: c_int,
+        last_missing: [c_char; 64],
+    }
+
+    extern "C" {
+        fn smp_meta_set_roots_for_test(app: *const c_char, meta: *const c_char);
+        fn smp_meta_sweep_for_test();
+        fn smp_meta_reset_stats_for_test();
+        fn smp_meta_get_stats(out: *mut RawStats);
+        fn smp_meta_run_now() -> c_int;
+        fn smp_meta_set_poll_seconds(s: c_int) -> c_int;
+        fn smp_meta_get_poll_seconds() -> c_int;
+    }
+
+    /// smp_meta_stats_t, with last_missing as a String.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct Stats {
+        pub running: i32,
+        pub poll_seconds: i32,
+        pub last_run_unix: u64,
+        pub games_scanned: i32,
+        pub icons_healed: i32,
+        pub pics_healed: i32,
+        pub json_healed: i32,
+        pub still_missing: i32,
+        pub last_missing: String,
+    }
+
+    pub fn set_roots(app: &Path, meta: &Path) {
+        let a = CString::new(app.to_str().unwrap()).unwrap();
+        let m = CString::new(meta.to_str().unwrap()).unwrap();
+        unsafe { smp_meta_set_roots_for_test(a.as_ptr(), m.as_ptr()) }
+    }
+    pub fn sweep() {
+        unsafe { smp_meta_sweep_for_test() }
+    }
+    pub fn reset_stats() {
+        unsafe { smp_meta_reset_stats_for_test() }
+    }
+    pub fn stats() -> Stats {
+        let mut r = std::mem::MaybeUninit::<RawStats>::uninit();
+        let r = unsafe {
+            smp_meta_get_stats(r.as_mut_ptr());
+            r.assume_init()
+        };
+        let bytes: Vec<u8> = r
+            .last_missing
+            .iter()
+            .take_while(|&&c| c != 0)
+            .map(|&c| c as u8)
+            .collect();
+        Stats {
+            running: r.running,
+            poll_seconds: r.poll_seconds,
+            last_run_unix: r.last_run_unix,
+            games_scanned: r.games_scanned,
+            icons_healed: r.icons_healed,
+            pics_healed: r.pics_healed,
+            json_healed: r.json_healed,
+            still_missing: r.still_missing,
+            last_missing: String::from_utf8_lossy(&bytes).into_owned(),
+        }
+    }
+    pub fn run_now() -> i32 {
+        unsafe { smp_meta_run_now() }
+    }
+    pub fn set_poll_seconds(s: i32) -> i32 {
+        unsafe { smp_meta_set_poll_seconds(s) }
+    }
+    pub fn poll_seconds() -> i32 {
+        unsafe { smp_meta_get_poll_seconds() }
+    }
+}
+
 /// payload/src/rp_pair.c, the Remote Play pairing state, over the fake Sony functions in
 /// csrc/rp_pair_shim.c. One shared instance: callers serialise (tests/rp_pair.rs holds a lock).
 pub mod rp_pair {

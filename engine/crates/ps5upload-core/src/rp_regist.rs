@@ -1,3 +1,5 @@
+// Portions ported from playactor, Copyright (c) Daniel Leong, under the ISC license
+// (LICENSES/playactor-ISC.txt); the rest of this file is part of ps5upload (GPL-3.0).
 //! Remote Play registration — how a console hands us a wake credential.
 //!
 //! Ported from playactor (ISC), cross-checked against chiaki. chiaki is

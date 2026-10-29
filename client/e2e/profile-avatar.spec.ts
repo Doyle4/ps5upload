@@ -26,6 +26,8 @@ test("browser avatar selection previews local bytes and applies only after confi
     await route.fulfill({ contentType: "application/json", body: JSON.stringify(body) });
   });
   await page.goto("/profile", { waitUntil: "domcontentloaded" });
+  // The avatar is changed from its user's row (9.0): open that user's editor.
+  await page.getByRole("button", { name: "Change avatar", exact: true }).first().click({ timeout: 30_000 });
   const picker = page.getByRole("button", { name: "Choose image…", exact: true });
   await expect(picker).toBeVisible({ timeout: 30_000 });
   const chooser = page.waitForEvent("filechooser");

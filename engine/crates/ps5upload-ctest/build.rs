@@ -219,6 +219,24 @@ fn main() {
         "cargo:rerun-if-changed={}",
         p.join("src/fan_map.c").display()
     );
+    // The home-screen metadata repair (payload/src/smp_meta.c), with its /user roots redirected
+    // to temporary folders through the SMP_META_HOST_TEST hooks.
+    build()
+        .file(p.join("src/smp_meta.c"))
+        .include(p.join("include"))
+        .define("SMP_META_HOST_TEST", None)
+        .warnings(true)
+        .extra_warnings(true)
+        .warnings_into_errors(true)
+        .compile("smpmeta");
+    println!(
+        "cargo:rerun-if-changed={}",
+        p.join("src/smp_meta.c").display()
+    );
+    println!(
+        "cargo:rerun-if-changed={}",
+        p.join("include/smp_meta.h").display()
+    );
     // Remote Play pairing state (payload/src/rp_pair.c) over fake Sony functions.
     build()
         .files([p.join("src/rp_pair.c"), here.join("csrc/rp_pair_shim.c")])

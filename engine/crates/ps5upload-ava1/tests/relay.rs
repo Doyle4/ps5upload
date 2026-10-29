@@ -480,7 +480,9 @@ async fn a_zip_with_a_wrong_crc_fails_typed() {
         zip::CompressionMethod::Deflated,
         zip::CompressionMethod::Stored,
     ] {
-        let d = temp("zip-bad-crc");
+        // A directory per method: the engine pins the first host's key for 127.0.0.1 in it, and
+        // a late write from the first round must not meet the second round's host.
+        let d = temp(&format!("zip-bad-crc-{method:?}"));
         let ava = d.join("engine");
         let key = Identity::load_or_create(&ava.join("identity"))
             .unwrap()

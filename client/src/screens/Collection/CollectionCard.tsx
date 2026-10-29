@@ -2,6 +2,7 @@ import { memo } from "react";
 import { useNavigate } from "react-router";
 import {
   Check,
+  CircleDot,
   Copy as CopyIcon,
   Download,
   ExternalLink,
@@ -39,6 +40,7 @@ import { pushNotification } from "../../state/notifications";
 import { startCopyChecks } from "../../state/copyChecks";
 import { gamePath } from "../../lib/gamePage";
 import { formatPlayTime } from "../../state/playTime";
+import { GameIcon } from "../../components/GameIcon";
 
 /** What the quick actions and badges know about the selected console. */
 export interface GameConsoleContext {
@@ -165,9 +167,7 @@ export function GameQuickActions({
         "It asks for firmware {need} and this PS5 is on {have}. Backporting can let it start.",
       ),
       onSelect: () =>
-        navigate("/games?tab=ready", {
-          state: { backportTitleId: game.game_id },
-        }),
+        navigate(gamePath(game.game_id), { state: { backport: true } }),
     });
   }
   if (game.locations.length > 0) {
@@ -313,6 +313,9 @@ export const CollectionCard = memo(function CollectionCard({
   selected,
   onToggleSelect,
   onlyOnConsole,
+  onlyOnDrives,
+  drivePath,
+  running,
 }: {
   game: CollectionGame;
   onOpen: (gameId: string) => void;
@@ -325,6 +328,12 @@ export const CollectionCard = memo(function CollectionCard({
   onToggleSelect?: (gameId: string) => void;
   /** Installed on the selected console with no copy here: says so instead of "0 copies". */
   onlyOnConsole?: boolean;
+  /** Only on the selected console's drives (a folder or image it has not registered). */
+  onlyOnDrives?: boolean;
+  /** That game's folder on the console, for its icon. */
+  drivePath?: string;
+  /** Running on the selected console now. */
+  running?: boolean;
 } & GameConsoleContext) {
   const tr = useTr();
   const copiesLabel = useCopiesLabel();
@@ -392,7 +401,19 @@ export const CollectionCard = memo(function CollectionCard({
                 </span>
               )}
               <div className="absolute inset-x-2 bottom-2 flex flex-wrap items-end justify-between gap-1">
-                <ConsoleBadge state={consoleState} />
+                {running ? (
+                  <CoverTag
+                    tone="good"
+                    icon={
+                      <CircleDot size={11} className="animate-pulse" aria-hidden />
+                    }
+                    title={tr("installed_now_playing", undefined, "Now playing")}
+                  >
+                    {tr("installed_badge_playing", undefined, "Playing")}
+                  </CoverTag>
+                ) : (
+                  <ConsoleBadge state={consoleState} />
+                )}
                 {tooNew && consoleFw && (
                   <FirmwareBadge need={tooNew} have={consoleFw} />
                 )}
@@ -406,7 +427,19 @@ export const CollectionCard = memo(function CollectionCard({
             </>
           }
         >
-          <CollectionCover game={game} className="h-full" />
+          {(onlyOnConsole || onlyOnDrives) && host ? (
+            // Nothing of it on this computer to read a cover from: the console's own icon.
+            <GameIcon
+              host={host}
+              titleId={game.game_id}
+              gamePath={drivePath}
+              alt=""
+              rounded=""
+              fill
+            />
+          ) : (
+            <CollectionCover game={game} className="h-full" />
+          )}
         </CoverFrame>
       </button>
       <div className="flex min-w-0 items-start gap-1">
@@ -424,6 +457,10 @@ export const CollectionCard = memo(function CollectionCard({
                 {onlyOnConsole ? (
                   <span className="truncate">
                     {tr("collection.only_on_console", undefined, "On the PS5 only")}
+                  </span>
+                ) : onlyOnDrives ? (
+                  <span className="truncate">
+                    {tr("collection.only_on_drives", undefined, "On the PS5's drives")}
                   </span>
                 ) : (
                   <>
