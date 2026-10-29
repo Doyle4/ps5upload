@@ -1,0 +1,52 @@
+# Re-runs CI and release-build jobs that never ran because GitHub had no runner for them.
+#
+# GitHub's hosted macOS (arm64) pool runs short at times; a job it cannot place is cancelled with
+# no steps and the annotation "The job was not acquired by Runner of type hosted even after
+# multiple attempts", and the PR gate then fails over a job that never started. This workflow
+# looks at a finished `ci` or `publish` run, and only when a failed or cancelled job carries that annotation,
+# re-runs the run's failed jobs (at most twice per run). Real failures are left alone.
+name: ci-runner-retry
+
+on:
+  workflow_run:
+    workflows: [ci, publish]
+    types: [completed]
+
+permissions:
+  actions: write
+  checks: read
+  contents: read
+
+jobs:
+  retry:
+    if: github.event.workflow_run.conclusion == 'failure' || github.event.workflow_run.conclusion == 'cancelled'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Re-run jobs GitHub never gave a runner
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
+        run: |
+          set -euo pipefail
+          if [ "$ATTEMPT" -ge 3 ]; then
+            echo "Run $RUN_ID is on attempt $ATTEMPT; not retrying again."
+            exit 0
+          fi
+          starved=0
+          for job in $(gh api "repos/$REPO/actions/runs/$RUN_ID/attempts/$ATTEMPT/jobs" --paginate \
+              --jq '.jobs[] | select(.conclusion == "cancelled" or .conclusion == "failure") | .id'); do
+            if gh api "repos/$REPO/check-runs/$job/annotations" \
+                --jq '.[].message' | grep -q "not acquired by Runner"; then
+              echo "Job $job never got a runner."
+              starved=1
+            fi
+          done
+          if [ "$starved" = 1 ]; then
+            echo "Re-running the failed jobs of run $RUN_ID (attempt $ATTEMPT)."
+            gh run rerun "$RUN_ID" --repo "$REPO" --failed
+          else
+            echo "No runner-starved jobs: a real failure, left for a person."
+          fi
