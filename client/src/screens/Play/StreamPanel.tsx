@@ -765,11 +765,15 @@ export function StreamPanel() {
   );
 
   // Clicking the picture takes the keyboard and (if set) hides the pointer; the browser keeps
-  // Esc for giving it back, so Circle is Backspace too.
+  // Esc for giving it back, so Circle is Backspace too. Only a mouse press locks the pointer:
+  // a finger has no pointer to hide, and a lock taken from a tap (a touch-screen laptop, Linux
+  // Chrome) freezes every later touch's position and makes the touch controller's
+  // setPointerCapture throw, so its buttons stop answering.
   const capture = useCallback(() => {
     const el = stage.current;
     if (!el) return;
     el.focus();
+    if (lastPointer.current !== "mouse") return;
     if (!prefs.capturePointer || !document.hasFocus() || document.pointerLockElement === el) return;
     try {
       // A promise in current browsers: refused (window not focused, too soon after Esc) is fine.

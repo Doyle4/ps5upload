@@ -56,6 +56,8 @@ test("Remote Play survives leaving the screen and a dropped socket", async ({ pa
   await page.getByTestId("rp-start").click();
   const toolbar = page.getByTestId("rp-toolbar");
   await expect(toolbar).toContainText("Living room");
+  // The bar shows before the routed socket has handed the start message to the test.
+  await expect.poll(() => starts.length).toBeGreaterThan(0);
   expect(starts[0]).toMatchObject({ host: "192.168.1.100", attach_only: false });
 
   // Stats on the picture are a toggle.

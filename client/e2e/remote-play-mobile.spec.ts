@@ -295,6 +295,9 @@ test.describe("phone sideways", () => {
 
     await tapPicture(page);
     await expect(stage).toHaveAttribute("data-full", "immersive");
+    // A finger never locks the pointer (Linux Chrome grants a lock from a tap, which froze every
+    // later touch's position and made the controller's setPointerCapture throw).
+    expect(await page.evaluate(() => document.pointerLockElement)).toBeNull();
     await page.screenshot({
       path: "../output/playwright/rp-landscape-full.png",
     });

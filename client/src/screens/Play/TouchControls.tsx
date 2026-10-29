@@ -102,7 +102,13 @@ export function TouchControls({
     e.preventDefault();
     e.stopPropagation();
     const el = e.currentTarget as HTMLElement;
-    el.setPointerCapture(e.pointerId);
+    try {
+      // Keeps a finger that slides off the button on it. Refused (InvalidStateError) while the
+      // page holds a pointer lock or for a pointer that is no longer active: the press still counts.
+      el.setPointerCapture(e.pointerId);
+    } catch {
+      // Without capture the button still sees its own pointerup and pointercancel.
+    }
     const part = make(el);
     fingers.current.set(e.pointerId, part);
     if (part.kind === "stick") moveStick(part, e.clientX, e.clientY);
