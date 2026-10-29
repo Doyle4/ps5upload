@@ -151,7 +151,8 @@ $(HOST_OBJ)/src/%.o: src/%.cpp $(wildcard src/*.h) Makefile
 	$(HOST_CXX) $(HOST_OWN_FLAGS) $(SEVENZ_DEFS) $(OWN_INC) -c -o $@ $<
 
 host-test: $(HOST_BIN)
-	python3 tests/run.py $(HOST_BIN)
+	# Under a time limit: a hang fails by name with a stack sample (../../scripts/run-limited.pl).
+	perl ../../scripts/run-limited.pl 300 python3 tests/run.py $(HOST_BIN)
 
 send: $(ELF)
 	nc -w 1 $(PS5_HOST) $(PS5_PORT) < $(ELF)

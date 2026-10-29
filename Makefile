@@ -931,6 +931,12 @@ test-desktop: setup-engine
 	@cd $(CLIENT_DIR)/src-tauri && $(CARGO) test
 	@echo "✓ Desktop Rust checks passed"
 
+# Each host self-test runs under a time limit (scripts/run-limited.pl): one that hangs fails by
+# name with a stack sample instead of silently eating CI's 20 minutes (twice in Oct 2026 a macOS
+# runner hung in this target, and a cancelled job keeps no log).
+SELFTEST_LIMIT ?= 240
+RUN_LIMITED = perl $(CURDIR)/scripts/run-limited.pl $(SELFTEST_LIMIT)
+
 test-payload: payload
 	@echo "Validating payload binaries..."
 	@for elf in "$(PAYLOAD_ELF)" "$(INSTALLER_ELF)"; do \
@@ -957,103 +963,103 @@ test-payload: payload
 	@echo "Running play-time launch/resume self-test (host build)..."
 	@cc -O2 -Wall -Wextra -Werror -o /tmp/ps5upload-activity-selftest \
 		$(PAYLOAD_DIR)/tests/activity_launch_selftest.c
-	@/tmp/ps5upload-activity-selftest
+	@$(RUN_LIMITED) /tmp/ps5upload-activity-selftest
 	@echo "Running app-info layout self-test (host build)..."
 	@cc -O2 -Wall -Wextra -Werror -o /tmp/ps5upload-app-info-selftest \
 		$(PAYLOAD_DIR)/tests/app_info_selftest.c
-	@/tmp/ps5upload-app-info-selftest
+	@$(RUN_LIMITED) /tmp/ps5upload-app-info-selftest
 	@echo "Running uninstall outcome self-test (host build)..."
 	@cc -O2 -Wall -Wextra -Werror -I$(PAYLOAD_DIR)/include \
 		-o /tmp/ps5upload-unregister-outcome-selftest \
 		$(PAYLOAD_DIR)/tests/unregister_outcome_selftest.c
-	@/tmp/ps5upload-unregister-outcome-selftest
+	@$(RUN_LIMITED) /tmp/ps5upload-unregister-outcome-selftest
 	@echo "Running metadata title-id normalizer self-test (host build)..."
 	@cc -O2 -Wall -Wextra -Werror -o /tmp/ps5upload-tmdb-id-selftest \
 		$(PAYLOAD_DIR)/tests/tmdb_id_selftest.c
-	@/tmp/ps5upload-tmdb-id-selftest
+	@$(RUN_LIMITED) /tmp/ps5upload-tmdb-id-selftest
 	@echo "Running console port scan self-test (host build)..."
 	@cc -O2 -Wall -Wextra -Werror -I$(PAYLOAD_DIR)/include \
 		-o /tmp/ps5upload-net-ports-selftest \
 		$(PAYLOAD_DIR)/tests/net_ports_selftest.c
-	@/tmp/ps5upload-net-ports-selftest
+	@$(RUN_LIMITED) /tmp/ps5upload-net-ports-selftest
 	@echo "Running fan servo self-test (host build)..."
 	@cc -O2 -Wall -Wextra -Werror -I$(PAYLOAD_DIR)/include \
 		-o /tmp/ps5upload-fan-servo-selftest \
 		$(PAYLOAD_DIR)/tests/fan_servo_selftest.c
-	@/tmp/ps5upload-fan-servo-selftest
+	@$(RUN_LIMITED) /tmp/ps5upload-fan-servo-selftest
 	@echo "✓ fan target writes keep the rest of the profile; the guard writes only after a reset and gives up after 5 failures"
 	@echo "Running cheat XML UTF-16 normalizer self-test (host build)..."
 	@cc -O2 -Wall -Wextra -Werror -I$(PAYLOAD_DIR)/include \
 		-o /tmp/ps5upload-xml-encoding-selftest \
 		$(PAYLOAD_DIR)/tests/xml_encoding_selftest.c
-	@/tmp/ps5upload-xml-encoding-selftest
+	@$(RUN_LIMITED) /tmp/ps5upload-xml-encoding-selftest
 	@echo "✓ UTF-16 SHN/MC4 cheat files convert so their cheats appear"
 	@echo "Running web UI HTTP parser self-test (host build)..."
 	@cc -O2 -Wall -Wextra -Werror -I$(PAYLOAD_DIR)/include \
 		-o /tmp/ps5upload-webui-http-selftest \
 		$(PAYLOAD_DIR)/tests/webui_http_selftest.c
-	@/tmp/ps5upload-webui-http-selftest
+	@$(RUN_LIMITED) /tmp/ps5upload-webui-http-selftest
 	@echo "Running webui strings lookup self-test (host build)..."
 	@cc -O2 -Wall -Wextra -Werror -I$(PAYLOAD_DIR)/include \
 		-o /tmp/ps5upload-webui-strings-selftest \
 		$(PAYLOAD_DIR)/tests/webui_strings_selftest.c $(PAYLOAD_DIR)/src/webui_strings.c
-	@/tmp/ps5upload-webui-strings-selftest
+	@$(RUN_LIMITED) /tmp/ps5upload-webui-strings-selftest
 	@echo "✓ GET /strings/<lang>.json answers only the embedded languages, never a crafted path"
 	@echo "Running console package reader self-test (host build)..."
 	@cc -O2 -Wall -Wextra -Werror -I$(PAYLOAD_DIR)/include \
 		-o /tmp/ps5upload-pkg-info-selftest \
 		$(PAYLOAD_DIR)/tests/pkg_info_selftest.c
-	@/tmp/ps5upload-pkg-info-selftest
+	@$(RUN_LIMITED) /tmp/ps5upload-pkg-info-selftest
 	@echo "✓ the console page's package preview reads PS4/PS5 headers and refuses out-of-range offsets"
 	@echo "Running webui offline copy lookup self-test (host build)..."
 	@cc -O2 -Wall -Wextra -Werror -I$(PAYLOAD_DIR)/include \
 		-o /tmp/ps5upload-webui-offline-selftest \
 		$(PAYLOAD_DIR)/tests/webui_offline_selftest.c $(PAYLOAD_DIR)/src/webui_offline.c
-	@/tmp/ps5upload-webui-offline-selftest
+	@$(RUN_LIMITED) /tmp/ps5upload-webui-offline-selftest
 	@echo "✓ GET /sw.js and /cache.appcache answer with their own types; nothing else matches"
 	@echo "Running webui auth self-test (host build)..."
 	@cc -O2 -Wall -Wextra -Werror -I$(PAYLOAD_DIR)/include \
 		-o /tmp/ps5upload-webui-auth-selftest \
 		$(PAYLOAD_DIR)/tests/webui_auth_selftest.c $(PAYLOAD_DIR)/src/webui_auth.c
-	@/tmp/ps5upload-webui-auth-selftest
+	@$(RUN_LIMITED) /tmp/ps5upload-webui-auth-selftest
 	@echo "Running webui server self-test (host build, ~25 s)..."
 	@cc -O2 -Wall -Wextra -Werror -pthread -I$(PAYLOAD_DIR)/include -I$(AVA1_C) \
 		-o /tmp/ps5upload-webui-server-selftest \
 		$(PAYLOAD_DIR)/tests/webui_server_selftest.c $(PAYLOAD_DIR)/src/webui_server.c \
 		$(PAYLOAD_DIR)/src/webui_http.c $(PAYLOAD_DIR)/src/webui_auth.c
-	@/tmp/ps5upload-webui-server-selftest
+	@$(RUN_LIMITED) /tmp/ps5upload-webui-server-selftest
 	@echo "✓ silent, half-sent and flooding web clients never stall the helper"
 	@echo "Running webui codec self-test (host build)..."
 	@cc -O2 -Wall -Wextra -Werror -I$(PAYLOAD_DIR)/include -I$(AVA1_C) -I$(AVA1_C)/gen -I$(PAYLOAD_DIR)/gen \
 		-o /tmp/ps5upload-webui-codec-selftest \
 		$(PAYLOAD_DIR)/tests/webui_codec_selftest.c $(PAYLOAD_DIR)/src/webui_codec.c \
 		$(AVA1_C)/gen/ava1_gen.c $(PAYLOAD_DIR)/gen/ava1_app_gen.c $(AVA1_C)/ava1_wire.c
-	@/tmp/ps5upload-webui-codec-selftest
+	@$(RUN_LIMITED) /tmp/ps5upload-webui-codec-selftest
 	@echo "✓ Unicode, quoted and very large folders survive the web UI's JSON both ways"
 	@echo "Running webui file transfer self-test (host build)..."
 	@cc -O2 -Wall -Wextra -Werror -pthread -I$(PAYLOAD_DIR)/include \
 		-o /tmp/ps5upload-webui-files-selftest \
 		$(PAYLOAD_DIR)/tests/webui_files_selftest.c $(PAYLOAD_DIR)/src/webui_files.c
-	@/tmp/ps5upload-webui-files-selftest
+	@$(RUN_LIMITED) /tmp/ps5upload-webui-files-selftest
 	@echo "✓ text saves and uploads go through a same-folder temp + rename; a cut-off upload leaves no file; folders stream as a valid .tar"
 	@echo "Running SMB daemon path/address/JSON self-test (host build)..."
 	@cc -O2 -Wall -Wextra -Werror -I$(PAYLOAD_DIR)/smb -I$(PAYLOAD_DIR)/include \
 		-o /tmp/ps5upload-smbd-path-selftest $(PAYLOAD_DIR)/tests/smbd_path_selftest.c \
 		$(PAYLOAD_DIR)/smb/smbd_path.c $(PAYLOAD_DIR)/smb/smbd_json.c
-	@/tmp/ps5upload-smbd-path-selftest
+	@$(RUN_LIMITED) /tmp/ps5upload-smbd-path-selftest
 	@echo "✓ share paths, server addresses and non-ASCII names parse; bad ones are refused"
 	@echo "Running SMB daemon copy state-machine self-test (host build)..."
 	@cc -O2 -Wall -Wextra -Werror -I$(PAYLOAD_DIR)/smb -I$(PAYLOAD_DIR)/include \
 		-o /tmp/ps5upload-smbd-copy-selftest $(PAYLOAD_DIR)/tests/smbd_copy_selftest.c \
 		$(PAYLOAD_DIR)/smb/smbd_copy.c $(PAYLOAD_DIR)/smb/smbd_path.c $(PAYLOAD_DIR)/smb/smbd_localfs.c
-	@/tmp/ps5upload-smbd-copy-selftest
+	@$(RUN_LIMITED) /tmp/ps5upload-smbd-copy-selftest
 	@echo "✓ share copies go through a part file, survive a dropped server, cancel and refuse cleanly"
 	@echo "Running game library scan self-test (host build)..."
 	@cc -O2 -Wall -Wextra -Werror -I$(PAYLOAD_DIR)/smb -I$(PAYLOAD_DIR)/include \
 		-o /tmp/ps5upload-smbd-library-selftest $(PAYLOAD_DIR)/tests/smbd_library_selftest.c \
 		$(PAYLOAD_DIR)/smb/smbd_library.c $(PAYLOAD_DIR)/smb/smbd_localfs.c $(PAYLOAD_DIR)/smb/smbd_path.c \
 		$(PAYLOAD_DIR)/smb/smbd_json.c $(PAYLOAD_DIR)/src/pkg_info.c
-	@/tmp/ps5upload-smbd-library-selftest
+	@$(RUN_LIMITED) /tmp/ps5upload-smbd-library-selftest
 	@echo "✓ the library scan finds packages, folder dumps and images with their covers, stays inside its limits and never walks a dump"
 	@echo "Running console page network-share routes self-test (host build)..."
 	@cc -O2 -Wall -Wextra -Werror -pthread -I$(PAYLOAD_DIR)/include -I$(PAYLOAD_DIR)/smb \
@@ -1061,33 +1067,33 @@ test-payload: payload
 		-o /tmp/ps5upload-webui-smb-selftest $(PAYLOAD_DIR)/tests/webui_smb_selftest.c \
 		$(PAYLOAD_DIR)/src/webui_smb.c $(PAYLOAD_DIR)/src/smb_shares.c $(PAYLOAD_DIR)/smb/smbd_json.c \
 		$(PAYLOAD_DIR)/smb/smbd_path.c $(AVA1_C)/third_party/monocypher/monocypher.c
-	@/tmp/ps5upload-webui-smb-selftest
+	@$(RUN_LIMITED) /tmp/ps5upload-webui-smb-selftest
 	@echo "✓ saved shares keep passwords out of the page and the file; copies obey the helper's path policy"
 	@echo "Running file index name-match self-test (host build)..."
 	@cc -O2 -Wall -Wextra -Werror -I$(PAYLOAD_DIR)/include \
 		-o /tmp/ps5upload-index-glob-selftest $(PAYLOAD_DIR)/tests/index_glob_selftest.c
-	@/tmp/ps5upload-index-glob-selftest
+	@$(RUN_LIMITED) /tmp/ps5upload-index-glob-selftest
 	@echo "✓ index name patterns match in linear time, whatever the pattern"
 	@echo "Running file manager prefs self-test (host build)..."
 	@cc -O2 -Wall -Wextra -Werror -pthread -I$(PAYLOAD_DIR)/include -I$(AVA1_C) -I$(AVA1_C)/gen -I$(PAYLOAD_DIR)/gen \
 		-o /tmp/ps5upload-files-prefs-selftest \
 		$(PAYLOAD_DIR)/tests/files_prefs_selftest.c $(PAYLOAD_DIR)/src/files_prefs.c $(PAYLOAD_DIR)/src/webui_codec.c \
 		$(AVA1_C)/gen/ava1_gen.c $(PAYLOAD_DIR)/gen/ava1_app_gen.c $(AVA1_C)/ava1_wire.c
-	@/tmp/ps5upload-files-prefs-selftest
+	@$(RUN_LIMITED) /tmp/ps5upload-files-prefs-selftest
 	@echo "✓ pinned/recent folders stay bounded; a garbled prefs file reads as empty; saves are atomic"
 	@echo "Running multi-device mesh self-test (host build)..."
 	@cc -O2 -Wall -Wextra -Werror -pthread -I$(PAYLOAD_DIR)/include -I$(AVA1_C) -I$(AVA1_C)/gen -I$(PAYLOAD_DIR)/gen \
 		-o /tmp/ps5upload-mesh-selftest \
 		$(PAYLOAD_DIR)/tests/mesh_selftest.c $(PAYLOAD_DIR)/src/mesh.c $(PAYLOAD_DIR)/src/webui_codec.c \
 		$(AVA1_C)/gen/ava1_gen.c $(PAYLOAD_DIR)/gen/ava1_app_gen.c $(AVA1_C)/ava1_wire.c
-	@/tmp/ps5upload-mesh-selftest
+	@$(RUN_LIMITED) /tmp/ps5upload-mesh-selftest
 	@echo "✓ devices connect, are listed, renamed, blocked and pruned; locks lapse; shared documents keep their revision"
 	@echo "Running Show on TV / Show on PC handoff self-test (host build)..."
 	@cc -O2 -Wall -Wextra -Werror -pthread -I$(PAYLOAD_DIR)/include -I$(AVA1_C) -I$(AVA1_C)/gen -I$(PAYLOAD_DIR)/gen \
 		-o /tmp/ps5upload-files-handoff-selftest \
 		$(PAYLOAD_DIR)/tests/files_handoff_selftest.c $(PAYLOAD_DIR)/src/files_handoff.c $(PAYLOAD_DIR)/src/files_prefs.c \
 		$(PAYLOAD_DIR)/src/webui_codec.c $(AVA1_C)/gen/ava1_gen.c $(PAYLOAD_DIR)/gen/ava1_app_gen.c $(AVA1_C)/ava1_wire.c
-	@/tmp/ps5upload-files-handoff-selftest
+	@$(RUN_LIMITED) /tmp/ps5upload-files-handoff-selftest
 	@echo "✓ a handoff opens once, expires after two minutes, and the PC reads the same prefs as the console"
 	@echo "Running webui settings + tile self-test (host build)..."
 	@cc -O2 -Wall -Wextra -Werror -DWEBUI_TILE_HOST_TEST -I$(PAYLOAD_DIR)/include -I$(AVA1_C) -I$(AVA1_C)/gen -I$(PAYLOAD_DIR)/gen \
@@ -1095,13 +1101,13 @@ test-payload: payload
 		$(PAYLOAD_DIR)/tests/webui_settings_selftest.c $(PAYLOAD_DIR)/src/webui_settings.c \
 		$(PAYLOAD_DIR)/src/webui_tile.c $(PAYLOAD_DIR)/src/webui_codec.c \
 		$(AVA1_C)/gen/ava1_gen.c $(PAYLOAD_DIR)/gen/ava1_app_gen.c $(AVA1_C)/ava1_wire.c
-	@/tmp/ps5upload-webui-settings-selftest
+	@$(RUN_LIMITED) /tmp/ps5upload-webui-settings-selftest
 	@echo "✓ a missing or garbled settings file falls back to defaults; the tile is written only when it differs"
 	@echo "Running webui input log self-test (host build)..."
 	@cc -O2 -Wall -Wextra -Werror -I$(PAYLOAD_DIR)/include \
 		-o /tmp/ps5upload-webui-inputlog-selftest \
 		$(PAYLOAD_DIR)/tests/webui_inputlog_selftest.c $(PAYLOAD_DIR)/src/webui_inputlog.c
-	@/tmp/ps5upload-webui-inputlog-selftest
+	@$(RUN_LIMITED) /tmp/ps5upload-webui-inputlog-selftest
 	@echo "✓ the controller input log takes only plain short lines and never grows past its 64 KiB ring"
 	@echo "Running webui cheat download store self-test (host build)..."
 	@cc -O2 -Wall -Wextra -Werror -pthread -I$(PAYLOAD_DIR)/include -I$(AVA1_C) -I$(AVA1_C)/gen -I$(PAYLOAD_DIR)/gen \
@@ -1109,37 +1115,37 @@ test-payload: payload
 		$(PAYLOAD_DIR)/tests/webui_cheats_store_selftest.c $(PAYLOAD_DIR)/src/webui_cheats_store.c \
 		$(PAYLOAD_DIR)/src/webui_files.c $(PAYLOAD_DIR)/src/webui_codec.c \
 		$(AVA1_C)/gen/ava1_gen.c $(PAYLOAD_DIR)/gen/ava1_app_gen.c $(AVA1_C)/ava1_wire.c
-	@/tmp/ps5upload-webui-cheats-store-selftest
+	@$(RUN_LIMITED) /tmp/ps5upload-webui-cheats-store-selftest
 	@echo "✓ a downloaded cheat is stored only under a plain name with its format's extension, through a same-folder temp + rename"
 	@echo "Running AVA1 in-flight RPC gate self-test (host build)..."
 	@cc -O2 -Wall -Wextra -Werror -pthread -I$(AVA1_C) \
 		-o /tmp/ps5upload-ava1-rpc-gate-selftest \
 		$(PAYLOAD_DIR)/tests/ava1_rpc_gate_selftest.c
-	@/tmp/ps5upload-ava1-rpc-gate-selftest
+	@$(RUN_LIMITED) /tmp/ps5upload-ava1-rpc-gate-selftest
 	@echo "✓ the helper's exit waits for web UI calls and refuses new ones"
 	@echo "Running cheat title list self-test (host build)..."
 	@cc -O2 -Wall -Wextra -Werror -I$(PAYLOAD_DIR)/include \
 		-o /tmp/ps5upload-cheats-list-selftest \
 		$(PAYLOAD_DIR)/tests/cheats_list_selftest.c
-	@/tmp/ps5upload-cheats-list-selftest
+	@$(RUN_LIMITED) /tmp/ps5upload-cheats-list-selftest
 	@echo "✓ a large or badly encoded cheat pack lists as valid, bounded JSON"
 	@echo "Running cheat apply-plan self-test (host build)..."
 	@cc -O2 -Wall -Wextra -Werror -I$(PAYLOAD_DIR)/include \
 		-o /tmp/ps5upload-cheats-plan-selftest \
 		$(PAYLOAD_DIR)/tests/cheats_plan_selftest.c
-	@/tmp/ps5upload-cheats-plan-selftest
+	@$(RUN_LIMITED) /tmp/ps5upload-cheats-plan-selftest
 	@echo "✓ a cheat's code caves are written before the jumps into them, and removed after"
 	@echo "Running XML game patch self-test (host build)..."
 	@cc -O2 -Wall -Wextra -Werror -I$(PAYLOAD_DIR)/include \
 		-o /tmp/ps5upload-game-patch-selftest \
 		$(PAYLOAD_DIR)/tests/game_patch_selftest.c
-	@/tmp/ps5upload-game-patch-selftest
+	@$(RUN_LIMITED) /tmp/ps5upload-game-patch-selftest
 	@echo "✓ PS-Game-Patch XML entries parse to the addresses, patterns and bytes GoldHEN would write"
 	@echo "Running console clean-up rules self-test (host build)..."
 	@cc -O2 -Wall -Wextra -Werror -I$(PAYLOAD_DIR)/include \
 		-o /tmp/ps5upload-cleanup-rules-selftest \
 		$(PAYLOAD_DIR)/tests/cleanup_rules_selftest.c
-	@/tmp/ps5upload-cleanup-rules-selftest
+	@$(RUN_LIMITED) /tmp/ps5upload-cleanup-rules-selftest
 	@echo "✓ clean-up removes only its categories' paths: never the package library, saves, installed games or another drive's system folders"
 	@echo "Checking per-console isolation..."
 	@./scripts/check-per-console-isolation.sh
@@ -1150,35 +1156,35 @@ test-payload: payload
 	@echo "Running hw-guard fault-recovery self-test (host build)..."
 	@cc -O2 -Wall -Wextra -Werror -o /tmp/ps5upload-hw-guard-selftest \
 		$(PAYLOAD_DIR)/tests/hw_guard_selftest.c
-	@/tmp/ps5upload-hw-guard-selftest
+	@$(RUN_LIMITED) /tmp/ps5upload-hw-guard-selftest
 	@echo "✓ hw-guard recovers Sony-getter faults without dropping the helper"
 	@echo "Running wake-watchdog safety self-test (host build)..."
 	@cc -O2 -Wall -Wextra -Werror -I$(PAYLOAD_DIR)/include \
 		-o /tmp/ps5upload-wake-watchdog-selftest \
 		$(PAYLOAD_DIR)/tests/wake_watchdog_selftest.c
-	@/tmp/ps5upload-wake-watchdog-selftest
+	@$(RUN_LIMITED) /tmp/ps5upload-wake-watchdog-selftest
 	@echo "✓ clock adjustments and unknown firmware state cannot trigger kernel writes"
 	@echo "Running process-identity self-test (host build)..."
 	@cc -O2 -Wall -Wextra -Werror -I$(PAYLOAD_DIR)/include \
 		-o /tmp/ps5upload-proc-identity-selftest \
 		$(PAYLOAD_DIR)/tests/proc_identity_selftest.c
-	@/tmp/ps5upload-proc-identity-selftest
+	@$(RUN_LIMITED) /tmp/ps5upload-proc-identity-selftest
 	@echo "✓ only our own threads are ever in SIGKILL range"
 	@echo "Running prior-instance verdict self-test (host build)..."
 	@cc -O2 -Wall -Wextra -Werror -I$(PAYLOAD_DIR)/include \
 		-o /tmp/ps5upload-instance-verdict-selftest \
 		$(PAYLOAD_DIR)/tests/instance_verdict_selftest.c
-	@/tmp/ps5upload-instance-verdict-selftest
+	@$(RUN_LIMITED) /tmp/ps5upload-instance-verdict-selftest
 	@echo "✓ an externally-killed predecessor is reported, never guessed at"
 	@echo "Running ptrace timeout-recovery self-test (host build)..."
 	@cc -O2 -Wall -Wextra -Werror -o /tmp/ps5upload-ptrace-recovery-selftest \
 		$(PAYLOAD_DIR)/tests/ptrace_recovery_selftest.c
-	@/tmp/ps5upload-ptrace-recovery-selftest
+	@$(RUN_LIMITED) /tmp/ps5upload-ptrace-recovery-selftest
 	@echo "✓ ptrace timeout recovery never resumes injected registers"
 	@echo "Running app.db raw-scan self-test (host build)..."
 	@cc -O2 -Wall -Wextra -Werror -o /tmp/ps5upload-appdb-scan-selftest \
 		$(PAYLOAD_DIR)/tests/appdb_scan_selftest.c
-	@/tmp/ps5upload-appdb-scan-selftest
+	@$(RUN_LIMITED) /tmp/ps5upload-appdb-scan-selftest
 	@echo "✓ app.db scan recovers titles without sqlite"
 	@echo "Running content-database self-test (host build)..."
 	@mkdir -p /tmp/ps5upload-cdb
@@ -1197,7 +1203,7 @@ test-payload: payload
 		$(PAYLOAD_DIR)/src/content_db.c \
 		$(PAYLOAD_DIR)/tests/content_db_selftest.c \
 		/tmp/ps5upload-cdb/sqlite3.o
-	@/tmp/ps5upload-content-db-selftest
+	@$(RUN_LIMITED) /tmp/ps5upload-content-db-selftest
 	@echo "✓ content databases read via SQL, with guarded writes"
 	@echo "Running Game Activity JSON self-test (host build)..."
 	@mkdir -p /tmp/ps5upload-actjson
@@ -1214,13 +1220,13 @@ test-payload: payload
 		$(PAYLOAD_DIR)/src/content_db.c \
 		$(PAYLOAD_DIR)/tests/activity_json_selftest.c \
 		/tmp/ps5upload-cdb/sqlite3.o
-	@/tmp/ps5upload-actjson/selftest
+	@$(RUN_LIMITED) /tmp/ps5upload-actjson/selftest
 	@echo "✓ every Game Activity tab names its titles, in the keys the engine reads"
 	@echo "Running timed initializer serialization self-test (host build)..."
 	@cc -O2 -Wall -Wextra -Werror -pthread -I$(PAYLOAD_DIR)/include \
 		-o /tmp/ps5upload-timed-init-selftest \
 		$(PAYLOAD_DIR)/tests/timed_init_selftest.c
-	@/tmp/ps5upload-timed-init-selftest
+	@$(RUN_LIMITED) /tmp/ps5upload-timed-init-selftest
 	@echo "✓ timed-out Sony initialization cannot overlap a retry"
 	@echo "Running installer daemon logic self-test (host build)..."
 	@cc -O2 -Wall -Wextra -Werror -I$(PAYLOAD_DIR)/installer \
@@ -1229,7 +1235,7 @@ test-payload: payload
 		$(PAYLOAD_DIR)/installer/protocol.c \
 		$(PAYLOAD_DIR)/installer/pathsafe.c \
 		$(PAYLOAD_DIR)/installer/jobs.c
-	@/tmp/ps5upload-installer-selftest
+	@$(RUN_LIMITED) /tmp/ps5upload-installer-selftest
 	@echo "✓ installer request parse, replies, path safety and admission are sound"
 	@echo "Running installer HTTP/coverage self-test (host build)..."
 	@cc -O2 -Wall -Wextra -Werror -I$(PAYLOAD_DIR)/installer \
@@ -1237,7 +1243,7 @@ test-payload: payload
 		$(PAYLOAD_DIR)/tests/installer_http_selftest.c \
 		$(PAYLOAD_DIR)/installer/http_range.c \
 		$(PAYLOAD_DIR)/installer/jobs.c
-	@/tmp/ps5upload-installer-http-selftest
+	@$(RUN_LIMITED) /tmp/ps5upload-installer-http-selftest
 	@echo "✓ installer range parse, headers, coverage and job ring are sound"
 	@echo "Running installer loopback server self-test (host build)..."
 	@cc -O2 -Wall -Wextra -Werror -pthread -I$(PAYLOAD_DIR)/installer \
@@ -1247,67 +1253,67 @@ test-payload: payload
 		$(PAYLOAD_DIR)/installer/http_range.c \
 		$(PAYLOAD_DIR)/installer/pathsafe.c \
 		$(PAYLOAD_DIR)/installer/jobs.c
-	@/tmp/ps5upload-installer-loopback-selftest
+	@$(RUN_LIMITED) /tmp/ps5upload-installer-loopback-selftest
 	@echo "✓ loopback server ranges, 404s foreign paths and .crc, serves a real sidecar"
 	@echo "Running installer hint-table self-test (host build)..."
 	@cc -O2 -Wall -Wextra -Werror -I$(PAYLOAD_DIR)/installer \
 		-o /tmp/ps5upload-installer-hints-selftest \
 		$(PAYLOAD_DIR)/tests/installer_hints_selftest.c \
 		$(PAYLOAD_DIR)/installer/hints.c
-	@/tmp/ps5upload-installer-hints-selftest
+	@$(RUN_LIMITED) /tmp/ps5upload-installer-hints-selftest
 	@echo "✓ installer hint table maps known Sony codes without third-party names"
 	@echo "Running param.json SDK-rewrite self-test (host build)..."
 	@cc -O2 -Wall -Wextra -Werror -o /tmp/ps5upload-sdk-param-selftest \
 		$(PAYLOAD_DIR)/tests/sdk_param_selftest.c
-	@/tmp/ps5upload-sdk-param-selftest
+	@$(RUN_LIMITED) /tmp/ps5upload-sdk-param-selftest
 	@echo "✓ SDK version rewrite reports what it actually changed"
 	@echo "Running ELF param-segment self-test (host build)..."
 	@cc -O2 -Wall -Wextra -Werror -o /tmp/ps5upload-elf-param-selftest \
 		$(PAYLOAD_DIR)/tests/elf_param_selftest.c
-	@/tmp/ps5upload-elf-param-selftest
+	@$(RUN_LIMITED) /tmp/ps5upload-elf-param-selftest
 	@echo "✓ SDK patcher targets param segments, not stray magic bytes"
 	@echo "Running sandbox library-overlay unmount self-test (host build)..."
 	@cc -O2 -Wall -Wextra -Werror -o /tmp/ps5upload-sandbox-unmount-selftest \
 		$(PAYLOAD_DIR)/tests/sandbox_unmount_selftest.c
-	@/tmp/ps5upload-sandbox-unmount-selftest
+	@$(RUN_LIMITED) /tmp/ps5upload-sandbox-unmount-selftest
 	@echo "✓ only a game sandbox's unionfs lib overlay may be force-unmounted"
 	@echo "Running SDK version-pair self-test (host build)..."
 	@cc -O2 -Wall -Wextra -Werror -o /tmp/ps5upload-sdk-pairs-selftest \
 		$(PAYLOAD_DIR)/tests/sdk_pairs_selftest.c
-	@/tmp/ps5upload-sdk-pairs-selftest
+	@$(RUN_LIMITED) /tmp/ps5upload-sdk-pairs-selftest
 	@echo "✓ an SDK downgrade writes both halves of the version pair"
 	@echo "Running libc.prx backport-patch self-test (host build)..."
 	@cc -O2 -Wall -Wextra -Werror -o /tmp/ps5upload-libc-backport-selftest \
 		$(PAYLOAD_DIR)/tests/libc_backport_selftest.c
-	@/tmp/ps5upload-libc-backport-selftest
+	@$(RUN_LIMITED) /tmp/ps5upload-libc-backport-selftest
 	@echo "✓ the libc.prx symbol swap is same-length and idempotent"
 	@echo "Running fakelib overlay path/refusal self-test (host build)..."
 	@cc -O2 -Wall -Wextra -Werror -o /tmp/ps5upload-fakelib-overlay-selftest \
 		$(PAYLOAD_DIR)/tests/fakelib_overlay_selftest.c
-	@/tmp/ps5upload-fakelib-overlay-selftest
+	@$(RUN_LIMITED) /tmp/ps5upload-fakelib-overlay-selftest
 	@echo "✓ fakelib overlay accepts only game sandbox library targets"
 	@echo "Running sys_time settimeofday-fallback self-test (host build)..."
 	@cc -O2 -Wall -Wextra -Werror -pthread -I$(PAYLOAD_DIR)/include \
 		-o /tmp/ps5upload-sys-time-fallback-selftest \
 		$(PAYLOAD_DIR)/src/sys_time.c \
 		$(PAYLOAD_DIR)/tests/sys_time_fallback_selftest.c
-	@/tmp/ps5upload-sys-time-fallback-selftest
+	@$(RUN_LIMITED) /tmp/ps5upload-sys-time-fallback-selftest
 	@echo "✓ clock set falls back to settimeofday only when the SCE path did not take"
 	@echo "Running cross-device rename-guard self-test (host build)..."
 	@cc -O2 -Wall -Wextra -Werror -o /tmp/ps5upload-cross-device-selftest \
 		$(PAYLOAD_DIR)/tests/cross_device_selftest.c
-	@/tmp/ps5upload-cross-device-selftest
+	@$(RUN_LIMITED) /tmp/ps5upload-cross-device-selftest
 	@echo "✓ cross-mount renames are refused before they can panic the kernel"
 	@echo "Running Remote Play registry-key self-test (host build)..."
 	@cc -O2 -Wall -Wextra -Werror -o /tmp/ps5upload-rp-keys-selftest \
 		$(PAYLOAD_DIR)/tests/rp_keys_selftest.c
-	@/tmp/ps5upload-rp-keys-selftest
+	@$(RUN_LIMITED) /tmp/ps5upload-rp-keys-selftest
 	@echo "✓ Remote Play keys match Sony's entry-number formula"
 	@echo "Running SDK Changer filesystem-safety self-test (host build)..."
 	@cc -O2 -Wall -Wextra -Werror -I$(PAYLOAD_DIR)/include \
 		-o /tmp/ps5upload-sdk-changer-file-selftest \
 		$(PAYLOAD_DIR)/tests/sdk_changer_file_selftest.c
-	@/tmp/ps5upload-sdk-changer-file-selftest
+	@$(RUN_LIMITED) /tmp/ps5upload-sdk-changer-file-selftest
 	@echo "✓ SDK Changer patches only tracked sources and restores durable backups"
 
 test-client: setup-client
