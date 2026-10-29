@@ -132,9 +132,10 @@ test.describe("phone upright", () => {
     const toolbar = page.getByTestId("rp-toolbar");
     await expect(toolbar).toContainText("Living room");
 
-    // The bar sits under the picture, not on it. Upright, the controller lives in full screen.
+    // The bar sits under the picture, not on it. The page is view only: the controller lives in
+    // full screen, and the page says so.
     await expect(page.getByTestId("rp-touch")).toHaveCount(0);
-    await expect(page.getByTestId("rp-touch-in-full")).toBeVisible();
+    await expect(page.getByTestId("rp-touch-in-full")).toContainText("View only");
     // Measured together (the page may still be scrolling the picture into view).
     const barBelowPicture = await page.evaluate(() => {
       const r = (id: string) =>

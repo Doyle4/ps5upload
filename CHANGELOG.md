@@ -4,6 +4,21 @@ What's new in ps5upload, written for humans.
 
 ---
 
+## 9.3.0
+
+- **Esc no longer throws you out of full screen.** In Remote Play, Esc is Circle (back in most
+  games), and in full screen it also left full screen, so backing out of a menu ended full screen.
+  Now a quick Esc in full screen is Circle, and holding Esc leaves full screen. Chrome and Edge get
+  the same through the browser's keyboard lock; Safari and Firefox still leave full screen on any
+  Esc (Backspace is Circle there).
+- **Every device knows who is using Remote Play.** A PS5 plays Remote Play with one device at a
+  time. When a phone or another computer is playing a console, the Remote Play page on your other
+  devices says so before you start ("starting here ends it there"), each of them gets a short
+  note when someone starts, and Connection › Devices shows it as that device's activity.
+- **On phones and tablets the Remote Play page is view only.** The on-screen controller now only
+  appears in full screen, and the page says so; taps and scrolls on the page never press a button
+  on the console. A controller or keyboard connected to the phone or tablet still plays there.
+
 ## 9.2.2
 
 - **Remote Play Settings always show.** On a wide window the picture grew taller than the

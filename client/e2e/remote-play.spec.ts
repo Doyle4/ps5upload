@@ -263,3 +263,68 @@ test("Remote Play moves into picture in picture and back", async ({ page }) => {
   await expect.poll(() => popup3.isClosed()).toBe(true);
   await expect(page.getByTestId("rp-start").filter({ visible: true })).toBeVisible();
 });
+
+// Esc in full screen: a quick press is Circle on the console, holding it leaves full screen
+// (without pressing Circle).
+test("Remote Play: Esc is Circle in full screen, held it leaves", async ({ page }) => {
+  await page.addInitScript(() => {
+    window.localStorage.setItem("ps5upload.host", "192.168.1.100");
+    window.localStorage.setItem(
+      "ps5upload.roster.v1",
+      JSON.stringify({
+        active_id: "p1",
+        profiles: [
+          {
+            id: "p1",
+            name: "Living room",
+            host: "192.168.1.100",
+            wake_regist_key: "00112233",
+            wake_rp_key: "00112233445566778899aabbccddeeff",
+          },
+        ],
+      }),
+    );
+  });
+  await page.route(
+    (url) => url.pathname.startsWith("/api/"),
+    async (route) => {
+      const path = new URL(route.request().url()).pathname;
+      let body: unknown = {};
+      if (path === "/api/version") body = { version: "8.10.0", caps: {} };
+      if (path === "/api/ps5/rp/session") body = { host: null };
+      await route.fulfill({ contentType: "application/json", body: JSON.stringify(body) });
+    },
+  );
+  const pads: number[] = [];
+  await page.routeWebSocket(/\/api\/ps5\/rp\/ws/, (ws) => {
+    ws.onMessage((m) => {
+      const msg = JSON.parse(String(m)) as { host?: string; pad?: { buttons: number } };
+      if (msg.host) ws.send(JSON.stringify({ stage: "first_frame" }));
+      if (msg.pad) pads.push(msg.pad.buttons);
+    });
+  });
+
+  await page.goto("/play", { waitUntil: "domcontentloaded" });
+  await expect(page.getByRole("heading", { name: "Remote Play" })).toBeVisible({ timeout: 30_000 });
+  await page.getByTestId("rp-start").click();
+  const stage = page.getByTestId("rp-stage");
+  await expect(page.getByTestId("rp-toolbar")).toBeVisible();
+  await page.getByTestId("rp-toolbar").hover();
+  await page.getByTestId("rp-fullscreen").click();
+  await expect(stage).toHaveAttribute("data-full", "bar");
+  await stage.focus();
+
+  // A quick press: Circle (2) down and up, and still full screen.
+  await page.keyboard.press("Escape");
+  await expect.poll(() => pads.includes(2)).toBe(true);
+  await expect.poll(() => pads[pads.length - 1]).toBe(0);
+  await expect(stage).toHaveAttribute("data-full", "bar");
+
+  // Held: leaves full screen, and Circle is not pressed again.
+  const before = pads.filter((b) => b & 2).length;
+  await page.keyboard.down("Escape");
+  await expect(stage).not.toHaveAttribute("data-full", "bar", { timeout: 3_000 });
+  await page.keyboard.up("Escape");
+  await page.waitForTimeout(300);
+  expect(pads.filter((b) => b & 2).length).toBe(before);
+});

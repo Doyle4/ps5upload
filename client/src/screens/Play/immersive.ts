@@ -90,6 +90,14 @@ export function resetAndroidUiForTest(): void {
   androidUi.landscape = false;
 }
 
+/** The Keyboard Lock API (Chromium), or null. */
+function keyboardLock(): { lock(codes: string[]): Promise<void>; unlock(): void } | null {
+  const k = (navigator as Navigator & { keyboard?: { lock?: unknown; unlock?: unknown } }).keyboard;
+  return k && typeof k.lock === "function" && typeof k.unlock === "function"
+    ? (k as { lock(codes: string[]): Promise<void>; unlock(): void })
+    : null;
+}
+
 /** The window (desktop app) or the screen (browser, phone app) given to the picture. In the
  *  Android app this hides the status and navigation bars (a swipe shows them for a moment);
  *  leaving also gives the orientation back. */
@@ -111,7 +119,11 @@ export async function setWindowFullscreen(on: boolean): Promise<void> {
       if (el.requestFullscreen)
         await el.requestFullscreen({ navigationUI: "hide" });
       else el.webkitRequestFullscreen?.();
+      // Chrome and Edge: a quick Esc reaches the game, and holding it leaves full screen (the
+      // page does the same where the browser lets it). Elsewhere Esc always leaves.
+      void keyboardLock()?.lock(["Escape"]).catch(() => {});
     } else if (d.fullscreenElement) {
+      keyboardLock()?.unlock();
       await document.exitFullscreen();
     } else if (d.webkitFullscreenElement) {
       d.webkitExitFullscreen?.();

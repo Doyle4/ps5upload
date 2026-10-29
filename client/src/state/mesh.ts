@@ -226,6 +226,16 @@ export function othersBusy(state: MeshState | null): { device: MeshDevice; items
     .filter((x) => x.items.length > 0);
 }
 
+/** The presence item a window shows while it plays Remote Play on that console. */
+export const RP_ACTIVITY = "Remote Play";
+
+/** The other devices playing Remote Play on this console right now (a PS5 takes one at a time). */
+export function othersRemotePlaying(state: MeshState | null): MeshDevice[] {
+  return othersBusy(state)
+    .filter((x) => x.items.some((a) => a.kind === RP_ACTIVITY))
+    .map((x) => x.device);
+}
+
 export function othersOnline(state: MeshState | null): MeshDevice[] {
   if (!state) return [];
   return state.devices.filter((d) => d.online && d.id !== state.you);

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { toMeshState, type MeshState } from "../api/mesh";
 import { busyText, replaceCheck } from "../lib/helperGuard";
-import { deviceName, othersBusy, othersOnline, presenceItems } from "./mesh";
+import { deviceName, othersBusy, othersOnline, othersRemotePlaying, presenceItems, RP_ACTIVITY } from "./mesh";
 import { mergeShared, type SharedProfile } from "./rosterShare";
 import type { Task } from "./tasks";
 
@@ -52,6 +52,17 @@ describe("who is busy", () => {
     const busy = othersBusy(s);
     expect(busy.map((b) => b.device.id)).toEqual(["b"]);
     expect(busyText(busy)).toBe("dev b: Install Astro Bot 42%");
+  });
+
+  it("finds the other devices playing Remote Play on the console", () => {
+    const s = state([
+      dev("me", { activity: [{ kind: RP_ACTIVITY }] }),
+      dev("phone", { kind: "android", activity: [{ kind: RP_ACTIVITY }, { kind: "Upload", title: "X" }] }),
+      dev("pc", { activity: [{ kind: "Upload", title: "Y" }] }),
+      dev("gone", { online: false, activity: [{ kind: RP_ACTIVITY }] }),
+    ]);
+    expect(othersRemotePlaying(s).map((d) => d.id)).toEqual(["phone"]);
+    expect(othersRemotePlaying(null)).toEqual([]);
   });
 
   it("names an app from before 8.0.0 plainly, and prefers the nickname", () => {

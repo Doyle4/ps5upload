@@ -19,6 +19,7 @@ import {
 import { Button, Callout, Select, Spinner, Toggle } from "../../components";
 import { useTr } from "../../state/lang";
 import { useRosterStore } from "../../state/roster";
+import { deviceName, meshFor, othersRemotePlaying, useMeshStore } from "../../state/mesh";
 import { isTauriEnv } from "../../lib/tauriEnv";
 import { isMobile } from "../../lib/platform";
 import { setScreenWakeReason } from "../../lib/androidScreenWake";
@@ -62,6 +63,11 @@ type Tr = ReturnType<typeof useTr>;
 
 /** Full screen on an upright phone: where the picture starts, under the menu handle's row. */
 const PICTURE_TOP = "calc(max(6px, env(safe-area-inset-top)) + 2.75rem)";
+
+/** How long Esc is held in full screen to leave it (a shorter press is the game's button). */
+const ESC_HOLD_MS = 700;
+/** How long a quick Esc press holds its button down on the console. */
+const ESC_TAP_MS = 80;
 
 /** The plain-English line for an error from the engine or the decoder. */
 export function streamErrorMessage(tr: Tr, e: StreamError): string {
@@ -532,6 +538,9 @@ export function StreamPanel() {
   const otherStream = streaming && !running ? target : null;
   const otherProfile = otherStream ? profiles.find((p) => p.host === otherStream.host) ?? null : null;
   const playing = running && phase === "playing";
+  // Another device (a phone, another computer) playing this console: the PS5 takes one at a time.
+  const meshState = useMeshStore((s) => (profile ? meshFor(s, profile.host).state : null));
+  const otherDevices = useMemo(() => othersRemotePlaying(meshState).map(deviceName), [meshState]);
 
   // On show: controllers drive the console. Off: they do not, but the stream keeps running.
   // Only while it shows this stream: looking at another console must not play this one.
@@ -730,12 +739,47 @@ export function StreamPanel() {
     if (!useRemotePlayStore.getState().stream) await start();
   }, [start, stopStream]);
 
+  // Esc in full screen: a quick press is its button (Circle), held it leaves full screen. Its
+  // button is sent on release, so holding to leave never presses Circle in the game.
+  const escHold = useRef<{ timer: number; left: boolean } | null>(null);
+  const dropEscHold = useCallback(() => {
+    if (escHold.current) window.clearTimeout(escHold.current.timer);
+    escHold.current = null;
+  }, []);
+  useEffect(() => {
+    if (!full) dropEscHold();
+  }, [full, dropEscHold]);
+  useEffect(() => dropEscHold, [dropEscHold]);
   const onKey = useCallback(
     (e: React.KeyboardEvent, down: boolean) => {
-      // Full screen without a hidden pointer: Esc leaves full screen, as everywhere else.
-      if (down && e.code === "Escape" && full && !document.pointerLockElement) {
+      if (e.code === "Escape" && full) {
         e.preventDefault();
-        exitFull();
+        if (down) {
+          if (e.repeat || escHold.current) return;
+          const hold = {
+            left: false,
+            timer: window.setTimeout(() => {
+              hold.left = true;
+              exitFull();
+            }, ESC_HOLD_MS),
+          };
+          escHold.current = hold;
+          return;
+        }
+        const hold = escHold.current;
+        dropEscHold();
+        if (!hold || hold.left) return;
+        // Not a key for the game: a press leaves full screen, as everywhere else.
+        if (!running || !useRemotePlayStore.getState().keymap.Escape) {
+          exitFull();
+          return;
+        }
+        rpInput.held.add("Escape");
+        stream?.sendPad();
+        window.setTimeout(() => {
+          rpInput.held.delete("Escape");
+          stream?.sendPad();
+        }, ESC_TAP_MS);
         return;
       }
       if (!running || !useRemotePlayStore.getState().keymap[e.code]) return;
@@ -744,7 +788,7 @@ export function StreamPanel() {
       else rpInput.held.delete(e.code);
       stream?.sendPad();
     },
-    [full, exitFull, stream, running],
+    [full, exitFull, stream, running, dropEscHold],
   );
 
   // Shift + drag on the picture is a finger on the touchpad (for games that use it, like
@@ -806,12 +850,13 @@ export function StreamPanel() {
   // Full screen on an upright phone: the picture across the top, the controller below it.
   const portraitFull = compact && full && portrait;
   // The on-screen controller: under the bar on a computer; over the picture in full screen
-  // sideways (and on a sideways tablet page); on the black under the picture in full screen
-  // upright. On the upright page there is no room for it next to the app's own bars: Full
-  // screen is where it is.
+  // sideways; on the black under the picture in full screen upright. On a phone or tablet the
+  // page is view only (a scroll or a tap for the app's own bars must never press a button on
+  // the console): Full screen is where the controller is. A controller or keyboard connected
+  // to the device plays on the page too.
   const showTouch = running && touchFirst && !pip;
   const touchLayout: TouchLayout = !compact ? "overlay-bar" : portraitFull ? "deck" : "overlay";
-  const touchHere = showTouch && !(compact && !full && portrait);
+  const touchHere = showTouch && (!compact || full);
   const touchOverPicture = touchHere && touchLayout !== "deck";
   const openSettings = () => {
     if (full) exitFull();
@@ -1196,6 +1241,23 @@ export function StreamPanel() {
         </Callout>
       )}
 
+      {!running && otherDevices.length > 0 && (
+        <Callout
+          tone="warn"
+          title={tr(
+            "rp_other_device_playing",
+            { name: otherDevices.join(", ") },
+            `${otherDevices.join(", ")} is using Remote Play on this console`,
+          )}
+        >
+          {tr(
+            "rp_other_device_playing_body",
+            undefined,
+            "A PS5 plays Remote Play with one device at a time: starting here ends it there.",
+          )}
+        </Callout>
+      )}
+
       {!streaming && elsewhere && (
         <Callout
           tone="info"
@@ -1323,13 +1385,13 @@ export function StreamPanel() {
               <PlayMenu inFull={false} {...menuProps} />
             </div>
           )}
-          {showTouch && portrait && (
+          {showTouch && (
             <p className="flex items-center gap-2 px-1 text-xs text-[var(--color-muted)]" data-testid="rp-touch-in-full">
               <Gamepad2 size={14} className="shrink-0" />
               {tr(
-                "rp_touch_in_full",
+                "rp_view_only",
                 undefined,
-                "The on-screen controller is in Full screen, under the picture. Turn the phone sideways for the biggest picture.",
+                "View only here. Tap Full screen to play with the on-screen controller. A controller or keyboard connected to this device plays here too.",
               )}
             </p>
           )}
@@ -1349,9 +1411,9 @@ export function StreamPanel() {
       {!settingsOpen && !compact && (
         <p className="text-xs text-[var(--color-muted)]">
           {tr(
-            "rp_keys_body2",
+            "rp_keys_body3",
             undefined,
-            "Click the picture to play with the keyboard; Esc gives the pointer back. Double-click for full screen. Keys, sound and more are in Settings.",
+            "Click the picture to play with the keyboard; Esc gives the pointer back. Double-click for full screen; there a quick Esc is Circle and holding Esc leaves full screen. Keys, sound and more are in Settings.",
           )}
         </p>
       )}

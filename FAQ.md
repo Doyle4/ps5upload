@@ -2019,6 +2019,19 @@ Remote Play shows the console selected in the app. If another console is streami
 playing and the page offers it (**Show it**); **Start** on this one stops that stream first. The
 toolbar on the picture has mute and a volume slider.
 
+A PS5 plays Remote Play with one device at a time. When another device with ps5upload (a phone,
+another computer) is playing the selected console, the Remote Play page says so before you
+start, every device gets a short note when someone starts, and **Connection › Devices** lists it
+as that device's activity. Starting on a second device ends the first one's session.
+
+On the keyboard, **Esc** is Circle. In full screen a quick press is still Circle, and holding Esc
+leaves full screen (so backing out of a game menu never drops you out of full screen). In Safari
+and Firefox the browser itself leaves full screen on any Esc; use Backspace for Circle there.
+
+On a phone or tablet the Remote Play page is view only: the picture shows, but taps never reach
+the console. **Full screen** is where the on-screen controller is. A controller or keyboard
+connected to the phone or tablet plays on the page too.
+
 **Picture in picture** puts the stream in a small window that stays on top while you use other
 apps. The desktop app opens its own small always-on-top window; Chrome and Edge use the
 browser's picture-in-picture window. Safari's picture in picture shows the picture only: the
