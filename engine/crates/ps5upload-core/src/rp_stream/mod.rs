@@ -400,6 +400,11 @@ pub trait StreamSink {
     fn stopped(&mut self) -> bool {
         false
     }
+    /// True when the consumer needs a keyframe now (it joined mid-stream, or
+    /// dropped frames to keep up); asked of the console at most every 500 ms.
+    fn wants_keyframe(&mut self) -> bool {
+        false
+    }
 }
 
 /// Records the console's hold-off when a session ends, however it ends.
@@ -733,6 +738,12 @@ pub fn run_stream(
                 received.min(u16::MAX as u64) as u16,
                 lost.min(u16::MAX as u64) as u16,
             )?;
+        }
+        if sink.wants_keyframe()
+            && last_idr.is_none_or(|t: Instant| t.elapsed() > Duration::from_millis(500))
+        {
+            last_idr = Some(Instant::now());
+            takion.send_message(2, &proto::bare(proto::kind::IDRREQUEST))?;
         }
         // Video packets in order (late ones waited for briefly) into frames.
         let mut stop = false;

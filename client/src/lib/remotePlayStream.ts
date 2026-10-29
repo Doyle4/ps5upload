@@ -186,10 +186,12 @@ export function padFromGamepads(pads: ReadonlyArray<Gamepad | null>): PadState {
     });
     p.l2 = Math.max(p.l2, Math.round((g.buttons[6]?.value ?? 0) * 255));
     p.r2 = Math.max(p.r2, Math.round((g.buttons[7]?.value ?? 0) * 255));
-    p.lx = axis(g.axes[0] ?? 0);
-    p.ly = axis(g.axes[1] ?? 0);
-    p.rx = axis(g.axes[2] ?? 0);
-    p.ry = axis(g.axes[3] ?? 0);
+    // Several pads: the stick pushed furthest wins, so a resting pad does not cancel another.
+    const pick = (cur: number, v: number) => (Math.abs(v) > Math.abs(cur) ? v : cur);
+    p.lx = pick(p.lx, axis(g.axes[0] ?? 0));
+    p.ly = pick(p.ly, axis(g.axes[1] ?? 0));
+    p.rx = pick(p.rx, axis(g.axes[2] ?? 0));
+    p.ry = pick(p.ry, axis(g.axes[3] ?? 0));
   }
   return p;
 }
@@ -290,15 +292,30 @@ export interface StreamStats {
   lossPct: number;
   rebuilt: number;
   lost: number;
+  /** Sound waiting to play, in ms, and how often it ran dry since the start. */
+  audioMs: number;
+  underruns: number;
 }
 
-export type StreamPhase = "connecting" | "waking" | "starting" | "playing" | "ended" | "error";
+export type StreamPhase =
+  | "connecting"
+  | "waking"
+  | "starting"
+  | "playing"
+  /** The socket to the engine dropped; the session is still running and this rejoins it. */
+  | "reconnecting"
+  /** Another window took the stream; `takeOver()` brings it back here. */
+  | "moved"
+  | "ended"
+  | "error";
 
 export interface StreamError {
-  /** Stable, from the engine: busy, asleep, unreachable, keys, wake_failed, passcode,
-   *  video_refused, other — or client-side: decode, socket. */
+  /** Stable, from the engine: busy, busy_other, asleep, unreachable, keys, wake_failed,
+   *  passcode, video_refused, other — or client-side: decode, socket. */
   code: string;
   retryS?: number;
+  /** busy_other: the console that is streaming. */
+  host?: string;
   detail: string;
 }
 
@@ -308,7 +325,15 @@ export interface StreamOptions {
   rpKey: string;
   width: number;
   height: number;
-  canvas: HTMLCanvasElement;
+  fps?: number;
+  /** How long the engine keeps the session for this app to come back to. */
+  keepAliveS?: number;
+  /** Sound kept ready to play: lower is less delay, higher rides out a busy network. */
+  audioBufferMs?: number;
+  /** Join the session the engine already runs for this console; never start one. */
+  attach?: boolean;
+  /** False: the console's rumble is not played on the controllers. */
+  rumble?: () => boolean;
   onPhase: (p: StreamPhase) => void;
   onStats: (s: StreamStats) => void;
   onError: (e: StreamError) => void;
@@ -319,25 +344,118 @@ export interface StreamOptions {
   readPad: () => PadState;
 }
 
-const AUDIO_TARGET_S = 0.06;
-const AUDIO_MAX_S = 0.25;
+/** Waits between tries to rejoin after the socket dropped (the last one repeats), and for how
+ *  long in all. */
+const RECONNECT_WAITS_MS = [250, 500, 1000, 2000, 4000];
+const RECONNECT_FOR_MS = 30_000;
+/** Audio frames that may arrive ahead of a missing one before it is given up on. The engine
+ *  sends a lost frame's recovered copy (FEC) right after the next ones. */
+const AUDIO_HOLD = 3;
+/** The decoder this far behind: skip to the next keyframe rather than show old pictures. */
+const VIDEO_BACKLOG = 4;
 
-/** One running stream. `stop()` ends it (the engine ends the console session cleanly). */
+/** The audio player: a ring buffer in an AudioWorklet that starts once `target` samples are in,
+ *  fades in after a gap, and trims itself back when it runs ahead (a sound card a little slower
+ *  than the console) so delay never builds up. */
+const AUDIO_WORKLET = `
+class RpAudio extends AudioWorkletProcessor {
+  constructor() {
+    super();
+    this.cap = 48000;
+    this.buf = [new Float32Array(this.cap), new Float32Array(this.cap)];
+    this.r = 0; this.w = 0; this.n = 0;
+    this.target = 2880; this.primed = false; this.gain = 0; this.last = [0, 0];
+    this.under = 0; this.skip = 0; this.tick = 0;
+    this.port.onmessage = (e) => {
+      const d = e.data;
+      if (d.target) { this.target = d.target; return; }
+      if (d.reset) { this.r = this.w = this.n = 0; this.primed = false; return; }
+      this.push(d.planes, d.scale || 1);
+    };
+  }
+  push(planes, scale) {
+    const len = planes[0].length;
+    for (let i = 0; i < len; i++) {
+      if (this.n === this.cap) { this.r = (this.r + 1) % this.cap; this.n--; }
+      for (let c = 0; c < 2; c++) this.buf[c][this.w] = planes[c % planes.length][i] * scale;
+      this.w = (this.w + 1) % this.cap; this.n++;
+    }
+    // Far ahead after a stall: drop back to the target in one go.
+    if (this.n > this.target * 3) {
+      const drop = this.n - this.target;
+      this.r = (this.r + drop) % this.cap; this.n -= drop;
+    }
+  }
+  process(_inputs, outputs) {
+    const out = outputs[0];
+    const len = out[0].length;
+    if (!this.primed && this.n >= this.target) { this.primed = true; this.gain = 0; }
+    for (let i = 0; i < len; i++) {
+      if (!this.primed || this.n === 0) {
+        if (this.primed) { this.primed = false; this.under++; }
+        // Ease the last sample to silence instead of a hard step (a click).
+        for (let c = 0; c < out.length; c++) { this.last[c % 2] *= 0.95; out[c][i] = this.last[c % 2]; }
+        continue;
+      }
+      for (let c = 0; c < out.length; c++) {
+        const v = this.buf[c % 2][this.r] * this.gain;
+        out[c][i] = v; this.last[c % 2] = v;
+      }
+      if (this.gain < 1) this.gain = Math.min(1, this.gain + 1 / 480);
+      this.r = (this.r + 1) % this.cap; this.n--;
+      // Running ahead by more than 20 ms: skip one sample in 200 (inaudible) until back.
+      if (this.n > this.target + 960 && ++this.skip % 200 === 0 && this.n > 0) {
+        this.r = (this.r + 1) % this.cap; this.n--;
+      }
+    }
+    if (++this.tick % 24 === 0) this.port.postMessage({ ms: (this.n / sampleRate) * 1000, under: this.under });
+    return true;
+  }
+}
+registerProcessor("rp-audio", RpAudio);
+`;
+
+/** End the session the engine runs for `host` without showing it (it moved to another window,
+ *  or this page was reloaded). */
+export function stopEngineSession(host: string): void {
+  const ws = new WebSocket(getEngineUrl().replace(/^http/, "ws") + "/api/ps5/rp/ws");
+  ws.onopen = () => {
+    ws.send(JSON.stringify({ host, regist_key: "", rp_key: "", attach_only: true }));
+    ws.send(JSON.stringify({ stop: true }));
+    window.setTimeout(() => ws.close(), 1000);
+  };
+}
+
+/** One stream. It belongs to the app, not to a screen: leaving the screen keeps it (and the
+ *  console's session) running. `stop()` ends it. */
 export class RemotePlayStream {
+  /** The picture; the screen puts it on the page wherever it shows the stream. */
+  readonly canvas: HTMLCanvasElement;
+  private ctx: CanvasRenderingContext2D | null;
   private ws: WebSocket | null = null;
   private video: VideoDecoder | null = null;
   private header: Uint8Array | null = null;
   private hevc = false;
+  private codecChoice: "h265" | "h264" = "h264";
   private sawKey = false;
   private ts = 0;
   private queued: EncodedVideoChunk[] = [];
   private sentAt = new Map<number, number>();
   private audioCtx: AudioContext | null = null;
+  private gainNode: GainNode | null = null;
+  private worklet: AudioWorkletNode | null = null;
   private audio: AudioDecoder | null = null;
   private audioNext = 0;
-  private audioLastIdx = -1;
   private audioRate = 48000;
   private audioFrame = 480;
+  /** Next audio frame wanted (unwrapped), frames that came ahead of it, the last played. */
+  private audioWant = -1;
+  private audioAhead = new Map<number, Uint8Array>();
+  private audioLastOut = -1;
+  private audioPrev: Float32Array[] | null = null;
+  private audioMs = 0;
+  private underruns = 0;
+  private volume = 1;
   private lastPad = "";
   private raf = 0;
   private decoded = 0;
@@ -346,39 +464,49 @@ export class RemotePlayStream {
   private codec = "";
   private statsTimer = 0;
   private lastLoss = { lossPct: 0, rebuilt: 0, lost: 0 };
+  private phase: StreamPhase = "connecting";
+  /** The session is over (stopped here, ended by the engine or the console). */
   private ended = false;
+  private stopping = false;
+  private engineEnded = false;
+  private moved = false;
+  private reconnectSince = 0;
+  private reconnectTry = 0;
+  private reconnectTimer = 0;
 
-  constructor(private readonly o: StreamOptions) {}
+  constructor(private readonly o: StreamOptions) {
+    this.canvas = document.createElement("canvas");
+    this.canvas.className = "h-full w-full object-contain";
+    this.canvas.dataset.testid = "rp-canvas";
+    // desynchronized: frames go to the screen without waiting on the page's compositor.
+    this.ctx = this.canvas.getContext("2d", { alpha: false, desynchronized: true });
+  }
 
+  get host(): string {
+    return this.o.host;
+  }
+
+  get currentPhase(): StreamPhase {
+    return this.phase;
+  }
+
+  /** Start the session (call from the click that asks for it, so sound may play). */
   async start(): Promise<void> {
     const { width, height } = this.o;
-    const codec = await chooseCodec(width, height);
-    this.hevc = codec === "h265";
-    // Created inside the user's click so the browser lets it play.
-    this.audioCtx = new AudioContext({ latencyHint: "interactive" });
+    try {
+      // The console sends 48 kHz: a context at that rate never resamples 10 ms pieces.
+      this.audioCtx = new AudioContext({ sampleRate: 48000, latencyHint: "interactive" });
+    } catch {
+      this.audioCtx = new AudioContext({ latencyHint: "interactive" });
+    }
     void this.audioCtx.resume();
-    const url = getEngineUrl().replace(/^http/, "ws") + "/api/ps5/rp/ws";
-    const ws = new WebSocket(url);
-    ws.binaryType = "arraybuffer";
-    this.ws = ws;
-    this.o.onPhase("connecting");
-    ws.onopen = () => {
-      ws.send(
-        JSON.stringify({ host: this.o.host, regist_key: this.o.registKey, rp_key: this.o.rpKey, width, height, codec }),
-      );
-    };
-    ws.onmessage = (m) => {
-      if (typeof m.data === "string") return this.onStatus(m.data);
-      const b = new Uint8Array(m.data as ArrayBuffer);
-      const kind = b[0];
-      const payload = b.subarray(1);
-      if (kind <= 1) this.onVideo(kind, payload);
-      else this.onAudio(kind, payload);
-    };
-    ws.onclose = () => this.finish();
-    ws.onerror = () => {
-      if (!this.ended) this.o.onError({ code: "socket", detail: "The connection to the engine dropped." });
-    };
+    this.gainNode = this.audioCtx.createGain();
+    this.gainNode.gain.value = this.volume;
+    this.gainNode.connect(this.audioCtx.destination);
+    const [codec] = await Promise.all([chooseCodec(width, height), this.openWorklet()]);
+    this.codecChoice = codec;
+    this.hevc = codec === "h265";
+    this.connect(!!this.o.attach);
     const tick = () => {
       this.sendPad();
       this.raf = requestAnimationFrame(tick);
@@ -392,11 +520,133 @@ export class RemotePlayStream {
         mbps: ((this.bytes - lastBytes) * 8) / 1e6,
         decodeMs: this.decodeMs,
         codec: this.codec,
+        audioMs: this.audioMs,
+        underruns: this.underruns,
         ...this.lastLoss,
       });
       lastDecoded = this.decoded;
       lastBytes = this.bytes;
     }, 1000);
+  }
+
+  private async openWorklet(): Promise<void> {
+    const actx = this.audioCtx;
+    if (!actx?.audioWorklet || !this.gainNode) return;
+    const url = URL.createObjectURL(new Blob([AUDIO_WORKLET], { type: "application/javascript" }));
+    try {
+      await actx.audioWorklet.addModule(url);
+      const node = new AudioWorkletNode(actx, "rp-audio", { outputChannelCount: [2] });
+      node.port.onmessage = (e: MessageEvent<{ ms: number; under: number }>) => {
+        this.audioMs = e.data.ms;
+        this.underruns = e.data.under;
+      };
+      node.connect(this.gainNode);
+      this.worklet = node;
+      this.setAudioBuffer(this.o.audioBufferMs ?? 60);
+    } catch {
+      // No worklet here: frames are scheduled one by one instead.
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+  }
+
+  private setPhase(p: StreamPhase): void {
+    this.phase = p;
+    this.o.onPhase(p);
+  }
+
+  private connect(attachOnly: boolean): void {
+    const { width, height } = this.o;
+    const url = getEngineUrl().replace(/^http/, "ws") + "/api/ps5/rp/ws";
+    const ws = new WebSocket(url);
+    ws.binaryType = "arraybuffer";
+    this.ws = ws;
+    if (!attachOnly) this.setPhase("connecting");
+    ws.onopen = () => {
+      ws.send(
+        JSON.stringify({
+          host: this.o.host,
+          regist_key: this.o.registKey,
+          rp_key: this.o.rpKey,
+          width,
+          height,
+          fps: this.o.fps,
+          codec: this.codecChoice,
+          keep_alive_s: this.o.keepAliveS,
+          attach_only: attachOnly,
+        }),
+      );
+    };
+    ws.onmessage = (m) => {
+      if (ws !== this.ws) return;
+      if (typeof m.data === "string") return this.onStatus(m.data);
+      const b = new Uint8Array(m.data as ArrayBuffer);
+      const kind = b[0];
+      const payload = b.subarray(1);
+      if (kind <= 1) this.onVideo(kind, payload);
+      else this.onAudio(kind, payload);
+    };
+    // What a close means is decided in onclose; an error alone says nothing more.
+    ws.onerror = () => {};
+    ws.onclose = () => {
+      if (ws !== this.ws) return;
+      this.ws = null;
+      if (this.stopping || this.engineEnded) return this.finish();
+      if (this.moved) return this.setPhase("moved");
+      this.reconnect();
+    };
+  }
+
+  /** The socket dropped while the session runs: rejoin it, a little later each time. */
+  private reconnect(): void {
+    const now = Date.now();
+    if (this.phase !== "reconnecting") {
+      this.reconnectSince = now;
+      this.reconnectTry = 0;
+      this.setPhase("reconnecting");
+    }
+    if (now - this.reconnectSince > RECONNECT_FOR_MS) {
+      this.o.onError({ code: "socket", detail: "" });
+      return this.finish();
+    }
+    const wait = RECONNECT_WAITS_MS[Math.min(this.reconnectTry++, RECONNECT_WAITS_MS.length - 1)];
+    this.reconnectTimer = window.setTimeout(() => {
+      this.resetMedia();
+      this.connect(true);
+    }, wait);
+  }
+
+  /** Show the stream here again after another window took it. */
+  takeOver(): void {
+    if (this.ended || this.ws) return;
+    this.moved = false;
+    this.resetMedia();
+    this.setPhase("starting");
+    this.connect(true);
+  }
+
+  /** A fresh start for the picture and sound: the engine sends the headers again on attach. */
+  private resetMedia(): void {
+    try {
+      this.video?.close();
+    } catch {
+      // Already closed.
+    }
+    this.video = null;
+    this.header = null;
+    this.sawKey = false;
+    this.queued = [];
+    this.sentAt.clear();
+    try {
+      this.audio?.close();
+    } catch {
+      // Already closed.
+    }
+    this.audio = null;
+    this.audioWant = -1;
+    this.audioAhead.clear();
+    this.audioLastOut = -1;
+    this.worklet?.port.postMessage({ reset: true });
   }
 
   /** Send the pad now if it changed (call on key events so short taps are not missed). */
@@ -410,15 +660,29 @@ export class RemotePlayStream {
     ws.send(JSON.stringify({ pad: p }));
   }
 
-  /** Ask the engine to end the session; it reports and closes the socket itself. */
+  /** 0-1; 0 is muted. */
+  setVolume(v: number): void {
+    this.volume = Math.max(0, Math.min(1, v));
+    if (this.gainNode) this.gainNode.gain.value = this.volume;
+  }
+
+  setAudioBuffer(ms: number): void {
+    this.worklet?.port.postMessage({ target: Math.round((Math.max(20, ms) / 1000) * 48000) });
+  }
+
+  /** End the session; the engine reports it and closes the socket. */
   stop(): void {
+    this.stopping = true;
+    window.clearTimeout(this.reconnectTimer);
     const ws = this.ws;
-    if (!ws) return;
-    try {
-      ws.send(JSON.stringify({ stop: true }));
-    } catch {
-      // Already closing.
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      if (ws) ws.close();
+      else this.finish();
+      // A session nobody is attached to still has to be told.
+      if (!ws || ws.readyState !== WebSocket.OPEN) stopEngineSession(this.o.host);
+      return;
     }
+    ws.send(JSON.stringify({ stop: true }));
     window.setTimeout(() => ws.close(), 3000);
   }
 
@@ -427,19 +691,16 @@ export class RemotePlayStream {
     this.ended = true;
     cancelAnimationFrame(this.raf);
     window.clearInterval(this.statsTimer);
+    window.clearTimeout(this.reconnectTimer);
+    this.resetMedia();
     try {
-      this.video?.close();
+      this.worklet?.disconnect();
     } catch {
-      // Already closed.
-    }
-    try {
-      this.audio?.close();
-    } catch {
-      // Already closed.
+      // Already gone.
     }
     void this.audioCtx?.close();
     this.ws = null;
-    this.o.onPhase("ended");
+    this.setPhase("ended");
   }
 
   private onStatus(text: string): void {
@@ -449,6 +710,7 @@ export class RemotePlayStream {
       retry_s?: number;
       error?: string;
       stats?: Record<string, number>;
+      host?: string;
       rumble?: [number, number];
       light?: [number, number, number];
     };
@@ -458,6 +720,7 @@ export class RemotePlayStream {
       return;
     }
     if (s.rumble) {
+      if (this.o.rumble && !this.o.rumble()) return;
       playRumble(navigator.getGamepads?.() ?? [], s.rumble[0], s.rumble[1]);
       return;
     }
@@ -467,17 +730,17 @@ export class RemotePlayStream {
     }
     switch (s.stage) {
       case "waking":
-        this.o.onPhase("waking");
+        this.setPhase("waking");
         break;
       case "nonce":
       case "session":
       case "takion":
       case "bang":
       case "streaminfo":
-        this.o.onPhase("starting");
+        this.setPhase("starting");
         break;
       case "first_frame":
-        this.o.onPhase("playing");
+        this.setPhase("playing");
         break;
       case "stats": {
         const st = s.stats ?? {};
@@ -489,8 +752,20 @@ export class RemotePlayStream {
         };
         break;
       }
+      case "moved":
+        this.moved = true;
+        break;
+      case "ended":
+        this.engineEnded = true;
+        break;
       case "error":
-        this.o.onError({ code: s.code ?? "other", retryS: s.retry_s ?? undefined, detail: s.error ?? "" });
+        this.engineEnded = true;
+        this.o.onError({
+          code: s.code ?? "other",
+          retryS: s.retry_s ?? undefined,
+          host: s.host,
+          detail: s.error ?? "",
+        });
         break;
     }
   }
@@ -503,6 +778,11 @@ export class RemotePlayStream {
     }
     this.bytes += payload.length;
     const key = isKeyframe(payload, this.hevc);
+    // Behind: old pictures are no use to someone playing. Skip to a keyframe.
+    if (!key && this.video && this.video.decodeQueueSize > VIDEO_BACKLOG) {
+      this.sawKey = false;
+      this.ws?.send(JSON.stringify({ keyframe: true }));
+    }
     if (!this.sawKey && !key) return;
     this.sawKey = true;
     let data = payload;
@@ -513,6 +793,7 @@ export class RemotePlayStream {
     }
     this.ts += 16667;
     this.sentAt.set(this.ts, performance.now());
+    if (this.sentAt.size > 120) this.sentAt.clear();
     const chunk = new EncodedVideoChunk({ type: key ? "key" : "delta", timestamp: this.ts, data });
     if (!this.video || this.video.state !== "configured") {
       this.queued.push(chunk); // the HEVC codec string is still being probed
@@ -522,30 +803,39 @@ export class RemotePlayStream {
   }
 
   private openVideo(): void {
-    const ctx = this.o.canvas.getContext("2d");
-    this.video = new VideoDecoder({
+    const video = new VideoDecoder({
       output: (frame) => {
         const t = this.sentAt.get(frame.timestamp);
         if (t !== undefined) {
           this.decodeMs = performance.now() - t;
           this.sentAt.delete(frame.timestamp);
         }
-        const c = this.o.canvas;
+        const c = this.canvas;
         if (c.width !== frame.displayWidth || c.height !== frame.displayHeight) {
           c.width = frame.displayWidth;
           c.height = frame.displayHeight;
         }
-        ctx?.drawImage(frame, 0, 0, c.width, c.height);
+        this.ctx?.drawImage(frame, 0, 0, c.width, c.height);
         frame.close();
         this.decoded++;
       },
-      error: (e) => this.o.onError({ code: "decode", detail: String(e) }),
+      error: (e) => {
+        if (video !== this.video) return;
+        // A broken picture: start over from the next keyframe rather than give up.
+        this.video = null;
+        this.sawKey = false;
+        if (this.header) this.openVideo();
+        this.ws?.send(JSON.stringify({ keyframe: true }));
+        if (this.decoded === 0) this.o.onError({ code: "decode", detail: String(e) });
+      },
     });
+    this.video = video;
     const cfg = { optimizeForLatency: true, hardwareAcceleration: "prefer-hardware" as const };
     const configure = (codec: string) => {
+      if (video !== this.video) return;
       this.codec = codec;
-      this.video?.configure({ codec, ...cfg });
-      for (const q of this.queued) this.video?.decode(q);
+      video.configure({ codec, ...cfg });
+      for (const q of this.queued) video.decode(q);
       this.queued = [];
     };
     if (this.hevc) {
@@ -558,53 +848,107 @@ export class RemotePlayStream {
     }
   }
 
-  // Audio is played ~60 ms ahead: video draws the moment it decodes, so that keeps the two
-  // within a few tens of milliseconds while riding out network jitter. Too far behind (an
-  // underrun) or ahead (a stall piled frames up) and the schedule snaps back to the target.
   private onAudio(kind: number, payload: Uint8Array): void {
-    const actx = this.audioCtx;
-    if (!actx) return;
-    if (kind === 3) {
-      const dv = new DataView(payload.buffer, payload.byteOffset, payload.byteLength);
-      const channels = payload[0];
-      this.audioRate = dv.getUint32(2);
-      this.audioFrame = dv.getUint32(6);
-      this.audio = new AudioDecoder({
-        output: (data) => {
-          const n = data.numberOfFrames;
-          const buf = actx.createBuffer(data.numberOfChannels, n, data.sampleRate);
-          for (let c = 0; c < data.numberOfChannels; c++) {
-            const plane = new Float32Array(n);
-            data.copyTo(plane, { planeIndex: c, format: "f32-planar" });
-            buf.copyToChannel(plane, c);
-          }
-          data.close();
-          const now = actx.currentTime;
-          if (this.audioNext < now + 0.01 || this.audioNext > now + AUDIO_MAX_S) this.audioNext = now + AUDIO_TARGET_S;
-          const src = actx.createBufferSource();
-          src.buffer = buf;
-          src.connect(actx.destination);
-          src.start(this.audioNext);
-          this.audioNext += n / data.sampleRate;
-        },
-        error: () => {
-          // A bad audio frame is skipped; the picture carries on.
-        },
-      });
-      this.audio.configure({ codec: "opus", sampleRate: this.audioRate, numberOfChannels: channels });
-      return;
-    }
+    if (!this.audioCtx) return;
+    if (kind === 3) return this.openAudio(payload);
     if (!this.audio || this.audio.state !== "configured") return;
     const idx = (payload[0] << 8) | payload[1];
-    // In order; a late copy of a frame already played is dropped.
-    if (this.audioLastIdx >= 0 && ((idx - this.audioLastIdx) & 0xffff) >= 0x8000) return;
-    this.audioLastIdx = idx;
-    this.audio.decode(
-      new EncodedAudioChunk({
-        type: "key",
-        timestamp: idx * (this.audioFrame / this.audioRate) * 1e6,
-        data: payload.subarray(2),
-      }),
+    const data = payload.subarray(2);
+    if (this.audioWant < 0) this.audioWant = idx;
+    const d = (idx - (this.audioWant & 0xffff)) & 0xffff;
+    if (d >= 0x8000) return; // a copy of a frame already played
+    if (d > 200) {
+      // Far ahead (a long stall): start again from here.
+      this.audioAhead.clear();
+      this.audioWant = idx;
+      return this.onAudio(kind, payload);
+    }
+    const u = this.audioWant + d;
+    if (d === 0) {
+      this.decodeAudio(u, data);
+      this.audioWant++;
+    } else {
+      this.audioAhead.set(u, data.slice());
+      // A frame missing for too long is given up on (the output covers the gap).
+      if (this.audioAhead.size > AUDIO_HOLD) {
+        while (!this.audioAhead.has(this.audioWant)) this.audioWant++;
+      }
+    }
+    for (let next = this.audioAhead.get(this.audioWant); next; next = this.audioAhead.get(this.audioWant)) {
+      this.audioAhead.delete(this.audioWant);
+      this.decodeAudio(this.audioWant, next);
+      this.audioWant++;
+    }
+  }
+
+  private decodeAudio(u: number, data: Uint8Array): void {
+    this.audio?.decode(
+      new EncodedAudioChunk({ type: "key", timestamp: Math.round(u * (this.audioFrame / this.audioRate) * 1e6), data }),
     );
+  }
+
+  private openAudio(header: Uint8Array): void {
+    const actx = this.audioCtx;
+    if (!actx) return;
+    const dv = new DataView(header.buffer, header.byteOffset, header.byteLength);
+    const channels = header[0];
+    this.audioRate = dv.getUint32(2);
+    this.audioFrame = dv.getUint32(6);
+    const frameUs = (this.audioFrame / this.audioRate) * 1e6;
+    try {
+      this.audio?.close();
+    } catch {
+      // Already closed.
+    }
+    const audio = new AudioDecoder({
+      output: (data) => {
+        const n = data.numberOfFrames;
+        const planes: Float32Array[] = [];
+        for (let c = 0; c < data.numberOfChannels; c++) {
+          const plane = new Float32Array(n);
+          data.copyTo(plane, { planeIndex: c, format: "f32-planar" });
+          planes.push(plane);
+        }
+        const u = Math.round(data.timestamp / frameUs);
+        data.close();
+        // Frames that never came: the one before, quieter, instead of a hard gap (a click).
+        const missing = this.audioLastOut >= 0 ? Math.min(u - this.audioLastOut - 1, AUDIO_HOLD) : 0;
+        for (let k = 0; k < missing && this.audioPrev; k++) this.play(this.audioPrev, 0.5 / (k + 1));
+        this.audioLastOut = u;
+        this.audioPrev = planes;
+        this.play(planes, 1);
+      },
+      error: () => {
+        // Start over on the next header-less frame: a new decoder for the same stream.
+        if (audio === this.audio) {
+          this.audio = null;
+          this.openAudio(header);
+        }
+      },
+    });
+    audio.configure({ codec: "opus", sampleRate: this.audioRate, numberOfChannels: channels });
+    this.audio = audio;
+  }
+
+  private play(planes: Float32Array[], scale: number): void {
+    if (this.worklet) {
+      const copy = scale === 1 ? planes : planes.map((p) => p.slice());
+      this.worklet.port.postMessage({ planes: copy, scale });
+      return;
+    }
+    // No worklet: each frame scheduled back to back ~60 ms ahead.
+    const actx = this.audioCtx;
+    if (!actx || !this.gainNode) return;
+    const n = planes[0].length;
+    const buf = actx.createBuffer(planes.length, n, this.audioRate);
+    planes.forEach((p, c) => buf.copyToChannel(scale === 1 ? (p as Float32Array<ArrayBuffer>) : p.map((v) => v * scale), c));
+    const now = actx.currentTime;
+    if (this.audioNext < now + 0.01) this.audioNext = now + 0.06;
+    if (this.audioNext > now + 0.25) return; // already far enough ahead: drop rather than pile up
+    const src = actx.createBufferSource();
+    src.buffer = buf;
+    src.connect(this.gainNode);
+    src.start(this.audioNext);
+    this.audioNext += n / this.audioRate;
   }
 }

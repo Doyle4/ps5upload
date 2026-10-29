@@ -164,7 +164,7 @@ export const NAV_ITEMS: NavItem[] = [
   {
     to: "/play",
     key: "play_title",
-    fallback: "Play",
+    fallback: "Remote Play",
     icon: MonitorPlay,
     beta: true,
   },

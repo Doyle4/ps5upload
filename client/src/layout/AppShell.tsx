@@ -5,6 +5,7 @@ import { Lock, Moon, RefreshCw, RotateCw, Search, Sun, WifiOff, X } from "lucide
 import { localNetworkBlocked, requestLocalNetwork } from "../lib/androidLocalNetwork";
 import StatusBar from "./StatusBar";
 import SessionBanner from "./SessionBanner";
+import RemotePlayBanner from "./RemotePlayBanner";
 import EngineDownBanner from "./EngineDownBanner";
 import MovedConsoleBanner, { useMovedConsoleWatch } from "./MovedConsoleBanner";
 import { PairingDialog } from "../screens/Connection/PairingDialog";
@@ -1613,6 +1614,7 @@ export default function AppShell() {
       </div>
       <HelperVersionBanner />
       <SessionBanner />
+      <RemotePlayBanner />
       <MovedConsoleBanner />
       <EngineDownBanner />
       <AndroidLocalNetworkBanner />
