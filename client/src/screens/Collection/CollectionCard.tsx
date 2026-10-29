@@ -312,6 +312,7 @@ export const CollectionCard = memo(function CollectionCard({
   selecting,
   selected,
   onToggleSelect,
+  onlyOnConsole,
 }: {
   game: CollectionGame;
   onOpen: (gameId: string) => void;
@@ -322,6 +323,8 @@ export const CollectionCard = memo(function CollectionCard({
   selecting?: boolean;
   selected?: boolean;
   onToggleSelect?: (gameId: string) => void;
+  /** Installed on the selected console with no copy here: says so instead of "0 copies". */
+  onlyOnConsole?: boolean;
 } & GameConsoleContext) {
   const tr = useTr();
   const copiesLabel = useCopiesLabel();
@@ -418,11 +421,19 @@ export const CollectionCard = memo(function CollectionCard({
             titleAttr={`${game.title} · ${game.game_id}`}
             meta={
               <>
-                <span className="truncate">{copiesLabel(game)}</span>
-                <MetaDot />
-                <span className="shrink-0 tabular-nums">
-                  {formatCollectionBytes(game.total_size_bytes)}
-                </span>
+                {onlyOnConsole ? (
+                  <span className="truncate">
+                    {tr("collection.only_on_console", undefined, "On the PS5 only")}
+                  </span>
+                ) : (
+                  <>
+                    <span className="truncate">{copiesLabel(game)}</span>
+                    <MetaDot />
+                    <span className="shrink-0 tabular-nums">
+                      {formatCollectionBytes(game.total_size_bytes)}
+                    </span>
+                  </>
+                )}
                 {!!playSec && playSec > 0 && (
                   <>
                     <MetaDot />

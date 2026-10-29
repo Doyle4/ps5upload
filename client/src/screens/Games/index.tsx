@@ -3,7 +3,6 @@ import {
   FolderArchive,
   Gamepad2,
   HardDriveDownload,
-  Laptop,
   Settings2,
 } from "lucide-react";
 import { useSearchParams } from "react-router";
@@ -14,18 +13,18 @@ import { useTr } from "../../state/lang";
 import CollectionScreen from "../Collection";
 import InstalledAppsScreen from "../InstalledApps";
 import LibraryScreen from "../Library";
-import { AllGames } from "./AllGames";
 import { DumpsView } from "./Dumps";
 import { gamesTabOf, type GamesTab } from "./gamesTab";
 
 /**
- * Games: every game once, wherever its copies are (AllGames), narrowed by where they are
- * (`?where=`). A game opens its game page, which holds every action for every copy.
+ * Games: one grid, every game once (CollectionScreen): your copies, plus what the selected PS5
+ * has installed that you have no copy of. Its filters narrow it to what is or isn't on that
+ * console. A game opens its game page, which holds every action for every copy.
  *
  * The work that is about one place rather than one game (an installed game's upkeep, the PS5's
  * drives, the folders and servers this computer reads, dumping) is under Manage, as its own
- * view (`?tab=ready|files|all|dumps`, the ids of the tabs these views used to be, so every link
- * to them still lands). They used to be tabs beside the list, each listing the same games again.
+ * view (`?tab=ready|files|dumps`, the ids of the tabs these views used to be, so every link
+ * to them still lands; `?tab=all`, the old copies tab, is the grid).
  */
 export default function GamesScreen() {
   const tr = useTr();
@@ -44,7 +43,6 @@ export default function GamesScreen() {
   const manageLabel: Record<Exclude<GamesTab, "any">, string> = {
     ready: tr("games_manage_installed", undefined, "Installed games"),
     files: tr("games_manage_drives", undefined, "Games on the PS5's drives"),
-    all: tr("games_manage_yours", undefined, "Your copies"),
     dumps: tr("games_manage_dumps", undefined, "Dump games"),
   };
   const manage = (
@@ -66,11 +64,6 @@ export default function GamesScreen() {
           onSelect: () => show("files"),
         },
         {
-          label: manageLabel.all,
-          icon: <Laptop size={14} />,
-          onSelect: () => show("all"),
-        },
-        {
           label: manageLabel.dumps,
           icon: <HardDriveDownload size={14} />,
           onSelect: () => show("dumps"),
@@ -87,12 +80,12 @@ export default function GamesScreen() {
           title={label}
           right={manage}
           description={tr(
-            "games_one_description",
+            "games_grid_description",
             undefined,
-            "Every game you have, once each: installed on the PS5, on its drives, on this computer or a saved server. Open one to see all its copies and what you can do with them.",
+            "Every game you have, once each: your copies on this computer or a saved server, and what the PS5 has installed. Filter by what is on the PS5; open a game for all its copies and actions.",
           )}
         />
-        <AllGames onShow={show} />
+        <CollectionScreen embedded />
       </div>
     );
   }
@@ -107,11 +100,6 @@ export default function GamesScreen() {
       "games_files_description",
       undefined,
       "Game folders and disk images found in console storage. Mount, register, move, or inspect source files here.",
-    ),
-    all: tr(
-      "games_yours_description",
-      undefined,
-      "The folders and saved servers your copies are read from: add or rescan them, organize and clean up, export the list.",
     ),
     dumps: tr(
       "games_dumps_description",
@@ -141,8 +129,6 @@ export default function GamesScreen() {
           <DumpsView />
         ) : tab === "files" ? (
           <LibraryScreen />
-        ) : tab === "all" ? (
-          <CollectionScreen embedded />
         ) : (
           <InstalledAppsScreen />
         )}

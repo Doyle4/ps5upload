@@ -172,6 +172,7 @@ describe("the console overlay", () => {
     expect(ids("update")).toEqual(["CUSA00900"]);
     expect(ids("dlc")).toEqual(["PPSA01234"]);
     expect(consoleCounts(games, states)).toEqual({
+      installed: 2,
       missing: 1,
       update: 1,
       dlc: 1,

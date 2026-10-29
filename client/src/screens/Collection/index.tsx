@@ -77,9 +77,11 @@ import { bestConvertible } from "../../lib/collectionConvert";
 import { shrinkCandidate } from "../../lib/collectionInsights";
 import { startCopyChecks } from "../../state/copyChecks";
 import { SendManyModal } from "./SendManyModal";
+import type { CollectionGame } from "../../api/collection";
+import { useInstalledTitles } from "../../state/installedTitles";
 
 /** The games kept on this computer's drives: PS Game Library, inside ps5upload.
- *  `embedded`: shown as the Games screen's Everything view, under that screen's own
+ *  `embedded`: shown as the Games screen's grid, under that screen's own
  *  header, so only the actions are drawn here (no page title or page padding). */
 export default function CollectionScreen({ embedded = false }: { embedded?: boolean } = {}) {
   const tr = useTr();
@@ -138,7 +140,7 @@ export default function CollectionScreen({ embedded = false }: { embedded?: bool
     if (host && helperUp && generatedAt) void loadConsoleStates(host);
   }, [host, helperUp, generatedAt]);
   const consoleEntry = host ? s.consoleByHost[host] : undefined;
-  const consoleStates = useMemo(
+  const copyStates = useMemo(
     () =>
       helperUp && consoleEntry
         ? new Map<string, GameConsoleState>(Object.entries(consoleEntry.states))
@@ -161,7 +163,37 @@ export default function CollectionScreen({ embedded = false }: { embedded?: bool
     [tracked, playByHost, seenByHost, host],
   );
   const lastPlayed = useCallback((id: string) => playOf(id).lastSeenMs, [playOf]);
-  const games = useMemo(() => collectionGames(s.library), [s.library]);
+  const copies = useMemo(() => collectionGames(s.library), [s.library]);
+  // Games is one view: the games installed on the selected console that have no copy here show
+  // as cards too ("On the PS5 only"), so the console filter covers everything the PS5 has.
+  const installedTitles = useInstalledTitles(helperUp ? host : undefined);
+  const consoleOnly = useMemo(() => {
+    const have = new Set(copies.map((g) => g.game_id.toUpperCase()));
+    return (installedTitles ?? [])
+      .filter((t) => !t.system && t.titleId && !have.has(t.titleId.toUpperCase()))
+      .map(
+        (t): CollectionGame => ({
+          game_id: t.titleId,
+          title: t.titleName || t.titleId,
+          platform: /^CUSA/i.test(t.titleId) ? "PS4" : "PS5",
+          sources: [],
+          locations: [],
+          total_size_bytes: 0,
+          copies: 0,
+          is_duplicate: false,
+          added_ts: 0,
+        }),
+      );
+  }, [copies, installedTitles]);
+  const consoleOnlyIds = useMemo(() => new Set(consoleOnly.map((g) => g.game_id)), [consoleOnly]);
+  const games = useMemo(() => copies.concat(consoleOnly), [copies, consoleOnly]);
+  const consoleStates = useMemo(() => {
+    if (!copyStates && consoleOnly.length === 0) return undefined;
+    const m = new Map(copyStates ?? []);
+    for (const g of consoleOnly)
+      m.set(g.game_id, { game_id: g.game_id, installed: true, dlc_missing: [], non_package_copy: false });
+    return m;
+  }, [copyStates, consoleOnly]);
   const shown = useMemo(
     () =>
       viewGames(games, {
@@ -189,8 +221,8 @@ export default function CollectionScreen({ embedded = false }: { embedded?: bool
     ],
   );
   const counts = useMemo(
-    () => filterCounts(games, { cheatIds }),
-    [games, cheatIds],
+    () => filterCounts(copies, { cheatIds }),
+    [copies, cheatIds],
   );
   const cCounts = useMemo(
     () => consoleCounts(games, consoleStates, consoleFw),
@@ -546,7 +578,7 @@ export default function CollectionScreen({ embedded = false }: { embedded?: bool
 
       {/* Not loaded (the read failed): an unread collection is not an empty
           one, so no "add the folder that holds your games" under the error. */}
-      {!s.settings ? null : roots.length === 0 ? (
+      {!s.settings ? null : roots.length === 0 && consoleOnly.length === 0 ? (
         <EmptyState
           fill
           icon={Library}
@@ -769,6 +801,11 @@ export default function CollectionScreen({ embedded = false }: { embedded?: bool
                     games.length,
                   ],
                   [
+                    "installed",
+                    tr("collection.console_installed", undefined, "Installed"),
+                    cCounts.installed,
+                  ],
+                  [
                     "missing",
                     tr(
                       "collection.console_missing",
@@ -901,6 +938,7 @@ export default function CollectionScreen({ embedded = false }: { embedded?: bool
                 <CollectionCard
                   key={g.game_id}
                   game={g}
+                  onlyOnConsole={consoleOnlyIds.has(g.game_id)}
                   activity={activityOf(g)}
                   consoleState={consoleStates?.get(g.game_id)}
                   onOpen={openGame}

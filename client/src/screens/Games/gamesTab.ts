@@ -1,15 +1,14 @@
 /**
  * Games' views, by `?tab=`:
- * - `any` (none, or anything unknown): All, every game once with where its copies are.
+ * - `any` (none, or anything unknown): the grid, every game once.
  * - `ready`: Installed, the games the PS5 has registered.
  * - `files`: On PS5 Storage, game folders and images on the console's drives.
- * - `dumps`: Dumps, installed games dumped to a drive by ps5-app-dumper.
- * - `all`: On This Computer, the Collection. (Its old id: it was "Everything", and links to
- *   `?tab=all` keep opening it.)
+ * - `dumps`: Dumps, installed games dumped to a drive.
+ * (`all` was the copies tab; the grid is those copies now, so links to it land there.)
  */
-export type GamesTab = "any" | "ready" | "files" | "all" | "dumps";
+export type GamesTab = "any" | "ready" | "files" | "dumps";
 
-/** The view a `?tab=` value names; anything unknown (or none) is All. */
+/** The view a `?tab=` value names; anything unknown (or none) is the grid. */
 export function gamesTabOf(param: string | null): GamesTab {
-  return param === "ready" || param === "files" || param === "all" || param === "dumps" ? param : "any";
+  return param === "ready" || param === "files" || param === "dumps" ? param : "any";
 }

@@ -61,7 +61,7 @@ export const COLLECTION_SORTS: CollectionSort[] = [
 ];
 
 /** What a game is to the selected console. */
-export type ConsoleFilter = "any" | "missing" | "update" | "dlc" | "firmware";
+export type ConsoleFilter = "any" | "installed" | "missing" | "update" | "dlc" | "firmware";
 
 /** What the filters and sorts look at beyond the games themselves. */
 export interface CollectionContext {
@@ -94,6 +94,7 @@ export function matchesConsole(
   if (!f || f === "any" || !states) return true;
   const st = states.get(g.game_id);
   if (!st) return false;
+  if (f === "installed") return st.installed;
   if (f === "missing") return !st.installed;
   if (f === "update") return !!st.installed && !!st.update;
   return st.installed && st.dlc_missing.length > 0;
@@ -104,12 +105,13 @@ export function consoleCounts(
   states: Map<string, GameConsoleState> | undefined,
   consoleFw?: string | null,
 ): Record<Exclude<ConsoleFilter, "any">, number> {
-  const out = { missing: 0, update: 0, dlc: 0, firmware: 0 };
+  const out = { installed: 0, missing: 0, update: 0, dlc: 0, firmware: 0 };
   if (consoleFw)
     for (const g of games)
       if (matchesConsole(g, "firmware", states, consoleFw)) out.firmware += 1;
   if (!states) return out;
   for (const g of games) {
+    if (matchesConsole(g, "installed", states)) out.installed += 1;
     if (matchesConsole(g, "missing", states)) out.missing += 1;
     if (matchesConsole(g, "update", states)) out.update += 1;
     if (matchesConsole(g, "dlc", states)) out.dlc += 1;
