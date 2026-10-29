@@ -1886,7 +1886,7 @@ computer, and sort either tab by date (newest or oldest first) or by size; to de
 **Q: Downloading a screenshot or folder under `/original_user` fails.**
 On some setups (kstuff with ShadowMount+, for example) the console's `/user` resolves to
 `/original_user`, the same data under its other name, and the helper refused to read from there
-(#531). Since 9.0.0 it reads `/original_user` (read-only: writes still go to `/user`), so those
+(#531). Since 9.0.1 it reads `/original_user` (read-only: writes still go to `/user`), so those
 downloads work again once the PS5 runs the current helper.
 
 **Q: What does the play time in Games actually track?**

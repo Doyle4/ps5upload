@@ -4,7 +4,10 @@ What's new in ps5upload, written for humans.
 
 ---
 
-## 9.0.0
+## 9.0.1
+
+The first 9.0 release. (9.0.0 was tagged, but its Windows build failed to link the new RAR
+helper, so it was never published; 9.0.1 is the same release with that fixed.)
 
 - **Every game on one page.** Installed games and Games on the PS5's drives are no longer views
   of their own. The Games grid shows every game once: your copies, what the PS5 has installed,
