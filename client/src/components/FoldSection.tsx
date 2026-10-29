@@ -1,4 +1,6 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+
+import { OPEN_FOLD } from "../screens/Send/sendEvents";
 import { ChevronRight } from "lucide-react";
 
 /**
@@ -40,8 +42,20 @@ export function FoldSection({
       return !o;
     });
   };
+  // Opened from elsewhere on the page (Send to PS5's intro): open and come into view.
+  const ref = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const onOpen = (e: Event) => {
+      if ((e as CustomEvent<string>).detail !== id) return;
+      setOpen(true);
+      ref.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    };
+    window.addEventListener(OPEN_FOLD, onOpen);
+    return () => window.removeEventListener(OPEN_FOLD, onOpen);
+  }, [id]);
   return (
     <section
+      ref={ref}
       aria-labelledby={`${id}-heading`}
       className="mb-4"
       data-testid={`fold-${id}`}

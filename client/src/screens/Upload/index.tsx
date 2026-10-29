@@ -1,4 +1,5 @@
 import BrowserFilePicker from "./BrowserFilePicker";
+import { SEND_CHOOSE_PACKAGE } from "../Send/sendEvents";
 import { consoleAddr } from "../../lib/addr";
 import { useEffect, useMemo, useState } from "react";
 import { PackagePanel } from "../../components/PackagePanel";
@@ -369,7 +370,7 @@ export default function UploadScreen({
     }
   };
 
-  const handleChooseFile = async () => {
+  const handleChooseFile = async (opts?: { packages?: boolean }) => {
     try {
       // Android: the native dialog returns content:// URIs the engine
       // can't read, so browse the real filesystem in-app instead. Browser
@@ -380,7 +381,17 @@ export default function UploadScreen({
       const selected =
         isMobile() || !isTauriEnv()
           ? await pickLocalPaths({ mode: "file" })
-          : await openDialog({ directory: false, multiple: true });
+          : await openDialog({
+              directory: false,
+              multiple: true,
+              // Send to PS5's "Install a package": packages first (the dialog can still show all).
+              filters: opts?.packages
+                ? [
+                    { name: "PS4/PS5 packages", extensions: ["pkg", "fpkg", "ffpkg"] },
+                    { name: "All files", extensions: ["*"] },
+                  ]
+                : undefined,
+            });
       const list = Array.isArray(selected)
         ? selected
         : typeof selected === "string"
@@ -404,6 +415,13 @@ export default function UploadScreen({
       );
     }
   };
+
+  // Send to PS5's "Install a package" opens this screen's picker.
+  useEffect(() => {
+    const onAsk = () => void handleChooseFile({ packages: true });
+    window.addEventListener(SEND_CHOOSE_PACKAGE, onAsk);
+    return () => window.removeEventListener(SEND_CHOOSE_PACKAGE, onAsk);
+  });
 
   const handleChooseFolder = async () => {
     try {
@@ -842,7 +860,7 @@ export default function UploadScreen({
       <Step1Picker
         active={!source}
         dropActive={dropActive}
-        onFile={handleChooseFile}
+        onFile={() => void handleChooseFile()}
         onFolder={handleChooseFolder}
         onRemoteFile={(p) =>
           batchRows.length > 0
@@ -1001,6 +1019,7 @@ function Step1Picker({
   const tr = useTr();
   return (
     <section
+      data-testid="send-drop"
       className={clsx(
         // A soft dashed glass well: the drop target reads as a place, not a form field.
         "relative mb-6 overflow-hidden rounded-[var(--radius-panel)] border-2 border-dashed px-5 py-10 text-center transition-colors sm:px-8",
@@ -1020,14 +1039,14 @@ function Step1Picker({
       <div className="relative text-base font-semibold tracking-[-0.01em]">
         {isMobile()
           ? tr(
-              "upload_pick_here_mobile",
+              "upload_pick_here_mobile2",
               undefined,
-              "Pick a file or folder to upload",
+              "Pick a package to install, or a file or folder to copy",
             )
           : tr(
-              "upload_drop_here",
+              "upload_drop_here2",
               undefined,
-              "Drop a file or folder here — it's detected automatically",
+              "Drop a package to install it, or a game folder, image or file to copy it",
             )}
       </div>
       <div className="relative mt-5 flex flex-wrap items-center justify-center gap-2">
@@ -1059,9 +1078,9 @@ function Step1Picker({
       </div>
       <p className="relative mx-auto mt-5 max-w-md text-xs leading-relaxed text-[var(--color-muted)]">
         {tr(
-          "upload_picker_hint",
+          "upload_picker_hint2",
           undefined,
-          "Files: any file — .exfat images unlock a mount-after-upload option. Folders: game folders are auto-detected from sce_sys/param.sfo.",
+          "Packages (.pkg, .fpkg) install on the PS5 as a game, update or DLC: streamed straight to the installer, or uploaded first. Game folders are found by sce_sys/param.sfo and can go on the home screen; .exfat and .ffpfs images can be mounted.",
         )}
       </p>
       <p className="relative mx-auto mt-1 max-w-md text-xs leading-relaxed text-[var(--color-muted)]">
