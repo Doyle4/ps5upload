@@ -169,12 +169,12 @@ impl Piece<'_> {
     }
 }
 
-/// One running helper. Dropping it kills the program (a cancelled or failed walk
-/// stops decoding at once).
+/// One running helper. Dropping it stops the program (a cancelled or failed walk stops
+/// decoding at once): see [`Process::stop`].
 struct Process {
     child: Child,
     stdin: Option<ChildStdin>,
-    out: BufReader<ChildStdout>,
+    out: Option<BufReader<ChildStdout>>,
     buf: Vec<u8>,
     /// The program was killed or answered its last frame; nothing more will come.
     finished: bool,
@@ -182,13 +182,29 @@ struct Process {
 
 impl Drop for Process {
     fn drop(&mut self) {
-        self.stdin = None;
-        let _ = self.child.kill();
-        let _ = self.child.wait();
+        self.stop();
     }
 }
 
 impl Process {
+    /// Ends the program. Both pipes are closed first: the helper then hits a closed pipe
+    /// (a write mid-decode, or the next command read) and exits on its own, so it ends
+    /// cleanly (its exit work runs, which an instrumented test build needs to write its
+    /// coverage data). Only one that has not exited after a moment is killed.
+    fn stop(&mut self) {
+        self.stdin = None;
+        self.out = None;
+        // Up to 2 s, checked often: a helper mid-decode ends within a write or two.
+        for _ in 0..400 {
+            match self.child.try_wait() {
+                Ok(Some(_)) | Err(_) => return,
+                Ok(None) => std::thread::sleep(std::time::Duration::from_millis(5)),
+            }
+        }
+        let _ = self.child.kill();
+        let _ = self.child.wait();
+    }
+
     fn start(
         bin: &Path,
         op: &str,
@@ -224,7 +240,7 @@ impl Process {
         let mut p = Process {
             child,
             stdin: Some(stdin),
-            out: BufReader::with_capacity(1 << 20, stdout),
+            out: Some(BufReader::with_capacity(1 << 20, stdout)),
             buf: Vec::new(),
             finished: false,
         };
@@ -267,13 +283,19 @@ impl Process {
             return Err(helper_err("ps5upload-unrar has already finished"));
         }
         let mut hdr = [0u8; 5];
-        if self.out.read_exact(&mut hdr).is_err() {
+        let Some(out) = self.out.as_mut() else {
+            return Err(self.died());
+        };
+        if out.read_exact(&mut hdr).is_err() {
             return Err(self.died());
         }
         let len = u32::from_le_bytes([hdr[1], hdr[2], hdr[3], hdr[4]]) as usize;
         self.buf.clear();
         self.buf.resize(len, 0);
-        if self.out.read_exact(&mut self.buf).is_err() {
+        let Some(out) = self.out.as_mut() else {
+            return Err(self.died());
+        };
+        if out.read_exact(&mut self.buf).is_err() {
             return Err(self.died());
         }
         if matches!(hdr[0], b'X' | b'Z') {
@@ -460,8 +482,7 @@ impl Walk {
             };
             if !go {
                 self.p.finished = true;
-                self.p.stdin = None;
-                let _ = self.p.child.kill();
+                self.p.stop();
                 return Err(helper_err("the rar decode was stopped"));
             }
         }
