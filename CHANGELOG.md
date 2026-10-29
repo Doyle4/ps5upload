@@ -4,6 +4,18 @@ What's new in ps5upload, written for humans.
 
 ---
 
+## 8.10.0
+
+- **Send to PS5's Upload goes through the queue.** Upload adds the item to the console's
+  queue and starts it, like Upload & install always did for a package. Its progress, install,
+  mount and result show on its queue row with the rest, and a running queue no longer blocks
+  Upload: the new item starts after what is being sent. The Override / Resume question when the
+  destination already has files is unchanged.
+- **Volumes: Free up space** on each drive opens "What takes space?" for it. Once a drive is
+  80% full it is the card's main button.
+- **Minion: the running game's Saves.** Home's "Now running" card has Saves beside Close game
+  and Cheats, to back up (or restore) that game's save.
+
 ## 8.9.0
 
 - **Games is one list.** Every game shows once, wherever its copies are, and each row names
