@@ -6092,6 +6092,7 @@ library_compressed_hint: "Imagens compactadas precisam do ShadowMount+ para joga
 "cw_system_title": "Sistema",
 "upload_after_running": "Começa depois do que a fila está enviando agora",
 "volumes_free_up": "Liberar espaço",
+"cw_home_game_saves": "Saves",
 };
 
 export default pt_BR;

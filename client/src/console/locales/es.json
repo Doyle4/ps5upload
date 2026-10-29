@@ -707,6 +707,7 @@
   "cw_home_err_load_tasks": "No se pudo leer la lista de tareas.",
   "cw_home_err_offline": "La consola no respondió. Inténtalo de nuevo.",
   "cw_home_free_of": "{free} libres de {total}",
+  "cw_home_game_saves": "Partidas",
   "cw_home_keep_task": "Continuar",
   "cw_home_kind_copy": "Copia",
   "cw_home_kind_download": "Descarga",

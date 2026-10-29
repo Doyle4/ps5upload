@@ -6330,6 +6330,7 @@ library_compressed_hint: "Skompresowane obrazy wymagają ShadowMount+, aby grać
 "cw_system_title": "System",
 "upload_after_running": "Zacznie się po tym, co kolejka wysyła teraz",
 "volumes_free_up": "Zwolnij miejsce",
+"cw_home_game_saves": "Zapisy",
 };
 
 export default pl;

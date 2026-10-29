@@ -707,6 +707,7 @@
   "cw_home_err_load_tasks": "작업 목록을 읽을 수 없습니다.",
   "cw_home_err_offline": "콘솔이 응답하지 않았습니다. 다시 시도하세요.",
   "cw_home_free_of": "{total} 중 {free} 남음",
+  "cw_home_game_saves": "저장 데이터",
   "cw_home_keep_task": "계속 진행",
   "cw_home_kind_copy": "복사",
   "cw_home_kind_download": "다운로드",

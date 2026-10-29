@@ -707,6 +707,7 @@
   "cw_home_err_load_tasks": "อ่านรายการงานไม่ได้",
   "cw_home_err_offline": "คอนโซลไม่ตอบสนอง ลองอีกครั้ง",
   "cw_home_free_of": "ว่าง {free} จาก {total}",
+  "cw_home_game_saves": "เซฟ",
   "cw_home_keep_task": "ทำงานต่อ",
   "cw_home_kind_copy": "คัดลอก",
   "cw_home_kind_download": "ดาวน์โหลด",

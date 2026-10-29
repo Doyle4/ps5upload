@@ -707,6 +707,7 @@
   "cw_home_err_load_tasks": "تعذّرت قراءة قائمة المهام.",
   "cw_home_err_offline": "لم يستجب الجهاز. حاول مرة أخرى.",
   "cw_home_free_of": "{free} متاحة من {total}",
+  "cw_home_game_saves": "الحفظ",
   "cw_home_keep_task": "متابعة",
   "cw_home_kind_copy": "نسخ",
   "cw_home_kind_download": "تنزيل",

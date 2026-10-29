@@ -6085,6 +6085,7 @@ library_compressed_hint: "Image terkompresi memerlukan ShadowMount+ untuk bermai
 "cw_system_title": "Sistem",
 "upload_after_running": "Dimulai setelah yang sedang dikirim antrean",
 "volumes_free_up": "Kosongkan ruang",
+"cw_home_game_saves": "Simpanan",
 };
 
 export default id;

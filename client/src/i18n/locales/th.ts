@@ -6084,6 +6084,7 @@ library_compressed_hint: "อิมเมจที่บีบอัดต้อ
 "cw_system_title": "ระบบ",
 "upload_after_running": "เริ่มหลังจากสิ่งที่คิวกำลังส่งอยู่",
 "volumes_free_up": "เพิ่มพื้นที่ว่าง",
+"cw_home_game_saves": "เซฟ",
 };
 
 export default th;

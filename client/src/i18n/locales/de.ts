@@ -6084,6 +6084,7 @@ library_compressed_hint: "Komprimierte Images benötigen ShadowMount+ zum Spiele
 "cw_system_title": "System",
 "upload_after_running": "Startet nach dem, was die Warteschlange gerade sendet",
 "volumes_free_up": "Speicher freigeben",
+"cw_home_game_saves": "Spielstände",
 };
 
 export default de;

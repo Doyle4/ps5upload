@@ -6376,6 +6376,7 @@ library_compressed_hint: "برای اجرای ایمیج فشرده به ShadowM
 "cw_system_title": "سیستم",
 "upload_after_running": "پس از آنچه صف اکنون می‌فرستد شروع می‌شود",
 "volumes_free_up": "آزاد کردن فضا",
+"cw_home_game_saves": "ذخیره‌ها",
 };
 
 export default fa;

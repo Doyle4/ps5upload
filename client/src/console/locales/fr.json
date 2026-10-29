@@ -707,6 +707,7 @@
   "cw_home_err_load_tasks": "Impossible de lire la liste des tâches.",
   "cw_home_err_offline": "La console n'a pas répondu. Réessayez.",
   "cw_home_free_of": "{free} libres sur {total}",
+  "cw_home_game_saves": "Sauvegardes",
   "cw_home_keep_task": "Continuer",
   "cw_home_kind_copy": "Copie",
   "cw_home_kind_download": "Téléchargement",

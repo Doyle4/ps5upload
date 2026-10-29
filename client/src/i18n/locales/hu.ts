@@ -6390,6 +6390,7 @@ library_compressed_hint: "A tömörített képfájlok futtatásához ShadowMount
 "cw_system_title": "Rendszer",
 "upload_after_running": "Azután indul, amit a sor most küld",
 "volumes_free_up": "Hely felszabadítása",
+"cw_home_game_saves": "Mentések",
 };
 
 export default hu;

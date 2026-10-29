@@ -707,6 +707,7 @@
   "cw_home_err_load_tasks": "无法读取任务列表。",
   "cw_home_err_offline": "主机没有响应，请重试。",
   "cw_home_free_of": "可用 {free}，共 {total}",
+  "cw_home_game_saves": "存档",
   "cw_home_keep_task": "继续运行",
   "cw_home_kind_copy": "复制",
   "cw_home_kind_download": "下载",

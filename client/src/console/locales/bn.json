@@ -707,6 +707,7 @@
   "cw_home_err_load_tasks": "কাজের তালিকা পড়া যায়নি।",
   "cw_home_err_offline": "কনসোল সাড়া দেয়নি। আবার চেষ্টা করুন।",
   "cw_home_free_of": "{total}-এর মধ্যে {free} খালি",
+  "cw_home_game_saves": "সেভ",
   "cw_home_keep_task": "চলতে দিন",
   "cw_home_kind_copy": "কপি",
   "cw_home_kind_download": "ডাউনলোড",

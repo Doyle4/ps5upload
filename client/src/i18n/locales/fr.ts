@@ -6093,6 +6093,7 @@ library_compressed_hint: "Les images compressées nécessitent ShadowMount+ pour
 "cw_system_title": "Système",
 "upload_after_running": "Démarre après ce que la file envoie en ce moment",
 "volumes_free_up": "Libérer de l'espace",
+"cw_home_game_saves": "Sauvegardes",
 };
 
 export default fr;

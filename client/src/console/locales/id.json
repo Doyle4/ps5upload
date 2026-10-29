@@ -707,6 +707,7 @@
   "cw_home_err_load_tasks": "Tidak dapat membaca daftar tugas.",
   "cw_home_err_offline": "Konsol tidak menjawab. Coba lagi.",
   "cw_home_free_of": "{free} kosong dari {total}",
+  "cw_home_game_saves": "Simpanan",
   "cw_home_keep_task": "Lanjutkan",
   "cw_home_kind_copy": "Salin",
   "cw_home_kind_download": "Unduh",

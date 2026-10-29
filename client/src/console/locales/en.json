@@ -707,6 +707,7 @@
   "cw_home_err_load_tasks": "Could not read the task list.",
   "cw_home_err_offline": "The console did not answer. Try again.",
   "cw_home_free_of": "{free} free of {total}",
+  "cw_home_game_saves": "Saves",
   "cw_home_keep_task": "Keep going",
   "cw_home_kind_copy": "Copy",
   "cw_home_kind_download": "Download",

@@ -6091,6 +6091,7 @@ library_compressed_hint: "संपीड़ित इमेज चलाने 
 "cw_system_title": "सिस्टम",
 "upload_after_running": "कतार अभी जो भेज रही है उसके बाद शुरू होगा",
 "volumes_free_up": "जगह खाली करें",
+"cw_home_game_saves": "सेव",
 };
 
 export default hi;

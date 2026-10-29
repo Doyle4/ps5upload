@@ -6026,6 +6026,7 @@ library_compressed_hint: "Для запуска сжатых образов ну
 "cw_system_title": "Система",
 "upload_after_running": "Начнётся после того, что очередь отправляет сейчас",
 "volumes_free_up": "Освободить место",
+"cw_home_game_saves": "Сохранения",
 };
 
 export default ru;

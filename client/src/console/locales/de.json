@@ -707,6 +707,7 @@
   "cw_home_err_load_tasks": "Die Aufgabenliste konnte nicht gelesen werden.",
   "cw_home_err_offline": "Die Konsole hat nicht geantwortet. Versuche es erneut.",
   "cw_home_free_of": "{free} frei von {total}",
+  "cw_home_game_saves": "Spielstände",
   "cw_home_keep_task": "Weiterlaufen lassen",
   "cw_home_kind_copy": "Kopieren",
   "cw_home_kind_download": "Herunterladen",

@@ -6026,6 +6026,7 @@ library_compressed_hint: "壓縮映像需要 ShadowMount+ 才能遊玩。如需�
 "cw_system_title": "系統",
 "upload_after_running": "在佇列目前傳送的內容之後開始",
 "volumes_free_up": "釋放空間",
+"cw_home_game_saves": "存檔",
 };
 
 export default zh_TW;

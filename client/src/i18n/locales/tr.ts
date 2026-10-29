@@ -6083,6 +6083,7 @@ library_compressed_hint: "Sıkıştırılmış kalıpları oynatmak için Shadow
 "cw_system_title": "Sistem",
 "upload_after_running": "Kuyruğun şu an gönderdiğinden sonra başlar",
 "volumes_free_up": "Yer aç",
+"cw_home_game_saves": "Kayıtlar",
 };
 
 export default tr;

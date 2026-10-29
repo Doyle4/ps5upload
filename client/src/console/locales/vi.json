@@ -707,6 +707,7 @@
   "cw_home_err_load_tasks": "Không đọc được danh sách tác vụ.",
   "cw_home_err_offline": "Máy không phản hồi. Hãy thử lại.",
   "cw_home_free_of": "Còn trống {free} / {total}",
+  "cw_home_game_saves": "Bản lưu",
   "cw_home_keep_task": "Tiếp tục",
   "cw_home_kind_copy": "Sao chép",
   "cw_home_kind_download": "Tải xuống",

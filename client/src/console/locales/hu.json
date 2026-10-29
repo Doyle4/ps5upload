@@ -707,6 +707,7 @@
   "cw_home_err_load_tasks": "Nem sikerült beolvasni a feladatlistát.",
   "cw_home_err_offline": "A konzol nem válaszolt. Próbáld újra.",
   "cw_home_free_of": "{free} szabad / {total}",
+  "cw_home_game_saves": "Mentések",
   "cw_home_keep_task": "Folytatás",
   "cw_home_kind_copy": "Másolás",
   "cw_home_kind_download": "Letöltés",

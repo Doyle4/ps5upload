@@ -707,6 +707,7 @@
   "cw_home_err_load_tasks": "कार्य सूची पढ़ी नहीं जा सकी।",
   "cw_home_err_offline": "कंसोल ने जवाब नहीं दिया। फिर से कोशिश करें।",
   "cw_home_free_of": "{total} में से {free} खाली",
+  "cw_home_game_saves": "सेव",
   "cw_home_keep_task": "चलने दें",
   "cw_home_kind_copy": "कॉपी",
   "cw_home_kind_download": "डाउनलोड",

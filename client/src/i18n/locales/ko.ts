@@ -6094,6 +6094,7 @@ library_compressed_hint: "압축 이미지를 플레이하려면 ShadowMount+가
 "cw_system_title": "시스템",
 "upload_after_running": "대기열이 지금 보내는 항목 다음에 시작됩니다",
 "volumes_free_up": "공간 확보",
+"cw_home_game_saves": "저장 데이터",
 };
 
 export default ko;

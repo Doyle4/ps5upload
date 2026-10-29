@@ -6076,6 +6076,7 @@ library_compressed_hint: "সংকুচিত ইমেজ চালাতে 
 "cw_system_title": "সিস্টেম",
 "upload_after_running": "সারি এখন যা পাঠাচ্ছে তার পরে শুরু হবে",
 "volumes_free_up": "জায়গা খালি করুন",
+"cw_home_game_saves": "সেভ",
 };
 
 export default bn;

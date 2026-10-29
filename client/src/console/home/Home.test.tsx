@@ -165,6 +165,20 @@ describe("Home", () => {
     expect(mockCall).toHaveBeenCalledWith("/api/app/close", { app_id: 77 });
   });
 
+  it("the running game's Saves opens Saves at that game", () => {
+    const onOpenSaves = vi.fn();
+    const status = {
+      version: null,
+      firmware: null,
+      model: null,
+      temp_c: null,
+      running: { title_id: "PPSA01234", app_id: 77, name: "A Game" },
+    };
+    (byAction(HomeView(viewProps({ status, onOpenSaves })), "open-game-saves").props.onClick as () => void)();
+    expect(onOpenSaves).toHaveBeenCalledWith("PPSA01234");
+    expect(renderToStaticMarkup(<HomeView {...viewProps({ status })} />)).not.toContain("open-game-saves");
+  });
+
   it("Home has no power actions or Browse USB", () => {
     const html = renderToStaticMarkup(
       <HomeView {...viewProps({ volumes: [vol("/mnt/usb0", "/dev/da0s1")], onOpenDrive: vi.fn() })} />,

@@ -6400,6 +6400,7 @@ library_compressed_hint: "Compressed images need ShadowMount+ to play. To edit, 
 "cw_system_title": "System",
 "upload_after_running": "Starts after what the queue is sending now",
 "volumes_free_up": "Free up space",
+"cw_home_game_saves": "Saves",
 };
 
 export default en;

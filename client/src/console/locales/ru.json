@@ -707,6 +707,7 @@
   "cw_home_err_load_tasks": "Не удалось прочитать список задач.",
   "cw_home_err_offline": "Консоль не ответила. Попробуйте ещё раз.",
   "cw_home_free_of": "Свободно {free} из {total}",
+  "cw_home_game_saves": "Сохранения",
   "cw_home_keep_task": "Продолжить",
   "cw_home_kind_copy": "Копирование",
   "cw_home_kind_download": "Скачивание",

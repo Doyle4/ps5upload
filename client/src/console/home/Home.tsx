@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Eraser, Gamepad2, HardDrive, Sparkles, Usb, X } from "lucide-react";
+import { ArchiveRestore, Eraser, Gamepad2, HardDrive, Sparkles, Usb, X } from "lucide-react";
 import { formatBytes } from "../../lib/format";
 import { ApiError, call, callBlob, isOffline } from "../api";
 import { cleanupLastFound, onCleanupFound } from "../cleanup/Cleanup";
@@ -155,6 +155,8 @@ export interface HomeViewProps {
   onToggleTasks?: () => void;
   /** Open the Cheats section, or null while there is none (the shortcut is hidden). */
   onOpenCheats?: (() => void) | null;
+  /** Opens Saves at this game, to back up (or restore) its save; null when Saves is absent. */
+  onOpenSaves?: ((titleId: string) => void) | null;
   /** ✕ on a storage card: Files at that drive's path, or null when Files cannot open a path. */
   onOpenDrive: ((path: string) => void) | null;
   /** Open Clean up, or null while there is none (the card is hidden). */
@@ -309,6 +311,17 @@ export function HomeView(p: HomeViewProps) {
               >
                 <Sparkles aria-hidden />
                 <span>{t("cw_home_cheats")}</span>
+              </button>
+            ) : null}
+            {p.onOpenSaves ? (
+              <button
+                type="button"
+                className="cw-focusable cw-button"
+                data-action="open-game-saves"
+                onClick={() => p.onOpenSaves?.(running.title_id)}
+              >
+                <ArchiveRestore aria-hidden />
+                <span>{t("cw_home_game_saves")}</span>
               </button>
             ) : null}
           </>
@@ -523,6 +536,7 @@ export function Home({ ctx }: { ctx: SectionContext }) {
   const loadedCover = useAppCover(titleId);
   const cover = loadedCover && coverFailed !== loadedCover ? loadedCover : null;
   const onOpenCheats = hasSection("cheats") ? () => openSection("cheats") : null;
+  const onOpenSaves = canOpen("saves") ? (title: string) => openSection("saves", { title }) : null;
   const onOpenDrive = canOpen("files") ? (path: string) => openSection("files", { path }) : null;
   const onOpenCleanup = hasSection("system") ? () => openSection("system", { view: "cleanup" }) : null;
   const [cleanupFound, setCleanupFound] = useState(cleanupLastFound);
@@ -564,6 +578,7 @@ export function Home({ ctx }: { ctx: SectionContext }) {
       tasksExpanded={tasksExpanded}
       onToggleTasks={() => setTasksExpanded((v) => !v)}
       onOpenCheats={onOpenCheats}
+      onOpenSaves={onOpenSaves}
       onOpenDrive={onOpenDrive}
       onOpenCleanup={onOpenCleanup}
       cleanupFound={cleanupFound}

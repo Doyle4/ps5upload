@@ -707,6 +707,7 @@
   "cw_home_err_load_tasks": "タスク一覧を読み込めませんでした。",
   "cw_home_err_offline": "コンソールが応答しませんでした。もう一度お試しください。",
   "cw_home_free_of": "空き {free} / {total}",
+  "cw_home_game_saves": "セーブデータ",
   "cw_home_keep_task": "続ける",
   "cw_home_kind_copy": "コピー",
   "cw_home_kind_download": "ダウンロード",

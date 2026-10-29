@@ -6076,6 +6076,7 @@ library_compressed_hint: "تحتاج الصور المضغوطة إلى ShadowMo
 "cw_system_title": "النظام",
 "upload_after_running": "يبدأ بعد ما ترسله قائمة الانتظار الآن",
 "volumes_free_up": "إخلاء مساحة",
+"cw_home_game_saves": "الحفظ",
 };
 
 export default ar;

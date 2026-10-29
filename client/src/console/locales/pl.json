@@ -707,6 +707,7 @@
   "cw_home_err_load_tasks": "Nie udało się odczytać listy zadań.",
   "cw_home_err_offline": "Konsola nie odpowiedziała. Spróbuj ponownie.",
   "cw_home_free_of": "{free} wolne z {total}",
+  "cw_home_game_saves": "Zapisy",
   "cw_home_keep_task": "Kontynuuj",
   "cw_home_kind_copy": "Kopiowanie",
   "cw_home_kind_download": "Pobieranie",

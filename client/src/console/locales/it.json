@@ -707,6 +707,7 @@
   "cw_home_err_load_tasks": "Impossibile leggere l'elenco delle attività.",
   "cw_home_err_offline": "La console non ha risposto. Riprova.",
   "cw_home_free_of": "{free} liberi su {total}",
+  "cw_home_game_saves": "Salvataggi",
   "cw_home_keep_task": "Continua",
   "cw_home_kind_copy": "Copia",
   "cw_home_kind_download": "Download",

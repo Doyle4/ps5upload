@@ -707,6 +707,7 @@
   "cw_home_err_load_tasks": "無法讀取工作清單。",
   "cw_home_err_offline": "主機沒有回應，請再試一次。",
   "cw_home_free_of": "可用 {free}，共 {total}",
+  "cw_home_game_saves": "存檔",
   "cw_home_keep_task": "繼續執行",
   "cw_home_kind_copy": "複製",
   "cw_home_kind_download": "下載",

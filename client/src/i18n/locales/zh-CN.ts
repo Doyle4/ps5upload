@@ -6032,6 +6032,7 @@ library_compressed_hint: "压缩镜像需要 ShadowMount+ 才能游玩。如需�
 "cw_system_title": "系统",
 "upload_after_running": "在队列当前发送的内容之后开始",
 "volumes_free_up": "释放空间",
+"cw_home_game_saves": "存档",
 };
 
 export default zh_CN;

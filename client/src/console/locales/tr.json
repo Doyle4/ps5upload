@@ -707,6 +707,7 @@
   "cw_home_err_load_tasks": "Görev listesi okunamadı.",
   "cw_home_err_offline": "Konsol yanıt vermedi. Tekrar dene.",
   "cw_home_free_of": "{total} alanın {free} kadarı boş",
+  "cw_home_game_saves": "Kayıtlar",
   "cw_home_keep_task": "Devam etsin",
   "cw_home_kind_copy": "Kopyalama",
   "cw_home_kind_download": "İndirme",

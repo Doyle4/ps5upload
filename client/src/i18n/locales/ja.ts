@@ -6096,6 +6096,7 @@ library_compressed_hint: "圧縮イメージのプレイには ShadowMount+ が�
 "cw_system_title": "システム",
 "upload_after_running": "キューが今送っているものの後に始まります",
 "volumes_free_up": "空き容量を増やす",
+"cw_home_game_saves": "セーブデータ",
 };
 
 export default ja;

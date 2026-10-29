@@ -6078,6 +6078,7 @@ library_compressed_hint: "Ảnh đĩa nén cần ShadowMount+ để chơi. Để
 "cw_system_title": "Hệ thống",
 "upload_after_running": "Bắt đầu sau những gì hàng đợi đang gửi",
 "volumes_free_up": "Giải phóng dung lượng",
+"cw_home_game_saves": "Bản lưu",
 };
 
 export default vi;

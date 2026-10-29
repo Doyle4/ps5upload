@@ -707,6 +707,7 @@
   "cw_home_err_load_tasks": "فهرست کارها خوانده نشد.",
   "cw_home_err_offline": "کنسول پاسخ نداد. دوباره تلاش کنید.",
   "cw_home_free_of": "{free} آزاد از {total}",
+  "cw_home_game_saves": "ذخیره‌ها",
   "cw_home_keep_task": "ادامه بده",
   "cw_home_kind_copy": "کپی",
   "cw_home_kind_download": "بارگیری",
