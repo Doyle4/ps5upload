@@ -75,6 +75,21 @@ it("holds waiting picks while paused until explicitly resumed", async () => {
   expect(e.startFile).toHaveBeenCalledTimes(2);
 });
 
+it("a drop while paused joins the line: it never runs ahead of the waiting picks (#536)", async () => {
+  const e = engine();
+  enqueueFsUpload(request("one"), e.deps, []);
+  enqueueFsUpload(request("two"), e.deps, []);
+  pauseFsUploadQueue(host);
+  e.release();
+  await vi.waitFor(() => expect(fsUploadQueueFor(host).running).toBe(false));
+  enqueueFsUpload(request("three"), e.deps, []);
+  await new Promise((r) => setTimeout(r, 20));
+  expect(e.startFile).toHaveBeenCalledTimes(1);
+  resumeFsUploadQueue(host, e.deps);
+  await vi.waitFor(() => expect(fsUploadQueueFor(host).items).toHaveLength(0));
+  expect(e.startFile.mock.calls.map((c) => c[1])).toEqual(["/data/a/one", "/data/a/two", "/data/a/three"]);
+});
+
 it("starts the first drop at once when a pause outlived the picks it held", async () => {
   // A cancelled or failed copy pauses the queue; once nothing waits, the next pick must run.
   const e = engine();

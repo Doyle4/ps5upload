@@ -4,6 +4,34 @@ What's new in ps5upload, written for humans.
 
 ---
 
+## 9.2.0
+
+- **Nothing is in beta any more.** Remote Play was still a beta screen, so it only showed once
+  "Beta features" was turned on in Settings, which is why people couldn't find it. It is now in
+  the sidebar (Console › Remote Play), in More on phones, and behind Play Here in Accounts ›
+  Remote Play. The Beta features switch is gone with it, and the "Beta" marks on the direct
+  console-to-console copy route and on Stream & install / link installs are removed.
+- **Remote Play on phones, redone.**
+  - Held upright, the picture sits on top and its controls sit below it instead of on it: Full
+    screen, Stop and a ⋯ menu with Stats, Picture in picture, Settings and volume. Nothing is
+    squeezed or hidden any more.
+  - Turn the phone sideways while playing and it goes full screen; turn it back and the page
+    returns. In full screen the only control is a small ⋯ handle at the top.
+  - Tapping or double-tapping the picture or the on-screen controller never leaves full screen
+    or stops the stream. Back leaves full screen and keeps playing; Stop is in the ⋯ menu.
+  - The screen stays awake while you play, the page can't scroll or zoom under your fingers, and
+    the on-screen controller has a size and an opacity setting. Create, the touchpad and Options
+    sit in a row at the top, as on the controller.
+  - Desktop: double-click full screen works again.
+- **The queue runs the whole queue** (#536). Adding a package used to start only that install and
+  leave the games queued before it waiting. Now one setting decides: **Start the queue when you add
+  something** (on by default) runs the console's whole queue from the top, in order; turned off,
+  nothing runs until you press **Start queue**. Adding while the queue runs puts the new item at the
+  end. The buttons are named Start queue and Stop queue; the switch is on the queue panel and in
+  Settings › Uploads.
+- **A damaged .zip can't keep the upload busy for hours.** A zip entry that kept being re-read from
+  the start (each re-read decompresses it again) now fails after three tries with a clear message.
+
 ## 9.1.0
 
 - **Upload & Install** (was Send to PS5). One drop zone takes everything: packages (installed as

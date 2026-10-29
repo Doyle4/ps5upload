@@ -120,6 +120,7 @@ export interface DiagnosticBundle {
     show_transfer_files: boolean;
     bandwidth_cap_mbps: number;
     auto_resume: boolean;
+    queue_auto_start: boolean;
     auto_redeploy_on_wake: boolean;
     system_file_read: boolean;
     log_level: string;
@@ -270,6 +271,7 @@ export function buildDiagnosticBundle(opts: {
       show_transfer_files: uploadSettings.showTransferFiles,
       bandwidth_cap_mbps: uploadSettings.bandwidthCapMbps,
       auto_resume: uploadSettings.autoResume,
+      queue_auto_start: uploadSettings.queueAutoStart,
       auto_redeploy_on_wake: uploadSettings.autoRedeployOnWake,
       system_file_read: uploadSettings.systemFileRead,
       log_level: diagSettings.logLevel,

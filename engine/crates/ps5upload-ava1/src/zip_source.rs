@@ -217,6 +217,11 @@ fn invalid_zip(e: zip::result::ZipError) -> io::Error {
     }
 }
 
+/// Backward reads one entry reader tolerates. The sender walks a file front to back, so a
+/// backward read means a confused caller; each one re-inflates from the entry's start, and an
+/// unbounded number of them would loop over a large entry for hours.
+const MAX_BACKWARD_RESTARTS: u32 = 3;
+
 /// One open entry. Reads are sequential in practice (`run_upload` walks a file front
 /// to back), so the inflater is kept between calls and only restarted when a read
 /// goes backwards: total work is O(entry), not O(entry x reads).
@@ -228,6 +233,8 @@ pub struct ZipEntryReader {
     /// Uncompressed offset the inflater is at.
     pos: u64,
     restarts: u32,
+    /// Restarts caused by a read before `pos` (not the first start or one after a failure).
+    backward: u32,
     /// CRC-32 of the decompressed stream from offset 0 up to `pos`; meaningful only
     /// while `tracking` (the reader has seen every byte since the last restart).
     crc: flate2::Crc,
@@ -305,7 +312,16 @@ impl ZipEntryReader {
             }
             return Ok(want);
         }
-        if self.inflater.is_none() || off < self.pos {
+        if self.inflater.is_some() && off < self.pos {
+            self.backward += 1;
+            if self.backward > MAX_BACKWARD_RESTARTS {
+                return Err(io::Error::other(format!(
+                    "zip entry was re-read too often ({} backward reads); the archive may be damaged or too slow to seek",
+                    self.backward
+                )));
+            }
+            self.start()?;
+        } else if self.inflater.is_none() {
             self.start()?;
         }
         let dec = self.inflater.as_mut().expect("started above");
@@ -402,6 +418,7 @@ impl ZipSource {
             inflater: None,
             pos: 0,
             restarts: 0,
+            backward: 0,
             crc: flate2::Crc::new(),
             tracking: true,
             verified: false,

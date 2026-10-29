@@ -491,6 +491,7 @@ export default function SettingsScreen() {
     alwaysOverwrite,
     showTransferFiles,
     autoResume,
+    queueAutoStart,
     wakeForUploads,
     keepPs5AwakeMode,
     autoRedeployOnWake,
@@ -500,6 +501,7 @@ export default function SettingsScreen() {
     setAlwaysOverwrite,
     setShowTransferFiles,
     setAutoResume,
+    setQueueAutoStart,
     setWakeForUploads,
     setKeepPs5AwakeMode,
     setBandwidthCapMbps,
@@ -814,6 +816,21 @@ export default function SettingsScreen() {
                 "show_file_list_hint_v2",
                 undefined,
                 "List the files being uploaded beneath the progress bar. Turn off if the list feels noisy on folders with thousands of files — you'll still see overall progress, speed, and ETA.",
+              )}
+            />
+
+            <Toggle
+              checked={queueAutoStart}
+              onChange={(checked) => setQueueAutoStart(checked)}
+              label={tr(
+                "queue_auto_start",
+                undefined,
+                "Start the queue when you add something",
+              )}
+              hint={tr(
+                "queue_auto_start_hint",
+                undefined,
+                "On: Install, Upload now and Send start the console's whole queue, in order — not only what you just added. Off: they only add to the queue, and nothing runs until you press Start queue. On by default.",
               )}
             />
 

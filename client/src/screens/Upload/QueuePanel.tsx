@@ -73,6 +73,7 @@ import {
 } from "../../state/uploadQueue";
 import { isRemotePath } from "../../lib/remotePath";
 import { useTransferStore } from "../../state/transfer";
+import { useUploadSettingsStore } from "../../state/uploadSettings";
 import {
   BottleneckLine,
   JobLiveNotes,
@@ -205,6 +206,9 @@ export const QueuePanel = memo(function QueuePanel({
   const continueOnFailure = useUploadQueueStore((s) => s.continueOnFailure);
   const running = useUploadQueueStore((s) => s.running);
   const runningHosts = useUploadQueueStore((s) => s.runningHosts);
+  const limitedHosts = useUploadQueueStore((s) => s.limitedHosts);
+  const queueAutoStart = useUploadSettingsStore((s) => s.queueAutoStart);
+  const setQueueAutoStart = useUploadSettingsStore((s) => s.setQueueAutoStart);
   const loaded = useUploadQueueStore((s) => s.loaded);
   const persistenceError = useUploadQueueStore((s) => s.persistenceError);
   const isLeader = useUploadQueueStore((s) => s.isLeader);
@@ -268,7 +272,22 @@ export const QueuePanel = memo(function QueuePanel({
   // from here). Without it, the Upload screen's "all consoles" actions.
   const scopeHost = host?.trim() ? hostOf(host) : null;
   const runningHere = scopeHost ? !!runningHosts[scopeHost] : running;
-  const startHere = () => (scopeHost ? startHost(scopeHost) : start());
+  // A run that takes only some rows (one row's own Start, a retry): the rest wait, so
+  // Start queue stays on offer beside Stop and turns it into a full run.
+  const limitedHere = scopeHost
+    ? !!limitedHosts[scopeHost]
+    : Object.keys(runningHosts).some((h) => limitedHosts[h]);
+  // Unscoped, Start also widens a console's limited run: start() only starts consoles
+  // that are not running, so a one-row run elsewhere would otherwise stay one row.
+  const startHere = () =>
+    scopeHost
+      ? startHost(scopeHost)
+      : Promise.all([
+          start(),
+          ...Object.keys(runningHosts)
+            .filter((h) => limitedHosts[h])
+            .map((h) => startHost(h)),
+        ]);
   const stopHere = () => (scopeHost ? stopHost(scopeHost) : stop());
   const retryFailedHere = () => retryFailed(scopeHost ?? undefined);
   const clearHere = async () => {
@@ -353,6 +372,23 @@ export const QueuePanel = memo(function QueuePanel({
               "Continue on failure",
             )}
           />
+          <span
+            title={tr(
+              "queue_auto_start_tooltip",
+              undefined,
+              "On: Install, Upload now and Send start this console's whole queue, in order. Off: they only add to the queue, and nothing runs until you press Start queue.",
+            )}
+          >
+            <Toggle
+              checked={queueAutoStart}
+              onChange={setQueueAutoStart}
+              label={tr(
+                "queue_auto_start",
+                undefined,
+                "Start the queue when you add something",
+              )}
+            />
+          </span>
 
           {failedCount > 0 && (
             <Button
@@ -365,6 +401,23 @@ export const QueuePanel = memo(function QueuePanel({
             </Button>
           )}
 
+          {runningHere && limitedHere && pendingCount > 0 && (
+            <Button
+              variant="primary"
+              size="sm"
+              leftIcon={<Play size={12} />}
+              onClick={() => void startHere()}
+              title={tr(
+                "queue_start_rest_tooltip",
+                undefined,
+                "Only the items you started are running. This runs everything waiting too, in queue order.",
+              )}
+            >
+              {multiConsole
+                ? tr("queue_start_all", undefined, "Start all")
+                : tr("queue_start_v2", undefined, "Start queue")}
+            </Button>
+          )}
           {runningHere ? (
             <Button
               variant="secondary"
@@ -379,7 +432,7 @@ export const QueuePanel = memo(function QueuePanel({
             >
               {multiConsole
                 ? tr("queue_stop_all", undefined, "Stop all")
-                : tr("queue_stop", undefined, "Stop")}
+                : tr("queue_stop_v2", undefined, "Stop queue")}
             </Button>
           ) : (
             <Button
@@ -400,7 +453,7 @@ export const QueuePanel = memo(function QueuePanel({
             >
               {multiConsole
                 ? tr("queue_start_all", undefined, "Start all")
-                : tr("queue_start", undefined, "Start")}
+                : tr("queue_start_v2", undefined, "Start queue")}
             </Button>
           )}
 
@@ -428,6 +481,7 @@ export const QueuePanel = memo(function QueuePanel({
             host={g.host}
             items={g.items}
             hostRunning={!!runningHosts[g.host]}
+            hostLimited={!!limitedHosts[g.host]}
             showHeader={multiConsole}
             onStartHost={() => void startHost(g.host)}
             onStopHost={() => stopHost(g.host)}
@@ -510,6 +564,7 @@ function ConsoleGroup({
   host,
   items,
   hostRunning,
+  hostLimited,
   showHeader,
   onStartHost,
   onStopHost,
@@ -525,6 +580,8 @@ function ConsoleGroup({
   items: QueueItem[];
   busy: ReadonlySet<string>;
   hostRunning: boolean;
+  /** This console's run takes only some rows; Start queue widens it. */
+  hostLimited: boolean;
   showHeader: boolean;
   onStartHost: () => void;
   onStopHost: () => void;
@@ -693,6 +750,21 @@ function ConsoleGroup({
             </span>
           )}
           <InstallSpace host={host} items={items} />
+          {hostRunning && hostLimited && pending > 0 && (
+            <Button
+              variant="primary"
+              size="sm"
+              leftIcon={<Play size={12} />}
+              onClick={onStartHost}
+              title={tr(
+                "queue_start_rest_tooltip",
+                undefined,
+                "Only the items you started are running. This runs everything waiting too, in queue order.",
+              )}
+            >
+              {tr("queue_start_v2", undefined, "Start queue")}
+            </Button>
+          )}
           {hostRunning ? (
             <Button
               variant="secondary"
@@ -705,7 +777,7 @@ function ConsoleGroup({
                 "Stops sending. What already reached the PS5 is kept for 7 days, and Start continues from there.",
               )}
             >
-              {tr("queue_stop", undefined, "Stop")}
+              {tr("queue_stop_v2", undefined, "Stop queue")}
             </Button>
           ) : (
             <Button
@@ -730,7 +802,7 @@ function ConsoleGroup({
                     : undefined
               }
             >
-              {tr("queue_start", undefined, "Start")}
+              {tr("queue_start_v2", undefined, "Start queue")}
             </Button>
           )}
         </div>

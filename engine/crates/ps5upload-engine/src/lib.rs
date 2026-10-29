@@ -7344,8 +7344,6 @@ async fn transfer_zip_handler(
 fn zip_failure(e: anyhow::Error) -> anyhow::Error {
     if e.downcast_ref::<ps5upload_ava1::upload::ZipUnsupported>()
         .is_some()
-        || e.downcast_ref::<ps5upload_ava1::upload::ZipTooLarge>()
-            .is_some()
     {
         return anyhow::Error::from(ps5upload_ava1::upload::UploadFailure {
             reason: "zip_unsupported".into(),

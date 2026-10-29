@@ -159,14 +159,13 @@ export const NAV_ITEMS: NavItem[] = [
   },
   // The console's users and accounts, their avatars, and Remote Play (which needs an
   // activated, signed-in account, so it lives with them).
-  // Remote Play in the app (beta): the console's screen streamed here. Pairing and the console
+  // Remote Play in the app: the console's screen streamed here. Pairing and the console
   // settings it needs stay in Accounts.
   {
     to: "/play",
     key: "play_title",
     fallback: "Remote Play",
     icon: MonitorPlay,
-    beta: true,
   },
   {
     to: "/accounts",

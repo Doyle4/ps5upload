@@ -7,6 +7,7 @@ import {
   Gamepad2,
   Minimize,
   MonitorPlay,
+  MoreHorizontal,
   PictureInPicture2,
   Play,
   Settings2,
@@ -19,6 +20,8 @@ import { Button, Callout, Select, Spinner, Toggle } from "../../components";
 import { useTr } from "../../state/lang";
 import { useRosterStore } from "../../state/roster";
 import { isTauriEnv } from "../../lib/tauriEnv";
+import { isMobile } from "../../lib/platform";
+import { setScreenWakeReason } from "../../lib/androidScreenWake";
 import {
   canStream,
   keysFor,
@@ -37,10 +40,27 @@ import {
   useRemotePlayStore,
   type RpPrefs,
 } from "../../state/remotePlay";
-import { TouchControls, useTouchFirst } from "./TouchControls";
+import { TouchControls, useTouchFirst, type TouchLayout } from "./TouchControls";
+import {
+  canDocFullscreen,
+  COARSE_QUERY,
+  COMPACT_QUERY,
+  docFullscreen,
+  holdPageStill,
+  isPhoneSized,
+  lockLandscape,
+  PHONE_LANDSCAPE_QUERY,
+  setWindowFullscreen,
+  unlockOrientation,
+  useMedia,
+} from "./immersive";
+import { PlayMenu, VolumeSlider } from "./PlayMenu";
 import { closePip, openPip, pipPadsInBackground, pipSupport } from "./pip";
 
 type Tr = ReturnType<typeof useTr>;
+
+/** Full screen on an upright phone: where the picture starts, under the menu handle's row. */
+const PICTURE_TOP = "calc(max(6px, env(safe-area-inset-top)) + 2.75rem)";
 
 /** The plain-English line for an error from the engine or the decoder. */
 export function streamErrorMessage(tr: Tr, e: StreamError): string {
@@ -168,23 +188,16 @@ function KeyRemap({
   );
 }
 
-/** The window (desktop app) or the screen (browser) given to the picture. */
-async function setWindowFullscreen(on: boolean): Promise<void> {
-  try {
-    if (isTauriEnv()) {
-      const { getCurrentWindow } = await import("@tauri-apps/api/window");
-      await getCurrentWindow().setFullscreen(on);
-    } else if (on) {
-      await document.documentElement.requestFullscreen?.();
-    } else if (document.fullscreenElement) {
-      await document.exitFullscreen();
-    }
-  } catch {
-    // Not allowed here: the picture still fills the window.
-  }
-}
-
-function StatsLine({ stats, light }: { stats: StreamStats; light: [number, number, number] | null }) {
+function StatsLine({
+  stats,
+  light,
+  style,
+}: {
+  stats: StreamStats;
+  light: [number, number, number] | null;
+  /** Where it sits when the bottom-left corner is the on-screen controller's. */
+  style?: React.CSSProperties;
+}) {
   const tr = useTr();
   const v = {
     fps: stats.fps,
@@ -196,7 +209,8 @@ function StatsLine({ stats, light }: { stats: StreamStats; light: [number, numbe
   };
   return (
     <div
-      className="pointer-events-none absolute bottom-3 left-3 rounded-md bg-black/60 px-2 py-1 font-mono text-[11px] leading-4 text-white/85"
+      className={`pointer-events-none absolute z-20 rounded-md bg-black/60 px-2 py-1 font-mono text-[11px] leading-4 text-white/85 ${style ? "" : "bottom-3 left-3"}`}
+      style={style}
       data-testid="rp-stats"
     >
       {light && (
@@ -390,6 +404,35 @@ function SettingsPanel({ running }: { running: boolean }) {
             { value: "off", label: tr("rp_touch_off", undefined, "Never") },
           ]}
         />
+        {prefs.touchControls !== "off" && (
+          <div className="flex flex-wrap items-end gap-3">
+            <Select
+              label={tr("rp_touch_size", undefined, "Controller size")}
+              block={false}
+              className="w-40"
+              value={prefs.touchSize}
+              onChange={(e) => setPrefs({ touchSize: e.target.value as RpPrefs["touchSize"] })}
+              options={[
+                { value: "s", label: tr("rp_touch_size_s", undefined, "Small") },
+                { value: "m", label: tr("rp_touch_size_m", undefined, "Medium") },
+                { value: "l", label: tr("rp_touch_size_l", undefined, "Large") },
+              ]}
+            />
+            <label className="flex min-w-48 flex-col gap-1 text-xs text-[var(--color-muted)]">
+              {tr("rp_touch_opacity", undefined, "Controller opacity")}
+              <input
+                type="range"
+                min={30}
+                max={100}
+                step={5}
+                value={Math.round(prefs.touchOpacity * 100)}
+                onChange={(e) => setPrefs({ touchOpacity: num(e.target.value) / 100 })}
+                className="accent-[var(--color-accent)]"
+                data-testid="rp-touch-opacity"
+              />
+            </label>
+          </div>
+        )}
         <p className="text-xs text-[var(--color-muted)]">
           {tr(
             "rp_controls_hint",
@@ -436,6 +479,21 @@ export function StreamPanel() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [full, setFull] = useState(false);
   const [chrome, setChrome] = useState(true);
+  // Touch-sized player (phones, tablets, a narrow window): the bar under the picture and, in
+  // full screen, one small menu handle instead of a bar of buttons over the picture.
+  const compact = useMedia(COMPACT_QUERY);
+  const coarse = useMedia(COARSE_QUERY);
+  const portrait = useMedia("(orientation: portrait)");
+  const phoneLandscape = useMedia(PHONE_LANDSCAPE_QUERY);
+  const [menuOpen, setMenuOpen] = useState(false);
+  // Full screen that came from turning the phone sideways (turning it back leaves it).
+  const autoFull = useRef(false);
+  // A history entry pushed on entering full screen, so the system back gesture leaves full
+  // screen instead of the page (and never stops the stream).
+  const backEntry = useRef(false);
+  // Whether the last press on the picture was a mouse: only a mouse double-click toggles full
+  // screen (a double tap of a finger is play).
+  const lastPointer = useRef("mouse");
   const [elsewhere, setElsewhere] = useState<string | null>(null);
   const stage = useRef<HTMLDivElement>(null);
   const canvasHost = useRef<HTMLDivElement>(null);
@@ -502,16 +560,78 @@ export function StreamPanel() {
     return () => window.removeEventListener("focus", onFocus);
   }, [phase, stream]);
 
-  const exitFull = useCallback(() => {
+  const leaveFullLayout = useCallback(() => {
     setFull(false);
+    setMenuOpen(false);
+    autoFull.current = false;
     void setWindowFullscreen(false);
+    unlockOrientation();
   }, []);
-  const enterFull = useCallback(() => {
-    setFull(true);
-    void setWindowFullscreen(true);
-    stage.current?.focus();
-  }, []);
+  const exitFull = useCallback(() => {
+    leaveFullLayout();
+    if (backEntry.current) {
+      backEntry.current = false;
+      window.history.back();
+    }
+  }, [leaveFullLayout]);
+  /** Full screen. `auto`: the phone was turned sideways (no user gesture: the layout only,
+   *  the browser's full screen follows on the next touch). */
+  const enterFull = useCallback(
+    (auto = false) => {
+      setFull(true);
+      setMenuOpen(false);
+      autoFull.current = auto;
+      if (!auto) {
+        void setWindowFullscreen(true).then(() => {
+          if (coarse && isPhoneSized()) lockLandscape();
+        });
+      }
+      if (compact && !backEntry.current) {
+        // Same state as the page's own entry: the router sees no navigation.
+        window.history.pushState(window.history.state, "");
+        backEntry.current = true;
+      }
+      stage.current?.focus();
+    },
+    [coarse, compact],
+  );
   const toggleFull = useCallback(() => (full ? exitFull() : enterFull()), [full, exitFull, enterFull]);
+  // System back (Android gesture, browser Back) in full screen: leave full screen, keep playing.
+  useEffect(() => {
+    if (!full) return;
+    const onPop = () => {
+      if (!backEntry.current) return;
+      backEntry.current = false;
+      leaveFullLayout();
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, [full, leaveFullLayout]);
+  // Turning a phone sideways while playing fills the screen; turning it back (when that is how
+  // full screen started) returns to the page. Full screen chosen with the button stays.
+  useEffect(() => {
+    if (!playing || pip) return;
+    if (phoneLandscape && !full) enterFull(true);
+    else if (!phoneLandscape && full && autoFull.current) exitFull();
+    // Only a turn of the phone (or the stream starting) decides this, not every full change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phoneLandscape, playing]);
+  // The stream ended while full screen: back to the page, where Start is.
+  useEffect(() => {
+    if (full && !running) exitFull();
+  }, [full, running, exitFull]);
+  // While the picture fills the screen the page holds still: no scroll, bounce or pull to refresh.
+  useEffect(() => {
+    if (!full) return;
+    holdPageStill(true);
+    return () => holdPageStill(false);
+  }, [full]);
+  // Keep the screen on while playing (a controller does not count as touching the phone).
+  useEffect(() => {
+    if (!playing) return;
+    setScreenWakeReason("remote-play", true);
+    return () => setScreenWakeReason("remote-play", false);
+  }, [playing]);
   const togglePip = useCallback(async () => {
     if (useRemotePlayStore.getState().pip) return closePip();
     if (full) exitFull();
@@ -522,15 +642,35 @@ export function StreamPanel() {
     });
     setPipFailed(!ok);
   }, [full, exitFull, target, tr, navigate]);
-  // The browser left full screen on its own (Esc): the picture goes back in its place.
+  // The browser left full screen on its own. With a mouse (Esc) the picture goes back in its
+  // place. On a touch screen it was most likely the system back gesture or an edge swipe in the
+  // middle of play: the picture keeps filling the window and the next touch asks for full
+  // screen again; a second Back, or Leave full screen in the menu, returns to the page.
   useEffect(() => {
-    if (!full || isTauriEnv()) return;
+    if (!full || (isTauriEnv() && !isMobile())) return;
     const onChange = () => {
-      if (!document.fullscreenElement) setFull(false);
+      if (docFullscreen() || coarse) return;
+      exitFull();
     };
     document.addEventListener("fullscreenchange", onChange);
-    return () => document.removeEventListener("fullscreenchange", onChange);
-  }, [full]);
+    document.addEventListener("webkitfullscreenchange", onChange);
+    return () => {
+      document.removeEventListener("fullscreenchange", onChange);
+      document.removeEventListener("webkitfullscreenchange", onChange);
+    };
+  }, [full, coarse, exitFull]);
+  // A touch on the picture asks for browser full screen again after Android dropped it, but
+  // never a touch on the menu, its handle or its backdrop: that tap may be Leave full screen or
+  // Stop, and a pending request would land after them and leave the page in full screen.
+  const refullOnTouch = useCallback(
+    (e: React.PointerEvent) => {
+      if (menuOpen) return;
+      const t = e.target as Element | null;
+      if (t?.closest?.('[data-testid="rp-menu-handle"],[data-testid="rp-menu-backdrop"],[role="dialog"]')) return;
+      if (full && coarse && !docFullscreen() && canDocFullscreen()) void setWindowFullscreen(true);
+    },
+    [full, coarse, menuOpen],
+  );
   // Into or out of full screen the stage is a new element: keep the keyboard on it.
   useEffect(() => {
     if (full) stage.current?.focus();
@@ -554,8 +694,9 @@ export function StreamPanel() {
         { attach },
       );
       stage.current?.focus();
+      if (compact) stage.current?.scrollIntoView?.({ block: "start", behavior: "smooth" });
     },
-    [profile, profiles, startStream],
+    [profile, profiles, startStream, compact],
   );
 
   // Another console is streaming: stop it, wait for it to end (the store takes one stream at a
@@ -589,6 +730,7 @@ export function StreamPanel() {
   // maps and menus); the position on the picture is the position on the pad.
   const onPointer = useCallback(
     (e: React.PointerEvent, kind: "down" | "move" | "up") => {
+      if (kind === "down") lastPointer.current = e.pointerType;
       if (e.pointerType === "mouse" && kind === "move") showChrome();
       if (!running) return;
       if (kind === "up") {
@@ -636,6 +778,40 @@ export function StreamPanel() {
   const elsewhereProfile = elsewhere ? profiles.find((p) => p.host === elsewhere) : null;
   const showBar = !playing || chrome || settingsOpen;
   const muted = prefs.muted || prefs.volume === 0;
+  // Full screen on an upright phone: the picture across the top, the controller below it.
+  const portraitFull = compact && full && portrait;
+  // The on-screen controller: under the bar on a computer; over the picture in full screen
+  // sideways (and on a sideways tablet page); on the black under the picture in full screen
+  // upright. On the upright page there is no room for it next to the app's own bars: Full
+  // screen is where it is.
+  const showTouch = running && touchFirst && !pip;
+  const touchLayout: TouchLayout = !compact ? "overlay-bar" : portraitFull ? "deck" : "overlay";
+  const touchHere = showTouch && !(compact && !full && portrait);
+  const touchOverPicture = touchHere && touchLayout !== "deck";
+  const openSettings = () => {
+    if (full) exitFull();
+    setMenuOpen(false);
+    setSettingsOpen(true);
+    window.requestAnimationFrame(() =>
+      document.querySelector('[data-testid="rp-settings"]')?.scrollIntoView?.({ block: "start", behavior: "smooth" }),
+    );
+  };
+  const stopHere = () => {
+    if (full) exitFull();
+    setMenuOpen(false);
+    stopStream();
+  };
+  const menuProps = {
+    pipKind,
+    onClose: () => setMenuOpen(false),
+    onExitFull: exitFull,
+    onPip: () => {
+      setMenuOpen(false);
+      void togglePip();
+    },
+    onSettings: openSettings,
+    onStop: stopHere,
+  };
 
   const stageView = (
         <div
@@ -648,19 +824,47 @@ export function StreamPanel() {
             stream?.sendPad();
           }}
           onClick={running ? (e) => !e.shiftKey && capture() : undefined}
-          onDoubleClick={running ? toggleFull : undefined}
+          onDoubleClick={
+            running
+              ? (e) => {
+                  // The stage moves into a portal on body: an event left to bubble on reaches
+                  // React a second time there and would toggle straight back.
+                  e.stopPropagation();
+                  // A finger's double tap is play (or a mis-tap), never full screen.
+                  if (lastPointer.current === "mouse") toggleFull();
+                }
+              : undefined
+          }
+          onPointerUpCapture={refullOnTouch}
+          onContextMenu={running ? (e) => e.preventDefault() : undefined}
           onPointerDown={(e) => onPointer(e, "down")}
           onPointerMove={(e) => onPointer(e, "move")}
           onPointerUp={(e) => onPointer(e, "up")}
           onPointerLeave={(e) => onPointer(e, "up")}
           className={`group relative overflow-hidden bg-black outline-none ${
             full
-              ? "fixed inset-0 z-[200] h-[100dvh] w-screen"
+              ? "fixed inset-0 z-[200] h-[100dvh] w-screen touch-none select-none overscroll-none [-webkit-touch-callout:none]"
               : "aspect-video w-full rounded-[var(--radius-card)] shadow-[var(--shadow-2)] focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]"
-          } ${playing && !chrome ? "cursor-none" : ""}`}
+          } ${playing && !chrome && !(compact && full) ? "cursor-none" : ""}`}
+          data-full={full ? (compact ? "immersive" : "bar") : undefined}
           data-testid="rp-stage"
         >
-          <div ref={canvasHost} className="absolute inset-0 flex items-center justify-center" />
+          <div
+            ref={canvasHost}
+            className="absolute inset-0 flex items-center justify-center"
+            style={
+              portraitFull
+                ? { top: PICTURE_TOP, bottom: "auto", height: "56.25vw" }
+                : full
+                  ? {
+                      paddingLeft: "env(safe-area-inset-left)",
+                      paddingRight: "env(safe-area-inset-right)",
+                      paddingTop: "env(safe-area-inset-top)",
+                      paddingBottom: "env(safe-area-inset-bottom)",
+                    }
+                  : undefined
+            }
+          />
 
           {running && phase !== "playing" && phase !== "moved" && (
             <div className="absolute inset-0 flex items-center justify-center gap-2 bg-black/40 text-sm text-white/85">
@@ -714,11 +918,29 @@ export function StreamPanel() {
               {tr("rp_idle", undefined, "Press Start to play this PS5 here.")}
             </div>
           )}
-          {playing && prefs.showStats && stats && <StatsLine stats={stats} light={light} />}
+          {playing && prefs.showStats && stats && (
+            <StatsLine
+              stats={stats}
+              light={light}
+              // The controller has the bottom-left corner: the stats go on the picture's top
+              // left (upright) or top middle under the touchpad row.
+              style={
+                portraitFull
+                  ? { top: `calc(${PICTURE_TOP} + 6px)`, left: "8px" }
+                  : touchOverPicture
+                    ? {
+                        left: "50%",
+                        translate: "-50% 0",
+                        top: touchLayout === "overlay-bar" ? "7rem" : "calc(max(10px, env(safe-area-inset-top)) + 6rem)",
+                      }
+                    : undefined
+              }
+            />
+          )}
 
-          {running && (
+          {running && !compact && (
             <div
-              className={`absolute inset-x-0 top-0 flex items-center gap-2 bg-gradient-to-b from-black/70 to-transparent px-3 pb-6 pt-[max(0.75rem,env(safe-area-inset-top))] transition-opacity duration-200 ${
+              className={`absolute inset-x-0 top-0 z-20 flex items-center gap-2 bg-gradient-to-b from-black/70 to-transparent px-3 pb-6 pt-[max(0.75rem,env(safe-area-inset-top))] transition-opacity duration-200 ${
                 showBar ? "opacity-100" : "pointer-events-none opacity-0"
               }`}
               onClick={(e) => e.stopPropagation()}
@@ -745,24 +967,7 @@ export function StreamPanel() {
                 {muted ? <VolumeX size={16} /> : <Volume2 size={16} />}
               </BarButton>
               {/* Volume right on the picture (Settings has it too); keys on it never reach the pad. */}
-              <input
-                type="range"
-                min={0}
-                max={100}
-                step={5}
-                value={muted ? 0 : Math.round(prefs.volume * 100)}
-                onChange={(e) => {
-                  const v = Number(e.target.value) / 100;
-                  setPrefs(v === 0 ? { muted: true } : { volume: v, muted: false });
-                }}
-                onKeyDown={(e) => e.stopPropagation()}
-                onKeyUp={(e) => e.stopPropagation()}
-                onPointerDown={(e) => e.stopPropagation()}
-                aria-label={tr("rp_volume", undefined, "Volume")}
-                title={`${tr("rp_volume", undefined, "Volume")} ${muted ? 0 : Math.round(prefs.volume * 100)}%`}
-                className="w-20 accent-white sm:w-28"
-                data-testid="rp-volume"
-              />
+              <VolumeSlider className="w-20 accent-white sm:w-28" />
               <BarButton
                 label={tr("rp_settings", undefined, "Settings")}
                 active={settingsOpen}
@@ -810,7 +1015,70 @@ export function StreamPanel() {
               </button>
             </div>
           )}
-          {running && touchFirst && <TouchControls stream={stream} />}
+          {touchHere && (
+            <TouchControls
+              stream={stream}
+              layout={touchLayout}
+              opacity={prefs.touchOpacity}
+              size={prefs.touchSize}
+              deckTop={`calc(${PICTURE_TOP} + 56.25vw)`}
+            />
+          )}
+
+          {/* Full screen on a touch-sized player: one small handle, top middle, opens the menu.
+              Nothing else on the picture leaves full screen or stops the stream. */}
+          {compact && full && !menuOpen && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setMenuOpen(true);
+              }}
+              onDoubleClick={(e) => e.stopPropagation()}
+              onPointerDown={(e) => e.stopPropagation()}
+              aria-label={tr("rp_menu", undefined, "Menu")}
+              aria-haspopup="dialog"
+              className="absolute left-1/2 z-30 flex h-8 w-14 -translate-x-1/2 items-center justify-center rounded-full border border-white/20 bg-black/40 text-white/80 opacity-70 backdrop-blur-sm transition-opacity hover:opacity-100 active:opacity-100"
+              style={{ top: "max(6px, env(safe-area-inset-top))" }}
+              data-testid="rp-menu-handle"
+            >
+              <MoreHorizontal size={18} />
+            </button>
+          )}
+          {compact && full && menuOpen && (
+            <>
+              {/* A tap beside the menu closes it, and nothing else. */}
+              <div
+                className="absolute inset-0 z-30 bg-black/30"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setMenuOpen(false);
+                }}
+                onDoubleClick={(e) => e.stopPropagation()}
+                onPointerDown={(e) => e.stopPropagation()}
+                data-testid="rp-menu-backdrop"
+              />
+              <div
+                role="dialog"
+                aria-label={tr("rp_menu", undefined, "Menu")}
+                className="absolute left-1/2 z-40 w-[min(22rem,calc(100%-2rem))] -translate-x-1/2 overflow-y-auto rounded-2xl border border-white/10 bg-neutral-900/90 p-2 shadow-2xl backdrop-blur-md"
+                style={{
+                  top: "max(8px, env(safe-area-inset-top))",
+                  maxHeight: "calc(100% - max(8px, env(safe-area-inset-top)) - max(8px, env(safe-area-inset-bottom)))",
+                }}
+                onClick={(e) => e.stopPropagation()}
+                onDoubleClick={(e) => e.stopPropagation()}
+                onPointerDown={(e) => e.stopPropagation()}
+                onKeyDown={(e) => {
+                  e.stopPropagation();
+                  if (e.key === "Escape") setMenuOpen(false);
+                }}
+                onKeyUp={(e) => e.stopPropagation()}
+              >
+                <PlayMenu inFull {...menuProps} />
+              </div>
+            </>
+          )}
         </div>
   );
 
@@ -972,9 +1240,80 @@ export function StreamPanel() {
 
       {full ? createPortal(stageView, document.body) : stageView}
 
+      {/* Touch-sized player, on the page: the bar is under the picture, never on it, so every
+          action fits at 360 px and nothing covers the game. More opens the rest. */}
+      {compact && running && !full && (
+        <div className="space-y-2">
+          <div
+            className="flex flex-wrap items-center gap-2 rounded-[var(--radius-card)] bg-neutral-900 px-3 py-2 text-white"
+            data-testid="rp-toolbar"
+          >
+            <span className="w-full min-w-0 truncate text-xs font-medium text-white/80">
+              <span className="me-2 inline-block h-2 w-2 rounded-full bg-[var(--color-success,#22c55e)] align-middle" />
+              {target?.name}
+            </span>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                enterFull();
+              }}
+              className="flex h-11 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-full bg-white/15 px-3 text-sm font-medium hover:bg-white/25"
+              data-testid="rp-fullscreen"
+            >
+              <Expand size={15} />
+              {tr("rp_fullscreen", undefined, "Full screen")}
+            </button>
+            <button
+              type="button"
+              onClick={() => setMenuOpen((v) => !v)}
+              aria-label={tr("rp_more", undefined, "More")}
+              aria-expanded={menuOpen}
+              className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full hover:bg-white/25 ${menuOpen ? "bg-white/25" : "bg-white/15"}`}
+              data-testid="rp-more"
+            >
+              <MoreHorizontal size={18} />
+            </button>
+            <button
+              type="button"
+              onClick={stopHere}
+              className="flex h-11 shrink-0 items-center gap-1.5 rounded-full bg-[var(--color-danger,#dc2626)] px-4 text-sm font-medium hover:brightness-110"
+              data-testid="rp-stop"
+            >
+              <Square size={13} />
+              {tr("rp_stop", undefined, "Stop")}
+            </button>
+          </div>
+          {menuOpen && (
+            <div className="rounded-[var(--radius-card)] bg-neutral-900 p-2">
+              <PlayMenu inFull={false} {...menuProps} />
+            </div>
+          )}
+          {showTouch && portrait && (
+            <p className="flex items-center gap-2 px-1 text-xs text-[var(--color-muted)]" data-testid="rp-touch-in-full">
+              <Gamepad2 size={14} className="shrink-0" />
+              {tr(
+                "rp_touch_in_full",
+                undefined,
+                "The on-screen controller is in Full screen, under the picture. Turn the phone sideways for the biggest picture.",
+              )}
+            </p>
+          )}
+        </div>
+      )}
+
       {settingsOpen && <SettingsPanel running={running} />}
 
-      {!settingsOpen && (
+      {!settingsOpen && compact && !running && (
+        <p className="text-xs text-[var(--color-muted)]">
+          {tr(
+            "rp_touch_hint",
+            undefined,
+            "Turn the phone sideways, or tap Full screen, to fill the screen. There, the small ⋯ at the top opens the menu; taps on the picture are play and never leave full screen. Back leaves full screen.",
+          )}
+        </p>
+      )}
+      {!settingsOpen && !compact && (
         <p className="text-xs text-[var(--color-muted)]">
           {tr(
             "rp_keys_body2",

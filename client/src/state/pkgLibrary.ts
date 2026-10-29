@@ -3452,8 +3452,8 @@ const makePkgLibraryStore = () =>
 
         set({
           busyNotice: remoteUrl
-            ? `Installing ${label} from the link (beta) — this computer downloads it over several connections at once and feeds the PS5, nothing is staged…`
-            : `Stream-installing ${label} (beta) — the PS5 pulls the pkg directly over HTTP, no staging upload…`,
+            ? `Installing ${label} from the link — this computer downloads it over several connections at once and feeds the PS5, nothing is staged…`
+            : `Stream-installing ${label} — the PS5 pulls the pkg directly over HTTP, no staging upload…`,
         });
 
         hooks?.onStatus(

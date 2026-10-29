@@ -21,6 +21,7 @@ const KEY_ALWAYS_OVERWRITE = "ps5upload.always_overwrite";
 const KEY_SHOW_FILES = "ps5upload.show_transfer_files";
 const KEY_BANDWIDTH_CAP = "ps5upload.bandwidth_cap_mbps";
 const KEY_AUTO_RESUME = "ps5upload.auto_resume";
+const KEY_QUEUE_AUTO_START = "ps5upload.queue_auto_start";
 const KEY_KEEP_PS5_AWAKE = "ps5upload.keep_ps5_awake";
 const KEY_AUTO_REDEPLOY_ON_WAKE = "ps5upload.auto_redeploy_on_wake";
 const KEY_AUTO_BRING_UP = "ps5upload.auto_bring_up";
@@ -93,6 +94,14 @@ function loadKeepPs5AwakeMode(): KeepPs5AwakeMode {
   return safeGetItem(KEY_KEEP_PS5_AWAKE) === "false"
     ? "off"
     : "transfers";
+}
+
+/** "Start the queue when you add something" (#536). On (default): Install, Upload now,
+ *  Send and the like run the console's whole queue in order. Off: they only add, and the
+ *  queue runs when Start is pressed. */
+function loadQueueAutoStart(): boolean {
+  if (typeof window === "undefined") return true;
+  return safeGetItem(KEY_QUEUE_AUTO_START) !== "false";
 }
 
 /** Auto-resume after a failed upload. Default ON: when a job fails for a
@@ -172,6 +181,8 @@ interface UploadSettingsState {
    *  the payload if it crashed, then resume. Bounded retries; fatal errors
    *  still surface. */
   autoResume: boolean;
+  /** Adding something starts the console's whole queue. See loadQueueAutoStart. */
+  queueAutoStart: boolean;
   /** Wake a sleeping console for a waiting upload. See loadWakeForUploads. */
   wakeForUploads: boolean;
   /** Keep-PS5-awake policy — see KeepPs5AwakeMode. */
@@ -193,6 +204,7 @@ interface UploadSettingsState {
   setShowTransferFiles: (on: boolean) => void;
   setBandwidthCapMbps: (n: number) => void;
   setAutoResume: (on: boolean) => void;
+  setQueueAutoStart: (on: boolean) => void;
   setWakeForUploads: (on: boolean) => void;
   setKeepPs5AwakeMode: (mode: KeepPs5AwakeMode) => void;
   setAutoRedeployOnWake: (on: boolean) => void;
@@ -206,6 +218,7 @@ export const useUploadSettingsStore = create<UploadSettingsState>((set) => ({
   showTransferFiles: loadShowFiles(),
   bandwidthCapMbps: loadBandwidthCap(),
   autoResume: loadAutoResume(),
+  queueAutoStart: loadQueueAutoStart(),
   wakeForUploads: loadWakeForUploads(),
   keepPs5AwakeMode: loadKeepPs5AwakeMode(),
   autoRedeployOnWake: loadAutoRedeployOnWake(),
@@ -239,6 +252,10 @@ export const useUploadSettingsStore = create<UploadSettingsState>((set) => ({
   setAutoResume: (autoResume) => {
     safeSetItem(KEY_AUTO_RESUME, autoResume ? "true" : "false");
     set({ autoResume });
+  },
+  setQueueAutoStart: (queueAutoStart) => {
+    safeSetItem(KEY_QUEUE_AUTO_START, queueAutoStart ? "true" : "false");
+    set({ queueAutoStart });
   },
   setWakeForUploads: (wakeForUploads) => {
     safeSetItem(KEY_WAKE_FOR_UPLOADS, wakeForUploads ? "true" : "false");
@@ -276,13 +293,14 @@ export const useUploadSettingsStore = create<UploadSettingsState>((set) => ({
 
 // A change synced from another device shows at once (lib/liveSettings).
 registerSettingReload(
-  [KEY_ALWAYS_OVERWRITE, KEY_SHOW_FILES, KEY_BANDWIDTH_CAP, KEY_AUTO_RESUME, KEY_KEEP_PS5_AWAKE, KEY_AUTO_BRING_UP, KEY_SYSTEM_FILE_READ, KEY_WAKE_FOR_UPLOADS, "ps5upload.keep_ps5_awake_mode"],
+  [KEY_ALWAYS_OVERWRITE, KEY_SHOW_FILES, KEY_BANDWIDTH_CAP, KEY_AUTO_RESUME, KEY_QUEUE_AUTO_START, KEY_KEEP_PS5_AWAKE, KEY_AUTO_BRING_UP, KEY_SYSTEM_FILE_READ, KEY_WAKE_FOR_UPLOADS, "ps5upload.keep_ps5_awake_mode"],
   () =>
     useUploadSettingsStore.setState({
       alwaysOverwrite: loadAlwaysOverwrite(),
       showTransferFiles: loadShowFiles(),
       bandwidthCapMbps: loadBandwidthCap(),
       autoResume: loadAutoResume(),
+      queueAutoStart: loadQueueAutoStart(),
       wakeForUploads: loadWakeForUploads(),
       keepPs5AwakeMode: loadKeepPs5AwakeMode(),
       autoBringUp: loadAutoBringUp(),

@@ -278,8 +278,8 @@ let deleteAfterInstall = false;
 function queueImage(imagePath: string, bytes: number, plan: ImageUploadPlan) {
   const q = useUploadQueueStore.getState();
   const id = q.add(imageUploadItem(imagePath, plan, bytes));
-  // Run just this image: uploads someone queued for later still wait for Start.
-  void q.startHost(plan.host, { onlyIds: [id] });
+  // Like every add (#536): the console's queue runs in order, or waits for Start.
+  q.startAdded(plan.host, [id]);
 }
 
 /** A build that ends the run (Convert only, or a .ffpfsc image). */

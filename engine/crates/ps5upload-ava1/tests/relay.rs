@@ -882,3 +882,31 @@ fn a_zip_entrys_own_mtime_is_carried_into_the_manifest() {
     let (m, _src) = ps5upload_ava1::zip_source::ZipSource::open(&path, &[]).unwrap();
     assert_eq!(m.entries[0].mtime, 1_709_209_840);
 }
+
+#[test]
+fn zip_backward_reads_are_bounded() {
+    use ava1::source::ReadAt;
+    let d = temp("zip-backward");
+    let path = d.join("b.zip");
+    const SIZE: u64 = 2 << 20;
+    zip_with(&path, &[("e", zip::CompressionMethod::Deflated, 7, SIZE)]);
+    let (_, source) = ZipSource::open(&path, &[]).unwrap();
+    let mut r = source.open_entry("e").unwrap();
+    let mut buf = [0u8; 64];
+    // Three backward reads are tolerated (the sender never makes one), each restarting the
+    // inflater from the entry's start.
+    for _ in 0..3 {
+        r.read_at(1 << 20, &mut buf).unwrap();
+        assert_eq!(&buf[..], &pattern(7, 1 << 20, 64)[..]);
+        r.read_at(0, &mut buf).unwrap();
+        assert_eq!(&buf[..], &pattern(7, 0, 64)[..]);
+    }
+    assert_eq!(r.restarts(), 4);
+    r.read_at(1 << 20, &mut buf).unwrap();
+    let err = r.read_at(0, &mut buf).unwrap_err();
+    assert!(err.to_string().contains("re-read too often"), "{err}");
+    assert!(
+        !ps5upload_ava1::zip_source::is_zip_corrupt(&err),
+        "too many re-reads is not a damaged entry"
+    );
+}

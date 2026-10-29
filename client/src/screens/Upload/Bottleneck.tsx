@@ -117,7 +117,7 @@ export function JobLiveNotes({ live }: { live: JobLive | undefined }) {
   );
 }
 
-/** A console-to-console copy's route (#433): straight between the consoles (Beta), or through
+/** A console-to-console copy's route (#433): straight between the consoles, or through
  *  this computer and why. Nothing until the engine knows the route. */
 export function RouteLine({ live }: { live: JobLive | undefined }) {
   const tr = useTr();
@@ -127,9 +127,6 @@ export function RouteLine({ live }: { live: JobLive | undefined }) {
       <div className="mt-1 flex items-center gap-1.5 text-xs text-[var(--color-muted)]" data-testid="queue-route">
         <ArrowLeftRight size={12} className="shrink-0 text-[var(--color-accent)]" />
         <span>{tr("queue_route_direct", undefined, "Straight between the consoles")}</span>
-        <span className="rounded bg-[var(--color-surface-3)] px-1 py-px text-[10px] font-medium uppercase tracking-wide">
-          {tr("queue_route_beta", undefined, "Beta")}
-        </span>
       </div>
     );
   }

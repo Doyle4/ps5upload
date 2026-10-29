@@ -50,6 +50,8 @@ export function RemoteSends() {
       if (it.txIdHex === s.txId && it.status !== "running") q.remove(it.id);
     }
     const id = q.add(adoptItem(s, action, profiles.map((p) => p.host)));
+    // Taking a send back is an explicit click on this one send, like a row's own Start: it
+    // runs now whatever "Start the queue when you add something" says (#536 is about adds).
     void q.startHost(s.console, { onlyIds: [id] });
   };
 

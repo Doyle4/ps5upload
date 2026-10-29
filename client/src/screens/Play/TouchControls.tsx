@@ -33,9 +33,35 @@ type Part =
 
 const STICK_RANGE = 32767;
 
+/**
+ * Where the controller is drawn:
+ * - "overlay": over a picture that fills the screen (full screen, a phone sideways). Clear of
+ *   the notch and the rounded corners (safe areas); the middle of the picture stays free.
+ * - "overlay-bar": the same over a picture that has the button bar along its top (a computer
+ *   with the controller switched on), so the top row sits below that bar.
+ * - "deck": full screen on a phone held upright, like PS Remote Play's portrait layout: the
+ *   picture across the top, the controller on the black below it (`deckTop` is where the
+ *   picture ends), so no button covers the game.
+ */
+export type TouchLayout = "overlay" | "overlay-bar" | "deck";
+
+const SIZE_SCALE: Record<RpPrefs["touchSize"], number> = { s: 0.85, m: 1, l: 1.15 };
+
 /** A controller drawn over the picture: two sticks, D-pad, face buttons, shoulders, Options,
  *  Create, PS and a touchpad strip. Several fingers at once; each press buzzes the phone. */
-export function TouchControls({ stream }: { stream: RemotePlayStream | null }) {
+export function TouchControls({
+  stream,
+  layout = "overlay",
+  opacity = 1,
+  size = "m",
+  deckTop = "0px",
+}: {
+  stream: RemotePlayStream | null;
+  layout?: TouchLayout;
+  opacity?: number;
+  size?: RpPrefs["touchSize"];
+  deckTop?: string;
+}) {
   const tr = useTr();
   const fingers = useRef(new Map<number, Part>());
   const pad = useRef<PadState>({ ...IDLE_PAD });
@@ -106,7 +132,10 @@ export function TouchControls({ stream }: { stream: RemotePlayStream | null }) {
     if (part.kind === "touchpad") pad.current.touch = null;
     apply();
   };
-  const handlers = { onPointerMove: move, onPointerUp: up, onPointerCancel: up, onClick: (e: React.MouseEvent) => e.stopPropagation() };
+  // Taps on the controller are the controller's: never a click or a double click on the picture
+  // (a double tap there must not leave full screen).
+  const stop = (e: React.SyntheticEvent) => e.stopPropagation();
+  const handlers = { onPointerMove: move, onPointerUp: up, onPointerCancel: up, onClick: stop, onDoubleClick: stop };
   const held = (bit: number) => (view.buttons & bit) !== 0;
 
   const btn = (label: string, bit: number, cls: string) => (
@@ -158,26 +187,60 @@ export function TouchControls({ stream }: { stream: RemotePlayStream | null }) {
     );
   };
 
+  const scale = SIZE_SCALE[size] ?? 1;
+  const deck = layout === "deck";
+  // Clear of the notch, the rounded corners and the home bar.
+  const L = "max(12px, env(safe-area-inset-left))";
+  const R = "max(12px, env(safe-area-inset-right))";
+  const B = deck ? "max(16px, env(safe-area-inset-bottom))" : "max(12px, env(safe-area-inset-bottom))";
+  // The top row: under the menu handle's height (overlay), under the bar (overlay-bar).
+  const top = deck ? "8px" : layout === "overlay-bar" ? "3.5rem" : "max(10px, env(safe-area-inset-top))";
+  // The touchpad row with Create and Options either side, as on the DualSense: in the overlay
+  // it sits below the menu handle in the middle of the top edge.
+  const padRowTop = deck
+    ? "52px"
+    : layout === "overlay-bar"
+      ? "3.5rem"
+      : "calc(max(10px, env(safe-area-inset-top)) + 2.75rem)";
+  const at = (origin: string, pos: React.CSSProperties): React.CSSProperties => ({
+    position: "absolute",
+    ...pos,
+    transform: scale === 1 ? undefined : `scale(${scale})`,
+    transformOrigin: origin,
+  });
+
   return (
-    <div className="pointer-events-none absolute inset-0 z-10 select-none" data-testid="rp-touch">
-      {/* Touchpad strip, top middle (under the toolbar). */}
-      <div
-        aria-label={tr("rp_touch_touchpad", undefined, "Touchpad")}
-        onPointerDown={(e) => down(e, (el) => ({ kind: "touchpad", rect: el.getBoundingClientRect() }))}
-        {...handlers}
-        className="pointer-events-auto absolute left-1/2 top-14 h-10 w-[30%] -translate-x-1/2 touch-none rounded-xl border border-white/20 bg-black/15"
-      />
-      {/* Shoulders. */}
-      <div className="absolute left-3 top-14 flex gap-2">
+    <div
+      className={`pointer-events-none absolute z-10 select-none [-webkit-touch-callout:none] ${deck ? "inset-x-0 bottom-0" : "inset-0"}`}
+      style={{ opacity, top: deck ? deckTop : undefined }}
+      data-testid="rp-touch"
+      data-layout={layout}
+      onContextMenu={(e) => e.preventDefault()}
+    >
+      {/* Shoulders, in the top corners. */}
+      <div className="flex gap-2" style={at("top left", { top, left: L })}>
         {trig("L2", "l2")}
         {btn("L1", PadButton.L1, "h-9 w-16 rounded-lg")}
       </div>
-      <div className="absolute right-3 top-14 flex gap-2">
+      <div className="flex gap-2" style={at("top right", { top, right: R })}>
         {btn("R1", PadButton.R1, "h-9 w-16 rounded-lg")}
         {trig("R2", "r2")}
       </div>
+      {/* Create, touchpad, Options: top middle. */}
+      <div className="flex items-center gap-2" style={at("top center", { top: padRowTop, left: "50%", translate: "-50% 0" })}>
+        {btn("Create", PadButton.SHARE, "h-8 px-2.5 text-[11px]")}
+        <div
+          aria-label={tr("rp_touch_touchpad", undefined, "Touchpad")}
+          onPointerDown={(e) => down(e, (el) => ({ kind: "touchpad", rect: el.getBoundingClientRect() }))}
+          {...handlers}
+          className={`pointer-events-auto h-11 touch-none rounded-xl border border-white/20 bg-black/15 ${
+            deck ? "w-[clamp(6rem,34vw,12rem)]" : "w-[clamp(6rem,22vw,14rem)]"
+          }`}
+        />
+        {btn("Options", PadButton.OPTIONS, "h-8 px-2.5 text-[11px]")}
+      </div>
       {/* Left: D-pad above the stick. Right: face buttons above the stick. */}
-      <div className="absolute bottom-3 left-4 flex flex-col items-center gap-2">
+      <div className="flex flex-col items-center gap-2" style={at("bottom left", { bottom: B, left: L })}>
         <div className="grid grid-cols-3 grid-rows-3 gap-0.5">
           <span />
           {btn("↑", PadButton.UP, "h-9 w-9 rounded-md")}
@@ -191,7 +254,7 @@ export function TouchControls({ stream }: { stream: RemotePlayStream | null }) {
         </div>
         {stick("l")}
       </div>
-      <div className="absolute bottom-3 right-4 flex flex-col items-center gap-2">
+      <div className="flex flex-col items-center gap-2" style={at("bottom right", { bottom: B, right: R })}>
         <div className="grid grid-cols-3 grid-rows-3 gap-0.5">
           <span />
           {btn("△", PadButton.TRIANGLE, "h-10 w-10")}
@@ -205,11 +268,9 @@ export function TouchControls({ stream }: { stream: RemotePlayStream | null }) {
         </div>
         {stick("r")}
       </div>
-      {/* Middle bottom: Create, PS, Options. */}
-      <div className="absolute bottom-4 left-1/2 flex -translate-x-1/2 items-center gap-3">
-        {btn("Create", PadButton.SHARE, "h-8 px-3 text-[11px]")}
+      {/* PS, bottom middle between the sticks. */}
+      <div style={at("bottom center", { bottom: B, left: "50%", translate: "-50% 0" })}>
         {btn("PS", PadButton.PS, "h-10 w-10 text-xs")}
-        {btn("Options", PadButton.OPTIONS, "h-8 px-3 text-[11px]")}
       </div>
     </div>
   );

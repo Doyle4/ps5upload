@@ -21,12 +21,6 @@ use crate::progress::{bottleneck_name, Bridge};
 use crate::source::{FsSource, ListSource};
 use crate::zip_source::ZipSource;
 
-/// Retained for the engine's fallback match: AVA1 no longer caps zip entry size
-/// (`ZipEntryReader` keeps its inflater, so a large entry inflates once).
-#[derive(Debug, thiserror::Error)]
-#[error("zip entry {0} is too large for AVA1")]
-pub struct ZipTooLarge(pub String);
-
 /// The archive cannot be an AVA1 source (a path the manifest refuses, an unsupported
 /// method, encryption, a damaged directory).
 #[derive(Debug, thiserror::Error)]

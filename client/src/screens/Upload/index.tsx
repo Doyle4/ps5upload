@@ -385,7 +385,7 @@ export default function UploadScreen({
   const alwaysOverwrite = useUploadSettingsStore((s) => s.alwaysOverwrite);
   const reconcileMode = useUploadSettingsStore((s) => s.reconcileMode);
   const queueAdd = useUploadQueueStore((s) => s.add);
-  const queueStartHost = useUploadQueueStore((s) => s.startHost);
+  const queueStartAdded = useUploadQueueStore((s) => s.startAdded);
   const activeExcludes =
     excludeMode === "rules"
       ? excludes.filter((rule) => rule.enabled).map((rule) => rule.pattern)
@@ -564,14 +564,15 @@ export default function UploadScreen({
     };
   }, [host]);
 
-  /** Upload now: the item goes into this console's queue and starts at once, so its
-   *  progress, install, mount and result show on its queue row like every other send
-   *  (anything else waiting keeps waiting for Start). There is one way things go to the
+  /** Upload now: the item goes into this console's queue, which then starts as every add
+   *  does (#536: the whole queue in order, or nothing until Start when "Start the queue when
+   *  you add something" is off), so its progress, install, mount and result show on its queue
+   *  row like every other send. There is one way things go to the
    *  console: the one-shot transfer this replaced showed the same progress in a card of
    *  its own and could not run beside the queue. */
   const sendNow = (strategy: "overwrite" | "resume") => {
     const id = handleAddToQueue(strategy);
-    if (id && host) void queueStartHost(host, { onlyIds: [id] });
+    if (id && host) queueStartAdded(host, [id]);
   };
 
   const beginUpload = (strategy: UploadStrategy) => {
@@ -731,8 +732,8 @@ export default function UploadScreen({
       if (item) ids.push(queueAdd(item));
     });
     batch.clear();
-    // Start these; anything else waiting in the queue keeps waiting for Start.
-    if (startNow && host) void queueStartHost(hostOf(host), { onlyIds: ids });
+    // Start: the console's queue runs as every add does (#536). "Add to queue" only adds.
+    if (startNow && host) queueStartAdded(hostOf(host), ids);
   };
   const batchKindLabel = (r: BatchRow) =>
     r.source
@@ -1221,6 +1222,7 @@ function Step2Options(props: {
   const queueRunning = useUploadQueueStore(
     (s) => !!s.runningHosts[hostOf(stepHost)],
   );
+  const queueAutoStart = useUploadSettingsStore((s) => s.queueAutoStart);
   // With two consoles in the roster, surface WHICH one this upload targets via
   // a chip next to the actions (not in the button label — a long profile name
   // would bloat the button). The form is shared across tabs, so this is where
@@ -1729,7 +1731,17 @@ function Step2Options(props: {
                     undefined,
                     "Starts after what the queue is sending now",
                   )
-                : undefined
+                : queueAutoStart
+                  ? tr(
+                      "upload_starts_queue",
+                      undefined,
+                      "Starts the queue: anything already waiting goes first, in order",
+                    )
+                  : tr(
+                      "upload_waits_for_start",
+                      undefined,
+                      "Adds to the queue. It runs when you press Start queue (Start the queue when you add something is off)",
+                    )
           }
           className={
             // For a package, Stream & install (on its card) is the main

@@ -421,7 +421,7 @@ describe("fpkg pipeline", () => {
     const started: string[] = [];
     useUploadQueueStore.setState({
       add: (i: unknown) => void added.push(i),
-      startHost: async (h: string) => void started.push(h),
+      startAdded: (h: string) => void started.push(h),
     } as never);
     await useFpkgConversion.getState().buildImage("/games/W-app", "/out", true, "ffpkg", {
       host: "10.0.0.2",

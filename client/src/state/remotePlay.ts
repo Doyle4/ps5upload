@@ -35,6 +35,10 @@ export interface RpPrefs {
   rumble: boolean;
   /** The controller drawn over the picture: on touch screens (auto), always, or never. */
   touchControls: "auto" | "on" | "off";
+  /** How solid the on-screen controller is drawn, 0.3 (faint) to 1. */
+  touchOpacity: number;
+  /** The on-screen controller's size. */
+  touchSize: "s" | "m" | "l";
 }
 
 export const DEFAULT_RP_PREFS: RpPrefs = {
@@ -48,6 +52,8 @@ export const DEFAULT_RP_PREFS: RpPrefs = {
   capturePointer: true,
   rumble: true,
   touchControls: "auto",
+  touchOpacity: 1,
+  touchSize: "m",
 };
 
 const PREFS_KEY = "ps5upload.rp_prefs.v1";

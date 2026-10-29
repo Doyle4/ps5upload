@@ -114,7 +114,7 @@ export async function sendGamesTo(
   }
   out.installs = installOffers(host, offers);
   out.uploads = uploadIds.length;
-  if (uploadIds.length > 0) void q.startHost(host, { onlyIds: uploadIds });
+  if (uploadIds.length > 0) q.startAdded(host, uploadIds);
   return out;
 }
 

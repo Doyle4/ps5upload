@@ -1,5 +1,12 @@
 /** Additional Files picks wait behind the console's current copy. Requests keep their host,
- * destination and conflict decisions across navigation/restart; failures pause the queue. */
+ * destination and conflict decisions across navigation/restart; failures pause the queue.
+ *
+ * Start rule (#536): this queue never runs a new pick ahead of older ones. It is strictly
+ * first-in-first-out, so a drop either starts the whole line from the top (nothing paused)
+ * or joins the line behind a pause and runs, in order, on Resume. It does not follow the
+ * console queue's "Start the queue when you add something" setting on purpose: a drop into
+ * a Files folder is a file-manager copy the person is watching, not a queued send, and it
+ * has no "Add to queue" for later. */
 import { create } from "zustand";
 import { hostOf } from "../lib/addr";
 import { safeGetItem, safeSetItem } from "../lib/safeStorage";

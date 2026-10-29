@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useLocation, useNavigate } from "react-router";
-import { useBetaFeaturesStore } from "../../state/betaFeatures";
 import {
   MonitorPlay,
   Gamepad2,
@@ -71,7 +70,6 @@ export function RemotePlaySection({
   const visible = useDocumentVisible();
   const guard = useStaleHostGuard();
   const navigate = useNavigate();
-  const betaOn = useBetaFeaturesStore((s) => s.enabled);
 
   const [manualAccountId, setManualAccountId] = useState("");
   const [status, setStatus] = useState<RemotePlayStatus | null>(null);
@@ -246,11 +244,9 @@ export function RemotePlaySection({
           </p>
         </div>
         <div className="flex shrink-0 gap-2">
-        {betaOn && (
-          <Button variant="secondary" size="sm" leftIcon={<Gamepad2 size={14} />} onClick={() => navigate("/play")}>
-            {tr("play_here", undefined, "Play Here")}
-          </Button>
-        )}
+        <Button variant="secondary" size="sm" leftIcon={<Gamepad2 size={14} />} onClick={() => navigate("/play")}>
+          {tr("play_here", undefined, "Play Here")}
+        </Button>
         <Button
           variant="ghost"
           size="sm"

@@ -419,6 +419,10 @@ interface QueueState {
    *  UI can show — and Start/Stop — each console on its own. A host is
    *  present-and-true exactly while its drain loop is live. */
   runningHosts: Record<string, boolean>;
+  /** Consoles whose live run takes only some rows (one row's own Start, a retry, a
+   *  restart): rows waiting outside that run stay waiting. The queue panel offers
+   *  "Start queue" next to Stop for these, which turns the run into a full one. */
+  limitedHosts: Record<string, boolean>;
   /** True after the first hydrate() completes. Lets the UI distinguish
    *  "no items yet" from "still loading from disk." */
   loaded: boolean;
@@ -432,7 +436,8 @@ interface QueueState {
   hydrate: () => Promise<void>;
   /** Adds the item and returns its id. */
   add: (item: AddQueueItem) => string;
-  /** Queue an install on its console and start that console. `done` resolves
+  /** Queue an install on its console; the console's queue then starts as `startAdded`
+   *  says. `done` resolves
    *  when the item finishes or is removed; a duplicate resolves at once with
    *  ok:false. */
   enqueueInstall: (input: EnqueueInstallInput) => EnqueuedInstall;
@@ -484,14 +489,23 @@ interface QueueState {
    *  many rows it re-drove. */
   resumeFailedRecoverable: (host: string) => Promise<number>;
   setContinueOnFailure: (b: boolean) => void;
+  /** Rows were just added by an action the person expects to go (Install, Upload now,
+   *  Send, Convert & install). One rule for all of them (#536): with the
+   *  "Start the queue when you add something" setting on (the default), the console's
+   *  WHOLE queue runs, in queue order — not just the new rows — and a run already going
+   *  (even one limited to a row's own Start) takes everything. Off, nothing starts: the
+   *  rows wait for Start like everything else waiting (a full run already going still
+   *  takes them in order). `ids` are the rows just added. */
+  startAdded: (host: string, ids: string[]) => void;
   /** Start every console that has pending work, each in its own parallel
    *  drain loop (== "Start all"). */
   start: () => Promise<void>;
   /** Stop every running console (== "Stop all"). */
   stop: () => void;
-  /** Start (or no-op if already running) just one console's drain loop. */
-  /** `installsOnly` / `onlyIds` limit the run to what a click just added (installs, or
-   *  these items); uploads waiting for Start stay waiting. Start with neither runs everything.
+  /** Start (or no-op if already running) just one console's drain loop.
+   *  `installsOnly` / `onlyIds` limit the run to those rows (a row's own Start, a retry);
+   *  everything else waiting stays waiting. Start with neither runs everything. Newly added
+   *  rows go through `startAdded`, never a limited run (#536).
    *  `unattended`: nobody clicked for this run (wake resume, re-attaching after a restart), so it
    *  never sends a helper the user stopped (#471). */
   startHost: (
@@ -797,12 +811,25 @@ export const useUploadQueueStore = create<QueueState>((rawSet, get) => {
 
   /** The next pending item on `h` that the runner may take: not one whose engine job is still
    *  being looked up (see `reattaching`). */
-  /** Consoles whose current run was started by an install (Install, Collection, a link):
-   *  that run takes install items only, so uploads waiting for Start stay waiting (#410).
+  /** Consoles whose current run takes only some rows: one row's own Start, a retry, a
+   *  restart. Rows outside it wait. Adding something never makes a run like this any more
+   *  (#536 — that ran a new package alone while the queue above it waited); see startAdded.
    *  Pressing Start while it runs turns it into a full run. */
   type RunScope = { installs: boolean; ids: Set<string> };
   /** Per console: what the current run may take, or absent for everything. */
   const runScope = new Map<string, RunScope>();
+  /** Mirrors "this console's run is limited" into state for the queue panel. */
+  const markLimited = (h: string, on: boolean) => {
+    if (!!get().limitedHosts[h] === on) return;
+    set((s) => {
+      const lh = { ...s.limitedHosts };
+      if (on) lh[h] = true;
+      else delete lh[h];
+      return { limitedHosts: lh };
+    });
+  };
+  /** When each console last showed "Added — press Start" (auto-start off). */
+  const manualNoticeAt = new Map<string, number>();
   const inScope = (h: string, it: QueueItem) => {
     const scope = runScope.get(h);
     return !scope || (scope.installs && it.sourceKind === "install") || scope.ids.has(it.id);
@@ -829,7 +856,7 @@ export const useUploadQueueStore = create<QueueState>((rawSet, get) => {
           // Another tab took the lease (this one stalled past the TTL): stop scheduling and
           // show the queue read-only. The jobs keep running; the new runner adopts them.
           for (const h of Object.keys(get().runningHosts)) hostGen.set(h, ++genCounter);
-          set({ isLeader: false, runningHosts: {}, running: false });
+          set({ isLeader: false, runningHosts: {}, limitedHosts: {}, running: false });
           void syncFollower();
         }
       });
@@ -2134,6 +2161,7 @@ export const useUploadQueueStore = create<QueueState>((rawSet, get) => {
     continueOnFailure: false,
     running: false,
     runningHosts: {},
+    limitedHosts: {},
     loaded: false,
     persistenceError: null,
     isLeader: true,
@@ -2304,7 +2332,7 @@ export const useUploadQueueStore = create<QueueState>((rawSet, get) => {
       const items = get().items;
       const added = items[items.length - 1];
       const done = wait(added.id);
-      void get().startHost(bare, { installsOnly: true });
+      get().startAdded(bare, [added.id]);
       return { id: added.id, done };
     },
 
@@ -2687,6 +2715,35 @@ export const useUploadQueueStore = create<QueueState>((rawSet, get) => {
       scheduleSave();
     },
 
+    startAdded(host, ids) {
+      const h = hostOf(host);
+      if (useUploadSettingsStore.getState().queueAutoStart) {
+        // The whole console, in order: a plain start, which also widens a limited run.
+        void get().startHost(h);
+        return;
+      }
+      // Manual: the rows wait. A full run already going takes them in order by itself.
+      if (get().runningHosts[h] && !get().limitedHosts[h]) return;
+      if (ids.length === 0) return;
+      const now = Date.now();
+      // One note per burst (Install all queues a package at a time).
+      if (now - (manualNoticeAt.get(h) ?? 0) < 4000) return;
+      manualNoticeAt.set(h, now);
+      pushNotification(
+        "info",
+        withConsolePrefix(
+          h,
+          trStatic("queue_added_waits_for_start", "Added to the queue — press Start queue to run it"),
+        ),
+        {
+          body: trStatic(
+            "queue_added_waits_for_start_body",
+            "\"Start the queue when you add something\" is off, so nothing starts until you press Start queue.",
+          ),
+        },
+      );
+    },
+
     async startHost(host, opts) {
       const h = hostOf(host);
       const limited = !!opts?.installsOnly || (opts?.onlyIds?.length ?? 0) > 0;
@@ -2700,8 +2757,10 @@ export const useUploadQueueStore = create<QueueState>((rawSet, get) => {
       // Start widens it to everything.
       if (get().runningHosts[h]) {
         const scope = runScope.get(h);
-        if (!limited) runScope.delete(h);
-        else if (scope) widen(scope);
+        if (!limited) {
+          runScope.delete(h);
+          markLimited(h, false);
+        } else if (scope) widen(scope);
         return;
       }
       if (limited) {
@@ -2711,6 +2770,7 @@ export const useUploadQueueStore = create<QueueState>((rawSet, get) => {
       } else {
         runScope.delete(h);
       }
+      markLimited(h, limited);
       const myGen = ++genCounter;
       hostGen.set(h, myGen);
       const isLive = () => hostGen.get(h) === myGen;
@@ -2743,6 +2803,7 @@ export const useUploadQueueStore = create<QueueState>((rawSet, get) => {
             delete rh[h];
             return { runningHosts: rh, running: anyRunning(rh) };
           });
+          markLimited(h, false);
           // Opt-in "rest mode after uploads finish" (#165). Fire only when
           // the drain completed NATURALLY (isLive — not a Stop, which
           // re-stamps the generation), the user enabled it, this console
@@ -2813,6 +2874,7 @@ export const useUploadQueueStore = create<QueueState>((rawSet, get) => {
       // await, and reset ONLY this console's running rows to pending —
       // sibling consoles keep draining untouched.
       hostGen.set(h, ++genCounter);
+      markLimited(h, false);
       set((s) => {
         const rh = { ...s.runningHosts };
         delete rh[h];
@@ -2894,6 +2956,7 @@ export const useUploadQueueStore = create<QueueState>((rawSet, get) => {
     start: () => Promise.resolve(),
     stop: () => undefined,
     startHost: () => Promise.resolve(),
+    startAdded: () => undefined,
     stopHost: () => undefined,
   };
   const guarded = { ...actions } as Record<string, unknown>;
@@ -2911,10 +2974,8 @@ registerPkgQueueApi({
     // A tab that is not the queue's runner adds nothing (its add returns no id).
     const id = useUploadQueueStore.getState().add(item);
     if (!id) return "";
-    // Only this item: an Install Package upload is a click on that package, not
-    // Start — uploads waiting for Start stay waiting (#410), and a run an install
-    // scoped stays scoped.
-    void useUploadQueueStore.getState().startHost(hostOf(item.addr), { onlyIds: [id] });
+    // Same rule as every add (#536): the whole queue runs, or nothing does until Start.
+    useUploadQueueStore.getState().startAdded(hostOf(item.addr), [id]);
     return id;
   },
   watch(id, cb) {

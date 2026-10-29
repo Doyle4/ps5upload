@@ -1488,6 +1488,7 @@ describe("install items", () => {
   });
   afterEach(() => {
     useUploadQueueStore.getState().stop();
+    useUploadSettingsStore.setState({ queueAutoStart: true });
   });
 
   const waitFor = async (cond: () => boolean) => {
@@ -1613,70 +1614,154 @@ describe("install items", () => {
     await waitFor(() => !useUploadQueueStore.getState().items.some((i) => i.id === q.id));
   });
 
-  it("an install leaves uploads waiting for Start alone (#410)", async () => {
-    const s = useUploadQueueStore.getState();
-    s.add({
-      sourceKind: "folder",
-      sourcePath: "/src/Game",
-      displayName: "Game",
-      resolvedDest: "/data/homebrew/Game",
-      addr: `${host}:9113`,
-      strategy: "overwrite",
-      reconcileMode: "fast",
-      excludes: [],
-      mountAfterUpload: false,
-      mountReadOnly: false,
-      registerAfterUpload: false,
+  // #536: adding something (Install, an Install Package upload, Upload now) follows one
+  // rule. "Start the queue when you add something" on: the console's WHOLE queue runs, in
+  // order. Off: nothing runs until Start. It used to run only the new package (#410's fix),
+  // leaving the games queued above it waiting.
+  const folder = (name: string): AddQueueItem => ({
+    sourceKind: "file",
+    sourcePath: `/src/${name}`,
+    displayName: name,
+    resolvedDest: `/data/homebrew/${name}`,
+    addr: `${host}:9113`,
+    strategy: "overwrite",
+    reconcileMode: "fast",
+    excludes: [],
+    mountAfterUpload: false,
+    mountReadOnly: false,
+    registerAfterUpload: false,
+  });
+  const slowWaitFor = async (cond: () => boolean) => {
+    for (let i = 0; i < 1200 && !cond(); i++) await new Promise((r) => setTimeout(r, 5));
+    expect(cond()).toBe(true);
+  };
+  /** Every upload finishes on its first poll; `order` records what started, in order. */
+  const recordOrder = () => {
+    const order: string[] = [];
+    mockedStartFile.mockReset().mockImplementation(async (src: string) => {
+      order.push(src);
+      return `job-${src}`;
     });
+    mockedJobStatus.mockReset().mockResolvedValue({
+      status: "done",
+      bytes_sent: 100,
+      elapsed_ms: 10,
+    } as Awaited<ReturnType<typeof jobStatus>>);
+    return order;
+  };
+  const statusOf = (path: string) =>
+    useUploadQueueStore.getState().items.find((i) => i.sourcePath === path)?.status;
+
+  it("adding a package to a stopped queue runs the whole queue in order (#536, auto-start on)", async () => {
+    useUploadSettingsStore.setState({ queueAutoStart: true });
+    const order = recordOrder();
+    const s = useUploadQueueStore.getState();
+    s.add(folder("GameA"));
+    s.add(folder("GameB"));
+    expect(useUploadQueueStore.getState().runningHosts[host]).toBeFalsy();
     const q = s.enqueueInstall({ host, request: { via: "stream", source: "/ps4.pkg" }, displayName: "P" });
-    await waitFor(() => calls.length === 1);
+    // Both games queued above the package go first, then the package.
+    await slowWaitFor(() => calls.length === 1);
+    expect(order).toEqual(["/src/GameA", "/src/GameB"]);
+    expect(statusOf("/src/GameA")).toBe("done");
+    expect(statusOf("/src/GameB")).toBe("done");
     gate.get("/ps4.pkg")!({ ok: true });
-    await q.done;
-    await waitFor(() => !useUploadQueueStore.getState().runningHosts[host]);
-    const upload = useUploadQueueStore.getState().items.find((i) => i.sourcePath === "/src/Game");
-    expect(upload?.status).toBe("pending");
+    expect((await q.done).ok).toBe(true);
   });
 
-  it("an Install Package upload runs only itself, leaving uploads waiting for Start alone (#410)", async () => {
-    mockedStartFile.mockReset().mockResolvedValue("job");
-    mockedJobStatus.mockReset().mockResolvedValue({
-      status: "running",
-    } as Awaited<ReturnType<typeof jobStatus>>);
-    const s = useUploadQueueStore.getState();
-    s.add({
-      sourceKind: "folder",
-      sourcePath: "/src/Waiting",
-      displayName: "Waiting",
-      resolvedDest: "/data/homebrew/Waiting",
-      addr: `${host}:9113`,
-      strategy: "overwrite",
-      reconcileMode: "fast",
-      excludes: [],
-      mountAfterUpload: false,
-      mountReadOnly: false,
-      registerAfterUpload: false,
-    });
+  it("an Install Package upload starts the whole queue too, not only itself (#536)", async () => {
+    useUploadSettingsStore.setState({ queueAutoStart: true });
+    const order = recordOrder();
+    useUploadQueueStore.getState().add(folder("Waiting"));
     const id = pkgQueue().add({
+      ...folder("Game.pkg"),
       sourceKind: "pkg",
-      sourcePath: "/src/Game.pkg",
-      displayName: "Game.pkg",
       resolvedDest: "/data/ps5upload/pkg_library/Game.pkg",
-      addr: `${host}:9113`,
-      strategy: "overwrite",
-      reconcileMode: "fast",
-      excludes: [],
-      mountAfterUpload: false,
       mountReadOnly: true,
-      registerAfterUpload: false,
       installAfterUpload: false,
       deletePkgAfterInstall: false,
     });
-    const row = (i: string) => useUploadQueueStore.getState().items.find((it) => it.id === i);
-    await waitFor(() => row(id)?.status === "running");
-    // The package uploads; the folder the user never pressed Start on stays waiting.
-    const waiting = useUploadQueueStore.getState().items.find((i) => i.sourcePath === "/src/Waiting");
-    expect(waiting?.status).toBe("pending");
-    useUploadQueueStore.getState().stopHost(host);
+    await slowWaitFor(
+      () => useUploadQueueStore.getState().items.find((it) => it.id === id)?.status === "done",
+    );
+    expect(order).toEqual(["/src/Waiting", "/src/Game.pkg"]);
+  });
+
+  it("with auto-start off nothing runs until Start, then everything runs in order (#536)", async () => {
+    useUploadSettingsStore.setState({ queueAutoStart: false });
+    const order = recordOrder();
+    const s = useUploadQueueStore.getState();
+    s.add(folder("GameA"));
+    const q = s.enqueueInstall({ host, request: { via: "stream", source: "/ps4.pkg" }, displayName: "P" });
+    pkgQueue().add({ ...folder("Up.pkg"), sourceKind: "pkg", installAfterUpload: false });
+    await new Promise((r) => setTimeout(r, 100));
+    expect(useUploadQueueStore.getState().runningHosts[host]).toBeFalsy();
+    expect(order).toEqual([]);
+    expect(calls).toEqual([]);
+    expect(statusOf("/src/GameA")).toBe("pending");
+
+    void useUploadQueueStore.getState().startHost(host);
+    await slowWaitFor(() => calls.length === 1);
+    gate.get("/ps4.pkg")!({ ok: true });
+    expect((await q.done).ok).toBe(true);
+    await slowWaitFor(() => statusOf("/src/Up.pkg") === "done");
+    // Queue order: the game, the install, the package upload.
+    expect(order).toEqual(["/src/GameA", "/src/Up.pkg"]);
+  });
+
+  it("adding while the queue runs appends: the new item waits its turn (#536)", async () => {
+    useUploadSettingsStore.setState({ queueAutoStart: false });
+    const order: string[] = [];
+    let release: (() => void) | null = null;
+    mockedStartFile.mockReset().mockImplementation(async (src: string) => {
+      order.push(src);
+      return `job-${src}`;
+    });
+    // GameA stays running until released; everything after finishes at once.
+    mockedJobStatus.mockReset().mockImplementation(async (job: string) => {
+      if (job === "job-/src/GameA" && release === null) {
+        return { status: "running", bytes_sent: 1 } as Awaited<ReturnType<typeof jobStatus>>;
+      }
+      return { status: "done", bytes_sent: 100, elapsed_ms: 10 } as Awaited<ReturnType<typeof jobStatus>>;
+    });
+    const s = useUploadQueueStore.getState();
+    s.add(folder("GameA"));
+    void s.startHost(host);
+    await slowWaitFor(() => statusOf("/src/GameA") === "running");
+    // Auto-start is off, but a running queue still takes what is added, after what is ahead.
+    const q = s.enqueueInstall({ host, request: { via: "stream", source: "/late.pkg" }, displayName: "L" });
+    await new Promise((r) => setTimeout(r, 100));
+    expect(calls).toEqual([]);
+    release = () => undefined;
+    await slowWaitFor(() => calls.length === 1);
+    expect(statusOf("/src/GameA")).toBe("done");
+    gate.get("/late.pkg")!({ ok: true });
+    expect((await q.done).ok).toBe(true);
+  });
+
+  it("adding with auto-start on turns a one-row run into a full run (#536)", async () => {
+    useUploadSettingsStore.setState({ queueAutoStart: true });
+    const order = recordOrder();
+    let hold = true;
+    mockedJobStatus.mockImplementation(async (job: string) =>
+      (job === "job-/src/GameA" && hold
+        ? { status: "running", bytes_sent: 1 }
+        : { status: "done", bytes_sent: 100, elapsed_ms: 10 }) as Awaited<ReturnType<typeof jobStatus>>,
+    );
+    const s = useUploadQueueStore.getState();
+    const a = s.add(folder("GameA"));
+    s.add(folder("GameB"));
+    // A row's own Start: only GameA runs.
+    void s.startHost(host, { onlyIds: [a] });
+    await slowWaitFor(() => statusOf("/src/GameA") === "running");
+    expect(useUploadQueueStore.getState().limitedHosts[host]).toBe(true);
+    const q = s.enqueueInstall({ host, request: { via: "stream", source: "/p.pkg" }, displayName: "P" });
+    expect(useUploadQueueStore.getState().limitedHosts[host]).toBeFalsy();
+    hold = false;
+    await slowWaitFor(() => calls.length === 1);
+    expect(order).toEqual(["/src/GameA", "/src/GameB"]);
+    gate.get("/p.pkg")!({ ok: true });
+    expect((await q.done).ok).toBe(true);
   });
 
   it("a second identical install joins the first instead of failing", async () => {

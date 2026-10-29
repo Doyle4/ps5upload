@@ -1172,6 +1172,12 @@ runs one item at a time and persists across app restarts, so an item interrupted
 picks up cleanly when you press Start again. Tick **Continue on failure** to keep going when one
 item fails instead of stopping the whole batch.
 
+**Start the queue when you add something** (on the queue panel and in Settings › Uploads) decides
+what Install, Upload now and Send do: on (the default), they start the console's whole queue
+from the top, in order, not only what you just added; off, they only add to the queue and nothing
+runs until you press **Start queue**. Something added while the queue runs waits its turn at the
+end. **Add to queue** never starts anything.
+
 **Q: How do I jump between volumes in the File System screen?**
 The **Volume** dropdown above the breadcrumb lists every writable volume with its free space.
 Pick one to jump to its root.
@@ -1959,6 +1965,16 @@ process, applies always-on patches and re-applies the ones you toggled. Cheat fi
 community repositories inside the screen. Native JSON, SHN trainer XML and encrypted MC4 files all
 work, with game names, filters and a notification when cheats load. Cheats change nothing on disk
 and stop when the game does.
+
+**Q: How does Remote Play work on a phone?**
+Held upright, the picture is at the top and its controls are under it: **Full screen**, **Stop**
+and a **⋯** menu with Stats, Picture in picture, Settings and volume. In full screen held upright,
+the on-screen controller sits below the picture. Turn the phone sideways while playing and it
+goes full screen by itself (turn it back to return to the page); the only control then is a small
+**⋯** handle at the top. Taps on the picture or the controller are always play: they never leave
+full screen or stop the stream. Back leaves full screen and keeps playing; **Stop** is in the ⋯
+menu. The screen stays awake while you play, and Settings has the controller's size and opacity.
+In the Android app the system bars may stay visible in full screen.
 
 **Q: What is Remote Play, and how do I set it up?**
 Remote Play streams a PS5 into the app (desktop, web UI and Android) and lets you play it with a

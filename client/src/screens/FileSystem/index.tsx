@@ -1785,7 +1785,7 @@ export default function FileSystemScreen() {
         estimatedBytes: it.size,
       }),
     );
-    void q.startHost(target, { onlyIds: ids });
+    q.startAdded(target, ids);
     const name = profileNameForAddr(target, useRosterStore.getState().profiles) || target;
     pushNotification(
       "info",
