@@ -6399,6 +6399,7 @@ library_compressed_hint: "Compressed images need ShadowMount+ to play. To edit, 
 "gate_payload_down_body_v2": "Your console is configured but the ps5upload helper isn't answering — it drops on every reboot or rest mode. Send it again to carry on.",
 "cw_system_title": "System",
 "upload_after_running": "Starts after what the queue is sending now",
+"volumes_free_up": "Free up space",
 };
 
 export default en;

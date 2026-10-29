@@ -6075,6 +6075,7 @@ library_compressed_hint: "সংকুচিত ইমেজ চালাতে 
 "gate_payload_down_body_v2": "আপনার কনসোল সেট আপ করা আছে কিন্তু ps5upload হেল্পার সাড়া দিচ্ছে না — প্রতিবার রিবুট বা রেস্ট মোডে এটি বন্ধ হয়। চালিয়ে যেতে আবার পাঠান।",
 "cw_system_title": "সিস্টেম",
 "upload_after_running": "সারি এখন যা পাঠাচ্ছে তার পরে শুরু হবে",
+"volumes_free_up": "জায়গা খালি করুন",
 };
 
 export default bn;

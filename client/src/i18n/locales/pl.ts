@@ -6329,6 +6329,7 @@ library_compressed_hint: "Skompresowane obrazy wymagają ShadowMount+, aby grać
 "gate_payload_down_body_v2": "Konsola jest skonfigurowana, ale pomocnik ps5upload nie odpowiada — wyłącza się przy każdym restarcie i trybie spoczynku. Wyślij go ponownie, aby kontynuować.",
 "cw_system_title": "System",
 "upload_after_running": "Zacznie się po tym, co kolejka wysyła teraz",
+"volumes_free_up": "Zwolnij miejsce",
 };
 
 export default pl;

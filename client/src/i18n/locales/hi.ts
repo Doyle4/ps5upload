@@ -6090,6 +6090,7 @@ library_compressed_hint: "संपीड़ित इमेज चलाने 
 "gate_payload_down_body_v2": "आपका कंसोल सेट है पर ps5upload हेल्पर जवाब नहीं दे रहा — हर रीबूट या रेस्ट मोड पर यह बंद हो जाता है। जारी रखने के लिए इसे फिर से भेजें।",
 "cw_system_title": "सिस्टम",
 "upload_after_running": "कतार अभी जो भेज रही है उसके बाद शुरू होगा",
+"volumes_free_up": "जगह खाली करें",
 };
 
 export default hi;

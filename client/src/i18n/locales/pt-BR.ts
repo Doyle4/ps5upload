@@ -6091,6 +6091,7 @@ library_compressed_hint: "Imagens compactadas precisam do ShadowMount+ para joga
 "gate_payload_down_body_v2": "Seu console está configurado, mas o helper do ps5upload não responde — ele para a cada reinício ou modo de descanso. Envie de novo para continuar.",
 "cw_system_title": "Sistema",
 "upload_after_running": "Começa depois do que a fila está enviando agora",
+"volumes_free_up": "Liberar espaço",
 };
 
 export default pt_BR;

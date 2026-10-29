@@ -6389,6 +6389,7 @@ library_compressed_hint: "A tömörített képfájlok futtatásához ShadowMount
 "gate_payload_down_body_v2": "A konzol be van állítva, de a ps5upload segéd nem válaszol — minden újraindításkor és pihenő módban leáll. Küldd el újra a folytatáshoz.",
 "cw_system_title": "Rendszer",
 "upload_after_running": "Azután indul, amit a sor most küld",
+"volumes_free_up": "Hely felszabadítása",
 };
 
 export default hu;

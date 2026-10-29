@@ -6375,6 +6375,7 @@ library_compressed_hint: "برای اجرای ایمیج فشرده به ShadowM
 "gate_payload_down_body_v2": "کنسول شما پیکربندی شده اما دستیار ps5upload پاسخ نمی‌دهد — با هر راه‌اندازی دوباره یا حالت استراحت متوقف می‌شود. برای ادامه دوباره آن را بفرستید.",
 "cw_system_title": "سیستم",
 "upload_after_running": "پس از آنچه صف اکنون می‌فرستد شروع می‌شود",
+"volumes_free_up": "آزاد کردن فضا",
 };
 
 export default fa;

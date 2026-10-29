@@ -6082,6 +6082,7 @@ library_compressed_hint: "Sıkıştırılmış kalıpları oynatmak için Shadow
 "gate_payload_down_body_v2": "Konsolunuz yapılandırılmış ancak ps5upload yardımcısı yanıt vermiyor — her yeniden başlatmada veya dinlenme modunda kapanır. Devam etmek için yeniden gönderin.",
 "cw_system_title": "Sistem",
 "upload_after_running": "Kuyruğun şu an gönderdiğinden sonra başlar",
+"volumes_free_up": "Yer aç",
 };
 
 export default tr;

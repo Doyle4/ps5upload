@@ -6025,6 +6025,7 @@ library_compressed_hint: "壓縮映像需要 ShadowMount+ 才能遊玩。如需�
 "gate_payload_down_body_v2": "主機已設定，但 ps5upload 助手沒有回應——每次重新開機或進入休眠模式都會停止。再傳送一次即可繼續。",
 "cw_system_title": "系統",
 "upload_after_running": "在佇列目前傳送的內容之後開始",
+"volumes_free_up": "釋放空間",
 };
 
 export default zh_TW;

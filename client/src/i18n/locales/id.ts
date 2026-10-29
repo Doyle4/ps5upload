@@ -6084,6 +6084,7 @@ library_compressed_hint: "Image terkompresi memerlukan ShadowMount+ untuk bermai
 "gate_payload_down_body_v2": "Konsol Anda sudah diatur tetapi helper ps5upload tidak merespons — helper berhenti setiap kali reboot atau mode istirahat. Kirim lagi untuk melanjutkan.",
 "cw_system_title": "Sistem",
 "upload_after_running": "Dimulai setelah yang sedang dikirim antrean",
+"volumes_free_up": "Kosongkan ruang",
 };
 
 export default id;

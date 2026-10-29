@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router";
-import { HardDrive, FileArchive, Unplug, RefreshCw, PackageCheck } from "lucide-react";
+import { HardDrive, FileArchive, Unplug, RefreshCw, PackageCheck, PieChart } from "lucide-react";
+import { filesViewLink } from "../FileSystem/filesViews";
 
 import { useConnectionStore } from "../../state/connection";
 import {
@@ -304,6 +305,9 @@ export default function VolumesScreen() {
                   }
                   onEject={canEjectUsb(v.path) ? () => void handleEject(v.path) : undefined}
                   ejecting={ejectingPath === v.path}
+                  onFreeUp={
+                    v.is_placeholder ? undefined : () => navigate(filesViewLink("space", { path: v.path }))
+                  }
                 />
               ))}
             </div>
@@ -445,6 +449,7 @@ export function StorageCard({
   onUseForPackages,
   onEject,
   ejecting = false,
+  onFreeUp,
 }: {
   volume: Volume;
   /** The console's own reserved pool on this drive (internal storage only), as it reports it. */
@@ -455,6 +460,8 @@ export function StorageCard({
   /** Present for a USB drive (`/mnt/usbN`): unmount it so it can be unplugged. */
   onEject?: () => void;
   ejecting?: boolean;
+  /** Opens "What takes space?" for this drive (Files), the way to free it up. */
+  onFreeUp?: () => void;
 }) {
   const tr = useTr();
   const isPackageDrive = isInternalVolume(v.path)
@@ -543,8 +550,19 @@ export function StorageCard({
           />
         </div>
       )}
-      {((v.writable && !v.is_placeholder && !isPackageDrive) || onEject) && (
+      {((v.writable && !v.is_placeholder && !isPackageDrive) || onEject || onFreeUp) && (
         <div className="flex flex-wrap gap-2">
+          {onFreeUp && (
+            <Button
+              // A drive that is filling up gets the way to free it as its first action.
+              variant={pct >= 80 ? "primary" : "secondary"}
+              size="sm"
+              leftIcon={<PieChart size={12} />}
+              onClick={onFreeUp}
+            >
+              {tr("volumes_free_up", undefined, "Free up space")}
+            </Button>
+          )}
           {v.writable && !v.is_placeholder && !isPackageDrive && (
             <Button variant="secondary" size="sm" onClick={onUseForPackages}>
               {tr("volumes_store_pkg_copies", undefined, "Store package copies here")}

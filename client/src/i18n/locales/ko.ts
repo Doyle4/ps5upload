@@ -6093,6 +6093,7 @@ library_compressed_hint: "압축 이미지를 플레이하려면 ShadowMount+가
 "gate_payload_down_body_v2": "콘솔은 설정되어 있지만 ps5upload 헬퍼가 응답하지 않습니다. 재부팅하거나 휴식 모드에 들어갈 때마다 멈춥니다. 계속하려면 다시 보내세요.",
 "cw_system_title": "시스템",
 "upload_after_running": "대기열이 지금 보내는 항목 다음에 시작됩니다",
+"volumes_free_up": "공간 확보",
 };
 
 export default ko;

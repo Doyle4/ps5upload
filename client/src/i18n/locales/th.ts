@@ -6083,6 +6083,7 @@ library_compressed_hint: "อิมเมจที่บีบอัดต้อ
 "gate_payload_down_body_v2": "ตั้งค่าเครื่องแล้ว แต่ตัวช่วย ps5upload ไม่ตอบสนอง — มันหยุดทุกครั้งที่รีบูตหรือเข้าโหมดพัก ส่งอีกครั้งเพื่อดำเนินการต่อ",
 "cw_system_title": "ระบบ",
 "upload_after_running": "เริ่มหลังจากสิ่งที่คิวกำลังส่งอยู่",
+"volumes_free_up": "เพิ่มพื้นที่ว่าง",
 };
 
 export default th;

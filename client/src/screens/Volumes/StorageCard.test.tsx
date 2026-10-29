@@ -64,3 +64,22 @@ describe("StorageCard — default package drive", () => {
     expect(out).not.toContain("Store package copies here");
   });
 });
+
+describe("StorageCard — Free up space", () => {
+  const card = (v: Volume, onFreeUp?: () => void) =>
+    renderToStaticMarkup(
+      <StorageCard volume={v} packageDrive={"/mnt/usb0"} onUseForPackages={() => {}} onFreeUp={onFreeUp} />,
+    );
+
+  it("offers it when the screen gives one, and not otherwise", () => {
+    expect(card(vol("/mnt/ext0"), () => {})).toContain("Free up space");
+    expect(card(vol("/mnt/ext0"))).not.toContain("Free up space");
+  });
+
+  it("makes it the main action once the drive is 80% full", () => {
+    const full = card(vol("/mnt/ext0", { free_bytes: 50e9 }), () => {});
+    const roomy = card(vol("/mnt/ext0"), () => {});
+    const freeUpButton = (h: string) => /<button[^>]*>(?:(?!<\/button>).)*Free up space/.exec(h)?.[0] ?? "";
+    expect(freeUpButton(full)).not.toEqual(freeUpButton(roomy));
+  });
+});
