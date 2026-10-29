@@ -2045,16 +2045,21 @@ pub async fn ps5_hw_info(addr: Option<String>) -> Result<JsonValue, String> {
 /// CPU usage / fan duty / product shape) used by the explicit "Read
 /// sensors" click. The Dashboard's auto-poll omits it (or passes false),
 /// so its 5 s tick only ever triggers the basic, always-safe read.
+/// `clocks = Some(true)` also reads the GPU and per-core CPU clocks (`/dev/mp1`): the
+/// Hardware screen's Read sensors click only.
 #[tauri::command]
 pub async fn ps5_hw_temps(
     addr: Option<String>,
     extended: Option<bool>,
+    clocks: Option<bool>,
 ) -> Result<JsonValue, String> {
     let mut url = addr_url("/api/ps5/hw/temps", addr.as_deref());
-    if extended.unwrap_or(false) {
-        let sep = if url.contains('?') { '&' } else { '?' };
-        url.push(sep);
-        url.push_str("extended=1");
+    for (on, param) in [(extended, "extended=1"), (clocks, "clocks=1")] {
+        if on.unwrap_or(false) {
+            let sep = if url.contains('?') { '&' } else { '?' };
+            url.push(sep);
+            url.push_str(param);
+        }
     }
     get_json(&url).await
 }

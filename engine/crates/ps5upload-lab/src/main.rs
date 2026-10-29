@@ -216,6 +216,15 @@ fn do_fan_raw(addr: &str) -> Result<()> {
     Ok(())
 }
 
+/// HW_TEMPS "cd" as the helper writes it: the GPU clock (soc_clock_mhz), the eight core clocks,
+/// and the raw /dev/mp1 words (mp1_clk_raw, mp1_core_raw) for mapping the rest of the table.
+/// Read-only on the console, and the helper stops trying for good after one refusal.
+fn do_clocks_raw(addr: &str) -> Result<()> {
+    let body = ps5upload_core::mgmt::call(addr, ps5upload_core::mgmt::m::HW_TEMPS, b"cd")?;
+    print!("{}", String::from_utf8_lossy(&body));
+    Ok(())
+}
+
 fn do_shutdown(addr: &str) -> Result<()> {
     let body = ps5upload_core::mgmt::call(addr, ps5upload_core::mgmt::m::NODE_SHUTDOWN, b"")?;
     println!("{}", String::from_utf8_lossy(&body));
@@ -873,6 +882,7 @@ fn usage() -> ! {
     eprintln!("  saves                      list save-data folders + sizes");
     eprintln!("  fan-raw                    the helper's fan lines (HW_TEMPS \"f\"), servo profile hex included");
     eprintln!("  fan-set C                  set the fan target (45-85 C; 0 = the console's own)");
+    eprintln!("  clocks-raw                 GPU + per-core CPU clock with the raw /dev/mp1 words (HW_TEMPS \"cd\")");
     eprintln!("  profile-info                       foreground user + account name slots");
     eprintln!("  profile-set-username SLOT NAME     rename an account-name slot");
     eprintln!("  profile-rename-user  UID_HEX NAME  rename a local console user");
@@ -1249,6 +1259,7 @@ fn main() -> Result<()> {
         "hw-temps" => do_hw_temps(addr, false),
         "hw-temps-x" => do_hw_temps(addr, true),
         "fan-raw" => do_fan_raw(addr),
+        "clocks-raw" => do_clocks_raw(addr),
         "fan-set" => {
             let c: u8 = rest
                 .get(1)

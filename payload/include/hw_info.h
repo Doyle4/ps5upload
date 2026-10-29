@@ -40,11 +40,15 @@ int hw_info_get_text(char *out, size_t out_cap, size_t *out_written,
  * getter is independently gated so a firmware that wedges on ONE of them
  * (e.g. FW 9.60 Pro hangs on SoC power) can still serve the others. The
  * HW_TEMPS request body selects them: "1" = ALL (back-compat), or any
- * subset of the chars p/u/f/s. An empty body = basic (none). */
+ * subset of the chars p/u/f/s/c/d. An empty body = basic (none). */
 #define HW_EXT_POWER  0x1   /* 'p' sceKernelGetSocPowerConsumption  */
 #define HW_EXT_USAGE  0x2   /* 'u' sceKernelGetCpuUsageAll          */
 #define HW_EXT_FAN    0x4   /* 'f' sceKernelGetCurrentFanDuty       */
 #define HW_EXT_SHAPE  0x8   /* 's' sceKernelGetBasicProductShape    */
+#define HW_EXT_CLOCKS 0x10  /* 'c' GPU + per-core CPU clock (/dev/mp1, mp1_clock.h) */
+#define HW_EXT_DEBUG  0x20  /* 'd' with 'c': also the raw mp1 words (mp1_clk_raw, mp1_core_raw) */
+/* "1" selects HW_EXT_ALL, which deliberately leaves out CLOCKS and DEBUG: the SMU read is
+ * new and unverified on most firmware, so it happens only when 'c' is sent explicitly. */
 #define HW_EXT_ALL    (HW_EXT_POWER | HW_EXT_USAGE | HW_EXT_FAN | HW_EXT_SHAPE)
 
 /* flags=0 is the BASIC reading (CPU/SoC temp + CPU clock), the only

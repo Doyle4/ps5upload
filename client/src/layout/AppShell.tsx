@@ -12,6 +12,8 @@ import { PairingDialog } from "../screens/Connection/PairingDialog";
 import { useHelperReplaceGuard } from "../screens/Connection/useHelperReplaceGuard";
 import { helperSendFor, useHelperSendStore } from "../state/helperSend";
 import { sendHelperTo } from "../state/helperSendRuntime";
+import { liveCopyDeps } from "../state/helperStoredCopiesRuntime";
+import { findStoredCopies, type StoredCopy } from "../lib/helperStoredCopies";
 import ConsoleTabs from "./ConsoleTabs";
 import ActivityBar from "./ActivityBar";
 import UpdateToast from "./UpdateToast";
@@ -1253,6 +1255,24 @@ function HelperVersionBanner() {
     !!payloadVersion &&
     payloadVersion !== appVersion;
   const pair = `${payloadVersion}->${appVersion}`;
+  const olderHelper =
+    mismatch && compareVersions(payloadVersion ?? "", appVersion ?? "") === -1;
+  // An older helper is usually the copy an autoloader started at boot (#541): look for it,
+  // once per console and version pair, so the banner can say so.
+  const copiesKey = olderHelper ? `${host.trim()}|${pair}` : null;
+  const [bootCopies, setBootCopies] = useState<{ key: string; copies: StoredCopy[] } | null>(null);
+  useEffect(() => {
+    if (!copiesKey) return;
+    let cancelled = false;
+    void findStoredCopies(host.trim(), liveCopyDeps).then((copies) => {
+      if (!cancelled) setBootCopies({ key: copiesKey, copies });
+    });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- copiesKey carries host and pair
+  }, [copiesKey]);
+  const copies = bootCopies?.key === copiesKey ? bootCopies.copies : [];
   const following = sentHere && (sending || send?.state === "fail");
   if (!following && (!mismatch || dismissed === pair)) return null;
   // The helper is the newer one (another device sent it, 8.0.0): sending ours would take that
@@ -1283,11 +1303,17 @@ function HelperVersionBanner() {
                     undefined,
                     "Another device sent a newer helper. Update this app to match it; sending this app's helper would replace it with an older one for every device.",
                   )
-                : tr(
-                    "helper_mismatch_body_v3",
-                    undefined,
-                    "Nothing to do on the PS5 itself: press Send helper and this app sends the matching helper to the console. Fixes and features from the newer version won't work until then.",
-                  )}
+                : copies.length > 0
+                  ? tr(
+                      "helper_mismatch_boot_copy",
+                      { list: copies.map((c) => c.path).join(", ") },
+                      "Your PS5 started an older copy of the helper that it keeps for boot ({list}). Press Send helper: this app sends the matching helper and also updates that copy, so the PS5 starts the new one after a restart.",
+                    )
+                  : tr(
+                      "helper_mismatch_body_v3",
+                      undefined,
+                      "Nothing to do on the PS5 itself: press Send helper and this app sends the matching helper to the console. Fixes and features from the newer version won't work until then.",
+                    )}
             </p>
             {send?.msg && (
               <p

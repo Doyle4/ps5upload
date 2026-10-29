@@ -98,6 +98,18 @@ pub fn stamped_helper(elf: &[u8]) -> Vec<u8> {
     bytes
 }
 
+/// [`stamped_helper`] for a copy the console keeps and starts at every boot (an autoloader
+/// folder, Payload Manager's storage): the key only, no launch token, which is good for one
+/// launch. Deterministic, so a copy already holding it can be recognised by its hash.
+pub fn stamped_stored_helper(elf: &[u8]) -> Vec<u8> {
+    let key = identity().map(|i| i.public());
+    let (bytes, outcome) = stamp_helper_with(elf, key.as_ref(), || None);
+    if let Err(why) = outcome {
+        crate::log_warn!("ava1: {why}");
+    }
+    bytes
+}
+
 /// The identity response. The token is a secret — it is what proves to this engine that a
 /// console is the helper this engine launched — so it goes only to a loopback caller, and
 /// only then is one minted at all. The API is loopback-guarded anyway, but an operator can

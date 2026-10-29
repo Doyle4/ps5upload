@@ -1726,7 +1726,11 @@ export interface HwTemps {
   soc_temp: number;
   /** M.2 NVMe expansion slot temp (celsius). 0 = no drive installed. */
   m2_temp: number;
+  /** A fixed REFERENCE clock the system reports (800 MHz on every console
+   *  measured), not the speed the cores run at. */
   cpu_freq_mhz: number;
+  /** GPU (graphics) clock in MHz from the SoC's power controller. Read only
+   *  with `clocks`; `0` = not read, unsupported or out of range. */
   soc_clock_mhz: number;
   /** milliwatts */
   soc_power_mw: number;
@@ -1763,6 +1767,16 @@ export interface HwTemps {
   fan_guard?: "off" | "ok" | "failing" | "";
   /** The fan controller's filtered temperature (°C, one decimal), null when unreadable. */
   fan_filtered_c?: number | null;
+  /** Where the clocks came from: "mp1" (read), "unsupported" (the console
+   *  refused the read; the helper doesn't try again until it restarts), ""
+   *  (not asked for, or an older helper/engine). */
+  gpu_clock_src?: "mp1" | "unsupported" | "";
+  /** The eight CPU cores' clocks in MHz (the power controller's P-state
+   *  figure); `0` = unknown. Empty unless read with `clocks`. */
+  cpu_core_mhz?: number[];
+  /** Lowest / highest known core clock, `0` when none is known. */
+  cpu_core_mhz_min?: number;
+  cpu_core_mhz_max?: number;
 }
 
 export interface HwPower {
@@ -1790,13 +1804,16 @@ export async function fetchHwInfo(transferAddr: string): Promise<HwInfo> {
  *  telemetry — SoC power, CPU usage, fan duty, product shape. Pass `true`
  *  only from an explicit user action ("Read sensors"); the Dashboard's
  *  auto-poll must call this WITHOUT extended so its 5s tick only ever
- *  triggers the basic, always-safe read on the payload. */
+ *  triggers the basic, always-safe read on the payload. `clocks` (default
+ *  false) also reads the GPU and per-core CPU clocks from the SoC's power
+ *  controller: the Hardware screen's Read sensors click only. */
 export async function fetchHwTemps(
   transferAddr: string,
   extended = false,
+  clocks = false,
 ): Promise<HwTemps> {
   const addr = toMgmtAddr(transferAddr);
-  return invoke<HwTemps>("ps5_hw_temps", { addr, extended });
+  return invoke<HwTemps>("ps5_hw_temps", { addr, extended, clocks });
 }
 
 export async function fetchHwPower(transferAddr: string): Promise<HwPower> {
@@ -4737,6 +4754,33 @@ export async function bundledPayloadPath(): Promise<string> {
     throw new Error(resp.error ?? "payload_bundled_path failed");
   }
   return resp.path;
+}
+
+/** Overwrite a copy of the helper the console keeps for boot (an autoloader folder,
+ *  Payload Manager's storage) with this app's helper (#540). The engine refuses any path
+ *  that is not an existing `ps5upload*.elf` in a boot folder. `localPath`: the desktop
+ *  app's bundled ELF; without it the engine uses its own. */
+export async function helperReplaceCopy(
+  host: string,
+  path: string,
+  localPath?: string | null,
+): Promise<"updated" | "unchanged" | "not_found"> {
+  const res = await fetch(`${getEngineUrl()}/api/ps5/helper/replace-copy`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ addr: host, path, local_path: localPath ?? null }),
+    signal: AbortSignal.timeout(120_000),
+  });
+  const body = (await res.json().catch(() => ({}))) as {
+    ok?: boolean;
+    status?: string;
+    error?: string;
+  };
+  if (!res.ok) throw new Error(body.error || `request failed (${res.status})`);
+  if (body.ok && body.status === "unchanged") return "unchanged";
+  if (body.ok) return "updated";
+  if (body.error === "not_found") return "not_found";
+  throw new Error(body.error || "the copy was not replaced");
 }
 
 /** Same as `bundledPayloadPath` but returns the file's size + mtime

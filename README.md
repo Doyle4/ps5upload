@@ -484,6 +484,7 @@ adapted file by file), **library** (a dependency the build pulls in), **fetched 
 * [garlic-savemgr](https://github.com/earthonion/garlic-savemgr) (earthonion) — how a save image is opened on the console: the sealed key unsealed through `/dev/pfsmgr` and the image mounted with `sceFsMountSaveData` from a copy under `/data`, which "Open save" follows
 * cy33hc's [ps5-ezremote-dpi](https://github.com/cy33hc/ps5-ezremote-dpi), etaHEN and elf-arsenal's DPI payloads, and itsPLK's PKG Manager — behavioural references for our installer daemon (no code taken)
 * [LibOrbisPkg](https://github.com/maxton/LibOrbisPkg) — its documentation of the PlayGo chunk format
+* [NeoEnabler](https://github.com/gasb07/NeoEnabler) (gasb07) — the `/dev/mp1` read requests and table layout behind the Hardware screen's GPU and per-core CPU clocks (`payload/src/mp1_clock.c`); only its reads are used, written anew, and we never change clocks
 * [chiaki](https://git.sr.ht/~thestr4ng3r/chiaki) — cross-checked while porting playactor's registration
 * [TMDB](https://www.themoviedb.org/) — cover art in earlier versions (no longer used)
 

@@ -3,6 +3,7 @@ import { PS5_LOADER_PORT } from "../lib/addr";
 import { isNotPairedError, reportIfNotPaired } from "../lib/consoleSession";
 import { LISTENER_LOADER_HINT, STUCK_LOADER_MESSAGE, waitForLoader } from "../lib/elfldrGuard";
 import { useConnectionStore } from "./connection";
+import { updateHelperCopiesAfterSend } from "./helperStoredCopiesRuntime";
 import { clearHelperStopped } from "./helperStopped";
 import {
   helperSendFor,
@@ -68,7 +69,7 @@ export async function sendHelperTo(
   // Sending is the explicit "I want the helper": a "stopped by you" mark goes, and the
   // reconnect loop looks after this console again (#471).
   clearHelperStopped(target);
-  return runHelperSend(
+  const result = await runHelperSend(
     target,
     {
       // A send to this console already under way (the automatic redeploy, or this button a
@@ -158,6 +159,13 @@ export async function sendHelperTo(
           : tr("pairing_title", undefined, "Pair with your PS5"),
     },
   );
+  // The send replaced the helper in memory only; an autoloader starts its stored copy at the
+  // next boot. Update those copies in the background: whatever happens there, this send
+  // stands (#540, #541).
+  if (result === "ok") {
+    void updateHelperCopiesAfterSend(target, tr).catch(() => {});
+  }
+  return result;
 }
 
 /** sendHelperTo for a flow that goes on once the helper is up (Quick bring-up, the setup

@@ -184,6 +184,75 @@ function formatFreq(mhz: number): string {
   return `${mhz} MHz`;
 }
 
+/** The eight cores as one value: their lowest–highest clock, one figure when
+ *  they agree, a dash when none is known. */
+export function formatFreqRange(minMhz: number, maxMhz: number): string {
+  if (maxMhz <= 0) return "—";
+  if (minMhz <= 0 || minMhz === maxMhz) return formatFreq(maxMhz);
+  if (maxMhz < 1000) return `${minMhz}–${maxMhz} MHz`;
+  return `${(minMhz / 1000).toFixed(2)}–${(maxMhz / 1000).toFixed(2)} GHz`;
+}
+
+type Tr = (
+  key: string,
+  vars?: Record<string, string | number>,
+  fallback?: string,
+) => string;
+
+/** The hint under a clock row (GPU, per-core CPU): what it is once read, else
+ *  why there is no number — not read yet, a helper too old to send it, a
+ *  console that refused the read, or a value out of range. */
+export function clockHint(
+  tr: Tr,
+  temps: Pick<HwTemps, "gpu_clock_src"> | null,
+  hasValue: boolean,
+  readHint: string,
+): string {
+  if (!temps)
+    return tr(
+      "hw_sensor_on_demand",
+      undefined,
+      "Click Read sensors for a live reading",
+    );
+  const src = temps.gpu_clock_src ?? "";
+  if (src === "unsupported")
+    return tr(
+      "hw_clock_unsupported",
+      undefined,
+      "This console's firmware doesn't answer this read",
+    );
+  if (src === "")
+    return tr(
+      "hw_clock_needs_helper",
+      undefined,
+      "Not sent by this helper version",
+    );
+  if (!hasValue)
+    return tr(
+      "hw_sensor_no_reading",
+      undefined,
+      "The console returned no reading for this sensor",
+    );
+  return readHint;
+}
+
+/** Hover text listing every core's clock, or undefined when none was read. */
+export function coreClockTooltip(
+  tr: Tr,
+  cores: number[] | undefined,
+): string | undefined {
+  if (!cores || cores.length === 0) return undefined;
+  return cores
+    .map((mhz, i) =>
+      tr(
+        "hw_cpu_core_clock",
+        { n: i, mhz: mhz > 0 ? `${mhz} MHz` : "—" },
+        "Core {n}: {mhz}",
+      ),
+    )
+    .join("\n");
+}
+
 /** 0–100 percentage; `-1` (or any negative) = "unavailable" → dash. Used
  *  for CPU usage and fan duty, which the payload reports as -1 when the
  *  API isn't available or on a basic (non-extended) read. */
@@ -334,8 +403,10 @@ export default function HardwareScreen() {
       // to trigger the on-demand telemetry (SoC power / CPU usage / fan duty
       // / product shape) on the payload. The Dashboard's auto-poll calls
       // fetchHwTemps without extended, so its timer never fires those.
+      // clocks=true: the GPU and per-core CPU clocks from the SoC's power
+      // controller (/dev/mp1) — this click only, not even the bug report.
       const [next, nextDrives] = await Promise.all([
-        fetchHwTemps(addr, true),
+        fetchHwTemps(addr, true, true),
         fetchDriveSensors(addr).catch(() => null),
       ]);
       if (probe.isStale()) return;
@@ -500,11 +571,47 @@ export default function HardwareScreen() {
             title={tr("hardware_performance", undefined, "Performance")}
           >
             <StatRow
-              label={tr("hw_cpu_freq", undefined, "CPU frequency")}
+              label={tr("hw_gpu_clock", undefined, "GPU clock")}
+              value={formatFreq(temps?.soc_clock_mhz ?? 0)}
+              hint={clockHint(
+                tr,
+                temps,
+                (temps?.soc_clock_mhz ?? 0) > 0,
+                tr(
+                  "hw_gpu_clock_hint",
+                  undefined,
+                  "SMU graphics clock, read on request",
+                ),
+              )}
+            />
+            <StatRow
+              label={tr("hw_cpu_clock_per_core", undefined, "CPU clock (per core)")}
+              value={formatFreqRange(
+                temps?.cpu_core_mhz_min ?? 0,
+                temps?.cpu_core_mhz_max ?? 0,
+              )}
+              hint={clockHint(
+                tr,
+                temps,
+                (temps?.cpu_core_mhz_max ?? 0) > 0,
+                tr(
+                  "hw_cpu_clock_per_core_hint",
+                  undefined,
+                  "SMU P-state clock, read on request",
+                ),
+              )}
+              tooltip={coreClockTooltip(tr, temps?.cpu_core_mhz)}
+            />
+            <StatRow
+              label={tr("hw_reference_clock", undefined, "Reference clock")}
               value={formatFreq(temps?.cpu_freq_mhz ?? 0)}
               hint={
                 temps && temps.cpu_freq_mhz > 0
-                  ? tr("hw_from_kernel_tsc", undefined, "From kernel TSC")
+                  ? tr(
+                      "hw_reference_clock_hint",
+                      undefined,
+                      "A fixed rate the system reports, not the cores' speed",
+                    )
                   : undefined
               }
             />
@@ -801,10 +908,13 @@ function StatRow({
   label,
   value,
   hint,
+  tooltip,
 }: {
   label: string;
   value: string;
   hint?: string;
+  /** Hover text for the value; the hint when not given. */
+  tooltip?: string;
 }) {
   // One metric row: label left, value right, the hint (if any) under the
   // value in small muted type rather than squeezed in beside it.
@@ -813,7 +923,7 @@ function StatRow({
     // with the value instead of floating between the value and the hint.
     <div className="metric-row min-w-0 py-2" style={{ alignItems: "baseline" }}>
       <dt className="min-w-0 text-[var(--color-muted)]">{label}</dt>
-      <dd className="min-w-0 max-w-[65%] shrink-0 text-right" title={hint}>
+      <dd className="min-w-0 max-w-[65%] shrink-0 text-right" title={tooltip ?? hint}>
         <div className="whitespace-nowrap font-mono tabular-nums">{value}</div>
         {hint && (
           <div className="mt-0.5 text-xs leading-snug text-[var(--color-muted)]">

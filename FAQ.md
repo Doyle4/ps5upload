@@ -704,6 +704,15 @@ files** for PS5Upload, come back and tap **Retry**. You can also grant it in **A
 **Upload & Install → Choose folder** (or **Choose file** for a `.zip`), pick it in the in-app browser,
 choose the destination and **Start**. The file is read in place, nothing is copied first.
 
+**Q: Every time the PS5 restarts, the app says the helper is older than the app again.**
+Your PS5 starts a stored copy of the helper at boot (Payload Manager's autoload, the WebKit
+Autoloader or an autoload folder), and that copy is old. Since 9.2.1, **Send helper** also replaces
+those stored copies once the new helper answers: Payload Manager's storage, `ps5_autoloader`
+folders on the PS5 and its USB drives, and etaHEN's payloads folder, keeping each file's name so
+your boot order stays the same. The app lists what it updated; anything it couldn't update is named
+with how to do it by hand (upload the new `ps5upload.elf` again in Payload Manager under the same
+name, or copy it over the file in your autoload folder).
+
 **Q: The `helper` dot at the bottom of the app is red.**
 The dot is the PS5-side helper, not the app. Red means it is not running (or is an older version
 that needs **Send helper**). Run **Set up your PS5**, or press **Send helper** on the Connection
@@ -2052,6 +2061,18 @@ there across game launches and helper restarts. A curve that never asks for 100%
 below (the default one) leaves the fan to the console's own setting (91 °C on firmware 13.60).
 **Restore default** does that. ShadowMount+ 1.7 can set the same value (`fan_target_temperature`
 in its `config.ini`); use one or the other, or each overwrites the other.
+
+**Q: What do the GPU clock and CPU clock on the Hardware screen mean?**
+Both come from the PS5's power controller and are read only when you press **Read sensors** (never
+in the background). **GPU clock** is the graphics clock the console is running at that moment.
+**CPU clock (per core)** shows the slowest and fastest of the eight cores; hover over it to see each
+core. It is the speed the power controller has set for each core, not a live cycle count, so it
+moves in steps. **Reference clock** is a fixed rate the system reports (800 MHz on every console
+we've seen); it is not how fast the CPU runs. The helper only reads these clocks and never changes
+them. The way to read them comes from NeoEnabler, whose users have tried it only on firmware 13.20
+and 13.60. On other firmware the console may not answer: the rows then say so, and the helper stops
+asking until it restarts. If you see numbers that look wrong (a GPU clock outside roughly
+400–2400 MHz, or cores far above 3.5 GHz), please report them with your firmware version.
 
 **Q: What is nanoDNS?**
 A small DNS server that runs **on the console** (from the Payloads

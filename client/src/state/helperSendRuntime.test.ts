@@ -6,6 +6,11 @@ vi.mock("./helperSend", async (importOriginal) => ({
   runHelperSend,
 }));
 
+const { updateHelperCopiesAfterSend } = vi.hoisted(() => ({
+  updateHelperCopiesAfterSend: vi.fn(),
+}));
+vi.mock("./helperStoredCopiesRuntime", () => ({ updateHelperCopiesAfterSend }));
+
 import { useHelperSendStore } from "./helperSend";
 import { loaderHint, sendHelperAndWait, sendHelperTo } from "./helperSendRuntime";
 import type { Translator } from "./lang";
@@ -35,6 +40,33 @@ describe("sendHelperTo", () => {
     const text = runHelperSend.mock.calls[0][2] as { stuck: string };
     expect(text.stuck).toContain("stuck");
     expect(text.stuck).toContain("elfldr-ps5.elf");
+  });
+});
+
+describe("sendHelperTo and the copies the PS5 starts at boot", () => {
+  beforeEach(() => {
+    runHelperSend.mockReset();
+    updateHelperCopiesAfterSend.mockReset();
+  });
+
+  it("updates them once the new helper answered", async () => {
+    runHelperSend.mockResolvedValue("ok");
+    updateHelperCopiesAfterSend.mockResolvedValue([]);
+    expect(await sendHelperTo("192.168.0.9", tr)).toBe("ok");
+    expect(updateHelperCopiesAfterSend).toHaveBeenCalledTimes(1);
+    expect(updateHelperCopiesAfterSend.mock.calls[0][0]).toBe("192.168.0.9");
+  });
+
+  it("leaves them alone when the send failed", async () => {
+    runHelperSend.mockResolvedValue("fail");
+    expect(await sendHelperTo("192.168.0.9", tr)).toBe("fail");
+    expect(updateHelperCopiesAfterSend).not.toHaveBeenCalled();
+  });
+
+  it("a failure there does not fail the send", async () => {
+    runHelperSend.mockResolvedValue("ok");
+    updateHelperCopiesAfterSend.mockRejectedValue(new Error("console went away"));
+    expect(await sendHelperTo("192.168.0.9", tr)).toBe("ok");
   });
 });
 

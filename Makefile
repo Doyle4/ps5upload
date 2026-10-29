@@ -1166,6 +1166,15 @@ test-payload: payload
 	@echo "Checking Sony-API lock coverage..."
 	@./scripts/check-sony-api-lock.sh $(PAYLOAD_DIR)/src
 	@echo "✓ every sceUserService/sceRegMgr caller is serialized"
+	@echo "Checking /dev/mp1 stays read-only..."
+	@./payload/tools/check-mp1-readonly.sh $(PAYLOAD_DIR)
+	@echo "✓ no clock-changing /dev/mp1 request anywhere in the payload"
+	@echo "Running GPU/CPU clock (mp1) self-test (host build)..."
+	@cc -O2 -Wall -Wextra -Werror -I$(PAYLOAD_DIR)/include \
+		-o /tmp/ps5upload-mp1-clock-selftest \
+		$(PAYLOAD_DIR)/tests/mp1_clock_selftest.c
+	@$(RUN_LIMITED) /tmp/ps5upload-mp1-clock-selftest
+	@echo "✓ clock reads are bounded, cached for 2 s, stop for good after one refusal, and never change a clock"
 	@echo "Running hw-guard fault-recovery self-test (host build)..."
 	@cc -O2 -Wall -Wextra -Werror -o /tmp/ps5upload-hw-guard-selftest \
 		$(PAYLOAD_DIR)/tests/hw_guard_selftest.c

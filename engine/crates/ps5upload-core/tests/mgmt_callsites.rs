@@ -68,6 +68,19 @@ fn hw_temps_sends_its_selector_as_the_body() {
 }
 
 #[test]
+fn hw_temps_sends_c_only_when_clocks_are_asked_for() {
+    let (t, _g) = fake(|_, _| reply(b"soc_clock_mhz=2230\ngpu_clock_src=mp1\n"));
+    let r = ps5upload_core::hw::hw_temps_with_clocks("a:1", true, true).unwrap();
+    assert_eq!(r.soc_clock_mhz, 2230);
+    ps5upload_core::hw::hw_temps("a:1", true).unwrap();
+    ps5upload_core::hw::hw_temps("a:1", false).unwrap();
+    let seen = t.seen.lock().unwrap();
+    assert_eq!(seen[0].2, b"ufsc");
+    assert_eq!(seen[1].2, b"ufs");
+    assert_eq!(seen[2].2, b"");
+}
+
+#[test]
 fn list_dir_sends_the_legacy_json_with_its_label_and_deadline() {
     let (t, _g) = fake(|_, _| {
         reply(br#"{"path":"/data","entries":[{"name":"a","kind":"file","size":3,"mtime":4}],"truncated":false,"total_scanned":1,"returned":1}"#)

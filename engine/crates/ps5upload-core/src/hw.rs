@@ -54,7 +54,12 @@ pub struct HwTemps {
     /// Requires >= 20 to be treated as valid (empty slot returns 0).
     #[serde(default)]
     pub m2_temp: i32,
+    /// A fixed REFERENCE clock (`sceKernelGetCpuFrequency`, 800 MHz on every console measured),
+    /// not what the cores run at; see `cpu_core_mhz` for those.
     pub cpu_freq_mhz: i64,
+    /// The GPU (GFX) clock in MHz from the SoC's power controller (`/dev/mp1`), read only when
+    /// the clocks were asked for (`hw_temps_with_clocks`). `0` = not read, unsupported, or
+    /// outside 100–2500 MHz.
     pub soc_clock_mhz: i64,
     pub soc_power_mw: u32,
     /// Average CPU usage across cores, 0–100 %. `-1` = unavailable (the
@@ -104,6 +109,20 @@ pub struct HwTemps {
     /// out of 20–110 °C, or from an older helper.
     #[serde(default)]
     pub fan_filtered_c: Option<f32>,
+    /// Where the clocks came from: `"mp1"` (read), `"unsupported"` (the driver refused once; the
+    /// helper does not try again until it restarts), or `""` (not asked for, or an older helper).
+    #[serde(default)]
+    pub gpu_clock_src: String,
+    /// The eight CPU cores' clocks in MHz: the power controller's figure for each core's
+    /// P-state, not a cycle count. `0` = unknown or outside 400–4000 MHz. Empty when the clocks
+    /// were not read.
+    #[serde(default)]
+    pub cpu_core_mhz: Vec<u32>,
+    /// Lowest and highest of the known `cpu_core_mhz` values; `0` when none is known.
+    #[serde(default)]
+    pub cpu_core_mhz_min: u32,
+    #[serde(default)]
+    pub cpu_core_mhz_max: u32,
 }
 
 fn default_sensor_unavailable() -> i32 {
@@ -203,6 +222,14 @@ pub const SENSOR_TEMP_MIN_C: i32 = 1;
 pub const SENSOR_TEMP_MAX_C: i32 = 150;
 pub const SENSOR_CPU_FREQ_MAX_MHZ: i64 = 6000;
 pub const SENSOR_POWER_MAX_MW: u32 = 500_000;
+/// GPU clock bounds (MHz), mirrored from `payload/include/mp1_clock.h`.
+pub const SENSOR_GPU_MIN_MHZ: i64 = 100;
+pub const SENSOR_GPU_MAX_MHZ: i64 = 2500;
+/// Per-core CPU clock bounds (MHz), mirrored from `payload/include/mp1_clock.h`.
+pub const SENSOR_CORE_MIN_MHZ: u32 = 400;
+pub const SENSOR_CORE_MAX_MHZ: u32 = 4000;
+/// The PS5 has eight CPU cores; the helper reports exactly that many.
+pub const CPU_CORES: usize = 8;
 
 /// Clamp each sensor field to its physical range, zeroing anything
 /// implausible. Pure — unit-tested below.
@@ -221,9 +248,20 @@ fn sanitize_temps(mut t: HwTemps) -> HwTemps {
     if !(0..=SENSOR_CPU_FREQ_MAX_MHZ).contains(&t.cpu_freq_mhz) {
         t.cpu_freq_mhz = 0;
     }
-    if !(0..=SENSOR_CPU_FREQ_MAX_MHZ).contains(&t.soc_clock_mhz) {
+    if !(SENSOR_GPU_MIN_MHZ..=SENSOR_GPU_MAX_MHZ).contains(&t.soc_clock_mhz) {
         t.soc_clock_mhz = 0;
     }
+    // Per-core clocks: at most eight, each in range or 0; min/max come from what survives, so
+    // they can never disagree with the list.
+    t.cpu_core_mhz.truncate(CPU_CORES);
+    for v in t.cpu_core_mhz.iter_mut() {
+        if !(SENSOR_CORE_MIN_MHZ..=SENSOR_CORE_MAX_MHZ).contains(v) {
+            *v = 0;
+        }
+    }
+    let known = t.cpu_core_mhz.iter().copied().filter(|v| *v != 0);
+    t.cpu_core_mhz_min = known.clone().min().unwrap_or(0);
+    t.cpu_core_mhz_max = known.max().unwrap_or(0);
     if t.soc_power_mw > SENSOR_POWER_MAX_MW {
         t.soc_power_mw = 0;
     }
@@ -266,11 +304,38 @@ fn sanitize_temps(mut t: HwTemps) -> HwTemps {
 /// ("p" is omitted from the selector). The payload still supports the `p`
 /// flag for a future firmware probe, but no shipping path sends it.
 pub fn hw_temps(addr: &str, extended: bool) -> Result<HwTemps> {
-    // "ufs" = usage + fan + shape (NOT power — see fn doc). Each is
-    // independently gated payload-side so this set is the verified-safe one.
-    let req_body: &[u8] = if extended { b"ufs" } else { b"" };
-    let body = round_trip_body(addr, m::HW_TEMPS, req_body)?;
+    hw_temps_with_clocks(addr, extended, false)
+}
+
+/// [`hw_temps`], plus — with `clocks` — the GPU clock and the eight CPU core clocks from the
+/// SoC's power controller (`/dev/mp1`, the `c` selector). The helper reads that driver
+/// read-only, caches it 2 s and stops for good after one refusal, but it is new and verified
+/// only on FW 13.20/13.60 by other projects, so `clocks` is for the Hardware screen's explicit
+/// "Read sensors" click only: never a timer, never the bug-report snapshot.
+pub fn hw_temps_with_clocks(addr: &str, extended: bool, clocks: bool) -> Result<HwTemps> {
+    let body = round_trip_body(addr, m::HW_TEMPS, hw_temps_selector(extended, clocks))?;
     Ok(sanitize_temps(parse_hw_temps(&body)))
+}
+
+/// The HW_TEMPS request body. "ufs" = usage + fan + shape (NOT power — see [`hw_temps`]); each
+/// is independently gated payload-side so this set is the verified-safe one. "c" adds the
+/// clocks; an older helper ignores the letter it does not know.
+fn hw_temps_selector(extended: bool, clocks: bool) -> &'static [u8] {
+    match (extended, clocks) {
+        (false, false) => b"",
+        (true, false) => b"ufs",
+        (false, true) => b"c",
+        (true, true) => b"ufsc",
+    }
+}
+
+/// `cpu_core_mhz=a,b,...`: a token that is not a number reads as 0 (unknown), never as a
+/// reason to drop the others. Bounds are applied by [`sanitize_temps`].
+fn parse_core_list(v: &str) -> Vec<u32> {
+    v.split(',')
+        .take(CPU_CORES)
+        .map(|t| t.trim().parse::<u32>().unwrap_or(0))
+        .collect()
 }
 
 /// Pure parse of the `key=value` HW_TEMPS body into the typed struct,
@@ -324,6 +389,17 @@ fn parse_hw_temps(body: &[u8]) -> HwTemps {
         fan_filtered_c: get("fan_filtered_c")
             .and_then(|v| v.parse::<f32>().ok())
             .filter(|c| (20.0..=110.0).contains(c)), // the helper's own sanity range
+        gpu_clock_src: get("gpu_clock_src")
+            .filter(|v| matches!(*v, "mp1" | "unsupported"))
+            .unwrap_or("")
+            .to_string(),
+        cpu_core_mhz: get("cpu_core_mhz").map(parse_core_list).unwrap_or_default(),
+        cpu_core_mhz_min: get("cpu_core_mhz_min")
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(0),
+        cpu_core_mhz_max: get("cpu_core_mhz_max")
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(0),
     }
 }
 
@@ -971,5 +1047,79 @@ mod tests {
             format!("{}", hw_set_fan_threshold("127.0.0.1:0", 86).unwrap_err())
                 .contains("safe range")
         );
+    }
+
+    #[test]
+    fn parse_hw_temps_clock_lines() {
+        // The clock lines exactly as payload/src/mp1_clock.c writes them for "cd".
+        let body = b"cpu_temp=52\ncpu_freq_mhz=800\nsoc_clock_mhz=2230\ngpu_clock_src=mp1\ncpu_core_mhz=3500,2844,2844,2844,2844,2844,2844,2844\ncpu_core_mhz_min=2844\ncpu_core_mhz_max=3500\nmp1_clk_raw=00001000,00001001\nmp1_core_raw=0:3500,2:2844\n";
+        let t = sanitize_temps(parse_hw_temps(body));
+        assert_eq!(t.soc_clock_mhz, 2230);
+        assert_eq!(t.cpu_freq_mhz, 800, "the reference clock is kept");
+        assert_eq!(t.gpu_clock_src, "mp1");
+        assert_eq!(
+            t.cpu_core_mhz,
+            vec![3500, 2844, 2844, 2844, 2844, 2844, 2844, 2844]
+        );
+        assert_eq!((t.cpu_core_mhz_min, t.cpu_core_mhz_max), (2844, 3500));
+    }
+
+    #[test]
+    fn parse_hw_temps_clock_garbage_and_out_of_range() {
+        // Out-of-range GPU, garbage and out-of-range cores, too many cores, and min/max that
+        // disagree with the list: the list wins, bad entries read 0, never more than eight.
+        let body = b"soc_clock_mhz=2501\ngpu_clock_src=mp1\ncpu_core_mhz=3500,abc,399,4001,,-5,99999999999,3200,3000,3100\ncpu_core_mhz_min=1\ncpu_core_mhz_max=99999\n";
+        let t = sanitize_temps(parse_hw_temps(body));
+        assert_eq!(t.soc_clock_mhz, 0, "2501 MHz GPU is rejected");
+        assert_eq!(t.cpu_core_mhz, vec![3500, 0, 0, 0, 0, 0, 0, 3200]);
+        assert_eq!((t.cpu_core_mhz_min, t.cpu_core_mhz_max), (3200, 3500));
+
+        let t = sanitize_temps(parse_hw_temps(b"soc_clock_mhz=99\n"));
+        assert_eq!(t.soc_clock_mhz, 0, "below 100 MHz is rejected");
+        let t = sanitize_temps(parse_hw_temps(b"soc_clock_mhz=100\n"));
+        assert_eq!(t.soc_clock_mhz, 100);
+        let t = sanitize_temps(parse_hw_temps(b"soc_clock_mhz=2500\n"));
+        assert_eq!(t.soc_clock_mhz, 2500);
+        let t = sanitize_temps(parse_hw_temps(b"soc_clock_mhz=-2230\n"));
+        assert_eq!(t.soc_clock_mhz, 0);
+
+        // Unsupported: all zero, no min/max, the source word kept so the UI can say so.
+        let body = b"soc_clock_mhz=0\ngpu_clock_src=unsupported\ncpu_core_mhz=0,0,0,0,0,0,0,0\ncpu_core_mhz_min=0\ncpu_core_mhz_max=0\n";
+        let t = sanitize_temps(parse_hw_temps(body));
+        assert_eq!(t.gpu_clock_src, "unsupported");
+        assert_eq!(t.cpu_core_mhz, vec![0; 8]);
+        assert_eq!((t.cpu_core_mhz_min, t.cpu_core_mhz_max), (0, 0));
+
+        // An unknown source word, and min/max with no list.
+        let t = sanitize_temps(parse_hw_temps(
+            b"gpu_clock_src=smu<script>\ncpu_core_mhz_min=3000\ncpu_core_mhz_max=3500\n",
+        ));
+        assert_eq!(t.gpu_clock_src, "");
+        assert!(t.cpu_core_mhz.is_empty());
+        assert_eq!((t.cpu_core_mhz_min, t.cpu_core_mhz_max), (0, 0));
+    }
+
+    #[test]
+    fn parse_hw_temps_without_clock_lines() {
+        // A basic/extended read, or an older helper: nothing claims to have been read.
+        let t = sanitize_temps(parse_hw_temps(
+            b"cpu_temp=36\ncpu_freq_mhz=800\nsoc_clock_mhz=0\n",
+        ));
+        assert_eq!(t.gpu_clock_src, "");
+        assert!(t.cpu_core_mhz.is_empty());
+        assert_eq!(t.soc_clock_mhz, 0);
+    }
+
+    #[test]
+    fn hw_temps_selector_sends_c_only_when_clocks_are_asked_for() {
+        assert_eq!(hw_temps_selector(false, false), b"");
+        assert_eq!(hw_temps_selector(true, false), b"ufs");
+        assert_eq!(hw_temps_selector(false, true), b"c");
+        assert_eq!(hw_temps_selector(true, true), b"ufsc");
+        // Never the raw-words debug flag, never power.
+        for (e, c) in [(false, false), (true, false), (false, true), (true, true)] {
+            let s = hw_temps_selector(e, c);
+            assert!(!s.contains(&b'd') && !s.contains(&b'p') && !s.contains(&b'1'));
+        }
     }
 }

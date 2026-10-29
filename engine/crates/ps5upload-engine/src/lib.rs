@@ -63,6 +63,7 @@ mod fpkg_api;
 mod fpkg_firmware;
 mod games_api;
 mod hearbridge_api;
+mod helper_copies_api;
 mod helper_mirror;
 mod helper_stop;
 mod icon_cache;
@@ -130,8 +131,9 @@ use ps5upload_core::{
     },
     game_meta::{parse_param_json_bytes, parse_param_sfo_bytes},
     hw::{
-        drive_sensors, hw_info, hw_power, hw_set_fan_threshold_ex, hw_storage, hw_temps, proc_list,
-        DriveSensorList, HwInfo, HwPower, HwStorage, HwTemps, ProcList,
+        drive_sensors, hw_info, hw_power, hw_set_fan_threshold_ex, hw_storage,
+        hw_temps_with_clocks, proc_list, DriveSensorList, HwInfo, HwPower, HwStorage, HwTemps,
+        ProcList,
     },
     process_mgr::{process_kill, process_list, ProcessKillAck, ProcessListResult},
     saves::{list_saves, list_screenshots, list_videos, SaveList, ScreenshotList},
@@ -2127,6 +2129,10 @@ struct HwTempsQuery {
     addr: Option<String>,
     #[serde(default)]
     extended: Option<u8>,
+    /// `clocks=1`: also read the GPU and per-core CPU clocks (`/dev/mp1`). Sent only by the
+    /// Hardware screen's explicit "Read sensors" click.
+    #[serde(default)]
+    clocks: Option<u8>,
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -3213,8 +3219,9 @@ async fn ps5_hw_temps(
 ) -> impl IntoResponse {
     let addr = console_addr_or_default(q.addr, &state.default_ps5_addr);
     let extended = q.extended.unwrap_or(0) != 0;
+    let clocks = q.clocks.unwrap_or(0) != 0;
     let r: Result<HwTemps, anyhow::Error> =
-        tokio::task::spawn_blocking(move || hw_temps(&addr, extended))
+        tokio::task::spawn_blocking(move || hw_temps_with_clocks(&addr, extended, clocks))
             .await
             .map_err(anyhow::Error::from)
             .and_then(|r| r);
@@ -11228,6 +11235,10 @@ async fn run(cfg: EngineConfig) -> anyhow::Result<()> {
         .route(
             "/api/ampr/profile",
             get(ampr_trace::profile_get).delete(ampr_trace::profile_delete),
+        )
+        .route(
+            "/api/ps5/helper/replace-copy",
+            post(helper_copies_api::replace_copy_handler),
         )
         .route("/api/ps5/pldmgr", get(pldmgr_api::overview))
         .route("/api/ps5/pldmgr/launch", post(pldmgr_api::launch))

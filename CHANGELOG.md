@@ -4,6 +4,25 @@ What's new in ps5upload, written for humans.
 
 ---
 
+## 9.2.1
+
+- **Send helper also updates the copy your PS5 starts at boot** (#540, #541). If Payload Manager,
+  the WebKit Autoloader or an autoload folder starts ps5upload's helper at every boot, it kept
+  starting the old version: Send helper only replaced the copy running in memory, so the "helper
+  is older than this app" message came back after every restart. Now, once the new helper
+  answers, the app finds the stored copies (Payload Manager's storage, `ps5_autoloader` folders on
+  the PS5 and its USB drives, etaHEN's payloads folder) and replaces them under the same name, so
+  your boot order stays as it is. It tells you what it updated, and how to update by hand anything
+  it couldn't. Only files named like the ps5upload helper are touched. The outdated-helper banner
+  now says when the old version came from a stored boot copy.
+- **GPU clock and real CPU clocks on the Hardware screen.** Read sensors now also shows the GPU
+  clock and each CPU core's clock (the row shows the slowest and fastest core; hover for all
+  eight), read from the console's power controller. The old "CPU frequency" row was a fixed
+  reference rate (800 MHz on every console), not the CPU's speed, so it is now called "Reference
+  clock". The clocks are only read when you press Read sensors, the helper never changes them, and
+  if the console's firmware doesn't answer, the rows say so and the helper doesn't ask again until
+  it restarts. Tried by others only on firmware 13.20 and 13.60 so far: please report odd numbers.
+
 ## 9.2.0
 
 - **Nothing is in beta any more.** Remote Play was still a beta screen, so it only showed once

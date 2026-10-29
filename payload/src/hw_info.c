@@ -38,6 +38,7 @@
 #include "hw_info.h"
 #include "hw_guard.h"
 #include "fan_servo.h"
+#include "mp1_clock.h"
 #include "config.h"
 
 /* ── Fault guard for Sony hardware getters ────────────────────────
@@ -469,6 +470,31 @@ int hw_info_get_text(char *out, size_t out_cap, size_t *out_written,
 #define HW_TEMP_MAX_C        150    /* CPUs thermal-throttle ~100 °C */
 #define HW_CPU_FREQ_MAX_MHZ  6000   /* generous ceiling over any console CPU */
 
+/* /dev/mp1 for mp1_clock.c: the real calls. The fd is opened read-only and closed after each
+ * read; mp1_clock.c holds its own lock around all of it and only ever passes its two GET
+ * requests through `get`. */
+static int mp1_real_open(void *ctx) {
+    (void)ctx;
+    return open("/dev/mp1", O_RDONLY);
+}
+static int mp1_real_get(void *ctx, int fd, unsigned long req, void *buf) {
+    (void)ctx;
+    return ioctl(fd, req, buf);
+}
+static void mp1_real_close(void *ctx, int fd) {
+    (void)ctx;
+    close(fd);
+}
+static int64_t mp1_real_now_ms(void *ctx) {
+    (void)ctx;
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (int64_t)ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
+}
+static const mp1_ops_t k_mp1_ops = {
+    mp1_real_open, mp1_real_get, mp1_real_close, mp1_real_now_ms, NULL,
+};
+
 /* Cache holds ONLY the basic, auto-poll-safe sensors (CPU/SoC temp +
  * CPU clock). The extended telemetry (power, CPU usage, fan duty, product
  * shape) is deliberately NOT cached: it's read fresh on the explicit
@@ -546,6 +572,10 @@ int hw_temps_get_text_ex(int flags, char *out, size_t out_cap,
     long cpu_freq_mhz = 0;
     uint32_t power_mw = 0;
     int cpu_usage_pct = -1, fan_duty_pct = -1, product_shape = -1;
+    /* The GPU (GFX) clock, reported as soc_clock_mhz; 0 = not read / unknown. */
+    uint32_t gpu_clock_mhz = 0;
+    mp1_clocks_t mp1;
+    memset(&mp1, 0, sizeof mp1);
 
     /* ── Basic sensors (1 s cache; auto-poll-safe) ── */
     pthread_mutex_lock(&g_temps_lock);
@@ -603,6 +633,11 @@ int hw_temps_get_text_ex(int flags, char *out, size_t out_cap,
                 if (ch == 2 && st >= 20) m2_temp = st;
             }
         }
+        /* cpu_freq_mhz is a REFERENCE clock, not what the cores run at:
+         * sceKernelGetCpuFrequency() returns a fixed rate (800 MHz on every
+         * console measured, FW 5.10 to 13.60; the TSC-style counter rate), and
+         * machdep.tsc_freq is the same kind of figure. The cores' own clocks
+         * come from the SMU on request (HW_EXT_CLOCKS, mp1_clock.c). */
         if (g_hw.cpu_freq) {
             volatile long hz = 0;
             volatile int  got = 0;
@@ -709,6 +744,13 @@ int hw_temps_get_text_ex(int flags, char *out, size_t out_cap,
             if (q10 >= 0) fan_duty_pct = fan_duty_q10_pct((unsigned)q10);
         }
 
+        /* GPU clock and the eight cores' clocks from the SMU (/dev/mp1).
+         * Read-only, own lock, 2 s cache, and it stops for good after the
+         * first refusal: see mp1_clock.h. Only for an explicit 'c'. */
+        if (flags & HW_EXT_CLOCKS) {
+            if (mp1_clocks_read(&k_mp1_ops, &mp1) == MP1_OK) gpu_clock_mhz = mp1.gpu_mhz;
+        }
+
         /* Basic product shape — a raw Sony enum that distinguishes hardware
          * families (standard / slim / Pro / devkit …). Reported raw; the
          * desktop maps the known codes to a label and otherwise shows the
@@ -725,16 +767,25 @@ int hw_temps_get_text_ex(int flags, char *out, size_t out_cap,
         "soc_temp=%d\n"
         "m2_temp=%d\n"
         "cpu_freq_mhz=%ld\n"
-        "soc_clock_mhz=0\n"
+        "soc_clock_mhz=%u\n"
         "soc_power_mw=%u\n"
         "cpu_usage_pct=%d\n"
         "fan_duty_pct=%d\n"
         "product_shape=%d\n",
-        cpu_temp, soc_temp, m2_temp, cpu_freq_mhz, power_mw,
+        cpu_temp, soc_temp, m2_temp, cpu_freq_mhz, (unsigned)gpu_clock_mhz, power_mw,
         cpu_usage_pct, fan_duty_pct, product_shape);
     if (n < 0 || (size_t)n >= out_cap) {
         if (err_reason_out) *err_reason_out = "hw_temps_format_failed";
         return -1;
+    }
+    /* The clock lines, only when they were asked for (an older desktop never sees them). */
+    if (flags & HW_EXT_CLOCKS) {
+        int c = mp1_clocks_format(&mp1, (flags & HW_EXT_DEBUG) != 0, out + n, out_cap - (size_t)n);
+        if (c < 0 || (size_t)c >= out_cap - (size_t)n) {
+            if (err_reason_out) *err_reason_out = "hw_temps_format_failed";
+            return -1;
+        }
+        n += c;
     }
     /* The fan's state: the target held now, the console's own, the guard, the 28-byte profile. */
     int f = hw_fan_status_text(out + n, out_cap - (size_t)n);

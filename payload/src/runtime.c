@@ -3747,7 +3747,8 @@ static int handle_hw_temps(runtime_state_t *state, const char *request_body, uin
     /* Body selects the EXTENDED telemetry: "1" = all (back-compat with the
      * engine), or any subset of the chars p/u/f/s to read just those
      * getters — lets the desktop (or a probe) exclude a call that wedges a
-     * given firmware. Empty body = basic. */
+     * given firmware. 'c' adds the /dev/mp1 GPU + per-core CPU clock read
+     * and 'd' its raw words; "1" never includes them. Empty body = basic. */
     int flags = 0;
     if (request_body && body_len >= 1) {
         if (request_body[0] == '1') {
@@ -3759,6 +3760,8 @@ static int handle_hw_temps(runtime_state_t *state, const char *request_body, uin
                     case 'u': flags |= HW_EXT_USAGE; break;
                     case 'f': flags |= HW_EXT_FAN;   break;
                     case 's': flags |= HW_EXT_SHAPE; break;
+                    case 'c': flags |= HW_EXT_CLOCKS; break;
+                    case 'd': flags |= HW_EXT_DEBUG; break;
                     default: break;
                 }
             }

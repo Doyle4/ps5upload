@@ -723,11 +723,18 @@ fn rar_cancel_ends_a_long_excluded_solid_skip_promptly() {
     let (full, t_full) = run(false);
     full.unwrap();
     assert_eq!(src.bytes_skipped(), big.len() as u64);
+    let before = src.bytes_skipped();
     let (stopped, t_stop) = run(true);
     assert_eq!(stopped.unwrap_err().kind(), std::io::ErrorKind::Interrupted);
+    // The cancel lands partway through the excluded entry: less than all of it was decoded. (By
+    // bytes, not time: the whole decode takes tens of milliseconds, about what starting and
+    // stopping the RAR helper process costs, so a timing ratio measured the process, not the poll.)
+    let partial = src.bytes_skipped() - before;
     assert!(
-        t_stop < t_full / 2,
-        "stopping took {t_stop:?}, a full decode {t_full:?}: the excluded decode did not poll"
+        partial < big.len() as u64,
+        "the stopped pass discarded {partial} of {} bytes in {t_stop:?} (a full decode took \
+         {t_full:?}): the excluded decode did not poll",
+        big.len()
     );
 }
 
