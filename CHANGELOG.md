@@ -4,6 +4,21 @@ What's new in ps5upload, written for humans.
 
 ---
 
+## 9.5.2
+
+- **Remote Play full screen fits the screen, on every app.** Full screen now sits exactly on the
+  window's edges. Before, it was placed in the page instead, so the top and bottom of the picture
+  could be cut off even with **Fit**. The picture is now sized the way a video player sizes
+  its video: **Fit** shows the whole picture at its own shape, with black bars where the screen's
+  shape differs; **Fill** covers the whole screen and crops the edges; **Stretch** stretches the
+  picture to the whole screen. Each one now looks different on every app (Fill and Stretch
+  could look the same before).
+- **Picture size is a menu in full screen.** The button on the full-screen bar now shows the
+  current size and opens a list (Fit, Fill, Stretch), instead of stepping through them.
+  On phones, the Fit / Fill / Stretch row in the **⋯** menu is unchanged.
+- On a screen the same shape as the picture (16:9), the three look the same: there is nothing
+  to add bars to, crop or stretch.
+
 ## 9.5.1
 
 - **Remote Play full screen shows the whole picture.** With **Fit** (the default), the picture is
@@ -38,8 +53,7 @@ What's new in ps5upload, written for humans.
   **Microphone** button on the picture's bar (and **Mic** in the phone **⋯** menu) sends your voice to the PS5 for party and game
   chat. It's off until you press it, asks for permission the first time, shows a red dot while it's
   on, and turns off when you press it again or the stream ends. It follows chiaki-ng's microphone
-  code and is tested on our side, but has not been tried on a real PS5 yet, so it's marked
-  experimental.
+  code.
 - **Game Mode for Remote Play.** In full screen the Mac app turns on Game Mode, and so do the iPhone
   and iPad apps (iOS 18 and later). While you play, the desktop app keeps the computer and screen
   awake, on Linux it turns on GameMode (`gamemoded`) if it's installed, and the Android app asks for

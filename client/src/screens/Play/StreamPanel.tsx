@@ -3,6 +3,8 @@ import { createPortal } from "react-dom";
 import { useNavigate } from "react-router";
 import {
   BarChart3,
+  Check,
+  ChevronDown,
   Expand,
   Gamepad2,
   Minimize,
@@ -33,7 +35,8 @@ import {
   stopEngineSession,
   touchAt,
   PAD_ACTIONS,
-  nextFit,
+  FIT_ORDER,
+  type PictureFit,
   type KeyAction,
   type StreamError,
   type StreamPhase,
@@ -305,6 +308,88 @@ function BarButton({
     >
       {children}
     </button>
+  );
+}
+
+/** The picture-size menu on the full-screen bar: the current size, and a list to pick another. */
+function FitMenu({
+  fit,
+  open,
+  onOpen,
+  onPick,
+}: {
+  fit: PictureFit;
+  open: boolean;
+  onOpen: (open: boolean) => void;
+  onPick: (fit: PictureFit) => void;
+}) {
+  const tr = useTr();
+  const box = useRef<HTMLDivElement>(null);
+  // A press anywhere else, or Escape, closes it.
+  useEffect(() => {
+    if (!open) return;
+    const away = (e: PointerEvent) => {
+      if (!box.current?.contains(e.target as Node)) onOpen(false);
+    };
+    const esc = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.preventDefault();
+      e.stopPropagation();
+      onOpen(false);
+    };
+    document.addEventListener("pointerdown", away, true);
+    document.addEventListener("keydown", esc, true);
+    return () => {
+      document.removeEventListener("pointerdown", away, true);
+      document.removeEventListener("keydown", esc, true);
+    };
+  }, [open, onOpen]);
+  const label = tr("rp_fit", undefined, "Picture size");
+  const names: Record<PictureFit, string> = {
+    fit: tr("rp_fit_fit", undefined, "Fit (whole picture)"),
+    fill: tr("rp_fit_fill", undefined, "Fill (crop the edges)"),
+    stretch: tr("rp_fit_stretch", undefined, "Stretch"),
+  };
+  return (
+    <div ref={box} className="relative" onClick={(e) => e.stopPropagation()} onDoubleClick={(e) => e.stopPropagation()}>
+      <button
+        type="button"
+        aria-label={`${label}: ${fitName(tr, fit)}`}
+        title={label}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        data-testid="rp-fit-menu"
+        onClick={() => onOpen(!open)}
+        className={`flex h-9 items-center gap-1.5 rounded-full px-3 text-sm text-white transition-colors hover:bg-white/20 ${open ? "bg-white/25" : "bg-black/40"}`}
+      >
+        <Scaling size={16} aria-hidden />
+        <span>{fitName(tr, fit)}</span>
+        <ChevronDown size={14} aria-hidden className={`transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open && (
+        <div
+          role="menu"
+          aria-label={label}
+          className="absolute right-0 top-full z-30 mt-2 min-w-52 rounded-xl bg-black/85 p-1 shadow-[var(--shadow-2)] ring-1 ring-white/15 backdrop-blur"
+          data-testid="rp-fit-options"
+        >
+          {FIT_ORDER.map((f) => (
+            <button
+              key={f}
+              type="button"
+              role="menuitemradio"
+              aria-checked={fit === f}
+              onClick={() => onPick(f)}
+              className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-start text-sm text-white transition-colors hover:bg-white/15 ${fit === f ? "bg-white/10" : ""}`}
+              data-testid={`rp-fit-option-${f}`}
+            >
+              <Check size={14} aria-hidden className={fit === f ? "opacity-100" : "opacity-0"} />
+              {names[f]}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -607,6 +692,11 @@ export function StreamPanel() {
   }, [settingsOpen]);
   const [full, setFull] = useState(false);
   const [chrome, setChrome] = useState(true);
+  const [fitOpen, setFitOpen] = useState(false);
+  // The picture-size menu is only on the full-screen bar.
+  useEffect(() => {
+    if (!full) setFitOpen(false);
+  }, [full]);
   // Touch-sized player (phones, tablets, a narrow window): the bar under the picture and, in
   // full screen, one small menu handle instead of a bar of buttons over the picture.
   const compact = useMedia(COMPACT_QUERY);
@@ -975,7 +1065,7 @@ export function StreamPanel() {
   }
 
   const elsewhereProfile = elsewhere ? profiles.find((p) => p.host === elsewhere) : null;
-  const showBar = !playing || chrome || settingsOpen;
+  const showBar = !playing || chrome || settingsOpen || fitOpen;
   const muted = prefs.muted || prefs.volume === 0;
   // Full screen on an upright phone: the picture across the top, the controller below it.
   const portraitFull = compact && full && portrait;
@@ -1041,13 +1131,13 @@ export function StreamPanel() {
           onPointerMove={(e) => onPointer(e, "move")}
           onPointerUp={(e) => onPointer(e, "up")}
           onPointerLeave={(e) => onPointer(e, "up")}
-          className={`group relative overflow-hidden bg-black outline-none ${
+          className={`group overflow-hidden bg-black outline-none ${
             full
-              ? // Across: inset-x-0, the visible width (100vw counts a scrollbar's width, and the
-                // right edge went under it). Down: 100dvh, a phone's visible height (its layout
-                // viewport can be taller than the screen).
-                "fixed inset-x-0 top-0 z-[200] h-[100dvh] touch-none select-none overscroll-none [-webkit-touch-callout:none]"
-              : "mx-auto aspect-video w-full max-w-[calc((100dvh_-_12rem)*16/9)] rounded-[var(--radius-card)] shadow-[var(--shadow-2)] focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]"
+              ? // Pinned to the window's own edges (fixed inset-0; with `relative` also on it,
+                // relative won and the stage sat in the page, cut at the top and bottom), as a
+                // video player's full screen is; never taller than a phone's visible height.
+                "fixed inset-0 z-[200] max-h-[100dvh] touch-none select-none overscroll-none [-webkit-touch-callout:none]"
+              : "relative mx-auto aspect-video w-full max-w-[calc((100dvh_-_12rem)*16/9)] rounded-[var(--radius-card)] shadow-[var(--shadow-2)] focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]"
           } ${playing && !chrome && !(compact && full) ? "cursor-none" : ""}`}
           data-full={full ? (compact ? "immersive" : "bar") : undefined}
           data-testid="rp-stage"
@@ -1056,7 +1146,7 @@ export function StreamPanel() {
             ref={canvasHost}
             // The picture layer, under everything drawn over it. It never takes a pointer: the
             // stage's handlers get every press, and controls over it are hit first everywhere.
-            className="pointer-events-none absolute inset-0 z-0 flex items-center justify-center"
+            className="rp-place pointer-events-none absolute inset-0 z-0 flex items-center justify-center"
             style={
               portraitFull
                 ? { top: PICTURE_TOP, bottom: "auto", height: "56.25vw" }
@@ -1179,13 +1269,15 @@ export function StreamPanel() {
               {full && (
                 // Picture size where it shows: in full screen (on the page the box is the
                 // picture's own shape, so every size looks the same). Settings would leave it.
-                <BarButton
-                  label={`${tr("rp_fit", undefined, "Picture size")}: ${fitName(tr, prefs.fit)}`}
-                  onClick={() => setPrefs({ fit: nextFit(prefs.fit) })}
-                  testId="rp-fit-cycle"
-                >
-                  <Scaling size={16} />
-                </BarButton>
+                <FitMenu
+                  fit={prefs.fit}
+                  open={fitOpen}
+                  onOpen={setFitOpen}
+                  onPick={(fit) => {
+                    setPrefs({ fit });
+                    setFitOpen(false);
+                  }}
+                />
               )}
               {!compact && (
                 <BarButton

@@ -6015,7 +6015,7 @@ library_compressed_hint: "Le immagini compresse richiedono ShadowMount+ per gioc
 "rp_capture_pointer_hint": "Esc lo mostra di nuovo.",
 "rp_rumble": "Vibrazione del controller",
 "rp_mic_setting": "Microfono (sperimentale)",
-"rp_mic_setting_hint": "Aggiunge un pulsante microfono per la chat vocale. Non ancora provato su una PS5. Vale dal prossimo avvio.",
+"rp_mic_setting_hint": "Aggiunge un pulsante microfono per la chat vocale. Vale dal prossimo avvio.",
 "rp_touch_controls": "Controller su schermo",
 "rp_touch_auto": "Su touchscreen",
 "rp_touch_on": "Sempre",

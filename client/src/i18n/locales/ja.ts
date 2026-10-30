@@ -6081,7 +6081,7 @@ library_compressed_hint: "圧縮イメージのプレイには ShadowMount+ が�
 "rp_capture_pointer_hint": "Esc で再表示します。",
 "rp_rumble": "コントローラーの振動",
 "rp_mic_setting": "マイク（試験的）",
-"rp_mic_setting_hint": "ボイスチャット用のマイクボタンを追加します。PS5 ではまだ試していません。次の開始から有効です。",
+"rp_mic_setting_hint": "ボイスチャット用のマイクボタンを追加します。次の開始から有効です。",
 "rp_touch_controls": "画面上のコントローラー",
 "rp_touch_auto": "タッチ画面のみ",
 "rp_touch_on": "常に",

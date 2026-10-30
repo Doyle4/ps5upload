@@ -6064,7 +6064,7 @@ library_compressed_hint: "Ảnh đĩa nén cần ShadowMount+ để chơi. Để
 "rp_capture_pointer_hint": "Esc để hiện lại.",
 "rp_rumble": "Rung tay cầm",
 "rp_mic_setting": "Micrô (thử nghiệm)",
-"rp_mic_setting_hint": "Thêm nút micrô để trò chuyện bằng giọng nói. Chưa thử trên PS5. Áp dụng từ lần bắt đầu tiếp theo.",
+"rp_mic_setting_hint": "Thêm nút micrô để trò chuyện bằng giọng nói. Áp dụng từ lần bắt đầu tiếp theo.",
 "rp_touch_controls": "Tay cầm trên màn hình",
 "rp_touch_auto": "Trên màn hình cảm ứng",
 "rp_touch_on": "Luôn luôn",

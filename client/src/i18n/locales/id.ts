@@ -6071,7 +6071,7 @@ library_compressed_hint: "Image terkompresi memerlukan ShadowMount+ untuk bermai
 "rp_capture_pointer_hint": "Esc menampilkannya lagi.",
 "rp_rumble": "Getaran kontroler",
 "rp_mic_setting": "Mikrofon (eksperimental)",
-"rp_mic_setting_hint": "Menambahkan tombol mik untuk obrolan suara. Belum diuji di PS5. Berlaku sejak sesi berikutnya dimulai.",
+"rp_mic_setting_hint": "Menambahkan tombol mik untuk obrolan suara. Berlaku sejak sesi berikutnya dimulai.",
 "rp_touch_controls": "Kontroler di layar",
 "rp_touch_auto": "Di layar sentuh",
 "rp_touch_on": "Selalu",

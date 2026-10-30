@@ -431,6 +431,9 @@ test("Remote Play: picture size changes in full screen and applies there", async
   await page.getByTestId("rp-toolbar").hover();
   await page.getByTestId("rp-fullscreen").click();
   await expect(stage).toHaveAttribute("data-full", "bar");
+  // As where object-fit on a canvas is ignored: each size must still differ, so the stream lays
+  // out the canvas for all three.
+  await page.addStyleTag({ content: "canvas { object-fit: fill !important }" });
 
   // A 1080p picture, as the decoder sizes the canvas.
   const canvas = stage.locator("canvas");
@@ -441,25 +444,41 @@ test("Remote Play: picture size changes in full screen and applies there", async
   const look = () =>
     canvas.evaluate((c: HTMLCanvasElement) => {
       const r = c.getBoundingClientRect();
-      return { fit: c.dataset.fit, objectFit: getComputedStyle(c).objectFit, w: Math.round(r.width), h: Math.round(r.height) };
+      return { fit: c.dataset.fit, w: Math.round(r.width), h: Math.round(r.height) };
     });
   // Fit: the canvas is the whole picture's shape inside the screen (bars above and below).
-  await expect.poll(look).toEqual({ fit: "fit", objectFit: "contain", w: 1600, h: 900 });
+  await expect.poll(look).toEqual({ fit: "fit", w: 1600, h: 900 });
 
   await page.getByTestId("rp-toolbar").hover();
-  const cycle = page.getByTestId("rp-fit-cycle");
-  await expect(cycle).toHaveAttribute("title", "Picture size: Fit");
-  await cycle.click();
-  await expect.poll(look).toEqual({ fit: "fill", objectFit: "cover", w: 1600, h: 1000 });
+  const menu = page.getByTestId("rp-fit-menu");
+  await expect(menu).toHaveAttribute("aria-label", "Picture size: Fit");
+  const pick = async (f: string) => {
+    await page.getByTestId("rp-toolbar").hover();
+    await menu.click();
+    await expect(page.getByTestId(`rp-fit-option-${f}`)).toBeVisible();
+    await page.getByTestId(`rp-fit-option-${f}`).click();
+    await expect(page.getByTestId("rp-fit-options")).toHaveCount(0); // closes on a pick
+  };
+  // Fill: the picture's shape over the whole screen, its sides cut.
+  await pick("fill");
+  await expect.poll(look).toEqual({ fit: "fill", w: 1778, h: 1000 });
   await expect(stage).toHaveAttribute("data-full", "bar"); // still full screen
-  await cycle.click();
-  await expect.poll(look).toEqual({ fit: "stretch", objectFit: "fill", w: 1600, h: 1000 });
+  // Stretch: the whole screen, the picture squeezed to it.
+  await pick("stretch");
+  await expect.poll(look).toEqual({ fit: "stretch", w: 1600, h: 1000 });
   // Remembered with the other settings.
   await expect
     .poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("ps5upload.rp_prefs.v1") ?? "{}").fit))
     .toBe("stretch");
-  await cycle.click();
-  await expect.poll(look).toMatchObject({ fit: "fit", objectFit: "contain" });
+  await pick("fit");
+  await expect.poll(look).toEqual({ fit: "fit", w: 1600, h: 900 });
+  // A press elsewhere closes the menu without changing the size.
+  await page.getByTestId("rp-toolbar").hover();
+  await menu.click();
+  await expect(page.getByTestId("rp-fit-options")).toBeVisible();
+  await page.mouse.click(800, 600);
+  await expect(page.getByTestId("rp-fit-options")).toHaveCount(0);
+  await expect.poll(look).toEqual({ fit: "fit", w: 1600, h: 900 });
 });
 
 // The web UI in a browser Remote Play is not made for says which one is, and what this one misses.
@@ -826,7 +845,7 @@ test("Remote Play without the microphone setting has no mic and asks for none", 
   await expect(page.getByTestId("rp-mic")).toHaveCount(0);
 });
 
-// Fit never cuts the picture, whatever shape the screen is: the stream sizes the canvas to the
+// Fit never cuts the picture, whatever shape the screen is: the browser sizes the canvas to the
 // whole picture itself, so it holds even where object-fit on a canvas misbehaves (#538) and with a
 // scrollbar on the page (100vw counted it, and the right edge went under it).
 for (const [w, h] of [

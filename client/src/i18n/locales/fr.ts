@@ -6078,7 +6078,7 @@ library_compressed_hint: "Les images compressées nécessitent ShadowMount+ pour
 "rp_capture_pointer_hint": "Esc le réaffiche.",
 "rp_rumble": "Vibration de la manette",
 "rp_mic_setting": "Microphone (expérimental)",
-"rp_mic_setting_hint": "Ajoute un bouton micro pour le chat vocal. Pas encore testé sur une PS5. S’applique au prochain démarrage.",
+"rp_mic_setting_hint": "Ajoute un bouton micro pour le chat vocal. S’applique au prochain démarrage.",
 "rp_touch_controls": "Manette à l'écran",
 "rp_touch_auto": "Sur écran tactile",
 "rp_touch_on": "Toujours",

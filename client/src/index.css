@@ -1350,3 +1350,38 @@ select option {
   content-visibility: auto;
   contain-intrinsic-size: auto 2.25rem;
 }
+
+/* Remote Play picture (the stream's canvas), sized by the browser as a video player is: against
+ * its place (rp-place, a size container) by its fit (data-fit) and the picture's shape
+ * (--rp-shape, width / height). Fit: the whole picture, black bars where the shapes differ.
+ * Fill: covers the place, its edges cut. Stretch: the place, the picture squeezed to it.
+ * Where container units are missing (Safari before 16), object-fit does it instead. */
+.rp-place {
+  container-type: size;
+}
+.rp-picture {
+  display: block;
+  flex: none;
+  width: 100%;
+  height: 100%;
+  /* Not the base canvas cap (max-width: 100%): Fill is bigger than its place. */
+  max-width: none;
+  max-height: none;
+}
+@supports (width: 1cqw) {
+  .rp-picture {
+    object-fit: fill;
+  }
+  .rp-picture[data-fit="fit"] {
+    width: min(100cqw, 100cqh * var(--rp-shape));
+    height: min(100cqh, 100cqw / var(--rp-shape));
+  }
+  .rp-picture[data-fit="fill"] {
+    width: max(100cqw, 100cqh * var(--rp-shape));
+    height: max(100cqh, 100cqw / var(--rp-shape));
+  }
+  .rp-picture[data-fit="stretch"] {
+    width: 100cqw;
+    height: 100cqh;
+  }
+}

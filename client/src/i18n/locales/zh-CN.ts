@@ -6021,7 +6021,7 @@ library_compressed_hint: "压缩镜像需要 ShadowMount+ 才能游玩。如需�
 "rp_capture_pointer_hint": "按 Esc 重新显示。",
 "rp_rumble": "手柄振动",
 "rp_mic_setting": "麦克风（实验性）",
-"rp_mic_setting_hint": "添加用于语音聊天的麦克风按钮。尚未在 PS5 上测试。下次开始时生效。",
+"rp_mic_setting_hint": "添加用于语音聊天的麦克风按钮。下次开始时生效。",
 "rp_touch_controls": "屏幕手柄",
 "rp_touch_auto": "触屏设备上",
 "rp_touch_on": "始终",

@@ -6062,7 +6062,7 @@ library_compressed_hint: "تحتاج الصور المضغوطة إلى ShadowMo
 "rp_capture_pointer_hint": "Esc يُظهره مجددًا.",
 "rp_rumble": "اهتزاز وحدة التحكم",
 "rp_mic_setting": "الميكروفون (تجريبي)",
-"rp_mic_setting_hint": "يضيف زر ميكروفون للدردشة الصوتية. لم يُختبر بعد على PS5. يسري من التشغيل التالي.",
+"rp_mic_setting_hint": "يضيف زر ميكروفون للدردشة الصوتية. يسري من التشغيل التالي.",
 "rp_touch_controls": "وحدة تحكم على الشاشة",
 "rp_touch_auto": "على شاشات اللمس",
 "rp_touch_on": "دائمًا",

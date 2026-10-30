@@ -2023,7 +2023,7 @@ menu. The screen stays awake while you play, and Settings has the controller's s
 In the Android app, full screen hides the status and navigation bars (swipe from an edge to see them) and holds the phone in landscape.
 
 **Q: Part of the Remote Play picture is cut off, or it looks stretched.**
-**Picture size** decides how the picture fits the screen: **Fit** shows the whole picture with black bars where the shapes differ (the default), **Fill** fills the screen and crops the edges, **Stretch** fills it without cropping. It shows in full screen: on the page the picture's box is the picture's own shape, so all three look the same there. **Fit** never cuts anything off: like a video player's letterbox, the app sizes the picture to the screen itself, so the whole picture always shows, with black bars at the sides or top and bottom when the shapes differ. Change it in full screen without leaving it: the **Picture size** button on the bar (desktop), or the Fit / Fill / Stretch row in the **⋯** menu (phones). It's also in Remote Play › Settings, and it applies at once. Before 9.2.0, the Windows app could show the picture enlarged with its right and bottom cut off (#538); update to fix it.
+**Picture size** decides how the picture fits the screen: **Fit** shows the whole picture with black bars where the shapes differ (the default), **Fill** fills the screen and crops the edges, **Stretch** stretches the picture to the whole screen. It shows in full screen: on the page the picture's box is the picture's own shape, so all three look the same there. **Fit** never cuts anything off: like a video player, the whole picture always shows, with black bars at the sides or top and bottom when the shapes differ. On a 16:9 screen (the picture's own shape) all three look the same. Change it in full screen without leaving it: the **Picture size** menu on the bar (desktop), or the Fit / Fill / Stretch row in the **⋯** menu (phones). It's also in Remote Play › Settings, and it applies at once. Before 9.2.0, the Windows app could show the picture enlarged with its right and bottom cut off (#538); update to fix it.
 
 **Q: Does my phone controller (Backbone, Razer Kishi, GameSir, Scuf Nomad...) work with Remote Play?**
 Yes. Phone controllers, USB-C or Bluetooth, are game controllers to the phone, so Remote Play reads them like any other: connect it, press a button, and it plays (the on-screen controller hides). If the browser doesn't recognise one, it still plays in the usual layout; if a button is wrong, open Remote Play › Settings › Controllers › **Map buttons** and press each button as asked (any step can be skipped). **Set an extra button** gives a back button or paddle any PS5 button. Mappings are saved per controller. In the Android app the app also hands controllers to the page itself, for phones whose system browser misses them; on iPhone the app makes sure the page has the focus controllers need.
@@ -2056,10 +2056,9 @@ required, but they help. The button is missing where the browser can't encode th
 the PS5 expects (it needs WebCodecs audio encoding with Opus: current Chrome and Edge have it;
 other browsers and the Linux desktop app may not). Nothing about the mic is saved.
 
-Why experimental: it follows chiaki-ng's microphone code byte for byte (the same 48 kHz Opus
-frames, packets and encryption), and every step on our side is tested, but it has **not yet been
-tried against a real PS5**. If your friends can't hear you, or the stream misbehaves while the mic
-is on, turn it off and tell us in a GitHub issue. The desktop apps ask the system for the mic (on
+It's experimental: it follows chiaki-ng's microphone code byte for byte (the same 48 kHz Opus
+frames, packets and encryption). If your friends can't hear you, or the stream misbehaves while the
+mic is on, turn it off and tell us in a GitHub issue. The desktop apps ask the system for the mic (on
 macOS: System Settings › Privacy & Security › Microphone; on Android and iPhone, the usual
 permission prompt). If you said no once, allow it there and press the button again.
 

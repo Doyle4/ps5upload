@@ -66,7 +66,7 @@ export function MicSetting() {
       hint={tr(
         "rp_mic_setting_hint",
         undefined,
-        "Adds a mic button for voice chat. Not yet tested on a PS5. Applies from the next start.",
+        "Adds a mic button for voice chat. Applies from the next start.",
       )}
     />
   );

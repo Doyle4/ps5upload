@@ -6015,7 +6015,7 @@ library_compressed_hint: "壓縮映像需要 ShadowMount+ 才能遊玩。如需�
 "rp_capture_pointer_hint": "按 Esc 重新顯示。",
 "rp_rumble": "控制器震動",
 "rp_mic_setting": "麥克風（實驗性）",
-"rp_mic_setting_hint": "新增語音聊天用的麥克風按鈕。尚未在 PS5 上測試。下次開始時生效。",
+"rp_mic_setting_hint": "新增語音聊天用的麥克風按鈕。下次開始時生效。",
 "rp_touch_controls": "螢幕控制器",
 "rp_touch_auto": "觸控螢幕上",
 "rp_touch_on": "一律",

@@ -6368,7 +6368,7 @@ library_compressed_hint: "A tömörített képfájlok futtatásához ShadowMount
 "rp_capture_pointer_hint": "Az Esc újra megjeleníti.",
 "rp_rumble": "Kontroller rezgése",
 "rp_mic_setting": "Mikrofon (kísérleti)",
-"rp_mic_setting_hint": "Mikrofon gombot ad a hangcsevegéshez. PS5-ön még nincs kipróbálva. A következő indítástól érvényes.",
+"rp_mic_setting_hint": "Mikrofon gombot ad a hangcsevegéshez. A következő indítástól érvényes.",
 "rp_touch_controls": "Képernyős kontroller",
 "rp_touch_auto": "Érintőképernyőn",
 "rp_touch_on": "Mindig",
