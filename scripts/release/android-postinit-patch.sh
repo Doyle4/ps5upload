@@ -54,6 +54,8 @@
 #
 # 8) "Send to PS5" from Android's share menu: intent filters on MainActivity and
 #    ShareIntake.kt, which hands what was shared to the page. See step (8) below.
+#
+# 10) The microphone for Remote Play voice chat (experimental). See step (10) below.
 
 # 9) Controllers to the page: MainActivity forwards gamepad keys and sticks
 #    (Backbone, Razer Kishi, GameSir, any Bluetooth or USB pad) to the page in
@@ -1109,5 +1111,28 @@ if [ -f "$props" ]; then
   done
   echo "gradle: no daemon, Kotlin in-process"
 fi
+
+# --- (10) microphone for Remote Play voice chat ------------------------
+# The Remote Play mic (experimental) calls getUserMedia in the WebView. wry's
+# RustWebChromeClient.onPermissionRequest already turns the page's AUDIO_CAPTURE
+# request into a runtime prompt for RECORD_AUDIO + MODIFY_AUDIO_SETTINGS and
+# grants it on yes, but Android only shows that prompt for permissions the
+# manifest declares; undeclared, the page's request is denied without a word.
+python3 - "$manifest" <<'PY'
+import re, sys
+path = sys.argv[1]
+src = open(path, encoding="utf-8").read()
+perms = ["android.permission.RECORD_AUDIO", "android.permission.MODIFY_AUDIO_SETTINGS"]
+missing = [p for p in perms if f'android:name="{p}"' not in src]
+if missing:
+    block = "".join(f'\n    <uses-permission android:name="{p}" />' for p in missing)
+    new = re.sub(r"(<manifest\b[^>]*>)", r"\1" + block, src, count=1)
+    if new == src:
+        sys.exit("::error::could not find <manifest> tag to add the microphone permissions")
+    open(path, "w", encoding="utf-8").write(new)
+    print("added permissions:", ", ".join(missing))
+else:
+    print("microphone permissions already present — skipping")
+PY
 
 echo "android post-init patches applied"

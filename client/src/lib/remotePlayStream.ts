@@ -458,6 +458,9 @@ export interface StreamOptions {
   attach?: boolean;
   /** Ask the engine for a shorter video queue and skip to the next keyframe sooner. */
   lowLatency?: boolean;
+  /** Set the session up for the microphone (experimental; Settings). Only then is `mic`
+   *  in the start message, so a session without it starts exactly as before. */
+  mic?: boolean;
   /** How the picture fills the place it is shown in (default: the whole picture). */
   fit?: PictureFit;
   /** False: the console's rumble is not played on the controllers. */
@@ -611,6 +614,8 @@ export class RemotePlayStream {
   private reconnectSince = 0;
   private reconnectTry = 0;
   private reconnectTimer = 0;
+  /** The page's mic is on (remotePlayMic.ts); said again on every reattach. */
+  private micOn = false;
 
   constructor(private readonly o: StreamOptions) {
     this.canvas = document.createElement("canvas");
@@ -729,8 +734,11 @@ export class RemotePlayStream {
           keep_alive_s: this.o.keepAliveS,
           attach_only: attachOnly,
           low_latency: !!this.o.lowLatency,
+          ...(this.o.mic ? { mic: true } : {}),
         }),
       );
+      // Attaching turns the console's mic off in the engine: a page that has it on says so.
+      if (this.micOn) ws.send(JSON.stringify({ mic: true }));
     };
     ws.onmessage = (m) => {
       if (ws !== this.ws) return;
@@ -882,6 +890,25 @@ export class RemotePlayStream {
     if (s === this.lastPad) return;
     this.lastPad = s;
     ws.send(JSON.stringify({ pad: p }));
+  }
+
+  /** This session was started with the mic set up (Settings › Microphone). */
+  get micEnabled(): boolean {
+    return !!this.o.mic;
+  }
+
+  /** Turn the console's microphone on or off (experimental; see remotePlayMic.ts). */
+  setMic(on: boolean): void {
+    if (!this.o.mic) return;
+    this.micOn = on;
+    const ws = this.ws;
+    if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ mic: on }));
+  }
+
+  /** One `[5][Opus packet]` mic frame; dropped while the socket is down. */
+  sendMicFrame(msg: Uint8Array<ArrayBuffer>): void {
+    const ws = this.ws;
+    if (this.micOn && ws && ws.readyState === WebSocket.OPEN) ws.send(msg);
   }
 
   /** 0-1; 0 is muted. */

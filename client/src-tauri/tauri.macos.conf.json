@@ -4,6 +4,10 @@
     "runner": "./macos-dev-runner.sh"
   },
   "bundle": {
+    "macOS": {
+      "infoPlist": "Info.macos.plist",
+      "entitlements": "macos.entitlements"
+    },
     "fileAssociations": [
       {
         "ext": ["pkg", "fpkg"],

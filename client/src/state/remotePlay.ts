@@ -52,6 +52,9 @@ export interface RpPrefs {
   lowLatency: boolean;
   /** Offer 720p when a 1080p stream keeps losing frames. */
   autoQuality: boolean;
+  /** Microphone for voice chat (experimental): sessions are set up for it and the mic button
+   *  shows. Off, a session starts exactly as it did before the mic existed. */
+  mic: boolean;
 }
 
 export const DEFAULT_RP_PREFS: RpPrefs = {
@@ -71,6 +74,7 @@ export const DEFAULT_RP_PREFS: RpPrefs = {
   motion: false,
   lowLatency: false,
   autoQuality: true,
+  mic: false,
 };
 
 /** The smallest sound buffer the Sound buffer setting offers. */
@@ -208,6 +212,7 @@ export const useRemotePlayStore = create<RpState>((set, get) => ({
       lowLatency: prefs.lowLatency,
       attach: opts?.attach,
       fit: prefs.fit,
+      mic: prefs.mic,
       rumble: () => get().prefs.rumble,
       onPhase: (p) => {
         if (get().stream !== stream) return;

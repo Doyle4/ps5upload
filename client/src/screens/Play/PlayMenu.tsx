@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 
 import { FIT_ORDER, type PictureFit } from "../../lib/remotePlayStream";
+import { MicTile } from "./MicControl";
 import { useTr } from "../../state/lang";
 import { useRemotePlayStore } from "../../state/remotePlay";
 import { CaptureRow } from "./CaptureControls";
@@ -158,6 +159,7 @@ export function PlayMenu({
           testId="rp-toggle-stats"
           active={prefs.showStats}
         />
+        <MicTile />
         {!!pipKind && (
           <Tile
             label={
