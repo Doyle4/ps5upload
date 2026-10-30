@@ -103,6 +103,9 @@ pub struct SmpStatus {
     /// surface "config.ini exists but couldn't be read" without
     /// inferring from null fields.
     pub errors: Vec<String>,
+    /// SMP's own version (e.g. "1.7beta11") from its HTTP API; `None` when the API does not
+    /// answer (older than 1.7beta8, bound to the console only, or switched off).
+    pub version: Option<String>,
 }
 
 // HyperHEN embeds SMP as hyperhen_mount.elf (upstream src/main.c PAYLOAD_NAME); its docs call
@@ -251,9 +254,14 @@ pub fn collect_status(addr: &str) -> Result<SmpStatus> {
         }
     };
 
+    // The API answering is proof SMP runs, whatever the process list says.
+    let version = crate::smp_api::SmpApi::probe(addr).map(|(_, v)| v.shadowmount_version);
+    let running = running || version.is_some();
+
     Ok(SmpStatus {
         installed,
         running,
+        version,
         config_ini,
         autotune_ini,
         debug_log_tail,

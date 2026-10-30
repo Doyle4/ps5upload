@@ -4,6 +4,20 @@ What's new in ps5upload, written for humans.
 
 ---
 
+## 9.4.0
+
+- **Backporting uses ShadowMount+'s own controls (1.7beta8 and later).** To write the backport
+  into a game image, the app now asks ShadowMount+ to mount that one game read-write and to
+  unmount it after: it takes well under a second instead of half a minute or more, and no longer
+  fails with "has not mounted" when the image isn't mounted, which with ShadowMount+'s default
+  settings is every idle image. ShadowMount+ postpones its scans while the image is held, and
+  `config.ini` is left alone. Tried on a PS5 Pro with ShadowMount+ 1.7beta11. Older versions,
+  or one set to answer only on the console, still get the previous method.
+- **The ShadowMount+ panel shows its exact version** (for example 1.7beta11), read from
+  ShadowMount+ itself.
+- The FAQ explains what ShadowMount+ 1.7beta8+ changed: its control interface is open to the
+  local network by default, and 1.7beta10 stopped closing self-made packages on rest mode.
+
 ## 9.3.1
 
 - **The real CPU clock.** Read sensors now measures how fast the CPU actually runs ("CPU clock

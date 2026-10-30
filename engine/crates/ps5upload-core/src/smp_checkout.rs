@@ -17,8 +17,11 @@
 //! seconds you would have two attachments of one image file, one of them
 //! writable — a corruption path, not a race worth tuning.
 //!
-//! SMP has no control API. The one thing that reliably makes it let go is
-//! taking the source out of every scan root, which is what this module does.
+//! SMP before 1.7beta8 has no control API. The one thing that reliably makes it let go is
+//! taking the source out of every scan root, which is what this module does. (1.7beta8+ has
+//! `games/unmount`, and edit sessions that only write into an image use it: see
+//! [`crate::smp_api`] and [`crate::smp_image_rw`]. Moving or replacing the image file itself
+//! still goes through this checkout.)
 //!
 //! # The sequence (verified on hardware, FW 5.10)
 //!

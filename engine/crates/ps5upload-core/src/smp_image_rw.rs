@@ -66,6 +66,10 @@ pub struct ImageRwSession {
     pub mount_point: String,
     pub restore_root_mode: Option<String>,
     pub started_at_ms: u64,
+    /// Opened through ShadowMount+'s API (`games/mount` read-write) rather than a `config.ini`
+    /// rule; closed the same way. Absent in a journal from before 9.4.0.
+    #[serde(default)]
+    pub via_api: bool,
 }
 
 /// Rewrite `config_ini` so exactly `images` (image basenames, e.g.
@@ -232,16 +236,26 @@ pub fn begin(addr: &str, title_id: &str) -> Result<ImageRwSession> {
         bail!("{link} does not contain an absolute image path");
     }
     let name = image_name(&image_path)?.to_string();
+    let restore_root_mode = image_path
+        .to_ascii_lowercase()
+        .ends_with(".ffpkg")
+        .then(|| "0555".to_string());
+
+    // ShadowMount+ 1.7beta8+ mounts one game read-write on request, with no config rule and no
+    // rename, and it does not need the image to be mounted already (with its default settings
+    // nothing is mounted while idle, which the older path below cannot handle).
+    if let Some((api, _)) = crate::smp_api::SmpApi::probe(addr)
+        .filter(|(_, v)| v.can("mount_game") && v.can("unmount_game") && v.can("list_images"))
+    {
+        return begin_via_api(addr, title_id, image_path, restore_root_mode, &api);
+    }
+
     let mount_point = mount_for_image(addr, &image_path)?
         .with_context(|| format!("ShadowMount+ has not mounted {image_path}"))?;
     let temporary_path = format!("{image_path}.ps5upload-editing");
     if path_exists(addr, &temporary_path) {
         bail!("temporary image path already exists: {temporary_path}");
     }
-    let restore_root_mode = image_path
-        .to_ascii_lowercase()
-        .ends_with(".ffpkg")
-        .then(|| "0555".to_string());
     let state = ImageRwSession {
         title_id: title_id.to_string(),
         image_path,
@@ -249,6 +263,7 @@ pub fn begin(addr: &str, title_id: &str) -> Result<ImageRwSession> {
         mount_point,
         restore_root_mode,
         started_at_ms: now_ms(),
+        via_api: false,
     };
     let config = read_text(addr, CONFIG_PATH)?;
     if config.contains(MARKER_BEGIN) {
@@ -280,8 +295,80 @@ pub fn begin(addr: &str, title_id: &str) -> Result<ImageRwSession> {
     Ok(state)
 }
 
+fn begin_via_api(
+    addr: &str,
+    title_id: &str,
+    image_path: String,
+    restore_root_mode: Option<String>,
+    api: &crate::smp_api::SmpApi,
+) -> Result<ImageRwSession> {
+    // Mounted read-only already (a scan, or persistent mounts): SMP refuses the other mode until
+    // it is released.
+    if api.image(&image_path)?.is_some_and(|i| i.mounted) {
+        api.unmount(title_id)
+            .context("release the read-only mount first")?;
+    }
+    let mut state = ImageRwSession {
+        title_id: title_id.to_string(),
+        temporary_path: String::new(),
+        mount_point: String::new(),
+        image_path,
+        restore_root_mode,
+        started_at_ms: now_ms(),
+        via_api: true,
+    };
+    // Journal before the mount, so an interrupted session is closed (unmounted) next time.
+    write_state(addr, &state)?;
+    let opened = (|| -> Result<String> {
+        api.mount(title_id, true)?;
+        let img = api
+            .image(&state.image_path)?
+            .filter(|i| i.mounted && !i.mount_point.is_empty())
+            .with_context(|| {
+                format!(
+                    "ShadowMount+ mounted {title_id} but does not list {} as mounted",
+                    state.image_path
+                )
+            })?;
+        Ok(img.mount_point)
+    })();
+    let mount_point = match opened {
+        Ok(m) => m,
+        Err(e) => {
+            let _ = api.unmount(title_id);
+            let _ = clear_state(addr);
+            return Err(e);
+        }
+    };
+    state.mount_point = mount_point;
+    write_state(addr, &state)?;
+    if state.restore_root_mode.is_some() {
+        fs_chmod(addr, &state.mount_point, "0777", false)
+            .context("make the UFS image root writable")?;
+    }
+    Ok(state)
+}
+
+fn finish_via_api(addr: &str, state: ImageRwSession) -> Result<ImageRwSession> {
+    if let (Some(mode), false) = (&state.restore_root_mode, state.mount_point.is_empty()) {
+        fs_chmod(addr, &state.mount_point, mode, false)
+            .context("restore the UFS image root mode")?;
+    }
+    // ShadowMount+ not answering (stopped, or the console restarted) took its mounts with it,
+    // so there is nothing left to release.
+    if let Some((api, _)) = crate::smp_api::SmpApi::probe(addr) {
+        api.unmount(&state.title_id)
+            .context("release the read-write mount")?;
+    }
+    clear_state(addr)?;
+    Ok(state)
+}
+
 pub fn finish(addr: &str) -> Result<ImageRwSession> {
     let state = read_state(addr)?.context("no ShadowMount+ image edit session is open")?;
+    if state.via_api {
+        return finish_via_api(addr, state);
+    }
     if path_exists(addr, &state.temporary_path) && !path_exists(addr, &state.image_path) {
         fs_move(addr, &state.temporary_path, &state.image_path)
             .context("recover the temporarily renamed image")?;

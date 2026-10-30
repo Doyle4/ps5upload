@@ -47,6 +47,7 @@ pub mod save_archive;
 pub mod saves;
 pub mod sdk_changer;
 pub mod smp;
+pub mod smp_api;
 pub mod smp_checkout;
 pub mod smp_image_rw;
 pub mod smp_meta;

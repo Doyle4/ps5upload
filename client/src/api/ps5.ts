@@ -2106,6 +2106,8 @@ export interface SmpStatus {
   debug_log_tail: string | null;
   mounted_images: SmpMountedImage[];
   errors: string[];
+  /** SMP's own version from its HTTP API (1.7beta8+); absent when the API doesn't answer. */
+  version?: string | null;
 }
 
 /** SMP status snapshot. `addr` is the management-port address. */

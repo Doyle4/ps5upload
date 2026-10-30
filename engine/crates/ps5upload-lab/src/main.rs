@@ -225,6 +225,34 @@ fn do_clocks_raw(addr: &str) -> Result<()> {
     Ok(())
 }
 
+/// One ShadowMount+ read-write edit session end to end: open it, write and remove a small file
+/// at the image root, close it. Shows which path opened it (SMP's API or the config rule).
+fn do_smp_image_rw_test(addr: &str, title_id: &str) -> Result<()> {
+    use ps5upload_core::smp_image_rw;
+    let t = std::time::Instant::now();
+    let s = smp_image_rw::begin(addr, title_id)?;
+    println!(
+        "open: via_api={} mount_point={} ({} ms)",
+        s.via_api,
+        s.mount_point,
+        t.elapsed().as_millis()
+    );
+    let probe = format!("{}/.ps5upload-rw-probe", s.mount_point);
+    let wrote = ps5upload_core::diagnostics::fs_write_bytes(addr, &probe, b"rw", false);
+    println!("write probe: {:?}", wrote.as_ref().map(|_| "ok"));
+    if wrote.is_ok() {
+        println!(
+            "remove probe: {:?}",
+            ps5upload_core::fs_ops::fs_delete(addr, &probe).map(|_| "ok")
+        );
+    }
+    let t = std::time::Instant::now();
+    let f = smp_image_rw::finish(addr)?;
+    println!("closed {} ({} ms)", f.title_id, t.elapsed().as_millis());
+    println!("journal left: {:?}", smp_image_rw::read_state(addr)?);
+    wrote.map(|_| ())
+}
+
 fn do_shutdown(addr: &str) -> Result<()> {
     let body = ps5upload_core::mgmt::call(addr, ps5upload_core::mgmt::m::NODE_SHUTDOWN, b"")?;
     println!("{}", String::from_utf8_lossy(&body));
@@ -883,6 +911,7 @@ fn usage() -> ! {
     eprintln!("  fan-raw                    the helper's fan lines (HW_TEMPS \"f\"), servo profile hex included");
     eprintln!("  fan-set C                  set the fan target (45-85 C; 0 = the console's own)");
     eprintln!("  clocks-raw                 GPU + per-core CPU clock with the raw /dev/mp1 words (HW_TEMPS \"cd\")");
+    eprintln!("  smp-image-rw-test TITLE    open a ShadowMount+ read-write edit session, write+remove a probe file, close it");
     eprintln!("  profile-info                       foreground user + account name slots");
     eprintln!("  profile-set-username SLOT NAME     rename an account-name slot");
     eprintln!("  profile-rename-user  UID_HEX NAME  rename a local console user");
@@ -1260,6 +1289,10 @@ fn main() -> Result<()> {
         "hw-temps-x" => do_hw_temps(addr, true),
         "fan-raw" => do_fan_raw(addr),
         "clocks-raw" => do_clocks_raw(addr),
+        "smp-image-rw-test" => do_smp_image_rw_test(
+            addr,
+            rest.get(1).context("smp-image-rw-test needs a title id")?,
+        ),
         "fan-set" => {
             let c: u8 = rest
                 .get(1)

@@ -1382,6 +1382,29 @@ Two consequences worth knowing before you start:
 Everything in the previous answer about there being no undo applies with
 full force here: you are editing a real game image in place.
 
+**Q: What does ps5upload use from ShadowMount+ 1.7beta8 and later?**
+ShadowMount+ 1.7beta8 added its own control interface (on the console's port 10101). When it
+answers, ps5upload uses it:
+
+- **Backporting writes into an image through it.** The app asks ShadowMount+ to mount that one
+  game read-write, writes the changes, and asks it to unmount again. It takes a fraction of a
+  second, works whether or not the image was mounted before (with ShadowMount+'s default
+  settings no image stays mounted while idle, which made the older method fail with "has not
+  mounted"), and leaves `config.ini` alone. While it is held, ShadowMount+ postpones its scans
+  instead of releasing it. Older ShadowMount+ versions, or one whose interface is limited to the
+  console, still get the older method.
+- **The ShadowMount+ panel shows its exact version** (for example 1.7beta11).
+
+Two things worth knowing about ShadowMount+ 1.7beta8 and later:
+
+- Its control interface is open to your local network by default, with no password. Anyone on
+  the same network can use it. Set `api_bind_address=127.0.0.1` in
+  `/data/shadowmount/config.ini` to keep it to the console (ps5upload then uses the older
+  methods), or keep the console on a network you trust.
+- Betas 2 to 9 closed running self-made (fake) packages when the console went to rest mode;
+  1.7beta10 stopped doing that. If a game made with ps5upload's package builder closes on rest,
+  update ShadowMount+.
+
 **Q: Can I unmount while a game is running?**
 No — the kernel refuses with `EBUSY` because a process inside the
 mount has files open. The UI surfaces this as: *"the game inside

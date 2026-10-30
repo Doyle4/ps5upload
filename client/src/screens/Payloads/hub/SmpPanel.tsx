@@ -105,6 +105,7 @@ export default function SmpPanel({ mgmtAddr }: { mgmtAddr: string | null }) {
                   ? tr("smp_running", undefined, "running")
                   : tr("smp_not_running", undefined, "not running")}
               </SmpBadge>
+              {status?.version && <span data-testid="smp-version">{status.version}</span>}
               {status && status.mounted_images.length > 0 && (
                 <span>
                   {tr(
