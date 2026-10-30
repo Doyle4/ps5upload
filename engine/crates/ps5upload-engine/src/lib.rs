@@ -82,6 +82,7 @@ mod mgmt_route;
 mod migrate_6;
 mod net_doctor;
 mod net_health;
+mod pad_link;
 mod pkg_install;
 mod pkg_sidecar;
 mod pldmgr_api;
@@ -819,6 +820,10 @@ pub(crate) fn allow_rules_contain(rules: &[AllowRule], peer: std::net::IpAddr) -
 fn loopback_allows(cfg: &LoopbackGuardConfig, peer: std::net::IpAddr, path: &str) -> bool {
     const OFF_LOOPBACK_ALLOWED: &[&str] = &["/pkg-host/"];
     OFF_LOOPBACK_ALLOWED.iter().any(|p| path.starts_with(p))
+        // A phone as a controller (pad_link.rs): its page and its socket, which checks the
+        // QR code's key or waits for the computer to allow it.
+        || path == "/pad"
+        || path == "/api/pad/ws"
         || peer.is_loopback()
         || allow_rules_contain(&cfg.allowed_ips, peer)
 }
@@ -11266,6 +11271,15 @@ async fn run(cfg: EngineConfig) -> anyhow::Result<()> {
         .route("/api/ps5/rp/ws", get(rp_stream_api::ws))
         .route("/api/ps5/rp/session", get(rp_stream_api::current))
         .route("/rp-player", get(rp_stream_api::player))
+        .route("/pad", get(pad_link::page))
+        .route("/api/pad/ws", get(pad_link::ws))
+        .route(
+            "/api/ps5/rp/pad-link",
+            get(pad_link::get_status).post(pad_link::set_open),
+        )
+        .route("/api/ps5/rp/pad-link/decide", post(pad_link::decide))
+        .route("/api/ps5/rp/pad-link/kick", post(pad_link::kick))
+        .route("/api/ps5/rp/pad-relay", get(pad_link::relay))
         .route("/api/ps5/power/ddp-status", get(ps5_power_ddp_status))
         .route("/api/ps5/power/pair", post(ps5_power_pair))
         .route("/api/ps5/users/create", post(user_create_handler))
@@ -11928,6 +11942,25 @@ mod loopback_guard_tests {
     fn pkg_host_allowed_from_any_peer() {
         let c = cfg(&[]);
         assert!(loopback_allows(&c, ip("10.0.0.7"), "/pkg-host/abc"));
+    }
+
+    #[test]
+    fn a_phone_reaches_only_the_controller_page_and_socket() {
+        let c = cfg(&[]);
+        assert!(loopback_allows(&c, ip("192.168.1.30"), "/pad"));
+        assert!(loopback_allows(&c, ip("192.168.1.30"), "/api/pad/ws"));
+        // Not the link itself, the relay, the session, or anything near the names.
+        for p in [
+            "/api/ps5/rp/pad-link",
+            "/api/ps5/rp/pad-link/decide",
+            "/api/ps5/rp/pad-relay",
+            "/api/ps5/rp/ws",
+            "/pad/../api/jobs",
+            "/padx",
+            "/api/pad/ws/x",
+        ] {
+            assert!(!loopback_allows(&c, ip("192.168.1.30"), p), "{p}");
+        }
     }
 
     #[test]

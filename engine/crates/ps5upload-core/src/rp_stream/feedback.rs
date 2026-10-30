@@ -15,6 +15,8 @@
 use std::collections::VecDeque;
 use std::time::{Duration, Instant};
 
+use super::orientation::{Motion, OrientationTracker};
+
 /// Button bits, as chiaki numbers them.
 pub mod button {
     pub const CROSS: u32 = 1 << 0;
@@ -56,6 +58,19 @@ pub struct ControllerState {
     /// One finger on the touchpad, at (x 0-1919, y 0-941), or none.
     #[serde(default)]
     pub touch: Option<[u16; 2]>,
+    /// The pad's motion sensors (a phone's), or none: held still and level.
+    #[serde(default)]
+    pub motion: Option<MotionSample>,
+}
+
+/// One reading of a pad's motion sensors, in the controller's axes (x right, y up out of its
+/// face, z toward the player), fixed point so a state stays comparable: the gyro in mrad/s, the
+/// accelerometer in thousandths of g (gravity included), and when, in µs (any clock, may wrap).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
+pub struct MotionSample {
+    pub gyro: [i32; 3],
+    pub accel: [i32; 3],
+    pub t: u32,
 }
 
 /// The touchpad's coordinate space (DualShock 4 / DualSense).
@@ -108,31 +123,40 @@ fn button_event(bit: u32, value: u8) -> Option<Vec<u8>> {
 const L2_CODE: u8 = 0x86;
 const R2_CODE: u8 = 0x87;
 
-/// The v12 state payload (chiaki `feedback_state_format_v9` + v12 tail),
-/// with the pad held still and level.
-pub fn format_state(s: &ControllerState) -> [u8; STATE_SIZE_V12] {
+/// chiaki `compress_quat`: the largest component's index and sign, and the other three in 9 bits
+/// each.
+fn compress_quat(q: [f32; 4]) -> u32 {
+    let mut largest = 0usize;
+    for i in 1..4 {
+        if q[i].abs() > q[largest].abs() {
+            largest = i;
+        }
+    }
+    let mut r: u32 = (if q[largest] < 0.0 { 1 } else { 0 }) | ((largest as u32) << 1);
+    let s = std::f32::consts::FRAC_1_SQRT_2;
+    for i in 0..3 {
+        let qi = if i < largest { i } else { i + 1 };
+        let v = (q[qi].clamp(-s, s) + s) * (0x1ff as f32 / (2.0 * s));
+        r |= (v as u32) << (3 + i * 9);
+    }
+    r
+}
+
+/// The v12 state payload (chiaki `feedback_state_format_v9` + v12 tail). `motion`: the pad's
+/// sensors and orientation (orientation.rs); its default is held still and level.
+pub fn format_state(s: &ControllerState, motion: &Motion) -> [u8; STATE_SIZE_V12] {
     fn scaled(v: f32, min: f32, max: f32) -> u16 {
         (0xffff as f32 * (v - min) / (max - min)) as u16
     }
     let mut b = [0u8; STATE_SIZE_V12];
     b[0] = 0xa0;
-    let gyro = scaled(0.0, -30.0, 30.0).to_le_bytes();
-    b[1..3].copy_from_slice(&gyro);
-    b[3..5].copy_from_slice(&gyro);
-    b[5..7].copy_from_slice(&gyro);
-    b[7..9].copy_from_slice(&scaled(0.0, -5.0, 5.0).to_le_bytes());
-    b[9..11].copy_from_slice(&scaled(1.0, -5.0, 5.0).to_le_bytes());
-    b[11..13].copy_from_slice(&scaled(0.0, -5.0, 5.0).to_le_bytes());
-    // Orientation (0,0,0,1), compressed as chiaki's compress_quat does.
-    let q = [0.0f32, 0.0, 0.0, 1.0];
-    let largest = 3u32;
-    let mut qc: u32 = largest << 1;
-    for (i, qi) in [0usize, 1, 2].into_iter().enumerate() {
-        let r = std::f32::consts::FRAC_1_SQRT_2;
-        let v = (q[qi].clamp(-r, r) + r) * (0x1ff as f32 / (2.0 * r));
-        qc |= (v as u32) << (3 + i * 9);
+    for i in 0..3 {
+        let g = scaled(motion.gyro[i].clamp(-30.0, 30.0), -30.0, 30.0).to_le_bytes();
+        b[1 + i * 2..3 + i * 2].copy_from_slice(&g);
+        let a = scaled(motion.accel[i].clamp(-5.0, 5.0), -5.0, 5.0).to_le_bytes();
+        b[7 + i * 2..9 + i * 2].copy_from_slice(&a);
     }
-    b[0xd..0x11].copy_from_slice(&qc.to_le_bytes());
+    b[0xd..0x11].copy_from_slice(&compress_quat(motion.orient).to_le_bytes());
     b[0x11..0x13].copy_from_slice(&(s.lx as u16).to_be_bytes());
     b[0x13..0x15].copy_from_slice(&(s.ly as u16).to_be_bytes());
     b[0x15..0x17].copy_from_slice(&(s.rx as u16).to_be_bytes());
@@ -160,6 +184,9 @@ pub struct FeedbackSender {
     last_history: Option<(u8, Vec<u8>, Instant)>,
     tail_sent: usize,
     touch_id: u8,
+    /// The pad's motion as the console gets it, tracked from its sensor readings.
+    tracker: OrientationTracker,
+    motion: Motion,
 }
 
 impl Default for FeedbackSender {
@@ -180,6 +207,8 @@ impl FeedbackSender {
             last_history: None,
             tail_sent: TAIL_MS.len(),
             touch_id: 0,
+            tracker: OrientationTracker::default(),
+            motion: Motion::default(),
         }
     }
 
@@ -234,6 +263,21 @@ impl FeedbackSender {
         if (prev.lx, prev.ly, prev.rx, prev.ry) != (now.lx, now.ly, now.rx, now.ry) {
             self.state_dirty = true;
         }
+        if prev.motion != now.motion {
+            match now.motion {
+                Some(m) => {
+                    let f = |v: [i32; 3]| v.map(|x| x as f32 / 1000.0);
+                    self.tracker.update(f(m.gyro), f(m.accel), m.t);
+                    self.motion = self.tracker.motion();
+                }
+                // The sensors went away: still and level again, tracking from scratch.
+                None => {
+                    self.tracker = OrientationTracker::default();
+                    self.motion = Motion::default();
+                }
+            }
+            self.state_dirty = true;
+        }
         self.state = now;
     }
 
@@ -256,7 +300,7 @@ impl FeedbackSender {
             self.state_dirty = false;
             self.last_state_at = now;
             self.state_sent = self.state;
-            out.push(Packet::State(format_state(&self.state)));
+            out.push(Packet::State(format_state(&self.state, &self.motion)));
         }
         out
     }
@@ -323,8 +367,40 @@ mod tests {
     }
 
     #[test]
+    fn motion_reaches_the_state_packet() {
+        let mut f = FeedbackSender::new();
+        let _ = f.tick(Instant::now());
+        // Gyro 1.5 rad/s about y, gravity along +y: the state is sent at once, gyro y off centre.
+        f.set(ControllerState {
+            motion: Some(MotionSample {
+                gyro: [0, 1500, 0],
+                accel: [0, 1000, 0],
+                t: 1000,
+            }),
+            ..Default::default()
+        });
+        let state = f
+            .tick(Instant::now())
+            .into_iter()
+            .find_map(|p| match p {
+                Packet::State(b) => Some(b),
+                _ => None,
+            })
+            .expect("a state packet");
+        let gy = u16::from_le_bytes([state[3], state[4]]);
+        assert!(gy > 0x7fff + 1000, "{gy:#x}");
+        assert_eq!(u16::from_le_bytes([state[1], state[2]]), 0x7fff);
+        // Parsed from the page's JSON as it sends it.
+        let p: ControllerState = serde_json::from_str(
+            r#"{"buttons":0,"motion":{"gyro":[1,2,3],"accel":[0,1000,0],"t":5}}"#,
+        )
+        .unwrap();
+        assert_eq!(p.motion.map(|m| m.gyro), Some([1, 2, 3]));
+    }
+
+    #[test]
     fn idle_state_matches_chiaki_layout() {
-        let b = format_state(&ControllerState::default());
+        let b = format_state(&ControllerState::default(), &Motion::default());
         assert_eq!(b[0], 0xa0);
         assert_eq!(u16::from_le_bytes([b[1], b[2]]), 0x7fff);
         assert_eq!(b[0x1b], 1);

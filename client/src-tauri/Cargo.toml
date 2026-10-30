@@ -146,6 +146,11 @@ ps5upload-engine = { path = "../../engine/crates/ps5upload-engine" }
 [target.'cfg(target_os = "android")'.dependencies]
 jni = "0.21"
 
+# iOS-only: make the WKWebView the first responder so controllers reach the page
+# (commands/system_bars.rs focus_webview). Already in the tree through wry.
+[target.'cfg(target_os = "ios")'.dependencies]
+objc2 = "0.6"
+
 [features]
 # Default: build Tauri-native (no custom features yet)
 default = []

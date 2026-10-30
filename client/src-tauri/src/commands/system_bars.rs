@@ -46,6 +46,32 @@ pub fn android_system_ui(
     }
 }
 
+/// The iOS app: make the web view the first responder. WKWebView hands controllers (Backbone,
+/// Kishi, any MFi or Bluetooth pad) to the page's Gamepad API only while it is the first
+/// responder (WebKit bug 269292), which it may not be after a load or another view took the
+/// focus. Every other platform: a no-op.
+#[tauri::command]
+pub fn focus_webview(window: tauri::WebviewWindow) -> Result<(), String> {
+    #[cfg(target_os = "ios")]
+    {
+        window
+            .with_webview(|wv| {
+                let view = wv.inner() as *mut objc2::runtime::AnyObject;
+                if !view.is_null() {
+                    // SAFETY: inner() is the live WKWebView, and with_webview runs on the main
+                    // thread, the only one allowed to touch UIKit.
+                    let _: bool = unsafe { objc2::msg_send![view, becomeFirstResponder] };
+                }
+            })
+            .map_err(|e| e.to_string())
+    }
+    #[cfg(not(target_os = "ios"))]
+    {
+        let _ = window;
+        Ok(())
+    }
+}
+
 #[cfg(target_os = "android")]
 mod android {
     use jni::objects::{JObject, JValue};

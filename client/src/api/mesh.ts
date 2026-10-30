@@ -12,6 +12,8 @@ export interface MeshActivityItem {
   stage?: string;
   /** Docker only: how many browsers use that engine. */
   count?: number;
+  /** Remote Play: where a phone joins this device's session as a controller (pad_link.rs). */
+  pad?: string;
 }
 
 export interface MeshDevice {
@@ -121,6 +123,7 @@ function toItems(v: unknown): MeshActivityItem[] {
       pct: typeof x.pct === "number" ? x.pct : null,
       stage: typeof x.stage === "string" ? x.stage : undefined,
       count: typeof x.count === "number" ? x.count : undefined,
+      pad: typeof x.pad === "string" ? x.pad : undefined,
     }))
     .filter((x) => x.kind);
 }

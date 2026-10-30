@@ -47,6 +47,7 @@ const FileSystemScreen = lazyWithReload(() => import("./screens/FileSystem"));
 const HardwareScreen = lazyWithReload(() => import("./screens/Hardware"));
 const AccountsScreen = lazyWithReload(() => import("./screens/Accounts"));
 const PlayScreen = lazyWithReload(() => import("./screens/Play"));
+const PadRemoteScreen = lazyWithReload(() => import("./screens/Play/PadRemote"));
 const HealthScreen = lazyWithReload(() => import("./screens/Health"));
 const NotificationsScreen = lazyWithReload(() => import("./screens/Notifications"));
 const CheatsScreen = lazyWithReload(() => import("./screens/Cheats"));
@@ -366,6 +367,15 @@ function AppRoutes({ location }: { location: Location }) {
           element={
             <Suspense fallback={<ScreenLoader />}>
               <PlayScreen />
+            </Suspense>
+          }
+        />
+        {/* This phone as the controller of another device's Remote Play session. */}
+        <Route
+          path="/play/pad"
+          element={
+            <Suspense fallback={<ScreenLoader />}>
+              <PadRemoteScreen />
             </Suspense>
           }
         />

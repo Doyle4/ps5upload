@@ -236,6 +236,14 @@ export function othersRemotePlaying(state: MeshState | null): MeshDevice[] {
     .map((x) => x.device);
 }
 
+/** The other devices playing Remote Play that take a phone as a controller, and where. */
+export function remotePlayPads(state: MeshState | null): Array<{ device: MeshDevice; pad: string }> {
+  return othersBusy(state).flatMap((x) => {
+    const pad = x.items.find((a) => a.kind === RP_ACTIVITY)?.pad;
+    return typeof pad === "string" && pad.startsWith("ws://") ? [{ device: x.device, pad }] : [];
+  });
+}
+
 export function othersOnline(state: MeshState | null): MeshDevice[] {
   if (!state) return [];
   return state.devices.filter((d) => d.online && d.id !== state.you);

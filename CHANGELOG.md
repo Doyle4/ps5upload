@@ -27,6 +27,18 @@ What's new in ps5upload, written for humans.
 - **Remote Play in the web UI names the browser it's made for.** In Firefox, Safari and others it
   says Chrome or Edge work best and what this browser misses (Esc as the controller's ○ in full
   screen, picture in picture). It can be dismissed.
+- **Every phone controller, and any controller the browser doesn't know.** Phone controllers (Backbone,
+  Razer Kishi, GameSir, Scuf Nomad, ELO Vagabond...) and other pads play Remote Play like any
+  controller. One the browser doesn't recognise used to do nothing; it now plays in the usual layout,
+  and Remote Play › Settings › Controllers maps any controller by pressing its buttons in turn, and
+  gives extra back buttons any PS5 button. The Android app also forwards controllers to the page
+  itself, and the iPhone app keeps the page focused, so they reach Remote Play there.
+- **Your phone as the controller for Remote Play on a computer.** Scan the QR code from the stream's
+  bar, or tap **Use this device as its controller** in the phone app and allow it on the computer:
+  the phone becomes a full-screen controller that plays along with the computer's. Only the
+  controller page is open to the network, and only with the code's key or your OK.
+- **Motion controls (experimental):** a phone's gyro and tilt as the controller's motion sensors,
+  in the apps.
 
 ## 9.4.1
 

@@ -5,6 +5,7 @@
 // access unit, 3 audio header, 4 audio frame), JSON status lines out, pad state in. This file
 // turns that into pixels on a canvas, sound, and input; the screen only drives it.
 
+import type { MotionReading } from "./motion";
 import { getEngineUrl } from "../state/engine";
 import { safeGetItem, safeRemoveItem, safeSetItem } from "./safeStorage";
 
@@ -38,6 +39,8 @@ export interface PadState {
   ry: number;
   /** One finger on the touchpad, in its 1920×942 space, or none. */
   touch?: [number, number] | null;
+  /** A phone's motion sensors in the controller's axes (lib/motion.ts), or none. */
+  motion?: MotionReading | null;
 }
 
 export const IDLE_PAD: PadState = { buttons: 0, l2: 0, r2: 0, lx: 0, ly: 0, rx: 0, ry: 0 };
@@ -175,23 +178,77 @@ const STANDARD_BUTTONS = [
   PadButton.RIGHT, PadButton.PS, PadButton.TOUCHPAD,
 ];
 
-/** The pad the connected controllers amount to (all of them, merged). */
-export function padFromGamepads(pads: ReadonlyArray<Gamepad | null>): PadState {
+/** Where one control of the console's pad comes from on a controller: a button (by index), or
+ *  half of an axis (index, the direction it moves when pressed, and where it rests: -1 for a
+ *  trigger reported as an axis that rests at one end). */
+export type PadSource = { b: number } | { a: number; d: 1 | -1; rest?: number };
+
+/** A stick axis: the controller's axis index, inverted when it reads the other way round. */
+export interface PadAxis {
+  a: number;
+  inv?: boolean;
+}
+
+/** How a controller's buttons and axes become the console's pad. Several sources may drive one
+ *  button (an extra back button set to ✕ as well, say). */
+export interface PadProfile {
+  buttons: Array<[bit: number, src: PadSource]>;
+  l2: PadSource | null;
+  r2: PadSource | null;
+  lx: PadAxis | null;
+  ly: PadAxis | null;
+  rx: PadAxis | null;
+  ry: PadAxis | null;
+}
+
+/** The browser's "standard" layout (W3C Gamepad standard mapping). */
+export const STANDARD_PROFILE: PadProfile = {
+  buttons: STANDARD_BUTTONS.flatMap((bit, i): Array<[number, PadSource]> => (bit ? [[bit, { b: i }]] : [])),
+  l2: { b: 6 },
+  r2: { b: 7 },
+  lx: { a: 0 },
+  ly: { a: 1 },
+  rx: { a: 2 },
+  ry: { a: 3 },
+};
+
+/** How far (0-1) a source is pressed on `g`. */
+export function sourceValue(g: Gamepad, src: PadSource): number {
+  if ("b" in src) {
+    const b = g.buttons[src.b];
+    return b ? Math.max(b.pressed ? 1 : 0, b.value) : 0;
+  }
+  const v = g.axes[src.a];
+  if (v === undefined) return 0;
+  const rest = src.rest ?? 0;
+  return Math.min(1, Math.max(0, (v - rest) / (src.d - rest)));
+}
+
+/** A controller the browser lays out the standard way, or one it does not recognize: then the
+ *  standard order is the best guess (most controllers follow it), until it is mapped. */
+export const guessProfile = (_g: Gamepad): PadProfile => STANDARD_PROFILE;
+
+/** The pad the connected controllers amount to (all of them, merged), each read through its
+ *  profile. */
+export function padFromGamepads(
+  pads: ReadonlyArray<Gamepad | null>,
+  profileOf: (g: Gamepad) => PadProfile = guessProfile,
+): PadState {
   const p = { ...IDLE_PAD };
   const axis = (v: number) => (Math.abs(v) < 0.08 ? 0 : clampAxis(v * 32767));
+  // Several pads: the stick pushed furthest wins, so a resting pad does not cancel another.
+  const pick = (cur: number, v: number) => (Math.abs(v) > Math.abs(cur) ? v : cur);
+  const stick = (g: Gamepad, ax: PadAxis | null) => (ax ? axis((g.axes[ax.a] ?? 0) * (ax.inv ? -1 : 1)) : 0);
   for (const g of pads) {
-    if (!g || g.mapping !== "standard") continue;
-    g.buttons.forEach((b, i) => {
-      if (b.pressed && STANDARD_BUTTONS[i]) p.buttons |= STANDARD_BUTTONS[i];
-    });
-    p.l2 = Math.max(p.l2, Math.round((g.buttons[6]?.value ?? 0) * 255));
-    p.r2 = Math.max(p.r2, Math.round((g.buttons[7]?.value ?? 0) * 255));
-    // Several pads: the stick pushed furthest wins, so a resting pad does not cancel another.
-    const pick = (cur: number, v: number) => (Math.abs(v) > Math.abs(cur) ? v : cur);
-    p.lx = pick(p.lx, axis(g.axes[0] ?? 0));
-    p.ly = pick(p.ly, axis(g.axes[1] ?? 0));
-    p.rx = pick(p.rx, axis(g.axes[2] ?? 0));
-    p.ry = pick(p.ry, axis(g.axes[3] ?? 0));
+    if (!g || !g.connected) continue;
+    const prof = profileOf(g);
+    for (const [bit, src] of prof.buttons) if (sourceValue(g, src) > 0.5) p.buttons |= bit;
+    if (prof.l2) p.l2 = Math.max(p.l2, Math.round(sourceValue(g, prof.l2) * 255));
+    if (prof.r2) p.r2 = Math.max(p.r2, Math.round(sourceValue(g, prof.r2) * 255));
+    p.lx = pick(p.lx, stick(g, prof.lx));
+    p.ly = pick(p.ly, stick(g, prof.ly));
+    p.rx = pick(p.rx, stick(g, prof.rx));
+    p.ry = pick(p.ry, stick(g, prof.ry));
   }
   return p;
 }
@@ -206,6 +263,7 @@ export function mergePads(a: PadState, b: PadState): PadState {
     rx: clampAxis(a.rx + b.rx),
     ry: clampAxis(a.ry + b.ry),
     touch: a.touch ?? b.touch ?? null,
+    motion: a.motion ?? b.motion ?? null,
   };
 }
 

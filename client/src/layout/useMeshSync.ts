@@ -4,6 +4,7 @@ import { hostOf } from "../lib/addr";
 import { isTauriEnv } from "../lib/tauriEnv";
 import { syncId } from "../lib/meshShare";
 import { dailyBackup } from "../lib/settingsBackup";
+import { getEngineUrl } from "../state/engine";
 import { useConnectionStore } from "../state/connection";
 import { useTr } from "../state/lang";
 import {
@@ -33,6 +34,21 @@ const BACKUP_CHECK_MS = 60 * 60 * 1000;
 export function backupLabel(engineName: string | undefined): string {
   const name = engineName || "PS5Upload";
   return isTauriEnv() ? name : `${name} (browser)`;
+}
+
+/** Where a phone joins this app's Remote Play as a controller, per console (pad_link.rs):
+ *  read from the engine once per console, then published with the Remote Play presence. */
+const padWs = new Map<string, string>();
+function padOf(h: string): { pad?: string } {
+  const known = padWs.get(h);
+  if (known === undefined) {
+    padWs.set(h, "");
+    void fetch(`${getEngineUrl()}/api/ps5/rp/pad-link?console=${encodeURIComponent(h)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((v: { pad_ws?: string | null } | null) => padWs.set(h, v?.pad_ws ?? ""))
+      .catch(() => padWs.delete(h));
+  }
+  return known ? { pad: known } : {};
 }
 
 /**
@@ -113,7 +129,7 @@ export function useMeshSync() {
         const rt = conn.runtimeByHost[h];
         if (rt && rt.payloadStatus !== "up") continue;
         const items = presenceItems(tasks, h);
-        void publishPresence(h, h === rpHost ? [{ kind: RP_ACTIVITY }, ...items] : items);
+        void publishPresence(h, h === rpHost ? [{ kind: RP_ACTIVITY, ...padOf(h) }, ...items] : items);
       }
     }, PRESENCE_MS);
     return () => window.clearInterval(id);

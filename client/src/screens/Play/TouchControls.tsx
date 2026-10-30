@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { IDLE_PAD, PadButton, touchAt, type PadState, type RemotePlayStream } from "../../lib/remotePlayStream";
+import { gamepadsOf } from "../../lib/nativePad";
 import { useTr } from "../../state/lang";
 import { rpInput, type RpPrefs } from "../../state/remotePlay";
 
@@ -9,7 +10,7 @@ import { rpInput, type RpPrefs } from "../../state/remotePlay";
 export function useTouchFirst(mode: RpPrefs["touchControls"]): boolean {
   const coarse = () => typeof window !== "undefined" && !!window.matchMedia?.("(pointer: coarse)").matches;
   const padConnected = () =>
-    typeof navigator !== "undefined" && (navigator.getGamepads?.() ?? []).some((g) => !!g?.connected);
+    typeof navigator !== "undefined" && gamepadsOf(navigator).some((g) => !!g?.connected);
   const [state, setState] = useState(() => ({ coarse: coarse(), pad: padConnected() }));
   useEffect(() => {
     const update = () => setState({ coarse: coarse(), pad: padConnected() });
@@ -56,7 +57,8 @@ export function TouchControls({
   size = "m",
   deckTop = "0px",
 }: {
-  stream: RemotePlayStream | null;
+  /** What the presses go to: the stream, or a phone's link to another device's stream. */
+  stream: Pick<RemotePlayStream, "sendPad"> | null;
   layout?: TouchLayout;
   opacity?: number;
   size?: RpPrefs["touchSize"];

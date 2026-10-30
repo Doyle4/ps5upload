@@ -17,6 +17,9 @@ import {
   type StreamPhase,
   type StreamStats,
 } from "../lib/remotePlayStream";
+import type { MotionReading } from "../lib/motion";
+import { gamepadsOf } from "../lib/nativePad";
+import { profileFor } from "../lib/padProfiles";
 import { safeGetItem, safeSetItem } from "../lib/safeStorage";
 
 /** How Remote Play looks and behaves on this device. */
@@ -42,6 +45,8 @@ export interface RpPrefs {
   touchOpacity: number;
   /** The on-screen controller's size. */
   touchSize: "s" | "m" | "l";
+  /** A phone's motion sensors as the controller's (gyro aiming, tilt). */
+  motion: boolean;
 }
 
 export const DEFAULT_RP_PREFS: RpPrefs = {
@@ -58,6 +63,7 @@ export const DEFAULT_RP_PREFS: RpPrefs = {
   touchControls: "auto",
   touchOpacity: 1,
   touchSize: "m",
+  motion: false,
 };
 
 const PREFS_KEY = "ps5upload.rp_prefs.v1";
@@ -113,6 +119,10 @@ export const rpInput = {
   touch: null as [number, number] | null,
   /** The on-screen controller. */
   touchPad: IDLE_PAD as PadState,
+  /** A controller is being mapped: its presses are answers, not play. */
+  mapping: false,
+  /** The phone's latest motion reading, while motion controls are on. */
+  motion: null as MotionReading | null,
 };
 
 /** Controllers as every window showing the stream sees them. A hidden page's list can be a
@@ -123,7 +133,7 @@ export function rpGamepads(): Array<Gamepad | null> {
   const add = (w: Window | null | undefined) => {
     try {
       if (!w || w.closed || w.document.visibilityState !== "visible") return;
-      out.push(...(w.navigator.getGamepads?.() ?? []));
+      out.push(...gamepadsOf(w.navigator));
     } catch {
       // A window being torn down.
     }
@@ -143,12 +153,13 @@ function readPad(): PadState {
   // the window in front).
   const pip = !!s.pipWindow && !s.pipWindow.closed;
   const pads =
-    pip || (s.onScreen && typeof document !== "undefined" && document.hasFocus())
-      ? padFromGamepads(rpGamepads())
+    !rpInput.mapping && (pip || (s.onScreen && typeof document !== "undefined" && document.hasFocus()))
+      ? padFromGamepads(rpGamepads(), profileFor)
       : IDLE_PAD;
   return {
     ...mergePads(mergePads(keys, pads), rpInput.touchPad),
     touch: rpInput.touch ?? rpInput.touchPad.touch ?? null,
+    motion: rpInput.motion,
   };
 }
 

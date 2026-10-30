@@ -28,6 +28,7 @@ pub mod crypto;
 pub mod fec;
 pub mod feedback;
 pub mod guard;
+pub mod orientation;
 pub mod proto;
 pub mod takion;
 pub mod video;

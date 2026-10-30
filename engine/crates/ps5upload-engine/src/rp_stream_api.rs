@@ -98,6 +98,8 @@ struct Live {
     /// Every pad state the page sent, in order: a quick tap is a press and a
     /// release, and keeping only the latest would lose the press.
     pad: Mutex<std::collections::VecDeque<ControllerState>>,
+    /// Every controller's latest state: the page (source 0) and phones (pad_link.rs).
+    sources: crate::pad_link::PadSources,
     stop: AtomicBool,
     viewer: Mutex<Option<Viewer>>,
     /// Since when no page has been attached.
@@ -114,6 +116,32 @@ struct Live {
 
 /// The console serves one Remote Play session at a time; so do we.
 static LIVE: Mutex<Option<Arc<Live>>> = Mutex::new(None);
+
+/// The page's controller among the session's controllers (phones are 1 and up).
+const PAGE_SOURCE: u64 = 0;
+
+fn live() -> Option<Arc<Live>> {
+    LIVE.lock().ok().and_then(|g| g.clone())
+}
+
+/// A phone's controller changed (pad_link.rs); dropped when no session runs.
+pub(crate) fn push_pad(source: u64, state: Option<ControllerState>) {
+    if let Some(l) = live() {
+        l.push_pad(source, state);
+    }
+}
+
+/// The console being played, if any.
+pub(crate) fn live_host() -> Option<String> {
+    live().map(|l| l.host.clone())
+}
+
+/// What a phone is told about the session: null when none runs.
+pub(crate) fn live_state() -> serde_json::Value {
+    live()
+        .map(|l| l.snapshot())
+        .unwrap_or(serde_json::Value::Null)
+}
 
 fn text(v: serde_json::Value) -> Message {
     Message::Text(v.to_string().into())
@@ -161,6 +189,7 @@ impl Live {
             hevc,
             keep_alive,
             pad: Default::default(),
+            sources: Default::default(),
             stop: AtomicBool::new(false),
             viewer: Mutex::new(None),
             alone_since: Mutex::new(None),
@@ -231,8 +260,16 @@ impl Live {
             if let Ok(mut a) = self.alone_since.lock() {
                 *a = Some(Instant::now());
             }
-            if let Ok(mut p) = self.pad.lock() {
-                p.push_back(ControllerState::default());
+            self.push_pad(PAGE_SOURCE, None);
+        }
+    }
+
+    /// One controller changed (None: it left): the console gets every controller merged.
+    fn push_pad(&self, source: u64, state: Option<ControllerState>) {
+        let merged = self.sources.set(source, state);
+        if let Ok(mut g) = self.pad.lock() {
+            if g.len() < 256 {
+                g.push_back(merged);
             }
         }
     }
@@ -310,11 +347,14 @@ impl StreamSink for Sink {
         true
     }
     fn rumble(&mut self, left: u8, right: u8) {
-        self.live
-            .send_ctl(text(serde_json::json!({"rumble": [left, right]})));
+        let v = serde_json::json!({"rumble": [left, right]});
+        crate::pad_link::broadcast(&v.to_string());
+        self.live.send_ctl(text(v));
     }
     fn light_bar(&mut self, rgb: [u8; 3]) {
-        self.live.send_ctl(text(serde_json::json!({"light": rgb})));
+        let v = serde_json::json!({"light": rgb});
+        crate::pad_link::broadcast(&v.to_string());
+        self.live.send_ctl(text(v));
     }
     fn input(&mut self) -> Option<ControllerState> {
         self.live.pad.lock().ok()?.pop_front()
@@ -570,11 +610,7 @@ async fn session(mut socket: WebSocket) {
                 Some(Ok(Message::Text(t))) => {
                     if let Ok(m) = serde_json::from_str::<ClientMsg>(t.as_str()) {
                         if let Some(p) = m.pad {
-                            if let Ok(mut g) = live.pad.lock() {
-                                if g.len() < 256 {
-                                    g.push_back(p);
-                                }
-                            }
+                            live.push_pad(PAGE_SOURCE, Some(p));
                         }
                         if m.keyframe {
                             live.need_key.store(true, Ordering::Relaxed);
