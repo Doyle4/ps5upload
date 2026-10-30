@@ -235,6 +235,32 @@ test("Remote Play moves into picture in picture and back", async ({ page }) => {
   await expect(popup.getByTestId("rp-pip-player")).toBeVisible();
   await expect(popup.getByTestId("rp-canvas")).toHaveCount(1);
   await expect(popup).toHaveTitle("Living room · Remote Play");
+  // The whole picture in the small window, whatever its shape: a 1080p picture, 16:9, inside it.
+  const popCanvas = popup.getByTestId("rp-canvas");
+  // Sized against the window's picture box, never a viewport the browser picks (#566).
+  expect(await popCanvas.evaluate((c) => getComputedStyle(c.parentElement!).containerType)).toBe("size");
+  await popCanvas.evaluate((c: HTMLCanvasElement) => {
+    c.width = 1920;
+    c.height = 1080;
+    c.style.setProperty("--rp-shape", String(1920 / 1080));
+  });
+  for (const [w, h] of [
+    [640, 480],
+    [900, 380],
+  ]) {
+    await popup.setViewportSize({ width: w, height: h });
+    await expect
+      .poll(() =>
+        popCanvas.evaluate((c) => {
+          const r = c.getBoundingClientRect();
+          const inside = r.left >= -0.5 && r.top >= -0.5 && r.right <= innerWidth + 0.5 && r.bottom <= innerHeight + 0.5;
+          const shape = Math.abs(r.width / r.height - 16 / 9) < 0.01;
+          const full = Math.abs(r.width - innerWidth) < 1 || Math.abs(r.height - innerHeight) < 1;
+          return inside && shape && full;
+        }),
+      )
+      .toBe(true);
+  }
   await expect(stage.getByTestId("rp-pip-on")).toBeVisible();
   await expect(stage.getByTestId("rp-canvas")).toHaveCount(0);
   await expect(page.getByTestId("rp-pip")).toHaveAttribute("aria-pressed", "true");

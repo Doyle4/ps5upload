@@ -1352,7 +1352,7 @@ select option {
 }
 
 /* Remote Play picture (the stream's canvas), sized by the browser as a video player is: against
- * its place (rp-place, a size container) by its fit (data-fit) and the picture's shape
+ * its place (rp-place, a size container; every place the canvas is put in must be one) by its fit (data-fit) and the picture's shape
  * (--rp-shape, width / height). Fit: the whole picture, black bars where the shapes differ.
  * Fill: covers the place, its edges cut. Stretch: the place, the picture squeezed to it.
  * Where container units are missing (Safari before 16), object-fit does it instead. */

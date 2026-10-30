@@ -336,7 +336,10 @@ function MiniPlayer({ win, onBack }: { win: Window; onBack: () => void }) {
       className="group relative h-full w-full overflow-hidden bg-black outline-none"
       data-testid="rp-pip-player"
     >
-      <div ref={canvasHost} className="pointer-events-none absolute inset-0 z-0 flex items-center justify-center" />
+      {/* rp-place: the picture sizes itself against this box (index.css), as on the stream's own
+          screen. Without it the browser picks the box (a viewport), and the Windows app's picked
+          one larger than this window: the picture was cut on the right and bottom (#566). */}
+      <div ref={canvasHost} className="rp-place pointer-events-none absolute inset-0 z-0 flex items-center justify-center" />
       {waiting && (
         <div className="absolute inset-0 flex items-center justify-center gap-2 bg-black/40 text-sm text-white/85">
           <Spinner size={16} tone="inherit" />
