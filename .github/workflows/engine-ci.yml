@@ -500,6 +500,37 @@ jobs:
           toolchain: stable
           targets: ${{ matrix.targets }}
 
+      # Compile cache (the same steps as publish.yml's release builds): this job had no cache
+      # and compiled every dependency from scratch for each target. Written only from main,
+      # like the cargo caches above (a PR's own entries would be visible to that PR alone);
+      # a PR reads main's. A cache sccache cannot reach is a miss, never a failed build.
+      - name: Install sccache
+        uses: taiki-e/install-action@1e29709c0ec63babbe8f266397a465f29a825f91 # v2
+        with:
+          tool: sccache@0.19.0
+
+      - name: Point sccache at the Actions cache
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          RW_MODE: ${{ github.ref == 'refs/heads/main' && 'READ_WRITE' || 'READ_ONLY' }}
+        with:
+          script: |
+            core.exportVariable('ACTIONS_RESULTS_URL', process.env.ACTIONS_RESULTS_URL || '');
+            core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
+            core.exportVariable('SCCACHE_GHA_ENABLED', 'true');
+            core.exportVariable('SCCACHE_GHA_RW_MODE', process.env.RW_MODE);
+            core.exportVariable('SCCACHE_IGNORE_SERVER_IO_ERROR', '1');
+            core.exportVariable('SCCACHE_IDLE_TIMEOUT', '0');
+
+      - name: Start sccache
+        shell: bash
+        run: |
+          if sccache --start-server; then
+            echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
+          else
+            echo "::warning::sccache did not start; building without the compile cache"
+          fi
+
       - name: cargo check core
         run: cargo check -p ps5upload-core ${{ matrix.target_args }}
 
@@ -511,6 +542,11 @@ jobs:
       # first release build failed there).
       - name: cargo build RAR helper
         run: cargo build -p ps5upload-unrar ${{ matrix.target_args }}
+
+      - name: Compile cache stats
+        if: always()
+        shell: bash
+        run: sccache --show-stats || true
 
   # ─────────────────────────────────────────────────────────────────────
   # Rust desktop shell (client/src-tauri). Uses its own workspace so

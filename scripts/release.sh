@@ -31,6 +31,15 @@
 #
 #   If a tag-push publish run ever wedges (GitHub Actions outage), fall
 #   back to the manual override: `gh workflow run publish.yml -f tag=vX.Y.Z`.
+#
+# Around it (scripts/release/)
+#   before:  make release-check               quality + e2e side by side, then test-payload
+#            release-check is local; for a PR, wait on the merge gate only:
+#            scripts/release/wait-pr-gate.sh <pr>   ("PR gate"; CodeQL is not waited for,
+#            its open alerts still block step 1 below)
+#   after:   scripts/release/verify-release.sh vX.Y.Z            every asset there, none empty
+#            scripts/release/verify-release.sh vX.Y.Z --promote  then mark it the latest
+#            (promote only once it has been tried on a console)
 
 set -euo pipefail
 
@@ -135,3 +144,4 @@ git push origin "refs/tags/${tag}"
 echo
 echo "Pushed ${tag} → origin. Watch the workflows at:"
 echo "  https://github.com/phantomptr/ps5upload/actions"
+echo "When publish finishes: scripts/release/verify-release.sh ${tag} [--promote]"

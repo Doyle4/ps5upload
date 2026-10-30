@@ -163,9 +163,12 @@ debug = "line-tables-only"
 debug = false
 
 [profile.release]
-# Smaller binary + slightly faster; Tauri recommends these.
-codegen-units = 1
-lto = true
+# Thin LTO with the default codegen units, not fat LTO with one: this profile also builds the
+# whole engine into the Android and iPhone apps, and fat LTO + codegen-units = 1 turned the
+# last step of every release build into minutes of single-core work (the app crate alone took
+# 3.5-5.3 min per desktop target on v9.4.1). Thin LTO keeps the cross-crate inlining that
+# matters for a webview shell at a few percent of size; opt-level "s" still favours size.
+lto = "thin"
 opt-level = "s"
 # `strip = true` removed deliberately. Stripping the desktop binary
 # drops the PDB linkage on Windows and the dSYM pointers on macOS,

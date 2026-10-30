@@ -1,0 +1,235 @@
+name: release-cache
+
+# Fills the compile cache publish.yml reads. A release is a tag run, and a cache a tag run
+# saves is visible to that tag alone, so a release can never warm its own cache; it can read
+# main's. This runs publish.yml's engine + desktop-dependency build
+# (scripts/release/build-engine-release.sh) for each desktop target on main with sccache
+# writing to the Actions cache, so the next release finds every dependency crate (and every
+# unchanged first-party crate) compiled. The release itself builds identically with or
+# without a hit: sccache keys each object by the full compiler command line and inputs.
+#
+# When: on main when the Rust code, its lockfiles or this build change (every release commit
+# touches engine/Cargo.lock, so each release refreshes it), weekly (a new stable rustc
+# changes every key), by hand, and on a PR that changes this workflow or the build script
+# (its own entries then live in that PR's scope).
+#
+# Size: sccache stores one cache entry per object and GitHub evicts the least recently used
+# entries above the repository's 10 GiB. Read the entries' total with
+#   gh api repos/phantomptr/ps5upload/actions/cache/usage
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'engine/**'
+      - 'client/src-tauri/**'
+      - 'third_party/**'
+      - 'scripts/release/build-engine-release.sh'
+      - '.github/workflows/release-cache.yml'
+  pull_request:
+    paths:
+      - 'scripts/release/build-engine-release.sh'
+      - '.github/workflows/release-cache.yml'
+  schedule:
+    - cron: '23 5 * * 1'
+  workflow_dispatch:
+
+concurrency:
+  group: release-cache-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+# Must match publish.yml's: sccache hashes the CARGO_* environment into every key.
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  warm:
+    name: warm ${{ matrix.rust_target }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      # publish.yml's build-client matrix: same runners, same targets.
+      matrix:
+        include:
+          - os: macos-15
+            platform: macos
+            arch: arm64
+            rust_target: aarch64-apple-darwin
+          - os: macos-15
+            platform: macos
+            arch: x64
+            rust_target: x86_64-apple-darwin
+          - os: ubuntu-24.04
+            platform: linux
+            arch: x64
+            rust_target: x86_64-unknown-linux-gnu
+          - os: ubuntu-24.04-arm
+            platform: linux
+            arch: arm64
+            rust_target: aarch64-unknown-linux-gnu
+          - os: windows-2022
+            platform: windows
+            arch: x64
+            rust_target: x86_64-pc-windows-msvc
+          - os: windows-11-arm
+            platform: windows
+            arch: arm64
+            rust_target: aarch64-pc-windows-msvc
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          submodules: true
+
+      # publish.yml's Node: the build script reads tauri.conf.json with it on macOS.
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: 22
+          check-latest: true
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        with:
+          toolchain: stable
+          targets: ${{ matrix.rust_target }}
+
+      - name: Cargo registry (restored by publish.yml)
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('engine/Cargo.lock', 'client/src-tauri/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-registry-
+
+      - name: Install sccache
+        uses: taiki-e/install-action@1e29709c0ec63babbe8f266397a465f29a825f91 # v2
+        with:
+          tool: sccache@0.19.0
+
+      - name: Point sccache at the Actions cache
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            core.exportVariable('ACTIONS_RESULTS_URL', process.env.ACTIONS_RESULTS_URL || '');
+            core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
+            core.exportVariable('SCCACHE_GHA_ENABLED', 'true');
+            core.exportVariable('SCCACHE_GHA_RW_MODE', 'READ_WRITE');
+            core.exportVariable('SCCACHE_IGNORE_SERVER_IO_ERROR', '1');
+            core.exportVariable('SCCACHE_IDLE_TIMEOUT', '0');
+
+      - name: Start sccache
+        shell: bash
+        run: |
+          if sccache --start-server; then
+            echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
+          else
+            echo "::warning::sccache did not start; building without the compile cache"
+          fi
+
+      - name: Install Linux Tauri prerequisites
+        if: matrix.platform == 'linux'
+        timeout-minutes: 12
+        run: |
+          set -euo pipefail
+          # apt has NO default network timeout: if a mirror stalls mid-fetch it
+          # waits forever. That is exactly what sank the v5.3.3 publish — the
+          # Azure mirror went quiet after "Ign: .../noble-updates/main amd64
+          # Packages" and the step sat there for 45 minutes until the job
+          # timeout killed it, skipping create-release. Acquire::*::Timeout is
+          # the part that actually fixes it; the retry loop is only useful
+          # because of it, since without a timeout every attempt would hang
+          # the same way.
+          apt_retry() {
+            for attempt in 1 2 3; do
+              if sudo DEBIAN_FRONTEND=noninteractive apt-get \
+                   -o Acquire::Retries=3 \
+                   -o Acquire::http::Timeout=20 \
+                   -o Acquire::https::Timeout=20 \
+                   "$@"; then
+                return 0
+              fi
+              echo "apt attempt $attempt failed; retrying in 15s" >&2
+              sleep 15
+            done
+            echo "apt failed after 3 attempts: apt-get $*" >&2
+            return 1
+          }
+          apt_retry update
+          apt_retry install -y \
+            libgtk-3-dev \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            libsoup-3.0-dev \
+            libjavascriptcoregtk-4.1-dev \
+            libfuse2 \
+            patchelf \
+            build-essential \
+            clang \
+            libclang-dev \
+            curl \
+            wget \
+            file \
+            xdg-utils \
+            gstreamer1.0-plugins-base \
+            gstreamer1.0-plugins-good \
+            gstreamer1.0-plugins-bad \
+            gstreamer1.0-libav \
+            gstreamer1.0-gl
+
+      - name: Ensure libclang for bindgen (Windows)
+        if: matrix.platform == 'windows'
+        shell: bash
+        env:
+          ARCH: ${{ matrix.arch }}
+        run: |
+          # jpegxr's build runs bindgen, which loads libclang.dll into the
+          # HOST build process. windows-2022 ships LLVM; the leaner
+          # windows-11-arm image may not. Locate a host-arch libclang and
+          # pin LIBCLANG_PATH so clang-sys resolves it deterministically.
+          # Non-destructive: when a usable LLVM is already present we only
+          # export the path — a runner that already builds keeps working.
+          set -u
+          find_libclang() {
+            for d in \
+              "/c/Program Files/LLVM/bin" \
+              "/c/Program Files/Microsoft Visual Studio/2022/Enterprise/VC/Tools/Llvm/ARM64/bin" \
+              "/c/Program Files/Microsoft Visual Studio/2022/Enterprise/VC/Tools/Llvm/bin" \
+              "/c/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/Llvm/ARM64/bin" \
+              "/c/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/Llvm/bin"; do
+              if [ -f "$d/libclang.dll" ]; then echo "$d"; return 0; fi
+            done
+            return 1
+          }
+          dir="$(find_libclang || true)"
+          # Only auto-install on x64: choco's llvm is an x64 build and an
+          # x64 libclang.dll can't load into an arm64 host process, so on
+          # arm64 we rely on the image's preinstalled (arm64) LLVM above.
+          if [ -z "$dir" ] && [ "$ARCH" = "x64" ]; then
+            choco install llvm -y --no-progress
+            dir="$(find_libclang || true)"
+          fi
+          if [ -n "$dir" ]; then
+            win="$(cygpath -w "$dir")"
+            echo "LIBCLANG_PATH=$win" >> "$GITHUB_ENV"
+            echo "Using libclang at: $win"
+          else
+            echo "WARNING: no host libclang found; jpegxr/bindgen may fail" >&2
+          fi
+
+      - name: Build engine + desktop dependencies (as publish.yml)
+        shell: bash
+        env:
+          RUST_TARGET: ${{ matrix.rust_target }}
+        run: scripts/release/build-engine-release.sh
+
+      - name: Compile cache stats
+        if: always()
+        shell: bash
+        run: sccache --show-stats || true

@@ -105,7 +105,7 @@ ADB ?= $(ANDROID_HOME)/platform-tools/adb
 .PHONY: build payload installer engine client _engine-release _payload-if-ready _android-build-if-ready
 .PHONY: test test-root test-engine test-engine-coverage test-desktop test-payload test-client test-client-coverage
 .PHONY: lint lint-scripts lint-client audit-scripts coverage coverage-engine coverage-client
-.PHONY: quality quality-full quality-hardware ci ci-full
+.PHONY: quality quality-full quality-hardware ci ci-full release-check
 .PHONY: clean clean-payload clean-engine clean-client
 .PHONY: verify info install-hooks
 .PHONY: test-ava1 test-ava1-sanitize ava1-app-gen ava1-version-check check-no-ftx2
@@ -160,6 +160,8 @@ help:
 	@echo "  make quality          - Full non-hardware validation gate"
 	@echo "  make quality-full     - quality + payload validation"
 	@echo "  make quality-hardware - quality + live PS5 validate"
+	@echo "  make release-check    - Before a release: quality + Playwright e2e side by side, then"
+	@echo "                          test-payload (BUILD_LOCK=<file> serializes the heavy builds)"
 	@echo "  make coverage         - Rust + frontend coverage reports"
 	@echo "  make coverage-engine  - Rust coverage report only"
 	@echo "  make coverage-client  - Frontend coverage report only"
@@ -868,6 +870,10 @@ quality:
 
 quality-full:
 	@npm run validate:full
+
+# quality and the e2e suite at once, then test-payload; see scripts/release/release-check.sh.
+release-check:
+	@bash scripts/release/release-check.sh
 
 quality-hardware:
 	@npm run validate:hardware
