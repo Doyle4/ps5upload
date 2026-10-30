@@ -2048,6 +2048,19 @@ undone by itself when you turn it off, when the stream ends, or after 30 minutes
 closed in between. The panel reads the console only while it is open. Restoring a save is refused
 while its game runs: close the game first.
 
+**Q: Can I start a game straight onto Remote Play?**
+Yes, from 9.7.0. On a game's page, **Play on Remote Play** (next to Play, for the connected
+console once it is set up for Remote Play) starts the stream, waking the console if it sleeps,
+waits for PS5Upload's helper, then starts the game on the stream. While you play, the Game
+panel's **Play something else** starts another of the console's games (the running one is closed
+first, after you say so). If the helper does not come back after a wake, send it from
+Connection and press Play again.
+
+**Q: Can I install a package while I play?**
+Drop the .pkg or .fpkg on the Remote Play picture. By default it installs when you stop playing,
+because an install shares the network with the stream and can make it stutter; **Install now**
+starts it at once. Progress shows in Activity like any install.
+
 **Q: Can I use my phone as the controller for Remote Play on my computer?**
 Yes, from 9.5.0. While the computer plays, press the phone button on the stream's bar (**Use a phone as a controller**) and scan the QR code with the phone's camera: the phone opens a controller, full screen and sideways, that plays along with the computer's own controls (up to four phones). Or, in the PS5Upload app on the phone, Remote Play shows that the computer is playing: tap **Use this device as its controller** and allow it on the computer. A controller attached to the phone works through it too. Only the controller page and its connection are open to your network, and they need the QR code's key or your OK on the computer; **Close the link** lets every phone go. Rumble vibrates an Android phone.
 

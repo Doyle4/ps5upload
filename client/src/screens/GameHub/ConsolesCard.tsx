@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
-import { Download, FolderOpen, Monitor, Play, RefreshCw, Search, Square, Upload } from "lucide-react";
+import { Download, FolderOpen, Monitor, MonitorPlay, Play, RefreshCw, Search, Square, Upload } from "lucide-react";
 
 import type { CollectionLocation } from "../../api/collection";
 import type { ConsoleEntry, GameView } from "../../api/games";
@@ -38,6 +38,7 @@ export function ConsolesCard({
   view,
   refresh,
   onPlay,
+  onPlayStream,
   launching,
   running = false,
   onStop,
@@ -54,6 +55,8 @@ export function ConsolesCard({
   view: GameView | null;
   refresh: (host: string) => Promise<ConsoleEntry>;
   onPlay: () => void;
+  /** Play it on Remote Play (the connected console, when it is paired for it). */
+  onPlayStream?: () => void;
   launching: boolean;
   /** The game is running on the connected console: its row offers Close game instead of Play. */
   running?: boolean;
@@ -104,6 +107,7 @@ export function ConsolesCard({
               copies={view?.copies ?? []}
               refresh={refresh}
               onPlay={onPlay}
+              onPlayStream={h === connected ? onPlayStream : undefined}
               launching={launching}
               running={running && h === connected}
               onStop={onStop}
@@ -129,6 +133,7 @@ function ConsoleRow({
   copies,
   refresh,
   onPlay,
+  onPlayStream,
   launching,
   running,
   onStop,
@@ -146,6 +151,7 @@ function ConsoleRow({
   copies: CollectionLocation[];
   refresh: (host: string) => Promise<ConsoleEntry>;
   onPlay: () => void;
+  onPlayStream?: () => void;
   launching: boolean;
   running: boolean;
   onStop?: () => void;
@@ -244,7 +250,7 @@ function ConsoleRow({
             </Button>
           );
         }
-        return (
+        return [
           <Button
             key="play"
             size="sm"
@@ -259,8 +265,21 @@ function ConsoleRow({
               : launching
                 ? tr("game_hub_launching", undefined, "Starting…")
                 : tr("game_play", undefined, "Play")}
-          </Button>
-        );
+          </Button>,
+          onPlayStream && !playBlocked && (
+            <Button
+              key="play-stream"
+              size="sm"
+              variant="secondary"
+              leftIcon={<MonitorPlay size={13} />}
+              disabled={launching}
+              onClick={onPlayStream}
+              data-testid="game-play-stream"
+            >
+              {tr("game_play_stream", undefined, "Play on Remote Play")}
+            </Button>
+          ),
+        ];
       case "install":
         return (
           <Button key="install" size="sm" variant="primary" leftIcon={<Download size={13} />} onClick={() => void install("install", a.offers)}>

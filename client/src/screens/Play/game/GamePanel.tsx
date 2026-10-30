@@ -1,11 +1,13 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { Camera, Gamepad2, Sparkles, Thermometer, X } from "lucide-react";
+import { Camera, Gamepad2, Play, Search, Sparkles, Thermometer, X } from "lucide-react";
 
 import { GameIcon, Spinner, Toggle } from "../../../components";
 import { useTr } from "../../../state/lang";
 import { useInstalledTitles } from "../../../state/installedTitles";
 import { saveBackupApi } from "../../../api/saveBackup";
 import { hostOf } from "../../../lib/addr";
+import type { InstalledTitle } from "../../../api/ps5";
+import { useStreamLaunch } from "./streamLaunch";
 import { useStreamGame } from "./useStreamGame";
 import { ConsoleTab } from "./ConsoleTab";
 
@@ -118,7 +120,7 @@ export function GamePanel({
             <Spinner size={18} />
           </div>
         ) : tab === "game" ? (
-          <GameTabBody host={host} titleId={game.titleId} seen={game.seen} name={name} />
+          <GameTabBody host={host} titleId={game.titleId} seen={game.seen} name={name} titles={titles} />
         ) : tab === "cheats" ? (
           <CheatsTabBody game={game} name={name} toggle={toggle} setEngine={setEngine} />
         ) : (
@@ -145,13 +147,22 @@ function GameTabBody({
   titleId,
   seen,
   name,
+  titles,
 }: {
   host: string | null;
   titleId: string | null;
   seen: string | null;
   name: (id: string) => string;
+  titles: InstalledTitle[] | null;
 }) {
-  if (!titleId) return <NoGame seen={seen} name={name} />;
+  const picker = host ? <PlayOther host={host} titles={titles} running={titleId} /> : null;
+  if (!titleId)
+    return (
+      <div className="space-y-3">
+        <NoGame seen={seen} name={name} />
+        {picker}
+      </div>
+    );
   return (
     <div className="space-y-4 py-2">
       <div className="flex items-center gap-3" data-testid="rp-game-now">
@@ -162,7 +173,81 @@ function GameTabBody({
         </div>
       </div>
       {host && <SnapshotSave host={host} titleId={titleId} />}
+      {picker}
     </div>
+  );
+}
+
+/** Play something else: the console's games, started on this stream (closing the running one
+ *  first, with your say-so). */
+function PlayOther({
+  host,
+  titles,
+  running,
+}: {
+  host: string;
+  titles: InstalledTitle[] | null;
+  running: string | null;
+}) {
+  const tr = useTr();
+  const request = useStreamLaunch((s) => s.request);
+  const busy = useStreamLaunch((s) => !!s.pending && s.pending.stage !== "failed");
+  const [q, setQ] = useState("");
+  const games = (titles ?? [])
+    .filter((t) => !t.system && t.titleId !== running)
+    .filter((t) => {
+      const k = q.trim().toLowerCase();
+      return !k || t.titleName.toLowerCase().includes(k) || t.titleId.toLowerCase().includes(k);
+    })
+    .sort((a, b) => a.titleName.localeCompare(b.titleName));
+  return (
+    <section className="space-y-2" data-testid="rp-game-play-other">
+      <h3 className="text-xs font-semibold uppercase tracking-wide text-white/60">
+        {running
+          ? tr("rp_game_play_other", undefined, "Play something else")
+          : tr("rp_game_play_one", undefined, "Play a game")}
+      </h3>
+      <label className="flex h-8 items-center gap-2 rounded-full bg-white/10 px-3">
+        <Search size={13} className="shrink-0 text-white/60" aria-hidden />
+        <input
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder={tr("rp_game_search", undefined, "Search this PS5's games")}
+          className="min-w-0 flex-1 bg-transparent text-xs text-white placeholder:text-white/50 focus:outline-none"
+          data-testid="rp-game-search"
+        />
+      </label>
+      {titles === null ? (
+        <div className="flex justify-center py-3">
+          <Spinner size={14} />
+        </div>
+      ) : (
+        <ul className="max-h-64 space-y-0.5 overflow-y-auto">
+          {games.map((t) => (
+            <li key={t.titleId}>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() =>
+                  request(host, { titleId: t.titleId, titleName: t.titleName, source: t.source || undefined })
+                }
+                className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-start hover:bg-white/10 disabled:opacity-50"
+                data-testid="rp-game-play-title"
+              >
+                <GameIcon host={host} titleId={t.titleId} size={28} rounded="rounded-md" />
+                <span className="min-w-0 flex-1 truncate text-sm">{t.titleName}</span>
+                <Play size={13} className="shrink-0 text-white/60" aria-hidden />
+              </button>
+            </li>
+          ))}
+          {games.length === 0 && (
+            <li className="px-2 py-2 text-xs text-white/60">
+              {tr("rp_game_search_none", undefined, "No game matches.")}
+            </li>
+          )}
+        </ul>
+      )}
+    </section>
   );
 }
 

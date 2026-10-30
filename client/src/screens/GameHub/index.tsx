@@ -12,6 +12,7 @@
  */
 import { formatDate } from "../../lib/formatDate";
 import { useGameLaunch } from "../../lib/useGameLaunch";
+import { useStreamLaunch } from "../Play/game/streamLaunch";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   useLocation,
@@ -275,6 +276,21 @@ export default function GameHubScreen() {
     }
   }, [connectedHost, refreshConsole]);
 
+  // Play it on Remote Play: the stream starts (waking the console), then the game, on the Play
+  // screen. Only for the connected console, once it is paired for Remote Play.
+  const streamProfile = profiles.find((p) => hostOf(p.host) === hostOf(connectedHost));
+  const canStream = !!(streamProfile?.wake_regist_key && streamProfile?.wake_rp_key);
+  const handlePlayStream = () => {
+    if (!title_id || !connectedHost) return;
+    const source = gv.view?.consoles.find((c) => c.host === connectedHost)?.registered_from;
+    useStreamLaunch.getState().request(connectedHost, {
+      titleId: title_id,
+      titleName: game?.name ?? title_id,
+      source,
+    });
+    navigate("/play");
+  };
+
   if (!title_id) {
     return (
       <div className="p-6">
@@ -494,6 +510,7 @@ export default function GameHubScreen() {
               view={gv.view}
               refresh={gv.refresh}
               onPlay={() => void handleLaunch()}
+              onPlayStream={canStream ? handlePlayStream : undefined}
               launching={launching}
               running={running}
               onStop={() => void handleStop()}

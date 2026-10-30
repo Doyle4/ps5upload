@@ -71,6 +71,11 @@ import { askMotion, motionAvailable, startMotion } from "../../lib/motion";
 import { ControllerSetup } from "./ControllerSetup";
 import { PadAsks, PhonePadsPanel, usePadLink } from "./PhonePads";
 import { GamePanel } from "./game/GamePanel";
+import { LaunchStatus } from "./game/LaunchStatus";
+import { DropChoice, DropZone, useStreamDropZone } from "./game/DropToInstall";
+import { useStreamLaunchRunner } from "./game/streamLaunch";
+import { useGameLaunch } from "../../lib/useGameLaunch";
+import { hostOf } from "../../lib/addr";
 import { safeGetItem, safeSetItem } from "../../lib/safeStorage";
 import { closePip, openPip, pipPadsInBackground, pipSupport } from "./pip";
 import { CaptureBarButtons, CaptureOverlay } from "./CaptureControls";
@@ -754,6 +759,11 @@ export function StreamPanel() {
     };
   }, [running, prefs.motion]);
   const playing = running && phase === "playing";
+  // Play a title on the stream (from a game's page, or the Game panel): stream, helper, launch.
+  const launcher = useGameLaunch();
+  // A package dropped on the picture is installed on this console (when the stream ends, by
+  // default).
+  const dropZone = useStreamDropZone(running ? (target?.host ?? null) : null, running);
   // Another device (a phone, another computer) playing this console: the PS5 takes one at a time.
   const meshState = useMeshStore((s) => (profile ? meshFor(s, profile.host).state : null));
   const otherDevices = useMemo(() => othersRemotePlaying(meshState).map(deviceName), [meshState]);
@@ -962,6 +972,32 @@ export function StreamPanel() {
     if (!useRemotePlayStore.getState().stream) await start();
   }, [start, stopStream]);
 
+  useStreamLaunchRunner({
+    playingHost: playing && profile ? hostOf(profile.host) : null,
+    streamingHost: streaming && target ? hostOf(target.host) : null,
+    // The console asked for is the selected one (the runner checks it is the connected one).
+    startStream: async () => {
+      if (streaming && !running) await switchHere();
+      else if (!streaming) await start();
+    },
+    launch: launcher.launch,
+    messages: {
+      notConnected: (h) => {
+        const name = profiles.find((p) => hostOf(p.host) === h)?.name || h;
+        return tr(
+          "rp_launch_not_connected",
+          { name },
+          `Connect to ${name} first (the console list at the top), then press Play again.`,
+        );
+      },
+      noHelper: tr(
+        "rp_launch_no_helper",
+        undefined,
+        "The PS5 is on, but PS5Upload's helper is not running on it, so the game can't be started from here. Send the helper (Connection), then press Play again.",
+      ),
+    },
+  });
+
   // Esc in full screen: a quick press is its button (Circle), held it leaves full screen. Its
   // button is sent on release, so holding to leave never presses Circle in the game.
   const escHold = useRef<{ timer: number; left: boolean } | null>(null);
@@ -1148,6 +1184,7 @@ export function StreamPanel() {
           } ${playing && !chrome && !(compact && full) ? "cursor-none" : ""}`}
           data-full={full ? (compact ? "immersive" : "bar") : undefined}
           data-testid="rp-stage"
+          {...dropZone.webProps}
         >
           <div
             ref={canvasHost}
@@ -1168,6 +1205,9 @@ export function StreamPanel() {
             }
           />
 
+          <LaunchStatus />
+          <DropZone active={dropZone.active} />
+          <DropChoice consoleName={target?.name ?? ""} />
           {running && phase !== "playing" && phase !== "moved" && (
             <div className="absolute inset-0 z-10 flex items-center justify-center gap-2 bg-black/40 text-sm text-white/85">
               <Spinner size={16} tone="inherit" />
@@ -1420,6 +1460,7 @@ export function StreamPanel() {
               </div>
             </>
           )}
+          {launcher.dialogs}
           {/* Over the picture: in full screen, and on a computer's page. */}
           {(full || !compact) && (
             <GamePanel

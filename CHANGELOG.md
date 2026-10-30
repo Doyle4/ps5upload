@@ -4,6 +4,20 @@ What's new in ps5upload, written for humans.
 
 ---
 
+## 9.7.0
+
+- **Play any game on Remote Play, in one press.** A game's page has **Play on Remote Play** next
+  to Play (for the connected console, once it is set up for Remote Play): the stream starts,
+  waking the console and signing you in, the app waits for its helper to come back, then starts
+  the game on the stream. Each step shows on the picture, with a Cancel. In the stream, the Game
+  panel's **Play something else** lists the console's games (with a search) and starts the one
+  you pick, closing the running one first with your say-so. Anything the console has installed
+  or registered can be started: PS5 and PS4 games, folder games and fake packages.
+- **Drop a package on the stream to install it.** Drag a .pkg or .fpkg onto the picture (the
+  desktop app, or the web UI in a browser): it is installed on the streamed console **when you
+  stop playing** (an install shares the network with the stream and can make it stutter), or at
+  once with **Install now**.
+
 ## 9.6.0
 
 **Remote Play gets a Game panel.** A **Game** button on the stream bar (and in the phone's **⋯**

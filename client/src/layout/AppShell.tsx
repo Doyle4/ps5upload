@@ -58,6 +58,7 @@ import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { isTauriEnv, safeUnlisten } from "../lib/tauriEnv";
 import { engineIsOnThisDevice } from "../state/engine";
 import { trStatic } from "../lib/trStatic";
+import { useRemotePlayStore } from "../state/remotePlay";
 import { useDocumentVisible } from "../lib/visibility";
 import { runScheduleAction, useScheduleRunner } from "../state/schedules";
 import {
@@ -1132,6 +1133,8 @@ function usePkgAutoRoute() {
     const p = getCurrentWebview().onDragDropEvent((e) => {
       if (cancelled) return;
       if (e.payload.type !== "drop") return;
+      // A stream playing on the Play screen takes its own drops (install on that console).
+      if (location.pathname === "/play" && useRemotePlayStore.getState().stream) return;
       // The first viewable thing ANYWHERE in the drop, not just paths[0]: a mixed drop like
       // [game.elf, patch.pkg] still finds the package.
       // A copy Files made for a drag out, dropped back on the window, opens nothing.
