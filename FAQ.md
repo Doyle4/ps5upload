@@ -2014,7 +2014,7 @@ resume.
 
 **Q: How does Remote Play work on a phone?**
 Held upright, the picture is at the top and its controls are under it: **Full screen**, **Stop**
-and a **⋯** menu with Stats, Picture in picture, Settings and volume. In full screen held upright,
+and a **⋯** menu with Stats, Screenshot, Record a clip, Picture in picture, Settings and volume. In full screen held upright,
 the on-screen controller sits below the picture. Turn the phone sideways while playing and it
 goes full screen by itself (turn it back to return to the page); the only control then is a small
 **⋯** handle at the top. Taps on the picture or the controller are always play: they never leave
@@ -2025,8 +2025,55 @@ In the Android app, full screen hides the status and navigation bars (swipe from
 **Q: Part of the Remote Play picture is cut off, or it looks stretched.**
 **Picture size** decides how the picture fits the screen: **Fit** shows the whole picture with black bars where the shapes differ (the default), **Fill** fills the screen and crops the edges, **Stretch** fills it without cropping. It shows in full screen: on the page the picture's box is the picture's own shape, so all three look the same there. Change it in full screen without leaving it: the **Picture size** button on the bar (desktop), or the Fit / Fill / Stretch row in the **⋯** menu (phones). It's also in Remote Play › Settings, and it applies at once. Before 9.2.0, the Windows app could show the picture enlarged with its right and bottom cut off (#538); update to fix it.
 
+**Q: Does my phone controller (Backbone, Razer Kishi, GameSir, Scuf Nomad...) work with Remote Play?**
+Yes. Phone controllers, USB-C or Bluetooth, are game controllers to the phone, so Remote Play reads them like any other: connect it, press a button, and it plays (the on-screen controller hides). If the browser doesn't recognise one, it still plays in the usual layout; if a button is wrong, open Remote Play › Settings › Controllers › **Map buttons** and press each button as asked (any step can be skipped). **Set an extra button** gives a back button or paddle any PS5 button. Mappings are saved per controller. In the Android app the app also hands controllers to the page itself, for phones whose system browser misses them; on iPhone the app makes sure the page has the focus controllers need.
+
+**Q: Can I use my phone as the controller for Remote Play on my computer?**
+Yes, from 9.5.0. While the computer plays, press the phone button on the stream's bar (**Use a phone as a controller**) and scan the QR code with the phone's camera: the phone opens a controller, full screen and sideways, that plays along with the computer's own controls (up to four phones). Or, in the PS5Upload app on the phone, Remote Play shows that the computer is playing: tap **Use this device as its controller** and allow it on the computer. A controller attached to the phone works through it too. Only the controller page and its connection are open to your network, and they need the QR code's key or your OK on the computer; **Close the link** lets every phone go. Rumble vibrates an Android phone.
+
+**Q: Motion controls?**
+Remote Play › Settings › **Motion controls (experimental)** (phones) sends the phone's gyro and tilt as the controller's motion sensors, for games with gyro aiming; the phone controller page has a **Motion** button too. Browsers give motion only to secure pages, so it works in the apps but not on the QR code's page in a phone browser. It hasn't been tried on a PS5 yet.
+
+**Q: How do I take a screenshot or record a clip in Remote Play?**
+Use the **camera** (Screenshot) and **video** (Record a clip) buttons on the picture's bar (desktop, also in full screen), or in the **⋯** menu on a phone. A screenshot is a PNG at the stream's own size (1920×1080 or 1280×720), whatever size the picture is shown at. A clip records the picture and the game's sound (also while the player is muted); a red **Recording** light with the time shows on the picture, and pressing it (or the button again) stops and saves the clip. Clips are MP4 where the device records MP4, else WebM, and stop by themselves after 10 minutes (they are held in memory until saved). Files are named like `PS5 Living room 2026-10-30 21-14-05.png`. The desktop and Android apps save straight into **Downloads**, the iPhone app into its folder in the Files app, and the web UI downloads them through the browser. Recording needs a device that can record video from a web page; where it can't, only Screenshot shows.
+
+**Q: How much delay does Remote Play have, and what does Low latency do?**
+With **Stats** on, the picture shows a **Latency** line, for example `Latency ≈ 9 ms engine + 4 ms decode`: the round trip between this device and the engine (measured once a second; near zero in the desktop app, a network hop in the web UI or on a phone) and how long a frame takes from arriving to being drawn. The leg from the PS5 to the engine isn't included: the two have no shared clock, so it can't be measured honestly. **Remote Play › Settings › Low latency** (off by default) uses the smallest sound buffer, keeps the engine's picture queue for this device at 2 frames instead of 6, and skips to the next whole picture sooner when decoding falls behind. Frames are drawn as soon as they're decoded either way. The trade: on a busy network more frames are dropped and the sound can crackle. The sound part applies at once; the picture part at the next start.
+
+**Q: Remote Play says "The network is dropping frames". What should I do?**
+With **Lower quality on a busy network** on (the default), when a 1080p stream keeps losing frames for about 10 seconds the picture offers **Switch to 720p** once per session. 720p needs about two-thirds the bandwidth. Switching restarts the stream, because the resolution is fixed for a session, and the PS5 holds its last session for about 12 seconds after it ends, so expect roughly 15 seconds of waiting; the app waits that out and starts again by itself (**Cancel** stops it). It's offered rather than done for you because that pause can come at a bad moment in a game. The choice is kept (Picture becomes 720p in Settings); switch back there. It never steps down twice or back up by itself. Turn the setting off in Remote Play › Settings to never be asked. A wired connection for the PS5 (and 5 GHz Wi-Fi for this device) helps most.
+
+**Q: Can I use voice chat (a microphone) in Remote Play?**
+Experimental, from 9.5.0. First turn on **Microphone (experimental)** in Remote Play › Settings
+(off by default; it applies from the next start). Without it, a session starts exactly as before.
+Then press the **Microphone** button on the picture's bar (desktop and full screen), or **Mic** in
+the **⋯** menu (phones). It's off until you press it; the first press asks
+for permission to use the mic. While it's on, the icon has a red dot and your voice is sent to the
+PS5 the way chiaki-ng sends it, meant for party and game chat. Press it again to turn it
+off: the mic is released and the console's mic is muted. It also turns off when the stream stops
+or moves to another window. Echo cancellation and noise suppression are on, so headphones aren't
+required, but they help. The button is missing where the browser can't encode the sound the way
+the PS5 expects (it needs WebCodecs audio encoding with Opus: current Chrome and Edge have it;
+other browsers and the Linux desktop app may not). Nothing about the mic is saved.
+
+Why experimental: it follows chiaki-ng's microphone code byte for byte (the same 48 kHz Opus
+frames, packets and encryption), and every step on our side is tested, but it has **not yet been
+tried against a real PS5**. If your friends can't hear you, or the stream misbehaves while the mic
+is on, turn it off and tell us in a GitHub issue. The desktop apps ask the system for the mic (on
+macOS: System Settings › Privacy & Security › Microphone; on Android and iPhone, the usual
+permission prompt). If you said no once, allow it there and press the button again.
+
 **Q: Which browser should I use for Remote Play in the web UI?**
 Chrome or Edge (on Android, Chrome). Remote Play is made and tested for them. In Firefox and Safari, Esc always leaves full screen, so it can't be the controller's ○ there; Firefox has no picture in picture, and Safari's shows the picture only. The web UI says so on the Remote Play page in those browsers. On iPhone and iPad every browser is Safari underneath, and Remote Play works there. The desktop and Android apps don't depend on your browser.
+
+**Q: Does Remote Play turn on Game Mode?**
+Where the system lets an app ask for it, yes, and only while the picture plays:
+- **Mac** (macOS 14 and later): the app counts as a game, so full screen turns on Game Mode (the Mac shows it in the menu bar) and leaving full screen turns it off. The computer and screen also stay awake while you play.
+- **iPhone and iPad** (iOS and iPadOS 18 and later): Game Mode turns on while the app fills the screen, whether or not a stream plays.
+- **Windows**: Windows decides by itself which apps get Game Mode; an app can't ask. The computer and screen stay awake while you play. To have Windows treat the app as a game, press Win+G while it's open, open Settings › General and tick **Remember this is a game**.
+- **Linux**: the app turns on GameMode (Feral's `gamemoded`) while you play, if it is installed; nothing else is needed. The computer and screen also stay awake.
+- **Android**: the screen stays on, the device keeps a steady speed instead of bursts that slow down when it gets warm (on devices that support it), and a TV or monitor on HDMI is asked for its game mode (Android 11 and later). The app doesn't call itself a game on Android: there that only gives the system's game tools a say over the app.
+- **Web UI**: a browser tab can't ask for any of this.
 
 **Q: Remote Play on Linux says there is no H.264 decoder ("No decoder found for codec avc1…").**
 On Linux the app's window plays video through the system's GStreamer, and some distributions

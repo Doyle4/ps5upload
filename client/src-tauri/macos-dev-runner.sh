@@ -68,7 +68,11 @@ cat > "$app/Contents/Info.plist" <<PLIST
   <key>CFBundleName</key><string>PS5Upload Dev</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>NSHighResolutionCapable</key><true/>
+  <key>LSApplicationCategoryType</key><string>public.app-category.games</string>
+  <key>LSSupportsGameMode</key><true/>
+  <key>GCSupportsGameMode</key><true/>
   <key>NSLocalNetworkUsageDescription</key><string>PS5Upload connects to your PS5 on the local network.</string>
+  <key>NSMicrophoneUsageDescription</key><string>Talk to other players through your PS5 while you use Remote Play.</string>
 </dict>
 </plist>
 PLIST

@@ -9,6 +9,7 @@
 //!   probes      — payload send/check/probe, port probes
 //!   folder_inspect — sce_sys / param.json walk for local folders
 //!   keep_awake  — platform sleep inhibitor spawn/kill
+//!   game_mode   — what each OS offers a game while Remote Play plays
 //!   user_config — ~/.ps5upload/settings.json read/write
 //!   companions  — TCP probe of known scene-tool ports
 //!   title_meta  — HTML scrape of public title-info site (cover art)
@@ -25,6 +26,7 @@ pub mod diagnostics;
 pub mod discover;
 pub mod dragout;
 pub mod folder_inspect;
+pub mod game_mode;
 pub mod heal_appmeta;
 pub mod host_platform;
 pub mod keep_awake;
@@ -84,6 +86,7 @@ pub use diagnostics::*;
 pub use discover::*;
 pub use dragout::*;
 pub use folder_inspect::*;
+pub use game_mode::*;
 pub use heal_appmeta::*;
 pub use keep_awake::*;
 pub use local_fs::*;

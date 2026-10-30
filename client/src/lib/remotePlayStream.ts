@@ -5,6 +5,7 @@
 // access unit, 3 audio header, 4 audio frame), JSON status lines out, pad state in. This file
 // turns that into pixels on a canvas, sound, and input; the screen only drives it.
 
+import type { MotionReading } from "./motion";
 import { getEngineUrl } from "../state/engine";
 import { safeGetItem, safeRemoveItem, safeSetItem } from "./safeStorage";
 
@@ -38,6 +39,8 @@ export interface PadState {
   ry: number;
   /** One finger on the touchpad, in its 1920×942 space, or none. */
   touch?: [number, number] | null;
+  /** A phone's motion sensors in the controller's axes (lib/motion.ts), or none. */
+  motion?: MotionReading | null;
 }
 
 export const IDLE_PAD: PadState = { buttons: 0, l2: 0, r2: 0, lx: 0, ly: 0, rx: 0, ry: 0 };
@@ -175,23 +178,77 @@ const STANDARD_BUTTONS = [
   PadButton.RIGHT, PadButton.PS, PadButton.TOUCHPAD,
 ];
 
-/** The pad the connected controllers amount to (all of them, merged). */
-export function padFromGamepads(pads: ReadonlyArray<Gamepad | null>): PadState {
+/** Where one control of the console's pad comes from on a controller: a button (by index), or
+ *  half of an axis (index, the direction it moves when pressed, and where it rests: -1 for a
+ *  trigger reported as an axis that rests at one end). */
+export type PadSource = { b: number } | { a: number; d: 1 | -1; rest?: number };
+
+/** A stick axis: the controller's axis index, inverted when it reads the other way round. */
+export interface PadAxis {
+  a: number;
+  inv?: boolean;
+}
+
+/** How a controller's buttons and axes become the console's pad. Several sources may drive one
+ *  button (an extra back button set to ✕ as well, say). */
+export interface PadProfile {
+  buttons: Array<[bit: number, src: PadSource]>;
+  l2: PadSource | null;
+  r2: PadSource | null;
+  lx: PadAxis | null;
+  ly: PadAxis | null;
+  rx: PadAxis | null;
+  ry: PadAxis | null;
+}
+
+/** The browser's "standard" layout (W3C Gamepad standard mapping). */
+export const STANDARD_PROFILE: PadProfile = {
+  buttons: STANDARD_BUTTONS.flatMap((bit, i): Array<[number, PadSource]> => (bit ? [[bit, { b: i }]] : [])),
+  l2: { b: 6 },
+  r2: { b: 7 },
+  lx: { a: 0 },
+  ly: { a: 1 },
+  rx: { a: 2 },
+  ry: { a: 3 },
+};
+
+/** How far (0-1) a source is pressed on `g`. */
+export function sourceValue(g: Gamepad, src: PadSource): number {
+  if ("b" in src) {
+    const b = g.buttons[src.b];
+    return b ? Math.max(b.pressed ? 1 : 0, b.value) : 0;
+  }
+  const v = g.axes[src.a];
+  if (v === undefined) return 0;
+  const rest = src.rest ?? 0;
+  return Math.min(1, Math.max(0, (v - rest) / (src.d - rest)));
+}
+
+/** A controller the browser lays out the standard way, or one it does not recognize: then the
+ *  standard order is the best guess (most controllers follow it), until it is mapped. */
+export const guessProfile = (_g: Gamepad): PadProfile => STANDARD_PROFILE;
+
+/** The pad the connected controllers amount to (all of them, merged), each read through its
+ *  profile. */
+export function padFromGamepads(
+  pads: ReadonlyArray<Gamepad | null>,
+  profileOf: (g: Gamepad) => PadProfile = guessProfile,
+): PadState {
   const p = { ...IDLE_PAD };
   const axis = (v: number) => (Math.abs(v) < 0.08 ? 0 : clampAxis(v * 32767));
+  // Several pads: the stick pushed furthest wins, so a resting pad does not cancel another.
+  const pick = (cur: number, v: number) => (Math.abs(v) > Math.abs(cur) ? v : cur);
+  const stick = (g: Gamepad, ax: PadAxis | null) => (ax ? axis((g.axes[ax.a] ?? 0) * (ax.inv ? -1 : 1)) : 0);
   for (const g of pads) {
-    if (!g || g.mapping !== "standard") continue;
-    g.buttons.forEach((b, i) => {
-      if (b.pressed && STANDARD_BUTTONS[i]) p.buttons |= STANDARD_BUTTONS[i];
-    });
-    p.l2 = Math.max(p.l2, Math.round((g.buttons[6]?.value ?? 0) * 255));
-    p.r2 = Math.max(p.r2, Math.round((g.buttons[7]?.value ?? 0) * 255));
-    // Several pads: the stick pushed furthest wins, so a resting pad does not cancel another.
-    const pick = (cur: number, v: number) => (Math.abs(v) > Math.abs(cur) ? v : cur);
-    p.lx = pick(p.lx, axis(g.axes[0] ?? 0));
-    p.ly = pick(p.ly, axis(g.axes[1] ?? 0));
-    p.rx = pick(p.rx, axis(g.axes[2] ?? 0));
-    p.ry = pick(p.ry, axis(g.axes[3] ?? 0));
+    if (!g || !g.connected) continue;
+    const prof = profileOf(g);
+    for (const [bit, src] of prof.buttons) if (sourceValue(g, src) > 0.5) p.buttons |= bit;
+    if (prof.l2) p.l2 = Math.max(p.l2, Math.round(sourceValue(g, prof.l2) * 255));
+    if (prof.r2) p.r2 = Math.max(p.r2, Math.round(sourceValue(g, prof.r2) * 255));
+    p.lx = pick(p.lx, stick(g, prof.lx));
+    p.ly = pick(p.ly, stick(g, prof.ly));
+    p.rx = pick(p.rx, stick(g, prof.rx));
+    p.ry = pick(p.ry, stick(g, prof.ry));
   }
   return p;
 }
@@ -206,6 +263,7 @@ export function mergePads(a: PadState, b: PadState): PadState {
     rx: clampAxis(a.rx + b.rx),
     ry: clampAxis(a.ry + b.ry),
     touch: a.touch ?? b.touch ?? null,
+    motion: a.motion ?? b.motion ?? null,
   };
 }
 
@@ -350,6 +408,17 @@ export interface StreamStats {
   /** Sound waiting to play, in ms, and how often it ran dry since the start. */
   audioMs: number;
   underruns: number;
+  /** Round trip from this page to the engine and back, ms (null until measured, or an engine
+   *  that does not answer pings). The console's leg cannot be measured: no shared clock. */
+  rttMs: number | null;
+}
+
+/** A round trip from a ping's own timestamp, smoothed into the last value (a spike moves it a
+ *  quarter of the way); null when `sentAt` is not a number. */
+export function nextRtt(prev: number | null, sentAt: unknown, now: number): number | null {
+  if (typeof sentAt !== "number" || !Number.isFinite(sentAt)) return prev;
+  const rtt = Math.max(0, now - sentAt);
+  return prev === null ? rtt : prev + (rtt - prev) / 4;
 }
 
 export type StreamPhase =
@@ -387,6 +456,11 @@ export interface StreamOptions {
   audioBufferMs?: number;
   /** Join the session the engine already runs for this console; never start one. */
   attach?: boolean;
+  /** Ask the engine for a shorter video queue and skip to the next keyframe sooner. */
+  lowLatency?: boolean;
+  /** Set the session up for the microphone (experimental; Settings). Only then is `mic`
+   *  in the start message, so a session without it starts exactly as before. */
+  mic?: boolean;
   /** How the picture fills the place it is shown in (default: the whole picture). */
   fit?: PictureFit;
   /** False: the console's rumble is not played on the controllers. */
@@ -413,6 +487,7 @@ const RECONNECT_FOR_MS = 30_000;
 const AUDIO_HOLD = 3;
 /** The decoder this far behind: skip to the next keyframe rather than show old pictures. */
 const VIDEO_BACKLOG = 4;
+const VIDEO_BACKLOG_LOW_LATENCY = 2;
 
 /** The audio player: a ring buffer in an AudioWorklet that starts once `target` samples are in,
  *  fades in after a gap, and trims itself back when it runs ahead (a sound card a little slower
@@ -529,6 +604,7 @@ export class RemotePlayStream {
   private codec = "";
   private statsTimer = 0;
   private lastLoss = { lossPct: 0, rebuilt: 0, lost: 0 };
+  private rttMs: number | null = null;
   private phase: StreamPhase = "connecting";
   /** The session is over (stopped here, ended by the engine or the console). */
   private ended = false;
@@ -538,6 +614,8 @@ export class RemotePlayStream {
   private reconnectSince = 0;
   private reconnectTry = 0;
   private reconnectTimer = 0;
+  /** The page's mic is on (remotePlayMic.ts); said again on every reattach. */
+  private micOn = false;
 
   constructor(private readonly o: StreamOptions) {
     this.canvas = document.createElement("canvas");
@@ -601,10 +679,12 @@ export class RemotePlayStream {
         codec: this.codec,
         audioMs: this.audioMs,
         underruns: this.underruns,
+        rttMs: this.rttMs,
         ...this.lastLoss,
       });
       lastDecoded = this.decoded;
       lastBytes = this.bytes;
+      this.ping();
     }, 1000);
   }
 
@@ -653,8 +733,12 @@ export class RemotePlayStream {
           codec: this.codecChoice,
           keep_alive_s: this.o.keepAliveS,
           attach_only: attachOnly,
+          low_latency: !!this.o.lowLatency,
+          ...(this.o.mic ? { mic: true } : {}),
         }),
       );
+      // Attaching turns the console's mic off in the engine: a page that has it on says so.
+      if (this.micOn) ws.send(JSON.stringify({ mic: true }));
     };
     ws.onmessage = (m) => {
       if (ws !== this.ws) return;
@@ -752,6 +836,51 @@ export class RemotePlayStream {
     this.worklet?.port.postMessage({ reset: true });
   }
 
+  /** Time a round trip to the engine (answered with `{"pong": t}`). */
+  private ping(): void {
+    const ws = this.ws;
+    if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ ping: performance.now() }));
+  }
+
+  /** The picture as it is now, a PNG at the stream's own size (null before the first frame). */
+  snapshot(): Promise<Blob | null> {
+    const c = this.canvas;
+    if (!this.decoded) return Promise.resolve(null);
+    return new Promise((resolve) => c.toBlob((b) => resolve(b), "image/png"));
+  }
+
+  /** The picture and the game's sound as one MediaStream, for a recording. The sound is tapped
+   *  off before the volume (a muted player still records it) into a second output, so what
+   *  plays is untouched. `release()` takes the tap off again. */
+  captureMedia(fps: number): { stream: MediaStream; release: () => void } | null {
+    const c = this.canvas as HTMLCanvasElement & { captureStream?: (fps?: number) => MediaStream };
+    if (typeof c.captureStream !== "function") return null;
+    const stream = c.captureStream(fps);
+    const actx = this.audioCtx;
+    const from: AudioNode | null = this.worklet ?? this.gainNode;
+    let dest: MediaStreamAudioDestinationNode | null = null;
+    try {
+      if (actx && from && typeof actx.createMediaStreamDestination === "function") {
+        dest = actx.createMediaStreamDestination();
+        from.connect(dest);
+        for (const t of dest.stream.getAudioTracks()) stream.addTrack(t);
+      }
+    } catch {
+      dest = null; // a picture without sound rather than no recording
+    }
+    return {
+      stream,
+      release: () => {
+        for (const t of stream.getTracks()) t.stop();
+        try {
+          if (dest) from?.disconnect(dest);
+        } catch {
+          // Already gone with the session.
+        }
+      },
+    };
+  }
+
   /** Send the pad now if it changed (call on key events so short taps are not missed). */
   sendPad(): void {
     const ws = this.ws;
@@ -761,6 +890,25 @@ export class RemotePlayStream {
     if (s === this.lastPad) return;
     this.lastPad = s;
     ws.send(JSON.stringify({ pad: p }));
+  }
+
+  /** This session was started with the mic set up (Settings › Microphone). */
+  get micEnabled(): boolean {
+    return !!this.o.mic;
+  }
+
+  /** Turn the console's microphone on or off (experimental; see remotePlayMic.ts). */
+  setMic(on: boolean): void {
+    if (!this.o.mic) return;
+    this.micOn = on;
+    const ws = this.ws;
+    if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ mic: on }));
+  }
+
+  /** One `[5][Opus packet]` mic frame; dropped while the socket is down. */
+  sendMicFrame(msg: Uint8Array<ArrayBuffer>): void {
+    const ws = this.ws;
+    if (this.micOn && ws && ws.readyState === WebSocket.OPEN) ws.send(msg);
   }
 
   /** 0-1; 0 is muted. */
@@ -821,10 +969,15 @@ export class RemotePlayStream {
       host?: string;
       rumble?: [number, number];
       light?: [number, number, number];
+      pong?: unknown;
     };
     try {
       s = JSON.parse(text);
     } catch {
+      return;
+    }
+    if (s && typeof s === "object" && "pong" in s) {
+      this.rttMs = nextRtt(this.rttMs, s.pong, performance.now());
       return;
     }
     if (s.rumble) {
@@ -887,7 +1040,8 @@ export class RemotePlayStream {
     this.bytes += payload.length;
     const key = isKeyframe(payload, this.hevc);
     // Behind: old pictures are no use to someone playing. Skip to a keyframe.
-    if (!key && this.video && this.video.decodeQueueSize > VIDEO_BACKLOG) {
+    const backlog = this.o.lowLatency ? VIDEO_BACKLOG_LOW_LATENCY : VIDEO_BACKLOG;
+    if (!key && this.video && this.video.decodeQueueSize > backlog) {
       this.sawKey = false;
       this.ws?.send(JSON.stringify({ keyframe: true }));
     }

@@ -137,14 +137,20 @@ async fn sevenz_upload_to_a_c_server_verifies_every_file() {
         }
     });
     // Restart the payload once about half the bytes are durable: the journal survives,
-    // memory does not.
+    // memory does not. The link is held first so nothing more reaches the payload: under
+    // ASan the restart is slow, and while it ran the rest of the upload used to arrive and
+    // finish the job in one session ("the restart cost a session" on main at e4fa9213 and on
+    // #557). Then every connection is cut, so the client sees the restart at once.
     let t0 = std::time::Instant::now();
     while progress.bytes_durable.load(Ordering::Relaxed) < total / 2 {
         assert!(t0.elapsed() < Duration::from_secs(60), "never got halfway");
         tokio::time::sleep(Duration::from_millis(5)).await;
     }
+    px.blackhole(true);
     let durable_at_kill = progress.bytes_durable.load(Ordering::Relaxed);
     srv.restart_data();
+    px.kill_all();
+    px.blackhole(false);
     let (r, sessions) = up.await.unwrap();
     assert_eq!(r.status, gen::STATUS_OK);
     assert!(sessions >= 2, "the restart cost a session");

@@ -24,9 +24,48 @@ What's new in ps5upload, written for humans.
   Stretch row in the **⋯** menu (phones). Before, Settings left full screen to change it, and on the
   page, whose box is the picture's own shape, all three look the same, so the change seemed to do
   nothing. Settings no longer says picture size waits for the next start: it applies at once.
+- **Remote Play: microphone for voice chat (experimental).** Turn on **Microphone (experimental)**
+  in Remote Play › Settings (off by default; sessions without it start exactly as before), and a
+  **Microphone** button on the picture's bar (and **Mic** in the phone **⋯** menu) sends your voice to the PS5 for party and game
+  chat. It's off until you press it, asks for permission the first time, shows a red dot while it's
+  on, and turns off when you press it again or the stream ends. It follows chiaki-ng's microphone
+  code and is tested on our side, but has not been tried on a real PS5 yet, so it's marked
+  experimental.
+- **Game Mode for Remote Play.** In full screen the Mac app turns on Game Mode, and so do the iPhone
+  and iPad apps (iOS 18 and later). While you play, the desktop app keeps the computer and screen
+  awake, on Linux it turns on GameMode (`gamemoded`) if it's installed, and the Android app asks for
+  steady performance and a TV's game mode over HDMI. Windows doesn't let an app turn on Game Mode;
+  the FAQ says how to mark the app as a game in Game Bar. Remote Play › Settings says what applies
+  on your device.
 - **Remote Play in the web UI names the browser it's made for.** In Firefox, Safari and others it
   says Chrome or Edge work best and what this browser misses (Esc as the controller's ○ in full
   screen, picture in picture). It can be dismissed.
+- **Every phone controller, and any controller the browser doesn't know.** Phone controllers (Backbone,
+  Razer Kishi, GameSir, Scuf Nomad, ELO Vagabond...) and other pads play Remote Play like any
+  controller. One the browser doesn't recognise used to do nothing; it now plays in the usual layout,
+  and Remote Play › Settings › Controllers maps any controller by pressing its buttons in turn, and
+  gives extra back buttons any PS5 button. The Android app also forwards controllers to the page
+  itself, and the iPhone app keeps the page focused, so they reach Remote Play there.
+- **Your phone as the controller for Remote Play on a computer.** Scan the QR code from the stream's
+  bar, or tap **Use this device as its controller** in the phone app and allow it on the computer:
+  the phone becomes a full-screen controller that plays along with the computer's. Only the
+  controller page is open to the network, and only with the code's key or your OK.
+- **Motion controls (experimental):** a phone's gyro and tilt as the controller's motion sensors,
+  in the apps.
+- **Remote Play: screenshots and clips.** A **Screenshot** button on the picture's bar (and in the
+  phone's **⋯** menu) saves the picture as a PNG at the stream's own size. **Record a clip** records
+  the picture and the game's sound, with a recording light and its time on the picture; stop it to
+  save the clip (MP4 where the device records it, else WebM). The apps save into Downloads (the
+  Files app on iPhone); the web UI downloads them.
+- **Remote Play shows its latency.** With Stats on, a **Latency** line shows the round trip to the
+  engine and the decode time. The PS5's own leg can't be measured (no shared clock), so it isn't
+  guessed at.
+- **Remote Play: Low latency.** A new setting (off by default) for the least delay: the smallest
+  sound buffer and a 2-frame picture queue instead of 6. On a busy network it drops more frames.
+- **Remote Play offers 720p on a busy network.** When a 1080p stream keeps losing frames for about
+  10 seconds, the picture offers **Switch to 720p** (once per session, never back up by itself).
+  It restarts the stream, waiting out the ~12 s the PS5 holds its last session. **Lower quality on a
+  busy network** in Settings turns the offer off.
 
 ## 9.4.1
 

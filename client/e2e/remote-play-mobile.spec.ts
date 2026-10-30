@@ -153,6 +153,8 @@ test.describe("phone upright", () => {
     await page.getByTestId("rp-more").tap();
     for (const id of [
       "rp-toggle-stats",
+      "rp-screenshot",
+      "rp-record",
       "rp-open-settings",
       "rp-mute",
       "rp-volume",
@@ -253,6 +255,8 @@ test.describe("small phone upright", () => {
     await page.getByTestId("rp-more").tap();
     for (const id of [
       "rp-toggle-stats",
+      "rp-screenshot",
+      "rp-record",
       "rp-pip",
       "rp-open-settings",
       "rp-volume",
@@ -314,6 +318,8 @@ test.describe("phone sideways", () => {
     for (const id of [
       "rp-fullscreen",
       "rp-toggle-stats",
+      "rp-screenshot",
+      "rp-record",
       "rp-open-settings",
       "rp-stop",
       "rp-volume",

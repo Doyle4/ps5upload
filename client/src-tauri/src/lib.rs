@@ -513,6 +513,8 @@ pub fn run() {
             // (dialog paths fall outside the fs scope). See
             // commands/save_text_file.rs.
             commands::save_text_file,
+            // Remote Play screenshots and clips (raw bytes, not text).
+            commands::save_binary_file,
             commands::dragout_stage_dir,
             commands::read_text_file,
             // ── Automatic crash/error report collection ─────────────
@@ -593,6 +595,9 @@ pub fn run() {
             commands::keep_awake_release,
             // Remote Play full screen on Android: hide the system bars, hold landscape.
             commands::android_system_ui,
+            commands::focus_webview,
+            // Remote Play playing: the OS's game mode where an app can ask for one.
+            commands::game_mode_set,
             commands::user_config_load, // ~/.ps5upload/settings.json read
             commands::user_config_save, // ~/.ps5upload/settings.json atomic write
             commands::user_config_path_resolved, // show-the-path for the Settings UI
@@ -676,6 +681,7 @@ pub fn run() {
                 // enabled caffeinate/systemd-inhibit child would otherwise
                 // outlive the app and block the machine from idle-sleeping
                 // until reboot.
+                commands::game_mode_release_on_exit().await;
                 commands::keep_awake_release_on_exit().await;
                 engine::stop().await;
             };

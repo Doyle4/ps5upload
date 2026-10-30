@@ -16,6 +16,17 @@
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
+	<!-- Remote Play voice chat (experimental). -->
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Talk to other players through your PS5 while you use Remote Play.</string>
+	<!-- Game Mode for Remote Play (iOS and iPadOS 18+): on while the app fills the screen.
+	     LSSupportsGameMode is the iOS 26 key; GCSupportsGameMode is what iOS 18 reads. -->
+	<key>LSApplicationCategoryType</key>
+	<string>public.app-category.games</string>
+	<key>LSSupportsGameMode</key>
+	<true/>
+	<key>GCSupportsGameMode</key>
+	<true/>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Connect to your PS5 on your home network to send games and manage the console.</string>
 </dict>

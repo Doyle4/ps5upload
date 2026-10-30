@@ -12,6 +12,7 @@ import {
   Play,
   Scaling,
   Settings2,
+  Smartphone,
   Square,
   Volume2,
   VolumeX,
@@ -20,10 +21,11 @@ import {
 import { Button, Callout, Select, Spinner, Toggle } from "../../components";
 import { useTr } from "../../state/lang";
 import { useRosterStore } from "../../state/roster";
-import { deviceName, meshFor, othersRemotePlaying, useMeshStore } from "../../state/mesh";
+import { deviceName, meshFor, othersRemotePlaying, remotePlayPads, useMeshStore } from "../../state/mesh";
 import { isTauriEnv } from "../../lib/tauriEnv";
 import { isLinuxDesktop, isMobile } from "../../lib/platform";
 import { setScreenWakeReason } from "../../lib/androidScreenWake";
+import { gameModeKind } from "../../lib/gameMode";
 import {
   canStream,
   keysFor,
@@ -49,6 +51,7 @@ import {
   COARSE_QUERY,
   COMPACT_QUERY,
   docFullscreen,
+  focusForControllers,
   holdPageStill,
   inAndroidApp,
   isPhoneSized,
@@ -58,10 +61,17 @@ import {
   unlockOrientation,
   useMedia,
 } from "./immersive";
+import { MicBarButton, MicSetting } from "./MicControl";
 import { fitName, PlayMenu, VolumeSlider } from "./PlayMenu";
 import { rpBrowserAdvice } from "./browserAdvice";
+import { askMotion, motionAvailable, startMotion } from "../../lib/motion";
+import { ControllerSetup } from "./ControllerSetup";
+import { PadAsks, PhonePadsPanel, usePadLink } from "./PhonePads";
 import { safeGetItem, safeSetItem } from "../../lib/safeStorage";
 import { closePip, openPip, pipPadsInBackground, pipSupport } from "./pip";
+import { CaptureBarButtons, CaptureOverlay } from "./CaptureControls";
+import { LatencyLine, QualityNotice, RpNetworkSettings } from "./NetworkExtras";
+import { useRpQualityStore } from "../../state/rpQuality";
 
 type Tr = ReturnType<typeof useTr>;
 
@@ -260,6 +270,7 @@ function StatsLine({
       )}
       {" · "}
       {tr("rp_stats_audio", { ms: v.audio }, `sound ${v.audio} ms`)}
+      <LatencyLine stats={stats} />
     </div>
   );
 }
@@ -294,6 +305,45 @@ function BarButton({
     >
       {children}
     </button>
+  );
+}
+
+/** What the app asks of this device's OS while a stream plays (only the app can ask). */
+function GameModeNote() {
+  const tr = useTr();
+  const kind = gameModeKind();
+  if (!kind) return null;
+  const text = {
+    mac: tr(
+      "rp_game_mode_mac",
+      undefined,
+      "While you play, the computer and screen stay awake. Full screen also turns on Game Mode (macOS 14 and later).",
+    ),
+    ios: tr(
+      "rp_game_mode_ios",
+      undefined,
+      "Game Mode turns on while the app fills the screen (iOS and iPadOS 18 and later).",
+    ),
+    windows: tr(
+      "rp_game_mode_windows",
+      undefined,
+      "While you play, the computer and screen stay awake. Windows does not let an app turn on Game Mode; see the FAQ.",
+    ),
+    linux: tr(
+      "rp_game_mode_linux",
+      undefined,
+      "While you play, the computer and screen stay awake, and GameMode (gamemoded) turns on if it is installed.",
+    ),
+    android: tr(
+      "rp_game_mode_android",
+      undefined,
+      "While you play, the screen stays on, the device keeps a steady speed where it can, and a TV on HDMI is asked for its game mode.",
+    ),
+  }[kind];
+  return (
+    <p className="text-xs text-[var(--color-muted)]" data-testid="rp-game-mode">
+      {text}
+    </p>
   );
 }
 
@@ -366,6 +416,7 @@ function SettingsPanel({ running }: { running: boolean }) {
           label={tr("rp_show_stats", undefined, "Show stats on the picture")}
           hint={tr("rp_show_stats_hint", undefined, "Frame rate, bitrate, decode time, loss and sound delay.")}
         />
+        <RpNetworkSettings />
       </section>
 
       <section className="space-y-2">
@@ -427,6 +478,7 @@ function SettingsPanel({ running }: { running: boolean }) {
             "Other screens keep the stream running; this is how long it waits when no window shows it (closed or reloaded) before it ends.",
           )}
         </p>
+        <GameModeNote />
       </section>
 
       <section className="space-y-2">
@@ -442,6 +494,22 @@ function SettingsPanel({ running }: { running: boolean }) {
           onChange={(v) => setPrefs({ rumble: v })}
           label={tr("rp_rumble", undefined, "Controller vibration")}
         />
+        {motionAvailable() && typeof window !== "undefined" && !!window.matchMedia?.("(pointer: coarse)").matches && (
+          <Toggle
+            checked={prefs.motion}
+            onChange={(v) => {
+              if (!v) setPrefs({ motion: false });
+              else void askMotion().then((ok) => ok && setPrefs({ motion: true }));
+            }}
+            label={tr("rp_motion", undefined, "Motion controls (experimental)")}
+            hint={tr(
+              "rp_motion_hint",
+              undefined,
+              "Tilting and turning the phone moves the controller's motion sensors, for games with gyro aiming. Not yet tried on a PS5.",
+            )}
+          />
+        )}
+        <MicSetting />
         <Select
           label={tr("rp_touch_controls", undefined, "On-screen controller")}
           block={false}
@@ -493,6 +561,11 @@ function SettingsPanel({ running }: { running: boolean }) {
       </section>
 
       <section className="space-y-2">
+        <h3 className="text-sm font-semibold">{tr("rp_pads_title", undefined, "Controllers")}</h3>
+        <ControllerSetup />
+      </section>
+
+      <section className="space-y-2">
         <h3 className="text-sm font-semibold">{tr("rp_keys_title", undefined, "Keyboard controls")}</h3>
         <KeyRemap keymap={keymap} onChange={setKeymap} />
       </section>
@@ -523,10 +596,12 @@ export function StreamPanel() {
   const stopStream = useRemotePlayStore((s) => s.stop);
   const setOnScreen = useRemotePlayStore((s) => s.setOnScreen);
   const pip = useRemotePlayStore((s) => s.pip);
+  const switching = useRpQualityStore((s) => !!s.switching);
   const pipKind = useMemo(() => pipSupport(), []);
   const [pipFailed, setPipFailed] = useState(false);
   const [profileId, setProfileId] = useState<string>(activeId ?? profiles[0]?.id ?? "");
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [phonesOpen, setPhonesOpen] = useState(false);
   useEffect(() => {
     if (settingsOpen) settingsBox.current?.scrollIntoView?.({ block: "nearest", behavior: "smooth" });
   }, [settingsOpen]);
@@ -565,12 +640,32 @@ export function StreamPanel() {
   // stream offered (show it, or stop it and play this one).
   const streaming = !!stream && phase !== null && phase !== "ended";
   const running = streaming && !!profile && target?.host === profile.host;
+  // Phones playing along as controllers, and phones asking to (pad_link.rs).
+  const [padLink, setPadLink] = usePadLink(running, target?.host ?? null);
   const otherStream = streaming && !running ? target : null;
   const otherProfile = otherStream ? profiles.find((p) => p.host === otherStream.host) ?? null : null;
+  // The iOS app hands controllers to the page only while it has the focus: take it on show and
+  // whenever a stream starts here.
+  useEffect(() => {
+    focusForControllers();
+  }, [running]);
+  // The phone's motion sensors as the controller's, while it plays and motion controls are on.
+  useEffect(() => {
+    if (!running || !prefs.motion || !motionAvailable()) return;
+    const stop = startMotion((m) => {
+      rpInput.motion = m;
+    });
+    return () => {
+      stop();
+      rpInput.motion = null;
+    };
+  }, [running, prefs.motion]);
   const playing = running && phase === "playing";
   // Another device (a phone, another computer) playing this console: the PS5 takes one at a time.
   const meshState = useMeshStore((s) => (profile ? meshFor(s, profile.host).state : null));
   const otherDevices = useMemo(() => othersRemotePlaying(meshState).map(deviceName), [meshState]);
+  // Another device plays Remote Play and takes a phone as its controller: this one can be it.
+  const padHosts = useMemo(() => remotePlayPads(meshState), [meshState]);
   // The web UI in a browser Remote Play is not made for says so, until dismissed.
   const [browserAdvice, setBrowserAdvice] = useState(() =>
     safeGetItem(BROWSER_ADVICE_KEY) ? null : rpBrowserAdvice(),
@@ -682,8 +777,9 @@ export function StreamPanel() {
   }, [phoneLandscape, playing]);
   // The stream ended while full screen: back to the page, where Start is.
   useEffect(() => {
-    if (full && !running) exitFull();
-  }, [full, running, exitFull]);
+    // Not while switching to 720p: the stream stops and starts again in the same place.
+    if (full && !running && !switching) exitFull();
+  }, [full, running, exitFull, switching]);
   // While the picture fills the screen the page holds still: no scroll, bounce or pull to refresh.
   useEffect(() => {
     if (!full) return;
@@ -987,6 +1083,7 @@ export function StreamPanel() {
               </Button>
             </div>
           )}
+          {running && <PadAsks pending={padLink.pending} />}
           {running && pip && (
             <div
               className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-black/80 px-6 text-center text-sm text-white/85"
@@ -1065,6 +1162,7 @@ export function StreamPanel() {
               >
                 <BarChart3 size={16} />
               </BarButton>
+              <CaptureBarButtons />
               <BarButton
                 label={muted ? tr("rp_unmute", undefined, "Sound on") : tr("rp_mute", undefined, "Mute")}
                 active={muted}
@@ -1074,6 +1172,7 @@ export function StreamPanel() {
               </BarButton>
               {/* Volume right on the picture (Settings has it too); keys on it never reach the pad. */}
               <VolumeSlider className="w-20 accent-white sm:w-28" />
+              <MicBarButton />
               {full && (
                 // Picture size where it shows: in full screen (on the page the box is the
                 // picture's own shape, so every size looks the same). Settings would leave it.
@@ -1083,6 +1182,19 @@ export function StreamPanel() {
                   testId="rp-fit-cycle"
                 >
                   <Scaling size={16} />
+                </BarButton>
+              )}
+              {!compact && (
+                <BarButton
+                  label={tr("rp_phone_title", undefined, "Use a phone as a controller")}
+                  active={phonesOpen || padLink.pads.length > 0}
+                  onClick={() => {
+                    if (full) exitFull();
+                    setPhonesOpen((v) => !v);
+                  }}
+                  testId="rp-phones"
+                >
+                  <Smartphone size={16} />
                 </BarButton>
               )}
               <BarButton
@@ -1132,6 +1244,8 @@ export function StreamPanel() {
               </button>
             </div>
           )}
+          {running && <CaptureOverlay />}
+          <QualityNotice />
           {touchHere && (
             <TouchControls
               stream={stream}
@@ -1332,6 +1446,26 @@ export function StreamPanel() {
             undefined,
             "A PS5 plays Remote Play with one device at a time: starting here ends it there.",
           )}
+          {padHosts.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-2">
+              {padHosts.map(({ device, pad }) => (
+                <Button
+                  key={device.id}
+                  size="sm"
+                  variant="primary"
+                  leftIcon={<Smartphone size={14} />}
+                  onClick={() =>
+                    navigate(`/play/pad?url=${encodeURIComponent(pad)}&name=${encodeURIComponent(deviceName(device))}`)
+                  }
+                  data-testid="rp-be-controller"
+                >
+                  {padHosts.length > 1
+                    ? tr("rp_phone_be_for", { name: deviceName(device) }, `Be ${deviceName(device)}'s controller`)
+                    : tr("rp_phone_be", undefined, "Use this device as its controller")}
+                </Button>
+              ))}
+            </div>
+          )}
         </Callout>
       )}
 
@@ -1409,6 +1543,15 @@ export function StreamPanel() {
       )}
 
       {/* Settings open above the picture: below it, a wide window put them out of sight. */}
+      {phonesOpen && running && (
+        <PhonePadsPanel
+          consoleHost={target?.host ?? null}
+          link={padLink}
+          onLink={setPadLink}
+          onClose={() => setPhonesOpen(false)}
+        />
+      )}
+
       {settingsOpen && (
         <div ref={settingsBox} className="scroll-mt-4">
           <SettingsPanel running={running} />

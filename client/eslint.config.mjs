@@ -39,6 +39,7 @@ export default tseslint.config(
     ignores: [
       "dist/**",
       "dist-console/**",
+      "dist-pad/**",
       "node_modules/**",
       "src-tauri/**",
       "coverage/**",

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { invoke } from "../../lib/invokeLogged";
-import { isAndroid, isMobile } from "../../lib/platform";
+import { isAndroid, isIOS, isMobile } from "../../lib/platform";
 import { isTauriEnv } from "../../lib/tauriEnv";
 
 /**
@@ -82,6 +82,12 @@ function setAndroidUi(immersive: boolean, landscape: boolean): Promise<void> {
       androidUi.landscape = false;
     },
   );
+}
+
+/** The iOS app: make the page the first responder, so controllers (MFi, Backbone, any
+ *  Bluetooth pad) reach its Gamepad API; WKWebView gives them only to the first responder. */
+export function focusForControllers(): void {
+  if (isTauriEnv() && isIOS()) void invoke("focus_webview").catch(() => {});
 }
 
 /** Test hook: forget what the Android app was asked for. */

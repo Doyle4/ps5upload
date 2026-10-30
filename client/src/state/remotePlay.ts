@@ -17,7 +17,11 @@ import {
   type StreamPhase,
   type StreamStats,
 } from "../lib/remotePlayStream";
+import type { MotionReading } from "../lib/motion";
+import { gamepadsOf } from "../lib/nativePad";
+import { profileFor } from "../lib/padProfiles";
 import { safeGetItem, safeSetItem } from "../lib/safeStorage";
+import { setGameMode } from "../lib/gameMode";
 
 /** How Remote Play looks and behaves on this device. */
 export interface RpPrefs {
@@ -42,6 +46,16 @@ export interface RpPrefs {
   touchOpacity: number;
   /** The on-screen controller's size. */
   touchSize: "s" | "m" | "l";
+  /** A phone's motion sensors as the controller's (gyro aiming, tilt). */
+  motion: boolean;
+  /** Least delay: the smallest sound buffer and short picture queues (more dropped frames on a
+   *  busy network). */
+  lowLatency: boolean;
+  /** Offer 720p when a 1080p stream keeps losing frames. */
+  autoQuality: boolean;
+  /** Microphone for voice chat (experimental): sessions are set up for it and the mic button
+   *  shows. Off, a session starts exactly as it did before the mic existed. */
+  mic: boolean;
 }
 
 export const DEFAULT_RP_PREFS: RpPrefs = {
@@ -58,7 +72,19 @@ export const DEFAULT_RP_PREFS: RpPrefs = {
   touchControls: "auto",
   touchOpacity: 1,
   touchSize: "m",
+  motion: false,
+  lowLatency: false,
+  autoQuality: true,
+  mic: false,
 };
+
+/** The smallest sound buffer the Sound buffer setting offers. */
+export const LOWEST_AUDIO_BUFFER_MS = 40;
+
+/** The sound buffer in use: the smallest one in low-latency mode, else the one chosen. */
+export function audioBufferFor(p: Pick<RpPrefs, "lowLatency" | "audioBufferMs">): number {
+  return p.lowLatency ? Math.min(LOWEST_AUDIO_BUFFER_MS, p.audioBufferMs) : p.audioBufferMs;
+}
 
 const PREFS_KEY = "ps5upload.rp_prefs.v1";
 
@@ -113,6 +139,10 @@ export const rpInput = {
   touch: null as [number, number] | null,
   /** The on-screen controller. */
   touchPad: IDLE_PAD as PadState,
+  /** A controller is being mapped: its presses are answers, not play. */
+  mapping: false,
+  /** The phone's latest motion reading, while motion controls are on. */
+  motion: null as MotionReading | null,
 };
 
 /** Controllers as every window showing the stream sees them. A hidden page's list can be a
@@ -123,7 +153,7 @@ export function rpGamepads(): Array<Gamepad | null> {
   const add = (w: Window | null | undefined) => {
     try {
       if (!w || w.closed || w.document.visibilityState !== "visible") return;
-      out.push(...(w.navigator.getGamepads?.() ?? []));
+      out.push(...gamepadsOf(w.navigator));
     } catch {
       // A window being torn down.
     }
@@ -143,12 +173,13 @@ function readPad(): PadState {
   // the window in front).
   const pip = !!s.pipWindow && !s.pipWindow.closed;
   const pads =
-    pip || (s.onScreen && typeof document !== "undefined" && document.hasFocus())
-      ? padFromGamepads(rpGamepads())
+    !rpInput.mapping && (pip || (s.onScreen && typeof document !== "undefined" && document.hasFocus()))
+      ? padFromGamepads(rpGamepads(), profileFor)
       : IDLE_PAD;
   return {
     ...mergePads(mergePads(keys, pads), rpInput.touchPad),
     touch: rpInput.touch ?? rpInput.touchPad.touch ?? null,
+    motion: rpInput.motion,
   };
 }
 
@@ -178,9 +209,11 @@ export const useRemotePlayStore = create<RpState>((set, get) => ({
       height,
       fps: prefs.fps,
       keepAliveS: prefs.keepAliveS,
-      audioBufferMs: prefs.audioBufferMs,
+      audioBufferMs: audioBufferFor(prefs),
+      lowLatency: prefs.lowLatency,
       attach: opts?.attach,
       fit: prefs.fit,
+      mic: prefs.mic,
       rumble: () => get().prefs.rumble,
       onPhase: (p) => {
         if (get().stream !== stream) return;
@@ -212,7 +245,7 @@ export const useRemotePlayStore = create<RpState>((set, get) => ({
     const s = get().stream;
     if (s) {
       s.setVolume(prefs.muted ? 0 : prefs.volume);
-      s.setAudioBuffer(prefs.audioBufferMs);
+      s.setAudioBuffer(audioBufferFor(prefs));
       s.setFit(prefs.fit);
     }
   },
@@ -231,6 +264,11 @@ export const useRemotePlayStore = create<RpState>((set, get) => ({
     get().stream?.setFrameWindow(kind ? win : null);
   },
 }));
+
+// The OS's game mode (lib/gameMode.ts) while a stream plays, on any screen. Off at start-up:
+// nothing plays yet, and a hold a reloaded page left on is let go.
+setGameMode(false);
+useRemotePlayStore.subscribe((s) => setGameMode(!!s.stream && s.phase === "playing"));
 
 /** The session the engine is running, if any (it outlives a reload of this page). */
 export async function fetchRunningSession(): Promise<{ host: string | null; playing?: boolean; attached?: boolean }> {

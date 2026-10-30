@@ -88,6 +88,17 @@ pub fn controller_connection() -> Vec<u8> {
     out
 }
 
+/// Our own STREAMINFO, carrying only the microphone's audio header (chiaki
+/// `stream_connection_enable_microphone`; see mic.rs).
+pub fn stream_info_mic(audio_header: &[u8]) -> Vec<u8> {
+    let mut p = Vec::new();
+    put_bytes(&mut p, 2, audio_header);
+    let mut out = Vec::new();
+    put_u(&mut out, 1, kind::STREAMINFO);
+    put_bytes(&mut out, 15, &p);
+    out
+}
+
 /// Frames `start..=end` were lost (chiaki `stream_connection_send_corrupt_frame`).
 pub fn corrupt_frame(start: u16, end: u16) -> Vec<u8> {
     let mut p = Vec::new();
@@ -275,5 +286,15 @@ mod tests {
     #[test]
     fn heartbeat_is_two_bytes() {
         assert_eq!(bare(kind::HEARTBEAT), vec![0x08, 0x03]);
+    }
+
+    #[test]
+    fn mic_stream_info_matches_nanopb() {
+        // nanopb encoding of TakionMessage{type STREAMINFO (13),
+        // stream_info_payload (15) {audio_header (2): 14 bytes}}, by hand.
+        let h = super::super::mic::stream_info_audio_header();
+        let mut want = vec![0x08, 0x0d, 0x7a, 0x10, 0x12, 0x0e];
+        want.extend_from_slice(&h);
+        assert_eq!(stream_info_mic(&h), want);
     }
 }

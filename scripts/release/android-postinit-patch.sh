@@ -54,6 +54,13 @@
 #
 # 8) "Send to PS5" from Android's share menu: intent filters on MainActivity and
 #    ShareIntake.kt, which hands what was shared to the page. See step (8) below.
+#
+# 9) Controllers to the page: MainActivity forwards gamepad keys and sticks
+#    (Backbone, Razer Kishi, GameSir, any Bluetooth or USB pad) to the page in
+#    the standard Gamepad layout, for when the WebView's own Gamepad API does
+#    not deliver them. See step (9) below.
+# 10) The microphone for Remote Play voice chat (experimental). See step (10) below.
+
 
 set -euo pipefail
 
@@ -980,6 +987,114 @@ open(path, "w", encoding="utf-8").write(src)
 print("added the share intent filters to MainActivity")
 PY
 
+# --- (9) controllers to the page --------------------------------------
+# Remote Play reads controllers through the Gamepad API. Android WebView does
+# not always deliver them to the page (it depends on the WebView version and on
+# focus), so MainActivity also forwards every gamepad key and stick move, in the
+# W3C standard layout, to window.__ps5uNativePad; the page uses that only when
+# navigator.getGamepads() shows no controller (client/src/lib/nativePad.ts), so
+# a controller is never read twice. Events still go on to the WebView. Idempotent
+# via the function name.
+if [ -n "$mainactivity" ]; then
+  python3 - "$mainactivity" <<'PY'
+import sys
+path = sys.argv[1]
+src = open(path, encoding="utf-8").read()
+if "__ps5uNativePad" in src:
+    print("MainActivity.kt already forwards controllers — skipping")
+    sys.exit(0)
+anchor = "    super.onWebViewCreate(webView)\n"
+if anchor not in src:
+    sys.exit("::error::onWebViewCreate not found in MainActivity.kt (step 3 must run first)")
+src = src.replace(anchor, anchor + "    padWebView = webView\n", 1)
+members = '''
+  // Controllers forwarded to the page (step 9 of android-postinit-patch.sh).
+  private var padWebView: android.webkit.WebView? = null
+  private val padButtons = FloatArray(17)
+  private val padAxes = FloatArray(4)
+  private var padName = ""
+  private var padDevice = -1
+
+  private fun isPad(source: Int): Boolean =
+    (source and android.view.InputDevice.SOURCE_GAMEPAD) == android.view.InputDevice.SOURCE_GAMEPAD ||
+      (source and android.view.InputDevice.SOURCE_JOYSTICK) == android.view.InputDevice.SOURCE_JOYSTICK
+
+  // W3C standard layout: 0 bottom face, 1 right, 2 left, 3 top, 4/5 shoulders,
+  // 6/7 triggers, 8 select, 9 start, 10/11 stick clicks, 12-15 D-pad, 16 home.
+  private fun padIndex(keyCode: Int): Int = when (keyCode) {
+    android.view.KeyEvent.KEYCODE_BUTTON_A -> 0
+    android.view.KeyEvent.KEYCODE_BUTTON_B -> 1
+    android.view.KeyEvent.KEYCODE_BUTTON_X -> 2
+    android.view.KeyEvent.KEYCODE_BUTTON_Y -> 3
+    android.view.KeyEvent.KEYCODE_BUTTON_L1 -> 4
+    android.view.KeyEvent.KEYCODE_BUTTON_R1 -> 5
+    android.view.KeyEvent.KEYCODE_BUTTON_L2 -> 6
+    android.view.KeyEvent.KEYCODE_BUTTON_R2 -> 7
+    android.view.KeyEvent.KEYCODE_BUTTON_SELECT -> 8
+    android.view.KeyEvent.KEYCODE_BUTTON_START -> 9
+    android.view.KeyEvent.KEYCODE_BUTTON_THUMBL -> 10
+    android.view.KeyEvent.KEYCODE_BUTTON_THUMBR -> 11
+    android.view.KeyEvent.KEYCODE_DPAD_UP -> 12
+    android.view.KeyEvent.KEYCODE_DPAD_DOWN -> 13
+    android.view.KeyEvent.KEYCODE_DPAD_LEFT -> 14
+    android.view.KeyEvent.KEYCODE_DPAD_RIGHT -> 15
+    android.view.KeyEvent.KEYCODE_BUTTON_MODE -> 16
+    else -> -1
+  }
+
+  private fun sendPad(deviceId: Int) {
+    val w = padWebView ?: return
+    if (deviceId != padDevice) {
+      padDevice = deviceId
+      padName = android.view.InputDevice.getDevice(deviceId)?.name ?: "Controller"
+    }
+    val name = org.json.JSONObject.quote(padName)
+    val b = padButtons.joinToString(",")
+    val a = padAxes.joinToString(",")
+    w.evaluateJavascript(
+      "window.__ps5uNativePad&&window.__ps5uNativePad({id:$name,buttons:[$b],axes:[$a]})", null)
+  }
+
+  override fun dispatchKeyEvent(event: android.view.KeyEvent): Boolean {
+    val i = padIndex(event.keyCode)
+    // A D-pad key from a keyboard or a TV remote is not a controller: only pads count.
+    if (i >= 0 && isPad(event.source) && event.repeatCount == 0) {
+      padButtons[i] = if (event.action == android.view.KeyEvent.ACTION_DOWN) 1f else 0f
+      sendPad(event.deviceId)
+    }
+    return super.dispatchKeyEvent(event)
+  }
+
+  override fun dispatchGenericMotionEvent(event: android.view.MotionEvent): Boolean {
+    if (isPad(event.source) && event.action == android.view.MotionEvent.ACTION_MOVE) {
+      padAxes[0] = event.getAxisValue(android.view.MotionEvent.AXIS_X)
+      padAxes[1] = event.getAxisValue(android.view.MotionEvent.AXIS_Y)
+      padAxes[2] = event.getAxisValue(android.view.MotionEvent.AXIS_Z)
+      padAxes[3] = event.getAxisValue(android.view.MotionEvent.AXIS_RZ)
+      // Triggers: their own axes, or brake/gas on some pads.
+      padButtons[6] = maxOf(event.getAxisValue(android.view.MotionEvent.AXIS_LTRIGGER),
+        event.getAxisValue(android.view.MotionEvent.AXIS_BRAKE))
+      padButtons[7] = maxOf(event.getAxisValue(android.view.MotionEvent.AXIS_RTRIGGER),
+        event.getAxisValue(android.view.MotionEvent.AXIS_GAS))
+      // The D-pad as a hat, as most Bluetooth pads report it.
+      val hx = event.getAxisValue(android.view.MotionEvent.AXIS_HAT_X)
+      val hy = event.getAxisValue(android.view.MotionEvent.AXIS_HAT_Y)
+      padButtons[12] = if (hy < -0.5f) 1f else 0f
+      padButtons[13] = if (hy > 0.5f) 1f else 0f
+      padButtons[14] = if (hx < -0.5f) 1f else 0f
+      padButtons[15] = if (hx > 0.5f) 1f else 0f
+      sendPad(event.deviceId)
+    }
+    return super.dispatchGenericMotionEvent(event)
+  }
+'''
+brace = src.index("{", src.index("class MainActivity"))
+src = src[:brace + 1] + members + src[brace + 1:]
+open(path, "w", encoding="utf-8").write(src)
+print("patched MainActivity.kt to forward controllers to the page")
+PY
+fi
+
 # 7) Nothing left running after a build. Gradle normally keeps a daemon (and a separate Kotlin
 #    compiler daemon) alive for hours after `tauri android build/dev`; `make run-android` then
 #    left two JVMs behind after Ctrl-C. Each run invokes Gradle once, so the warm daemon buys
@@ -996,5 +1111,28 @@ if [ -f "$props" ]; then
   done
   echo "gradle: no daemon, Kotlin in-process"
 fi
+
+# --- (10) microphone for Remote Play voice chat ------------------------
+# The Remote Play mic (experimental) calls getUserMedia in the WebView. wry's
+# RustWebChromeClient.onPermissionRequest already turns the page's AUDIO_CAPTURE
+# request into a runtime prompt for RECORD_AUDIO + MODIFY_AUDIO_SETTINGS and
+# grants it on yes, but Android only shows that prompt for permissions the
+# manifest declares; undeclared, the page's request is denied without a word.
+python3 - "$manifest" <<'PY'
+import re, sys
+path = sys.argv[1]
+src = open(path, encoding="utf-8").read()
+perms = ["android.permission.RECORD_AUDIO", "android.permission.MODIFY_AUDIO_SETTINGS"]
+missing = [p for p in perms if f'android:name="{p}"' not in src]
+if missing:
+    block = "".join(f'\n    <uses-permission android:name="{p}" />' for p in missing)
+    new = re.sub(r"(<manifest\b[^>]*>)", r"\1" + block, src, count=1)
+    if new == src:
+        sys.exit("::error::could not find <manifest> tag to add the microphone permissions")
+    open(path, "w", encoding="utf-8").write(new)
+    print("added permissions:", ", ".join(missing))
+else:
+    print("microphone permissions already present — skipping")
+PY
 
 echo "android post-init patches applied"

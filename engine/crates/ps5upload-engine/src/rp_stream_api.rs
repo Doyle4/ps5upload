@@ -6,8 +6,15 @@
 //!
 //! * client → engine, text JSON: first `{"host", "regist_key", "rp_key",
 //!   "width"?, "height"?, "fps"?, "bitrate_kbps"?, "codec"?, "keep_alive_s"?,
-//!   "attach_only"?}`, then `{"pad": {"buttons", "l2", "r2", "lx", "ly", "rx",
-//!   "ry"}}` whenever the pad changes, `{"keyframe": true}`, or `{"stop": true}`.
+//!   "attach_only"?, "low_latency"?, "mic"?}`, then `{"pad": {"buttons", "l2", "r2",
+//!   "lx", "ly", "rx", "ry"}}` whenever the pad changes, `{"keyframe": true}`,
+//!   `{"ping": t}` (answered at once with `{"pong": t}`, for the page to time
+//!   the round trip), or `{"stop": true}`.
+//!   Microphone (experimental), only for a session started with `"mic": true`:
+//!   `{"mic": true|false}` turns the console's mic
+//!   on or off, and binary `[5][one Opus packet]` is one mic frame (48 kHz
+//!   stereo, 10 ms, 40 bytes; see `rp_stream::mic`). Only the attached page's
+//!   mic counts, and the mic goes off whenever the page changes.
 //! * engine → client, binary `[u8 kind][payload]`: 0 = video codec header
 //!   (Annex-B parameter sets), 1 = video access unit, 3 = audio header,
 //!   4 = audio frame (Opus). Text JSON = status (`{"stage": …}`), rumble
@@ -24,10 +31,10 @@
 //! "ended"}` and a Close frame. `GET /api/ps5/rp/session` says what is
 //! running. `GET /rp-player` is a test page.
 //!
-//! Latency: video goes through a queue a few frames deep; a page that falls
-//! behind loses frames (and the picture waits for a keyframe) rather than
-//! watching a growing backlog. Audio and status have their own queue, sent
-//! first.
+//! Latency: video goes through a queue a few frames deep (two for a page that
+//! asked for `low_latency`); a page that falls behind loses frames (and the
+//! picture waits for a keyframe) rather than watching a growing backlog. Audio
+//! and status have their own queue, sent first.
 
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
@@ -38,17 +45,25 @@ use axum::extract::ws::{CloseFrame, Message, WebSocket, WebSocketUpgrade};
 use axum::response::{Html, IntoResponse, Response};
 use axum::Json;
 use ps5upload_core::rp_stream::{
-    run_stream, Codec, ControllerState, Progress, StreamConfig, StreamSink,
+    run_stream, Codec, ControllerState, MicInput, Progress, StreamConfig, StreamSink,
 };
 use tokio::sync::mpsc;
 
 /// Video frames queued for a page. At 60 fps this is ~100 ms: enough to ride
 /// out a hiccup, never seconds of backlog.
 const VIDEO_QUEUE: usize = 6;
+/// For a page in low-latency mode: ~33 ms at 60 fps. A busy network costs it
+/// more skips to the next keyframe.
+const VIDEO_QUEUE_LOW_LATENCY: usize = 2;
 /// Audio frames (100/s), status, rumble and light bar.
 const CTL_QUEUE: usize = 512;
 const DEFAULT_KEEP_ALIVE: Duration = Duration::from_secs(60);
 const MAX_KEEP_ALIVE: Duration = Duration::from_secs(600);
+/// Page → engine binary kind: one microphone Opus packet.
+const KIND_MIC: u8 = 5;
+/// Mic frames waiting for the stream thread (10 ms each): a stalled thread
+/// drops voice rather than playing it late.
+const MIC_QUEUE: usize = 50;
 
 #[derive(Debug, serde::Deserialize)]
 struct StartReq {
@@ -71,6 +86,23 @@ struct StartReq {
     /// Join the running session only; never start one (a page reconnecting).
     #[serde(default)]
     attach_only: bool,
+    /// Set the session up for the microphone (experimental). Only then are
+    /// `{"mic": …}` and mic frames used; without it the session is as before.
+    #[serde(default)]
+    mic: bool,
+    /// A shorter video queue for this page (see VIDEO_QUEUE_LOW_LATENCY).
+    #[serde(default)]
+    low_latency: bool,
+}
+
+impl StartReq {
+    fn video_queue(&self) -> usize {
+        if self.low_latency {
+            VIDEO_QUEUE_LOW_LATENCY
+        } else {
+            VIDEO_QUEUE
+        }
+    }
 }
 
 #[derive(Debug, serde::Deserialize)]
@@ -81,6 +113,18 @@ struct ClientMsg {
     stop: bool,
     #[serde(default)]
     keyframe: bool,
+    #[serde(default)]
+    mic: Option<bool>,
+    /// The page's clock, echoed back as `{"pong": …}`.
+    #[serde(default)]
+    ping: Option<serde_json::Value>,
+}
+
+/// The answer to a ping: the page's own value back, untouched.
+fn pong(m: &ClientMsg) -> Option<Message> {
+    m.ping
+        .as_ref()
+        .map(|t| text(serde_json::json!({ "pong": t })))
 }
 
 /// The page showing the stream: its two queues.
@@ -98,6 +142,8 @@ struct Live {
     /// Every pad state the page sent, in order: a quick tap is a press and a
     /// release, and keeping only the latest would lose the press.
     pad: Mutex<std::collections::VecDeque<ControllerState>>,
+    /// Every controller's latest state: the page (source 0) and phones (pad_link.rs).
+    sources: crate::pad_link::PadSources,
     stop: AtomicBool,
     viewer: Mutex<Option<Viewer>>,
     /// Since when no page has been attached.
@@ -110,10 +156,41 @@ struct Live {
     want_key: AtomicBool,
     dropped: AtomicU64,
     next_viewer: AtomicU64,
+    /// The session was set up for the mic; if not, the mic is ignored.
+    mic_enabled: AtomicBool,
+    /// The microphone: on/off and Opus frames for the stream, in order.
+    mic: Mutex<std::collections::VecDeque<MicInput>>,
+    mic_on: AtomicBool,
 }
 
 /// The console serves one Remote Play session at a time; so do we.
 static LIVE: Mutex<Option<Arc<Live>>> = Mutex::new(None);
+
+/// The page's controller among the session's controllers (phones are 1 and up).
+const PAGE_SOURCE: u64 = 0;
+
+fn live() -> Option<Arc<Live>> {
+    LIVE.lock().ok().and_then(|g| g.clone())
+}
+
+/// A phone's controller changed (pad_link.rs); dropped when no session runs.
+pub(crate) fn push_pad(source: u64, state: Option<ControllerState>) {
+    if let Some(l) = live() {
+        l.push_pad(source, state);
+    }
+}
+
+/// The console being played, if any.
+pub(crate) fn live_host() -> Option<String> {
+    live().map(|l| l.host.clone())
+}
+
+/// What a phone is told about the session: null when none runs.
+pub(crate) fn live_state() -> serde_json::Value {
+    live()
+        .map(|l| l.snapshot())
+        .unwrap_or(serde_json::Value::Null)
+}
 
 fn text(v: serde_json::Value) -> Message {
     Message::Text(v.to_string().into())
@@ -161,6 +238,7 @@ impl Live {
             hevc,
             keep_alive,
             pad: Default::default(),
+            sources: Default::default(),
             stop: AtomicBool::new(false),
             viewer: Mutex::new(None),
             alone_since: Mutex::new(None),
@@ -171,6 +249,50 @@ impl Live {
             want_key: AtomicBool::new(false),
             dropped: AtomicU64::new(0),
             next_viewer: AtomicU64::new(1),
+            mic_enabled: AtomicBool::new(false),
+            mic: Default::default(),
+            mic_on: AtomicBool::new(false),
+        }
+    }
+
+    fn is_viewer(&self, id: u64) -> bool {
+        self.viewer
+            .lock()
+            .map(|g| g.as_ref().is_some_and(|v| v.id == id))
+            .unwrap_or(false)
+    }
+
+    /// The page `id` turns its mic on or off. Other pages are ignored.
+    fn set_mic(&self, id: u64, on: bool) {
+        if !self.mic_enabled.load(Ordering::Relaxed) || !self.is_viewer(id) {
+            return;
+        }
+        self.mic_switch(on);
+    }
+
+    fn mic_switch(&self, on: bool) {
+        if self.mic_on.swap(on, Ordering::Relaxed) == on {
+            return;
+        }
+        if let Ok(mut q) = self.mic.lock() {
+            if !on {
+                q.retain(|m| !matches!(m, MicInput::Frame(_)));
+            }
+            q.push_back(if on { MicInput::On } else { MicInput::Off });
+        }
+    }
+
+    /// One Opus packet from page `id`'s mic; dropped unless that page is
+    /// the one attached and its mic is on.
+    fn mic_frame(&self, id: u64, opus: &[u8]) {
+        if !self.mic_on.load(Ordering::Relaxed) || !self.is_viewer(id) {
+            return;
+        }
+        if let Ok(mut q) = self.mic.lock() {
+            let frames = q.iter().filter(|m| matches!(m, MicInput::Frame(_))).count();
+            if frames < MIC_QUEUE {
+                q.push_back(MicInput::Frame(opus.to_vec()));
+            }
         }
     }
 
@@ -218,6 +340,8 @@ impl Live {
         if let Ok(mut a) = self.alone_since.lock() {
             *a = None;
         }
+        // A new page starts with the mic off: it has not asked for it.
+        self.mic_switch(false);
         id
     }
 
@@ -231,9 +355,19 @@ impl Live {
             if let Ok(mut a) = self.alone_since.lock() {
                 *a = Some(Instant::now());
             }
-            if let Ok(mut p) = self.pad.lock() {
-                p.push_back(ControllerState::default());
+            self.push_pad(PAGE_SOURCE, None);
+        }
+    }
+
+    /// One controller changed (None: it left): the console gets every controller merged.
+    fn push_pad(&self, source: u64, state: Option<ControllerState>) {
+        let merged = self.sources.set(source, state);
+        if let Ok(mut g) = self.pad.lock() {
+            if g.len() < 256 {
+                g.push_back(merged);
             }
+            drop(g);
+            self.mic_switch(false);
         }
     }
 
@@ -310,11 +444,14 @@ impl StreamSink for Sink {
         true
     }
     fn rumble(&mut self, left: u8, right: u8) {
-        self.live
-            .send_ctl(text(serde_json::json!({"rumble": [left, right]})));
+        let v = serde_json::json!({"rumble": [left, right]});
+        crate::pad_link::broadcast(&v.to_string());
+        self.live.send_ctl(text(v));
     }
     fn light_bar(&mut self, rgb: [u8; 3]) {
-        self.live.send_ctl(text(serde_json::json!({"light": rgb})));
+        let v = serde_json::json!({"light": rgb});
+        crate::pad_link::broadcast(&v.to_string());
+        self.live.send_ctl(text(v));
     }
     fn input(&mut self) -> Option<ControllerState> {
         self.live.pad.lock().ok()?.pop_front()
@@ -332,6 +469,9 @@ impl StreamSink for Sink {
     }
     fn wants_keyframe(&mut self) -> bool {
         self.live.want_key.swap(false, Ordering::Relaxed)
+    }
+    fn mic(&mut self) -> Option<MicInput> {
+        self.live.mic.lock().ok()?.pop_front()
     }
 }
 
@@ -397,6 +537,7 @@ fn begin(start: &StartReq, creds: ps5upload_core::rp_session::SessionCreds) -> A
     if start.codec.as_deref() == Some("h265") {
         cfg.codec = Codec::H265;
     }
+    cfg.mic = start.mic;
     let live = Arc::new(Live::new(
         start.host.clone(),
         cfg.codec == Codec::H265,
@@ -406,6 +547,7 @@ fn begin(start: &StartReq, creds: ps5upload_core::rp_session::SessionCreds) -> A
             .unwrap_or(DEFAULT_KEEP_ALIVE)
             .min(MAX_KEEP_ALIVE),
     ));
+    live.mic_enabled.store(cfg.mic, Ordering::Relaxed);
     let l = live.clone();
     tokio::task::spawn_blocking(move || {
         let mut sink = Sink {
@@ -468,7 +610,7 @@ async fn session(mut socket: WebSocket) {
         }
         _ => return,
     };
-    let (video_tx, mut video_rx) = mpsc::channel::<Message>(VIDEO_QUEUE);
+    let (video_tx, mut video_rx) = mpsc::channel::<Message>(start.video_queue());
     let (ctl_tx, mut ctl_rx) = mpsc::channel::<Message>(CTL_QUEUE);
 
     let running = LIVE.lock().ok().and_then(|g| g.clone());
@@ -538,6 +680,9 @@ async fn session(mut socket: WebSocket) {
             }
         }
     };
+    // Pongs go on this page's own status queue, behind what is already there,
+    // so the time measured is the time the page's messages really take.
+    let pong_tx = ctl_tx.clone();
     let id = live.attach(video_tx, ctl_tx);
 
     let mut reason = "ended";
@@ -569,12 +714,11 @@ async fn session(mut socket: WebSocket) {
             inc = socket.recv() => match inc {
                 Some(Ok(Message::Text(t))) => {
                     if let Ok(m) = serde_json::from_str::<ClientMsg>(t.as_str()) {
+                        if let Some(p) = pong(&m) {
+                            let _ = pong_tx.try_send(p);
+                        }
                         if let Some(p) = m.pad {
-                            if let Ok(mut g) = live.pad.lock() {
-                                if g.len() < 256 {
-                                    g.push_back(p);
-                                }
-                            }
+                            live.push_pad(PAGE_SOURCE, Some(p));
                         }
                         if m.keyframe {
                             live.need_key.store(true, Ordering::Relaxed);
@@ -583,7 +727,13 @@ async fn session(mut socket: WebSocket) {
                         if m.stop {
                             live.stop.store(true, Ordering::Relaxed);
                         }
+                        if let Some(on) = m.mic {
+                            live.set_mic(id, on);
+                        }
                     }
+                }
+                Some(Ok(Message::Binary(b))) if b.first() == Some(&KIND_MIC) => {
+                    live.mic_frame(id, &b[1..]);
                 }
                 // The page left: the session waits for it (or another).
                 Some(Ok(Message::Close(_))) | None | Some(Err(_)) => {
@@ -630,6 +780,29 @@ mod tests {
             });
         }
         out
+    }
+
+    #[test]
+    fn a_ping_is_answered_with_its_own_value() {
+        let m: ClientMsg = serde_json::from_str(r#"{"ping": 1234.5}"#).unwrap();
+        match pong(&m) {
+            Some(Message::Text(t)) => assert_eq!(t.as_str(), r#"{"pong":1234.5}"#),
+            other => panic!("no pong: {other:?}"),
+        }
+        let pad: ClientMsg = serde_json::from_str(r#"{"keyframe": true}"#).unwrap();
+        assert!(pong(&pad).is_none());
+    }
+
+    #[test]
+    fn low_latency_asks_for_a_shorter_video_queue() {
+        let normal: StartReq =
+            serde_json::from_str(r##"{"host": "h", "regist_key": "", "rp_key": ""}"##).unwrap();
+        assert_eq!(normal.video_queue(), VIDEO_QUEUE);
+        let low: StartReq = serde_json::from_str(
+            r##"{"host": "h", "regist_key": "", "rp_key": "", "low_latency": true}"##,
+        )
+        .unwrap();
+        assert_eq!(low.video_queue(), VIDEO_QUEUE_LOW_LATENCY);
     }
 
     #[test]
@@ -693,6 +866,64 @@ mod tests {
         assert_eq!(sink.input(), Some(ControllerState::default()));
         std::thread::sleep(Duration::from_millis(2));
         assert!(sink.stopped(), "no page came back within the wait");
+    }
+
+    #[test]
+    fn only_the_attached_page_drives_the_mic() {
+        let live = Arc::new(Live::new("h".into(), false, DEFAULT_KEEP_ALIVE));
+        live.mic_enabled.store(true, Ordering::Relaxed);
+        let mut sink = Sink {
+            live: live.clone(),
+            t0: Instant::now(),
+        };
+        let (vt, _vr, ct, _cr) = page();
+        let first = live.attach(vt, ct);
+        // Frames before the mic is on are dropped.
+        live.mic_frame(first, &[1; 40]);
+        assert_eq!(sink.mic(), None);
+        live.set_mic(first, true);
+        live.set_mic(first, true); // no second On
+        live.mic_frame(first, &[2; 40]);
+        assert_eq!(sink.mic(), Some(MicInput::On));
+        assert_eq!(sink.mic(), Some(MicInput::Frame(vec![2; 40])));
+        assert_eq!(sink.mic(), None);
+        // Another page takes over: the mic goes off, the old page is ignored.
+        let (vt2, _vr2, ct2, _cr2) = page();
+        let second = live.attach(vt2, ct2);
+        assert_eq!(sink.mic(), Some(MicInput::Off));
+        live.set_mic(first, true);
+        live.mic_frame(first, &[3; 40]);
+        assert_eq!(sink.mic(), None);
+        live.set_mic(second, true);
+        for _ in 0..MIC_QUEUE + 10 {
+            live.mic_frame(second, &[4; 40]);
+        }
+        assert_eq!(sink.mic(), Some(MicInput::On));
+        let mut n = 0;
+        while let Some(MicInput::Frame(_)) = sink.mic() {
+            n += 1;
+        }
+        assert_eq!(n, MIC_QUEUE, "a stalled stream drops voice, not memory");
+        // Leaving turns it off.
+        live.detach(second);
+        assert_eq!(sink.mic(), Some(MicInput::Off));
+    }
+
+    #[test]
+    fn a_session_without_the_mic_ignores_it() {
+        let live = Arc::new(Live::new("h".into(), false, DEFAULT_KEEP_ALIVE));
+        let mut sink = Sink {
+            live: live.clone(),
+            t0: Instant::now(),
+        };
+        let (vt, _vr, ct, _cr) = page();
+        let id = live.attach(vt, ct);
+        live.set_mic(id, true);
+        live.mic_frame(id, &[1; 40]);
+        assert_eq!(sink.mic(), None);
+        let s: StartReq =
+            serde_json::from_str(r#"{"host":"h","regist_key":"","rp_key":""}"#).unwrap();
+        assert!(!s.mic);
     }
 
     #[test]

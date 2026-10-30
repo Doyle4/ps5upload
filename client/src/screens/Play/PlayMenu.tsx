@@ -11,8 +11,10 @@ import {
 } from "lucide-react";
 
 import { FIT_ORDER, type PictureFit } from "../../lib/remotePlayStream";
+import { MicTile } from "./MicControl";
 import { useTr } from "../../state/lang";
 import { useRemotePlayStore } from "../../state/remotePlay";
+import { CaptureRow } from "./CaptureControls";
 
 /** Volume, on the picture's bar and in the player menu (Settings has it too). Keys and presses
  *  on it never reach the pad. */
@@ -125,6 +127,7 @@ export function PlayMenu({
         <div className="flex items-center gap-2 px-1 pb-1 text-sm font-medium text-white">
           <span className="inline-block h-2 w-2 shrink-0 rounded-full bg-[var(--color-success,#22c55e)]" />
           <span className="min-w-0 flex-1 truncate">{name}</span>
+          <CaptureRow icons onDone={onClose} />
           <button
             type="button"
             onClick={(e) => {
@@ -156,6 +159,7 @@ export function PlayMenu({
           testId="rp-toggle-stats"
           active={prefs.showStats}
         />
+        <MicTile />
         {!!pipKind && (
           <Tile
             label={
@@ -185,6 +189,7 @@ export function PlayMenu({
           />
         )}
       </div>
+      {!inFull && <CaptureRow onDone={onClose} />}
       {inFull && (
         // Picture size where it shows: Settings would leave full screen to change it.
         <div className="flex items-center gap-1 rounded-xl bg-white/10 p-1" role="group" data-testid="rp-menu-fit">
