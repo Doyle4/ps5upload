@@ -5,6 +5,7 @@
 // access unit, 3 audio header, 4 audio frame), JSON status lines out, pad state in. This file
 // turns that into pixels on a canvas, sound, and input; the screen only drives it.
 
+import { DEFAULT_PICTURE, PicturePass, needsPass, type PictureTools } from "./rpPicture";
 import type { MotionReading } from "./motion";
 import { getEngineUrl } from "../state/engine";
 import { safeGetItem, safeRemoveItem, safeSetItem } from "./safeStorage";
@@ -286,50 +287,8 @@ export function playRumble(pads: ReadonlyArray<Gamepad | null>, strong: number, 
   }
 }
 
-/** True when an Annex-B access unit starts a picture the decoder can begin at. */
-export function isKeyframe(au: Uint8Array, hevc: boolean): boolean {
-  for (let i = 0; i + 3 < au.length; i++) {
-    if (au[i] !== 0 || au[i + 1] !== 0 || au[i + 2] !== 1) continue;
-    if (hevc) {
-      const t = (au[i + 3] >> 1) & 0x3f;
-      if (t >= 16 && t <= 21) return true; // IRAP: BLA, IDR, CRA
-      if (t < 16) return false;
-    } else {
-      const t = au[i + 3] & 0x1f;
-      if (t === 5) return true;
-      if (t === 1) return false;
-    }
-  }
-  return false;
-}
-
-/** `avc1.PPCCLL` from the SPS in an Annex-B header. */
-export function avcCodecString(header: Uint8Array): string {
-  for (let i = 0; i + 6 < header.length; i++) {
-    if (header[i] === 0 && header[i + 1] === 0 && header[i + 2] === 1 && (header[i + 3] & 0x1f) === 7) {
-      const h = (b: number) => b.toString(16).padStart(2, "0");
-      return `avc1.${h(header[i + 4])}${h(header[i + 5])}${h(header[i + 6])}`;
-    }
-  }
-  return "avc1.4d4028";
-}
-
-const HEVC_CANDIDATES = ["hev1.1.6.L153.B0", "hvc1.1.6.L153.B0", "hev1.2.4.L153.B0", "hvc1.2.4.L153.B0", "hev1.1.6.L150.90"];
-
-/** The first HEVC codec string this device decodes, or null. */
-export async function supportedHevc(width: number, height: number): Promise<string | null> {
-  if (typeof VideoDecoder === "undefined") return null;
-  for (const codec of HEVC_CANDIDATES) {
-    try {
-      if ((await VideoDecoder.isConfigSupported({ codec, codedWidth: width, codedHeight: height })).supported) {
-        return codec;
-      }
-    } catch {
-      // Not this one.
-    }
-  }
-  return null;
-}
+export { avcCodecString, isKeyframe, supportedHevc } from "./rpCodec";
+import { avcCodecString, isKeyframe, supportedHevc } from "./rpCodec";
 
 /** H.264 as the PS5 sends it (Main, up to level 5.0 for 1080p), then plainer forms. */
 const AVC_CANDIDATES = ["avc1.4d4032", "avc1.640032", "avc1.4d4028", "avc1.42e01f"];
@@ -458,6 +417,10 @@ export interface StreamOptions {
   mic?: boolean;
   /** Instant replay window in seconds (15/30/60), 0 = off. */
   replayS?: number;
+  /** Picture tools to start with (rpPicture.ts). */
+  picture?: PictureTools;
+  /** The picture tools' GPU pass turned itself off (no WebGL, or the device lags). */
+  onPictureOff?: (why: "failed" | "slow") => void;
   /** How the picture fills the place it is shown in (default: the whole picture). */
   fit?: PictureFit;
   /** False: the console's rumble is not played on the controllers. */
@@ -621,6 +584,7 @@ export class RemotePlayStream {
     this.canvas.style.setProperty("--rp-shape", String(16 / 9));
     this.setFit(o.fit ?? "fit");
     this.replayS = o.replayS ?? 0;
+    if (o.picture) this.setPicture(o.picture);
     // Not `desynchronized`: Chromium honours it only on Windows and ChromeOS, where the canvas
     // is presented through its own swap chain/overlay instead of the page's compositor. The
     // Windows app (only there) showed the picture enlarged from the top-left corner, cropped on
@@ -632,6 +596,48 @@ export class RemotePlayStream {
   /** The video's codec string as its decoder was set up with ("" before the first picture). */
   get videoCodec(): string {
     return this.codec;
+  }
+
+  /** Picture tools (rpPicture.ts) and their GPU pass, made when a tool needs it. */
+  private tools: PictureTools = DEFAULT_PICTURE;
+  private pass: PicturePass | null = null;
+  /** The pass stopped for good this session ("failed": no WebGL; "slow": the device lags). */
+  private passOff: "failed" | "slow" | null = null;
+  private slowFrames = 0;
+
+  /** Set the picture tools; they apply from the next frame. */
+  setPicture(p: PictureTools): void {
+    this.tools = p;
+    this.canvas.style.imageRendering = p.pixelated ? "pixelated" : "";
+    if (!needsPass(p)) {
+      this.pass?.dispose();
+      this.pass = null;
+    }
+  }
+
+  /** Why the picture tools' GPU pass is off this session, or null. */
+  get pictureOff(): "failed" | "slow" | null {
+    return this.passOff;
+  }
+
+  private picturePass(): PicturePass | null {
+    if (this.passOff || !needsPass(this.tools)) return null;
+    if (!this.pass) {
+      try {
+        this.pass = new PicturePass();
+      } catch {
+        this.picturePassOff("failed");
+        return null;
+      }
+    }
+    return this.pass;
+  }
+
+  private picturePassOff(why: "failed" | "slow"): void {
+    this.passOff = why;
+    this.pass?.dispose();
+    this.pass = null;
+    this.o.onPictureOff?.(why);
   }
 
   /** The instant replay window asked for now (it can change while the stream runs). */
@@ -1092,12 +1098,32 @@ export class RemotePlayStream {
         // The canvas is the picture's own size (its visible part, at the display aspect), taken
         // from each frame, never from the size asked for: the console may send another.
         const c = this.canvas;
-        if (c.width !== frame.displayWidth || c.height !== frame.displayHeight) {
-          c.width = frame.displayWidth;
-          c.height = frame.displayHeight;
+        const w = frame.displayWidth;
+        let h = frame.displayHeight;
+        // Picture tools on: the frame goes through the GPU pass first (rpPicture.ts).
+        const pass = this.picturePass();
+        let src: CanvasImageSource = frame;
+        if (pass) {
+          try {
+            const t0 = performance.now();
+            const out = pass.render(frame, w, h, this.tools);
+            src = pass.canvas;
+            h = out.h;
+            // A device that cannot keep up gets the plain picture back.
+            this.slowFrames = performance.now() - t0 > 12 ? this.slowFrames + 1 : 0;
+            if (this.slowFrames > 30) this.picturePassOff("slow");
+          } catch {
+            this.picturePassOff("failed");
+            src = frame;
+            h = frame.displayHeight;
+          }
+        }
+        if (c.width !== w || c.height !== h) {
+          c.width = w;
+          c.height = h;
           c.style.setProperty("--rp-shape", String(c.width / c.height));
         }
-        this.ctx?.drawImage(frame, 0, 0, c.width, c.height);
+        this.ctx?.drawImage(src, 0, 0, c.width, c.height);
         frame.close();
         this.decoded++;
       },

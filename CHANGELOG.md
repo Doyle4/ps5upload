@@ -4,6 +4,39 @@ What's new in ps5upload, written for humans.
 
 ---
 
+## 9.10.0
+
+- **Per-game controls in Remote Play.** The Game panel's new **Controls** tab sets the running
+  game's own controls, kept per game on this device and switched by themselves with the game:
+  **turbo** on any face button, shoulder, trigger or arrow (2–30 presses a second while held),
+  **mouse aim** (with the pointer captured, the mouse moves the right stick, left click is R2 and
+  right click L2; sensitivity and invert), and **macros** (a key plays a few presses in a row;
+  pressing one of its buttons yourself stops it).
+- **Picture tools in Remote Play.** Remote Play › Settings › **Picture**: sharpen, brightness,
+  contrast, colour, **Crop to 21:9** (cuts the black bars off a game made for ultrawide screens)
+  and **Sharp pixels** (hard-edged scaling for retro games). They apply at once, on the GPU, and
+  screenshots and replays show them; with all of them off the picture is drawn exactly as before.
+  A device that cannot keep up, or has no WebGL 2, gets the plain picture back with a notice.
+
+- **Watch party in Remote Play.** The phone panel on the stream's bar now has a second code,
+  **To watch**: anyone on your network scans it and watches the stream on a phone, tablet or
+  computer browser, with sound after a tap (up to four). Watchers only watch until you press
+  **Hand the controller** next to one of them; **Take the controller back** returns it. Each
+  watcher gets its own copy of the stream, so on a busy network fewer watchers keep your own
+  picture smooth.
+
+- **Remote Play screenshots and clips go to Photos on a phone.** The iPhone and iPad app adds them
+  to Photos (it asks once, for adding only), the Android app to the gallery's PS5Upload album, and
+  a phone's browser offers **Save to Photos** (the share sheet's Save Image / Save Video) or a
+  plain download. Remote Play › Settings › **Save screenshots and clips to Photos** turns it off;
+  if Photos access is refused, they still save to Downloads and the app says so.
+- **Fixed: an SFTP or FTP server's start folder outside your home folder said "No such file".**
+  Paths were taken as inside the folder the server signs you in to, so `/mnt/games` was looked
+  for as `/home/you/mnt/games`, and nothing above home could be browsed, even as root. New SFTP
+  and FTP servers now use the server's own paths (**Browse the whole server**, on by default)
+  and open in your home folder when no start folder is given. A server saved before keeps the old
+  paths until you edit it and turn that on (re-add any games or favorites saved from it then).
+
 ## 9.9.0
 
 - **Move saves from a PS4 (experimental).** Saves › **Move saves from a PS4** reads a jailbroken

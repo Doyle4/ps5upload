@@ -2072,6 +2072,9 @@ Drop the .pkg or .fpkg on the Remote Play picture. By default it installs when y
 because an install shares the network with the stream and can make it stutter; **Install now**
 starts it at once. Progress shows in Activity like any install.
 
+**Q: Can friends watch me play from their own phones?**
+Yes, from 9.10.0. While the computer plays, open the phone panel on the stream's bar and choose **To watch**: anyone on the same network scans that code and the stream plays in their browser (tap **Sound** for audio), up to four at once. They only watch; **Hand the controller** next to a watcher lets them play, and **Take the controller back** ends it. A watcher's device has to play the stream's video: the computer picks HEVC when it can play it, and a watcher's device that plays only H.264 says so instead of showing the picture. Each watcher gets a full copy of the stream from your computer.
+
 **Q: Can I use my phone as the controller for Remote Play on my computer?**
 Yes, from 9.5.0. While the computer plays, press the phone button on the stream's bar (**Use a phone as a controller**) and scan the QR code with the phone's camera: the phone opens a controller, full screen and sideways, that plays along with the computer's own controls (up to four phones). Or, in the PS5Upload app on the phone, Remote Play shows that the computer is playing: tap **Use this device as its controller** and allow it on the computer. A controller attached to the phone works through it too. Only the controller page and its connection are open to your network, and they need the QR code's key or your OK on the computer; **Close the link** lets every phone go. Rumble vibrates an Android phone.
 
@@ -2085,8 +2088,19 @@ them; **Save replay** (the clock-with-arrow button on the bar, or in the phone's
 as an MP4 with sound, where your screenshots and clips go. Nothing is saved until you press it,
 and turning the setting off drops what was kept.
 
+**Q: Can I use turbo, macros or a mouse in Remote Play?**
+Yes, from 9.10.0, per game: open the **Game** panel on the stream bar › **Controls** while the
+game runs. Turbo repeats chosen buttons while you hold them; Mouse aim moves the right stick with
+the mouse once you click the picture (Esc lets the pointer go); a macro plays a few presses from
+one key. Each game keeps its own, on this device. The PS5 sees an ordinary controller.
+
+**Q: Can I sharpen the Remote Play picture or crop an ultrawide game?**
+Remote Play › Settings › **Picture**: Sharpen, Brightness, Contrast, Colour, Crop to 21:9 and
+Sharp pixels, applied at once. If the device cannot keep up (or has no WebGL 2) they turn off by
+themselves and say so.
+
 **Q: How do I take a screenshot or record a clip in Remote Play?**
-Use the **camera** (Screenshot) and **video** (Record a clip) buttons on the picture's bar (desktop, also in full screen), or in the **⋯** menu on a phone. A screenshot is a PNG at the stream's own size (1920×1080 or 1280×720), whatever size the picture is shown at. A clip records the picture and the game's sound (also while the player is muted); a red **Recording** light with the time shows on the picture, and pressing it (or the button again) stops and saves the clip. Clips are MP4 where the device records MP4, else WebM, and stop by themselves after 10 minutes (they are held in memory until saved). Files are named like `PS5 Living room 2026-10-30 21-14-05.png`. The desktop and Android apps save straight into **Downloads**, the iPhone app into its folder in the Files app, and the web UI downloads them through the browser. Recording needs a device that can record video from a web page; where it can't, only Screenshot shows.
+Use the **camera** (Screenshot) and **video** (Record a clip) buttons on the picture's bar (desktop, also in full screen), or in the **⋯** menu on a phone. A screenshot is a PNG at the stream's own size (1920×1080 or 1280×720), whatever size the picture is shown at. A clip records the picture and the game's sound (also while the player is muted); a red **Recording** light with the time shows on the picture, and pressing it (or the button again) stops and saves the clip. Clips are MP4 where the device records MP4, else WebM, and stop by themselves after 10 minutes (they are held in memory until saved). Files are named like `PS5 Living room 2026-10-30 21-14-05.png`. On a phone they go to the photo library (**Remote Play › Settings › Save screenshots and clips to Photos**, on by default): the iPhone and iPad app adds them to **Photos** (it asks once, for adding only; it never reads your photos), the Android app to the gallery's **PS5Upload** album (Pictures/PS5Upload and Movies/PS5Upload, Android 10 and later), and a phone's browser shows **Save to Photos**, which opens the share sheet where **Save Image** or **Save Video** puts it there. With that off, if Photos access was refused, or on older Android, the apps save into **Downloads** (the iPhone app into its folder in the Files app). The desktop app saves straight into **Downloads**, and the web UI on a computer downloads them through the browser. Recording needs a device that can record video from a web page; where it can't, only Screenshot shows.
 
 **Q: How much delay does Remote Play have, and what does Low latency do?**
 With **Stats** on, the picture shows a **Latency** line, for example `Latency ≈ 9 ms engine + 4 ms decode`: the round trip between this device and the engine (measured once a second; near zero in the desktop app, a network hop in the web UI or on a phone) and how long a frame takes from arriving to being drawn. The leg from the PS5 to the engine isn't included: the two have no shared clock, so it can't be measured honestly. **Remote Play › Settings › Low latency** (off by default) uses the smallest sound buffer, keeps the engine's picture queue for this device at 2 frames instead of 6, and skips to the next whole picture sooner when decoding falls behind. Frames are drawn as soon as they're decoded either way. The trade: on a busy network more frames are dropped and the sound can crackle. The sound part applies at once; the picture part at the next start.
@@ -2376,6 +2390,16 @@ browse for a game or file, pick from them with the ▾ next to **Browse**: uploa
 from a share straight to the PS5, or install a package from it, without copying it to this
 computer first. The Collection can also scan a saved server in place. Its **Shares on the PS5**
 card manages the SMB shares PS5Upload Minion uses on the console (see "PS5Upload Minion").
+
+**Q: My SFTP or FTP start folder says "No such file", or I can't leave my home folder.**
+Before 9.10, SFTP and FTP servers were browsed from the folder the server signs you in to: `/`
+meant that folder, so a start folder like `/mnt/games` was looked for inside it and nothing above
+it could be reached. From 9.10 a new SFTP or FTP server uses the server's own paths, as an SSH or
+FTP client shows them (**Browse the whole server**, on by default): type the start folder exactly
+as `pwd` would print it, and browse anywhere the account may read. With no start folder it opens
+where the server signs you in. A server saved earlier keeps the old behaviour until you edit it
+and turn **Browse the whole server** on; games, favorites and links already saved from it use the
+old paths, so add those again afterwards.
 
 **Q: SDK Changer vs Fakelib / BackPork — is that “backport”?**
 Related halves of a workflow, not one magic button:
