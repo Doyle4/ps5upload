@@ -1814,6 +1814,16 @@ content id or region**; or the jailbreak **lacks live kernel patches** (kstuff /
 official Docker images and an engine built from a full checkout include it; otherwise point
 `PS5UPLOAD_PAYLOAD_DIR` at a folder that holds `ps5upload-installer.elf`.
 
+**Q: How do I back up my users and account IDs?**
+
+Accounts › **Back up user information** › **Download user information (.txt)**. The file lists
+every user on the PS5 with their user ID, account ID (hex, decimal and base64), how the account
+is activated and its sign-in details, and how to restore an account ID. A save belongs to the
+account ID, not the user's name: after a reset, or a crash that loses a user, add a user on the
+PS5, give it the old account ID in Accounts › Users (activate it), then restore its saves from a
+backup. Keep the file private. It has no passwords or Remote Play keys. Make one again whenever
+you add a user or change an account.
+
 **Q: Can I move a save between consoles, profiles or game regions?**
 
 Saves backup and restore copies the existing encrypted save files. It does **not**

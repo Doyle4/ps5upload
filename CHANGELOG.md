@@ -4,6 +4,18 @@ What's new in ps5upload, written for humans.
 
 ---
 
+## 9.5.3
+
+- **Back up your users' information (Accounts).** A new **Back up user information** card
+  downloads a text file with every user on the PS5: their names, user IDs, account IDs (in hex,
+  decimal and the base64 form Remote Play uses), how each account is activated, its sign-in
+  details (online ID, date of birth, age), and step-by-step instructions for giving a new user
+  an old account ID. Saves are tied to the account ID, so after a console reset, or a crash that
+  loses a user, the file is what you need to get your saves back. It holds no passwords or
+  Remote Play keys; keep it private all the same.
+- **Phone screens scroll all the way down.** Payloads, Tasks and Help (FAQ, About, What's new)
+  now leave room under their last row, so nothing stays stuck behind the bottom tab bar.
+
 ## 9.5.2
 
 - **Remote Play full screen fits the screen, on every app.** Full screen now sits exactly on the

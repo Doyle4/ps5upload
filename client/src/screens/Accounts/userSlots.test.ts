@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { ProfileSlot, ProfileUser } from "../../api/ps5";
-import { userSlots } from "./index";
+import { userSlots } from "./userSlots";
 
 const user = (uid: number, username: string): ProfileUser => ({ uid, uid_hex: `0x${uid.toString(16)}`, username });
 const slot = (n: number, name: string): ProfileSlot => ({

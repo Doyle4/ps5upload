@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseAccountId, formatAccountId, accountIdToB64 } from "./index";
+import { parseAccountId, formatAccountId, accountIdToB64 } from "./accountId";
 
 describe("parseAccountId", () => {
   it("accepts hex with or without the 0x prefix, any case", () => {
