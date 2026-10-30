@@ -17,6 +17,9 @@ What's new in ps5upload, written for humans.
   desktop app, or the web UI in a browser): it is installed on the streamed console **when you
   stop playing** (an install shares the network with the stream and can make it stutter), or at
   once with **Install now**.
+- **The on-screen controller's touchpad can be pressed.** A finger held on the touchpad strip is
+  now the DualSense's touchpad button, so combos like L1 + R1 + touchpad (to get back to an
+  emulator's menu) work; a finger that slides is still a swipe only.
 
 ## 9.6.0
 

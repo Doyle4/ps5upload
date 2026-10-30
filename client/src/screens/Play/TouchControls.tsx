@@ -30,9 +30,12 @@ type Part =
   | { kind: "button"; bit: number }
   | { kind: "trigger"; which: "l2" | "r2" }
   | { kind: "stick"; which: "l" | "r"; cx: number; cy: number; radius: number }
-  | { kind: "touchpad"; rect: DOMRect };
+  /** `pressed`: the finger is a press of the touchpad (its button), until it slides away. */
+  | { kind: "touchpad"; rect: DOMRect; x0: number; y0: number; pressed: boolean };
 
 const STICK_RANGE = 32767;
+/** How far (CSS px) a finger on the touchpad moves before it is a swipe, not a press. */
+const TOUCHPAD_SLIDE = 12;
 
 /**
  * Where the controller is drawn:
@@ -82,6 +85,9 @@ export function TouchControls({
     for (const part of fingers.current.values()) {
       if (part.kind === "button") p.buttons |= part.bit;
       if (part.kind === "trigger") p[part.which] = 255;
+      // Pushing the touchpad down is a button of its own on the DualSense (L1+R1+touchpad and
+      // other combos read it); a finger that slides is a swipe only.
+      if (part.kind === "touchpad" && part.pressed) p.buttons |= PadButton.TOUCHPAD;
     }
     p.lx = pad.current.lx;
     p.ly = pad.current.ly;
@@ -123,9 +129,10 @@ export function TouchControls({
     if (!part) return;
     e.stopPropagation();
     if (part.kind === "stick") moveStick(part, e.clientX, e.clientY);
-    else if (part.kind === "touchpad")
+    else if (part.kind === "touchpad") {
       pad.current.touch = touchAt((e.clientX - part.rect.left) / part.rect.width, (e.clientY - part.rect.top) / part.rect.height);
-    else return;
+      if (part.pressed && Math.hypot(e.clientX - part.x0, e.clientY - part.y0) > TOUCHPAD_SLIDE) part.pressed = false;
+    } else return;
     apply();
   };
   const up = (e: React.PointerEvent) => {
@@ -239,7 +246,9 @@ export function TouchControls({
         {btn("Create", PadButton.SHARE, "h-8 px-2.5 text-[11px]")}
         <div
           aria-label={tr("rp_touch_touchpad", undefined, "Touchpad")}
-          onPointerDown={(e) => down(e, (el) => ({ kind: "touchpad", rect: el.getBoundingClientRect() }))}
+          onPointerDown={(e) =>
+            down(e, (el) => ({ kind: "touchpad", rect: el.getBoundingClientRect(), x0: e.clientX, y0: e.clientY, pressed: true }))
+          }
           {...handlers}
           className={`pointer-events-auto h-11 touch-none rounded-xl border border-white/20 bg-black/15 ${
             deck ? "w-[clamp(6rem,34vw,12rem)]" : "w-[clamp(6rem,22vw,14rem)]"
