@@ -96,3 +96,106 @@ pub async fn read_text_file(path: String) -> Result<String, String> {
     .await
     .map_err(|e| format!("read_text_file join: {e}"))?
 }
+
+/// Write bytes (a Remote Play screenshot or clip) to an absolute path the
+/// renderer chose in a downloads folder (`pickSaveDest.ts::downloadsDest`).
+/// The bytes come as the raw IPC body, not as JSON or base64: a clip can be
+/// hundreds of MB. The path and the file name ride in the `x-path` and
+/// `x-name` headers, percent-encoded (a header is ASCII; a path may not be).
+/// Returns where the file landed (on Android a `content://` request is
+/// redirected into Downloads, as for `save_text_file`).
+#[tauri::command]
+pub async fn save_binary_file(request: tauri::ipc::Request<'_>) -> Result<String, String> {
+    let header = |k: &str| -> String {
+        request
+            .headers()
+            .get(k)
+            .and_then(|v| v.to_str().ok())
+            .map(percent_decode)
+            .unwrap_or_default()
+    };
+    let path = header("x-path");
+    let name = header("x-name");
+    let bytes = body_bytes(request.body())?;
+    tokio::task::spawn_blocking(move || {
+        let fallback = if name.trim().is_empty() {
+            "ps5upload-capture.bin"
+        } else {
+            name.as_str()
+        };
+        let dest = super::save_dest::resolve_save_dest(&path, fallback)?;
+        match std::fs::write(&dest, &bytes) {
+            Ok(()) => Ok(dest.display().to_string()),
+            Err(e) => {
+                let _ = std::fs::remove_file(&dest);
+                Err(format!("write {}: {e}", dest.display()))
+            }
+        }
+    })
+    .await
+    .map_err(|e| format!("save_binary_file join: {e}"))?
+}
+
+/// The bytes of an IPC body: raw where the webview sends raw bodies, a JSON
+/// array of numbers where it falls back to JSON messages.
+fn body_bytes(body: &tauri::ipc::InvokeBody) -> Result<Vec<u8>, String> {
+    match body {
+        tauri::ipc::InvokeBody::Raw(v) => Ok(v.clone()),
+        tauri::ipc::InvokeBody::Json(serde_json::Value::Array(a)) => a
+            .iter()
+            .map(|n| {
+                n.as_u64()
+                    .filter(|&b| b <= 255)
+                    .map(|b| b as u8)
+                    .ok_or_else(|| "save_binary_file: body is not bytes".to_string())
+            })
+            .collect(),
+        _ => Err("save_binary_file: no bytes in the request".into()),
+    }
+}
+
+/// `%XX` escapes back to bytes, read as UTF-8 (what `encodeURIComponent` wrote).
+fn percent_decode(s: &str) -> String {
+    let b = s.as_bytes();
+    let mut out = Vec::with_capacity(b.len());
+    let mut i = 0;
+    while i < b.len() {
+        if b[i] == b'%' && i + 2 < b.len() {
+            let hex = std::str::from_utf8(&b[i + 1..i + 3]).ok();
+            if let Some(v) = hex.and_then(|h| u8::from_str_radix(h, 16).ok()) {
+                out.push(v);
+                i += 3;
+                continue;
+            }
+        }
+        out.push(b[i]);
+        i += 1;
+    }
+    String::from_utf8_lossy(&out).into_owned()
+}
+
+#[cfg(test)]
+mod binary_tests {
+    use super::*;
+
+    #[test]
+    fn percent_decoding_undoes_encode_uri_component() {
+        assert_eq!(
+            percent_decode("C%3A%5CUsers%5C%E5%BC%A0%5CDownloads%2FPS5%20a.png"),
+            "C:\\Users\\张\\Downloads/PS5 a.png"
+        );
+        assert_eq!(percent_decode("plain"), "plain");
+        assert_eq!(percent_decode("100%"), "100%");
+        assert_eq!(percent_decode("%zz"), "%zz");
+    }
+
+    #[test]
+    fn body_bytes_takes_raw_or_a_json_byte_array() {
+        let raw = tauri::ipc::InvokeBody::Raw(vec![1, 2, 255]);
+        assert_eq!(body_bytes(&raw).unwrap(), vec![1, 2, 255]);
+        let json = tauri::ipc::InvokeBody::Json(serde_json::json!([0, 137, 80]));
+        assert_eq!(body_bytes(&json).unwrap(), vec![0, 137, 80]);
+        let bad = tauri::ipc::InvokeBody::Json(serde_json::json!([256]));
+        assert!(body_bytes(&bad).is_err());
+    }
+}

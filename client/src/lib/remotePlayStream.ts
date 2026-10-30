@@ -350,6 +350,17 @@ export interface StreamStats {
   /** Sound waiting to play, in ms, and how often it ran dry since the start. */
   audioMs: number;
   underruns: number;
+  /** Round trip from this page to the engine and back, ms (null until measured, or an engine
+   *  that does not answer pings). The console's leg cannot be measured: no shared clock. */
+  rttMs: number | null;
+}
+
+/** A round trip from a ping's own timestamp, smoothed into the last value (a spike moves it a
+ *  quarter of the way); null when `sentAt` is not a number. */
+export function nextRtt(prev: number | null, sentAt: unknown, now: number): number | null {
+  if (typeof sentAt !== "number" || !Number.isFinite(sentAt)) return prev;
+  const rtt = Math.max(0, now - sentAt);
+  return prev === null ? rtt : prev + (rtt - prev) / 4;
 }
 
 export type StreamPhase =
@@ -387,6 +398,8 @@ export interface StreamOptions {
   audioBufferMs?: number;
   /** Join the session the engine already runs for this console; never start one. */
   attach?: boolean;
+  /** Ask the engine for a shorter video queue and skip to the next keyframe sooner. */
+  lowLatency?: boolean;
   /** How the picture fills the place it is shown in (default: the whole picture). */
   fit?: PictureFit;
   /** False: the console's rumble is not played on the controllers. */
@@ -413,6 +426,7 @@ const RECONNECT_FOR_MS = 30_000;
 const AUDIO_HOLD = 3;
 /** The decoder this far behind: skip to the next keyframe rather than show old pictures. */
 const VIDEO_BACKLOG = 4;
+const VIDEO_BACKLOG_LOW_LATENCY = 2;
 
 /** The audio player: a ring buffer in an AudioWorklet that starts once `target` samples are in,
  *  fades in after a gap, and trims itself back when it runs ahead (a sound card a little slower
@@ -529,6 +543,7 @@ export class RemotePlayStream {
   private codec = "";
   private statsTimer = 0;
   private lastLoss = { lossPct: 0, rebuilt: 0, lost: 0 };
+  private rttMs: number | null = null;
   private phase: StreamPhase = "connecting";
   /** The session is over (stopped here, ended by the engine or the console). */
   private ended = false;
@@ -601,10 +616,12 @@ export class RemotePlayStream {
         codec: this.codec,
         audioMs: this.audioMs,
         underruns: this.underruns,
+        rttMs: this.rttMs,
         ...this.lastLoss,
       });
       lastDecoded = this.decoded;
       lastBytes = this.bytes;
+      this.ping();
     }, 1000);
   }
 
@@ -653,6 +670,7 @@ export class RemotePlayStream {
           codec: this.codecChoice,
           keep_alive_s: this.o.keepAliveS,
           attach_only: attachOnly,
+          low_latency: !!this.o.lowLatency,
         }),
       );
     };
@@ -752,6 +770,51 @@ export class RemotePlayStream {
     this.worklet?.port.postMessage({ reset: true });
   }
 
+  /** Time a round trip to the engine (answered with `{"pong": t}`). */
+  private ping(): void {
+    const ws = this.ws;
+    if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ ping: performance.now() }));
+  }
+
+  /** The picture as it is now, a PNG at the stream's own size (null before the first frame). */
+  snapshot(): Promise<Blob | null> {
+    const c = this.canvas;
+    if (!this.decoded) return Promise.resolve(null);
+    return new Promise((resolve) => c.toBlob((b) => resolve(b), "image/png"));
+  }
+
+  /** The picture and the game's sound as one MediaStream, for a recording. The sound is tapped
+   *  off before the volume (a muted player still records it) into a second output, so what
+   *  plays is untouched. `release()` takes the tap off again. */
+  captureMedia(fps: number): { stream: MediaStream; release: () => void } | null {
+    const c = this.canvas as HTMLCanvasElement & { captureStream?: (fps?: number) => MediaStream };
+    if (typeof c.captureStream !== "function") return null;
+    const stream = c.captureStream(fps);
+    const actx = this.audioCtx;
+    const from: AudioNode | null = this.worklet ?? this.gainNode;
+    let dest: MediaStreamAudioDestinationNode | null = null;
+    try {
+      if (actx && from && typeof actx.createMediaStreamDestination === "function") {
+        dest = actx.createMediaStreamDestination();
+        from.connect(dest);
+        for (const t of dest.stream.getAudioTracks()) stream.addTrack(t);
+      }
+    } catch {
+      dest = null; // a picture without sound rather than no recording
+    }
+    return {
+      stream,
+      release: () => {
+        for (const t of stream.getTracks()) t.stop();
+        try {
+          if (dest) from?.disconnect(dest);
+        } catch {
+          // Already gone with the session.
+        }
+      },
+    };
+  }
+
   /** Send the pad now if it changed (call on key events so short taps are not missed). */
   sendPad(): void {
     const ws = this.ws;
@@ -821,10 +884,15 @@ export class RemotePlayStream {
       host?: string;
       rumble?: [number, number];
       light?: [number, number, number];
+      pong?: unknown;
     };
     try {
       s = JSON.parse(text);
     } catch {
+      return;
+    }
+    if (s && typeof s === "object" && "pong" in s) {
+      this.rttMs = nextRtt(this.rttMs, s.pong, performance.now());
       return;
     }
     if (s.rumble) {
@@ -887,7 +955,8 @@ export class RemotePlayStream {
     this.bytes += payload.length;
     const key = isKeyframe(payload, this.hevc);
     // Behind: old pictures are no use to someone playing. Skip to a keyframe.
-    if (!key && this.video && this.video.decodeQueueSize > VIDEO_BACKLOG) {
+    const backlog = this.o.lowLatency ? VIDEO_BACKLOG_LOW_LATENCY : VIDEO_BACKLOG;
+    if (!key && this.video && this.video.decodeQueueSize > backlog) {
       this.sawKey = false;
       this.ws?.send(JSON.stringify({ keyframe: true }));
     }

@@ -30,6 +30,15 @@ export async function pickSaveDest(
   return save(opts);
 }
 
+/** A free name for `suggested` in the downloads folder, with no dialog (a screenshot taken
+ *  mid-game): Downloads on the desktop and Android, the app's Documents folder on iPhone. */
+export async function downloadsDest(suggested: string): Promise<string> {
+  if (isIOS()) return documentsDest(suggested);
+  if (isAndroid()) return freeDest(ANDROID_DOWNLOADS, suggested);
+  const { downloadDir } = await import("@tauri-apps/api/path");
+  return freeDest(await downloadDir(), suggested);
+}
+
 /** Android's public Downloads folder (the backend's ANDROID_PUBLIC_DOWNLOADS). */
 const ANDROID_DOWNLOADS = "/storage/emulated/0/Download";
 

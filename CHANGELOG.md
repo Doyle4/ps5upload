@@ -27,6 +27,20 @@ What's new in ps5upload, written for humans.
 - **Remote Play in the web UI names the browser it's made for.** In Firefox, Safari and others it
   says Chrome or Edge work best and what this browser misses (Esc as the controller's ○ in full
   screen, picture in picture). It can be dismissed.
+- **Remote Play: screenshots and clips.** A **Screenshot** button on the picture's bar (and in the
+  phone's **⋯** menu) saves the picture as a PNG at the stream's own size. **Record a clip** records
+  the picture and the game's sound, with a recording light and its time on the picture; stop it to
+  save the clip (MP4 where the device records it, else WebM). The apps save into Downloads (the
+  Files app on iPhone); the web UI downloads them.
+- **Remote Play shows its latency.** With Stats on, a **Latency** line shows the round trip to the
+  engine and the decode time. The PS5's own leg can't be measured (no shared clock), so it isn't
+  guessed at.
+- **Remote Play: Low latency.** A new setting (off by default) for the least delay: the smallest
+  sound buffer and a 2-frame picture queue instead of 6. On a busy network it drops more frames.
+- **Remote Play offers 720p on a busy network.** When a 1080p stream keeps losing frames for about
+  10 seconds, the picture offers **Switch to 720p** (once per session, never back up by itself).
+  It restarts the stream, waiting out the ~12 s the PS5 holds its last session. **Lower quality on a
+  busy network** in Settings turns the offer off.
 
 ## 9.4.1
 
