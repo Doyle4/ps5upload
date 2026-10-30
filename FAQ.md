@@ -2038,11 +2038,21 @@ In the Android app, full screen hides the status and navigation bars (swipe from
 **Q: Does my phone controller (Backbone, Razer Kishi, GameSir, Scuf Nomad...) work with Remote Play?**
 Yes. Phone controllers, USB-C or Bluetooth, are game controllers to the phone, so Remote Play reads them like any other: connect it, press a button, and it plays (the on-screen controller hides). If the browser doesn't recognise one, it still plays in the usual layout; if a button is wrong, open Remote Play › Settings › Controllers › **Map buttons** and press each button as asked (any step can be skipped). **Set an extra button** gives a back button or paddle any PS5 button. Mappings are saved per controller. In the Android app the app also hands controllers to the page itself, for phones whose system browser misses them; on iPhone the app makes sure the page has the focus controllers need.
 
+**Q: What is the Game panel in Remote Play?**
+The **Game** button on the stream bar (or **Game** in the phone's **⋯** menu) opens a panel over
+the picture; the game keeps playing. **Game** shows what is running and has **Snapshot save now**
+(a backup of its save taken while you play, kept with the game's save backups as "Taken while
+playing"; set a folder in Saves › Automatic backups first). **Cheats** switches the running game's
+cheats. **Console** shows temperatures and has **Fan boost**: 30 minutes at a 55 °C fan target,
+undone by itself when you turn it off, when the stream ends, or after 30 minutes, even if the app
+closed in between. The panel reads the console only while it is open. Restoring a save is refused
+while its game runs: close the game first.
+
 **Q: Can I use my phone as the controller for Remote Play on my computer?**
 Yes, from 9.5.0. While the computer plays, press the phone button on the stream's bar (**Use a phone as a controller**) and scan the QR code with the phone's camera: the phone opens a controller, full screen and sideways, that plays along with the computer's own controls (up to four phones). Or, in the PS5Upload app on the phone, Remote Play shows that the computer is playing: tap **Use this device as its controller** and allow it on the computer. A controller attached to the phone works through it too. Only the controller page and its connection are open to your network, and they need the QR code's key or your OK on the computer; **Close the link** lets every phone go. Rumble vibrates an Android phone.
 
 **Q: Motion controls?**
-Remote Play › Settings › **Motion controls (experimental)** (phones) sends the phone's gyro and tilt as the controller's motion sensors, for games with gyro aiming; the phone controller page has a **Motion** button too. Browsers give motion only to secure pages, so it works in the apps but not on the QR code's page in a phone browser. It hasn't been tried on a PS5 yet.
+Remote Play › Settings › **Motion controls (experimental)** (phones) sends the phone's gyro and tilt as the controller's motion sensors, for games with gyro aiming; the phone controller page has a **Motion** button too. Browsers give motion only to secure pages, so it works in the apps but not on the QR code's page in a phone browser.
 
 **Q: How do I take a screenshot or record a clip in Remote Play?**
 Use the **camera** (Screenshot) and **video** (Record a clip) buttons on the picture's bar (desktop, also in full screen), or in the **⋯** menu on a phone. A screenshot is a PNG at the stream's own size (1920×1080 or 1280×720), whatever size the picture is shown at. A clip records the picture and the game's sound (also while the player is muted); a red **Recording** light with the time shows on the picture, and pressing it (or the button again) stops and saves the clip. Clips are MP4 where the device records MP4, else WebM, and stop by themselves after 10 minutes (they are held in memory until saved). Files are named like `PS5 Living room 2026-10-30 21-14-05.png`. The desktop and Android apps save straight into **Downloads**, the iPhone app into its folder in the Files app, and the web UI downloads them through the browser. Recording needs a device that can record video from a web page; where it can't, only Screenshot shows.

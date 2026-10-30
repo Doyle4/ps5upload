@@ -4,6 +4,40 @@ What's new in ps5upload, written for humans.
 
 ---
 
+## 9.6.0
+
+**Remote Play gets a Game panel.** A **Game** button on the stream bar (and in the phone's **⋯**
+menu) opens a panel over the picture without stopping the game. It reads the console only while
+it is open.
+
+- **Game**: what is running, with a **Snapshot save now** button that backs up the game's save
+  while you play. It waits for a moment when the save is not being written and checks the copy did
+  not change mid-way, then keeps it with the game's save backups, marked **Taken while playing**.
+  Snapshots are kept apart from the automatic backups (five of each), so they never push the
+  automatic history out. Choose a folder in Saves › Automatic backups first.
+- **Cheats**: the running game's cheats with their switches, the cheat engine switch, and the
+  paused notice when a game closed right after its cheats were applied.
+- **Console**: CPU and system chip temperatures (and the expansion SSD's), what the fan works to,
+  the fan speed on request, and **Fan boost**: the fan keeps the console at 55 °C for 30 minutes.
+  The boost always undoes itself: when you turn it off, when the stream ends, after 30 minutes, or,
+  if the app closed in between, as soon as the console answers again. It never makes the fan
+  quieter than it was.
+
+**Fixes**
+
+- **Restoring a save while its game runs is refused.** The game would overwrite it (or mix its
+  next save with it); close the game, then restore.
+- **Remote Play's microphone starts in the apps.** In every app (macOS, Windows, Linux, Android,
+  iOS) pressing the mic ended in an amber dot: the apps' security rules refused how the mic loaded
+  a part of itself. It now starts, and if it ever cannot, the button says why.
+- **The Remote Play pop-out shows the whole picture (#566).** On Windows the small always-on-top
+  window cut the picture on the right and bottom in every picture size.
+- **Phone controller QR code on a computer with two networks.** When the PS5 is on one network
+  and the phone's Wi-Fi on another, the link pointed at an address the phone could not reach.
+  The panel now lists each of the computer's networks under the code: pick the phone's.
+- Remote Play's Microphone and Motion controls are marked experimental, without "not yet tried"
+  notes.
+
 ## 9.5.3
 
 - **Back up your users' information (Accounts).** A new **Back up user information** card

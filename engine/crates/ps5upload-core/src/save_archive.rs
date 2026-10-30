@@ -672,13 +672,32 @@ fn sanitize_entry(name: &str) -> Option<PathBuf> {
 pub fn auto_backup_stem(title_id: &str, user_id: u32) -> String {
     format!("{title_id}_user{user_id:08x}_")
 }
+/// A backup's tag: the lower-case word after the stamp (`…_120000_snap.zip` → `snap`), or None
+/// for an automatic backup. Snapshots taken while playing are tagged `snap`.
+pub fn backup_tag(name: &str) -> Option<&str> {
+    let base = name.strip_suffix(".zip").unwrap_or(name);
+    let (_, last) = base.rsplit_once('_')?;
+    (!last.is_empty() && last.bytes().all(|b| b.is_ascii_lowercase())).then_some(last)
+}
+
 /// Which of `existing` (file names in the title's folder, the backup just written among them)
-/// to delete so that `keep` remain: the oldest of this save's own backups. Names sort by their
-/// timestamp. Files that are not this save's backups are never listed.
+/// to delete so that `keep` remain: the oldest of this save's own untagged (automatic) backups.
+/// Names sort by their timestamp. Files that are not this save's backups are never listed.
 pub fn auto_backups_to_prune(existing: &[String], stem: &str, keep: u32) -> Vec<String> {
+    tagged_backups_to_prune(existing, stem, None, keep)
+}
+
+/// [`auto_backups_to_prune`] for the backups carrying `tag` (None: the untagged ones), so each
+/// kind keeps its own `keep`: a burst of snapshots never pushes the automatic history out.
+pub fn tagged_backups_to_prune(
+    existing: &[String],
+    stem: &str,
+    tag: Option<&str>,
+    keep: u32,
+) -> Vec<String> {
     let mut mine: Vec<&String> = existing
         .iter()
-        .filter(|n| n.starts_with(stem) && n.ends_with(".zip"))
+        .filter(|n| n.starts_with(stem) && n.ends_with(".zip") && backup_tag(n) == tag)
         .collect();
     mine.sort();
     let drop = mine.len().saturating_sub(keep.max(1) as usize);
@@ -717,7 +736,8 @@ pub fn auto_backup_slot(
             .filter_map(|e| e.ok())
             .filter_map(|e| e.file_name().into_string().ok())
             .collect();
-        for old in auto_backups_to_prune(&existing, &stem, keep) {
+        let tag = backup_tag(stamp);
+        for old in tagged_backups_to_prune(&existing, &stem, tag, keep) {
             let _ = std::fs::remove_file(folder.join(old));
         }
     }
@@ -727,6 +747,36 @@ pub fn auto_backup_slot(
 #[cfg(test)]
 mod auto_backup_tests {
     use super::*;
+
+    #[test]
+    fn snapshots_and_automatic_backups_are_kept_apart() {
+        assert_eq!(
+            backup_tag("T_user00000001_2026-10-30_120000_snap.zip"),
+            Some("snap")
+        );
+        assert_eq!(backup_tag("T_user00000001_2026-10-30_120000.zip"), None);
+        assert_eq!(backup_tag("2026-10-30_120000_snap"), Some("snap"));
+        let stem = auto_backup_stem("T", 1);
+        let names: Vec<String> = [
+            "T_user00000001_2026-10-01_000000.zip",
+            "T_user00000001_2026-10-02_000000.zip",
+            "T_user00000001_2026-10-03_000000_snap.zip",
+            "T_user00000001_2026-10-04_000000_snap.zip",
+            "T_user00000001_2026-10-05_000000_snap.zip",
+        ]
+        .map(String::from)
+        .to_vec();
+        // Three snapshots, keep 2: the oldest snapshot goes, the automatic ones stay.
+        assert_eq!(
+            tagged_backups_to_prune(&names, &stem, Some("snap"), 2),
+            vec!["T_user00000001_2026-10-03_000000_snap.zip".to_string()]
+        );
+        // Automatic pruning never touches a snapshot.
+        assert_eq!(
+            auto_backups_to_prune(&names, &stem, 1),
+            vec!["T_user00000001_2026-10-01_000000.zip".to_string()]
+        );
+    }
 
     #[test]
     fn only_this_saves_oldest_backups_are_pruned() {

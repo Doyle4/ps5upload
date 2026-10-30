@@ -58,6 +58,7 @@ mod elfldr_guard;
 mod engine_log;
 mod event_journal;
 mod fakelibs_api;
+mod fan_boost;
 mod folder_build;
 mod fpkg_api;
 mod fpkg_firmware;
@@ -11064,6 +11065,10 @@ async fn run(cfg: EngineConfig) -> anyhow::Result<()> {
         .route("/api/save-backup/list", get(save_backup::get_list))
         .route("/api/save-backup/restore", post(save_backup::post_restore))
         .route(
+            "/api/save-backup/snapshot",
+            post(save_backup::post_snapshot),
+        )
+        .route(
             "/api/shared/{name}",
             get(shared_state::get_doc).put(shared_state::put_doc),
         )
@@ -11386,6 +11391,10 @@ async fn run(cfg: EngineConfig) -> anyhow::Result<()> {
             post(ps5_smp_image_rw_finish),
         )
         .route("/api/ps5/hw/fan-threshold", post(ps5_hw_set_fan_threshold))
+        .route(
+            "/api/ps5/fan-boost",
+            get(fan_boost::get).post(fan_boost::post),
+        )
         .route("/api/ps5/peripheral", post(ps5_peripheral))
         .route(
             "/api/ps5/cheats/import",
@@ -11644,6 +11653,8 @@ async fn run(cfg: EngineConfig) -> anyhow::Result<()> {
     // whether the engine was actually listening.
     println!("[ps5upload-engine] listening on http://{bind}  (ps5={ps5_addr})");
     crate::log_info!("listening on http://{bind}  (ps5={ps5_addr})");
+    // Fan boosts end on time and are undone even if the app closed in between.
+    fan_boost::spawn_sweeper();
     // Automatic save backups run here, not in a window: they carry on with no app open.
     save_backup::spawn(
         &bind,

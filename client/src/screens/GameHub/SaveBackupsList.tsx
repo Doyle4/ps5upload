@@ -14,9 +14,9 @@ import { useTr } from "../../state/lang";
 /** How many versions a save shows before "show all". */
 const SHOWN = 3;
 
-/** `2026-10-24_101500` → `2026-10-24 10:15 UTC`. */
+/** `2026-10-24_101500` → `2026-10-24 10:15 UTC` (a snapshot's `_snap` after it is dropped). */
 export function stampLabel(stamp: string): string {
-  const m = /^(\d{4}-\d{2}-\d{2})_(\d{2})(\d{2})\d{2}$/.exec(stamp);
+  const m = /^(\d{4}-\d{2}-\d{2})_(\d{2})(\d{2})\d{2}(?:_[a-z]+)?$/.exec(stamp);
   return m ? `${m[1]} ${m[2]}:${m[3]} UTC` : stamp;
 }
 
@@ -54,11 +54,20 @@ export function SaveBackupsList({ host, save }: { host: string; save: SaveEntry 
   async function restore(b: SaveBackupFile) {
     const ok = await confirm({
       title: tr("save_backup_restore_title", { when: stampLabel(b.stamp) }, "Restore the backup from {when}?"),
-      message: tr(
-        "save_backup_restore_body",
-        undefined,
-        "Close the game first. The save on the PS5 is backed up, then replaced with this backup.",
-      ),
+      message:
+        tr(
+          "save_backup_restore_body",
+          undefined,
+          "Close the game first. The save on the PS5 is backed up, then replaced with this backup.",
+        ) +
+        (b.tag === "snap"
+          ? " " +
+            tr(
+              "save_backup_snap_note",
+              undefined,
+              "This one was taken while the game was running: it was copied while the save sat still, but if the game misbehaves, restore an automatic backup instead.",
+            )
+          : ""),
       confirmLabel: tr("save_backup_restore", undefined, "Restore"),
       destructive: true,
     });
@@ -96,6 +105,11 @@ export function SaveBackupsList({ host, save }: { host: string; save: SaveEntry 
           <li key={b.file} className="flex items-center justify-between gap-3 text-xs">
             <span className="tabular-nums">
               {stampLabel(b.stamp)} · {formatBytes(b.size)}
+              {b.tag === "snap" && (
+                <span className="ms-2 rounded-full bg-[var(--color-surface-2)] px-2 py-0.5 text-[11px] text-[var(--color-muted)]" data-testid="save-backup-snap">
+                  {tr("save_backup_snap_label", undefined, "Taken while playing")}
+                </span>
+              )}
             </span>
             <Button
               variant="ghost"

@@ -70,6 +70,7 @@ import { rpBrowserAdvice } from "./browserAdvice";
 import { askMotion, motionAvailable, startMotion } from "../../lib/motion";
 import { ControllerSetup } from "./ControllerSetup";
 import { PadAsks, PhonePadsPanel, usePadLink } from "./PhonePads";
+import { GamePanel } from "./game/GamePanel";
 import { safeGetItem, safeSetItem } from "../../lib/safeStorage";
 import { closePip, openPip, pipPadsInBackground, pipSupport } from "./pip";
 import { CaptureBarButtons, CaptureOverlay } from "./CaptureControls";
@@ -590,7 +591,7 @@ function SettingsPanel({ running }: { running: boolean }) {
             hint={tr(
               "rp_motion_hint",
               undefined,
-              "Tilting and turning the phone moves the controller's motion sensors, for games with gyro aiming. Not yet tried on a PS5.",
+              "Tilting and turning the phone moves the controller's motion sensors, for games with gyro aiming.",
             )}
           />
         )}
@@ -686,6 +687,8 @@ export function StreamPanel() {
   const [pipFailed, setPipFailed] = useState(false);
   const [profileId, setProfileId] = useState<string>(activeId ?? profiles[0]?.id ?? "");
   const [settingsOpen, setSettingsOpen] = useState(false);
+  /** The Game panel over the picture (or under it, on a phone's page). */
+  const [gameOpen, setGameOpen] = useState(false);
   const [phonesOpen, setPhonesOpen] = useState(false);
   useEffect(() => {
     if (settingsOpen) settingsBox.current?.scrollIntoView?.({ block: "nearest", behavior: "smooth" });
@@ -1065,7 +1068,7 @@ export function StreamPanel() {
   }
 
   const elsewhereProfile = elsewhere ? profiles.find((p) => p.host === elsewhere) : null;
-  const showBar = !playing || chrome || settingsOpen || fitOpen;
+  const showBar = !playing || chrome || settingsOpen || fitOpen || gameOpen;
   const muted = prefs.muted || prefs.volume === 0;
   // Full screen on an upright phone: the picture across the top, the controller below it.
   const portraitFull = compact && full && portrait;
@@ -1101,6 +1104,10 @@ export function StreamPanel() {
     },
     onSettings: openSettings,
     onStop: stopHere,
+    onGame: () => {
+      setMenuOpen(false);
+      setGameOpen(true);
+    },
   };
 
   const stageView = (
@@ -1293,6 +1300,14 @@ export function StreamPanel() {
                 </BarButton>
               )}
               <BarButton
+                label={tr("rp_game_button", undefined, "Game")}
+                active={gameOpen}
+                onClick={() => setGameOpen((v) => !v)}
+                testId="rp-game"
+              >
+                <Gamepad2 size={16} />
+              </BarButton>
+              <BarButton
                 label={tr("rp_settings", undefined, "Settings")}
                 active={settingsOpen}
                 onClick={() => {
@@ -1404,6 +1419,15 @@ export function StreamPanel() {
                 <PlayMenu inFull {...menuProps} />
               </div>
             </>
+          )}
+          {/* Over the picture: in full screen, and on a computer's page. */}
+          {(full || !compact) && (
+            <GamePanel
+              host={target?.host ?? null}
+              open={gameOpen && running}
+              onClose={() => setGameOpen(false)}
+              variant={compact ? "sheet" : "side"}
+            />
           )}
         </div>
   );
@@ -1704,6 +1728,13 @@ export function StreamPanel() {
               <PlayMenu inFull={false} {...menuProps} />
             </div>
           )}
+          {/* The Game panel: under the picture and its bar, where there is room. */}
+          <GamePanel
+            host={target?.host ?? null}
+            open={gameOpen}
+            onClose={() => setGameOpen(false)}
+            variant="inline"
+          />
           {showTouch && (
             <p className="flex items-center gap-2 px-1 text-xs text-[var(--color-muted)]" data-testid="rp-touch-in-full">
               <Gamepad2 size={14} className="shrink-0" />

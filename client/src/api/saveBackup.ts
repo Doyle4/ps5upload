@@ -29,9 +29,11 @@ export interface SaveBackupFile {
   file: string;
   title_id: string;
   user_id: number;
-  /** `YYYY-MM-DD_HHMMSS` (UTC for backups the engine made). */
+  /** `YYYY-MM-DD_HHMMSS` (UTC for backups the engine made), `_snap` after it for a snapshot. */
   stamp: string;
   size: number;
+  /** `snap`: taken while the game ran (Remote Play › Game › Snapshot). */
+  tag?: string;
 }
 
 async function call<T>(path: string, init?: RequestInit): Promise<T> {
@@ -61,4 +63,8 @@ export const saveBackupApi = {
     (await call<{ backups: SaveBackupFile[] }>(`/list?title_id=${encodeURIComponent(titleId)}`)).backups,
   restore: (req: { addr: string; title_id: string; file: string; save_path: string; user_id: number }) =>
     call<{ ok: boolean }>("/restore", { method: "POST", body: JSON.stringify(req) }),
+  /** Back up a game's save now, while it may be running: a copy taken only while the save sits
+   *  still, kept apart from the automatic backups. */
+  snapshot: (req: { addr: string; title_id: string }) =>
+    call<{ ok: boolean; files: string[] }>("/snapshot", { method: "POST", body: JSON.stringify(req) }),
 };

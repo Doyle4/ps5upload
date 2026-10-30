@@ -579,6 +579,8 @@ fn begin(start: &StartReq, creds: ps5upload_core::rp_session::SessionCreds) -> A
             Err(e) => error_status(&e),
         };
         crate::log_info!("rp_stream: {end}");
+        // A fan boost for this console ends with its session.
+        crate::fan_boost::session_ended(&l.host);
         if let Ok(mut g) = LIVE.lock() {
             if g.as_ref().is_some_and(|x| Arc::ptr_eq(x, &l)) {
                 *g = None;

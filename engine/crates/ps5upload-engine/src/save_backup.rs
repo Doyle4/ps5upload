@@ -314,8 +314,17 @@ fn list_saves(host: &str) -> Result<Vec<SaveEntry>, String> {
 
 // ── backup ──────────────────────────────────────────────────────────────
 
-/// Backs up one save into `dir`; returns the zip's path.
-fn back_up_one(host: &str, entry: &SaveEntry, dir: &str, keep: u32) -> Result<PathBuf, String> {
+/// Backs up one save into `dir`; returns the zip's path. `tag` marks the kind (`snap`: taken
+/// while the game ran; None: automatic), and each kind keeps its own `keep`. `verify` runs once
+/// the copy is on this computer, before it is kept: an Err throws the copy away.
+fn back_up_one(
+    host: &str,
+    entry: &SaveEntry,
+    dir: &str,
+    keep: u32,
+    tag: Option<&str>,
+    verify: &dyn Fn() -> Result<(), String>,
+) -> Result<PathBuf, String> {
     let user = entry.user_id as u32;
     let tmp = make_temp_dir(&entry.title_id)?;
     let tmp_s = tmp.to_string_lossy().into_owned();
@@ -329,8 +338,12 @@ fn back_up_one(host: &str, entry: &SaveEntry, dir: &str, keep: u32) -> Result<Pa
             .and_then(Value::as_str)
             .ok_or("download did not start")?;
         wait_job(job)?;
+        verify()?;
         backup_finalize(&tmp.join(&entry.title_id)).map_err(|e| format!("{e:#}"))?;
-        let st = stamp(now_ms());
+        let st = match tag {
+            Some(t) => format!("{}_{t}", stamp(now_ms())),
+            None => stamp(now_ms()),
+        };
         let dest = auto_backup_slot(dir, &entry.title_id, user, &st, keep, false)?;
         if let Err(e) = zip_folder(&tmp, &entry.title_id, &dest) {
             let _ = std::fs::remove_file(&dest);
@@ -376,7 +389,7 @@ pub fn run_pass() -> Result<(), String> {
             if !settings().enabled {
                 break;
             }
-            match back_up_one(host, entry, &s.dir, s.keep) {
+            match back_up_one(host, entry, &s.dir, s.keep, None, &|| Ok(())) {
                 Ok(_) => {
                     done.insert(done_key(host, &entry.path), entry.mtime);
                     let _ = save(DONE_FILE, &done);
@@ -406,6 +419,147 @@ pub fn run_pass() -> Result<(), String> {
     Ok(())
 }
 
+// ── snapshots (while the game runs) ─────────────────────────────────────
+
+/// Whether `title_id` runs on `host` (an app process carrying it).
+fn title_running(host: &str, title_id: &str) -> Result<bool, String> {
+    let list = ps5upload_core::process_mgr::process_list(host)
+        .map_err(|e| format!("could not check the running game: {e:#}"))?;
+    Ok(list
+        .processes
+        .iter()
+        .any(|p| p.kind == "app" && p.title_id.eq_ignore_ascii_case(title_id)))
+}
+
+/// Every file of a save folder (two levels, as the saves list measures it) with its size and
+/// time, sorted: two equal fingerprints mean nothing was written between them. The console's
+/// own times, compared with each other only, so the two machines' clocks never matter.
+fn fingerprint(host: &str, path: &str) -> Result<Vec<(String, u64, i64)>, String> {
+    let mut out = Vec::new();
+    let list = |p: &str| -> Result<Vec<Value>, String> {
+        let v = get(&format!(
+            "/api/ps5/list-dir?addr={}&path={}&offset=0&limit=512",
+            enc(host),
+            enc(p)
+        ))?;
+        Ok(v.get("entries")
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default())
+    };
+    for e in list(path)? {
+        let name = e
+            .get("name")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string();
+        if name.is_empty() || name == "." || name == ".." {
+            continue;
+        }
+        let size = e.get("size").and_then(Value::as_u64).unwrap_or(0);
+        let mtime = e.get("mtime").and_then(Value::as_i64).unwrap_or(0);
+        if e.get("kind").and_then(Value::as_str) == Some("dir") {
+            for c in list(&format!("{path}/{name}"))? {
+                let cn = c.get("name").and_then(Value::as_str).unwrap_or_default();
+                if cn.is_empty() || cn == "." || cn == ".." {
+                    continue;
+                }
+                out.push((
+                    format!("{name}/{cn}"),
+                    c.get("size").and_then(Value::as_u64).unwrap_or(0),
+                    c.get("mtime").and_then(Value::as_i64).unwrap_or(0),
+                ));
+            }
+        } else {
+            out.push((name, size, mtime));
+        }
+    }
+    out.sort();
+    Ok(out)
+}
+
+/// How long a save must stay unwritten before a snapshot copies it, and how often to try.
+const SNAP_QUIET: Duration = Duration::from_secs(3);
+const SNAP_TRIES: u32 = 3;
+pub const SNAP_TAG: &str = "snap";
+
+/// Back up the saves of `title_id` on `host` now, while its game may run: each copy is taken
+/// only while the save sat still, and kept only if it still had not changed once copied (a game
+/// saving mid-copy would leave a torn backup). Tagged `snap`, kept apart from the automatic ones.
+pub fn snapshot(host: &str, title_id: &str) -> Result<Vec<PathBuf>, String> {
+    let s = settings();
+    if s.dir.trim().is_empty() {
+        return Err("Choose a folder for save backups first (Saves › Automatic backups).".into());
+    }
+    let saves: Vec<SaveEntry> = list_saves(host)?
+        .into_iter()
+        .filter(|e| e.title_id.eq_ignore_ascii_case(title_id))
+        .collect();
+    if saves.is_empty() {
+        return Err(format!("{title_id} has no save on this PS5 yet."));
+    }
+    let mut made = Vec::new();
+    for entry in &saves {
+        let mut last = String::new();
+        let mut done = false;
+        for _ in 0..SNAP_TRIES {
+            let before = fingerprint(host, &entry.path)?;
+            std::thread::sleep(SNAP_QUIET);
+            if fingerprint(host, &entry.path)? != before {
+                last = "the game was saving".into();
+                continue;
+            }
+            let check = || match fingerprint(host, &entry.path) {
+                Ok(after) if after == before => Ok(()),
+                Ok(_) => Err("the game saved while it was copied".to_string()),
+                Err(e) => Err(e),
+            };
+            match back_up_one(host, entry, &s.dir, s.keep, Some(SNAP_TAG), &check) {
+                Ok(p) => {
+                    made.push(p);
+                    done = true;
+                    break;
+                }
+                Err(e) => last = e,
+            }
+        }
+        if !done {
+            return Err(format!(
+                "Could not take a clean copy of {title_id}'s save ({last}). Try again in a moment."
+            ));
+        }
+    }
+    crate::log_info!(
+        "save backup: snapshot of {title_id} on {host} ({} file(s))",
+        made.len()
+    );
+    Ok(made)
+}
+
+#[derive(Deserialize)]
+pub struct SnapshotBody {
+    pub addr: String,
+    pub title_id: String,
+}
+
+/// `POST /api/save-backup/snapshot` — back up a game's save now, while it may be running.
+pub async fn post_snapshot(Json(b): Json<SnapshotBody>) -> Response {
+    let title = b.title_id.trim().to_ascii_uppercase();
+    if !plain(&title) {
+        return json_error(StatusCode::BAD_REQUEST, "unexpected title id");
+    }
+    let host = b.addr.trim().to_string();
+    match tokio::task::spawn_blocking(move || snapshot(&host, &title)).await {
+        Ok(Ok(files)) => Json(json!({
+            "ok": true,
+            "files": files.iter().filter_map(|p| p.file_name()?.to_str().map(String::from)).collect::<Vec<_>>(),
+        }))
+        .into_response(),
+        Ok(Err(e)) => json_error(StatusCode::BAD_GATEWAY, e),
+        Err(e) => json_error(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()),
+    }
+}
+
 // ── listing and restore ─────────────────────────────────────────────────
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -414,9 +568,12 @@ pub struct BackupFile {
     pub file: String,
     pub title_id: String,
     pub user_id: u32,
-    /// `YYYY-MM-DD_HHMMSS` (UTC for backups the engine made).
+    /// `YYYY-MM-DD_HHMMSS` (UTC for backups the engine made), `_snap` after it for a snapshot.
     pub stamp: String,
     pub size: u64,
+    /// `snap`: taken while the game ran. None: an automatic (or before-restore) backup.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tag: Option<String>,
 }
 
 /// Parses `<title>_user<8 hex>_<stamp>.zip`.
@@ -450,6 +607,7 @@ pub fn list_backups(dir: &str, title_id: &str) -> Vec<BackupFile> {
             let (user_id, stamp) = parse_backup_name(title_id, &file)?;
             let size = e.metadata().ok()?.len();
             Some(BackupFile {
+                tag: ps5upload_core::save_archive::backup_tag(&file).map(String::from),
                 file,
                 title_id: title_id.to_string(),
                 user_id,
@@ -481,6 +639,13 @@ fn restore(
     if !save_path.ends_with(&format!("/{title_id}")) {
         return Err(format!("{save_path} is not the save folder of {title_id}"));
     }
+    // The game writes its save while it runs: one put back underneath it is overwritten, or
+    // worse, mixed with what the game writes next.
+    if title_running(host, title_id)? {
+        return Err(format!(
+            "{title_id} is running on the PS5. Close the game, then restore."
+        ));
+    }
     let tmp = make_temp_dir(title_id)?;
     let tmp_s = tmp.to_string_lossy().into_owned();
     let result = (|| {
@@ -497,7 +662,7 @@ fn restore(
                 mtime: 0,
                 kind: String::new(),
             };
-            back_up_one(host, &current, &s.dir, s.keep)
+            back_up_one(host, &current, &s.dir, s.keep, None, &|| Ok(()))
                 .map_err(|e| format!("could not back up the current save first: {e}"))?;
         }
         // Empty the save folder but keep the folder itself: the console refuses a fresh mkdir

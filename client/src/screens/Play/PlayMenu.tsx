@@ -1,5 +1,6 @@
 import {
   BarChart3,
+  Gamepad2,
   Minimize,
   PictureInPicture2,
   Scaling,
@@ -106,6 +107,7 @@ export function PlayMenu({
   onPip,
   onSettings,
   onStop,
+  onGame,
 }: {
   inFull: boolean;
   pipKind: unknown;
@@ -114,6 +116,8 @@ export function PlayMenu({
   onPip: () => void;
   onSettings: () => void;
   onStop: () => void;
+  /** The Game panel (the running game, its cheats, the console). */
+  onGame: () => void;
 }) {
   const tr = useTr();
   const prefs = useRemotePlayStore((s) => s.prefs);
@@ -173,6 +177,12 @@ export function PlayMenu({
             active={!!pip}
           />
         )}
+        <Tile
+          label={tr("rp_game_button", undefined, "Game")}
+          icon={<Gamepad2 size={18} />}
+          onClick={onGame}
+          testId="rp-menu-game"
+        />
         <Tile
           label={tr("rp_settings", undefined, "Settings")}
           icon={<Settings2 size={18} />}
