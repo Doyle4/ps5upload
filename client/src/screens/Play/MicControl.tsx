@@ -39,13 +39,18 @@ function useMic() {
 
 function micLabel(tr: ReturnType<typeof useTr>, s: MicState): string {
   if (s === "live" || s === "starting") return tr("rp_mic_turn_off", undefined, "Turn the microphone off");
+  // The browser's own reason after the sentence: the step and error name are what a bug report
+  // needs, and they are not translated anywhere.
+  const why = rpMic.detail ? ` (${rpMic.detail})` : "";
   if (s === "denied")
-    return tr(
-      "rp_mic_denied",
-      undefined,
-      "Microphone blocked. Allow it in the browser or system settings, then try again.",
+    return (
+      tr(
+        "rp_mic_denied",
+        undefined,
+        "Microphone blocked. Allow it in the browser or system settings, then try again.",
+      ) + why
     );
-  if (s === "error") return tr("rp_mic_failed", undefined, "The microphone could not start. Press to try again.");
+  if (s === "error") return tr("rp_mic_failed", undefined, "The microphone could not start. Press to try again.") + why;
   return tr("rp_mic_turn_on", undefined, "Microphone (experimental)");
 }
 

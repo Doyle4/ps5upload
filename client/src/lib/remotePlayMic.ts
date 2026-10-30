@@ -7,6 +7,10 @@
 // AudioEncoder → `[5][Opus packet]` binary messages on the stream's socket. `{"mic": true}` /
 // `{"mic": false}` turns the console's mic on and off. Nothing is stored.
 
+import { log } from "../state/logs";
+// no-inline: a small file would otherwise be a data: URL, which the apps' CSP refuses too.
+import micWorkletUrl from "./rpMicWorklet.js?url&no-inline";
+
 export const MIC_KIND = 5;
 export const MIC_SAMPLE_RATE = 48000;
 export const MIC_CHANNELS = 2;
@@ -79,7 +83,7 @@ export function micSupported(): Promise<boolean> {
   supported = (async () => {
     try {
       if (typeof AudioEncoder === "undefined" || typeof AudioData === "undefined") return false;
-      if (typeof AudioWorkletNode === "undefined") return false;
+      if (typeof AudioWorkletNode === "undefined" && typeof ScriptProcessorNode === "undefined") return false;
       if (!navigator.mediaDevices?.getUserMedia) return false;
       const r = await AudioEncoder.isConfigSupported(MIC_ENCODER_CONFIG);
       return !!r.supported;
@@ -95,16 +99,64 @@ export function resetMicSupportedForTest(): void {
   supported = null;
 }
 
-const MIC_WORKLET = `
-class RpMic extends AudioWorkletProcessor {
-  process(inputs) {
-    const ch = inputs[0];
-    if (ch && ch.length) this.port.postMessage(ch.map((c) => c.slice()));
-    return true;
+/** Hands the mic's samples to `onSamples` (1 or 2 channels, any block size) until the returned
+ *  stop is called. An audio worklet loaded from the app's own file; where a worklet cannot load,
+ *  the older ScriptProcessorNode, which every WebView has. `via` says which one runs. */
+async function attachCapture(
+  ctx: AudioContext,
+  source: AudioNode,
+  onSamples: (channels: Float32Array[]) => void,
+): Promise<{ via: string; stop: () => void }> {
+  // Silent, but connected to the speakers: a node nothing listens to is not run everywhere.
+  const sink = ctx.createGain();
+  sink.gain.value = 0;
+  sink.connect(ctx.destination);
+  let workletError = "";
+  if (typeof AudioWorkletNode !== "undefined" && ctx.audioWorklet) {
+    try {
+      await ctx.audioWorklet.addModule(micWorkletUrl);
+      const node = new AudioWorkletNode(ctx, "rp-mic", { numberOfOutputs: 1 });
+      node.port.onmessage = (e: MessageEvent<Float32Array[]>) => onSamples(e.data);
+      source.connect(node);
+      node.connect(sink);
+      return {
+        via: "worklet",
+        stop: () => {
+          node.port.onmessage = null;
+          node.disconnect();
+          sink.disconnect();
+        },
+      };
+    } catch (e) {
+      workletError = errorText(e);
+    }
   }
+  // 512 samples: about 10 ms at 48 kHz, the console's frame.
+  const proc = ctx.createScriptProcessor(512, 2, 2);
+  proc.onaudioprocess = (e) => {
+    const b = e.inputBuffer;
+    const chans: Float32Array[] = [];
+    for (let c = 0; c < b.numberOfChannels; c++) chans.push(b.getChannelData(c).slice());
+    onSamples(chans);
+  };
+  source.connect(proc);
+  proc.connect(sink);
+  return {
+    via: workletError ? `script processor (the worklet failed: ${workletError})` : "script processor",
+    stop: () => {
+      proc.onaudioprocess = null;
+      proc.disconnect();
+      sink.disconnect();
+    },
+  };
 }
-registerProcessor("rp-mic", RpMic);
-`;
+
+function errorText(e: unknown): string {
+  const x = e as { name?: string; message?: string } | null;
+  const name = x?.name ?? "";
+  const msg = x?.message ?? String(e);
+  return name && !msg.startsWith(name) ? `${name}: ${msg}` : msg;
+}
 
 /** Where mic frames go: the running stream. */
 export interface MicTarget {
@@ -122,6 +174,8 @@ export class MicController {
   private media: MediaStream | null = null;
   private ctx: AudioContext | null = null;
   private encoder: AudioEncoder | null = null;
+  private capture: { via: string; stop: () => void } | null = null;
+  private why = "";
   private samples = 0;
   /** Bumped on every start/stop, so a start that finishes late knows it was cancelled. */
   private run = 0;
@@ -137,8 +191,14 @@ export class MicController {
 
   readonly getState = (): MicState => this.st;
 
-  private set(s: MicState): void {
+  /** Why it is blocked or failed (the step and the browser's error), or "". */
+  get detail(): string {
+    return this.why;
+  }
+
+  private set(s: MicState, why = ""): void {
     this.st = s;
+    this.why = why;
     for (const fn of this.listeners) fn();
   }
 
@@ -161,7 +221,9 @@ export class MicController {
     } catch (e) {
       if (run !== this.run) return;
       const name = (e as { name?: string })?.name ?? "";
-      this.set(name === "NotAllowedError" || name === "SecurityError" ? "denied" : "error");
+      const why = `asking for the microphone: ${errorText(e)}`;
+      log.warn("remote-play", `mic: ${why}`);
+      this.set(name === "NotAllowedError" || name === "SecurityError" ? "denied" : "error", why);
       return;
     }
     if (run !== this.run) {
@@ -169,16 +231,11 @@ export class MicController {
       return;
     }
     this.media = media;
+    let step = "starting the audio";
     try {
       const ctx = new AudioContext({ sampleRate: MIC_SAMPLE_RATE, latencyHint: "interactive" });
       this.ctx = ctx;
-      const url = URL.createObjectURL(new Blob([MIC_WORKLET], { type: "application/javascript" }));
-      try {
-        await ctx.audioWorklet.addModule(url);
-      } finally {
-        URL.revokeObjectURL(url);
-      }
-      if (run !== this.run) return;
+      step = "starting the encoder";
       const encoder = new AudioEncoder({
         output: (chunk) => {
           // Silence and odd sizes are skipped by the engine too; no need to send them.
@@ -187,19 +244,19 @@ export class MicController {
           chunk.copyTo(buf);
           this.target?.sendMicFrame(micFrameMessage(buf));
         },
-        error: () => {
-          if (run === this.run) this.fail();
+        error: (e) => {
+          if (run === this.run) this.fail(`encoding: ${errorText(e)}`);
         },
       });
       encoder.configure(MIC_ENCODER_CONFIG);
       this.encoder = encoder;
       this.samples = 0;
       const chunker = new FrameChunker();
-      const node = new AudioWorkletNode(ctx, "rp-mic", { numberOfOutputs: 1 });
-      node.port.onmessage = (e: MessageEvent<Float32Array[]>) => {
+      step = "capturing the microphone";
+      this.capture = await attachCapture(ctx, ctx.createMediaStreamSource(media), (channels) => {
         const enc = this.encoder;
         if (!enc || enc.state !== "configured") return;
-        for (const frame of chunker.push(e.data)) {
+        for (const frame of chunker.push(channels)) {
           const data = new AudioData({
             format: "f32-planar",
             sampleRate: MIC_SAMPLE_RATE,
@@ -212,28 +269,26 @@ export class MicController {
           enc.encode(data);
           data.close();
         }
-      };
-      // A silent path to the speakers keeps the worklet running everywhere.
-      const sink = ctx.createGain();
-      sink.gain.value = 0;
-      ctx.createMediaStreamSource(media).connect(node);
-      node.connect(sink);
-      sink.connect(ctx.destination);
+      });
+      if (run !== this.run) return;
+      step = "starting the audio";
       await ctx.resume();
       if (run !== this.run) return;
+      log.info("remote-play", `mic: live (${this.capture.via})`);
       this.target = target;
       target.setMic(true);
       this.set("live");
-    } catch {
-      if (run === this.run) this.fail();
+    } catch (e) {
+      if (run === this.run) this.fail(`${step}: ${errorText(e)}`);
     }
   }
 
-  private fail(): void {
+  private fail(why: string): void {
+    log.warn("remote-play", `mic: ${why}`);
     this.release();
     this.target?.setMic(false);
     this.target = null;
-    this.set("error");
+    this.set("error", why);
   }
 
   /** Stop the mic and tell the console. */
@@ -247,6 +302,8 @@ export class MicController {
   }
 
   private release(): void {
+    this.capture?.stop();
+    this.capture = null;
     this.media?.getTracks().forEach((t) => t.stop());
     this.media = null;
     try {

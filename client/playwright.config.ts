@@ -19,11 +19,27 @@ export default defineConfig({
       name: "chromium-desktop",
       use: { ...devices["Desktop Chrome"] },
     },
+    // The production build under the apps' Content-Security-Policy (e2e/fixtures/serve-dist-csp.mjs):
+    // what only breaks in the packaged apps. Needs a build (npm run build:vite) first.
+    {
+      name: "app-csp",
+      testMatch: /remote-play\.spec\.ts/,
+      grep: /microphone sends/,
+      use: { ...devices["Desktop Chrome"], baseURL: "http://127.0.0.1:1421" },
+    },
   ],
-  webServer: {
-    command: "npm run dev:vite -- --host 127.0.0.1",
-    url: "http://127.0.0.1:1420",
-    reuseExistingServer: !process.env.CI,
-    timeout: 120_000,
-  },
+  webServer: [
+    {
+      command: "npm run dev:vite -- --host 127.0.0.1",
+      url: "http://127.0.0.1:1420",
+      reuseExistingServer: !process.env.CI,
+      timeout: 120_000,
+    },
+    {
+      command: "node e2e/fixtures/serve-dist-csp.mjs",
+      url: "http://127.0.0.1:1421",
+      reuseExistingServer: !process.env.CI,
+      timeout: 30_000,
+    },
+  ],
 });
