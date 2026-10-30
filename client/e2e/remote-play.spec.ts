@@ -443,8 +443,8 @@ test("Remote Play: picture size changes in full screen and applies there", async
       const r = c.getBoundingClientRect();
       return { fit: c.dataset.fit, objectFit: getComputedStyle(c).objectFit, w: Math.round(r.width), h: Math.round(r.height) };
     });
-  // The canvas fills the screen; object-fit decides the picture in it.
-  expect(await look()).toEqual({ fit: "fit", objectFit: "contain", w: 1600, h: 1000 });
+  // Fit: the canvas is the whole picture's shape inside the screen (bars above and below).
+  await expect.poll(look).toEqual({ fit: "fit", objectFit: "contain", w: 1600, h: 900 });
 
   await page.getByTestId("rp-toolbar").hover();
   const cycle = page.getByTestId("rp-fit-cycle");
@@ -825,3 +825,58 @@ test("Remote Play without the microphone setting has no mic and asks for none", 
   await expect(page.getByTestId("rp-fullscreen")).toBeVisible();
   await expect(page.getByTestId("rp-mic")).toHaveCount(0);
 });
+
+// Fit never cuts the picture, whatever shape the screen is: the stream sizes the canvas to the
+// whole picture itself, so it holds even where object-fit on a canvas misbehaves (#538) and with a
+// scrollbar on the page (100vw counted it, and the right edge went under it).
+for (const [w, h] of [
+  [1600, 1000],
+  [2560, 1080],
+  [1280, 1024],
+  [1366, 768],
+]) {
+  test(`Remote Play full screen, Fit shows the whole picture at ${w}x${h}`, async ({ page }) => {
+    await page.setViewportSize({ width: w, height: h });
+    await rpPage(page, { res: "1920x1080", fit: "fit" });
+    await page.addInitScript(() => {
+      const style = () => {
+        const st = document.createElement("style");
+        // As if object-fit on a canvas were ignored, and the page always had a scrollbar.
+        st.textContent = "canvas { object-fit: fill !important } html { overflow-y: scroll !important }";
+        document.head.appendChild(st);
+      };
+      if (document.head) style();
+      else document.addEventListener("DOMContentLoaded", style);
+    });
+    await rpEngine(page);
+    await page.goto("/play", { waitUntil: "domcontentloaded" });
+    await expect(page.getByRole("heading", { name: "Remote Play" })).toBeVisible({ timeout: 30_000 });
+    await page.getByTestId("rp-start").click();
+    await expect(page.getByTestId("rp-toolbar")).toBeVisible();
+    await page.getByTestId("rp-toolbar").hover();
+    await page.getByTestId("rp-fullscreen").click();
+    const stage = page.getByTestId("rp-stage");
+    await expect(stage).toHaveAttribute("data-full", "bar");
+    const canvas = stage.locator("canvas");
+    // A real decoded frame: the canvas takes the picture's own size.
+    await expect.poll(() => canvas.evaluate((c: HTMLCanvasElement) => c.width)).toBe(1920);
+    const box = () =>
+      page.evaluate(() => {
+        const c = document.querySelector('[data-testid="rp-stage"] canvas')!.getBoundingClientRect();
+        const vw = document.documentElement.clientWidth;
+        const vh = document.documentElement.clientHeight;
+        return { l: c.left, t: c.top, r: c.right, b: c.bottom, w: c.width, h: c.height, vw, vh };
+      });
+    await expect
+      .poll(async () => {
+        const b = await box();
+        // Inside the visible area, and the picture's own 16:9 shape (nothing cropped or stretched).
+        const inside = b.l >= -0.5 && b.t >= -0.5 && b.r <= b.vw + 0.5 && b.b <= b.vh + 0.5;
+        const shape = Math.abs(b.w / b.h - 16 / 9) < 0.01;
+        // As big as it can be: touching two opposite sides.
+        const full = Math.abs(b.w - b.vw) <= 1 || Math.abs(b.h - b.vh) <= 1;
+        return inside && shape && full;
+      })
+      .toBe(true);
+  });
+}

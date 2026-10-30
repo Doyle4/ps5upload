@@ -1043,7 +1043,10 @@ export function StreamPanel() {
           onPointerLeave={(e) => onPointer(e, "up")}
           className={`group relative overflow-hidden bg-black outline-none ${
             full
-              ? "fixed inset-0 z-[200] h-[100dvh] w-screen touch-none select-none overscroll-none [-webkit-touch-callout:none]"
+              ? // Across: inset-x-0, the visible width (100vw counts a scrollbar's width, and the
+                // right edge went under it). Down: 100dvh, a phone's visible height (its layout
+                // viewport can be taller than the screen).
+                "fixed inset-x-0 top-0 z-[200] h-[100dvh] touch-none select-none overscroll-none [-webkit-touch-callout:none]"
               : "mx-auto aspect-video w-full max-w-[calc((100dvh_-_12rem)*16/9)] rounded-[var(--radius-card)] shadow-[var(--shadow-2)] focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]"
           } ${playing && !chrome && !(compact && full) ? "cursor-none" : ""}`}
           data-full={full ? (compact ? "immersive" : "bar") : undefined}

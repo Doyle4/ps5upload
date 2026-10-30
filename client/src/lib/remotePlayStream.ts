@@ -385,11 +385,22 @@ export function nextFit(fit: PictureFit): PictureFit {
   return FIT_ORDER[(i + 1) % FIT_ORDER.length];
 }
 
-/** The canvas's classes for a fit. The canvas never grows past the place it is in: its box is
- *  that place's, whatever its own pixel size, and object-fit decides the picture in it. It never
- *  takes a pointer: presses belong to the stage it is on and to the controls drawn over it. */
+/** The canvas's classes for a fit. It never takes a pointer: presses belong to the stage it is
+ *  on and to the controls drawn over it. Fill and Stretch: the canvas's box is the place it is in
+ *  and object-fit decides the picture in it. Fit: the stream sizes the canvas itself to the whole
+ *  picture (containSize), so no part of it can fall outside, whatever the browser does with
+ *  object-fit on a canvas or with the full-screen box; the classes only keep it inside. */
 export function canvasClass(fit: PictureFit): string {
-  return `pointer-events-none block h-full w-full min-h-0 min-w-0 max-h-full max-w-full ${FIT_CLASS[fit] ?? FIT_CLASS.fit}`;
+  const size = fit === "fit" ? "" : "h-full w-full ";
+  return `pointer-events-none block ${size}min-h-0 min-w-0 max-h-full max-w-full ${FIT_CLASS[fit] ?? FIT_CLASS.fit}`;
+}
+
+/** The largest size with the picture's shape (picW:picH) that fits inside boxW × boxH, in whole
+ *  CSS pixels: the whole picture, with black bars where the shapes differ. */
+export function containSize(boxW: number, boxH: number, picW: number, picH: number): { w: number; h: number } {
+  if (!(boxW > 0 && boxH > 0 && picW > 0 && picH > 0)) return { w: 0, h: 0 };
+  const scale = Math.min(boxW / picW, boxH / picH);
+  return { w: Math.max(1, Math.floor(picW * scale)), h: Math.max(1, Math.floor(picH * scale)) };
 }
 
 /** True when this device can play a stream at all. */
@@ -620,6 +631,21 @@ export class RemotePlayStream {
   constructor(private readonly o: StreamOptions) {
     this.canvas = document.createElement("canvas");
     this.canvas.dataset.testid = "rp-canvas";
+    // Fit is laid out here: on being put in a place (the canvas's own size changes), when that
+    // place changes size (a window resize, full screen, turning the phone) and when the picture's
+    // size does.
+    if (typeof ResizeObserver !== "undefined") {
+      // On the next frame, not inside the callback: resizing the canvas there would ask the
+      // observer again in the same frame ("ResizeObserver loop").
+      this.fitObserver = new ResizeObserver(() => {
+        if (this.fitFrame) return;
+        this.fitFrame = requestAnimationFrame(() => {
+          this.fitFrame = 0;
+          this.layoutFit();
+        });
+      });
+      this.fitObserver.observe(this.canvas);
+    }
     this.setFit(o.fit ?? "fit");
     // Not `desynchronized`: Chromium honours it only on Windows and ChromeOS, where the canvas
     // is presented through its own swap chain/overlay instead of the page's compositor. The
@@ -632,8 +658,44 @@ export class RemotePlayStream {
   /** How the picture fills the place it is shown in (see PictureFit). */
   setFit(fit: PictureFit): void {
     const f: PictureFit = fit in FIT_CLASS ? fit : "fit";
+    this.fit = f;
     this.canvas.className = canvasClass(f);
     this.canvas.dataset.fit = f;
+    this.layoutFit();
+  }
+
+  private fit: PictureFit = "fit";
+  /** A frame has set the canvas to the picture's own size. */
+  private framed = false;
+  private fitFrame = 0;
+  private fitObserver: ResizeObserver | null = null;
+  private fitPlace: Element | null = null;
+
+  /** Fit: size the canvas to the whole picture inside the place it is in (its content box). */
+  private layoutFit(): void {
+    const c = this.canvas;
+    const place = c.parentElement;
+    if (place !== this.fitPlace) {
+      if (this.fitPlace) this.fitObserver?.unobserve(this.fitPlace);
+      if (place) this.fitObserver?.observe(place);
+      this.fitPlace = place;
+    }
+    if (this.fit !== "fit" || !place) {
+      c.style.width = "";
+      c.style.height = "";
+      return;
+    }
+    const cs = getComputedStyle(place);
+    const px = (v: string) => Number.parseFloat(v) || 0;
+    const boxW = place.clientWidth - px(cs.paddingLeft) - px(cs.paddingRight);
+    const boxH = place.clientHeight - px(cs.paddingTop) - px(cs.paddingBottom);
+    // Before the first frame the canvas is the browser's 300×150: lay out a 16:9 picture.
+    const [pw, ph] = this.framed ? [c.width, c.height] : [16, 9];
+    const { w, h } = containSize(boxW, boxH, pw, ph);
+    const width = w ? `${w}px` : "";
+    const height = h ? `${h}px` : "";
+    if (c.style.width !== width) c.style.width = width;
+    if (c.style.height !== height) c.style.height = height;
   }
 
   get host(): string {
@@ -938,6 +1000,7 @@ export class RemotePlayStream {
   }
 
   private finish(): void {
+    this.fitObserver?.disconnect();
     if (this.ended) return;
     this.ended = true;
     this.ticking = false;
@@ -1075,9 +1138,11 @@ export class RemotePlayStream {
         // The canvas is the picture's own size (its visible part, at the display aspect), taken
         // from each frame, never from the size asked for: the console may send another.
         const c = this.canvas;
-        if (c.width !== frame.displayWidth || c.height !== frame.displayHeight) {
+        if (c.width !== frame.displayWidth || c.height !== frame.displayHeight || !this.framed) {
           c.width = frame.displayWidth;
           c.height = frame.displayHeight;
+          this.framed = true;
+          this.layoutFit();
         }
         this.ctx?.drawImage(frame, 0, 0, c.width, c.height);
         frame.close();

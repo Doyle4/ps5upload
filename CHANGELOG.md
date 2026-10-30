@@ -4,6 +4,15 @@ What's new in ps5upload, written for humans.
 
 ---
 
+## 9.5.1
+
+- **Remote Play full screen shows the whole picture.** With **Fit** (the default), the picture is
+  now sized to the screen by the app itself, the way video players letterbox: always the whole
+  picture, with black bars where the screen's shape differs, never cut off. Before, Fit relied on
+  the browser scaling the picture, and full screen could be wider than the visible area (a
+  scrollbar's width on Windows), so an edge could be cut off. **Fill** still crops on purpose and
+  **Stretch** still stretches.
+
 ## 9.5.0
 
 - **The cheat engine stays on after a restart (#550).** The helper remembers the cheat engine

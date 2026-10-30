@@ -72,7 +72,9 @@ describe("canvasClass", () => {
   it("keeps the canvas inside its place and maps each fit to object-fit", () => {
     for (const fit of ["fit", "fill", "stretch"] as const) {
       const c = canvasClass(fit).split(" ");
-      for (const k of ["pointer-events-none", "h-full", "w-full", "max-h-full", "max-w-full", "min-h-0", "min-w-0"]) expect(c).toContain(k);
+      for (const k of ["pointer-events-none", "max-h-full", "max-w-full", "min-h-0", "min-w-0"]) expect(c).toContain(k);
+      // Fill and Stretch take the whole place; Fit is sized to the whole picture by the stream.
+      expect(c.includes("h-full") && c.includes("w-full")).toBe(fit !== "fit");
     }
     expect(canvasClass("fit")).toContain("object-contain");
     expect(canvasClass("fill")).toContain("object-cover");
@@ -136,5 +138,16 @@ describe("nextRtt", () => {
 
   it("never goes below zero", () => {
     expect(nextRtt(null, 150, 100)).toBe(0);
+  });
+});
+
+describe("containSize", () => {
+  it("fits the whole picture, bars where the shapes differ", async () => {
+    const { containSize } = await import("./remotePlayStream");
+    expect(containSize(1600, 1000, 1920, 1080)).toEqual({ w: 1600, h: 900 }); // bars above/below
+    expect(containSize(2560, 1080, 1920, 1080)).toEqual({ w: 1920, h: 1080 }); // bars at the sides
+    expect(containSize(1280, 720, 1280, 720)).toEqual({ w: 1280, h: 720 });
+    expect(containSize(390, 844, 1920, 1080)).toEqual({ w: 390, h: 219 }); // phone upright
+    expect(containSize(0, 500, 1920, 1080)).toEqual({ w: 0, h: 0 }); // not laid out yet
   });
 });
