@@ -2025,6 +2025,24 @@ In the Android app, full screen hides the status and navigation bars (swipe from
 **Q: Part of the Remote Play picture is cut off, or it looks stretched.**
 **Picture size** decides how the picture fits the screen: **Fit** shows the whole picture with black bars where the shapes differ (the default), **Fill** fills the screen and crops the edges, **Stretch** fills it without cropping. It shows in full screen: on the page the picture's box is the picture's own shape, so all three look the same there. Change it in full screen without leaving it: the **Picture size** button on the bar (desktop), or the Fit / Fill / Stretch row in the **⋯** menu (phones). It's also in Remote Play › Settings, and it applies at once. Before 9.2.0, the Windows app could show the picture enlarged with its right and bottom cut off (#538); update to fix it.
 
+**Q: Can I use voice chat (a microphone) in Remote Play?**
+Experimental, from 9.5.0. Press the **Microphone** button on the picture's bar (desktop and full
+screen), or **Mic** in the **⋯** menu (phones). It's off until you press it; the first press asks
+for permission to use the mic. While it's on, the icon has a red dot and your voice is sent to the
+PS5 the way chiaki-ng sends it, meant for party and game chat. Press it again to turn it
+off: the mic is released and the console's mic is muted. It also turns off when the stream stops
+or moves to another window. Echo cancellation and noise suppression are on, so headphones aren't
+required, but they help. The button is missing where the browser can't encode the sound the way
+the PS5 expects (it needs WebCodecs audio encoding with Opus: current Chrome and Edge have it;
+other browsers and the Linux desktop app may not). Nothing about the mic is saved.
+
+Why experimental: it follows chiaki-ng's microphone code byte for byte (the same 48 kHz Opus
+frames, packets and encryption), and every step on our side is tested, but it has **not yet been
+tried against a real PS5**. If your friends can't hear you, or the stream misbehaves while the mic
+is on, turn it off and tell us in a GitHub issue. The desktop apps ask the system for the mic (on
+macOS: System Settings › Privacy & Security › Microphone; on Android and iPhone, the usual
+permission prompt). If you said no once, allow it there and press the button again.
+
 **Q: Which browser should I use for Remote Play in the web UI?**
 Chrome or Edge (on Android, Chrome). Remote Play is made and tested for them. In Firefox and Safari, Esc always leaves full screen, so it can't be the controller's ○ there; Firefox has no picture in picture, and Safari's shows the picture only. The web UI says so on the Remote Play page in those browsers. On iPhone and iPad every browser is Safari underneath, and Remote Play works there. The desktop and Android apps don't depend on your browser.
 

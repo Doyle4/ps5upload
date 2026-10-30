@@ -58,6 +58,7 @@ import {
   unlockOrientation,
   useMedia,
 } from "./immersive";
+import { MicBarButton } from "./MicControl";
 import { fitName, PlayMenu, VolumeSlider } from "./PlayMenu";
 import { rpBrowserAdvice } from "./browserAdvice";
 import { safeGetItem, safeSetItem } from "../../lib/safeStorage";
@@ -1074,6 +1075,7 @@ export function StreamPanel() {
               </BarButton>
               {/* Volume right on the picture (Settings has it too); keys on it never reach the pad. */}
               <VolumeSlider className="w-20 accent-white sm:w-28" />
+              <MicBarButton />
               {full && (
                 // Picture size where it shows: in full screen (on the page the box is the
                 // picture's own shape, so every size looks the same). Settings would leave it.

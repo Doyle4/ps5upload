@@ -16,9 +16,9 @@
 //!    answered for the whole stream. A background thread does that.
 //! 3. **Takion** (UDP 9296): INIT/COOKIE handshake, then BIG (our launch spec
 //!    and ECDH key) → BANG (the console's key) → both sides switch on GKCrypt →
-//!    STREAMINFO (resolutions + codec headers) → we ack and say a controller is
-//!    connected → video and audio flow; we heartbeat every second and report
-//!    congestion every 200 ms.
+//!    STREAMINFO (resolutions + codec headers) → we ack, say a controller is
+//!    connected and send our mic's audio header → video and audio flow; we
+//!    heartbeat every second and report congestion every 200 ms.
 //!
 //! Senkusha (the MTU/RTT probe on 9297) is skipped: chiaki falls back to an
 //! MTU of 1454 and 1 ms RTT when it fails and streams anyway.
@@ -28,6 +28,7 @@ pub mod crypto;
 pub mod fec;
 pub mod feedback;
 pub mod guard;
+pub mod mic;
 pub mod proto;
 pub mod takion;
 pub mod video;
@@ -35,7 +36,7 @@ pub mod video;
 use std::io::{Read, Write};
 use std::net::{Shutdown, SocketAddr, TcpStream, ToSocketAddrs};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
@@ -53,6 +54,7 @@ use self::takion::{Event, Takion, DATA_TYPE_PAD_INFO, DATA_TYPE_PROTOBUF, DATA_T
 
 pub use self::audio::{AudioAssembler, AudioHeader};
 pub use self::feedback::{button, ControllerState, FeedbackSender};
+pub use self::mic::MicInput;
 pub use self::proto::Resolution;
 pub use self::video::{FrameAssembler, VideoStats};
 
@@ -133,6 +135,28 @@ struct Ctrl {
     stop: Arc<AtomicBool>,
     thread: Option<JoinHandle<()>>,
     stream: TcpStream,
+    /// Writes go through here: the heartbeat thread and the stream both send.
+    writer: Arc<Mutex<TcpStream>>,
+    /// Our rpcrypt counter: one per payload we send (the auth headers took
+    /// the first five), and the keys it runs on.
+    counter_local: u64,
+    brt: [u8; 16],
+    amb: [u8; 16],
+}
+
+impl Ctrl {
+    /// A message with a payload, encrypted on our counter (chiaki
+    /// `ctrl_message_send`). Used for the microphone (see mic.rs).
+    fn send(&mut self, kind: u16, payload: &[u8]) -> Result<()> {
+        let msg = ctrl_message(kind, payload, &self.brt, &self.amb, self.counter_local);
+        self.counter_local += 1;
+        let mut w = self
+            .writer
+            .lock()
+            .map_err(|_| anyhow!("ctrl writer poisoned"))?;
+        w.write_all(&msg)?;
+        Ok(())
+    }
 }
 
 impl Drop for Ctrl {
@@ -176,6 +200,7 @@ fn ctrl_open(
         Codec::H265 => 2,
     };
     let streaming_type = next(&streaming_type.to_le_bytes());
+    let counter_local = counter;
 
     let addr = resolve(host, SESSION_PORT)?;
     let mut s = TcpStream::connect_timeout(&addr, Duration::from_secs(10))
@@ -285,6 +310,8 @@ fn ctrl_open(
     // Keep answering heartbeats for the life of the stream.
     let stop = Arc::new(AtomicBool::new(false));
     let mut ts = s.try_clone()?;
+    let writer = Arc::new(Mutex::new(s.try_clone()?));
+    let tw = writer.clone();
     let stop_t = stop.clone();
     let thread = std::thread::Builder::new()
         .name("rp-ctrl".into())
@@ -300,7 +327,9 @@ fn ctrl_open(
                     let kind = u16::from_be_bytes([pending[4], pending[5]]);
                     pending.drain(..8 + size);
                     if kind == CTRL_HEARTBEAT_REQ
-                        && ts.write_all(&ctrl_msg(CTRL_HEARTBEAT_REP)).is_err()
+                        && !tw
+                            .lock()
+                            .is_ok_and(|mut w| w.write_all(&ctrl_msg(CTRL_HEARTBEAT_REP)).is_ok())
                     {
                         return;
                     }
@@ -322,6 +351,10 @@ fn ctrl_open(
             stop,
             thread: Some(thread),
             stream: s,
+            writer,
+            counter_local,
+            brt,
+            amb,
         },
         session_id,
         brt,
@@ -352,6 +385,23 @@ fn ctrl_msg(kind: u16) -> [u8; 8] {
     let mut h = [0u8; 8];
     h[4..6].copy_from_slice(&kind.to_be_bytes());
     h
+}
+
+/// `[size BE32][kind BE16][0, 0]` then the payload, encrypted with the ctrl
+/// cipher at `counter` (chiaki `ctrl_message_send`).
+fn ctrl_message(
+    kind: u16,
+    payload: &[u8],
+    brt: &[u8; 16],
+    amb: &[u8; 16],
+    counter: u64,
+) -> Vec<u8> {
+    let mut m = Vec::with_capacity(8 + payload.len());
+    m.extend_from_slice(&(payload.len() as u32).to_be_bytes());
+    m.extend_from_slice(&kind.to_be_bytes());
+    m.extend_from_slice(&[0, 0]);
+    m.extend_from_slice(&auth_encrypt(brt, amb, counter, payload));
+    m
 }
 
 fn launch_spec(cfg: &StreamConfig, handshake_key: &[u8; HANDSHAKE_KEY_SIZE]) -> String {
@@ -407,6 +457,11 @@ pub trait StreamSink {
     /// dropped frames to keep up); asked of the console at most every 500 ms.
     fn wants_keyframe(&mut self) -> bool {
         false
+    }
+    /// The page's microphone, oldest first (see mic.rs); None when nothing
+    /// is waiting.
+    fn mic(&mut self) -> Option<MicInput> {
+        None
     }
 }
 
@@ -547,7 +602,7 @@ pub fn run_stream(
             r => break r,
         }
     };
-    let (ctrl, session_id, brt, amb) = match opened {
+    let (mut ctrl, session_id, brt, amb) = match opened {
         Ok(c) => c,
         // The console gave a nonce, then refused or reset ctrl: it is booting
         // (rule 2 in guard.rs) or still letting go of a session. Seen on the
@@ -564,6 +619,11 @@ pub fn run_stream(
         Err(e) => return Err(e),
     };
     sink.progress(Progress::SessionId);
+    // chiaki `ctrl_enable_features` starts every session with the mic muted,
+    // twice (`ctrl_message_toggle_microphone(ctrl, false)`); like chiaki, a
+    // failed send is not fatal.
+    let _ = ctrl.send(mic::CTRL_MIC_TOGGLE, &mic::toggle_payload(false));
+    let _ = ctrl.send(mic::CTRL_MIC_TOGGLE, &mic::toggle_payload(false));
 
     let mut takion = Takion::connect(resolve(host, STREAM_PORT)?)?;
     sink.progress(Progress::TakionConnected);
@@ -643,6 +703,10 @@ pub fn run_stream(
     sink.progress(Progress::StreamInfo(report.resolutions.clone()));
     takion.send_message(9, &proto::bare(proto::kind::STREAMINFOACK))?;
     takion.send_message(1, &proto::controller_connection())?;
+    // The uplink's audio header (chiaki `stream_connection_enable_microphone`).
+    takion.send_message(1, &proto::stream_info_mic(&mic::stream_info_audio_header()))?;
+    let mut mic_sender = mic::AudioSender::new();
+    let (mut mic_connected, mut mic_live) = (false, false);
     if !si.audio_header.is_empty() {
         sink.audio(&si.audio_header, true);
     }
@@ -693,6 +757,31 @@ pub fn run_stream(
             feedback.set(next);
             applied = next;
             pad_queue.pop_front();
+        }
+        // The microphone (chiaki StreamSession::ToggleMute and the audio
+        // sender): CONNECT once, then unmute/mute; frames only while live.
+        while let Some(m) = sink.mic() {
+            match m {
+                MicInput::On if !mic_live => {
+                    if !mic_connected {
+                        mic_connected = true;
+                        let _ = ctrl.send(mic::CTRL_MIC_CONNECT, &mic::connect_payload());
+                    }
+                    let _ = ctrl.send(mic::CTRL_MIC_TOGGLE, &mic::toggle_payload(true));
+                    mic_live = true;
+                }
+                MicInput::Off if mic_live => {
+                    let _ = ctrl.send(mic::CTRL_MIC_TOGGLE, &mic::toggle_payload(false));
+                    mic_live = false;
+                }
+                MicInput::Frame(f) if mic_live => {
+                    if let Some(mut pkt) = mic_sender.opus_data(&f, true) {
+                        // chiaki logs a failed send and carries on.
+                        let _ = takion.send_mic(&mut pkt, true);
+                    }
+                }
+                _ => {}
+            }
         }
         for pkt in feedback.tick(Instant::now()) {
             match pkt {
@@ -853,5 +942,18 @@ mod tests {
         assert_eq!(v["videoCodec"], "avc");
         assert_eq!(v["network"]["mtu"], 1454);
         assert_eq!(v["streamResolutions"][0]["resolution"]["width"], 1280);
+    }
+
+    #[test]
+    fn ctrl_message_layout_matches_chiaki() {
+        let (brt, amb) = ([3u8; 16], [5u8; 16]);
+        // ctrl_message_toggle_microphone(ctrl, false), sent as the sixth
+        // payload (counter 5, after the five auth headers).
+        let m = ctrl_message(0x36, &[0, 1, 1, 89], &brt, &amb, 5);
+        assert_eq!(&m[..8], &[0, 0, 0, 4, 0x00, 0x36, 0, 0]);
+        assert_eq!(&m[8..], &auth_encrypt(&brt, &amb, 5, &[0, 1, 1, 89])[..]);
+        assert_eq!(auth_decrypt(&brt, &amb, 5, &m[8..]), vec![0, 1, 1, 89]);
+        // A different counter is a different ciphertext.
+        assert_ne!(ctrl_message(0x36, &[0, 1, 1, 89], &brt, &amb, 6), m);
     }
 }

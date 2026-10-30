@@ -408,6 +408,18 @@ impl Takion {
         Ok(())
     }
 
+    /// A microphone packet built by [`super::mic::AudioSender`]: sealed with
+    /// our crypt and sent (chiaki `chiaki_takion_send_mic_packet`).
+    pub fn send_mic(&mut self, pkt: &mut [u8], ps5: bool) -> Result<()> {
+        let key_pos = self.advance_key_pos(super::mic::key_pos_len(pkt, ps5));
+        let Some(gk) = self.gk_local.as_mut() else {
+            bail!("microphone audio before the stream crypt is up");
+        };
+        super::mic::seal(gk, key_pos, pkt, ps5);
+        self.sock.send(pkt)?;
+        Ok(())
+    }
+
     /// Check a received packet's MAC (once the console's crypt is known).
     fn verify(&mut self, pkt: &mut [u8]) -> bool {
         let kind = pkt[0] & 0xf;

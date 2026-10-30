@@ -69,6 +69,7 @@ cat > "$app/Contents/Info.plist" <<PLIST
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>NSHighResolutionCapable</key><true/>
   <key>NSLocalNetworkUsageDescription</key><string>PS5Upload connects to your PS5 on the local network.</string>
+  <key>NSMicrophoneUsageDescription</key><string>Talk to other players through your PS5 while you use Remote Play.</string>
 </dict>
 </plist>
 PLIST

@@ -489,3 +489,96 @@ test("Remote Play in Chrome shows no browser advice", async ({ page }) => {
   await expect(page.getByTestId("rp-start")).toBeVisible();
   await expect(page.getByTestId("rp-browser-advice")).toHaveCount(0);
 });
+
+// The microphone (experimental): off until pressed; a press asks for the mic with the browser's
+// voice processing on, says {"mic": true}, and sends [5][40-byte Opus] frames; a second press
+// stops the track and says {"mic": false}. The mic and the encoder are stand-ins here (no real
+// microphone in a test browser); the console side is the engine's, tested in Rust.
+test("Remote Play: the microphone sends mic on, Opus frames, and mic off", async ({ page }) => {
+  await page.addInitScript(() => {
+    const w = window as unknown as Record<string, unknown>;
+    w.__mic = { constraints: null as unknown, stopped: 0 };
+    navigator.mediaDevices.getUserMedia = async (c?: MediaStreamConstraints) => {
+      (w.__mic as { constraints: unknown }).constraints = c?.audio;
+      const ctx = new AudioContext();
+      const osc = ctx.createOscillator();
+      const dst = ctx.createMediaStreamDestination();
+      osc.connect(dst);
+      osc.start();
+      const stream = dst.stream;
+      for (const t of stream.getTracks()) {
+        const stop = t.stop.bind(t);
+        t.stop = () => {
+          (w.__mic as { stopped: number }).stopped++;
+          stop();
+        };
+      }
+      return stream;
+    };
+    class FakeEncoder {
+      state = "unconfigured";
+      private out: (c: { byteLength: number; copyTo: (b: Uint8Array) => void }) => void;
+      constructor(init: { output: FakeEncoder["out"] }) {
+        this.out = init.output;
+      }
+      static async isConfigSupported(config: Record<string, unknown>) {
+        (w.__mic as Record<string, unknown>).config = config;
+        return { supported: true, config };
+      }
+      configure() {
+        this.state = "configured";
+      }
+      encode() {
+        // Every frame: one 40-byte packet, like Opus at 32 kbit/s CBR, 10 ms.
+        this.out({ byteLength: 40, copyTo: (b) => b.fill(0xab) });
+      }
+      close() {
+        this.state = "closed";
+      }
+    }
+    w.AudioEncoder = FakeEncoder;
+  });
+  await playableConsole(page);
+  const texts: Array<Record<string, unknown>> = [];
+  const frames: number[][] = [];
+  await page.routeWebSocket(/\/api\/ps5\/rp\/ws/, (ws) => {
+    ws.onMessage((m) => {
+      if (typeof m !== "string") {
+        frames.push([...m.subarray(0, 2), m.length]);
+        return;
+      }
+      const msg = JSON.parse(m) as Record<string, unknown>;
+      texts.push(msg);
+      if (msg.host) ws.send(JSON.stringify({ stage: "first_frame" }));
+    });
+  });
+  await page.goto("/play", { waitUntil: "domcontentloaded" });
+  await expect(page.getByRole("heading", { name: "Remote Play" })).toBeVisible({ timeout: 30_000 });
+  await page.getByTestId("rp-start").click();
+  await page.getByTestId("rp-toolbar").hover();
+  const mic = page.getByTestId("rp-mic");
+  await expect(mic).toHaveAttribute("aria-pressed", "false");
+  await expect(mic).toHaveAttribute("title", "Microphone (experimental)");
+  expect(texts.some((t) => "mic" in t)).toBe(false);
+
+  await mic.click();
+  await expect(mic).toHaveAttribute("data-state", "live");
+  await expect(mic).toHaveAttribute("aria-pressed", "true");
+  await expect.poll(() => texts.filter((t) => t.mic === true).length).toBe(1);
+  await expect.poll(() => frames.length, { timeout: 10_000 }).toBeGreaterThan(3);
+  // Kind 5, then the packet: 41 bytes in all.
+  expect(frames[0]).toEqual([5, 0xab, 41]);
+  const info = await page.evaluate(() => (window as unknown as { __mic: Record<string, unknown> }).__mic);
+  expect(info.constraints).toMatchObject({ echoCancellation: true, noiseSuppression: true, autoGainControl: true });
+  expect(info.config).toMatchObject({ codec: "opus", sampleRate: 48000, numberOfChannels: 2, bitrate: 32000 });
+
+  await page.getByTestId("rp-toolbar").hover();
+  await mic.click();
+  await expect(mic).toHaveAttribute("data-state", "off");
+  await expect.poll(() => texts.filter((t) => t.mic === false).length).toBe(1);
+  expect(await page.evaluate(() => (window as unknown as { __mic: { stopped: number } }).__mic.stopped)).toBeGreaterThan(0);
+  // Off means off: no frames after it.
+  const n = frames.length;
+  await page.waitForTimeout(300);
+  expect(frames.length).toBe(n);
+});

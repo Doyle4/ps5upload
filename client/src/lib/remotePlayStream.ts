@@ -538,6 +538,8 @@ export class RemotePlayStream {
   private reconnectSince = 0;
   private reconnectTry = 0;
   private reconnectTimer = 0;
+  /** The page's mic is on (remotePlayMic.ts); said again on every reattach. */
+  private micOn = false;
 
   constructor(private readonly o: StreamOptions) {
     this.canvas = document.createElement("canvas");
@@ -655,6 +657,8 @@ export class RemotePlayStream {
           attach_only: attachOnly,
         }),
       );
+      // Attaching turns the console's mic off in the engine: a page that has it on says so.
+      if (this.micOn) ws.send(JSON.stringify({ mic: true }));
     };
     ws.onmessage = (m) => {
       if (ws !== this.ws) return;
@@ -761,6 +765,19 @@ export class RemotePlayStream {
     if (s === this.lastPad) return;
     this.lastPad = s;
     ws.send(JSON.stringify({ pad: p }));
+  }
+
+  /** Turn the console's microphone on or off (experimental; see remotePlayMic.ts). */
+  setMic(on: boolean): void {
+    this.micOn = on;
+    const ws = this.ws;
+    if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ mic: on }));
+  }
+
+  /** One `[5][Opus packet]` mic frame; dropped while the socket is down. */
+  sendMicFrame(msg: Uint8Array<ArrayBuffer>): void {
+    const ws = this.ws;
+    if (this.micOn && ws && ws.readyState === WebSocket.OPEN) ws.send(msg);
   }
 
   /** 0-1; 0 is muted. */

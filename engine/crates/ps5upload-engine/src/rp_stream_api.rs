@@ -8,6 +8,10 @@
 //!   "width"?, "height"?, "fps"?, "bitrate_kbps"?, "codec"?, "keep_alive_s"?,
 //!   "attach_only"?}`, then `{"pad": {"buttons", "l2", "r2", "lx", "ly", "rx",
 //!   "ry"}}` whenever the pad changes, `{"keyframe": true}`, or `{"stop": true}`.
+//!   Microphone (experimental): `{"mic": true|false}` turns the console's mic
+//!   on or off, and binary `[5][one Opus packet]` is one mic frame (48 kHz
+//!   stereo, 10 ms, 40 bytes; see `rp_stream::mic`). Only the attached page's
+//!   mic counts, and the mic goes off whenever the page changes.
 //! * engine → client, binary `[u8 kind][payload]`: 0 = video codec header
 //!   (Annex-B parameter sets), 1 = video access unit, 3 = audio header,
 //!   4 = audio frame (Opus). Text JSON = status (`{"stage": …}`), rumble
@@ -38,7 +42,7 @@ use axum::extract::ws::{CloseFrame, Message, WebSocket, WebSocketUpgrade};
 use axum::response::{Html, IntoResponse, Response};
 use axum::Json;
 use ps5upload_core::rp_stream::{
-    run_stream, Codec, ControllerState, Progress, StreamConfig, StreamSink,
+    run_stream, Codec, ControllerState, MicInput, Progress, StreamConfig, StreamSink,
 };
 use tokio::sync::mpsc;
 
@@ -49,6 +53,11 @@ const VIDEO_QUEUE: usize = 6;
 const CTL_QUEUE: usize = 512;
 const DEFAULT_KEEP_ALIVE: Duration = Duration::from_secs(60);
 const MAX_KEEP_ALIVE: Duration = Duration::from_secs(600);
+/// Page → engine binary kind: one microphone Opus packet.
+const KIND_MIC: u8 = 5;
+/// Mic frames waiting for the stream thread (10 ms each): a stalled thread
+/// drops voice rather than playing it late.
+const MIC_QUEUE: usize = 50;
 
 #[derive(Debug, serde::Deserialize)]
 struct StartReq {
@@ -81,6 +90,8 @@ struct ClientMsg {
     stop: bool,
     #[serde(default)]
     keyframe: bool,
+    #[serde(default)]
+    mic: Option<bool>,
 }
 
 /// The page showing the stream: its two queues.
@@ -110,6 +121,9 @@ struct Live {
     want_key: AtomicBool,
     dropped: AtomicU64,
     next_viewer: AtomicU64,
+    /// The microphone: on/off and Opus frames for the stream, in order.
+    mic: Mutex<std::collections::VecDeque<MicInput>>,
+    mic_on: AtomicBool,
 }
 
 /// The console serves one Remote Play session at a time; so do we.
@@ -171,6 +185,49 @@ impl Live {
             want_key: AtomicBool::new(false),
             dropped: AtomicU64::new(0),
             next_viewer: AtomicU64::new(1),
+            mic: Default::default(),
+            mic_on: AtomicBool::new(false),
+        }
+    }
+
+    fn is_viewer(&self, id: u64) -> bool {
+        self.viewer
+            .lock()
+            .map(|g| g.as_ref().is_some_and(|v| v.id == id))
+            .unwrap_or(false)
+    }
+
+    /// The page `id` turns its mic on or off. Other pages are ignored.
+    fn set_mic(&self, id: u64, on: bool) {
+        if !self.is_viewer(id) {
+            return;
+        }
+        self.mic_switch(on);
+    }
+
+    fn mic_switch(&self, on: bool) {
+        if self.mic_on.swap(on, Ordering::Relaxed) == on {
+            return;
+        }
+        if let Ok(mut q) = self.mic.lock() {
+            if !on {
+                q.retain(|m| !matches!(m, MicInput::Frame(_)));
+            }
+            q.push_back(if on { MicInput::On } else { MicInput::Off });
+        }
+    }
+
+    /// One Opus packet from page `id`'s mic; dropped unless that page is
+    /// the one attached and its mic is on.
+    fn mic_frame(&self, id: u64, opus: &[u8]) {
+        if !self.mic_on.load(Ordering::Relaxed) || !self.is_viewer(id) {
+            return;
+        }
+        if let Ok(mut q) = self.mic.lock() {
+            let frames = q.iter().filter(|m| matches!(m, MicInput::Frame(_))).count();
+            if frames < MIC_QUEUE {
+                q.push_back(MicInput::Frame(opus.to_vec()));
+            }
         }
     }
 
@@ -218,6 +275,8 @@ impl Live {
         if let Ok(mut a) = self.alone_since.lock() {
             *a = None;
         }
+        // A new page starts with the mic off: it has not asked for it.
+        self.mic_switch(false);
         id
     }
 
@@ -234,6 +293,8 @@ impl Live {
             if let Ok(mut p) = self.pad.lock() {
                 p.push_back(ControllerState::default());
             }
+            drop(g);
+            self.mic_switch(false);
         }
     }
 
@@ -332,6 +393,9 @@ impl StreamSink for Sink {
     }
     fn wants_keyframe(&mut self) -> bool {
         self.live.want_key.swap(false, Ordering::Relaxed)
+    }
+    fn mic(&mut self) -> Option<MicInput> {
+        self.live.mic.lock().ok()?.pop_front()
     }
 }
 
@@ -583,7 +647,13 @@ async fn session(mut socket: WebSocket) {
                         if m.stop {
                             live.stop.store(true, Ordering::Relaxed);
                         }
+                        if let Some(on) = m.mic {
+                            live.set_mic(id, on);
+                        }
                     }
+                }
+                Some(Ok(Message::Binary(b))) if b.first() == Some(&KIND_MIC) => {
+                    live.mic_frame(id, &b[1..]);
                 }
                 // The page left: the session waits for it (or another).
                 Some(Ok(Message::Close(_))) | None | Some(Err(_)) => {
@@ -693,6 +763,46 @@ mod tests {
         assert_eq!(sink.input(), Some(ControllerState::default()));
         std::thread::sleep(Duration::from_millis(2));
         assert!(sink.stopped(), "no page came back within the wait");
+    }
+
+    #[test]
+    fn only_the_attached_page_drives_the_mic() {
+        let live = Arc::new(Live::new("h".into(), false, DEFAULT_KEEP_ALIVE));
+        let mut sink = Sink {
+            live: live.clone(),
+            t0: Instant::now(),
+        };
+        let (vt, _vr, ct, _cr) = page();
+        let first = live.attach(vt, ct);
+        // Frames before the mic is on are dropped.
+        live.mic_frame(first, &[1; 40]);
+        assert_eq!(sink.mic(), None);
+        live.set_mic(first, true);
+        live.set_mic(first, true); // no second On
+        live.mic_frame(first, &[2; 40]);
+        assert_eq!(sink.mic(), Some(MicInput::On));
+        assert_eq!(sink.mic(), Some(MicInput::Frame(vec![2; 40])));
+        assert_eq!(sink.mic(), None);
+        // Another page takes over: the mic goes off, the old page is ignored.
+        let (vt2, _vr2, ct2, _cr2) = page();
+        let second = live.attach(vt2, ct2);
+        assert_eq!(sink.mic(), Some(MicInput::Off));
+        live.set_mic(first, true);
+        live.mic_frame(first, &[3; 40]);
+        assert_eq!(sink.mic(), None);
+        live.set_mic(second, true);
+        for _ in 0..MIC_QUEUE + 10 {
+            live.mic_frame(second, &[4; 40]);
+        }
+        assert_eq!(sink.mic(), Some(MicInput::On));
+        let mut n = 0;
+        while let Some(MicInput::Frame(_)) = sink.mic() {
+            n += 1;
+        }
+        assert_eq!(n, MIC_QUEUE, "a stalled stream drops voice, not memory");
+        // Leaving turns it off.
+        live.detach(second);
+        assert_eq!(sink.mic(), Some(MicInput::Off));
     }
 
     #[test]
