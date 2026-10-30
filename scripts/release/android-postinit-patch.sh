@@ -55,12 +55,12 @@
 # 8) "Send to PS5" from Android's share menu: intent filters on MainActivity and
 #    ShareIntake.kt, which hands what was shared to the page. See step (8) below.
 #
-# 10) The microphone for Remote Play voice chat (experimental). See step (10) below.
-
 # 9) Controllers to the page: MainActivity forwards gamepad keys and sticks
 #    (Backbone, Razer Kishi, GameSir, any Bluetooth or USB pad) to the page in
 #    the standard Gamepad layout, for when the WebView's own Gamepad API does
 #    not deliver them. See step (9) below.
+# 10) The microphone for Remote Play voice chat (experimental). See step (10) below.
+
 
 set -euo pipefail
 
