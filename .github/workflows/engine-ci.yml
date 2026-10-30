@@ -192,7 +192,7 @@ jobs:
             ${{ runner.os }}-engine-test-${{ matrix.part }}-
 
       - name: Install cargo-nextest
-        uses: taiki-e/install-action@1e29709c0ec63babbe8f266397a465f29a825f91 # v2
+        uses: taiki-e/install-action@5488ac5a951645ce95062214902ac4b6bc1a1037 # v2
         with:
           tool: cargo-nextest
 
@@ -748,7 +748,7 @@ jobs:
           node-version: 22
           check-latest: true
       - name: Install cargo-audit
-        uses: taiki-e/install-action@1e29709c0ec63babbe8f266397a465f29a825f91 # v2
+        uses: taiki-e/install-action@5488ac5a951645ce95062214902ac4b6bc1a1037 # v2
         with:
           tool: cargo-audit
       - name: Install gitleaks (checksum-verified release)
@@ -849,14 +849,14 @@ jobs:
           components: llvm-tools-preview
 
       - name: Install cargo-llvm-cov
-        uses: taiki-e/install-action@c3076e6fa5aeb9a93daf1bd8eff73345250a8a9c # cargo-llvm-cov
+        uses: taiki-e/install-action@1e29709c0ec63babbe8f266397a465f29a825f91 # cargo-llvm-cov
 
       # scripts/coverage.mjs runs the instrumented suite under nextest when it is installed:
       # the same tests, side by side instead of one binary at a time (the serial pass took
       # ~26 of this job's ~32 min). engine/.config/nextest.toml still serializes the
       # timing-sensitive binaries.
       - name: Install cargo-nextest
-        uses: taiki-e/install-action@1e29709c0ec63babbe8f266397a465f29a825f91 # v2
+        uses: taiki-e/install-action@5488ac5a951645ce95062214902ac4b6bc1a1037 # v2
         with:
           tool: cargo-nextest
 
