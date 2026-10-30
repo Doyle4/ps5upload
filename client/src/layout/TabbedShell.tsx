@@ -42,6 +42,10 @@ export interface TabbedShellTab<Id extends string> {
    *  picks the active tab's description. Optional — if any tab
    *  omits it, the description row collapses for that tab. */
   description?: string;
+  /** The panel fills the screen's height and scrolls inside itself (a log viewer). Other
+   *  panels make the page as tall as they are, so the screen scrolls them, and its bottom
+   *  room (clear of the phone's tab bar) comes after their end. */
+  fill?: boolean;
 }
 
 export interface TabbedShellProps<Id extends string> {
@@ -125,7 +129,7 @@ export default function TabbedShell<Id extends string>({
   const description = activeTabMeta.description;
 
   return (
-    <div className="app-page flex h-full flex-col">
+    <div className={`app-page flex flex-col ${activeTabMeta.fill ? "h-full" : "min-h-full"}`}>
       <PageHeader
         icon={IconForTitle}
         title={tr(titleKey, undefined, titleFallback)}

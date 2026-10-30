@@ -35,6 +35,7 @@ export default function ActivityLogsScreen() {
       icon: ScrollText,
       key: "logs",
       fallback: "Logs",
+      fill: true,
       description:
         embeddedLogTabOf(params) === "kernel"
           ? tr(

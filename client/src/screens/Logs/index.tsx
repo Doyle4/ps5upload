@@ -74,6 +74,7 @@ export default function LogsScreen({ embedded = false }: { embedded?: boolean } 
       icon: ScrollText,
       key: "logs_tab_app",
       fallback: "App",
+      fill: true,
       description: tr(
         "logs_description_app",
         undefined,
@@ -85,6 +86,7 @@ export default function LogsScreen({ embedded = false }: { embedded?: boolean } 
       icon: Terminal,
       key: "logs_tab_kernel",
       fallback: "Kernel",
+      fill: true,
       description: tr(
         "logs_description_kernel",
         undefined,
