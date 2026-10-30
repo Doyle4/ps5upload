@@ -35,6 +35,11 @@ export function isMacOrLinuxDesktop(): boolean {
   return !isAndroid() && !isIOS() && !isWindows();
 }
 
+/** A Linux desktop (not Android): its webview plays video through the system's GStreamer. */
+export function isLinuxDesktop(): boolean {
+  return /linux/i.test(ua()) && !isAndroid();
+}
+
 export function isIOS(): boolean {
   const s = ua();
   // iPadOS 13+ reports as Mac; the touch-points check disambiguates.

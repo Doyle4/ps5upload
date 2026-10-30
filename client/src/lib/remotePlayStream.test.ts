@@ -1,6 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   avcCodecString,
+  canDecodeAvc,
+  isNoDecoderError,
   canvasClass,
   DEFAULT_KEYMAP,
   isKeyframe,
@@ -76,5 +78,45 @@ describe("canvasClass", () => {
     expect(canvasClass("stretch")).toContain("object-fill");
     // A stored value from elsewhere falls back to the whole picture.
     expect(canvasClass("zoom" as never)).toContain("object-contain");
+  });
+});
+
+describe("canDecodeAvc", () => {
+  afterEach(() => vi.unstubAllGlobals());
+  const decoder = (check: (codec: string) => boolean | Error) =>
+    vi.stubGlobal("VideoDecoder", {
+      isConfigSupported: async ({ codec }: { codec: string }) => {
+        const r = check(codec);
+        if (r instanceof Error) throw r;
+        return { supported: r };
+      },
+    });
+
+  it("is false when every H.264 form is refused (Linux without GStreamer's decoder, #548)", async () => {
+    decoder(() => false);
+    expect(await canDecodeAvc(1920, 1080)).toBe(false);
+  });
+  it("is true when any form decodes", async () => {
+    decoder((c) => c === "avc1.42e01f");
+    expect(await canDecodeAvc(1920, 1080)).toBe(true);
+  });
+  it("does not treat a check that throws as a no", async () => {
+    decoder(() => new TypeError("unsupported config dictionary"));
+    expect(await canDecodeAvc(1920, 1080)).toBe(true);
+  });
+  it("is false with no WebCodecs at all", async () => {
+    vi.stubGlobal("VideoDecoder", undefined);
+    expect(await canDecodeAvc(1920, 1080)).toBe(false);
+  });
+});
+
+describe("isNoDecoderError", () => {
+  it("knows WebKitGTK's missing-decoder error", () => {
+    const e = new DOMException("No decoder found for codec avc1.4d4032", "NotSupportedError");
+    expect(isNoDecoderError(e)).toBe(true);
+    expect(isNoDecoderError("NotSupportedError: No decoder found for codec avc1.4d4032")).toBe(true);
+  });
+  it("leaves a broken picture to the restart path", () => {
+    expect(isNoDecoderError(new DOMException("Decoding error.", "EncodingError"))).toBe(false);
   });
 });

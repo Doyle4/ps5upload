@@ -273,6 +273,34 @@ export async function supportedHevc(width: number, height: number): Promise<stri
   return null;
 }
 
+/** H.264 as the PS5 sends it (Main, up to level 5.0 for 1080p), then plainer forms. */
+const AVC_CANDIDATES = ["avc1.4d4032", "avc1.640032", "avc1.4d4028", "avc1.42e01f"];
+
+/** False only when this device answers that it decodes none of the H.264 forms; a check that
+ *  throws is not a no, so a device with a quirky check still gets to try. */
+export async function canDecodeAvc(width: number, height: number): Promise<boolean> {
+  if (typeof VideoDecoder === "undefined") return false;
+  let answered = false;
+  for (const codec of AVC_CANDIDATES) {
+    try {
+      if ((await VideoDecoder.isConfigSupported({ codec, codedWidth: width, codedHeight: height })).supported) {
+        return true;
+      }
+      answered = true;
+    } catch {
+      // Not an answer.
+    }
+  }
+  return !answered;
+}
+
+/** True for a decoder error that means "no decoder for this codec here", which starting over
+ *  cannot fix (Linux without GStreamer's H.264 decoder: "No decoder found for codec …"). */
+export function isNoDecoderError(e: unknown): boolean {
+  const name = (e as { name?: string } | null)?.name ?? "";
+  return name === "NotSupportedError" || /no decoder/i.test(String(e));
+}
+
 /** HEVC whenever this device can decode it (same picture in fewer bits); else H.264. The PS5
  *  offers only these two. */
 export async function chooseCodec(width: number, height: number): Promise<"h265" | "h264"> {
@@ -329,7 +357,7 @@ export type StreamPhase =
 
 export interface StreamError {
   /** Stable, from the engine: busy, busy_other, asleep, unreachable, keys, wake_failed,
-   *  passcode, video_refused, other — or client-side: decode, socket. */
+   *  passcode, video_refused, other — or client-side: decode, no_decoder, socket. */
   code: string;
   retryS?: number;
   /** busy_other: the console that is streaming. */
@@ -543,6 +571,12 @@ export class RemotePlayStream {
     this.gainNode.gain.value = this.volume;
     this.gainNode.connect(this.audioCtx.destination);
     const [codec] = await Promise.all([chooseCodec(width, height), this.openWorklet()]);
+    if (codec === "h264" && !(await canDecodeAvc(width, height))) {
+      // Found before the console is woken or asked to stream.
+      this.o.onError({ code: "no_decoder", detail: "" });
+      this.finish();
+      return;
+    }
     this.codecChoice = codec;
     this.hevc = codec === "h265";
     this.connect(!!this.o.attach);
@@ -888,6 +922,13 @@ export class RemotePlayStream {
       },
       error: (e) => {
         if (video !== this.video) return;
+        if (isNoDecoderError(e)) {
+          // Starting over would fail the same way, forever: end the session instead.
+          this.video = null;
+          this.o.onError({ code: "no_decoder", detail: String(e) });
+          this.stop();
+          return;
+        }
         // A broken picture: start over from the next keyframe rather than give up.
         this.video = null;
         this.sawKey = false;
@@ -908,7 +949,14 @@ export class RemotePlayStream {
       }
       if (video !== this.video) return;
       this.codec = codec;
-      video.configure(cfg);
+      try {
+        video.configure(cfg);
+      } catch (e) {
+        this.video = null;
+        this.o.onError({ code: isNoDecoderError(e) ? "no_decoder" : "decode", detail: String(e) });
+        this.stop();
+        return;
+      }
       for (const q of this.queued) video.decode(q);
       this.queued = [];
     };

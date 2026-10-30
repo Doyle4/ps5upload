@@ -328,3 +328,52 @@ test("Remote Play: Esc is Circle in full screen, held it leaves", async ({ page 
   await page.waitForTimeout(300);
   expect(pads.filter((b) => b & 2).length).toBe(before);
 });
+
+// #548: a Linux webview without GStreamer's H.264 decoder. The app finds out before it wakes the
+// console, ends cleanly, and says what to install.
+test("Remote Play without an H.264 decoder says what to install and never starts", async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, "userAgent", {
+      get: () => "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/605.1.15 (KHTML, like Gecko)",
+    });
+    VideoDecoder.isConfigSupported = async (config: VideoDecoderConfig) => ({ supported: false, config });
+    window.localStorage.setItem("ps5upload.host", "192.168.1.100");
+    window.localStorage.setItem(
+      "ps5upload.roster.v1",
+      JSON.stringify({
+        active_id: "p1",
+        profiles: [
+          {
+            id: "p1",
+            name: "Living room",
+            host: "192.168.1.100",
+            wake_regist_key: "00112233",
+            wake_rp_key: "00112233445566778899aabbccddeeff",
+          },
+        ],
+      }),
+    );
+  });
+  await page.route(
+    (url) => url.pathname.startsWith("/api/"),
+    async (route) => {
+      const path = new URL(route.request().url()).pathname;
+      let body: unknown = {};
+      if (path === "/api/version") body = { version: "9.4.1", caps: {} };
+      if (path === "/api/ps5/rp/session") body = { host: null };
+      await route.fulfill({ contentType: "application/json", body: JSON.stringify(body) });
+    },
+  );
+  let sockets = 0;
+  await page.routeWebSocket(/\/api\/ps5\/rp\/ws/, () => {
+    sockets++;
+  });
+
+  await page.goto("/play", { waitUntil: "domcontentloaded" });
+  await expect(page.getByRole("heading", { name: "Remote Play" })).toBeVisible({ timeout: 30_000 });
+  await page.getByTestId("rp-start").click();
+  await expect(page.getByText("This device has no H.264 video decoder")).toBeVisible();
+  await expect(page.getByText("sudo pacman -S gst-libav", { exact: false })).toBeVisible();
+  await expect(page.getByTestId("rp-start")).toBeVisible();
+  expect(sockets).toBe(0);
+});

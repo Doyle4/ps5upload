@@ -289,7 +289,12 @@ jobs:
             curl \
             wget \
             file \
-            xdg-utils
+            xdg-utils \
+            gstreamer1.0-plugins-base \
+            gstreamer1.0-plugins-good \
+            gstreamer1.0-plugins-bad \
+            gstreamer1.0-libav \
+            gstreamer1.0-gl
 
       - name: Ensure libclang for bindgen (Windows)
         if: matrix.platform == 'windows'

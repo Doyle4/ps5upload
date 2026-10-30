@@ -2011,6 +2011,18 @@ In the Android app, full screen hides the status and navigation bars (swipe from
 **Q: Part of the Remote Play picture is cut off, or it looks stretched.**
 Remote Play › Settings › **Picture size** decides how the picture fits its box: **Fit** shows the whole picture with black bars where the shapes differ (the default), **Fill** fills the box and crops the edges, **Stretch** fills it without cropping. Before 9.2.0, the Windows app could show the picture enlarged with its right and bottom cut off (#538); update to fix it.
 
+**Q: Remote Play on Linux says there is no H.264 decoder ("No decoder found for codec avc1…").**
+On Linux the app's window plays video through the system's GStreamer, and some distributions
+(Arch, CachyOS and others) don't install its H.264 decoder by default (#548). From 9.4.1 the `.zip`
+(AppImage) carries its own GStreamer and decoder, so it plays wherever it runs. With the `.deb` or
+`.rpm`, or from 9.4.0 and earlier, install the decoder and restart the app:
+- Arch, CachyOS, Manjaro: `sudo pacman -S gst-libav`
+- Debian, Ubuntu, Mint: `sudo apt install gstreamer1.0-libav` (the 9.4.1 `.deb` recommends it, so a normal install brings it)
+- Fedora: `sudo dnf install gstreamer1-plugin-openh264` (the 9.4.1 `.rpm` recommends it)
+
+Chrome and Chromium carry their own decoder, so Remote Play also works from them through the web UI.
+The app now checks for a decoder before it wakes the console and, without one, says what to install.
+
 **Q: What is Remote Play, and how do I set it up?**
 Remote Play streams a PS5 into the app (desktop, web UI and Android) and lets you play it with a
 controller connected to the computer, the keyboard, or touch. It wakes a console in rest mode and

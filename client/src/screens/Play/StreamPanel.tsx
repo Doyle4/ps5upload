@@ -21,7 +21,7 @@ import { useTr } from "../../state/lang";
 import { useRosterStore } from "../../state/roster";
 import { deviceName, meshFor, othersRemotePlaying, useMeshStore } from "../../state/mesh";
 import { isTauriEnv } from "../../lib/tauriEnv";
-import { isMobile } from "../../lib/platform";
+import { isLinuxDesktop, isMobile } from "../../lib/platform";
 import { setScreenWakeReason } from "../../lib/androidScreenWake";
 import {
   canStream,
@@ -107,6 +107,8 @@ export function streamErrorMessage(tr: Tr, e: StreamError): string {
       return tr("rp_err_video", undefined, "The PS5 refused that picture size. Try 720p.");
     case "decode":
       return tr("rp_err_decode", undefined, "This device could not decode the picture.");
+    case "no_decoder":
+      return tr("rp_err_no_decoder", undefined, "This device has no H.264 video decoder, so Remote Play cannot show the picture.");
     case "busy_other":
       return tr(
         "rp_err_busy_other",
@@ -122,6 +124,23 @@ export function streamErrorMessage(tr: Tr, e: StreamError): string {
     default:
       return tr("rp_err_other", undefined, "The stream stopped.");
   }
+}
+
+/** What to do about an error, when there is something to do; else null. */
+export function streamErrorHelp(tr: Tr, e: StreamError, linux = isLinuxDesktop()): string | null {
+  if (e.code !== "no_decoder") return null;
+  if (linux) {
+    return tr(
+      "rp_err_no_decoder_linux",
+      undefined,
+      "On Linux the picture is decoded by your system's GStreamer. Install its H.264 decoder, then restart the app. Arch, CachyOS, Manjaro: sudo pacman -S gst-libav. Debian, Ubuntu, Mint: sudo apt install gstreamer1.0-libav. Fedora: sudo dnf install gstreamer1-plugin-openh264. Or play from Chrome or Chromium through the web UI.",
+    );
+  }
+  return tr(
+    "rp_err_no_decoder_body",
+    undefined,
+    "Use a current Chrome, Edge or Safari, or the desktop app on Windows or macOS.",
+  );
 }
 
 export function phaseText(tr: Tr, p: StreamPhase): string {
@@ -1316,7 +1335,11 @@ export function StreamPanel() {
         </Callout>
       )}
 
-      {error && <Callout tone="error" title={streamErrorMessage(tr, error)}>{error.detail}</Callout>}
+      {error && (
+        <Callout tone="error" title={streamErrorMessage(tr, error)}>
+          {streamErrorHelp(tr, error) ?? error.detail}
+        </Callout>
+      )}
       {pipFailed && (
         <Callout tone="warn" title={tr("rp_pip_failed", undefined, "Picture in picture did not open.")}>
           {tr(

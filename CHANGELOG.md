@@ -4,6 +4,17 @@ What's new in ps5upload, written for humans.
 
 ---
 
+## 9.4.1
+
+- **Remote Play on Linux shows the picture without extra installs (#548).** The Linux `.zip`
+  (AppImage) now carries GStreamer with its H.264 decoder: before, on Arch, CachyOS and other
+  distributions without that decoder, Remote Play failed with "No decoder found for codec
+  avc1…", and installing it on the system didn't help the AppImage. The `.deb` and `.rpm` now
+  recommend the decoder packages, so a normal install brings them.
+- **No decoder, no wake.** The app checks for an H.264 decoder before it wakes the console. Without
+  one it ends the session cleanly (it used to retry forever) and says what to install, with the
+  command for Arch, Debian/Ubuntu and Fedora.
+
 ## 9.4.0
 
 - **Backporting uses ShadowMount+'s own controls (1.7beta8 and later).** To write the backport
