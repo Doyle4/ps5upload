@@ -2014,7 +2014,7 @@ resume.
 
 **Q: How does Remote Play work on a phone?**
 Held upright, the picture is at the top and its controls are under it: **Full screen**, **Stop**
-and a **⋯** menu with Stats, Picture in picture, Settings and volume. In full screen held upright,
+and a **⋯** menu with Stats, Screenshot, Record a clip, Picture in picture, Settings and volume. In full screen held upright,
 the on-screen controller sits below the picture. Turn the phone sideways while playing and it
 goes full screen by itself (turn it back to return to the page); the only control then is a small
 **⋯** handle at the top. Taps on the picture or the controller are always play: they never leave
@@ -2033,6 +2033,14 @@ Yes, from 9.5.0. While the computer plays, press the phone button on the stream'
 
 **Q: Motion controls?**
 Remote Play › Settings › **Motion controls (experimental)** (phones) sends the phone's gyro and tilt as the controller's motion sensors, for games with gyro aiming; the phone controller page has a **Motion** button too. Browsers give motion only to secure pages, so it works in the apps but not on the QR code's page in a phone browser. It hasn't been tried on a PS5 yet.
+**Q: How do I take a screenshot or record a clip in Remote Play?**
+Use the **camera** (Screenshot) and **video** (Record a clip) buttons on the picture's bar (desktop, also in full screen), or in the **⋯** menu on a phone. A screenshot is a PNG at the stream's own size (1920×1080 or 1280×720), whatever size the picture is shown at. A clip records the picture and the game's sound (also while the player is muted); a red **Recording** light with the time shows on the picture, and pressing it (or the button again) stops and saves the clip. Clips are MP4 where the device records MP4, else WebM, and stop by themselves after 10 minutes (they are held in memory until saved). Files are named like `PS5 Living room 2026-10-30 21-14-05.png`. The desktop and Android apps save straight into **Downloads**, the iPhone app into its folder in the Files app, and the web UI downloads them through the browser. Recording needs a device that can record video from a web page; where it can't, only Screenshot shows.
+
+**Q: How much delay does Remote Play have, and what does Low latency do?**
+With **Stats** on, the picture shows a **Latency** line, for example `Latency ≈ 9 ms engine + 4 ms decode`: the round trip between this device and the engine (measured once a second; near zero in the desktop app, a network hop in the web UI or on a phone) and how long a frame takes from arriving to being drawn. The leg from the PS5 to the engine isn't included: the two have no shared clock, so it can't be measured honestly. **Remote Play › Settings › Low latency** (off by default) uses the smallest sound buffer, keeps the engine's picture queue for this device at 2 frames instead of 6, and skips to the next whole picture sooner when decoding falls behind. Frames are drawn as soon as they're decoded either way. The trade: on a busy network more frames are dropped and the sound can crackle. The sound part applies at once; the picture part at the next start.
+
+**Q: Remote Play says "The network is dropping frames". What should I do?**
+With **Lower quality on a busy network** on (the default), when a 1080p stream keeps losing frames for about 10 seconds the picture offers **Switch to 720p** once per session. 720p needs about two-thirds the bandwidth. Switching restarts the stream, because the resolution is fixed for a session, and the PS5 holds its last session for about 12 seconds after it ends, so expect roughly 15 seconds of waiting; the app waits that out and starts again by itself (**Cancel** stops it). It's offered rather than done for you because that pause can come at a bad moment in a game. The choice is kept (Picture becomes 720p in Settings); switch back there. It never steps down twice or back up by itself. Turn the setting off in Remote Play › Settings to never be asked. A wired connection for the PS5 (and 5 GHz Wi-Fi for this device) helps most.
 
 **Q: Which browser should I use for Remote Play in the web UI?**
 Chrome or Edge (on Android, Chrome). Remote Play is made and tested for them. In Firefox and Safari, Esc always leaves full screen, so it can't be the controller's ○ there; Firefox has no picture in picture, and Safari's shows the picture only. The web UI says so on the Remote Play page in those browsers. On iPhone and iPad every browser is Safari underneath, and Remote Play works there. The desktop and Android apps don't depend on your browser.

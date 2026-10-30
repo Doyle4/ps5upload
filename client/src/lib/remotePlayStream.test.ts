@@ -12,6 +12,7 @@ import {
   PadButton,
   IDLE_PAD,
   rebind,
+  nextRtt,
 } from "./remotePlayStream";
 
 describe("rebind", () => {
@@ -118,5 +119,22 @@ describe("isNoDecoderError", () => {
   });
   it("leaves a broken picture to the restart path", () => {
     expect(isNoDecoderError(new DOMException("Decoding error.", "EncodingError"))).toBe(false);
+  });
+});
+
+describe("nextRtt", () => {
+  it("takes the first round trip as it is and smooths the ones after", () => {
+    expect(nextRtt(null, 100, 112)).toBe(12);
+    expect(nextRtt(12, 200, 224)).toBe(15);
+  });
+
+  it("ignores a pong that is not one of this page's timestamps", () => {
+    expect(nextRtt(8, "x", 100)).toBe(8);
+    expect(nextRtt(null, null, 100)).toBeNull();
+    expect(nextRtt(null, Number.NaN, 100)).toBeNull();
+  });
+
+  it("never goes below zero", () => {
+    expect(nextRtt(null, 150, 100)).toBe(0);
   });
 });

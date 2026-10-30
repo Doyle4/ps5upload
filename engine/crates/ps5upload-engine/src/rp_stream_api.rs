@@ -6,8 +6,10 @@
 //!
 //! * client → engine, text JSON: first `{"host", "regist_key", "rp_key",
 //!   "width"?, "height"?, "fps"?, "bitrate_kbps"?, "codec"?, "keep_alive_s"?,
-//!   "attach_only"?}`, then `{"pad": {"buttons", "l2", "r2", "lx", "ly", "rx",
-//!   "ry"}}` whenever the pad changes, `{"keyframe": true}`, or `{"stop": true}`.
+//!   "attach_only"?, "low_latency"?}`, then `{"pad": {"buttons", "l2", "r2",
+//!   "lx", "ly", "rx", "ry"}}` whenever the pad changes, `{"keyframe": true}`,
+//!   `{"ping": t}` (answered at once with `{"pong": t}`, for the page to time
+//!   the round trip), or `{"stop": true}`.
 //! * engine → client, binary `[u8 kind][payload]`: 0 = video codec header
 //!   (Annex-B parameter sets), 1 = video access unit, 3 = audio header,
 //!   4 = audio frame (Opus). Text JSON = status (`{"stage": …}`), rumble
@@ -24,10 +26,10 @@
 //! "ended"}` and a Close frame. `GET /api/ps5/rp/session` says what is
 //! running. `GET /rp-player` is a test page.
 //!
-//! Latency: video goes through a queue a few frames deep; a page that falls
-//! behind loses frames (and the picture waits for a keyframe) rather than
-//! watching a growing backlog. Audio and status have their own queue, sent
-//! first.
+//! Latency: video goes through a queue a few frames deep (two for a page that
+//! asked for `low_latency`); a page that falls behind loses frames (and the
+//! picture waits for a keyframe) rather than watching a growing backlog. Audio
+//! and status have their own queue, sent first.
 
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
@@ -45,6 +47,9 @@ use tokio::sync::mpsc;
 /// Video frames queued for a page. At 60 fps this is ~100 ms: enough to ride
 /// out a hiccup, never seconds of backlog.
 const VIDEO_QUEUE: usize = 6;
+/// For a page in low-latency mode: ~33 ms at 60 fps. A busy network costs it
+/// more skips to the next keyframe.
+const VIDEO_QUEUE_LOW_LATENCY: usize = 2;
 /// Audio frames (100/s), status, rumble and light bar.
 const CTL_QUEUE: usize = 512;
 const DEFAULT_KEEP_ALIVE: Duration = Duration::from_secs(60);
@@ -71,6 +76,19 @@ struct StartReq {
     /// Join the running session only; never start one (a page reconnecting).
     #[serde(default)]
     attach_only: bool,
+    /// A shorter video queue for this page (see VIDEO_QUEUE_LOW_LATENCY).
+    #[serde(default)]
+    low_latency: bool,
+}
+
+impl StartReq {
+    fn video_queue(&self) -> usize {
+        if self.low_latency {
+            VIDEO_QUEUE_LOW_LATENCY
+        } else {
+            VIDEO_QUEUE
+        }
+    }
 }
 
 #[derive(Debug, serde::Deserialize)]
@@ -81,6 +99,16 @@ struct ClientMsg {
     stop: bool,
     #[serde(default)]
     keyframe: bool,
+    /// The page's clock, echoed back as `{"pong": …}`.
+    #[serde(default)]
+    ping: Option<serde_json::Value>,
+}
+
+/// The answer to a ping: the page's own value back, untouched.
+fn pong(m: &ClientMsg) -> Option<Message> {
+    m.ping
+        .as_ref()
+        .map(|t| text(serde_json::json!({ "pong": t })))
 }
 
 /// The page showing the stream: its two queues.
@@ -508,7 +536,7 @@ async fn session(mut socket: WebSocket) {
         }
         _ => return,
     };
-    let (video_tx, mut video_rx) = mpsc::channel::<Message>(VIDEO_QUEUE);
+    let (video_tx, mut video_rx) = mpsc::channel::<Message>(start.video_queue());
     let (ctl_tx, mut ctl_rx) = mpsc::channel::<Message>(CTL_QUEUE);
 
     let running = LIVE.lock().ok().and_then(|g| g.clone());
@@ -578,6 +606,9 @@ async fn session(mut socket: WebSocket) {
             }
         }
     };
+    // Pongs go on this page's own status queue, behind what is already there,
+    // so the time measured is the time the page's messages really take.
+    let pong_tx = ctl_tx.clone();
     let id = live.attach(video_tx, ctl_tx);
 
     let mut reason = "ended";
@@ -609,6 +640,9 @@ async fn session(mut socket: WebSocket) {
             inc = socket.recv() => match inc {
                 Some(Ok(Message::Text(t))) => {
                     if let Ok(m) = serde_json::from_str::<ClientMsg>(t.as_str()) {
+                        if let Some(p) = pong(&m) {
+                            let _ = pong_tx.try_send(p);
+                        }
                         if let Some(p) = m.pad {
                             live.push_pad(PAGE_SOURCE, Some(p));
                         }
@@ -666,6 +700,29 @@ mod tests {
             });
         }
         out
+    }
+
+    #[test]
+    fn a_ping_is_answered_with_its_own_value() {
+        let m: ClientMsg = serde_json::from_str(r#"{"ping": 1234.5}"#).unwrap();
+        match pong(&m) {
+            Some(Message::Text(t)) => assert_eq!(t.as_str(), r#"{"pong":1234.5}"#),
+            other => panic!("no pong: {other:?}"),
+        }
+        let pad: ClientMsg = serde_json::from_str(r#"{"keyframe": true}"#).unwrap();
+        assert!(pong(&pad).is_none());
+    }
+
+    #[test]
+    fn low_latency_asks_for_a_shorter_video_queue() {
+        let normal: StartReq =
+            serde_json::from_str(r##"{"host": "h", "regist_key": "", "rp_key": ""}"##).unwrap();
+        assert_eq!(normal.video_queue(), VIDEO_QUEUE);
+        let low: StartReq = serde_json::from_str(
+            r##"{"host": "h", "regist_key": "", "rp_key": "", "low_latency": true}"##,
+        )
+        .unwrap();
+        assert_eq!(low.video_queue(), VIDEO_QUEUE_LOW_LATENCY);
     }
 
     #[test]

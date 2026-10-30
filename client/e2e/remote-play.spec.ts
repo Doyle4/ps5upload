@@ -1,4 +1,6 @@
-import { expect, test, type WebSocketRoute } from "@playwright/test";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { expect, test, type Page, type WebSocketRoute } from "@playwright/test";
 
 // Remote Play belongs to the app, not to its screen (8.10): leaving the screen keeps the
 // stream, a dropped socket rejoins, and only Stop ends it, with no "connection dropped".
@@ -379,7 +381,7 @@ test("Remote Play without an H.264 decoder says what to install and never starts
 });
 
 /** One console set up for Wake & sign in, an engine that answers, and a stream that plays. */
-async function playableConsole(page: import("@playwright/test").Page) {
+async function playableConsole(page: Page) {
   await page.addInitScript(() => {
     window.localStorage.setItem("ps5upload.host", "192.168.1.100");
     window.localStorage.setItem(
@@ -488,4 +490,211 @@ test("Remote Play in Chrome shows no browser advice", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Remote Play" })).toBeVisible({ timeout: 30_000 });
   await expect(page.getByTestId("rp-start")).toBeVisible();
   await expect(page.getByTestId("rp-browser-advice")).toHaveCount(0);
+});
+
+// Screenshots, clips, the latency readout and the two network settings (9.5.0). A real H.264
+// frame goes through the app's own decode and draw path, so the screenshot has the stream's own
+// size; the engine socket is faked.
+
+const rpFixture = (name: string) =>
+  new Uint8Array(readFileSync(fileURLToPath(new URL(`./fixtures/remote-play/${name}`, import.meta.url))));
+
+/** The parameter sets (the "video header") and the picture of a one-frame Annex-B stream. */
+function splitH264(stream: Uint8Array): { header: Uint8Array; au: Uint8Array } {
+  for (let i = 0; i + 3 < stream.length; i++) {
+    if (stream[i] !== 0 || stream[i + 1] !== 0 || stream[i + 2] !== 1) continue;
+    const t = stream[i + 3] & 0x1f;
+    if (t < 1 || t > 5) continue;
+    const start = i > 0 && stream[i - 1] === 0 ? i - 1 : i;
+    return { header: stream.slice(0, start), au: stream.slice(start) };
+  }
+  throw new Error("no picture in the fixture");
+}
+
+const rpRecord = (kind: number, payload: Uint8Array) => {
+  const b = Buffer.alloc(payload.length + 1);
+  b[0] = kind;
+  b.set(payload, 1);
+  return b;
+};
+
+async function rpPage(page: Page, prefs: Record<string, unknown> = {}) {
+  await page.addInitScript((p) => {
+    window.localStorage.setItem("ps5upload.host", "192.168.1.100");
+    window.localStorage.setItem(
+      "ps5upload.roster.v1",
+      JSON.stringify({
+        active_id: "p1",
+        profiles: [
+          {
+            id: "p1",
+            name: "Living room",
+            host: "192.168.1.100",
+            wake_regist_key: "00112233",
+            wake_rp_key: "00112233445566778899aabbccddeeff",
+          },
+        ],
+      }),
+    );
+    window.localStorage.setItem("ps5upload.rp_prefs.v1", JSON.stringify(p));
+    // H.264 only: the fixtures the fake engine sends.
+    if (typeof VideoDecoder !== "undefined") {
+      const orig = VideoDecoder.isConfigSupported.bind(VideoDecoder);
+      VideoDecoder.isConfigSupported = (cfg: VideoDecoderConfig) =>
+        /^(hev1|hvc1)/.test(cfg.codec) ? Promise.resolve({ supported: false, config: cfg }) : orig(cfg);
+    }
+  }, prefs);
+  await page.route(
+    (url) => url.pathname.startsWith("/api/"),
+    async (route) => {
+      const path = new URL(route.request().url()).pathname;
+      let body: unknown = {};
+      if (path === "/api/version") body = { version: "9.5.0", caps: {} };
+      if (path === "/api/ps5/rp/session") body = { host: null };
+      await route.fulfill({ contentType: "application/json", body: JSON.stringify(body) });
+    },
+  );
+}
+
+/** A fake engine that streams the fixture for the size asked for and answers pings. `extra`
+ *  runs on every start (its index) for what a test adds: `repeat` sends something every so often
+ *  while that socket is open; returning true answers the start with nothing else. */
+async function rpEngine(
+  page: Page,
+  extra?: (ws: WebSocketRoute, n: number, repeat: (fn: () => void, ms: number) => void) => boolean | void,
+) {
+  const starts: Array<Record<string, unknown>> = [];
+  let pings = 0;
+  let stops = 0;
+  await page.routeWebSocket(/\/api\/ps5\/rp\/ws/, (ws) => {
+    const timers: ReturnType<typeof setInterval>[] = [];
+    ws.onClose(() => timers.forEach(clearInterval));
+    ws.onMessage((m) => {
+      if (typeof m !== "string") return;
+      const msg = JSON.parse(m) as Record<string, unknown>;
+      if ("ping" in msg) {
+        pings++;
+        ws.send(JSON.stringify({ pong: msg.ping }));
+      }
+      if (msg.stop) {
+        stops++;
+        ws.send(JSON.stringify({ stage: "ended" }));
+        void ws.close({ code: 1000, reason: "ended" });
+      }
+      if (!("host" in msg)) return;
+      starts.push(msg);
+      const repeat = (fn: () => void, ms: number) => timers.push(setInterval(fn, ms));
+      if (extra?.(ws, starts.length - 1, repeat)) return;
+      const { header, au } = splitH264(rpFixture(msg.height === 720 ? "h264_1280x720.h264" : "h264_1920x1080.h264"));
+      ws.send(JSON.stringify({ stage: "first_frame" }));
+      ws.send(rpRecord(0, header));
+      // The same keyframe again and again: a picture that keeps coming, as a game's does.
+      for (let i = 0; i < 3; i++) ws.send(rpRecord(1, au));
+      repeat(() => ws.send(rpRecord(1, au)), 100);
+    });
+  });
+  return { starts, pings: () => pings, stops: () => stops };
+}
+
+test("Remote Play saves a screenshot and a clip, shows its latency and asks for low latency", async ({ page }) => {
+  test.setTimeout(90_000);
+  await rpPage(page, { res: "1280x720", showStats: true });
+  const engine = await rpEngine(page);
+  await page.goto("/play", { waitUntil: "domcontentloaded" });
+  await expect(page.getByRole("heading", { name: "Remote Play" })).toBeVisible({ timeout: 30_000 });
+
+  // Low latency is a setting, off until chosen; the start says so to the engine.
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  const low = page.getByRole("switch", { name: "Low latency" });
+  await expect(low).toHaveAttribute("aria-checked", "false");
+  await low.click();
+  await expect(page.getByRole("switch", { name: "Lower quality on a busy network" })).toHaveAttribute(
+    "aria-checked",
+    "true",
+  );
+  await page.getByTestId("rp-start").click();
+  await expect.poll(() => engine.starts.length).toBe(1);
+  expect(engine.starts[0]).toMatchObject({ low_latency: true, height: 720 });
+
+  // The stats measure the round trip to the engine (pinged once a second).
+  await expect.poll(() => engine.pings(), { timeout: 10_000 }).toBeGreaterThan(0);
+  await expect(page.getByTestId("rp-latency")).toContainText(/Latency ≈ \d+ ms engine \+ \d+ ms decode/, {
+    timeout: 10_000,
+  });
+
+  // Screenshot: a PNG at the stream's own size, named after the console and the time.
+  const toolbar = page.getByTestId("rp-toolbar");
+  await toolbar.hover();
+  const shotDl = page.waitForEvent("download");
+  await page.getByTestId("rp-screenshot").click();
+  const shot = await shotDl;
+  expect(shot.suggestedFilename()).toMatch(/^PS5 Living room \d{4}-\d\d-\d\d \d\d-\d\d-\d\d\.png$/);
+  const png = readFileSync(await shot.path());
+  expect(png.subarray(1, 4).toString()).toBe("PNG");
+  expect([png.readUInt32BE(16), png.readUInt32BE(20)]).toEqual([1280, 720]);
+  await expect(page.getByTestId("rp-capture-notice")).toContainText("Screenshot saved");
+
+  // A clip: the recording light counts up; stopping saves it.
+  await toolbar.hover();
+  await page.getByTestId("rp-record").click();
+  await expect(page.getByTestId("rp-recording")).toContainText(/Recording 0:0\d/);
+  await expect(page.getByTestId("rp-record")).toHaveAttribute("aria-pressed", "true");
+  await page.waitForTimeout(1500);
+  const clipDl = page.waitForEvent("download");
+  await toolbar.hover();
+  await page.getByTestId("rp-record").click();
+  const clip = await clipDl;
+  expect(clip.suggestedFilename()).toMatch(/^PS5 Living room \d{4}-\d\d-\d\d \d\d-\d\d-\d\d\.(mp4|webm)$/);
+  expect(readFileSync(await clip.path()).length).toBeGreaterThan(1000);
+  await expect(page.getByTestId("rp-recording")).toHaveCount(0);
+  await expect(page.getByTestId("rp-capture-notice")).toContainText("Clip saved");
+});
+
+test("Remote Play offers 720p when a 1080p stream keeps losing frames, and switches on a tap", async ({ page }) => {
+  test.setTimeout(120_000);
+  await rpPage(page, { res: "1920x1080" });
+  const engine = await rpEngine(page, (ws, n, repeat) => {
+    if (n === 0) {
+      // A busy network: a tenth of the packets and a few frames lost, every second.
+      const lossy = JSON.stringify({
+        stage: "stats",
+        stats: { frames: 55, frames_rebuilt: 2, frames_lost: 5, video_bytes: 1e6, units: 1000, units_lost: 100 },
+      });
+      repeat(() => ws.send(lossy), 1000);
+    }
+    if (n === 1) {
+      // The PS5 still holds its slot from the session just stopped.
+      ws.send(JSON.stringify({ stage: "error", code: "busy", retry_s: 1, error: "busy" }));
+      void ws.close({ code: 1000, reason: "busy" });
+      return true;
+    }
+  });
+  await page.goto("/play", { waitUntil: "domcontentloaded" });
+  await expect(page.getByRole("heading", { name: "Remote Play" })).toBeVisible({ timeout: 30_000 });
+  await page.getByTestId("rp-start").click();
+  await expect.poll(() => engine.starts.length).toBe(1);
+  expect(engine.starts[0]).toMatchObject({ height: 1080, low_latency: false });
+
+  // Not at once: only after the loss has lasted (a few seconds' grace, then about ten).
+  await page.waitForTimeout(4000);
+  await expect(page.getByTestId("rp-quality-offer")).toHaveCount(0);
+  const offer = page.getByTestId("rp-quality-offer");
+  await expect(offer).toContainText("The network is dropping frames.", { timeout: 30_000 });
+  await offer.getByTestId("rp-quality-switch").click();
+
+  // The stream stops and starts again at 720p, waiting out the PS5's busy answer quietly.
+  await expect.poll(() => engine.stops()).toBe(1);
+  await expect(page.getByTestId("rp-quality-switching")).toBeVisible();
+  await expect.poll(() => engine.starts.length, { timeout: 20_000 }).toBe(3);
+  expect(engine.starts[1]).toMatchObject({ height: 720, attach_only: false });
+  expect(engine.starts[2]).toMatchObject({ height: 720, attach_only: false });
+  await expect(page.getByTestId("rp-quality-switching")).toHaveCount(0, { timeout: 15_000 });
+  await expect(page.getByTestId("rp-toolbar")).toContainText("Living room");
+  await expect(page.locator("[role=alert]").filter({ hasText: /still finishing/ })).toHaveCount(0);
+  await expect
+    .poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("ps5upload.rp_prefs.v1") ?? "{}").res))
+    .toBe("1280x720");
+  // 720p is never offered lower, and nothing steps it back up.
+  await page.waitForTimeout(2000);
+  await expect(page.getByTestId("rp-quality-offer")).toHaveCount(0);
 });

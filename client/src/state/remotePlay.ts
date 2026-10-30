@@ -47,6 +47,11 @@ export interface RpPrefs {
   touchSize: "s" | "m" | "l";
   /** A phone's motion sensors as the controller's (gyro aiming, tilt). */
   motion: boolean;
+  /** Least delay: the smallest sound buffer and short picture queues (more dropped frames on a
+   *  busy network). */
+  lowLatency: boolean;
+  /** Offer 720p when a 1080p stream keeps losing frames. */
+  autoQuality: boolean;
 }
 
 export const DEFAULT_RP_PREFS: RpPrefs = {
@@ -64,7 +69,17 @@ export const DEFAULT_RP_PREFS: RpPrefs = {
   touchOpacity: 1,
   touchSize: "m",
   motion: false,
+  lowLatency: false,
+  autoQuality: true,
 };
+
+/** The smallest sound buffer the Sound buffer setting offers. */
+export const LOWEST_AUDIO_BUFFER_MS = 40;
+
+/** The sound buffer in use: the smallest one in low-latency mode, else the one chosen. */
+export function audioBufferFor(p: Pick<RpPrefs, "lowLatency" | "audioBufferMs">): number {
+  return p.lowLatency ? Math.min(LOWEST_AUDIO_BUFFER_MS, p.audioBufferMs) : p.audioBufferMs;
+}
 
 const PREFS_KEY = "ps5upload.rp_prefs.v1";
 
@@ -189,7 +204,8 @@ export const useRemotePlayStore = create<RpState>((set, get) => ({
       height,
       fps: prefs.fps,
       keepAliveS: prefs.keepAliveS,
-      audioBufferMs: prefs.audioBufferMs,
+      audioBufferMs: audioBufferFor(prefs),
+      lowLatency: prefs.lowLatency,
       attach: opts?.attach,
       fit: prefs.fit,
       rumble: () => get().prefs.rumble,
@@ -223,7 +239,7 @@ export const useRemotePlayStore = create<RpState>((set, get) => ({
     const s = get().stream;
     if (s) {
       s.setVolume(prefs.muted ? 0 : prefs.volume);
-      s.setAudioBuffer(prefs.audioBufferMs);
+      s.setAudioBuffer(audioBufferFor(prefs));
       s.setFit(prefs.fit);
     }
   },

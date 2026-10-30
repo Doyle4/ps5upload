@@ -67,6 +67,9 @@ import { ControllerSetup } from "./ControllerSetup";
 import { PadAsks, PhonePadsPanel, usePadLink } from "./PhonePads";
 import { safeGetItem, safeSetItem } from "../../lib/safeStorage";
 import { closePip, openPip, pipPadsInBackground, pipSupport } from "./pip";
+import { CaptureBarButtons, CaptureOverlay } from "./CaptureControls";
+import { LatencyLine, QualityNotice, RpNetworkSettings } from "./NetworkExtras";
+import { useRpQualityStore } from "../../state/rpQuality";
 
 type Tr = ReturnType<typeof useTr>;
 
@@ -265,6 +268,7 @@ function StatsLine({
       )}
       {" · "}
       {tr("rp_stats_audio", { ms: v.audio }, `sound ${v.audio} ms`)}
+      <LatencyLine stats={stats} />
     </div>
   );
 }
@@ -371,6 +375,7 @@ function SettingsPanel({ running }: { running: boolean }) {
           label={tr("rp_show_stats", undefined, "Show stats on the picture")}
           hint={tr("rp_show_stats_hint", undefined, "Frame rate, bitrate, decode time, loss and sound delay.")}
         />
+        <RpNetworkSettings />
       </section>
 
       <section className="space-y-2">
@@ -548,6 +553,7 @@ export function StreamPanel() {
   const stopStream = useRemotePlayStore((s) => s.stop);
   const setOnScreen = useRemotePlayStore((s) => s.setOnScreen);
   const pip = useRemotePlayStore((s) => s.pip);
+  const switching = useRpQualityStore((s) => !!s.switching);
   const pipKind = useMemo(() => pipSupport(), []);
   const [pipFailed, setPipFailed] = useState(false);
   const [profileId, setProfileId] = useState<string>(activeId ?? profiles[0]?.id ?? "");
@@ -728,8 +734,9 @@ export function StreamPanel() {
   }, [phoneLandscape, playing]);
   // The stream ended while full screen: back to the page, where Start is.
   useEffect(() => {
-    if (full && !running) exitFull();
-  }, [full, running, exitFull]);
+    // Not while switching to 720p: the stream stops and starts again in the same place.
+    if (full && !running && !switching) exitFull();
+  }, [full, running, exitFull, switching]);
   // While the picture fills the screen the page holds still: no scroll, bounce or pull to refresh.
   useEffect(() => {
     if (!full) return;
@@ -1112,6 +1119,7 @@ export function StreamPanel() {
               >
                 <BarChart3 size={16} />
               </BarButton>
+              <CaptureBarButtons />
               <BarButton
                 label={muted ? tr("rp_unmute", undefined, "Sound on") : tr("rp_mute", undefined, "Mute")}
                 active={muted}
@@ -1192,6 +1200,8 @@ export function StreamPanel() {
               </button>
             </div>
           )}
+          {running && <CaptureOverlay />}
+          <QualityNotice />
           {touchHere && (
             <TouchControls
               stream={stream}
