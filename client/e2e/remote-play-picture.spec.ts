@@ -145,16 +145,26 @@ async function checkPicture(page: Page, c: Case) {
 
   const sb = (await stage.boundingBox())!;
   const cb = (await canvas.boundingBox())!;
-  // The canvas box never leaves the stage, whatever its pixel size.
-  expect(cb.x).toBeGreaterThanOrEqual(sb.x - 1);
-  expect(cb.y).toBeGreaterThanOrEqual(sb.y - 1);
-  expect(cb.x + cb.width).toBeLessThanOrEqual(sb.x + sb.width + 1);
-  expect(cb.y + cb.height).toBeLessThanOrEqual(sb.y + sb.height + 1);
-
-  // Where the picture should be inside the canvas box, for this fit.
   const fit = c.fit ?? "fit";
-  const sx = fit === "stretch" ? cb.width / W : fit === "fill" ? Math.max(cb.width / W, cb.height / H) : Math.min(cb.width / W, cb.height / H);
-  const sy = fit === "stretch" ? cb.height / H : sx;
+  if (fit === "fill") {
+    // Fill: the picture's shape, covering the stage (the stage cuts what is past it).
+    expect(cb.width).toBeGreaterThanOrEqual(sb.width - 1);
+    expect(cb.height).toBeGreaterThanOrEqual(sb.height - 1);
+    expect(Math.abs(cb.width / cb.height - W / H)).toBeLessThan(0.01);
+  } else {
+    // Fit and Stretch: the canvas box never leaves the stage, whatever its pixel size.
+    expect(cb.x).toBeGreaterThanOrEqual(sb.x - 1);
+    expect(cb.y).toBeGreaterThanOrEqual(sb.y - 1);
+    expect(cb.x + cb.width).toBeLessThanOrEqual(sb.x + sb.width + 1);
+    expect(cb.y + cb.height).toBeLessThanOrEqual(sb.y + sb.height + 1);
+  }
+
+  // Where the picture is: the browser sizes the canvas box for the fit, so the picture fills
+  // its box (under object-fit, where container units are missing, the box is the stage and
+  // object-fit places it there instead).
+  const boxed = await canvas.evaluate((el) => getComputedStyle(el).objectFit === "fill");
+  const sx = boxed || fit === "stretch" ? cb.width / W : fit === "fill" ? Math.max(cb.width / W, cb.height / H) : Math.min(cb.width / W, cb.height / H);
+  const sy = boxed || fit === "stretch" ? cb.height / H : sx;
   const px = cb.x - sb.x + (cb.width - W * sx) / 2;
   const py = cb.y - sb.y + (cb.height - H * sy) / 2;
   const m = H / 8; // marker side, frame px
@@ -231,9 +241,16 @@ test("Remote Play picture size is a setting that applies while playing", async (
     await expect(select).toBeEnabled();
     await select.selectOption("fill");
     await expect(canvas).toHaveAttribute("data-fit", "fill");
-    await expect(canvas).toHaveCSS("object-fit", "cover");
+    // The page's box is the picture's own shape, so Fill is that box, and so is Stretch.
+    const stage = page.getByTestId("rp-stage").filter({ visible: true });
+    const size = async (el: typeof canvas) => {
+      const b = (await el.boundingBox())!;
+      return [Math.round(b.width), Math.round(b.height)];
+    };
+    await expect.poll(() => size(canvas)).toEqual(await size(stage));
     await select.selectOption("stretch");
-    await expect(canvas).toHaveCSS("object-fit", "fill");
+    await expect(canvas).toHaveAttribute("data-fit", "stretch");
+    await expect.poll(() => size(canvas)).toEqual(await size(stage));
     await expect
       .poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("ps5upload.rp_prefs.v1") ?? "{}").fit))
       .toBe("stretch");
