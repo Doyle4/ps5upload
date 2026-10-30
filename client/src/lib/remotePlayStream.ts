@@ -318,6 +318,15 @@ const FIT_CLASS: Record<PictureFit, string> = {
   stretch: "object-fill",
 };
 
+/** The picture sizes in the order a full-screen button steps through them. */
+export const FIT_ORDER: PictureFit[] = ["fit", "fill", "stretch"];
+
+/** The picture size after `fit` (back to the first after the last). */
+export function nextFit(fit: PictureFit): PictureFit {
+  const i = FIT_ORDER.indexOf(fit);
+  return FIT_ORDER[(i + 1) % FIT_ORDER.length];
+}
+
 /** The canvas's classes for a fit. The canvas never grows past the place it is in: its box is
  *  that place's, whatever its own pixel size, and object-fit decides the picture in it. It never
  *  takes a pointer: presses belong to the stage it is on and to the controls drawn over it. */

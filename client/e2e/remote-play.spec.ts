@@ -377,3 +377,115 @@ test("Remote Play without an H.264 decoder says what to install and never starts
   await expect(page.getByTestId("rp-start")).toBeVisible();
   expect(sockets).toBe(0);
 });
+
+/** One console set up for Wake & sign in, an engine that answers, and a stream that plays. */
+async function playableConsole(page: import("@playwright/test").Page) {
+  await page.addInitScript(() => {
+    window.localStorage.setItem("ps5upload.host", "192.168.1.100");
+    window.localStorage.setItem(
+      "ps5upload.roster.v1",
+      JSON.stringify({
+        active_id: "p1",
+        profiles: [
+          {
+            id: "p1",
+            name: "Living room",
+            host: "192.168.1.100",
+            wake_regist_key: "00112233",
+            wake_rp_key: "00112233445566778899aabbccddeeff",
+          },
+        ],
+      }),
+    );
+  });
+  await page.route(
+    (url) => url.pathname.startsWith("/api/"),
+    async (route) => {
+      const path = new URL(route.request().url()).pathname;
+      let body: unknown = {};
+      if (path === "/api/version") body = { version: "9.5.0", caps: {} };
+      if (path === "/api/ps5/rp/session") body = { host: null };
+      await route.fulfill({ contentType: "application/json", body: JSON.stringify(body) });
+    },
+  );
+  await page.routeWebSocket(/\/api\/ps5\/rp\/ws/, (ws) => {
+    ws.onMessage((m) => {
+      const msg = JSON.parse(String(m)) as { host?: string };
+      if (msg.host) ws.send(JSON.stringify({ stage: "first_frame" }));
+    });
+  });
+}
+
+// The picture size shows only in full screen (on the page the box is the picture's own shape), so
+// it changes there, without leaving full screen, and the picture follows at once.
+test("Remote Play: picture size changes in full screen and applies there", async ({ page }) => {
+  await page.setViewportSize({ width: 1600, height: 1000 }); // 16:10, not the picture's 16:9
+  await playableConsole(page);
+  await page.goto("/play", { waitUntil: "domcontentloaded" });
+  await expect(page.getByRole("heading", { name: "Remote Play" })).toBeVisible({ timeout: 30_000 });
+  await page.getByTestId("rp-start").click();
+  const stage = page.getByTestId("rp-stage");
+  await expect(page.getByTestId("rp-toolbar")).toBeVisible();
+  await page.getByTestId("rp-toolbar").hover();
+  await page.getByTestId("rp-fullscreen").click();
+  await expect(stage).toHaveAttribute("data-full", "bar");
+
+  // A 1080p picture, as the decoder sizes the canvas.
+  const canvas = stage.locator("canvas");
+  await canvas.evaluate((c: HTMLCanvasElement) => {
+    c.width = 1920;
+    c.height = 1080;
+  });
+  const look = () =>
+    canvas.evaluate((c: HTMLCanvasElement) => {
+      const r = c.getBoundingClientRect();
+      return { fit: c.dataset.fit, objectFit: getComputedStyle(c).objectFit, w: Math.round(r.width), h: Math.round(r.height) };
+    });
+  // The canvas fills the screen; object-fit decides the picture in it.
+  expect(await look()).toEqual({ fit: "fit", objectFit: "contain", w: 1600, h: 1000 });
+
+  await page.getByTestId("rp-toolbar").hover();
+  const cycle = page.getByTestId("rp-fit-cycle");
+  await expect(cycle).toHaveAttribute("title", "Picture size: Fit");
+  await cycle.click();
+  await expect.poll(look).toEqual({ fit: "fill", objectFit: "cover", w: 1600, h: 1000 });
+  await expect(stage).toHaveAttribute("data-full", "bar"); // still full screen
+  await cycle.click();
+  await expect.poll(look).toEqual({ fit: "stretch", objectFit: "fill", w: 1600, h: 1000 });
+  // Remembered with the other settings.
+  await expect
+    .poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("ps5upload.rp_prefs.v1") ?? "{}").fit))
+    .toBe("stretch");
+  await cycle.click();
+  await expect.poll(look).toMatchObject({ fit: "fit", objectFit: "contain" });
+});
+
+// The web UI in a browser Remote Play is not made for says which one is, and what this one misses.
+test("Remote Play in Firefox names the browser it is made for", async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, "userAgent", {
+      get: () => "Mozilla/5.0 (X11; Linux x86_64; rv:131.0) Gecko/20100101 Firefox/131.0",
+    });
+    Object.defineProperty(navigator, "userAgentData", { get: () => undefined });
+  });
+  await playableConsole(page);
+  await page.goto("/play", { waitUntil: "domcontentloaded" });
+  await expect(page.getByRole("heading", { name: "Remote Play" })).toBeVisible({ timeout: 30_000 });
+  const advice = page.getByTestId("rp-browser-advice");
+  await expect(advice).toContainText("Remote Play works best in Chrome or Edge");
+  await expect(advice).toContainText("In Firefox, Esc always leaves full screen");
+  // Dismissed, it stays away.
+  await advice.getByRole("button").click();
+  await expect(advice).toHaveCount(0);
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await expect(page.getByRole("heading", { name: "Remote Play" })).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByTestId("rp-browser-advice")).toHaveCount(0);
+});
+
+test("Remote Play in Chrome shows no browser advice", async ({ page }) => {
+  await playableConsole(page);
+  await page.goto("/play", { waitUntil: "domcontentloaded" });
+  await expect(page.getByRole("heading", { name: "Remote Play" })).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByTestId("rp-start")).toBeVisible();
+  await expect(page.getByTestId("rp-browser-advice")).toHaveCount(0);
+});

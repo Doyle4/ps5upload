@@ -50,6 +50,7 @@
 #include "aes.h" /* tiny-AES, vendored — MC4 cheat decryption */
 #include "xml_encoding.h" /* UTF-16 → UTF-8 for SHN/MC4 trainer XML (#317) */
 #include "cheats_plan.h"
+#include "cheats_guard.h"
 #include "game_patch.h" /* PS-Game-Patch XML game patches (#527) */
 #include "content_db.h"
 #include "fw_spoof.h"
@@ -1999,6 +2000,29 @@ static int reapply_enabled_for_game(pid_t pid, intptr_t base,
     return applied;
 }
 
+static uint64_t mono_ms(void) {
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (uint64_t)ts.tv_sec * 1000u + (uint64_t)ts.tv_nsec / 1000000u;
+}
+
+/* One watcher pass of the crash guard: a game that keeps closing right after its saved cheats
+ * were applied is paused (cheats_guard.h). */
+static void guard_step(cheats_guard_t *g, pid_t pid) {
+    int r = cheats_guard_tick(g, (int)pid, mono_ms());
+    if (r == CHEATS_GUARD_NONE) return;
+    cheats_marker_clear(CHEATS_ROOT);
+    if (r != CHEATS_GUARD_HOLD) return;
+    char msg[224];
+    if (cheats_hold(CHEATS_STATE_DIR, g->strike_title) != 0)
+        fprintf(stderr, "[cheats] could not pause %s\n", g->strike_title);
+    snprintf(msg, sizeof(msg),
+             "%s closed right after its cheats were applied, twice. Its cheats are paused; "
+             "switch one in PS5Upload to resume.",
+             g->strike_title);
+    notif_send_serialised(msg, NOTIF_LEVEL_WARN);
+}
+
 static void *watcher_thread(void *arg) {
     /* Name this thread: the process listing shows a representative
      * thread that is not reliably main, so an unnamed worker makes the
@@ -2006,18 +2030,26 @@ static void *watcher_thread(void *arg) {
     proc_name_set_self(PS5UPLOAD2_PROC_NAME);
     (void)arg;
     pid_t last_pid = 0;
+    /* Only this thread touches it. */
+    static cheats_guard_t guard;
 
     while (1) {
         sleep(3);
 
         if (!atomic_load(&g_engine_enabled)) {
             last_pid = 0;
+            if (guard.title[0]) { /* turned off mid-window: nothing is being watched any more */
+                guard.title[0] = '\0';
+                cheats_marker_clear(CHEATS_ROOT);
+            }
             continue;
         }
 
         char title[MAX_TITLE_ID] = "";
         intptr_t base = 0;
         pid_t pid = get_running_game_cached(title, sizeof(title), &base);
+
+        guard_step(&guard, pid);
 
         if (pid <= 0) {
             last_pid = 0;
@@ -2029,12 +2061,25 @@ static void *watcher_thread(void *arg) {
 
         invalidate_rg_cache();
 
-        /* Auto-apply patches + re-apply user-toggled cheats */
+        if (cheats_held(CHEATS_STATE_DIR, title)) {
+            char msg[192];
+            snprintf(msg, sizeof(msg),
+                     "Cheats for %s are paused. Switch one of its cheats in PS5Upload to resume.",
+                     title);
+            notif_send_serialised(msg, NOTIF_LEVEL_INFO);
+            continue;
+        }
+
+        /* Auto-apply patches + re-apply user-toggled cheats. The marker says, to the next
+         * helper start, that it died while this game's cheats were fresh (cheats_guard.h). */
+        cheats_marker_set(CHEATS_ROOT, title);
         char game_name[MAX_CHEAT_NAME] = "";
         int applied = apply_patches_for_game(pid, base, title,
                                              game_name, sizeof(game_name));
         applied += reapply_enabled_for_game(pid, base, title,
                                             game_name, sizeof(game_name));
+        if (applied > 0) cheats_guard_applied(&guard, title, (int)pid, mono_ms());
+        else cheats_marker_clear(CHEATS_ROOT);
 
         /* Tell the player on the console. Without this the engine works
          * silently and there is no way to know a cheat actually took — the
@@ -2074,6 +2119,22 @@ void cheats_init(void) {
     ensure_dir(PATCHES_MC4_DIR);
     ensure_dir(CHEATS_STATE_DIR);
 
+    /* The engine switch as the user last left it (#550). A marker left behind means the last
+     * helper died while a game's cheats were fresh: pause that game rather than apply them
+     * again (cheats_guard.h). */
+    atomic_store(&g_engine_enabled, cheats_engine_load(CHEATS_ROOT));
+    char left[CHEATS_GUARD_TITLE_MAX];
+    if (cheats_marker_take(CHEATS_ROOT, left, sizeof(left))) {
+        if (cheats_hold(CHEATS_STATE_DIR, left) != 0)
+            fprintf(stderr, "[cheats] could not pause %s\n", left);
+        char msg[224];
+        snprintf(msg, sizeof(msg),
+                 "The console or helper stopped right after cheats were applied to %s. Its cheats "
+                 "are paused; switch one in PS5Upload to resume.",
+                 left);
+        notif_send_serialised(msg, NOTIF_LEVEL_WARN);
+    }
+
     /* Start watcher thread if not already running */
     int expected = 0;
     if (atomic_compare_exchange_strong(&g_watcher_running, &expected, 1)) {
@@ -2092,8 +2153,11 @@ void cheats_init(void) {
 
 /* ── Engine flag ─────────────────────────────────────────────────── */
 
+/* Set and remember the engine switch: it holds across helper starts and reboots (#550). */
 void cheats_engine_set_enabled(int on) {
     atomic_store(&g_engine_enabled, on ? 1 : 0);
+    if (cheats_engine_save(CHEATS_ROOT, on) != 0)
+        fprintf(stderr, "[cheats] could not remember the engine as %s\n", on ? "on" : "off");
 }
 
 /* ── Public API implementations ──────────────────────────────────── */
@@ -2269,7 +2333,7 @@ int cheats_toggle(const char *title_id, int mod_index, int turn_on,
 
     /* Auto-enable engine if toggling while game is running */
     if (turn_on && !atomic_load(&g_engine_enabled)) {
-        atomic_store(&g_engine_enabled, 1);
+        cheats_engine_set_enabled(1);
     }
 
     found_file_t files[16];
@@ -2387,6 +2451,8 @@ int cheats_toggle(const char *title_id, int mod_index, int turn_on,
     free(keep);
 
     if (rc == 0) {
+        /* Switching one of its cheats is the explicit go-ahead a paused game waits for. */
+        cheats_unhold(CHEATS_STATE_DIR, title_id);
 
         /* Confirm on the console.
          *
@@ -2485,15 +2551,17 @@ int cheats_status_json(char *buf, size_t cap, size_t *written) {
     intptr_t rg_base = 0;
     pid_t rg_pid = get_running_game_cached(rg_title, sizeof(rg_title), &rg_base);
 
+    int held = rg_pid > 0 && cheats_held(CHEATS_STATE_DIR, rg_title);
     int n = snprintf(buf, cap,
         "{\"enabled\":%s,\"patches_last\":%d,\"patches_total\":%d,"
-        "\"game_running\":%s,\"game_title_id\":\"%s\",\"game_pid\":%d}",
+        "\"game_running\":%s,\"game_title_id\":\"%s\",\"game_pid\":%d,\"held\":%s}",
         atomic_load(&g_engine_enabled) ? "true" : "false",
         atomic_load(&g_patches_last),
         atomic_load(&g_patches_total),
         rg_pid > 0 ? "true" : "false",
         rg_title,
-        (int)rg_pid);
+        (int)rg_pid,
+        held ? "true" : "false");
 
     if (written) *written = (size_t)(n > 0 ? n : 0);
     return n > 0 ? 0 : -1;

@@ -1998,6 +1998,20 @@ community repositories inside the screen. Native JSON, SHN trainer XML and encry
 work, with game names, filters and a notification when cheats load. Cheats change nothing on disk
 and stop when the game does.
 
+**Q: Do my cheats come back after the PS5 restarts?**
+Yes, from 9.5.0, while the **cheat engine** is on. The helper remembers the engine switch, so once it
+is on (or you switch a cheat on, which turns it on), the cheats you switched on, and the game's
+patches, apply by themselves each time their game starts, also after a reboot, with only the
+autoloaded helper running. Turn the engine off (in the app or in Minion › Cheats) and it stays off.
+Before 9.5.0 it started off with every helper start, so after a reboot Minion showed your switches as
+On while nothing was applied (#550). While the engine is off, Minion now marks those switches
+**Saved** and has a button to turn the engine on.
+
+If a game closes within 30 seconds of its cheats being applied, twice in a row, or the console or
+helper stops during those 30 seconds, the helper pauses that game's cheats and says so on the TV, so
+a cheat that crashes a game can't do it again on every start. Switch any of that game's cheats to
+resume.
+
 **Q: How does Remote Play work on a phone?**
 Held upright, the picture is at the top and its controls are under it: **Full screen**, **Stop**
 and a **⋯** menu with Stats, Picture in picture, Settings and volume. In full screen held upright,
@@ -2009,7 +2023,10 @@ menu. The screen stays awake while you play, and Settings has the controller's s
 In the Android app, full screen hides the status and navigation bars (swipe from an edge to see them) and holds the phone in landscape.
 
 **Q: Part of the Remote Play picture is cut off, or it looks stretched.**
-Remote Play › Settings › **Picture size** decides how the picture fits its box: **Fit** shows the whole picture with black bars where the shapes differ (the default), **Fill** fills the box and crops the edges, **Stretch** fills it without cropping. Before 9.2.0, the Windows app could show the picture enlarged with its right and bottom cut off (#538); update to fix it.
+**Picture size** decides how the picture fits the screen: **Fit** shows the whole picture with black bars where the shapes differ (the default), **Fill** fills the screen and crops the edges, **Stretch** fills it without cropping. It shows in full screen: on the page the picture's box is the picture's own shape, so all three look the same there. Change it in full screen without leaving it: the **Picture size** button on the bar (desktop), or the Fit / Fill / Stretch row in the **⋯** menu (phones). It's also in Remote Play › Settings, and it applies at once. Before 9.2.0, the Windows app could show the picture enlarged with its right and bottom cut off (#538); update to fix it.
+
+**Q: Which browser should I use for Remote Play in the web UI?**
+Chrome or Edge (on Android, Chrome). Remote Play is made and tested for them. In Firefox and Safari, Esc always leaves full screen, so it can't be the controller's ○ there; Firefox has no picture in picture, and Safari's shows the picture only. The web UI says so on the Remote Play page in those browsers. On iPhone and iPad every browser is Safari underneath, and Remote Play works there. The desktop and Android apps don't depend on your browser.
 
 **Q: Remote Play on Linux says there is no H.264 decoder ("No decoder found for codec avc1…").**
 On Linux the app's window plays video through the system's GStreamer, and some distributions

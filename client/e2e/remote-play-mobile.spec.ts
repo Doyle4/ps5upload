@@ -265,8 +265,13 @@ test.describe("small phone upright", () => {
     await page.getByTestId("rp-fullscreen").tap();
     for (const id of ["rp-menu-handle", "rp-touch"]) await inViewport(page, id);
     await page.getByTestId("rp-menu-handle").tap();
-    for (const id of ["rp-fullscreen", "rp-stop", "rp-volume"])
+    for (const id of ["rp-fullscreen", "rp-stop", "rp-volume", "rp-menu-fit"])
       await inViewport(page, id);
+    // Picture size changes here, in full screen, where it shows.
+    await page.getByTestId("rp-menu-fit-fill").tap();
+    await expect(page.getByTestId("rp-menu-fit-fill")).toHaveAttribute("aria-pressed", "true");
+    await expect(page.getByTestId("rp-stage").locator("canvas")).toHaveAttribute("data-fit", "fill");
+    await expect(page.getByTestId("rp-stage")).toHaveAttribute("data-full", "immersive");
     await page.screenshot({
       path: "../output/playwright/rp-360-full-menu.png",
     });

@@ -4,6 +4,30 @@ What's new in ps5upload, written for humans.
 
 ---
 
+## 9.5.0
+
+- **The cheat engine stays on after a restart (#550).** The helper remembers the cheat engine
+  switch: once it's on, your switched-on cheats and the game's patches apply by themselves when
+  their game starts, also after a reboot, with only the autoloaded helper. Before, it started off
+  with every helper start, so after a reboot Minion showed the switches as On while nothing was
+  applied. Turning it off is remembered too. Tested on a PS5: the switch held across helper
+  restarts, on and off.
+- **Minion tells "saved" from "applied".** While the engine is off (or the game is paused), switched-on
+  cheats read **Saved**, not On, and Minion › Cheats has a button to turn the engine on or off, even
+  before a game is running.
+- **A crashing cheat can't crash its game on every start.** If a game closes within 30 seconds of its
+  cheats being applied, twice in a row, or the console or helper stops in those 30 seconds, the
+  helper pauses that game's cheats and says so on the TV and in the app. Switch any of its cheats to
+  resume.
+- **Remote Play: picture size in full screen.** Fit, Fill and Stretch change in full screen,
+  without leaving it: a **Picture size** button on the full-screen bar (desktop) and a Fit / Fill /
+  Stretch row in the **⋯** menu (phones). Before, Settings left full screen to change it, and on the
+  page, whose box is the picture's own shape, all three look the same, so the change seemed to do
+  nothing. Settings no longer says picture size waits for the next start: it applies at once.
+- **Remote Play in the web UI names the browser it's made for.** In Firefox, Safari and others it
+  says Chrome or Edge work best and what this browser misses (Esc as the controller's ○ in full
+  screen, picture in picture). It can be dismissed.
+
 ## 9.4.1
 
 - **Remote Play on Linux shows the picture without extra installs (#548).** The Linux `.zip`

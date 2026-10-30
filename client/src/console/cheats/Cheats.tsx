@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from "react";
-import { Gamepad2, RefreshCw, Search } from "lucide-react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { Gamepad2, Power, RefreshCw, Search } from "lucide-react";
 import { useAppCover } from "../home/Home";
 import { onNavAction } from "../nav";
 import { t } from "../strings";
@@ -25,6 +25,8 @@ export interface CheatsViewProps {
   onCoverError?: () => void;
   onToggle: (mod: CheatMod) => void;
   onRefresh: () => void;
+  /** Turn the helper's cheat engine on or off (absent: no engine button). */
+  onEngine?: (on: boolean) => void;
   /** Find cheats online for the running game (absent: no Find button). */
   onFind?: () => void;
   /** A finished download, one line (shown until the section changes). */
@@ -36,11 +38,25 @@ export interface CheatsViewProps {
  * While any switch runs the rows are aria-disabled, not disabled: a disabled button drops the
  * focus ring to nowhere, and the controller (model.toggle) ignores presses meanwhile anyway.
  */
-function CheatRow({ mod, busy, disabled, onToggle }: { mod: CheatMod; busy: boolean; disabled: boolean; onToggle: (m: CheatMod) => void }) {
+function CheatRow({
+  mod,
+  busy,
+  disabled,
+  applied,
+  onToggle,
+}: {
+  mod: CheatMod;
+  busy: boolean;
+  disabled: boolean;
+  /** Switched-on cheats are applied now: the engine is on and the game is not paused. */
+  applied: boolean;
+  onToggle: (m: CheatMod) => void;
+}) {
   let tag: string;
   if (busy) tag = t("cw_cheats_switching");
   else if (mod.button) tag = t("cw_cheats_apply");
-  else tag = t(mod.on ? "cw_cheats_on" : "cw_cheats_off");
+  // On but not applied (#550): saved for when the engine is on again, never "On".
+  else tag = t(mod.on ? (applied ? "cw_cheats_on" : "cw_cheats_saved") : "cw_cheats_off");
   return (
     <li className="cw-cheat-item">
       <button
@@ -82,16 +98,39 @@ function FindButton({ onFind, more }: { onFind: () => void; more?: boolean }) {
   );
 }
 
+/** The helper's cheat engine switch: it is remembered across restarts, so it works before a game runs. */
+function EngineButton({ on, busy, onEngine }: { on: boolean; busy: boolean; onEngine: (on: boolean) => void }) {
+  return (
+    <button
+      type="button"
+      className="cw-focusable cw-button"
+      data-action="cheats-engine"
+      aria-busy={busy || undefined}
+      onClick={() => {
+        if (!busy) onEngine(!on);
+      }}
+    >
+      <Power aria-hidden />
+      <span>{t(on ? "cw_cheats_engine_turn_off" : "cw_cheats_engine_turn_on")}</span>
+    </button>
+  );
+}
+
 /** An empty state: what is true, what to do next, and Refresh (Find first when given). */
 function Empty({
   title,
   next,
+  note,
+  engine,
   onRefresh,
   onFind,
   tone,
 }: {
   title: string;
   next?: string;
+  /** One more line (the engine's state). */
+  note?: string;
+  engine?: ReactNode;
   onRefresh: () => void;
   onFind?: () => void;
   tone?: "error";
@@ -100,8 +139,10 @@ function Empty({
     <div className={`cw-card cw-cheats-empty${tone === "error" ? " is-error" : ""}`} role={tone === "error" ? "alert" : "status"}>
       <p className="cw-cheats-empty-title">{title}</p>
       {next ? <p className="cw-dim">{next}</p> : null}
+      {note ? <p className="cw-dim">{note}</p> : null}
       <div className="cw-cheats-empty-buttons">
         {onFind ? <FindButton onFind={onFind} /> : null}
+        {engine}
         <RefreshButton onRefresh={onRefresh} />
       </div>
     </div>
@@ -113,6 +154,11 @@ export function CheatsView(p: CheatsViewProps) {
   const phase = cheatsPhase(p.state);
   const s = p.state;
   const title = phase.kind === "list" || phase.kind === "none" ? phase.title : null;
+  const engineOn = s.status?.engine === true;
+  const held = s.status?.game?.held === true;
+  const engine =
+    s.status && p.onEngine ? <EngineButton on={engineOn} busy={s.engineBusy} onEngine={p.onEngine} /> : null;
+  const engineNote = s.status ? t(engineOn ? "cw_cheats_engine_on_state" : "cw_cheats_engine_off_state") : undefined;
 
   let body;
   switch (phase.kind) {
@@ -123,10 +169,26 @@ export function CheatsView(p: CheatsViewProps) {
       body = <Empty title={phase.text} onRefresh={p.onRefresh} tone="error" />;
       break;
     case "no_game":
-      body = <Empty title={t("cw_cheats_no_game")} next={t("cw_cheats_no_game_next")} onRefresh={p.onRefresh} />;
+      body = (
+        <Empty
+          title={t("cw_cheats_no_game")}
+          next={t("cw_cheats_no_game_next")}
+          note={engineNote}
+          engine={engine}
+          onRefresh={p.onRefresh}
+        />
+      );
       break;
     case "exited":
-      body = <Empty title={t("cw_cheats_exited")} next={t("cw_cheats_exited_next")} onRefresh={p.onRefresh} />;
+      body = (
+        <Empty
+          title={t("cw_cheats_exited")}
+          next={t("cw_cheats_exited_next")}
+          note={engineNote}
+          engine={engine}
+          onRefresh={p.onRefresh}
+        />
+      );
       break;
     case "none":
       body = <Empty title={t("cw_cheats_none")} next={t("cw_cheats_none_next")} onRefresh={p.onRefresh} onFind={p.onFind} />;
@@ -136,7 +198,14 @@ export function CheatsView(p: CheatsViewProps) {
         <>
           <ul className="cw-cheats">
             {phase.list.mods.map((m) => (
-              <CheatRow key={m.index} mod={m} busy={s.busy === m.index} disabled={s.busy !== null} onToggle={p.onToggle} />
+              <CheatRow
+                key={m.index}
+                mod={m}
+                busy={s.busy === m.index}
+                disabled={s.busy !== null}
+                applied={engineOn && !held}
+                onToggle={p.onToggle}
+              />
             ))}
           </ul>
           {phase.list.truncated ? <p className="cw-dim cw-cheats-note">{t("cw_cheats_truncated")}</p> : null}
@@ -159,10 +228,15 @@ export function CheatsView(p: CheatsViewProps) {
             <div className="cw-dim">{t("cw_home_now_running")}</div>
             <div className="cw-game-title">{title}</div>
             <div className="cw-dim cw-cheats-how">
-              {s.status && !s.status.engine ? t("cw_cheats_engine_off") : t("cw_cheats_how")}
+              {held
+                ? t("cw_cheats_held")
+                : s.status && !engineOn
+                  ? t("cw_cheats_engine_off_state")
+                  : t("cw_cheats_how")}
             </div>
           </div>
           <div className="cw-cheats-game-buttons">
+            {engine}
             {phase.kind === "list" && p.onFind ? <FindButton onFind={p.onFind} more /> : null}
             <RefreshButton onRefresh={p.onRefresh} />
           </div>
@@ -294,6 +368,7 @@ export function Cheats() {
         onCoverError={() => setCoverFailed(loadedCover)}
         onToggle={(m) => void ctl.current?.toggle(m)}
         onRefresh={() => void ctl.current?.refresh()}
+        onEngine={(on) => void ctl.current?.setEngine(on)}
         onFind={
           titleId
             ? () => {

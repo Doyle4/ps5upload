@@ -140,7 +140,8 @@ int webui_focus_running(const char *json, size_t n, char *title_id, size_t cap, 
 int webui_cheats_title_ok(const char *tid);
 
 /* A CHEATS_STATUS reply ({"enabled":bool,"patches_last":N,"patches_total":N,"game_running":bool,
- * "game_title_id":"..","game_pid":N}) as {"engine":bool,"game":{"title_id":".."}|null}. `game` is
+ * "game_title_id":"..","game_pid":N,"held":bool}) as {"engine":bool,"game":{"title_id":".."}|null}, with
+ * "held":true in `game` when the helper paused that game's cheats (cheats_guard.h). `game` is
  * null unless a game runs under a usable title id (webui_cheats_title_ok) that is not the page's own
  * tile. 0, or -1 (no "enabled", or does not fit; out is then ""). */
 int webui_cheats_status_to_json(const char *json, size_t n, char *out, size_t cap);

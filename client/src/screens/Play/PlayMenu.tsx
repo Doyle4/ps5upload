@@ -2,6 +2,7 @@ import {
   BarChart3,
   Minimize,
   PictureInPicture2,
+  Scaling,
   Settings2,
   Square,
   Volume2,
@@ -9,6 +10,7 @@ import {
   X,
 } from "lucide-react";
 
+import { FIT_ORDER, type PictureFit } from "../../lib/remotePlayStream";
 import { useTr } from "../../state/lang";
 import { useRemotePlayStore } from "../../state/remotePlay";
 
@@ -80,6 +82,13 @@ function Tile({
       <span className="line-clamp-2 break-words">{label}</span>
     </button>
   );
+}
+
+/** A picture size's short name, for the full-screen button and menu. */
+export function fitName(tr: ReturnType<typeof useTr>, f: PictureFit): string {
+  if (f === "fill") return tr("rp_fit_short_fill", undefined, "Fill");
+  if (f === "stretch") return tr("rp_fit_stretch", undefined, "Stretch");
+  return tr("rp_fit_short_fit", undefined, "Fit");
 }
 
 /**
@@ -176,6 +185,31 @@ export function PlayMenu({
           />
         )}
       </div>
+      {inFull && (
+        // Picture size where it shows: Settings would leave full screen to change it.
+        <div className="flex items-center gap-1 rounded-xl bg-white/10 p-1" role="group" data-testid="rp-menu-fit">
+          <Scaling size={16} className="mx-1.5 shrink-0 text-white/70" aria-hidden />
+          <span className="sr-only">{tr("rp_fit", undefined, "Picture size")}</span>
+          {FIT_ORDER.map((f) => (
+            <button
+              key={f}
+              type="button"
+              aria-pressed={prefs.fit === f}
+              onClick={(e) => {
+                e.stopPropagation();
+                setPrefs({ fit: f });
+              }}
+              onDoubleClick={(e) => e.stopPropagation()}
+              className={`h-9 min-w-0 flex-1 rounded-lg text-xs font-medium text-white transition-colors ${
+                prefs.fit === f ? "bg-white/25" : "hover:bg-white/15"
+              }`}
+              data-testid={`rp-menu-fit-${f}`}
+            >
+              {fitName(tr, f)}
+            </button>
+          ))}
+        </div>
+      )}
       <div className="flex items-center gap-3 rounded-xl bg-white/10 px-2 py-1.5">
         <button
           type="button"

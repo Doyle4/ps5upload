@@ -1109,7 +1109,8 @@ button {
 .cw-cheats-empty-buttons {
   display: flex;
 }
-.cw-cheats-empty-buttons .cw-button + .cw-button {
+.cw-cheats-empty-buttons .cw-button + .cw-button,
+.cw-cheats-game-buttons .cw-button + .cw-button {
   margin-left: 0.7rem;
 }
 

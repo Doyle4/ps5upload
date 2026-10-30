@@ -1140,6 +1140,12 @@ test-payload: payload
 		$(PAYLOAD_DIR)/tests/cheats_plan_selftest.c
 	@$(RUN_LIMITED) /tmp/ps5upload-cheats-plan-selftest
 	@echo "✓ a cheat's code caves are written before the jumps into them, and removed after"
+	@echo "Running cheat engine guard self-test (host build)..."
+	@cc -O2 -Wall -Wextra -Werror -I$(PAYLOAD_DIR)/include \
+		-o /tmp/ps5upload-cheats-guard-selftest \
+		$(PAYLOAD_DIR)/tests/cheats_guard_selftest.c
+	@$(RUN_LIMITED) /tmp/ps5upload-cheats-guard-selftest
+	@echo "✓ the cheat engine switch survives a helper restart, and a game its cheats keep crashing is paused"
 	@echo "Running XML game patch self-test (host build)..."
 	@cc -O2 -Wall -Wextra -Werror -I$(PAYLOAD_DIR)/include \
 		-o /tmp/ps5upload-game-patch-selftest \

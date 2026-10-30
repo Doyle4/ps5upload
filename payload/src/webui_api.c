@@ -2015,6 +2015,29 @@ static void r_cheats_toggle(const char *b, size_t n, uint8_t *out, int fd) {
     }
 }
 
+/* {enabled}: CHEATS_ENGINE_SET, as the PC app sends it: the helper's cheat engine on or off, which it
+ * remembers across restarts (#550). On, it applies the running game's switched-on cheats within a few
+ * seconds. {"ok":true,"enabled":bool}. */
+static void r_cheats_engine(const char *b, size_t n, uint8_t *out, int fd) {
+    const uint8_t *t;
+    size_t ol, tl;
+    int on, st;
+    if (webui_json_bool(b, n, "enabled", &on) != 1) {
+        send_bad(fd, "bad_enabled");
+        return;
+    }
+    const char *req = on ? "{\"enabled\":true}" : "{\"enabled\":false}";
+    st = call_text(AVA1_METHOD_CHEATS_ENGINE_SET, req, strlen(req), out, &ol, &t, &tl);
+    if (st != AVA1_STATUS_OK) {
+        send_status_error(fd, st, out, ol);
+        return;
+    }
+    {
+        const char *ok = on ? "{\"ok\":true,\"enabled\":true}" : "{\"ok\":true,\"enabled\":false}";
+        send_json(fd, 200, ok, strlen(ok));
+    }
+}
+
 /* {title_id}: the game's installed version, read like the PC app reads it (APP_INFO_QUERY's
  * CONTENT_VERSION, else APP_VER): {"version":"01.05"} or {"version":null} when appinfo.db does not
  * say (the page then lists every version's cheats). Never an error for an unknown version. */
@@ -2921,6 +2944,7 @@ static const struct {
     { "/api/cheats/status", r_cheats_status },
     { "/api/cheats/list", r_cheats_list },
     { "/api/cheats/toggle", r_cheats_toggle },
+    { "/api/cheats/engine", r_cheats_engine },
     { "/api/cheats/version", r_cheats_version },
     { "/api/index/start", r_index_start },
     { "/api/index/status", r_index_status },

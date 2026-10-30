@@ -103,6 +103,10 @@ pub struct CheatsStatusResponse {
     pub game_title_id: String,
     #[serde(default)]
     pub game_pid: i32,
+    /// The helper paused the running game's cheats: it closed right after they were applied
+    /// (#550). Helpers before 9.5.0 never send it.
+    #[serde(default)]
+    pub held: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1170,6 +1174,13 @@ mod tests {
         assert!(resp.game_running);
         assert_eq!(resp.game_title_id, "CUSA12345");
         assert_eq!(resp.game_pid, 98765);
+        // A helper before 9.5.0 sends no "held".
+        assert!(!resp.held);
+        let held: CheatsStatusResponse = serde_json::from_str(
+            r#"{"enabled":true,"game_running":true,"game_title_id":"CUSA04402","held":true}"#,
+        )
+        .unwrap();
+        assert!(held.held);
     }
 
     #[test]

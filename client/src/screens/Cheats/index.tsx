@@ -376,9 +376,26 @@ function EngineBar({
         </div>
         <div className="text-xs text-[var(--color-muted)]">
           {status.enabled
-            ? tr("cheats_engine_on_hint", undefined, "Cheats you switch on apply to the running game.")
-            : tr("cheats_engine_off_hint_v2", undefined, "It turns on by itself when you switch a cheat on.")}
+            ? tr(
+                "cheats_engine_on_hint_v2",
+                undefined,
+                "Cheats you switch on apply to the running game, and when their game starts, also after the console restarts.",
+              )
+            : tr(
+                "cheats_engine_off_hint_v3",
+                undefined,
+                "Switched-on cheats are saved but not applied. It turns on by itself when you switch a cheat on.",
+              )}
         </div>
+        {status.game_running && status.held && (
+          <div className="mt-1 text-xs text-[var(--color-warn)]" data-testid="cheats-held">
+            {tr(
+              "cheats_held",
+              undefined,
+              "This game's cheats are paused: it closed right after they were applied. Switch one of its cheats to resume.",
+            )}
+          </div>
+        )}
       </div>
       {status.game_running && (
         <button

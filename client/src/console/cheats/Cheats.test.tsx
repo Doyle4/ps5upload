@@ -34,11 +34,19 @@ const mod = (over: Partial<CheatMod> = {}): CheatMod => ({
 });
 
 /** A fake helper: status says `game` runs; list answers `mods`; toggle flips in place. */
-function helper(opts: { game: string | null; mods?: CheatMod[]; toggleError?: ApiError; engine?: boolean }) {
+function helper(opts: { game: string | null; mods?: CheatMod[]; toggleError?: ApiError; engine?: boolean; held?: boolean }) {
   const h = { ...opts, mods: (opts.mods ?? []).map((m) => ({ ...m })), calls: [] as [string, unknown][] };
   mockCall.mockImplementation(async (route: string, body?: object) => {
     h.calls.push([route, body]);
-    if (route === "/api/cheats/status") return { engine: h.engine ?? false, game: h.game ? { title_id: h.game } : null } as never;
+    if (route === "/api/cheats/status")
+      return {
+        engine: h.engine ?? false,
+        game: h.game ? { title_id: h.game, ...(h.held ? { held: true } : {}) } : null,
+      } as never;
+    if (route === "/api/cheats/engine") {
+      h.engine = (body as { enabled: boolean }).enabled;
+      return { ok: true, enabled: h.engine } as never;
+    }
     if (route === "/api/cheats/list") return { mods: h.mods, truncated: false } as never;
     if (route === "/api/cheats/toggle") {
       if (h.toggleError) throw h.toggleError;
@@ -125,8 +133,48 @@ describe("cheats section", () => {
     // A one-shot cheat is an Apply button, not a switch.
     expect(html).toMatch(/<button type="button" class="[^"]*cw-cheat"[^>]*data-cheat-index="4"/);
     expect(html).toContain(t("cw_cheats_apply"));
-    // The engine is off: the header says a switch-on starts it.
-    expect(html).toContain(t("cw_cheats_engine_off"));
+    // The engine is off: the header says so, and a switched-on cheat reads Saved, not On (#550).
+    expect(html).toContain(t("cw_cheats_engine_off_state"));
+    expect(html).toContain(`>${t("cw_cheats_saved")}<`);
+    expect(html).not.toContain(`>${t("cw_cheats_on")}<`);
+  });
+
+  it("switched_on_cheats_read_on_only_while_they_are_applied", async () => {
+    const h = helper({ game: GAME, mods: [mod({ index: 0, on: true })], engine: true });
+    const c = createCheatsController(() => {});
+    await c.loadStatus();
+    let html = view(c.get());
+    expect(html).toContain(`>${t("cw_cheats_on")}<`);
+    expect(html).toContain(t("cw_cheats_how"));
+    // The helper paused this game (it closed right after its cheats were applied): Saved, and why.
+    h.held = true;
+    await c.loadStatus();
+    html = view(c.get());
+    expect(html).toContain(t("cw_cheats_held"));
+    expect(html).toContain(`>${t("cw_cheats_saved")}<`);
+  });
+
+  it("the_engine_switch_works_with_or_without_a_game", async () => {
+    const h = helper({ game: null });
+    const c = createCheatsController(() => {});
+    await c.loadStatus();
+    const onEngine = (on: boolean) => void c.setEngine(on);
+    // No game yet: the engine's state and its switch still show (it is remembered across restarts).
+    let html = view(c.get(), { onEngine });
+    expect(html).toContain(t("cw_cheats_engine_off_state"));
+    expect(html).toContain('data-action="cheats-engine"');
+    expect(html).toContain(t("cw_cheats_engine_turn_on"));
+    await c.setEngine(true);
+    expect(h.calls).toContainEqual(["/api/cheats/engine", { enabled: true }]);
+    html = view(c.get(), { onEngine });
+    expect(html).toContain(t("cw_cheats_engine_on_state"));
+    expect(html).toContain(t("cw_cheats_engine_turn_off"));
+    // With a game, the switch sits on the game card.
+    h.game = GAME;
+    await c.loadStatus();
+    expect(view(c.get(), { onEngine })).toContain('data-action="cheats-engine"');
+    // Without a handler (tests elsewhere), no switch.
+    expect(view(c.get())).not.toContain('data-action="cheats-engine"');
   });
 
   it("toggle_calls_the_route_and_reflects_the_result", async () => {
@@ -295,6 +343,14 @@ describe("cheats section", () => {
     expect(readStatus(null)).toEqual({ engine: false, game: null });
     expect(readStatus({ engine: true, game: { title_id: GAME } })).toEqual({ engine: true, game: { title_id: GAME } });
     expect(readStatus({ engine: "yes", game: { title_id: 5 } })).toEqual({ engine: false, game: null });
+    expect(readStatus({ engine: true, game: { title_id: GAME, held: true } })).toEqual({
+      engine: true,
+      game: { title_id: GAME, held: true },
+    });
+    expect(readStatus({ engine: true, game: { title_id: GAME, held: "yes" } })).toEqual({
+      engine: true,
+      game: { title_id: GAME },
+    });
     const l = readList(GAME, { mods: [{ index: 1, name: "A", on: true }, { index: "2", name: "B" }, { index: 3 }, null], truncated: true });
     expect(l).toEqual({ title: GAME, mods: [{ index: 1, name: "A", desc: "", button: false, on: true }], truncated: true });
     expect(readList(GAME, "nope")).toEqual({ title: GAME, mods: [], truncated: false });

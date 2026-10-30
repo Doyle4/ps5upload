@@ -10,6 +10,7 @@ import {
   MoreHorizontal,
   PictureInPicture2,
   Play,
+  Scaling,
   Settings2,
   Square,
   Volume2,
@@ -30,6 +31,7 @@ import {
   stopEngineSession,
   touchAt,
   PAD_ACTIONS,
+  nextFit,
   type KeyAction,
   type StreamError,
   type StreamPhase,
@@ -56,13 +58,18 @@ import {
   unlockOrientation,
   useMedia,
 } from "./immersive";
-import { PlayMenu, VolumeSlider } from "./PlayMenu";
+import { fitName, PlayMenu, VolumeSlider } from "./PlayMenu";
+import { rpBrowserAdvice } from "./browserAdvice";
+import { safeGetItem, safeSetItem } from "../../lib/safeStorage";
 import { closePip, openPip, pipPadsInBackground, pipSupport } from "./pip";
 
 type Tr = ReturnType<typeof useTr>;
 
 /** Full screen on an upright phone: where the picture starts, under the menu handle's row. */
 const PICTURE_TOP = "calc(max(6px, env(safe-area-inset-top)) + 2.75rem)";
+
+/** Set once the browser advice was dismissed. */
+const BROWSER_ADVICE_KEY = "ps5upload.rp_browser_advice_dismissed";
 
 /** How long Esc is held in full screen to leave it (a shorter press is the game's button). */
 const ESC_HOLD_MS = 700;
@@ -346,7 +353,11 @@ function SettingsPanel({ running }: { running: boolean }) {
         </div>
         {running && (
           <p className="text-xs text-[var(--color-muted)]">
-            {tr("rp_set_next_start", undefined, "Picture changes apply the next time you start.")}
+            {tr(
+              "rp_set_next_start_v2",
+              undefined,
+              "Resolution and frame rate apply the next time you start. Picture size applies at once; it shows in full screen, where the screen's shape can differ from the picture's.",
+            )}
           </p>
         )}
         <Toggle
@@ -560,6 +571,10 @@ export function StreamPanel() {
   // Another device (a phone, another computer) playing this console: the PS5 takes one at a time.
   const meshState = useMeshStore((s) => (profile ? meshFor(s, profile.host).state : null));
   const otherDevices = useMemo(() => othersRemotePlaying(meshState).map(deviceName), [meshState]);
+  // The web UI in a browser Remote Play is not made for says so, until dismissed.
+  const [browserAdvice, setBrowserAdvice] = useState(() =>
+    safeGetItem(BROWSER_ADVICE_KEY) ? null : rpBrowserAdvice(),
+  );
 
   // On show: controllers drive the console. Off: they do not, but the stream keeps running.
   // Only while it shows this stream: looking at another console must not play this one.
@@ -1059,6 +1074,17 @@ export function StreamPanel() {
               </BarButton>
               {/* Volume right on the picture (Settings has it too); keys on it never reach the pad. */}
               <VolumeSlider className="w-20 accent-white sm:w-28" />
+              {full && (
+                // Picture size where it shows: in full screen (on the page the box is the
+                // picture's own shape, so every size looks the same). Settings would leave it.
+                <BarButton
+                  label={`${tr("rp_fit", undefined, "Picture size")}: ${fitName(tr, prefs.fit)}`}
+                  onClick={() => setPrefs({ fit: nextFit(prefs.fit) })}
+                  testId="rp-fit-cycle"
+                >
+                  <Scaling size={16} />
+                </BarButton>
+              )}
               <BarButton
                 label={tr("rp_settings", undefined, "Settings")}
                 active={settingsOpen}
@@ -1260,6 +1286,38 @@ export function StreamPanel() {
         </Callout>
       )}
 
+      {!running && browserAdvice && (
+        <div data-testid="rp-browser-advice">
+        <Callout
+          tone="info"
+          title={tr("rp_browser_best", undefined, "Remote Play works best in Chrome or Edge")}
+          onDismiss={() => {
+            safeSetItem(BROWSER_ADVICE_KEY, "1");
+            setBrowserAdvice(null);
+          }}
+        >
+          {browserAdvice === "firefox"
+            ? tr(
+                "rp_browser_firefox",
+                undefined,
+                "In Firefox, Esc always leaves full screen, so it can't be the controller's ○ there, and picture in picture isn't available.",
+              )
+            : browserAdvice === "safari"
+              ? tr(
+                  "rp_browser_safari",
+                  undefined,
+                  "In Safari, Esc always leaves full screen, so it can't be the controller's ○ there, and picture in picture shows the picture only.",
+                )
+              : browserAdvice === "other_mobile"
+                ? tr("rp_browser_other_mobile", undefined, "It's made and tested for Chrome on Android.")
+                : tr(
+                    "rp_browser_other",
+                    undefined,
+                    "It's made and tested for them. Here, Esc as the controller's ○ in full screen and picture in picture may not work.",
+                  )}
+        </Callout>
+        </div>
+      )}
       {!running && otherDevices.length > 0 && (
         <Callout
           tone="warn"

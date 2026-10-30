@@ -912,6 +912,9 @@ fn usage() -> ! {
     eprintln!("  fan-set C                  set the fan target (45-85 C; 0 = the console's own)");
     eprintln!("  clocks-raw                 GPU + per-core CPU clock with the raw /dev/mp1 words (HW_TEMPS \"cd\")");
     eprintln!("  smp-image-rw-test TITLE    open a ShadowMount+ read-write edit session, write+remove a probe file, close it");
+    eprintln!("  cheats-status              the helper's cheat engine status (JSON)");
+    eprintln!("  cheats-engine on|off       set the cheat engine switch (the helper remembers it)");
+    eprintln!("  fs-cat PATH | fs-put PATH TEXT | fs-rm PATH   read, write or delete a small console file");
     eprintln!("  profile-info                       foreground user + account name slots");
     eprintln!("  profile-set-username SLOT NAME     rename an account-name slot");
     eprintln!("  profile-rename-user  UID_HEX NAME  rename a local console user");
@@ -1289,6 +1292,46 @@ fn main() -> Result<()> {
         "hw-temps-x" => do_hw_temps(addr, true),
         "fan-raw" => do_fan_raw(addr),
         "clocks-raw" => do_clocks_raw(addr),
+        // The cheat engine's remembered switch and crash guard (#550): read the status, set the
+        // switch, and look at or plant the files the helper keeps.
+        "cheats-status" => {
+            let st = ps5upload_core::cheats::cheats_status(addr)?;
+            println!("{}", serde_json::to_string(&st)?);
+            Ok(())
+        }
+        "cheats-engine" => {
+            let on = match rest.get(1).map(|s| s.as_str()) {
+                Some("on") => true,
+                Some("off") => false,
+                _ => anyhow::bail!("cheats-engine needs on or off"),
+            };
+            let r = ps5upload_core::cheats::cheats_engine_set(addr, on)?;
+            println!("ok={} enabled={}", r.ok, r.enabled);
+            Ok(())
+        }
+        "fs-cat" => {
+            let path = rest.get(1).context("fs-cat needs a path")?;
+            match ps5upload_core::fs_ops::fs_read(addr, path, 0, 64 * 1024) {
+                Ok(b) => println!("{}", String::from_utf8_lossy(&b)),
+                Err(e) => println!("(unreadable: {e})"),
+            }
+            Ok(())
+        }
+        "fs-put" => {
+            let path = rest.get(1).context("fs-put needs a path")?;
+            let text = rest.get(2).context("fs-put needs the text")?;
+            ps5upload_core::diagnostics::fs_write_bytes(addr, path, text.as_bytes(), false)?;
+            println!("wrote {path}");
+            Ok(())
+        }
+        "fs-rm" => {
+            let path = rest.get(1).context("fs-rm needs a path")?;
+            println!(
+                "{:?}",
+                ps5upload_core::fs_ops::fs_delete(addr, path).map(|_| "removed")
+            );
+            Ok(())
+        }
         "smp-image-rw-test" => do_smp_image_rw_test(
             addr,
             rest.get(1).context("smp-image-rw-test needs a title id")?,

@@ -816,6 +816,13 @@ static void cheats_status(void) {
     j = "{\"enabled\":true,\"game_running\":true,\"game_title_id\":\"AB\\\"<x>\"}";
     CHECK(webui_cheats_status_to_json(j, strlen(j), out, sizeof out) == 0);
     CHECK(strcmp(out, "{\"engine\":true,\"game\":null}") == 0);
+    /* a paused game (#550) says so; a helper before 9.5.0 never sends "held" */
+    j = "{\"enabled\":true,\"game_running\":true,\"game_title_id\":\"CUSA04402\",\"game_pid\":9,\"held\":true}";
+    CHECK(webui_cheats_status_to_json(j, strlen(j), out, sizeof out) == 0);
+    CHECK(strcmp(out, "{\"engine\":true,\"game\":{\"title_id\":\"CUSA04402\",\"held\":true}}") == 0);
+    j = "{\"enabled\":true,\"game_running\":true,\"game_title_id\":\"CUSA04402\",\"held\":false}";
+    CHECK(webui_cheats_status_to_json(j, strlen(j), out, sizeof out) == 0);
+    CHECK(strcmp(out, "{\"engine\":true,\"game\":{\"title_id\":\"CUSA04402\"}}") == 0);
     CHECK(webui_cheats_status_to_json("nope", 4, out, sizeof out) == -1);
     CHECK(webui_cheats_status_to_json("{\"x\":1}", 7, out, sizeof out) == -1); /* no enabled */
     CHECK(webui_cheats_status_to_json(j, strlen(j), out, 8) == -1);           /* does not fit */

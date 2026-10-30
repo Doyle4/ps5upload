@@ -5372,6 +5372,8 @@ export interface CheatsStatusResponse {
   game_running: boolean;
   game_title_id: string;
   game_pid: number;
+  /** The helper paused the running game's cheats: it closed right after they were applied (#550). */
+  held?: boolean;
 }
 
 export async function cheatsList(addr?: string): Promise<CheatsListResponse> {

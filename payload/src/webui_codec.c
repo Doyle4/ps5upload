@@ -843,14 +843,16 @@ int webui_cheats_title_ok(const char *tid) {
 
 int webui_cheats_status_to_json(const char *json, size_t n, char *out, size_t cap) {
     char tid[32];
-    int enabled = 0, running = 0, game, k;
+    int enabled = 0, running = 0, held = 0, game, k;
     if (cap) out[0] = '\0';
     if (webui_json_bool(json, n, "enabled", &enabled) != 1) return -1;
     if (webui_json_bool(json, n, "game_running", &running) != 1) running = 0;
+    if (webui_json_bool(json, n, "held", &held) != 1) held = 0; /* helpers before 9.5.0 */
     game = running && webui_json_str(json, n, "game_title_id", tid, sizeof tid) == 1 && webui_cheats_title_ok(tid) &&
            strcmp(tid, WEBUI_TILE_TITLE_ID) != 0;
     if (game)
-        k = snprintf(out, cap, "{\"engine\":%s,\"game\":{\"title_id\":\"%s\"}}", enabled ? "true" : "false", tid);
+        k = snprintf(out, cap, "{\"engine\":%s,\"game\":{\"title_id\":\"%s\"%s}}", enabled ? "true" : "false", tid,
+                     held ? ",\"held\":true" : "");
     else
         k = snprintf(out, cap, "{\"engine\":%s,\"game\":null}", enabled ? "true" : "false");
     if (k < 0 || (size_t)k >= cap) {
