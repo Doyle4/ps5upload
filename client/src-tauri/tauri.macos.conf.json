@@ -4,6 +4,10 @@
     "runner": "./macos-dev-runner.sh"
   },
   "bundle": {
+    "category": "Game",
+    "macOS": {
+      "infoPlist": "Info.macos.plist"
+    },
     "fileAssociations": [
       {
         "ext": ["pkg", "fpkg"],

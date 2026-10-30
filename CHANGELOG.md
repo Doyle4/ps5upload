@@ -24,6 +24,12 @@ What's new in ps5upload, written for humans.
   Stretch row in the **⋯** menu (phones). Before, Settings left full screen to change it, and on the
   page, whose box is the picture's own shape, all three look the same, so the change seemed to do
   nothing. Settings no longer says picture size waits for the next start: it applies at once.
+- **Game Mode for Remote Play.** In full screen the Mac app turns on Game Mode, and so do the iPhone
+  and iPad apps (iOS 18 and later). While you play, the desktop app keeps the computer and screen
+  awake, on Linux it turns on GameMode (`gamemoded`) if it's installed, and the Android app asks for
+  steady performance and a TV's game mode over HDMI. Windows doesn't let an app turn on Game Mode;
+  the FAQ says how to mark the app as a game in Game Bar. Remote Play › Settings says what applies
+  on your device.
 - **Remote Play in the web UI names the browser it's made for.** In Firefox, Safari and others it
   says Chrome or Edge work best and what this browser misses (Esc as the controller's ○ in full
   screen, picture in picture). It can be dismissed.
