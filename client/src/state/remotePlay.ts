@@ -21,6 +21,7 @@ import type { MotionReading } from "../lib/motion";
 import { gamepadsOf } from "../lib/nativePad";
 import { profileFor } from "../lib/padProfiles";
 import { safeGetItem, safeSetItem } from "../lib/safeStorage";
+import { setGameMode } from "../lib/gameMode";
 
 /** How Remote Play looks and behaves on this device. */
 export interface RpPrefs {
@@ -263,6 +264,11 @@ export const useRemotePlayStore = create<RpState>((set, get) => ({
     get().stream?.setFrameWindow(kind ? win : null);
   },
 }));
+
+// The OS's game mode (lib/gameMode.ts) while a stream plays, on any screen. Off at start-up:
+// nothing plays yet, and a hold a reloaded page left on is let go.
+setGameMode(false);
+useRemotePlayStore.subscribe((s) => setGameMode(!!s.stream && s.phase === "playing"));
 
 /** The session the engine is running, if any (it outlives a reload of this page). */
 export async function fetchRunningSession(): Promise<{ host: string | null; playing?: boolean; attached?: boolean }> {

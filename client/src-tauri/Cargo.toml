@@ -150,6 +150,11 @@ jni = "0.21"
 # (commands/system_bars.rs focus_webview). Already in the tree through wry.
 [target.'cfg(target_os = "ios")'.dependencies]
 objc2 = "0.6"
+# Linux: ask Feral GameMode (gamemoded) for full speed while Remote Play plays
+# (commands/game_mode.rs). Already in the tree through tauri-plugin-notification
+# (notify-rust), default features and all, so this adds no new crate.
+[target.'cfg(target_os = "linux")'.dependencies]
+zbus = "5"
 
 [features]
 # Default: build Tauri-native (no custom features yet)

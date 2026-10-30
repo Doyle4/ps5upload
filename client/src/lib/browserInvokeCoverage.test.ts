@@ -47,6 +47,7 @@ const SHIM_SOURCE = Object.values(
 const NATIVE_ONLY: Record<string, string> = {
   android_system_ui: "Android app only: hides the system bars and locks landscape for Remote Play full screen",
   focus_webview: "iOS app only: makes the WKWebView the first responder so controllers reach the page",
+  game_mode_set: "the app asks its OS for game mode while Remote Play plays; a browser tab cannot (lib/gameMode.ts skips it)",
   dragout_stage_dir: "stages a PS5 file for an OS drag out of the window; a browser tab has no OS drag",
   // Host filesystem / OS
   read_text_file: "native: reads a host path",

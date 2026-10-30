@@ -2066,6 +2066,15 @@ permission prompt). If you said no once, allow it there and press the button aga
 **Q: Which browser should I use for Remote Play in the web UI?**
 Chrome or Edge (on Android, Chrome). Remote Play is made and tested for them. In Firefox and Safari, Esc always leaves full screen, so it can't be the controller's ○ there; Firefox has no picture in picture, and Safari's shows the picture only. The web UI says so on the Remote Play page in those browsers. On iPhone and iPad every browser is Safari underneath, and Remote Play works there. The desktop and Android apps don't depend on your browser.
 
+**Q: Does Remote Play turn on Game Mode?**
+Where the system lets an app ask for it, yes, and only while the picture plays:
+- **Mac** (macOS 14 and later): the app counts as a game, so full screen turns on Game Mode (the Mac shows it in the menu bar) and leaving full screen turns it off. The computer and screen also stay awake while you play.
+- **iPhone and iPad** (iOS and iPadOS 18 and later): Game Mode turns on while the app fills the screen, whether or not a stream plays.
+- **Windows**: Windows decides by itself which apps get Game Mode; an app can't ask. The computer and screen stay awake while you play. To have Windows treat the app as a game, press Win+G while it's open, open Settings › General and tick **Remember this is a game**.
+- **Linux**: the app turns on GameMode (Feral's `gamemoded`) while you play, if it is installed; nothing else is needed. The computer and screen also stay awake.
+- **Android**: the screen stays on, the device keeps a steady speed instead of bursts that slow down when it gets warm (on devices that support it), and a TV or monitor on HDMI is asked for its game mode (Android 11 and later). The app doesn't call itself a game on Android: there that only gives the system's game tools a say over the app.
+- **Web UI**: a browser tab can't ask for any of this.
+
 **Q: Remote Play on Linux says there is no H.264 decoder ("No decoder found for codec avc1…").**
 On Linux the app's window plays video through the system's GStreamer, and some distributions
 (Arch, CachyOS and others) don't install its H.264 decoder by default (#548). From 9.4.1 the `.zip`

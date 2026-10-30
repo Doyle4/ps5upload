@@ -25,6 +25,7 @@ import { deviceName, meshFor, othersRemotePlaying, remotePlayPads, useMeshStore 
 import { isTauriEnv } from "../../lib/tauriEnv";
 import { isLinuxDesktop, isMobile } from "../../lib/platform";
 import { setScreenWakeReason } from "../../lib/androidScreenWake";
+import { gameModeKind } from "../../lib/gameMode";
 import {
   canStream,
   keysFor,
@@ -307,6 +308,45 @@ function BarButton({
   );
 }
 
+/** What the app asks of this device's OS while a stream plays (only the app can ask). */
+function GameModeNote() {
+  const tr = useTr();
+  const kind = gameModeKind();
+  if (!kind) return null;
+  const text = {
+    mac: tr(
+      "rp_game_mode_mac",
+      undefined,
+      "While you play, the computer and screen stay awake. Full screen also turns on Game Mode (macOS 14 and later).",
+    ),
+    ios: tr(
+      "rp_game_mode_ios",
+      undefined,
+      "Game Mode turns on while the app fills the screen (iOS and iPadOS 18 and later).",
+    ),
+    windows: tr(
+      "rp_game_mode_windows",
+      undefined,
+      "While you play, the computer and screen stay awake. Windows does not let an app turn on Game Mode; see the FAQ.",
+    ),
+    linux: tr(
+      "rp_game_mode_linux",
+      undefined,
+      "While you play, the computer and screen stay awake, and GameMode (gamemoded) turns on if it is installed.",
+    ),
+    android: tr(
+      "rp_game_mode_android",
+      undefined,
+      "While you play, the screen stays on, the device keeps a steady speed where it can, and a TV on HDMI is asked for its game mode.",
+    ),
+  }[kind];
+  return (
+    <p className="text-xs text-[var(--color-muted)]" data-testid="rp-game-mode">
+      {text}
+    </p>
+  );
+}
+
 /** Everything that can be set, in one place: picture, sound, session, controls, keys. */
 function SettingsPanel({ running }: { running: boolean }) {
   const tr = useTr();
@@ -438,6 +478,7 @@ function SettingsPanel({ running }: { running: boolean }) {
             "Other screens keep the stream running; this is how long it waits when no window shows it (closed or reloaded) before it ends.",
           )}
         </p>
+        <GameModeNote />
       </section>
 
       <section className="space-y-2">
