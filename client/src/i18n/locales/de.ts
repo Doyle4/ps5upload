@@ -5923,6 +5923,7 @@ library_compressed_hint: "Komprimierte Images benötigen ShadowMount+ zum Spiele
 "rp_phone_qr": "QR-Code für die Handykamera",
 "rp_phone_how": "Scanne ihn mit der Handykamera. Das Handy öffnet einen Controller; dreh es quer. Es spielt zusammen mit der Steuerung dieses Computers.",
 "rp_phone_app": "In der PS5Upload-App auf einem Handy zeigt Remote Play diesen Computer: Tippe auf „Dieses Gerät als Controller nutzen“ und lass es dann hier zu.",
+"rp_phone_other_network": "Auf dem Handy öffnet sich nichts? Dieser Computer ist in mehr als einem Netzwerk: Wähle das, in dem das WLAN des Handys ist.",
 "rp_phone_kick": "Trennen",
 "rp_phone_stop": "Verbindung schließen (alle Handys stoppen)",
 "rp_phone_ask": "{name} möchte ein Controller sein",

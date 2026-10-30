@@ -5917,6 +5917,7 @@ library_compressed_hint: "Ảnh đĩa nén cần ShadowMount+ để chơi. Để
 "rp_phone_qr": "Mã QR cho camera điện thoại",
 "rp_phone_how": "Quét mã này bằng camera điện thoại. Điện thoại sẽ mở một tay cầm; hãy xoay ngang. Nó chơi cùng với điều khiển của máy tính này.",
 "rp_phone_app": "Trong ứng dụng PS5Upload trên điện thoại, Remote Play hiển thị máy tính này: chạm \"Dùng thiết bị này làm tay cầm của nó\", rồi cho phép tại đây.",
+"rp_phone_other_network": "Điện thoại không mở được gì? Máy tính này ở trên nhiều mạng: hãy chọn mạng mà Wi-Fi của điện thoại đang dùng.",
 "rp_phone_kick": "Ngắt kết nối",
 "rp_phone_stop": "Đóng liên kết (mọi điện thoại đều dừng)",
 "rp_phone_ask": "{name} muốn làm tay cầm",

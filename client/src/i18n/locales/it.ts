@@ -5868,6 +5868,7 @@ library_compressed_hint: "Le immagini compresse richiedono ShadowMount+ per gioc
 "rp_phone_qr": "Codice QR per la fotocamera del telefono",
 "rp_phone_how": "Scansionalo con la fotocamera del telefono. Il telefono apre un controller; ruotalo in orizzontale. Gioca insieme ai comandi di questo computer.",
 "rp_phone_app": "Nell'app PS5Upload su un telefono, Remote Play mostra questo computer: tocca \"Usa questo dispositivo come suo controller\", poi autorizzalo qui.",
+"rp_phone_other_network": "Sul telefono non si apre nulla? Questo computer è su più di una rete: scegli quella del Wi-Fi del telefono.",
 "rp_phone_kick": "Disconnetti",
 "rp_phone_stop": "Chiudi il collegamento (tutti i telefoni si fermano)",
 "rp_phone_ask": "{name} vuole essere un controller",

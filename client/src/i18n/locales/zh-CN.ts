@@ -5874,6 +5874,7 @@ library_compressed_hint: "压缩镜像需要 ShadowMount+ 才能游玩。如需�
 "rp_phone_qr": "供手机相机扫描的 QR 码",
 "rp_phone_how": "用手机相机扫描此码。手机会打开一个手柄；请横放手机。它会与这台电脑的操作一起控制游戏。",
 "rp_phone_app": "在手机上的 PS5Upload 应用中，远程游玩会显示这台电脑：点按“将此设备作为它的手柄”，然后在这里允许。",
+"rp_phone_other_network": "手机上打不开？这台电脑连着不止一个网络：请选择手机 Wi-Fi 所在的那个。",
 "rp_phone_kick": "断开",
 "rp_phone_stop": "关闭连接（所有手机都会停止）",
 "rp_phone_ask": "{name} 想成为手柄",

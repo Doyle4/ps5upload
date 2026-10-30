@@ -158,23 +158,57 @@ fn port_of(headers: &HeaderMap) -> u16 {
         .unwrap_or(19113)
 }
 
-/// Where phones reach this engine, toward the console being played (or `console`).
-fn base_url(headers: &HeaderMap, console: Option<&str>) -> Option<String> {
+/// A home network's address (10/8, 172.16/12, 192.168/16): where a phone on the same Wi-Fi
+/// could reach this computer. Not a VPN's or a public one.
+fn is_home_lan(ip: std::net::IpAddr) -> bool {
+    matches!(ip, std::net::IpAddr::V4(v4) if v4.is_private())
+}
+
+/// This machine's addresses a phone may reach, best first: on the console's network (where
+/// phones usually are), then on the network the default route goes out on. A computer on two
+/// networks (the PS5 on one, the phone's Wi-Fi on the other) needs the second: the QR code
+/// carried only the first, which the phone could not reach.
+fn lan_ips(console: Option<&str>) -> Vec<std::net::IpAddr> {
     let toward = console
         .map(str::to_string)
-        .or_else(crate::rp_stream_api::live_host)?;
-    let ip = lan_ip_toward(&toward)?;
+        .or_else(crate::rp_stream_api::live_host);
+    let mut out = Vec::new();
+    if let Some(ip) = toward.as_deref().and_then(lan_ip_toward) {
+        out.push(ip);
+    }
+    // Any outside address picks the default route's interface; nothing is sent.
+    if let Some(ip) = lan_ip_toward("1.1.1.1").filter(|ip| is_home_lan(*ip)) {
+        if !out.contains(&ip) {
+            out.push(ip);
+        }
+    }
+    out
+}
+
+/// Where phones reach this engine, toward the console being played (or `console`).
+fn base_url(headers: &HeaderMap, console: Option<&str>) -> Option<String> {
+    let ip = *lan_ips(console).first()?;
     Some(format!("http://{ip}:{}", port_of(headers)))
 }
 
 fn status(headers: &HeaderMap, console: Option<&str>) -> serde_json::Value {
     let base = base_url(headers, console);
+    let port = port_of(headers);
+    let ips = lan_ips(console);
     with_link(|l| {
         serde_json::json!({
             "open": l.key.is_some(),
             "url": match (&base, &l.key) {
                 (Some(b), Some(k)) => serde_json::Value::String(format!("{b}/pad#t={k}")),
                 _ => serde_json::Value::Null,
+            },
+            // Every address, best first (the first is `url`): for a computer on two networks.
+            "urls": match &l.key {
+                Some(k) => ips
+                    .iter()
+                    .map(|ip| serde_json::Value::String(format!("http://{ip}:{port}/pad#t={k}")))
+                    .collect::<Vec<_>>(),
+                None => Vec::new(),
             },
             // What the phone app connects to (it asks; the computer allows).
             "pad_ws": base.as_ref().map(|b| format!("{}/api/pad/ws", b.replacen("http://", "ws://", 1))),
@@ -513,6 +547,28 @@ async fn relay_session(mut socket: WebSocket, q: RelayQuery) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_phone_is_offered_home_network_addresses_only() {
+        use std::net::IpAddr;
+        let ip = |s: &str| s.parse::<IpAddr>().unwrap();
+        assert!(is_home_lan(ip("192.168.0.34")));
+        assert!(is_home_lan(ip("10.0.0.5")));
+        assert!(is_home_lan(ip("172.20.1.2")));
+        assert!(!is_home_lan(ip("100.64.1.2"))); // a VPN (CGNAT range)
+        assert!(!is_home_lan(ip("8.8.8.8")));
+        assert!(!is_home_lan(ip("fe80::1")));
+    }
+
+    #[test]
+    fn the_console_network_address_comes_first() {
+        // Toward a console on this machine: loopback is never offered, and the list never repeats.
+        let ips = lan_ips(Some("127.0.0.1"));
+        assert!(ips.iter().all(|ip| !ip.is_loopback()));
+        let mut seen = ips.clone();
+        seen.dedup();
+        assert_eq!(seen.len(), ips.len());
+    }
 
     fn st(buttons: u32, l2: u8, lx: i16, ry: i16) -> ControllerState {
         ControllerState {

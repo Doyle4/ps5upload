@@ -5924,6 +5924,7 @@ library_compressed_hint: "Image terkompresi memerlukan ShadowMount+ untuk bermai
 "rp_phone_qr": "Kode QR untuk kamera ponsel",
 "rp_phone_how": "Pindai ini dengan kamera ponsel. Ponsel membuka kontroler; miringkan ke samping. Ponsel bermain bersama kontrol komputer ini.",
 "rp_phone_app": "Di aplikasi PS5Upload pada ponsel, Remote Play menampilkan komputer ini: ketuk \"Gunakan perangkat ini sebagai kontrolernya\", lalu izinkan di sini.",
+"rp_phone_other_network": "Tidak ada yang terbuka di ponsel? Komputer ini ada di lebih dari satu jaringan: pilih jaringan Wi-Fi tempat ponsel tersambung.",
 "rp_phone_kick": "Putuskan",
 "rp_phone_stop": "Tutup tautan (semua ponsel berhenti)",
 "rp_phone_ask": "{name} ingin menjadi kontroler",

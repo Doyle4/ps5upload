@@ -11,13 +11,15 @@ export interface PadLinkState {
   open: boolean;
   /** The QR code's address, while the link is open. */
   url: string | null;
+  /** Every address of this computer a phone may reach, best first (`url` is the first). */
+  urls: string[];
   /** What the phone app connects to (it asks; this computer allows). */
   pad_ws: string | null;
   pads: Array<{ id: number; name: string }>;
   pending: Array<{ id: number; name: string }>;
 }
 
-const EMPTY: PadLinkState = { open: false, url: null, pad_ws: null, pads: [], pending: [] };
+const EMPTY: PadLinkState = { open: false, url: null, urls: [], pad_ws: null, pads: [], pending: [] };
 
 /** The engine's answer, checked field by field (an older or odd one never breaks the page). */
 export function readPadLink(v: unknown): PadLinkState {
@@ -29,6 +31,7 @@ export function readPadLink(v: unknown): PadLinkState {
   return {
     open: o.open === true,
     url: typeof o.url === "string" ? o.url : null,
+    urls: Array.isArray(o.urls) ? o.urls.filter((u): u is string => typeof u === "string") : [],
     pad_ws: typeof o.pad_ws === "string" ? o.pad_ws : null,
     pads: list(o.pads),
     pending: list(o.pending),
@@ -107,9 +110,21 @@ export function PhonePadsPanel({
 }) {
   const tr = useTr();
   const [failed, setFailed] = useState(false);
+  // The address the QR code carries: the best one, unless another was picked (a computer on
+  // two networks: the phone's Wi-Fi may not be the PS5's).
+  const [picked, setPicked] = useState<string | null>(null);
   useEffect(() => {
     void openPadLink(true, consoleHost).then((s) => (s ? onLink(s) : setFailed(true)));
   }, [consoleHost, onLink]);
+  const urls = link.urls.length ? link.urls : link.url ? [link.url] : [];
+  const shown = picked && urls.includes(picked) ? picked : (link.url ?? urls[0] ?? null);
+  const hostOf = (u: string) => {
+    try {
+      return new URL(u).hostname;
+    } catch {
+      return u;
+    }
+  };
 
   return (
     <div
@@ -123,7 +138,7 @@ export function PhonePadsPanel({
           <X size={16} />
         </button>
       </div>
-      {failed || (link.open && !link.url) ? (
+      {failed || (link.open && !shown) ? (
         <p className="text-sm text-[var(--color-warn)]">
           {tr(
             "rp_phone_no_address",
@@ -131,9 +146,9 @@ export function PhonePadsPanel({
             "This computer has no address on the PS5's network to give a phone. Check that it is on the same network as the PS5.",
           )}
         </p>
-      ) : link.url ? (
+      ) : shown ? (
         <div className="flex flex-wrap items-start gap-4">
-          <QrCode text={link.url} label={tr("rp_phone_qr", undefined, "QR code for the phone's camera")} />
+          <QrCode text={shown} label={tr("rp_phone_qr", undefined, "QR code for the phone's camera")} />
           <div className="min-w-0 flex-1 space-y-2 text-sm">
             <p>
               {tr(
@@ -143,8 +158,33 @@ export function PhonePadsPanel({
               )}
             </p>
             <p className="break-all text-xs text-[var(--color-muted)]" data-testid="rp-pad-url">
-              {link.url}
+              {shown}
             </p>
+            {urls.length > 1 && (
+              <div className="space-y-1" data-testid="rp-pad-addresses">
+                <p className="text-xs text-[var(--color-muted)]">
+                  {tr(
+                    "rp_phone_other_network",
+                    undefined,
+                    "Nothing opens on the phone? This computer is on more than one network: pick the one the phone's Wi-Fi is on.",
+                  )}
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {urls.map((u) => (
+                    <button
+                      key={u}
+                      type="button"
+                      aria-pressed={u === shown}
+                      onClick={() => setPicked(u)}
+                      className="chip min-h-8 px-3 font-mono text-xs"
+                      data-testid="rp-pad-address"
+                    >
+                      {hostOf(u)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
             <p className="text-xs text-[var(--color-muted)]">
               {tr(
                 "rp_phone_app",

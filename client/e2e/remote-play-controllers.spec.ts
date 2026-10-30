@@ -120,6 +120,11 @@ test("the computer shows a QR code for a phone, and lets a phone that asks in", 
         body = {
           open: true,
           url: "http://192.168.1.9:19113/pad#t=0123456789abcdef0123456789abcdef",
+          // On two networks: the PS5's, and the default route's (the phone's Wi-Fi).
+          urls: [
+            "http://192.168.1.9:19113/pad#t=0123456789abcdef0123456789abcdef",
+            "http://192.168.0.34:19113/pad#t=0123456789abcdef0123456789abcdef",
+          ],
           pad_ws: "ws://192.168.1.9:19113/api/pad/ws",
           pads: pending.length ? [] : [{ id: 7, name: "Pixel 8" }],
           pending,
@@ -146,6 +151,13 @@ test("the computer shows a QR code for a phone, and lets a phone that asks in", 
   await page.getByTestId("rp-phones").click();
   await expect(page.getByTestId("rp-pad-qr")).toBeVisible();
   await expect(page.getByTestId("rp-pad-url")).toHaveText(/^http:\/\/192\.168\.1\.9:19113\/pad#t=/);
+  // The other network's address is one press away, and the QR code follows it.
+  const addresses = page.getByTestId("rp-pad-address");
+  await expect(addresses).toHaveText(["192.168.1.9", "192.168.0.34"]);
+  await expect(addresses.first()).toHaveAttribute("aria-pressed", "true");
+  await addresses.nth(1).click();
+  await expect(page.getByTestId("rp-pad-url")).toHaveText(/^http:\/\/192\.168\.0\.34:19113\/pad#t=/);
+  await expect(addresses.nth(1)).toHaveAttribute("aria-pressed", "true");
   await page.getByTestId("rp-pad-allow").click();
   await expect.poll(() => decided).toEqual([{ id: 7, allow: true }]);
   await expect(page.getByTestId("rp-pad-list")).toContainText("Pixel 8");

@@ -6221,6 +6221,7 @@ library_compressed_hint: "A tömörített képfájlok futtatásához ShadowMount
 "rp_phone_qr": "QR-kód a telefon kamerájához",
 "rp_phone_how": "Olvasd be a telefon kamerájával. A telefon megnyit egy kontrollert; fordítsd fekvőre. Együtt játszik a számítógép vezérlőivel.",
 "rp_phone_app": "Egy telefonon a PS5Upload alkalmazásban a Remote Play mutatja ezt a számítógépet: koppints az „Eszköz használata kontrollerként” gombra, majd engedélyezd itt.",
+"rp_phone_other_network": "Nem nyílik meg semmi a telefonon? Ez a számítógép több hálózaton is van: válaszd azt, amelyiken a telefon Wi-Fi-je van.",
 "rp_phone_kick": "Leválasztás",
 "rp_phone_stop": "Kapcsolat bezárása (minden telefon leáll)",
 "rp_phone_ask": "{name} kontroller szeretne lenni",

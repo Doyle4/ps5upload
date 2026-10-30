@@ -5932,6 +5932,7 @@ library_compressed_hint: "압축 이미지를 플레이하려면 ShadowMount+가
 "rp_phone_qr": "휴대폰 카메라용 QR 코드",
 "rp_phone_how": "휴대폰 카메라로 스캔하세요. 휴대폰에 컨트롤러가 열리면 가로로 돌리세요. 이 컴퓨터의 조작과 함께 플레이됩니다.",
 "rp_phone_app": "휴대폰의 PS5Upload 앱에서 리모트 플레이에 이 컴퓨터가 표시됩니다. '이 기기를 컨트롤러로 사용'을 탭한 다음 여기서 허용하세요.",
+"rp_phone_other_network": "폰에서 아무것도 열리지 않나요? 이 컴퓨터는 여러 네트워크에 연결되어 있습니다. 폰의 Wi-Fi가 연결된 네트워크를 고르세요.",
 "rp_phone_kick": "연결 끊기",
 "rp_phone_stop": "연결 닫기(모든 휴대폰 중지)",
 "rp_phone_ask": "{name}이(가) 컨트롤러가 되려고 합니다",

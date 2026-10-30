@@ -5931,6 +5931,7 @@ library_compressed_hint: "Les images compressées nécessitent ShadowMount+ pour
 "rp_phone_qr": "Code QR pour l'appareil photo du téléphone",
 "rp_phone_how": "Scannez-le avec l'appareil photo du téléphone. Le téléphone ouvre une manette ; tournez-le à l'horizontale. Il joue en même temps que les commandes de cet ordinateur.",
 "rp_phone_app": "Dans l'app PS5Upload sur un téléphone, Remote Play affiche cet ordinateur : touchez « Utiliser cet appareil comme sa manette », puis autorisez-le ici.",
+"rp_phone_other_network": "Rien ne s'ouvre sur le téléphone ? Cet ordinateur est sur plusieurs réseaux : choisis celui du Wi-Fi du téléphone.",
 "rp_phone_kick": "Déconnecter",
 "rp_phone_stop": "Fermer le lien (tous les téléphones s'arrêtent)",
 "rp_phone_ask": "{name} veut être une manette",

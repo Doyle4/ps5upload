@@ -5868,6 +5868,7 @@ library_compressed_hint: "Las imágenes comprimidas necesitan ShadowMount+ para 
 "rp_phone_qr": "Código QR para la cámara del móvil",
 "rp_phone_how": "Escanéalo con la cámara del móvil. El móvil abre un mando; gíralo en horizontal. Juega junto con los controles de este ordenador.",
 "rp_phone_app": "En la app PS5Upload de un móvil, Remote Play muestra este ordenador: toca «Usar este dispositivo como su mando» y luego permítelo aquí.",
+"rp_phone_other_network": "¿No se abre nada en el móvil? Este ordenador está en más de una red: elige aquella en la que está el Wi-Fi del móvil.",
 "rp_phone_kick": "Desconectar",
 "rp_phone_stop": "Cerrar el enlace (todos los móviles se detienen)",
 "rp_phone_ask": "{name} quiere ser un mando",

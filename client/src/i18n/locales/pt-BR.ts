@@ -5930,6 +5930,7 @@ library_compressed_hint: "Imagens compactadas precisam do ShadowMount+ para joga
 "rp_phone_qr": "Código QR para a câmera do celular",
 "rp_phone_how": "Escaneie com a câmera do celular. O celular abre um controle; vire-o na horizontal. Ele joga junto com os controles deste computador.",
 "rp_phone_app": "No app PS5Upload em um celular, a Reprodução Remota mostra este computador: toque em \"Usar este dispositivo como controle dele\" e depois permita aqui.",
+"rp_phone_other_network": "Nada abre no celular? Este computador está em mais de uma rede: escolha a rede do Wi-Fi do celular.",
 "rp_phone_kick": "Desconectar",
 "rp_phone_stop": "Fechar o link (todos os celulares param)",
 "rp_phone_ask": "{name} quer ser um controle",

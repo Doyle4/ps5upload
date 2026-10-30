@@ -5922,6 +5922,7 @@ library_compressed_hint: "Sıkıştırılmış kalıpları oynatmak için Shadow
 "rp_phone_qr": "Telefon kamerası için QR kod",
 "rp_phone_how": "Bunu telefonun kamerasıyla tarayın. Telefon bir kumanda açar; yan çevirin. Bu bilgisayarın kontrolleriyle birlikte oynar.",
 "rp_phone_app": "Bir telefondaki PS5Upload uygulamasında Remote Play bu bilgisayarı gösterir: \"Bu cihazı kumandası olarak kullan\"a dokunun, sonra burada izin verin.",
+"rp_phone_other_network": "Telefonda hiçbir şey açılmıyor mu? Bu bilgisayar birden fazla ağda: telefonun Wi-Fi'sinin bağlı olduğu ağı seç.",
 "rp_phone_kick": "Bağlantıyı kes",
 "rp_phone_stop": "Bağlantıyı kapat (tüm telefonlar durur)",
 "rp_phone_ask": "{name} kumanda olmak istiyor",

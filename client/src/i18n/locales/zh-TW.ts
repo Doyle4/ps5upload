@@ -5868,6 +5868,7 @@ library_compressed_hint: "壓縮映像需要 ShadowMount+ 才能遊玩。如需�
 "rp_phone_qr": "供手機相機掃描的 QR 碼",
 "rp_phone_how": "用手機相機掃描此碼。手機會開啟一個控制器；請橫放手機。它會與這台電腦的操作一起控制遊戲。",
 "rp_phone_app": "在手機上的 PS5Upload 應用程式中，遙控遊玩會顯示這台電腦：點一下「將此裝置當作它的控制器」，然後在這裡允許。",
+"rp_phone_other_network": "手機上打不開？這台電腦連著不只一個網路：請選擇手機 Wi-Fi 所在的那一個。",
 "rp_phone_kick": "中斷連線",
 "rp_phone_stop": "關閉連結（所有手機都會停止）",
 "rp_phone_ask": "{name} 想成為控制器",
