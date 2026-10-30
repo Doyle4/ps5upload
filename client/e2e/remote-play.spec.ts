@@ -668,6 +668,37 @@ test("Remote Play offers 720p when a 1080p stream keeps losing frames, and switc
       void ws.close({ code: 1000, reason: "busy" });
       return true;
     }
+  });
+  await page.goto("/play", { waitUntil: "domcontentloaded" });
+  await expect(page.getByRole("heading", { name: "Remote Play" })).toBeVisible({ timeout: 30_000 });
+  await page.getByTestId("rp-start").click();
+  await expect.poll(() => engine.starts.length).toBe(1);
+  expect(engine.starts[0]).toMatchObject({ height: 1080, low_latency: false });
+
+  // Not at once: only after the loss has lasted (a few seconds' grace, then about ten).
+  await page.waitForTimeout(4000);
+  await expect(page.getByTestId("rp-quality-offer")).toHaveCount(0);
+  const offer = page.getByTestId("rp-quality-offer");
+  await expect(offer).toContainText("The network is dropping frames.", { timeout: 30_000 });
+  await offer.getByTestId("rp-quality-switch").click();
+
+  // The stream stops and starts again at 720p, waiting out the PS5's busy answer quietly.
+  await expect.poll(() => engine.stops()).toBe(1);
+  await expect(page.getByTestId("rp-quality-switching")).toBeVisible();
+  await expect.poll(() => engine.starts.length, { timeout: 20_000 }).toBe(3);
+  expect(engine.starts[1]).toMatchObject({ height: 720, attach_only: false });
+  expect(engine.starts[2]).toMatchObject({ height: 720, attach_only: false });
+  await expect(page.getByTestId("rp-quality-switching")).toHaveCount(0, { timeout: 15_000 });
+  await expect(page.getByTestId("rp-toolbar")).toContainText("Living room");
+  await expect(page.locator("[role=alert]").filter({ hasText: /still finishing/ })).toHaveCount(0);
+  await expect
+    .poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("ps5upload.rp_prefs.v1") ?? "{}").res))
+    .toBe("1280x720");
+  // 720p is never offered lower, and nothing steps it back up.
+  await page.waitForTimeout(2000);
+  await expect(page.getByTestId("rp-quality-offer")).toHaveCount(0);
+});
+
 // The microphone (experimental): off until pressed; a press asks for the mic with the browser's
 // voice processing on, says {"mic": true}, and sends [5][40-byte Opus] frames; a second press
 // stops the track and says {"mic": false}. The mic and the encoder are stand-ins here (no real
@@ -787,31 +818,6 @@ test("Remote Play without the microphone setting has no mic and asks for none", 
   await page.goto("/play", { waitUntil: "domcontentloaded" });
   await expect(page.getByRole("heading", { name: "Remote Play" })).toBeVisible({ timeout: 30_000 });
   await page.getByTestId("rp-start").click();
-  await expect.poll(() => engine.starts.length).toBe(1);
-  expect(engine.starts[0]).toMatchObject({ height: 1080, low_latency: false });
-
-  // Not at once: only after the loss has lasted (a few seconds' grace, then about ten).
-  await page.waitForTimeout(4000);
-  await expect(page.getByTestId("rp-quality-offer")).toHaveCount(0);
-  const offer = page.getByTestId("rp-quality-offer");
-  await expect(offer).toContainText("The network is dropping frames.", { timeout: 30_000 });
-  await offer.getByTestId("rp-quality-switch").click();
-
-  // The stream stops and starts again at 720p, waiting out the PS5's busy answer quietly.
-  await expect.poll(() => engine.stops()).toBe(1);
-  await expect(page.getByTestId("rp-quality-switching")).toBeVisible();
-  await expect.poll(() => engine.starts.length, { timeout: 20_000 }).toBe(3);
-  expect(engine.starts[1]).toMatchObject({ height: 720, attach_only: false });
-  expect(engine.starts[2]).toMatchObject({ height: 720, attach_only: false });
-  await expect(page.getByTestId("rp-quality-switching")).toHaveCount(0, { timeout: 15_000 });
-  await expect(page.getByTestId("rp-toolbar")).toContainText("Living room");
-  await expect(page.locator("[role=alert]").filter({ hasText: /still finishing/ })).toHaveCount(0);
-  await expect
-    .poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("ps5upload.rp_prefs.v1") ?? "{}").res))
-    .toBe("1280x720");
-  // 720p is never offered lower, and nothing steps it back up.
-  await page.waitForTimeout(2000);
-  await expect(page.getByTestId("rp-quality-offer")).toHaveCount(0);
   await expect(page.getByTestId("rp-toolbar")).toBeVisible();
   await expect.poll(() => starts.length).toBe(1);
   expect("mic" in starts[0]).toBe(false);
