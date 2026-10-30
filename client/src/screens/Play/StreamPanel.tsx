@@ -58,7 +58,7 @@ import {
   unlockOrientation,
   useMedia,
 } from "./immersive";
-import { MicBarButton } from "./MicControl";
+import { MicBarButton, MicSetting } from "./MicControl";
 import { fitName, PlayMenu, VolumeSlider } from "./PlayMenu";
 import { rpBrowserAdvice } from "./browserAdvice";
 import { safeGetItem, safeSetItem } from "../../lib/safeStorage";
@@ -443,6 +443,7 @@ function SettingsPanel({ running }: { running: boolean }) {
           onChange={(v) => setPrefs({ rumble: v })}
           label={tr("rp_rumble", undefined, "Controller vibration")}
         />
+        <MicSetting />
         <Select
           label={tr("rp_touch_controls", undefined, "On-screen controller")}
           block={false}

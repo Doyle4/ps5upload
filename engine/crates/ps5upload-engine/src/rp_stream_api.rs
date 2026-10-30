@@ -8,7 +8,8 @@
 //!   "width"?, "height"?, "fps"?, "bitrate_kbps"?, "codec"?, "keep_alive_s"?,
 //!   "attach_only"?}`, then `{"pad": {"buttons", "l2", "r2", "lx", "ly", "rx",
 //!   "ry"}}` whenever the pad changes, `{"keyframe": true}`, or `{"stop": true}`.
-//!   Microphone (experimental): `{"mic": true|false}` turns the console's mic
+//!   Microphone (experimental), only for a session started with `"mic": true`:
+//!   `{"mic": true|false}` turns the console's mic
 //!   on or off, and binary `[5][one Opus packet]` is one mic frame (48 kHz
 //!   stereo, 10 ms, 40 bytes; see `rp_stream::mic`). Only the attached page's
 //!   mic counts, and the mic goes off whenever the page changes.
@@ -80,6 +81,10 @@ struct StartReq {
     /// Join the running session only; never start one (a page reconnecting).
     #[serde(default)]
     attach_only: bool,
+    /// Set the session up for the microphone (experimental). Only then are
+    /// `{"mic": …}` and mic frames used; without it the session is as before.
+    #[serde(default)]
+    mic: bool,
 }
 
 #[derive(Debug, serde::Deserialize)]
@@ -121,6 +126,8 @@ struct Live {
     want_key: AtomicBool,
     dropped: AtomicU64,
     next_viewer: AtomicU64,
+    /// The session was set up for the mic; if not, the mic is ignored.
+    mic_enabled: AtomicBool,
     /// The microphone: on/off and Opus frames for the stream, in order.
     mic: Mutex<std::collections::VecDeque<MicInput>>,
     mic_on: AtomicBool,
@@ -185,6 +192,7 @@ impl Live {
             want_key: AtomicBool::new(false),
             dropped: AtomicU64::new(0),
             next_viewer: AtomicU64::new(1),
+            mic_enabled: AtomicBool::new(false),
             mic: Default::default(),
             mic_on: AtomicBool::new(false),
         }
@@ -199,7 +207,7 @@ impl Live {
 
     /// The page `id` turns its mic on or off. Other pages are ignored.
     fn set_mic(&self, id: u64, on: bool) {
-        if !self.is_viewer(id) {
+        if !self.mic_enabled.load(Ordering::Relaxed) || !self.is_viewer(id) {
             return;
         }
         self.mic_switch(on);
@@ -461,6 +469,7 @@ fn begin(start: &StartReq, creds: ps5upload_core::rp_session::SessionCreds) -> A
     if start.codec.as_deref() == Some("h265") {
         cfg.codec = Codec::H265;
     }
+    cfg.mic = start.mic;
     let live = Arc::new(Live::new(
         start.host.clone(),
         cfg.codec == Codec::H265,
@@ -470,6 +479,7 @@ fn begin(start: &StartReq, creds: ps5upload_core::rp_session::SessionCreds) -> A
             .unwrap_or(DEFAULT_KEEP_ALIVE)
             .min(MAX_KEEP_ALIVE),
     ));
+    live.mic_enabled.store(cfg.mic, Ordering::Relaxed);
     let l = live.clone();
     tokio::task::spawn_blocking(move || {
         let mut sink = Sink {
@@ -768,6 +778,7 @@ mod tests {
     #[test]
     fn only_the_attached_page_drives_the_mic() {
         let live = Arc::new(Live::new("h".into(), false, DEFAULT_KEEP_ALIVE));
+        live.mic_enabled.store(true, Ordering::Relaxed);
         let mut sink = Sink {
             live: live.clone(),
             t0: Instant::now(),
@@ -803,6 +814,23 @@ mod tests {
         // Leaving turns it off.
         live.detach(second);
         assert_eq!(sink.mic(), Some(MicInput::Off));
+    }
+
+    #[test]
+    fn a_session_without_the_mic_ignores_it() {
+        let live = Arc::new(Live::new("h".into(), false, DEFAULT_KEEP_ALIVE));
+        let mut sink = Sink {
+            live: live.clone(),
+            t0: Instant::now(),
+        };
+        let (vt, _vr, ct, _cr) = page();
+        let id = live.attach(vt, ct);
+        live.set_mic(id, true);
+        live.mic_frame(id, &[1; 40]);
+        assert_eq!(sink.mic(), None);
+        let s: StartReq =
+            serde_json::from_str(r#"{"host":"h","regist_key":"","rp_key":""}"#).unwrap();
+        assert!(!s.mic);
     }
 
     #[test]

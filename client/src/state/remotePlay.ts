@@ -42,6 +42,9 @@ export interface RpPrefs {
   touchOpacity: number;
   /** The on-screen controller's size. */
   touchSize: "s" | "m" | "l";
+  /** Microphone for voice chat (experimental): sessions are set up for it and the mic button
+   *  shows. Off, a session starts exactly as it did before the mic existed. */
+  mic: boolean;
 }
 
 export const DEFAULT_RP_PREFS: RpPrefs = {
@@ -58,6 +61,7 @@ export const DEFAULT_RP_PREFS: RpPrefs = {
   touchControls: "auto",
   touchOpacity: 1,
   touchSize: "m",
+  mic: false,
 };
 
 const PREFS_KEY = "ps5upload.rp_prefs.v1";
@@ -181,6 +185,7 @@ export const useRemotePlayStore = create<RpState>((set, get) => ({
       audioBufferMs: prefs.audioBufferMs,
       attach: opts?.attach,
       fit: prefs.fit,
+      mic: prefs.mic,
       rumble: () => get().prefs.rumble,
       onPhase: (p) => {
         if (get().stream !== stream) return;

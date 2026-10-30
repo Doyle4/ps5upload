@@ -55,7 +55,7 @@
 # 8) "Send to PS5" from Android's share menu: intent filters on MainActivity and
 #    ShareIntake.kt, which hands what was shared to the page. See step (8) below.
 #
-# 9) The microphone for Remote Play voice chat (experimental). See step (9) below.
+# 10) The microphone for Remote Play voice chat (experimental). See step (10) below.
 
 set -euo pipefail
 
@@ -999,7 +999,7 @@ if [ -f "$props" ]; then
   echo "gradle: no daemon, Kotlin in-process"
 fi
 
-# --- (9) microphone for Remote Play voice chat -------------------------
+# --- (10) microphone for Remote Play voice chat ------------------------
 # The Remote Play mic (experimental) calls getUserMedia in the WebView. wry's
 # RustWebChromeClient.onPermissionRequest already turns the page's AUDIO_CAPTURE
 # request into a runtime prompt for RECORD_AUDIO + MODIFY_AUDIO_SETTINGS and

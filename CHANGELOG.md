@@ -24,8 +24,9 @@ What's new in ps5upload, written for humans.
   Stretch row in the **⋯** menu (phones). Before, Settings left full screen to change it, and on the
   page, whose box is the picture's own shape, all three look the same, so the change seemed to do
   nothing. Settings no longer says picture size waits for the next start: it applies at once.
-- **Remote Play: microphone for voice chat (experimental).** A **Microphone** button on the
-  picture's bar (and **Mic** in the phone **⋯** menu) sends your voice to the PS5 for party and game
+- **Remote Play: microphone for voice chat (experimental).** Turn on **Microphone (experimental)**
+  in Remote Play › Settings (off by default; sessions without it start exactly as before), and a
+  **Microphone** button on the picture's bar (and **Mic** in the phone **⋯** menu) sends your voice to the PS5 for party and game
   chat. It's off until you press it, asks for permission the first time, shows a red dot while it's
   on, and turns off when you press it again or the stream ends. It follows chiaki-ng's microphone
   code and is tested on our side, but has not been tried on a real PS5 yet, so it's marked

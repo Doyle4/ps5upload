@@ -5986,6 +5986,8 @@ library_compressed_hint: "อิมเมจที่บีบอัดต้อ
 "rp_capture_pointer": "คลิกที่ภาพเพื่อซ่อนตัวชี้",
 "rp_capture_pointer_hint": "กด Esc เพื่อแสดงอีกครั้ง",
 "rp_rumble": "การสั่นของคอนโทรลเลอร์",
+"rp_mic_setting": "ไมโครโฟน (ทดลอง)",
+"rp_mic_setting_hint": "เพิ่มปุ่มไมค์สำหรับแชทด้วยเสียง ยังไม่ได้ทดสอบกับ PS5 มีผลตั้งแต่การเริ่มครั้งถัดไป",
 "rp_touch_controls": "คอนโทรลเลอร์บนหน้าจอ",
 "rp_touch_auto": "บนหน้าจอสัมผัส",
 "rp_touch_on": "เสมอ",

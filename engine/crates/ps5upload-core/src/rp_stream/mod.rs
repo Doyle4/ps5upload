@@ -88,6 +88,9 @@ pub struct StreamConfig {
     pub codec: Codec,
     /// Wake a console found in rest mode before opening the session.
     pub wake: bool,
+    /// Set up the microphone (experimental, see mic.rs). Off, the session
+    /// sends exactly what it did before the mic existed.
+    pub mic: bool,
 }
 
 impl Default for StreamConfig {
@@ -100,6 +103,7 @@ impl Default for StreamConfig {
             bitrate_kbps: 10000,
             codec: Codec::H264,
             wake: true,
+            mic: false,
         }
     }
 }
@@ -135,8 +139,9 @@ struct Ctrl {
     stop: Arc<AtomicBool>,
     thread: Option<JoinHandle<()>>,
     stream: TcpStream,
-    /// Writes go through here: the heartbeat thread and the stream both send.
-    writer: Arc<Mutex<TcpStream>>,
+    /// With the mic on, writes go through here: the heartbeat thread and the
+    /// stream both send. Off, the heartbeat thread writes alone, as before.
+    writer: Option<Arc<Mutex<TcpStream>>>,
     /// Our rpcrypt counter: one per payload we send (the auth headers took
     /// the first five), and the keys it runs on.
     counter_local: u64,
@@ -150,10 +155,10 @@ impl Ctrl {
     fn send(&mut self, kind: u16, payload: &[u8]) -> Result<()> {
         let msg = ctrl_message(kind, payload, &self.brt, &self.amb, self.counter_local);
         self.counter_local += 1;
-        let mut w = self
-            .writer
-            .lock()
-            .map_err(|_| anyhow!("ctrl writer poisoned"))?;
+        let Some(writer) = self.writer.as_ref() else {
+            bail!("ctrl messages are for a session with the mic set up");
+        };
+        let mut w = writer.lock().map_err(|_| anyhow!("ctrl writer poisoned"))?;
         w.write_all(&msg)?;
         Ok(())
     }
@@ -182,6 +187,7 @@ fn ctrl_open(
     creds: &SessionCreds,
     nonce: &[u8; KEY_SIZE],
     codec: Codec,
+    mic: bool,
 ) -> Result<(Ctrl, String, [u8; 16], [u8; 16])> {
     let amb = ambassador(nonce);
     let brt = bright(nonce, &creds.morning);
@@ -310,7 +316,11 @@ fn ctrl_open(
     // Keep answering heartbeats for the life of the stream.
     let stop = Arc::new(AtomicBool::new(false));
     let mut ts = s.try_clone()?;
-    let writer = Arc::new(Mutex::new(s.try_clone()?));
+    let writer = if mic {
+        Some(Arc::new(Mutex::new(s.try_clone()?)))
+    } else {
+        None
+    };
     let tw = writer.clone();
     let stop_t = stop.clone();
     let thread = std::thread::Builder::new()
@@ -326,11 +336,7 @@ fn ctrl_open(
                     }
                     let kind = u16::from_be_bytes([pending[4], pending[5]]);
                     pending.drain(..8 + size);
-                    if kind == CTRL_HEARTBEAT_REQ
-                        && !tw
-                            .lock()
-                            .is_ok_and(|mut w| w.write_all(&ctrl_msg(CTRL_HEARTBEAT_REP)).is_ok())
-                    {
+                    if kind == CTRL_HEARTBEAT_REQ && !heartbeat_reply(&mut ts, tw.as_deref()) {
                         return;
                     }
                 }
@@ -378,6 +384,44 @@ fn session_id_ok(p: &[u8]) -> bool {
     p.len() >= 25
         && p[0] as usize == p.len() - 1
         && p[1..].iter().all(|c| c.is_ascii_alphanumeric())
+}
+
+/// Answer a heartbeat: straight on the socket as always, or through the
+/// shared writer when the mic is set up (it sends ctrl messages too).
+fn heartbeat_reply(ts: &mut TcpStream, shared: Option<&Mutex<TcpStream>>) -> bool {
+    match shared {
+        None => ts.write_all(&ctrl_msg(CTRL_HEARTBEAT_REP)).is_ok(),
+        Some(m) => m
+            .lock()
+            .is_ok_and(|mut w| w.write_all(&ctrl_msg(CTRL_HEARTBEAT_REP)).is_ok()),
+    }
+}
+
+/// What a session sends on ctrl right after the session id: chiaki
+/// `ctrl_enable_features` mutes the mic twice. Only with the mic set up;
+/// without it, nothing, as before the mic existed.
+fn start_ctrl_messages(mic: bool) -> Vec<(u16, Vec<u8>)> {
+    if !mic {
+        return Vec::new();
+    }
+    vec![
+        (mic::CTRL_MIC_TOGGLE, mic::toggle_payload(false).to_vec()),
+        (mic::CTRL_MIC_TOGGLE, mic::toggle_payload(false).to_vec()),
+    ]
+}
+
+/// The Takion messages after STREAMINFO, as (channel, protobuf): the ack,
+/// the controller, and with the mic the uplink audio header (chiaki
+/// `stream_connection_enable_microphone`).
+fn after_streaminfo_messages(mic: bool) -> Vec<(u16, Vec<u8>)> {
+    let mut v = vec![
+        (9, proto::bare(proto::kind::STREAMINFOACK)),
+        (1, proto::controller_connection()),
+    ];
+    if mic {
+        v.push((1, proto::stream_info_mic(&mic::stream_info_audio_header())));
+    }
+    v
 }
 
 /// An empty ctrl message: just the 8-byte header.
@@ -591,7 +635,7 @@ pub fn run_stream(
     let mut attempt = 0;
     let opened = loop {
         attempt += 1;
-        match ctrl_open(host, creds, &nonce, cfg.codec) {
+        match ctrl_open(host, creds, &nonce, cfg.codec, cfg.mic) {
             Err(e)
                 if attempt < CTRL_ATTEMPTS
                     && (format!("{e:#}").contains("ctrl reply")
@@ -619,11 +663,11 @@ pub fn run_stream(
         Err(e) => return Err(e),
     };
     sink.progress(Progress::SessionId);
-    // chiaki `ctrl_enable_features` starts every session with the mic muted,
-    // twice (`ctrl_message_toggle_microphone(ctrl, false)`); like chiaki, a
-    // failed send is not fatal.
-    let _ = ctrl.send(mic::CTRL_MIC_TOGGLE, &mic::toggle_payload(false));
-    let _ = ctrl.send(mic::CTRL_MIC_TOGGLE, &mic::toggle_payload(false));
+    // With the mic: muted twice to start (chiaki `ctrl_enable_features`);
+    // like chiaki, a failed send is not fatal.
+    for (kind, payload) in start_ctrl_messages(cfg.mic) {
+        let _ = ctrl.send(kind, &payload);
+    }
 
     let mut takion = Takion::connect(resolve(host, STREAM_PORT)?)?;
     sink.progress(Progress::TakionConnected);
@@ -701,10 +745,9 @@ pub fn run_stream(
     let si = stream_info.unwrap();
     report.resolutions = si.resolutions.iter().map(|r| (r.width, r.height)).collect();
     sink.progress(Progress::StreamInfo(report.resolutions.clone()));
-    takion.send_message(9, &proto::bare(proto::kind::STREAMINFOACK))?;
-    takion.send_message(1, &proto::controller_connection())?;
-    // The uplink's audio header (chiaki `stream_connection_enable_microphone`).
-    takion.send_message(1, &proto::stream_info_mic(&mic::stream_info_audio_header()))?;
+    for (channel, msg) in after_streaminfo_messages(cfg.mic) {
+        takion.send_message(channel, &msg)?;
+    }
     let mut mic_sender = mic::AudioSender::new();
     let (mut mic_connected, mut mic_live) = (false, false);
     if !si.audio_header.is_empty() {
@@ -760,7 +803,7 @@ pub fn run_stream(
         }
         // The microphone (chiaki StreamSession::ToggleMute and the audio
         // sender): CONNECT once, then unmute/mute; frames only while live.
-        while let Some(m) = sink.mic() {
+        while let Some(m) = if cfg.mic { sink.mic() } else { None } {
             match m {
                 MicInput::On if !mic_live => {
                     if !mic_connected {
@@ -942,6 +985,47 @@ mod tests {
         assert_eq!(v["videoCodec"], "avc");
         assert_eq!(v["network"]["mtu"], 1454);
         assert_eq!(v["streamResolutions"][0]["resolution"]["width"], 1280);
+    }
+
+    /// A session without the mic sends exactly what it did before the mic
+    /// existed (bytes recorded from the pre-mic code): nothing extra on ctrl,
+    /// STREAMINFOACK on channel 9 and the controller on channel 1, then nothing.
+    #[test]
+    fn without_the_mic_the_setup_is_unchanged() {
+        assert!(start_ctrl_messages(false).is_empty());
+        assert_eq!(
+            after_streaminfo_messages(false),
+            vec![
+                (9, vec![0x08, 0x0e]),
+                (
+                    1,
+                    vec![0x08, 0x15, 0xb2, 0x01, 0x04, 0x10, 0x01, 0x18, 0x02]
+                ),
+            ]
+        );
+        // The launch spec does not depend on the mic.
+        let on = StreamConfig {
+            mic: true,
+            ..Default::default()
+        };
+        assert_eq!(
+            launch_spec(&on, &[0u8; 16]),
+            launch_spec(&StreamConfig::default(), &[0u8; 16])
+        );
+        assert!(!StreamConfig::default().mic);
+    }
+
+    #[test]
+    fn with_the_mic_setup_adds_chiaki_mutes_and_audio_header() {
+        let ctrl = start_ctrl_messages(true);
+        assert_eq!(
+            ctrl,
+            vec![(0x36, vec![0, 1, 1, 89]), (0x36, vec![0, 1, 1, 89])]
+        );
+        let tk = after_streaminfo_messages(true);
+        assert_eq!(&tk[..2], &after_streaminfo_messages(false)[..]);
+        assert_eq!(tk[2].0, 1);
+        assert_eq!(&tk[2].1[..6], &[0x08, 0x0d, 0x7a, 0x10, 0x12, 0x0e]);
     }
 
     #[test]

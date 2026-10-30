@@ -5986,6 +5986,8 @@ library_compressed_hint: "Sıkıştırılmış kalıpları oynatmak için Shadow
 "rp_capture_pointer": "Görüntüye tıklamak imleci gizler",
 "rp_capture_pointer_hint": "Esc tekrar gösterir.",
 "rp_rumble": "Kumanda titreşimi",
+"rp_mic_setting": "Mikrofon (deneysel)",
+"rp_mic_setting_hint": "Sesli sohbet için bir mikrofon düğmesi ekler. Henüz bir PS5'te denenmedi. Sonraki başlatmadan itibaren geçerli.",
 "rp_touch_controls": "Ekran kumandası",
 "rp_touch_auto": "Dokunmatik ekranlarda",
 "rp_touch_on": "Her zaman",

@@ -5993,6 +5993,8 @@ library_compressed_hint: "संपीड़ित इमेज चलाने 
 "rp_capture_pointer": "चित्र पर क्लिक करने से पॉइंटर छिप जाता है",
 "rp_capture_pointer_hint": "Esc से फिर दिखेगा।",
 "rp_rumble": "कंट्रोलर कंपन",
+"rp_mic_setting": "माइक्रोफ़ोन (प्रायोगिक)",
+"rp_mic_setting_hint": "वॉइस चैट के लिए माइक बटन जोड़ता है। अभी PS5 पर परखा नहीं गया। अगली बार शुरू करने से लागू।",
 "rp_touch_controls": "ऑन-स्क्रीन कंट्रोलर",
 "rp_touch_auto": "टच स्क्रीन पर",
 "rp_touch_on": "हमेशा",

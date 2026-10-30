@@ -6227,6 +6227,8 @@ library_compressed_hint: "Skompresowane obrazy wymagają ShadowMount+, aby grać
 "rp_capture_pointer": "Kliknięcie obrazu ukrywa wskaźnik",
 "rp_capture_pointer_hint": "Esc pokazuje go ponownie.",
 "rp_rumble": "Wibracje kontrolera",
+"rp_mic_setting": "Mikrofon (eksperymentalny)",
+"rp_mic_setting_hint": "Dodaje przycisk mikrofonu do czatu głosowego. Jeszcze nie testowany na PS5. Działa od następnego startu.",
 "rp_touch_controls": "Kontroler na ekranie",
 "rp_touch_auto": "Na ekranach dotykowych",
 "rp_touch_on": "Zawsze",

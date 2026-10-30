@@ -387,6 +387,9 @@ export interface StreamOptions {
   audioBufferMs?: number;
   /** Join the session the engine already runs for this console; never start one. */
   attach?: boolean;
+  /** Set the session up for the microphone (experimental; Settings). Only then is `mic`
+   *  in the start message, so a session without it starts exactly as before. */
+  mic?: boolean;
   /** How the picture fills the place it is shown in (default: the whole picture). */
   fit?: PictureFit;
   /** False: the console's rumble is not played on the controllers. */
@@ -655,6 +658,7 @@ export class RemotePlayStream {
           codec: this.codecChoice,
           keep_alive_s: this.o.keepAliveS,
           attach_only: attachOnly,
+          ...(this.o.mic ? { mic: true } : {}),
         }),
       );
       // Attaching turns the console's mic off in the engine: a page that has it on says so.
@@ -767,8 +771,14 @@ export class RemotePlayStream {
     ws.send(JSON.stringify({ pad: p }));
   }
 
+  /** This session was started with the mic set up (Settings › Microphone). */
+  get micEnabled(): boolean {
+    return !!this.o.mic;
+  }
+
   /** Turn the console's microphone on or off (experimental; see remotePlayMic.ts). */
   setMic(on: boolean): void {
+    if (!this.o.mic) return;
     this.micOn = on;
     const ws = this.ws;
     if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ mic: on }));

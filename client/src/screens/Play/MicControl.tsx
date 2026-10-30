@@ -1,6 +1,7 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { Mic, MicOff } from "lucide-react";
 
+import { Toggle } from "../../components";
 import { micSupported, rpMic, type MicState } from "../../lib/remotePlayMic";
 import { useTr } from "../../state/lang";
 import { useRemotePlayStore } from "../../state/remotePlay";
@@ -32,7 +33,8 @@ function useMic() {
     else if (stream) void rpMic.start(stream);
   };
   const label = micLabel(tr, state);
-  return { ok: ok && !!stream, state, on, toggle, label };
+  // Only for a session started with Settings › Microphone on.
+  return { ok: ok && !!stream?.micEnabled, state, on, toggle, label };
 }
 
 function micLabel(tr: ReturnType<typeof useTr>, s: MicState): string {
@@ -45,6 +47,29 @@ function micLabel(tr: ReturnType<typeof useTr>, s: MicState): string {
     );
   if (s === "error") return tr("rp_mic_failed", undefined, "The microphone could not start. Press to try again.");
   return tr("rp_mic_turn_on", undefined, "Microphone (experimental)");
+}
+
+/** Settings › Microphone (experimental). Off by default; a session started with it on is
+ *  set up for the mic and shows the button. */
+export function MicSetting() {
+  const tr = useTr();
+  const on = useRemotePlayStore((s) => s.prefs.mic);
+  const setPrefs = useRemotePlayStore((s) => s.setPrefs);
+  return (
+    <Toggle
+      checked={on}
+      onChange={(v) => {
+        if (!v) rpMic.stop();
+        setPrefs({ mic: v });
+      }}
+      label={tr("rp_mic_setting", undefined, "Microphone (experimental)")}
+      hint={tr(
+        "rp_mic_setting_hint",
+        undefined,
+        "Adds a mic button for voice chat. Not yet tested on a PS5. Applies from the next start.",
+      )}
+    />
+  );
 }
 
 /** Live: a red dot on the icon; blocked or failed: an amber one. */

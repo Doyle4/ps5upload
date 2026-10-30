@@ -496,6 +496,8 @@ test("Remote Play in Chrome shows no browser advice", async ({ page }) => {
 // microphone in a test browser); the console side is the engine's, tested in Rust.
 test("Remote Play: the microphone sends mic on, Opus frames, and mic off", async ({ page }) => {
   await page.addInitScript(() => {
+    // Settings › Microphone (experimental) is on.
+    localStorage.setItem("ps5upload.rp_prefs.v1", JSON.stringify({ mic: true }));
     const w = window as unknown as Record<string, unknown>;
     w.__mic = { constraints: null as unknown, stopped: 0 };
     navigator.mediaDevices.getUserMedia = async (c?: MediaStreamConstraints) => {
@@ -556,15 +558,17 @@ test("Remote Play: the microphone sends mic on, Opus frames, and mic off", async
   await expect(page.getByRole("heading", { name: "Remote Play" })).toBeVisible({ timeout: 30_000 });
   await page.getByTestId("rp-start").click();
   await page.getByTestId("rp-toolbar").hover();
+  // The session is set up for the mic only because the setting is on.
+  await expect.poll(() => texts.find((t) => t.host)?.mic).toBe(true);
   const mic = page.getByTestId("rp-mic");
   await expect(mic).toHaveAttribute("aria-pressed", "false");
   await expect(mic).toHaveAttribute("title", "Microphone (experimental)");
-  expect(texts.some((t) => "mic" in t)).toBe(false);
+  expect(texts.some((t) => !t.host && "mic" in t)).toBe(false);
 
   await mic.click();
   await expect(mic).toHaveAttribute("data-state", "live");
   await expect(mic).toHaveAttribute("aria-pressed", "true");
-  await expect.poll(() => texts.filter((t) => t.mic === true).length).toBe(1);
+  await expect.poll(() => texts.filter((t) => !t.host && t.mic === true).length).toBe(1);
   await expect.poll(() => frames.length, { timeout: 10_000 }).toBeGreaterThan(3);
   // Kind 5, then the packet: 41 bytes in all.
   expect(frames[0]).toEqual([5, 0xab, 41]);
@@ -581,4 +585,34 @@ test("Remote Play: the microphone sends mic on, Opus frames, and mic off", async
   const n = frames.length;
   await page.waitForTimeout(300);
   expect(frames.length).toBe(n);
+});
+
+// Without the setting, a session starts exactly as before the mic existed: no "mic" in the start
+// message and no mic button, even where the browser could encode it.
+test("Remote Play without the microphone setting has no mic and asks for none", async ({ page }) => {
+  await page.addInitScript(() => {
+    (window as unknown as Record<string, unknown>).AudioEncoder = {
+      isConfigSupported: async () => ({ supported: true }),
+    };
+  });
+  await playableConsole(page);
+  const starts: Array<Record<string, unknown>> = [];
+  await page.routeWebSocket(/\/api\/ps5\/rp\/ws/, (ws) => {
+    ws.onMessage((m) => {
+      const msg = JSON.parse(String(m)) as Record<string, unknown>;
+      if (msg.host) {
+        starts.push(msg);
+        ws.send(JSON.stringify({ stage: "first_frame" }));
+      }
+    });
+  });
+  await page.goto("/play", { waitUntil: "domcontentloaded" });
+  await expect(page.getByRole("heading", { name: "Remote Play" })).toBeVisible({ timeout: 30_000 });
+  await page.getByTestId("rp-start").click();
+  await expect(page.getByTestId("rp-toolbar")).toBeVisible();
+  await expect.poll(() => starts.length).toBe(1);
+  expect("mic" in starts[0]).toBe(false);
+  await page.getByTestId("rp-toolbar").hover();
+  await expect(page.getByTestId("rp-fullscreen")).toBeVisible();
+  await expect(page.getByTestId("rp-mic")).toHaveCount(0);
 });
