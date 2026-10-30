@@ -136,11 +136,16 @@ async fn sevenz_upload_to_a_c_server_verifies_every_file() {
             }
         }
     });
-    // Restart the payload once about half the bytes are durable: the journal survives,
-    // memory does not.
+    // Restart the payload once a quarter of the bytes are durable: the journal survives,
+    // memory does not. A quarter, not half: under ASan the restart itself is slow, and from
+    // halfway the rest of the upload sometimes finished first (one session, the
+    // "restart cost a session" check failed on main and on #557).
     let t0 = std::time::Instant::now();
-    while progress.bytes_durable.load(Ordering::Relaxed) < total / 2 {
-        assert!(t0.elapsed() < Duration::from_secs(60), "never got halfway");
+    while progress.bytes_durable.load(Ordering::Relaxed) < total / 4 {
+        assert!(
+            t0.elapsed() < Duration::from_secs(60),
+            "never got a quarter of the way"
+        );
         tokio::time::sleep(Duration::from_millis(5)).await;
     }
     let durable_at_kill = progress.bytes_durable.load(Ordering::Relaxed);
