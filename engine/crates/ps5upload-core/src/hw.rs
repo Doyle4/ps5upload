@@ -123,6 +123,16 @@ pub struct HwTemps {
     pub cpu_core_mhz_min: u32,
     #[serde(default)]
     pub cpu_core_mhz_max: u32,
+    /// How the measured clocks came: `"add_chain"` (timed on the console), `"unsupported"`
+    /// (no CPU took the measuring thread; not tried again until the helper restarts), or `""`
+    /// (not asked for, or an older helper).
+    #[serde(default)]
+    pub cpu_measure_src: String,
+    /// The clock each of the eight cores really ran at while busy, in MHz, measured with a
+    /// timed chain of adds; indexed like `cpu_core_mhz`. `0` = not measured (the game cores
+    /// are not open to the helper) or outside 400–5000 MHz.
+    #[serde(default)]
+    pub cpu_core_measured_mhz: Vec<u32>,
 }
 
 fn default_sensor_unavailable() -> i32 {
@@ -228,6 +238,8 @@ pub const SENSOR_GPU_MAX_MHZ: i64 = 2500;
 /// Per-core CPU clock bounds (MHz), mirrored from `payload/include/mp1_clock.h`.
 pub const SENSOR_CORE_MIN_MHZ: u32 = 400;
 pub const SENSOR_CORE_MAX_MHZ: u32 = 4000;
+/// Upper bound of a measured core clock (the helper keeps 400–5000 MHz too).
+pub const SENSOR_MEASURED_MAX_MHZ: u32 = 5000;
 /// The PS5 has eight CPU cores; the helper reports exactly that many.
 pub const CPU_CORES: usize = 8;
 
@@ -256,6 +268,12 @@ fn sanitize_temps(mut t: HwTemps) -> HwTemps {
     t.cpu_core_mhz.truncate(CPU_CORES);
     for v in t.cpu_core_mhz.iter_mut() {
         if !(SENSOR_CORE_MIN_MHZ..=SENSOR_CORE_MAX_MHZ).contains(v) {
+            *v = 0;
+        }
+    }
+    t.cpu_core_measured_mhz.truncate(CPU_CORES);
+    for v in t.cpu_core_measured_mhz.iter_mut() {
+        if !(SENSOR_CORE_MIN_MHZ..=SENSOR_MEASURED_MAX_MHZ).contains(v) {
             *v = 0;
         }
     }
@@ -400,6 +418,13 @@ fn parse_hw_temps(body: &[u8]) -> HwTemps {
         cpu_core_mhz_max: get("cpu_core_mhz_max")
             .and_then(|v| v.parse().ok())
             .unwrap_or(0),
+        cpu_measure_src: get("cpu_measure_src")
+            .filter(|v| matches!(*v, "add_chain" | "unsupported"))
+            .unwrap_or("")
+            .to_string(),
+        cpu_core_measured_mhz: get("cpu_core_measured_mhz")
+            .map(parse_core_list)
+            .unwrap_or_default(),
     }
 }
 
@@ -1062,6 +1087,24 @@ mod tests {
             vec![3500, 2844, 2844, 2844, 2844, 2844, 2844, 2844]
         );
         assert_eq!((t.cpu_core_mhz_min, t.cpu_core_mhz_max), (2844, 3500));
+        assert_eq!(t.cpu_measure_src, "", "an older helper says nothing");
+        assert!(t.cpu_core_measured_mhz.is_empty());
+    }
+
+    #[test]
+    fn parse_hw_temps_measured_clocks() {
+        // As measured on a PS5 (FW 13.60): cores 0-3 timed, game cores 0; garbage reads 0 and
+        // the list never grows past eight.
+        let body =
+            b"cpu_measure_src=add_chain\ncpu_core_measured_mhz=3100,3170,2940,5001,0,x,0,0,1234\n";
+        let t = sanitize_temps(parse_hw_temps(body));
+        assert_eq!(t.cpu_measure_src, "add_chain");
+        assert_eq!(
+            t.cpu_core_measured_mhz,
+            vec![3100, 3170, 2940, 0, 0, 0, 0, 0]
+        );
+        let t = sanitize_temps(parse_hw_temps(b"cpu_measure_src=bogus\n"));
+        assert_eq!(t.cpu_measure_src, "");
     }
 
     #[test]

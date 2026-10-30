@@ -4,6 +4,17 @@ What's new in ps5upload, written for humans.
 
 ---
 
+## 9.3.1
+
+- **The real CPU clock.** Read sensors now measures how fast the CPU actually runs ("CPU clock
+  (measured)"): the helper times a short run of simple instructions on each core it may use. The
+  number 9.2.1 showed was only the speed the power controller had set, and on top of that the row
+  mixed in the game cores' idle level, so at the home screen it read "0.80–3.20 GHz". Measured on a
+  PS5 at the home screen, the system cores run about 2.8–3.2 GHz against a 3.2 GHz target. The
+  target is still shown as "CPU target clock", now over the same cores, and hovering lists every
+  core. The four game cores are reserved for games and can't be measured. The measurement runs
+  only when you press Read sensors (about 20 ms per core) and uses no privileged instruction.
+
 ## 9.3.0
 
 - **Esc no longer throws you out of full screen.** In Remote Play, Esc is Circle (back in most

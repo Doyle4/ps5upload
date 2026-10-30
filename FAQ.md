@@ -2075,17 +2075,27 @@ below (the default one) leaves the fan to the console's own setting (91 °C on f
 **Restore default** does that. ShadowMount+ 1.7 can set the same value (`fan_target_temperature`
 in its `config.ini`); use one or the other, or each overwrites the other.
 
-**Q: What do the GPU clock and CPU clock on the Hardware screen mean?**
-Both come from the PS5's power controller and are read only when you press **Read sensors** (never
-in the background). **GPU clock** is the graphics clock the console is running at that moment.
-**CPU clock (per core)** shows the slowest and fastest of the eight cores; hover over it to see each
-core. It is the speed the power controller has set for each core, not a live cycle count, so it
-moves in steps. **Reference clock** is a fixed rate the system reports (800 MHz on every console
-we've seen); it is not how fast the CPU runs. The helper only reads these clocks and never changes
-them. The way to read them comes from NeoEnabler, whose users have tried it only on firmware 13.20
-and 13.60. On other firmware the console may not answer: the rows then say so, and the helper stops
-asking until it restarts. If you see numbers that look wrong (a GPU clock outside roughly
-400–2400 MHz, or cores far above 3.5 GHz), please report them with your firmware version.
+**Q: What do the GPU clock and CPU clocks on the Hardware screen mean?**
+All of them are read only when you press **Read sensors** (never in the background), and the
+helper never changes a clock.
+
+- **GPU clock** is the graphics clock the console is running at that moment, from the PS5's power
+  controller.
+- **CPU clock (measured)** is how fast the CPU really runs. The helper times a run of simple
+  instructions on each core it is allowed to use and works out the clock from that (about 20 ms per
+  core). It only works on the four system cores; the four game cores are kept for games and
+  can't be measured from outside a game. On a PS5 at the home screen this reads about 2.8–3.2 GHz.
+- **CPU target clock** is the speed the power controller has set for those cores (3.2 GHz at the
+  home screen). The cores can run below it, which is why the measured clock is often lower. Hover
+  over either row to see every core; the game cores show their target only (800 MHz when idle).
+- **Reference clock** is a fixed rate the system reports (800 MHz on every console we've seen); it
+  is not how fast the CPU runs.
+
+The PS5 CPU's "up to 3.5 GHz" applies to the game cores while a game runs, so don't expect to see it
+here. The power controller reads come from NeoEnabler, whose users have tried them only on firmware
+13.20 and 13.60. On other firmware the console may not answer: the rows then say so, and the
+helper stops asking until it restarts. If you see numbers that look wrong, please report them with
+your firmware version.
 
 **Q: What is nanoDNS?**
 A small DNS server that runs **on the console** (from the Payloads

@@ -236,21 +236,78 @@ export function clockHint(
   return readHint;
 }
 
-/** Hover text listing every core's clock, or undefined when none was read. */
+/** The measured row's hint: like clockHint, from the measurement's own source. */
+function measuredHint(tr: Tr, temps: HwTemps | null, hasValue: boolean): string {
+  if (!temps) return clockHint(tr, null, false, "");
+  const src = temps.cpu_measure_src ?? "";
+  if (src === "unsupported")
+    return tr(
+      "hw_cpu_measured_unsupported",
+      undefined,
+      "This console doesn't let the helper time its cores",
+    );
+  return clockHint(
+    tr,
+    { gpu_clock_src: src === "" ? "" : "mp1" },
+    hasValue,
+    tr(
+      "hw_cpu_measured_hint",
+      undefined,
+      "Timed on the system cores while busy; game cores can't be measured",
+    ),
+  );
+}
+
+/** Hover text listing every core's clock, or undefined when none was read. With the measured
+ *  clocks, each core shows what it really ran at next to its target; a core the helper may not
+ *  run on (a game core) says so. */
 export function coreClockTooltip(
   tr: Tr,
   cores: number[] | undefined,
+  measured?: number[],
 ): string | undefined {
   if (!cores || cores.length === 0) return undefined;
+  const mhz = (v: number | undefined) => (v && v > 0 ? `${v} MHz` : "—");
+  const anyMeasured = (measured ?? []).some((v) => v > 0);
   return cores
-    .map((mhz, i) =>
-      tr(
-        "hw_cpu_core_clock",
-        { n: i, mhz: mhz > 0 ? `${mhz} MHz` : "—" },
-        "Core {n}: {mhz}",
-      ),
-    )
+    .map((target, i) => {
+      if (!anyMeasured)
+        return tr("hw_cpu_core_clock", { n: i, mhz: mhz(target) }, "Core {n}: {mhz}");
+      const m = measured?.[i] ?? 0;
+      return m > 0
+        ? tr(
+            "hw_cpu_core_measured",
+            { n: i, mhz: mhz(m), target: mhz(target) },
+            "Core {n}: {mhz} measured, {target} target",
+          )
+        : tr(
+            "hw_cpu_core_game",
+            { n: i, target: mhz(target) },
+            "Core {n}: {target} target, not measurable (a game core)",
+          );
+    })
     .join("\n");
+}
+
+/** The CPU rows' values: the measured clocks' lowest–highest, and the targets' lowest–highest
+ *  over the same cores. Mixing in the game cores' targets made the row read "0.80–3.20 GHz" at
+ *  the home screen, where those cores idle at their lowest level. Without a measurement (an
+ *  older helper) the targets cover every core, as before. */
+export function cpuClockRanges(
+  targets: number[] | undefined,
+  measured: number[] | undefined,
+): { measured: [number, number]; target: [number, number] } {
+  const range = (vs: number[]): [number, number] => {
+    const known = vs.filter((v) => v > 0);
+    return known.length ? [Math.min(...known), Math.max(...known)] : [0, 0];
+  };
+  const m = measured ?? [];
+  const t = targets ?? [];
+  const anyMeasured = m.some((v) => v > 0);
+  return {
+    measured: range(m),
+    target: range(anyMeasured ? t.filter((_, i) => (m[i] ?? 0) > 0) : t),
+  };
 }
 
 /** 0–100 percentage; `-1` (or any negative) = "unavailable" → dash. Used
@@ -281,6 +338,7 @@ export default function HardwareScreen() {
 
   const [info, setInfo] = useState<HwInfo | null>(null);
   const [temps, setTemps] = useState<HwTemps | null>(null);
+  const cpuRanges = cpuClockRanges(temps?.cpu_core_mhz, temps?.cpu_core_measured_mhz);
   const [power, setPower] = useState<HwPower | null>(null);
   const [storage, setStorage] = useState<HwStorage | null>(null);
   const [drives, setDrives] = useState<DriveSensorList | null>(null);
@@ -585,22 +643,25 @@ export default function HardwareScreen() {
               )}
             />
             <StatRow
-              label={tr("hw_cpu_clock_per_core", undefined, "CPU clock (per core)")}
-              value={formatFreqRange(
-                temps?.cpu_core_mhz_min ?? 0,
-                temps?.cpu_core_mhz_max ?? 0,
-              )}
+              label={tr("hw_cpu_measured", undefined, "CPU clock (measured)")}
+              value={formatFreqRange(cpuRanges.measured[0], cpuRanges.measured[1])}
+              hint={measuredHint(tr, temps, cpuRanges.measured[1] > 0)}
+              tooltip={coreClockTooltip(tr, temps?.cpu_core_mhz, temps?.cpu_core_measured_mhz)}
+            />
+            <StatRow
+              label={tr("hw_cpu_target", undefined, "CPU target clock")}
+              value={formatFreqRange(cpuRanges.target[0], cpuRanges.target[1])}
               hint={clockHint(
                 tr,
                 temps,
-                (temps?.cpu_core_mhz_max ?? 0) > 0,
+                cpuRanges.target[1] > 0,
                 tr(
-                  "hw_cpu_clock_per_core_hint",
+                  "hw_cpu_target_hint",
                   undefined,
-                  "SMU P-state clock, read on request",
+                  "The power controller's level; the cores can run below it",
                 ),
               )}
-              tooltip={coreClockTooltip(tr, temps?.cpu_core_mhz)}
+              tooltip={coreClockTooltip(tr, temps?.cpu_core_mhz, temps?.cpu_core_measured_mhz)}
             />
             <StatRow
               label={tr("hw_reference_clock", undefined, "Reference clock")}

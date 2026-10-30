@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { clockHint, coreClockTooltip, formatFreqRange } from "./index";
+import { clockHint, coreClockTooltip, cpuClockRanges, formatFreqRange } from "./index";
 
 // English-only translator: fills {name} placeholders in the fallback.
 const tr = (
@@ -61,5 +61,26 @@ describe("per-core tooltip", () => {
   it("has none before a read", () => {
     expect(coreClockTooltip(tr, undefined)).toBeUndefined();
     expect(coreClockTooltip(tr, [])).toBeUndefined();
+  });
+});
+
+describe("measured CPU clock", () => {
+  // As read on a PS5 (FW 13.60) at the home screen: system cores at their 3200 MHz target
+  // measured a little under it, game cores idle at 800 MHz and not measurable.
+  const targets = [3200, 3200, 3200, 3200, 800, 800, 800, 800];
+  const measured = [3140, 3157, 2923, 2834, 0, 0, 0, 0];
+
+  it("keeps the idle game cores out of the target range", () => {
+    expect(cpuClockRanges(targets, measured)).toEqual({ measured: [2834, 3157], target: [3200, 3200] });
+    expect(formatFreqRange(3200, 3200)).toBe("3.20 GHz");
+  });
+  it("falls back to every core's target from an older helper", () => {
+    expect(cpuClockRanges(targets, undefined)).toEqual({ measured: [0, 0], target: [800, 3200] });
+  });
+  it("lists each core with its measured clock and target", () => {
+    const t = coreClockTooltip(tr, targets, measured)!.split("\n");
+    expect(t).toHaveLength(8);
+    expect(t[0]).toBe("Core 0: 3140 MHz measured, 3200 MHz target");
+    expect(t[5]).toBe("Core 5: 800 MHz target, not measurable (a game core)");
   });
 });

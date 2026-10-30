@@ -1777,6 +1777,12 @@ export interface HwTemps {
   /** Lowest / highest known core clock, `0` when none is known. */
   cpu_core_mhz_min?: number;
   cpu_core_mhz_max?: number;
+  /** How the measured clocks came: "add_chain" (timed on the console), "unsupported", or ""
+   *  (not asked for, or an older helper/engine). */
+  cpu_measure_src?: "add_chain" | "unsupported" | "";
+  /** The clock each core really ran at while busy (MHz), indexed like cpu_core_mhz; 0 = not
+   *  measured (the game cores are not open to the helper). */
+  cpu_core_measured_mhz?: number[];
 }
 
 export interface HwPower {
