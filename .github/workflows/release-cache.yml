@@ -110,7 +110,7 @@ jobs:
       - name: Install sccache
         uses: taiki-e/install-action@1e29709c0ec63babbe8f266397a465f29a825f91 # v2
         with:
-          tool: sccache@0.19.0
+          tool: sccache@0.18.0
 
       - name: Point sccache at the Actions cache
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
@@ -118,6 +118,11 @@ jobs:
           script: |
             core.exportVariable('ACTIONS_RESULTS_URL', process.env.ACTIONS_RESULTS_URL || '');
             core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
+            // The v2 cache service (the only one GitHub runs now); without this sccache's
+            // backend speaks v1, and every read misses and every write fails.
+            core.exportVariable('ACTIONS_CACHE_SERVICE_V2', 'on');
+            core.exportVariable('SCCACHE_ERROR_LOG', `${process.env.RUNNER_TEMP}/sccache.log`);
+            core.exportVariable('SCCACHE_LOG', 'warn');
             core.exportVariable('SCCACHE_GHA_ENABLED', 'true');
             core.exportVariable('SCCACHE_GHA_RW_MODE', 'READ_WRITE');
             core.exportVariable('SCCACHE_IGNORE_SERVER_IO_ERROR', '1');
@@ -232,4 +237,6 @@ jobs:
       - name: Compile cache stats
         if: always()
         shell: bash
-        run: sccache --show-stats || true
+        run: |
+          sccache --show-stats || true
+          tail -n 20 "$RUNNER_TEMP/sccache.log" 2>/dev/null || true
