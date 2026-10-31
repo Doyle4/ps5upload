@@ -564,7 +564,40 @@ function SettingsPanel({ running }: { running: boolean }) {
               { value: "stretch", label: tr("rp_fit_stretch", undefined, "Stretch") },
             ]}
           />
+          <Select
+            label={tr("rp_decoding", undefined, "Video decoding")}
+            block={false}
+            className="w-48"
+            value={prefs.decoding}
+            disabled={running}
+            onChange={(e) => setPrefs({ decoding: e.target.value as RpPrefs["decoding"] })}
+            data-testid="rp-decoding"
+            options={[
+              { value: "auto", label: tr("rp_decoding_auto", undefined, "Graphics card (auto)") },
+              { value: "software", label: tr("rp_decoding_software", undefined, "Software") },
+            ]}
+          />
+          <Select
+            label={tr("rp_codec", undefined, "Video format")}
+            block={false}
+            className="w-48"
+            value={prefs.codec}
+            disabled={running}
+            onChange={(e) => setPrefs({ codec: e.target.value as RpPrefs["codec"] })}
+            data-testid="rp-codec"
+            options={[
+              { value: "auto", label: tr("rp_codec_auto", undefined, "Auto (HEVC where it works)") },
+              { value: "h264", label: "H.264" },
+            ]}
+          />
         </div>
+        <p className="text-xs text-[var(--color-muted)]">
+          {tr(
+            "rp_decoding_hint",
+            undefined,
+            "If the picture shows cut off or wrong on this device, try Software or H.264. They apply the next time you start.",
+          )}
+        </p>
         {running && (
           <p className="text-xs text-[var(--color-muted)]">
             {tr(
@@ -1633,15 +1666,20 @@ export function StreamPanel() {
   return (
     <div className="space-y-3">
       {!running && (
+        // Start first (10.0.1); the console is the one selected in the app (no picker of its own).
         <div className="flex flex-wrap items-end gap-2">
-          <Select
-            label={tr("rp_console", undefined, "Console")}
-            block={false}
-            className="w-full sm:w-72"
-            value={profileId}
-            onChange={(e) => setProfileId(e.target.value)}
-            options={profiles.map((p) => ({ value: p.id, label: `${p.name} (${p.host})` }))}
-          />
+          <Button
+            variant="primary"
+            size="md"
+            onClick={() => void (otherStream ? switchHere() : start())}
+            disabled={!paired}
+            data-testid="rp-start"
+          >
+            <Play size={14} />
+            {otherStream
+              ? tr("rp_switch_start", undefined, "Stop the other stream and start")
+              : tr("rp_start", undefined, "Start")}
+          </Button>
           <Select
             label={tr("rp_quality", undefined, "Picture")}
             block={false}
@@ -1664,18 +1702,6 @@ export function StreamPanel() {
               { value: "30", label: "30 fps" },
             ]}
           />
-          <Button
-            variant="primary"
-            size="md"
-            onClick={() => void (otherStream ? switchHere() : start())}
-            disabled={!paired}
-            data-testid="rp-start"
-          >
-            <Play size={14} />
-            {otherStream
-              ? tr("rp_switch_start", undefined, "Stop the other stream and start")
-              : tr("rp_start", undefined, "Start")}
-          </Button>
           <Button
             variant="ghost"
             size="md"

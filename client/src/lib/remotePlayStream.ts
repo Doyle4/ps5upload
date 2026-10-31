@@ -8,6 +8,8 @@
 import { DEFAULT_PICTURE, PicturePass, cropRect, needsPass, upscaleSize, upscales, type PictureTools } from "./rpPicture";
 import type { MotionReading } from "./motion";
 import { getEngineUrl } from "../state/engine";
+import { log } from "../state/logs";
+import { spsVisibleRect, visibleFix, type VisibleRect } from "./rpSps";
 import { safeGetItem, safeRemoveItem, safeSetItem } from "./safeStorage";
 
 /** Button bits, as the console (and chiaki) number them. */
@@ -420,6 +422,10 @@ export interface StreamOptions {
   replayS?: number;
   /** Picture tools to start with (rpPicture.ts). */
   picture?: PictureTools;
+  /** "software": never the hardware decoder (Settings › Video decoding). */
+  decoding?: "auto" | "software";
+  /** "h264": never ask for HEVC (Settings › Video format). */
+  codec?: "auto" | "h264";
   /** The picture tools' GPU pass turned itself off (no WebGL, or the device lags). */
   onPictureOff?: (why: "failed" | "slow") => void;
   /** How the picture fills the place it is shown in (default: the whole picture). */
@@ -578,6 +584,83 @@ export class RemotePlayStream {
   /** The page's mic is on (remotePlayMic.ts); said again on every reattach. */
   private micOn = false;
 
+  /** The visible picture the stream's SPS describes (rpSps.ts), to put right a decoder that
+   *  reports a smaller one (Edge on Windows). */
+  private spsRect: VisibleRect | null = null;
+  private loggedVisibleFix = false;
+  /** The hardware decoder gave a picture that could not be put right: software from now on. */
+  private softwareAfterBadFrame = false;
+
+  /** The frame with the stream's own visible picture where the decoder reported a smaller one
+   *  (hardware HEVC decoding in Chromium browsers on Windows: Edge, so the Windows app, and
+   *  Opera GX; the top-left of the picture
+   *  showed enlarged and cut off, #538/#575). The new frame shares the decoded pixels; the
+   *  original is closed. Any other frame comes back as it is. */
+  private withRealVisibleRect(frame: VideoFrame): VideoFrame {
+    const fix = visibleFix(frame, this.spsRect);
+    if (!fix) {
+      // Smaller than the stream says, but not fixable here (the coded size is small too): say
+      // so once, for a report.
+      const v = frame.visibleRect;
+      const sps = this.spsRect;
+      if (sps && v && (v.width < sps.w - 16 || v.height < sps.h - 16)) {
+        if (!this.softwareAfterBadFrame && this.o.decoding !== "software") {
+          // Start the decoder over in software, which reports the picture right.
+          this.softwareAfterBadFrame = true;
+          log.warn(
+            "remote-play",
+            `the decoder reported a ${v.width}x${v.height} picture in a ${frame.codedWidth}x${frame.codedHeight} frame; ` +
+              `the stream says ${sps.w}x${sps.h}, which does not fit: decoding in software from now on`,
+          );
+          const bad = this.video;
+          queueMicrotask(() => {
+            if (this.video !== bad) return;
+            try {
+              bad?.close();
+            } catch {
+              // Already closed.
+            }
+            this.video = null;
+            this.sawKey = false;
+            if (this.header) this.openVideo();
+            this.ws?.send(JSON.stringify({ keyframe: true }));
+          });
+        } else if (!this.loggedVisibleFix) {
+          this.loggedVisibleFix = true;
+          log.warn(
+            "remote-play",
+            `the decoder reported a ${v.width}x${v.height} picture in a ${frame.codedWidth}x${frame.codedHeight} frame; ` +
+              `the stream says ${sps.w}x${sps.h}, also in software: drawn as reported`,
+          );
+        }
+      }
+      return frame;
+    }
+    try {
+      const fixed = new VideoFrame(frame, {
+        visibleRect: { x: fix.x, y: fix.y, width: fix.w, height: fix.h },
+        displayWidth: fix.w,
+        displayHeight: fix.h,
+      });
+      if (!this.loggedVisibleFix) {
+        this.loggedVisibleFix = true;
+        const v = frame.visibleRect;
+        log.warn(
+          "remote-play",
+          `the decoder reported a ${v?.width}x${v?.height} picture in a ${frame.codedWidth}x${frame.codedHeight} frame; ` +
+            `the stream says ${fix.w}x${fix.h}: drawing that`,
+        );
+      }
+      frame.close();
+      return fixed;
+    } catch {
+      return frame;
+    }
+  }
+
+  /** The picture's shape (width / height) its layout follows, as last set on the canvas. */
+  private shape = 16 / 9;
+
   constructor(private readonly o: StreamOptions) {
     this.canvas = document.createElement("canvas");
     this.canvas.dataset.testid = "rp-canvas";
@@ -686,6 +769,27 @@ export class RemotePlayStream {
     if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ replay_s: seconds }));
   }
 
+  /** One line in the logs each time the picture changes size: where the canvas is laid out
+   *  against what it draws, so a report of a cut-off picture (#538, #575) says which. */
+  private logLayout(streamW: number, streamH: number): void {
+    try {
+      const c = this.canvas;
+      const win = c.ownerDocument.defaultView;
+      const r = c.getBoundingClientRect();
+      const place = c.parentElement?.getBoundingClientRect();
+      const n = (v: number | undefined) => (v === undefined ? "?" : v.toFixed(0));
+      log.info(
+        "remote-play",
+        `picture: stream ${streamW}x${streamH}, canvas ${c.width}x${c.height} px, shown ${n(r.width)}x${n(r.height)} ` +
+          `in ${n(place?.width)}x${n(place?.height)} css px, fit ${c.dataset.fit}, ratio ${win?.devicePixelRatio ?? "?"}, ` +
+          `window ${win?.innerWidth ?? "?"}x${win?.innerHeight ?? "?"}${win !== window ? " (pop-out)" : ""}, ` +
+          `tools ${JSON.stringify(this.tools)}`,
+      );
+    } catch {
+      // Only a log line.
+    }
+  }
+
   /** How the picture fills the place it is shown in (see PictureFit). */
   setFit(fit: PictureFit): void {
     const f: PictureFit = fit in FIT_CLASS ? fit : "fit";
@@ -714,7 +818,10 @@ export class RemotePlayStream {
     this.gainNode = this.audioCtx.createGain();
     this.gainNode.gain.value = this.volume;
     this.gainNode.connect(this.audioCtx.destination);
-    const [codec] = await Promise.all([chooseCodec(width, height), this.openWorklet()]);
+    const [codec] = await Promise.all([
+      this.o.codec === "h264" ? Promise.resolve("h264" as const) : chooseCodec(width, height),
+      this.openWorklet(),
+    ]);
     if (codec === "h264" && !(await canDecodeAvc(width, height))) {
       // Found before the console is woken or asked to stream.
       this.o.onError({ code: "no_decoder", detail: "" });
@@ -879,6 +986,7 @@ export class RemotePlayStream {
     }
     this.video = null;
     this.header = null;
+    this.spsRect = null;
     this.sawKey = false;
     this.queued = [];
     this.sentAt.clear();
@@ -1093,6 +1201,7 @@ export class RemotePlayStream {
   private onVideo(kind: number, payload: Uint8Array): void {
     if (kind === 0) {
       this.header = payload.slice();
+      this.spsRect = spsVisibleRect(this.header, this.hevc);
       if (!this.video) this.openVideo();
       return;
     }
@@ -1125,7 +1234,8 @@ export class RemotePlayStream {
 
   private openVideo(): void {
     const video = new VideoDecoder({
-      output: (frame) => {
+      output: (decoded) => {
+        const frame = this.withRealVisibleRect(decoded);
         const t = this.sentAt.get(frame.timestamp);
         if (t !== undefined) {
           this.decodeMs = performance.now() - t;
@@ -1162,10 +1272,15 @@ export class RemotePlayStream {
             shape = w / h;
           }
         }
-        if (c.width !== w || c.height !== h) {
-          c.width = w;
-          c.height = h;
+        // The shape on its own too: upscaled, the canvas keeps the box's size while Crop to 21:9
+        // changes the shape.
+        const shapeChanged = shape !== this.shape;
+        if (c.width !== w || c.height !== h || shapeChanged) {
+          if (c.width !== w) c.width = w;
+          if (c.height !== h) c.height = h;
           c.style.setProperty("--rp-shape", String(shape));
+          this.shape = shape;
+          this.logLayout(frame.displayWidth, frame.displayHeight);
         }
         this.ctx?.drawImage(src, 0, 0, c.width, c.height);
         frame.close();
@@ -1192,7 +1307,14 @@ export class RemotePlayStream {
     const configure = async (codec: string) => {
       // The hardware decoder when there is one. "prefer-hardware" is a demand, not a wish: where
       // the device has none for this codec, configure() fails and no picture ever comes.
-      let cfg: VideoDecoderConfig = { codec, optimizeForLatency: true, hardwareAcceleration: "prefer-hardware" };
+      // Software when asked (Settings › Video decoding) or after the hardware one gave a picture
+      // that could not be put right.
+      const software = this.o.decoding === "software" || this.softwareAfterBadFrame;
+      let cfg: VideoDecoderConfig = {
+        codec,
+        optimizeForLatency: true,
+        hardwareAcceleration: software ? "prefer-software" : "prefer-hardware",
+      };
       try {
         if (!(await VideoDecoder.isConfigSupported(cfg)).supported) cfg = { codec, optimizeForLatency: true };
       } catch {

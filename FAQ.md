@@ -1629,6 +1629,13 @@ cannot reach this computer (Stream fails with a network error: see the next ques
 install from a phone, or when you want to keep packages on the PS5 to reinstall later without the
 computer. Upload needs free space on the PS5 for the copy as well as for the installed game.
 
+**Q: Can I Stream & install several packages at once?**
+Yes. Pick or drop them together in **Upload & Install**: the list's main button is **Stream &
+install** with how many packages there are. They install one after another, a game before its
+update and DLC whatever order you picked them in, and anything else in the same list (game
+folders, images, files) uploads as usual in the same click. One package's main button is **Stream & install** too;
+**Upload & install** sits next to it for when the PS5 can't reach this computer.
+
 **Q: How do I install from a download link, and which of the three ways do I pick?**
 In **Upload & Install**, open **From a Link or an Archive** (or **From a link** under the drop
 zone) and paste a direct link to a `.pkg` under **Install from a link**.
@@ -1835,9 +1842,22 @@ The PS4 is never written to, and no users, system files or trophies are changed.
 on a PS5 have mixed reports: try one game first. Moving trophies is not offered: it needs
 renaming system folders and rebuilding the database, which can leave a user unusable.
 
+**Q: Can a friend's save work on my PS5 under my account?**
+Experimental, from 10.0.1, PS5 saves only. A save is tied to the account that made it, so copying
+your friend's save files over, or switching to their account ID, doesn't work. Instead your
+friend opens the save in PS5Upload and presses **Share** (Saves, on the game): the app saves the
+save's contents, decrypted, as a `.zip` without the owner's account details. On your PS5, start the
+game once and save so you have a save of your own, close it, then press **Use a shared save** on
+that game and pick the `.zip`. The contents go into your own save, and the PS5 encrypts it again
+as yours: no account ID change needed. Your save is backed up first (set a folder in Saves ›
+Automatic backups) and put back if anything fails. Both consoles need PS5Upload, and the game
+must be the same title ID (same region). Some games check more inside the save itself; if one
+won't load it, restore your backup from the game's save backups.
+
 **Q: Can I move a save between consoles, profiles or game regions?**
 
-Saves backup and restore copies the existing encrypted save files. It does **not**
+Saves backup and restore copies the existing encrypted save files (to give a save to another
+account, see **Share** above). It does **not**
 re-sign saves, change their owning account, or convert title IDs/regions. A backup
 must match the target title and account, and the target environment must accept
 its encryption. Renaming a GTA V (or other game's) title folder does not convert it.
@@ -2051,6 +2071,14 @@ In the Android app, full screen hides the status and navigation bars (swipe from
 
 **Q: Part of the Remote Play picture is cut off, or it looks stretched.**
 **Picture size** decides how the picture fits the screen: **Fit** shows the whole picture with black bars where the shapes differ (the default), **Fill** fills the screen and crops the edges, **Stretch** stretches the picture to the whole screen. It shows in full screen: on the page the picture's box is the picture's own shape, so all three look the same there. **Fit** never cuts anything off: like a video player, the whole picture always shows, with black bars at the sides or top and bottom when the shapes differ. On a 16:9 screen (the picture's own shape) all three look the same. Change it in full screen without leaving it: the **Picture size** menu on the bar (desktop), or the Fit / Fill / Stretch row in the **⋯** menu (phones). It's also in Play › Settings, and it applies at once. Before 9.2.0, the Windows app could show the picture enlarged with its right and bottom cut off (#538); update to fix it.
+
+**Q: On Windows the Play picture is enlarged and cut off on the right and bottom, whatever the picture size.**
+That was a Windows graphics-driver bug in hardware HEVC decoding (the app, Edge, Opera GX and
+other Chromium browsers): it reported a 1080p picture as smaller than it is, so only its top-left
+part was drawn. 720p was not affected. From 10.0.1 the app reads the real size from the stream and
+draws all of it, switching to software decoding by itself where that can't be put right. If it
+still looks wrong, set Play › Settings › **Video decoding** to **Software** or **Video format** to
+**H.264** (they apply the next time you start), and send a bug report.
 
 **Q: Does my phone controller (Backbone, Razer Kishi, GameSir, Scuf Nomad...) work with Remote Play?**
 Yes. Phone controllers, USB-C or Bluetooth, are game controllers to the phone, so Remote Play reads them like any other: connect it, press a button, and it plays (the on-screen controller hides). If the browser doesn't recognise one, it still plays in the usual layout; if a button is wrong, open Play › Settings › Controllers › **Map buttons** and press each button as asked (any step can be skipped). **Set an extra button** gives a back button or paddle any PS5 button. Mappings are saved per controller. In the Android app the app also hands controllers to the page itself, for phones whose system browser misses them; on iPhone the app makes sure the page has the focus controllers need.
@@ -2692,7 +2720,9 @@ The engine is the part of the app that talks to the PS5; it runs in the backgrou
 computer. When the app cannot reach it, a notice at the top of every screen says why, from what
 it can see: the engine stopped, its program is missing (security software quarantined it), its
 address is held by something that does not answer (another program, or a firewall or antivirus
-filtering local connections), or requests went to a proxy. Press **Restart engine**. If it keeps
+filtering local connections), or requests went to a proxy. From 10.0.1 the desktop app also
+restarts an engine that stopped on its own (once every two minutes at most) and shows why it
+stopped. Press **Restart engine** if the notice stays. If it keeps
 happening, allow `ps5upload-engine` in your firewall or antivirus. "Payload didn't come up" with
 `error sending request for url (http://127.0.0.1:…)` was this problem, not the PS5: the app now
 says so.
